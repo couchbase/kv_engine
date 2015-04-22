@@ -200,16 +200,6 @@ static int mock_parse_config(const char *str, struct config_item items[], FILE *
  * SERVER STAT API FUNCTIONS
  */
 
-static void *mock_new_independent_stats(void) {
-    struct mock_stats *mockstats = calloc(sizeof(*mockstats), 1);
-    return mockstats;
-}
-
-static void mock_release_independent_stats(void *stats) {
-    struct mock_stats *mockstats = stats;
-    free(mockstats);
-}
-
 static void mock_count_eviction(const void *cookie, const void *key, const int nkey) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     c->evictions++;
@@ -357,8 +347,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.release = mock_cookie_release;
       server_cookie_api.set_priority = mock_set_priority;
 
-      server_stat_api.new_stats = mock_new_independent_stats;
-      server_stat_api.release_stats = mock_release_independent_stats;
       server_stat_api.evicting = mock_count_eviction;
 
       extension_api.register_extension = mock_register_extension;

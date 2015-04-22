@@ -42,22 +42,22 @@ void unload_engine(engine_reference* engine)
     }
 }
 
-static void* find_symbol(cb_dlhandle_t *handle, const char* const functions[], char** errmsg) {
-    void* symbol = NULL;
-    int ii = 0;
-    for (ii = 0; functions[ii] != NULL && symbol == NULL; ii++) {
-        symbol = cb_dlsym(handle, functions[ii], errmsg);
-    }
-    return symbol;
+static void* find_symbol(cb_dlhandle_t *handle, const char* function, char** errmsg) {
+    return cb_dlsym(handle, function, errmsg);
 }
 
 engine_reference* load_engine(const char *soname,
+                              const char* create_function,
+                              const char* destroy_function,
                               EXTENSION_LOGGER_DESCRIPTOR *logger)
 {
     void *create_symbol = NULL;
     void *destroy_symbol = NULL;
     char *errmsg = NULL, *create_errmsg = NULL, *destroy_errmsg = NULL;
-    const char* const create_functions[] = { "create_instance", "create_default_engine_instance", "create_ep_engine_instance", NULL };
+    const char* const create_functions[] = { "create_instance",
+                                             "create_default_engine_instance",
+                                             "create_ep_engine_instance",
+                                             NULL };
     const char* const destroy_functions[] = { "destroy_engine", NULL };
 
     cb_dlhandle_t* handle = cb_dlopen(soname, &errmsg);
@@ -71,13 +71,28 @@ engine_reference* load_engine(const char *soname,
         return NULL;
     }
 
-    create_symbol = find_symbol(handle, create_functions, &create_errmsg);
-    destroy_symbol = find_symbol(handle, destroy_functions, &destroy_errmsg);
+    if (create_function) {
+        create_symbol = find_symbol(handle, create_function, &create_errmsg);
+    } else {
+        int ii = 0;
+        while (create_functions[ii] != NULL && create_symbol == NULL) {
+            create_symbol = find_symbol(handle, create_functions[ii], &create_errmsg);
+        }
+    }
+
+    if (destroy_function) {
+        destroy_symbol = find_symbol(handle, destroy_function, &destroy_errmsg);
+    } else {
+        int ii = 0;
+        while (destroy_functions[ii] != NULL && destroy_symbol == NULL) {
+            destroy_symbol = find_symbol(handle, destroy_functions[ii], &destroy_errmsg);
+        }
+    }
 
     if (create_symbol == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                 "Could not find the function to create an engine instance in %s: %s\n",
-                soname ? soname : "self", errmsg);
+                soname ? soname : "self", create_errmsg);
         free(create_errmsg);
         return NULL;
     }

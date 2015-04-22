@@ -362,6 +362,13 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         c->nevents = 1;
         run_event_loop(c);
     }
+
+    /*
+     * I could look at all of the connection objects bound to dying buckets
+     */
+    if (me->deleting_buckets) {
+        notify_thread_bucket_deletion(me);
+    }
     UNLOCK_THREAD(me);
 }
 
@@ -682,6 +689,34 @@ void threads_cleanup(void)
 
     free(thread_ids);
     free(threads);
+}
+
+void threads_notify_bucket_deletion(void)
+{
+    for (int ii = 0; ii < nthreads; ++ii) {
+        LIBEVENT_THREAD *thr = threads + ii;
+        notify_thread(thr);
+    }
+}
+
+void threads_complete_bucket_deletion(void)
+{
+    for (int ii = 0; ii < nthreads; ++ii) {
+        LIBEVENT_THREAD *thr = threads + ii;
+        LOCK_THREAD(thr);
+        threads[ii].deleting_buckets--;
+        UNLOCK_THREAD(thr);
+    }
+}
+
+void threads_initiate_bucket_deletion(void)
+{
+    for (int ii = 0; ii < nthreads; ++ii) {
+        LIBEVENT_THREAD *thr = threads + ii;
+        LOCK_THREAD(thr);
+        threads[ii].deleting_buckets++;
+        UNLOCK_THREAD(thr);
+    }
 }
 
 void notify_thread(LIBEVENT_THREAD *thread) {

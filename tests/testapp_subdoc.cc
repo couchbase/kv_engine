@@ -1310,6 +1310,7 @@ public:
         cJSON *config = generate_config(1);
         start_memcached_server(config);
         cJSON_Delete(config);
+        CreateTestBucket();
     }
 };
 
@@ -1332,6 +1333,11 @@ TEST_P(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     SOCKET sock1 = *current_sock;
     SOCKET sock2 = connect_to_server_plain(port, false);
     ASSERT_NE(sock2, INVALID_SOCKET);
+
+    sock = sock2;
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("mybucket",
+                                                          "mybucketpassword"));
+    sock = sock1;
 
     const size_t push_count = 100;
 

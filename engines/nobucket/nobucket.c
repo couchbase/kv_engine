@@ -20,22 +20,9 @@
  * having to check if a bucket is selected or not.
  */
 #include "config.h"
+#include "nobucket.h"
 
 #include <stdlib.h>
-
-#include <memcached/engine.h>
-#include <memcached/visibility.h>
-#include <memcached/util.h>
-#include <memcached/config_parser.h>
-
-MEMCACHED_PUBLIC_API
-ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                  GET_SERVER_API gsa,
-                                  ENGINE_HANDLE **handle);
-
-MEMCACHED_PUBLIC_API
-void destroy_engine(void);
-
 
 struct engine {
     ENGINE_HANDLE_V1 engine;
@@ -112,12 +99,12 @@ static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle,
 }
 
 static ENGINE_ERROR_CODE get_stats(ENGINE_HANDLE* handle,
-                                              const void* cookie,
-                                              const char* stat_key,
-                                              int nkey,
-                                              ADD_STAT add_stat)
+                                   const void* cookie,
+                                   const char* stat_key,
+                                   int nkey,
+                                   ADD_STAT add_stat)
 {
-    return ENGINE_NO_BUCKET;
+    return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE store(ENGINE_HANDLE* handle,
@@ -367,19 +354,12 @@ static ENGINE_ERROR_CODE dcp_set_vbucket_state(ENGINE_HANDLE* handle,
     return ENGINE_NO_BUCKET;
 }
 
-ENGINE_ERROR_CODE create_instance(uint64_t interface,
-                                  GET_SERVER_API gsa,
-                                  ENGINE_HANDLE **handle)
+static ENGINE_HANDLE_V1 *create(void)
 {
     struct engine *engine;
-    (void)gsa;
-
-    if (interface != 1) {
-        return ENGINE_ENOTSUP;
-    }
 
     if ((engine = calloc(1, sizeof(*engine))) == NULL) {
-        return ENGINE_ENOMEM;
+        return NULL;
     }
 
     engine->engine.interface.interface = 1;
@@ -416,10 +396,22 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.dcp.set_vbucket_state = dcp_set_vbucket_state;
     engine->info.engine_info.description = "Disconnect engine v1.0";
     engine->info.engine_info.num_features = 0;
-    *handle = (void*)&engine->engine;
-    return ENGINE_SUCCESS;
+
+    return (void*)&engine->engine;
 }
 
+MEMCACHED_PUBLIC_API
+ENGINE_ERROR_CODE create_no_bucket_instance(uint64_t interface,
+                                            GET_SERVER_API get_server_api,
+                                            ENGINE_HANDLE **handle)
+{
+    cb_assert(interface == 1);
+    (void)get_server_api;
+    *handle = (ENGINE_HANDLE*)create();
+    return *handle == NULL ? ENGINE_ENOMEM : ENGINE_SUCCESS;
+}
+
+MEMCACHED_PUBLIC_API
 void destroy_engine(void) {
 
 }

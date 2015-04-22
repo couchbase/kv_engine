@@ -160,7 +160,6 @@ struct stats {
 
 #define MAX_VERBOSITY_LEVEL 2
 
-
 struct engine_event_handler {
     EVENT_CALLBACK cb;
     const void *cb_data;
@@ -211,6 +210,16 @@ typedef struct {
     subdoc_OPERATION* subdoc_op; /** Shared sub-document operation for all
                                      connections serviced by this thread. */
 
+    /**
+     * When we're deleting buckets we need to disconnect idle
+     * clients. This variable is incremented for every delete bucket
+     * thread running and decremented when it's done. When this
+     * variable is set we'll try to look through all connections and
+     * update them with a write event if they're in an "idle"
+     * state. That should cause them to be rescheduled and cause the
+     * client to disconnect.
+     */
+    int deleting_buckets;
 } LIBEVENT_THREAD;
 
 #define LOCK_THREAD(t)                          \
@@ -380,6 +389,10 @@ struct conn {
     } ssl;
 
     auth_context_t *auth_context;
+    struct {
+        int idx; /* The internal index for the connected bucket */
+        ENGINE_HANDLE_V1 *engine;
+    } bucket;
 };
 
 typedef union {
@@ -408,6 +421,7 @@ extern conn *listen_conn;
 bool register_event(conn *c, struct timeval *timeout);
 bool unregister_event(conn *c);
 bool update_event(conn *c, const int new_flags);
+void associate_initial_bucket(conn *c);
 
 /*
  * Functions such as the libevent-related calls that need to do cross-thread
@@ -483,6 +497,8 @@ bool conn_refresh_cbsasl(conn *c);
 bool conn_refresh_ssl_certs(conn *c);
 bool conn_flush(conn *c);
 bool conn_audit_configuring(conn *c);
+bool conn_create_bucket(conn *c);
+bool conn_delete_bucket(conn *c);
 
 void event_handler(evutil_socket_t fd, short which, void *arg);
 
@@ -538,6 +554,35 @@ void write_bin_packet(conn *c, protocol_binary_response_status err);
  */
 protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE e);
 
+void bucket_item_set_cas(conn *c, item *it, uint64_t cas);
+void *bucket_get_stats_struct(conn *c);
+
+void bucket_reset_stats(conn *c);
+ENGINE_ERROR_CODE bucket_get_engine_vb_map(conn *c,
+                                           engine_get_vb_map_cb callback);
+
+bool bucket_get_item_info(conn *c, const item* item, item_info *item_info);
+bool bucket_set_item_info(conn *c, item* item, const item_info *itm_info);
+ENGINE_ERROR_CODE bucket_store(conn *c,
+                               item* item,
+                               uint64_t *cas,
+                               ENGINE_STORE_OPERATION operation,
+                               uint16_t vbucket);
+ENGINE_ERROR_CODE bucket_get(conn *c,
+                             item** item,
+                             const void* key,
+                             const int nkey,
+                             uint16_t vbucket);
+
+ENGINE_ERROR_CODE bucket_unknown_command(conn *c,
+                                         protocol_binary_request_header *request,
+                                         ADD_RESPONSE response);
+
+void notify_thread_bucket_deletion(LIBEVENT_THREAD *me);
+
+void threads_notify_bucket_deletion(void);
+void threads_complete_bucket_deletion(void);
+void threads_initiate_bucket_deletion(void);
 
 #ifdef __cplusplus
 }

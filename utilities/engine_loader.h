@@ -27,6 +27,8 @@ MEMCACHED_PUBLIC_API void unload_engine(engine_reference* engine);
     Return a engine_reference* on success or NULL for failure.
 */
 MEMCACHED_PUBLIC_API engine_reference* load_engine(const char *soname,
+                                                   const char* create_function,
+                                                   const char* destroy_function,
                                                    EXTENSION_LOGGER_DESCRIPTOR *logger);
 
 /*
@@ -36,7 +38,6 @@ MEMCACHED_PUBLIC_API bool create_engine_instance(engine_reference* engine,
                                                  SERVER_HANDLE_V1 *(*get_server_api)(void),
                                                  EXTENSION_LOGGER_DESCRIPTOR *logger,
                                                  ENGINE_HANDLE **engine_handle);
-
 /*
     Initialise the engine handle using the engine's exported initialize method.
 */

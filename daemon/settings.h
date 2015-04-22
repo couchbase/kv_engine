@@ -153,12 +153,6 @@ struct settings {
     bool sasl;              /* SASL on/off */
     int topkeys;            /* Number of top keys to track */
 
-    /* Handle of the v0 and v1 engine callbacks. */
-    union {
-        ENGINE_HANDLE *v0;
-        ENGINE_HANDLE_V1 *v1;
-    } engine;
-
     /* linked lists of all loaded extensions */
     struct {
         EXTENSION_DAEMON_DESCRIPTOR *daemons;
@@ -167,6 +161,11 @@ struct settings {
     } extensions;
 
     const char *config;      /* The configuration specified by -C (json) */
+    /* @todo fix config of this! (not dynamic as of now), I guess
+     * @todo I should just move into a C++ file and stick it in
+     * @todo std::list
+     */
+    int max_buckets; /* the maximum number of buckets */
 };
 
 extern struct settings settings;

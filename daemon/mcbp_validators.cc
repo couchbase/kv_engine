@@ -20,6 +20,7 @@
 #include <memcached/protocol_binary.h>
 
 #include "subdocument.h"
+#include "buckets.h"
 
 #include <mutex>
 #include <vector>
@@ -716,6 +717,79 @@ static int set_drift_counter_state_validator(void *packet)
     return 0;
 }
 
+/**
+ * The create bucket contains message have the following format:
+ *    key: bucket name
+ *    body: module\nconfig
+ */
+static int create_bucket_validator(void *packet)
+{
+    auto req = static_cast<protocol_binary_request_no_extras*>(packet);
+
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+    uint8_t extlen = req->message.header.request.extlen;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        extlen != 0 || klen == 0 || klen > MAX_BUCKET_NAME_LENGTH ||
+        /* The packet needs a body with the information of the bucket
+         * to create
+         */
+        (blen - klen) == 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int list_bucket_validator(void *packet)
+{
+    auto req = static_cast<protocol_binary_request_no_extras*>(packet);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.keylen != 0 ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.bodylen != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int delete_bucket_validator(void *packet)
+{
+    auto req = static_cast<protocol_binary_request_no_extras*>(packet);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        req->message.header.request.keylen == 0 ||
+        req->message.header.request.extlen != 0 ||
+        req->message.header.request.bodylen == 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
+static int select_bucket_validator(void *packet)
+{
+    auto req = static_cast<protocol_binary_request_no_extras*>(packet);
+
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        klen != blen || req->message.header.request.extlen != 0 ||
+        klen > 1023 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    return 0;
+}
+
 
 static int null_validator(void *) {
     return 0;
@@ -800,4 +874,8 @@ static void initialize() {
     validators[PROTOCOL_BINARY_CMD_APPEND] = append_prepend_validator;
     validators[PROTOCOL_BINARY_CMD_PREPENDQ] = append_prepend_validator;
     validators[PROTOCOL_BINARY_CMD_PREPEND] = append_prepend_validator;
+    validators[PROTOCOL_BINARY_CMD_CREATE_BUCKET] = create_bucket_validator;
+    validators[PROTOCOL_BINARY_CMD_LIST_BUCKETS] = list_bucket_validator;
+    validators[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = delete_bucket_validator;
+    validators[PROTOCOL_BINARY_CMD_SELECT_BUCKET] = select_bucket_validator;
 }

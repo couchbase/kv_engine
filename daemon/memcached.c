@@ -33,6 +33,8 @@
 #include "runtime.h"
 #include "mcaudit.h"
 #include "subdocument.h"
+#include "enginemap.h"
+#include "buckets.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -47,15 +49,75 @@
 #include <stddef.h>
 #include <snappy-c.h>
 #include <JSON_checker.h>
-
+#include <engines/default_engine.h>
 // MB-14649: log crashing on windows..
 #include <math.h>
+
+/**
+ * All of the buckets in couchbase is stored in this array.
+ * @todo we should make this array into a list and make it
+ *       dynamic. The easiest would most likely be to move it into a
+ *       c++ file and use STL...
+ */
+static cb_mutex_t buckets_lock;
+bucket_t *all_buckets;
 
 static void cookie_set_admin(const void *cookie);
 static bool cookie_is_admin(const void *cookie);
 
-static void item_set_cas(const void *cookie, item *it, uint64_t cas) {
-    settings.engine.v1->item_set_cas(settings.engine.v0, cookie, it, cas);
+/* Wrap the engine interface ! */
+
+void bucket_item_set_cas(conn *c, item *it, uint64_t cas) {
+    c->bucket.engine->item_set_cas((void*)c->bucket.engine, c, it, cas);
+}
+
+void *bucket_get_stats_struct(conn *c) {
+    return all_buckets[c->bucket.idx].stats;
+}
+
+void bucket_reset_stats(conn *c) {
+    c->bucket.engine->reset_stats((void*)c->bucket.engine, c);
+}
+
+ENGINE_ERROR_CODE bucket_get_engine_vb_map(conn *c,
+                                           engine_get_vb_map_cb callback) {
+    return c->bucket.engine->get_engine_vb_map((void*)c->bucket.engine,
+                                               c, callback);
+}
+
+bool bucket_get_item_info(conn *c, const item* item, item_info *item_info) {
+    return c->bucket.engine->get_item_info((void*)c->bucket.engine,
+                                           c, item, item_info);
+}
+
+bool bucket_set_item_info(conn *c, item* item, const item_info *item_info) {
+    return c->bucket.engine->set_item_info((void*)c->bucket.engine,
+                                           c, item, item_info);
+}
+
+ENGINE_ERROR_CODE bucket_store(conn *c,
+                               item* item,
+                               uint64_t *cas,
+                               ENGINE_STORE_OPERATION operation,
+                               uint16_t vbucket) {
+    return c->bucket.engine->store((void*)c->bucket.engine, c, item,
+                                   cas, operation, vbucket);
+}
+
+ENGINE_ERROR_CODE bucket_get(conn *c,
+                             item** item,
+                             const void* key,
+                             const int nkey,
+                             uint16_t vbucket) {
+    return c->bucket.engine->get((void*)c->bucket.engine, c, item,
+                                 key, nkey, vbucket);
+}
+
+ENGINE_ERROR_CODE bucket_unknown_command(conn *c,
+                                         protocol_binary_request_header *request,
+                                         ADD_RESPONSE response) {
+    return c->bucket.engine->unknown_command((void*)c->bucket.engine, c,
+                                             request, response);
 }
 
 static void shutdown_server(void);
@@ -148,7 +210,7 @@ static enum try_read_result try_read_network(conn *c);
 static void stats_init(void);
 static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate);
 static void process_stat_settings(ADD_STAT add_stats, void *c);
-
+static void process_bucket_details(conn *c);
 
 /* defaults */
 static void settings_init(void);
@@ -204,14 +266,134 @@ enum transmit_result {
 
 static enum transmit_result transmit(conn *c);
 
+void associate_initial_bucket(conn *c) {
+    bucket_t *b = &all_buckets[0];
+    cb_mutex_enter(&b->mutex);
+    b->clients++;
+    cb_mutex_exit(&b->mutex);
+
+    c->bucket.idx = 0;
+    c->bucket.engine = b->engine;
+}
+
+static void disassociate_bucket(conn *c) {
+    bucket_t *b = &all_buckets[c->bucket.idx];
+    cb_mutex_enter(&b->mutex);
+    b->clients--;
+
+    c->bucket.idx = 0;
+    c->bucket.engine = NULL;
+
+    if (b->clients == 0 && b->state == BUCKET_STATE_DESTROYING) {
+        cb_cond_signal(&b->cond);
+    }
+
+    cb_mutex_exit(&b->mutex);
+}
+
+static bool associate_bucket(conn *c, const char *name) {
+    bool found = false;
+
+    /* leave the current bucket */
+    disassociate_bucket(c);
+
+    /* Try to associate with the named bucket */
+    /* @todo add auth checks!!! */
+    for (int ii = 1; ii < settings.max_buckets && !found; ++ii) {
+        bucket_t *b = &all_buckets[ii];
+        cb_mutex_enter(&b->mutex);
+        if (b->state == BUCKET_STATE_READY && strcmp(b->name, name) == 0) {
+            b->clients++;
+            c->bucket.idx = ii;
+            c->bucket.engine = b->engine;
+            found = true;
+        }
+        cb_mutex_exit(&b->mutex);
+    }
+
+    if (!found) {
+        /* Bucket not found, connect to the "no-bucket" */
+        bucket_t *b = &all_buckets[0];
+        cb_mutex_enter(&b->mutex);
+        b->clients++;
+        cb_mutex_exit(&b->mutex);
+        c->bucket.idx = 0;
+        c->bucket.engine = b->engine;
+    }
+
+    return found;
+}
 
 /* Perform all callbacks of a given type for the given connection. */
 void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
-                       const void *c) {
-    struct engine_event_handler *h;
-    for (h = engine_event_handlers[type]; h; h = h->next) {
-        h->cb(c, type, data, h->cb_data);
+                       const void *cookie)
+{
+    const conn *connection = cookie; /* May not be true, but... */
+    struct engine_event_handler *h = NULL;
+
+    switch (type) {
+        /*
+         * The following events operates on a connection which is passed in
+         * as the cookie.
+         */
+    case ON_AUTH:
+    case ON_CONNECT:
+    case ON_DISCONNECT:
+        cb_assert(connection);
+        h = all_buckets[connection->bucket.idx].engine_event_handlers[type];
+        break;
+    case ON_LOG_LEVEL:
+        assert(cookie == NULL);
+        h = engine_event_handlers[type];
+        break;
+    default:
+        cb_assert(false /* Unknown event */);
+    }
+
+    while (h) {
+        h->cb(cookie, type, data, h->cb_data);
+        h = h->next;
+    }
+}
+
+static void register_callback(ENGINE_HANDLE *eh,
+                              ENGINE_EVENT_TYPE type,
+                              EVENT_CALLBACK cb,
+                              const void *cb_data)
+{
+    int idx;
+    struct engine_event_handler *h = calloc(sizeof(*h), 1);
+
+    cb_assert(h);
+    h->cb = cb;
+    h->cb_data = cb_data;
+
+    switch (type) {
+    /*
+     * The following events operates on a connection which is passed in
+     * as the cookie.
+     */
+    case ON_AUTH:
+    case ON_CONNECT:
+    case ON_DISCONNECT:
+        cb_assert(eh);
+        for (idx = 0; idx < settings.max_buckets; ++idx) {
+            if ((void *)eh == (void *)all_buckets[idx].engine) {
+                break;
+            }
+        }
+        cb_assert(idx < settings.max_buckets);
+        h->next = all_buckets[idx].engine_event_handlers[type];
+        all_buckets[idx].engine_event_handlers[type] = h;
+        break;
+    case ON_LOG_LEVEL:
+        cb_assert(eh == NULL);
+        h->next = engine_event_handlers[type];
+        engine_event_handlers[type] = h;
+        break;
+    default:
+        cb_assert(false /* Unknown event */);
     }
 }
 
@@ -223,6 +405,13 @@ static void stats_init(void) {
     stats.listening_ports = calloc(settings.num_interfaces, sizeof(struct listening_port));
 }
 
+struct thread_stats *get_thread_stats(conn *c) {
+    struct thread_stats *independent_stats;
+    cb_assert(c->thread->index < (settings.num_threads + 1));
+    independent_stats = all_buckets[c->bucket.idx].stats;
+    return &independent_stats[c->thread->index];
+}
+
 static void stats_reset(const void *cookie) {
     struct conn *conn = (struct conn*)cookie;
     STATS_LOCK();
@@ -230,8 +419,8 @@ static void stats_reset(const void *cookie) {
     stats.rejected_conns = 0;
     stats.total_conns = 0;
     STATS_UNLOCK();
-    threadlocal_stats_reset(get_independent_stats(conn));
-    settings.engine.v1->reset_stats(settings.engine.v0, cookie);
+    threadlocal_stats_reset(all_buckets[conn->bucket.idx].stats);
+    bucket_reset_stats(conn);
 }
 
 static int get_number_of_worker_threads(void) {
@@ -276,8 +465,6 @@ static void settings_init(void) {
     settings.num_threads = get_number_of_worker_threads();
     settings.require_sasl = false;
     settings.extensions.logger = get_stderr_logger();
-    settings.engine_module = "default_engine.so";
-    settings.engine_config = NULL;
     settings.config = NULL;
     settings.admin = NULL;
     settings.disable_admin = false;
@@ -297,6 +484,7 @@ static void settings_init(void) {
     settings.breakpad.minidump_dir = NULL;
     settings.breakpad.content = CONTENT_DEFAULT;
     settings.require_init = false;
+    settings.max_buckets = 200;
 }
 
 static void settings_init_relocable_files(void)
@@ -464,6 +652,10 @@ const char *state_text(STATE_FUNC state) {
         return "conn_flush";
     } else if (state == conn_audit_configuring) {
         return "conn_audit_configuring";
+    } else if (state == conn_create_bucket) {
+        return "conn_create_bucket";
+    } else if (state == conn_delete_bucket) {
+        return "conn_delete_bucket";
     } else {
         return "Unknown";
     }
@@ -734,6 +926,8 @@ protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE 
         return PROTOCOL_BINARY_RESPONSE_ROLLBACK;
     case ENGINE_NO_BUCKET:
         return PROTOCOL_BINARY_RESPONSE_NO_BUCKET;
+    case ENGINE_EBUSY:
+        return PROTOCOL_BINARY_RESPONSE_EBUSY;
     default:
         ret = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
@@ -779,8 +973,7 @@ void write_bin_packet(conn *c, protocol_binary_response_status err) {
     if (err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
         ENGINE_ERROR_CODE ret;
 
-        ret = settings.engine.v1->get_engine_vb_map(settings.engine.v0, c,
-                                                    get_vb_map_cb);
+        ret = bucket_get_engine_vb_map(c, get_vb_map_cb);
         if (ret == ENGINE_SUCCESS) {
             write_and_free(c, &c->dynamic_buffer);
         } else {
@@ -869,8 +1062,8 @@ static void process_bin_get(conn *c) {
     ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     if (ret == ENGINE_SUCCESS) {
-        ret = settings.engine.v1->get(settings.engine.v0, c, &it, key, (int)nkey,
-                                      c->binary_header.request.vbucket);
+        ret = bucket_get(c, &it, key, (int)nkey,
+                         c->binary_header.request.vbucket);
     }
 
     info.info.nvalue = IOV_MAX;
@@ -878,9 +1071,8 @@ static void process_bin_get(conn *c) {
     case ENGINE_SUCCESS:
         STATS_HIT(c, get, key, nkey);
 
-        if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
-                                               (void*)&info)) {
-            settings.engine.v1->release(settings.engine.v0, c, it);
+        if (!bucket_get_item_info(c, it, (void*)&info)) {
+            c->bucket.engine->release((void*)c->bucket.engine, c, it);
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Failed to get item info",
                                             c->sfd);
@@ -917,7 +1109,7 @@ static void process_bin_get(conn *c) {
                                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                                info.info.cas, c)) {
                 write_and_free(c, &c->dynamic_buffer);
-                settings.engine.v1->release(settings.engine.v0, c, it);
+                c->bucket.engine->release((void*)c->bucket.engine, c, it);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             }
@@ -1111,6 +1303,14 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
         data->username = NULL;
         data->config = NULL;
     }
+}
+
+static bucket_id_t get_bucket_id(const void *cookie) {
+    /* @todo fix this. Currently we're using the index as the id,
+     * but this should be changed to be a uniqe ID that won't be
+     * reused.
+     */
+    return ((conn*)(cookie))->bucket.idx;
 }
 
 static bool authenticated(conn *c) {
@@ -1334,9 +1534,9 @@ static void ship_tap_log(conn *c) {
             break;
         }
 
-        event = c->tap_iterator(settings.engine.v0, c, &it,
-                                            &engine, &nengine, &ttl,
-                                            &tap_flags, &seqno, &vbucket);
+        event = c->tap_iterator((void*)c->bucket.engine, c, &it,
+                                &engine, &nengine, &ttl,
+                                &tap_flags, &seqno, &vbucket);
         memset(&msg, 0, sizeof(msg));
         msg.opaque.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         msg.opaque.message.header.request.opaque = htonl(seqno);
@@ -1364,9 +1564,8 @@ static void ship_tap_log(conn *c) {
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
         case TAP_MUTATION:
-            if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
-                                                   (void*)&info)) {
-                settings.engine.v1->release(settings.engine.v0, c, it);
+            if (!bucket_get_item_info(c, it, (void*)&info)) {
+                c->bucket.engine->release((void*)c->bucket.engine, c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: Failed to get item info\n", c->sfd);
                 break;
@@ -1498,9 +1697,8 @@ static void ship_tap_log(conn *c) {
             break;
         case TAP_DELETION:
             /* This is a delete */
-            if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
-                                                   (void*)&info)) {
-                settings.engine.v1->release(settings.engine.v0, c, it);
+            if (!bucket_get_item_info(c, it, (void*)&info)) {
+                c->bucket.engine->release((void*)c->bucket.engine, c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: Failed to get item info\n", c->sfd);
                 break;
@@ -1628,8 +1826,7 @@ static ENGINE_ERROR_CODE default_unknown_command(EXTENSION_BINARY_PROTOCOL_DESCR
             return ENGINE_DISCONNECT;
         }
     } else {
-        return settings.engine.v1->unknown_command(handle, cookie,
-                                                   request, response);
+        return bucket_unknown_command((void*)c, request, response);
     }
 }
 
@@ -1663,7 +1860,7 @@ static void process_bin_unknown_packet(conn *c) {
 
     if (ret == ENGINE_SUCCESS) {
         struct request_lookup *rq = request_handlers + c->binary_header.request.opcode;
-        ret = rq->callback(rq->descriptor, settings.engine.v0, c, packet,
+        ret = rq->callback(rq->descriptor, (void*)c->bucket.engine, c, packet,
                            binary_response_handler);
     }
 
@@ -1789,9 +1986,10 @@ static void process_bin_tap_connect(conn *c) {
                                         c->sfd, buffer);
     }
 
-    iterator = settings.engine.v1->get_tap_iterator(
-        settings.engine.v0, c, key, c->binary_header.request.keylen,
-        flags, data, ndata);
+    iterator = c->bucket.engine->get_tap_iterator((void*)c->bucket.engine,
+                                                  c, key,
+                                                  c->binary_header.request.keylen,
+                                                  flags, data, ndata);
 
     if (iterator == NULL) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -1871,16 +2069,16 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
                 }
             }
 
-            ret = settings.engine.v1->tap_notify(settings.engine.v0, c,
-                                                 engine_specific, nengine,
-                                                 ttl - 1, tap_flags,
-                                                 event, seqno,
-                                                 key, nkey,
-                                                 flags, exptime,
-                                                 ntohll(tap->message.header.request.cas),
-                                                 datatype,
-                                                 data, ndata,
-                                                 c->binary_header.request.vbucket);
+            ret = c->bucket.engine->tap_notify((void*)c->bucket.engine, c,
+                                               engine_specific, nengine,
+                                               ttl - 1, tap_flags,
+                                               event, seqno,
+                                               key, nkey,
+                                               flags, exptime,
+                                               ntohll(tap->message.header.request.cas),
+                                               datatype,
+                                               data, ndata,
+                                               c->binary_header.request.vbucket);
         }
     }
 
@@ -1915,12 +2113,13 @@ static void process_bin_tap_ack(conn *c) {
     status = ntohs(rsp->message.header.response.status);
     key = packet + sizeof(rsp->bytes);
 
-    if (settings.engine.v1->tap_notify != NULL) {
-        ret = settings.engine.v1->tap_notify(settings.engine.v0, c, NULL, 0, 0, status,
-                                             TAP_ACK, seqno, key,
-                                             c->binary_header.request.keylen, 0, 0,
-                                             0, c->binary_header.request.datatype, NULL,
-                                             0, 0);
+    if (c->bucket.engine->tap_notify != NULL) {
+        ret = c->bucket.engine->tap_notify((void*)c->bucket.engine, c, NULL, 0,
+                                           0, status,
+                                           TAP_ACK, seqno, key,
+                                           c->binary_header.request.keylen, 0, 0,
+                                           0, c->binary_header.request.datatype, NULL,
+                                           0, 0);
     }
 
     if (ret == ENGINE_DISCONNECT) {
@@ -2182,9 +2381,8 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     memset(&info, 0, sizeof(info));
     info.info.nvalue = IOV_MAX;
 
-    if (!settings.engine.v1->get_item_info(settings.engine.v0, c, it,
-                                           (void*)&info)) {
-        settings.engine.v1->release(settings.engine.v0, c, it);
+    if (!bucket_get_item_info(c, it, (void*)&info)) {
+        c->bucket.engine->release((void*)c->bucket.engine, c, it);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%d: Failed to get item info\n", c->sfd);
         return ENGINE_FAILED;
@@ -2526,7 +2724,7 @@ static void ship_dcp_log(conn *c) {
     c->icurr = c->ilist;
 
     c->ewouldblock = false;
-    ret = settings.engine.v1->dcp.step(settings.engine.v0, c, &producers);
+    ret = c->bucket.engine->dcp.step((void*)c->bucket.engine, c, &producers);
     if (ret == ENGINE_SUCCESS) {
         /* the engine don't have more data to send at this moment */
         c->ewouldblock = true;
@@ -2549,74 +2747,105 @@ static void ship_dcp_log(conn *c) {
 static void tap_connect_executor(conn *c, void *packet)
 {
     (void)packet;
-    cb_mutex_enter(&tap_stats.mutex);
-    tap_stats.received.connect++;
-    cb_mutex_exit(&tap_stats.mutex);
-    conn_set_state(c, conn_setup_tap_stream);
+    if (c->bucket.engine->get_tap_iterator == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    } else {
+        cb_mutex_enter(&tap_stats.mutex);
+        tap_stats.received.connect++;
+        cb_mutex_exit(&tap_stats.mutex);
+        conn_set_state(c, conn_setup_tap_stream);
+    }
 }
 
 static void tap_mutation_executor(conn *c, void *packet)
 {
     (void)packet;
-    cb_mutex_enter(&tap_stats.mutex);
-    tap_stats.received.mutation++;
-    cb_mutex_exit(&tap_stats.mutex);
-    process_bin_tap_packet(TAP_MUTATION, c);
+    if (c->bucket.engine->tap_notify == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    } else {
+        cb_mutex_enter(&tap_stats.mutex);
+        tap_stats.received.mutation++;
+        cb_mutex_exit(&tap_stats.mutex);
+        process_bin_tap_packet(TAP_MUTATION, c);
+    }
 }
 
 static void tap_delete_executor(conn *c, void *packet)
 {
     (void)packet;
-    cb_mutex_enter(&tap_stats.mutex);
-    tap_stats.received.delete++;
-    cb_mutex_exit(&tap_stats.mutex);
-    process_bin_tap_packet(TAP_DELETION, c);
+    if (c->bucket.engine->tap_notify == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    } else {
+        cb_mutex_enter(&tap_stats.mutex);
+        tap_stats.received.delete++;
+        cb_mutex_exit(&tap_stats.mutex);
+        process_bin_tap_packet(TAP_DELETION, c);
+    }
 }
 
 static void tap_flush_executor(conn *c, void *packet)
 {
     (void)packet;
-    cb_mutex_enter(&tap_stats.mutex);
-    tap_stats.received.flush++;
-    cb_mutex_exit(&tap_stats.mutex);
-    process_bin_tap_packet(TAP_FLUSH, c);
+    if (c->bucket.engine->tap_notify == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    } else {
+        cb_mutex_enter(&tap_stats.mutex);
+        tap_stats.received.flush++;
+        cb_mutex_exit(&tap_stats.mutex);
+        process_bin_tap_packet(TAP_FLUSH, c);
+    }
 }
 
 static void tap_opaque_executor(conn *c, void *packet)
 {
     (void)packet;
-    cb_mutex_enter(&tap_stats.mutex);
-    tap_stats.received.opaque++;
-    cb_mutex_exit(&tap_stats.mutex);
-    process_bin_tap_packet(TAP_OPAQUE, c);
+    if (c->bucket.engine->tap_notify == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    } else {
+        cb_mutex_enter(&tap_stats.mutex);
+        tap_stats.received.opaque++;
+        cb_mutex_exit(&tap_stats.mutex);
+        process_bin_tap_packet(TAP_OPAQUE, c);
+    }
 }
 
 static void tap_vbucket_set_executor(conn *c, void *packet)
 {
     (void)packet;
-    cb_mutex_enter(&tap_stats.mutex);
-    tap_stats.received.vbucket_set++;
-    cb_mutex_exit(&tap_stats.mutex);
-    process_bin_tap_packet(TAP_VBUCKET_SET, c);
+    if (c->bucket.engine->tap_notify == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    } else {
+        cb_mutex_enter(&tap_stats.mutex);
+        tap_stats.received.vbucket_set++;
+        cb_mutex_exit(&tap_stats.mutex);
+        process_bin_tap_packet(TAP_VBUCKET_SET, c);
+    }
 }
 
 static void tap_checkpoint_start_executor(conn *c, void *packet)
 {
     (void)packet;
-    cb_mutex_enter(&tap_stats.mutex);
-    tap_stats.received.checkpoint_start++;
-    cb_mutex_exit(&tap_stats.mutex);
-    process_bin_tap_packet(TAP_CHECKPOINT_START, c);
+    if (c->bucket.engine->tap_notify == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    } else {
+        cb_mutex_enter(&tap_stats.mutex);
+        tap_stats.received.checkpoint_start++;
+        cb_mutex_exit(&tap_stats.mutex);
+        process_bin_tap_packet(TAP_CHECKPOINT_START, c);
+    }
 }
 
 static void tap_checkpoint_end_executor(conn *c, void *packet)
 {
     (void)packet;
-
-    cb_mutex_enter(&tap_stats.mutex);
-    tap_stats.received.checkpoint_end++;
-    cb_mutex_exit(&tap_stats.mutex);
-    process_bin_tap_packet(TAP_CHECKPOINT_END, c);
+    if (c->bucket.engine->tap_notify == NULL) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    } else {
+        cb_mutex_enter(&tap_stats.mutex);
+        tap_stats.received.checkpoint_end++;
+        cb_mutex_exit(&tap_stats.mutex);
+        process_bin_tap_packet(TAP_CHECKPOINT_END, c);
+    }
 }
 
 /*******************************************************************************
@@ -2626,7 +2855,7 @@ static void dcp_open_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_open *req = packet;
 
-    if (settings.engine.v1->dcp.open == NULL) {
+    if (c->bucket.engine->dcp.open == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -2635,12 +2864,12 @@ static void dcp_open_executor(conn *c, void *packet)
         c->supports_datatype = true;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->dcp.open(settings.engine.v0, c,
-                                               req->message.header.request.opaque,
-                                               ntohl(req->message.body.seqno),
-                                               ntohl(req->message.body.flags),
-                                               (void*)(req->bytes + sizeof(req->bytes)),
-                                               ntohs(req->message.header.request.keylen));
+            ret = c->bucket.engine->dcp.open((void*)c->bucket.engine, c,
+                                             req->message.header.request.opaque,
+                                             ntohl(req->message.body.seqno),
+                                             ntohl(req->message.body.flags),
+                                             (void*)(req->bytes + sizeof(req->bytes)),
+                                             ntohs(req->message.header.request.keylen));
         }
 
         switch (ret) {
@@ -2667,7 +2896,7 @@ static void dcp_add_stream_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_add_stream *req = packet;
 
-    if (settings.engine.v1->dcp.add_stream == NULL) {
+    if (c->bucket.engine->dcp.add_stream == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -2675,10 +2904,10 @@ static void dcp_add_stream_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->dcp.add_stream(settings.engine.v0, c,
-                                                     req->message.header.request.opaque,
-                                                     ntohs(req->message.header.request.vbucket),
-                                                     ntohl(req->message.body.flags));
+            ret = c->bucket.engine->dcp.add_stream((void*)c->bucket.engine, c,
+                                                   req->message.header.request.opaque,
+                                                   ntohs(req->message.header.request.vbucket),
+                                                   ntohl(req->message.body.flags));
         }
 
         switch (ret) {
@@ -2704,7 +2933,7 @@ static void dcp_close_stream_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_close_stream *req = packet;
 
-    if (settings.engine.v1->dcp.close_stream == NULL) {
+    if (c->bucket.engine->dcp.close_stream == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -2714,7 +2943,7 @@ static void dcp_close_stream_executor(conn *c, void *packet)
         if (ret == ENGINE_SUCCESS) {
             uint16_t vbucket = ntohs(req->message.header.request.vbucket);
             uint32_t opaque = ntohl(req->message.header.request.opaque);
-            ret = settings.engine.v1->dcp.close_stream(settings.engine.v0, c,
+            ret = c->bucket.engine->dcp.close_stream((void*)c->bucket.engine, c,
                                                        opaque, vbucket);
         }
 
@@ -2769,7 +2998,7 @@ static ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t*entries,
 static void dcp_get_failover_log_executor(conn *c, void *packet) {
     protocol_binary_request_dcp_get_failover_log *req = packet;
 
-    if (settings.engine.v1->dcp.get_failover_log == NULL) {
+    if (c->bucket.engine->dcp.get_failover_log == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -2777,10 +3006,10 @@ static void dcp_get_failover_log_executor(conn *c, void *packet) {
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->dcp.get_failover_log(settings.engine.v0, c,
-                                                           req->message.header.request.opaque,
-                                                           ntohs(req->message.header.request.vbucket),
-                                                           add_failover_log);
+            ret = c->bucket.engine->dcp.get_failover_log((void*)c->bucket.engine, c,
+                                                         req->message.header.request.opaque,
+                                                         ntohs(req->message.header.request.vbucket),
+                                                         add_failover_log);
         }
 
         switch (ret) {
@@ -2810,7 +3039,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_stream_req *req = packet;
 
-    if (settings.engine.v1->dcp.stream_req == NULL) {
+    if (c->bucket.engine->dcp.stream_req == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         uint32_t flags = ntohl(req->message.body.flags);
@@ -2828,16 +3057,16 @@ static void dcp_stream_req_executor(conn *c, void *packet)
         cb_assert(ret != ENGINE_ROLLBACK);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->dcp.stream_req(settings.engine.v0, c,
-                                                     flags,
-                                                     c->binary_header.request.opaque,
-                                                     c->binary_header.request.vbucket,
-                                                     start_seqno, end_seqno,
-                                                     vbucket_uuid,
-                                                     snap_start_seqno,
-                                                     snap_end_seqno,
-                                                     &rollback_seqno,
-                                                     add_failover_log);
+            ret = c->bucket.engine->dcp.stream_req((void*)c->bucket.engine, c,
+                                                   flags,
+                                                   c->binary_header.request.opaque,
+                                                   c->binary_header.request.vbucket,
+                                                   start_seqno, end_seqno,
+                                                   vbucket_uuid,
+                                                   snap_start_seqno,
+                                                   snap_end_seqno,
+                                                   &rollback_seqno,
+                                                   add_failover_log);
         }
 
         switch (ret) {
@@ -2881,7 +3110,7 @@ static void dcp_stream_end_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_stream_end *req = packet;
 
-    if (settings.engine.v1->dcp.stream_end == NULL) {
+    if (c->bucket.engine->dcp.stream_end == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -2889,7 +3118,7 @@ static void dcp_stream_end_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->dcp.stream_end(settings.engine.v0, c,
+            ret = c->bucket.engine->dcp.stream_end((void*)c->bucket.engine, c,
                                                      req->message.header.request.opaque,
                                                      ntohs(req->message.header.request.vbucket),
                                                      ntohl(req->message.body.flags));
@@ -2918,7 +3147,7 @@ static void dcp_snapshot_marker_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_snapshot_marker *req = packet;
 
-    if (settings.engine.v1->dcp.snapshot_marker == NULL) {
+    if (c->bucket.engine->dcp.snapshot_marker == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
@@ -2932,7 +3161,7 @@ static void dcp_snapshot_marker_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->dcp.snapshot_marker(settings.engine.v0, c,
+            ret = c->bucket.engine->dcp.snapshot_marker((void*)c->bucket.engine, c,
                                                           opaque, vbucket,
                                                           start_seqno,
                                                           end_seqno, flags);
@@ -2961,7 +3190,7 @@ static void dcp_mutation_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_mutation *req = packet;
 
-    if (settings.engine.v1->dcp.mutation == NULL) {
+    if (c->bucket.engine->dcp.mutation == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -2984,13 +3213,13 @@ static void dcp_mutation_executor(conn *c, void *packet)
             uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey
                 - req->message.header.request.extlen - nmeta;
 
-            ret = settings.engine.v1->dcp.mutation(settings.engine.v0, c,
-                                                   req->message.header.request.opaque,
-                                                   key, nkey, value, nvalue, cas, vbucket,
-                                                   flags, datatype, by_seqno, rev_seqno,
-                                                   expiration, lock_time,
-                                                   (char*)value + nvalue, nmeta,
-                                                   req->message.body.nru);
+            ret = c->bucket.engine->dcp.mutation((void*)c->bucket.engine, c,
+                                                 req->message.header.request.opaque,
+                                                 key, nkey, value, nvalue, cas, vbucket,
+                                                 flags, datatype, by_seqno, rev_seqno,
+                                                 expiration, lock_time,
+                                                 (char*)value + nvalue, nmeta,
+                                                 req->message.body.nru);
         }
 
         switch (ret) {
@@ -3016,7 +3245,7 @@ static void dcp_deletion_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_deletion *req = packet;
 
-    if (settings.engine.v1->dcp.deletion == NULL) {
+    if (c->bucket.engine->dcp.deletion == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -3032,10 +3261,10 @@ static void dcp_deletion_executor(conn *c, void *packet)
             uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
             uint16_t nmeta = ntohs(req->message.body.nmeta);
 
-            ret = settings.engine.v1->dcp.deletion(settings.engine.v0, c,
-                                                   req->message.header.request.opaque,
-                                                   key, nkey, cas, vbucket,
-                                                   by_seqno, rev_seqno, key + nkey, nmeta);
+            ret = c->bucket.engine->dcp.deletion((void*)c->bucket.engine, c,
+                                                 req->message.header.request.opaque,
+                                                 key, nkey, cas, vbucket,
+                                                 by_seqno, rev_seqno, key + nkey, nmeta);
         }
 
         switch (ret) {
@@ -3061,7 +3290,7 @@ static void dcp_expiration_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_expiration *req = packet;
 
-    if (settings.engine.v1->dcp.expiration == NULL) {
+    if (c->bucket.engine->dcp.expiration == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -3077,10 +3306,10 @@ static void dcp_expiration_executor(conn *c, void *packet)
             uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
             uint16_t nmeta = ntohs(req->message.body.nmeta);
 
-            ret = settings.engine.v1->dcp.expiration(settings.engine.v0, c,
-                                                     req->message.header.request.opaque,
-                                                     key, nkey, cas, vbucket,
-                                                     by_seqno, rev_seqno, key + nkey, nmeta);
+            ret = c->bucket.engine->dcp.expiration((void*)c->bucket.engine, c,
+                                                   req->message.header.request.opaque,
+                                                   key, nkey, cas, vbucket,
+                                                   by_seqno, rev_seqno, key + nkey, nmeta);
         }
 
         switch (ret) {
@@ -3106,7 +3335,7 @@ static void dcp_flush_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_flush *req = packet;
 
-    if (settings.engine.v1->dcp.flush == NULL) {
+    if (c->bucket.engine->dcp.flush == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -3114,9 +3343,9 @@ static void dcp_flush_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->dcp.flush(settings.engine.v0, c,
-                                                req->message.header.request.opaque,
-                                                ntohs(req->message.header.request.vbucket));
+            ret = c->bucket.engine->dcp.flush((void*)c->bucket.engine, c,
+                                              req->message.header.request.opaque,
+                                              ntohs(req->message.header.request.vbucket));
         }
 
         switch (ret) {
@@ -3142,7 +3371,7 @@ static void dcp_set_vbucket_state_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_set_vbucket_state *req = packet;
 
-    if (settings.engine.v1->dcp.set_vbucket_state== NULL) {
+    if (c->bucket.engine->dcp.set_vbucket_state== NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -3151,10 +3380,10 @@ static void dcp_set_vbucket_state_executor(conn *c, void *packet)
 
         if (ret == ENGINE_SUCCESS) {
             vbucket_state_t state = (vbucket_state_t)req->message.body.state;
-            ret = settings.engine.v1->dcp.set_vbucket_state(settings.engine.v0, c,
-                                                            c->binary_header.request.opaque,
-                                                            c->binary_header.request.vbucket,
-                                                            state);
+            ret = c->bucket.engine->dcp.set_vbucket_state((void*)c->bucket.engine, c,
+                                                          c->binary_header.request.opaque,
+                                                          c->binary_header.request.vbucket,
+                                                          state);
         }
 
         switch (ret) {
@@ -3180,7 +3409,7 @@ static void dcp_noop_executor(conn *c, void *packet)
 {
     (void)packet;
 
-    if (settings.engine.v1->dcp.noop == NULL) {
+    if (c->bucket.engine->dcp.noop == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -3188,8 +3417,8 @@ static void dcp_noop_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->dcp.noop(settings.engine.v0, c,
-                                               c->binary_header.request.opaque);
+            ret = c->bucket.engine->dcp.noop((void*)c->bucket.engine, c,
+                                             c->binary_header.request.opaque);
         }
 
         switch (ret) {
@@ -3215,7 +3444,7 @@ static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
 {
     protocol_binary_request_dcp_buffer_acknowledgement *req = packet;
 
-    if (settings.engine.v1->dcp.buffer_acknowledgement == NULL) {
+    if (c->bucket.engine->dcp.buffer_acknowledgement == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -3225,10 +3454,10 @@ static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
         if (ret == ENGINE_SUCCESS) {
             uint32_t bbytes;
             memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
-            ret = settings.engine.v1->dcp.buffer_acknowledgement(settings.engine.v0, c,
-                                                                 c->binary_header.request.opaque,
-                                                                 c->binary_header.request.vbucket,
-                                                                 ntohl(bbytes));
+            ret = c->bucket.engine->dcp.buffer_acknowledgement((void*)c->bucket.engine, c,
+                                                               c->binary_header.request.opaque,
+                                                               c->binary_header.request.vbucket,
+                                                               ntohl(bbytes));
         }
 
         switch (ret) {
@@ -3252,7 +3481,7 @@ static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
 
 static void dcp_control_executor(conn *c, void *packet)
 {
-    if (settings.engine.v1->dcp.control == NULL) {
+    if (c->bucket.engine->dcp.control == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         ENGINE_ERROR_CODE ret = c->aiostat;
@@ -3265,7 +3494,7 @@ static void dcp_control_executor(conn *c, void *packet)
             uint16_t nkey = ntohs(req->message.header.request.keylen);
             const uint8_t *value = key + nkey;
             uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
-            ret = settings.engine.v1->dcp.control(settings.engine.v0, c,
+            ret = c->bucket.engine->dcp.control((void*)c->bucket.engine, c,
                                                   c->binary_header.request.opaque,
                                                   key, nkey, value, nvalue);
         }
@@ -3567,6 +3796,10 @@ static void sasl_auth_executor(conn *c, void *packet)
             }
             perform_callbacks(ON_AUTH, (const void*)&data, c);
             STATS_NOKEY(c, auth_cmds);
+
+            /* associate the connection with the appropriate bucket */
+            /* @TODO Trond do we really want to do this? */
+            associate_bucket(c, data.username);
         }
         break;
     case CBSASL_CONTINUE:
@@ -3646,7 +3879,7 @@ static void flush_executor(conn *c, void *packet)
                                         (long)exptime);
     }
 
-    ret = settings.engine.v1->flush(settings.engine.v0, c, exptime);
+    ret = c->bucket.engine->flush((void*)c->bucket.engine, c, exptime);
     switch (ret) {
     case ENGINE_SUCCESS:
         STATS_NOKEY(c, cmd_flush);
@@ -3689,12 +3922,11 @@ static void add_set_replace_executor(conn *c, void *packet,
 
         if (ret == ENGINE_SUCCESS) {
             rel_time_t expiration = ntohl(req->message.body.expiration);
-            ret = settings.engine.v1->allocate(settings.engine.v0, c,
-                                               &it, key, nkey,
-                                               vlen,
-                                               req->message.body.flags,
-                                               expiration,
-                                               req->message.header.request.datatype);
+            ret = c->bucket.engine->allocate((void*)c->bucket.engine, c,
+                                             &it, key, nkey, vlen,
+                                             req->message.body.flags,
+                                             expiration,
+                                             req->message.header.request.datatype);
         }
 
         switch (ret) {
@@ -3711,11 +3943,9 @@ static void add_set_replace_executor(conn *c, void *packet,
             return;
         }
 
-        item_set_cas(c, it, ntohll(req->message.header.request.cas));
-        if (!settings.engine.v1->get_item_info(settings.engine.v0,
-                                               c, it,
-                                               (void*)&info)) {
-            settings.engine.v1->release(settings.engine.v0, c, it);
+        bucket_item_set_cas(c, it, ntohll(req->message.header.request.cas));
+        if (!bucket_get_item_info(c, it, (void*)&info)) {
+            c->bucket.engine->release((void*)c->bucket.engine, c, it);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
@@ -3728,8 +3958,7 @@ static void add_set_replace_executor(conn *c, void *packet,
             if (checkUTF8JSON((void*)info.info.value[0].iov_base,
                               (int)info.info.value[0].iov_len)) {
                 info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-                if (!settings.engine.v1->set_item_info(settings.engine.v0, c,
-                                                       it, &info.info)) {
+                if (!bucket_set_item_info(c, it, &info.info)) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                             "%d: Failed to set item info",
                             c->sfd);
@@ -3739,9 +3968,8 @@ static void add_set_replace_executor(conn *c, void *packet,
     }
 
     if (ret == ENGINE_SUCCESS) {
-        ret = settings.engine.v1->store(settings.engine.v0, c,
-                                        c->item, &c->cas, store_op,
-                                        ntohs(req->message.header.request.vbucket));
+        ret = bucket_store(c, c->item, &c->cas, store_op,
+                           ntohs(req->message.header.request.vbucket));
     }
 
     switch (ret) {
@@ -3750,10 +3978,8 @@ static void add_set_replace_executor(conn *c, void *packet,
         if (c->supports_mutation_extras) {
             memset(&info, 0, sizeof(info));
             info.info.nvalue = 1;
-            if (!settings.engine.v1->get_item_info(settings.engine.v0, c,
-                                                   c->item,
-                                                   (void*)&info)) {
-                settings.engine.v1->release(settings.engine.v0, c, c->item);
+            if (!bucket_get_item_info(c, c->item, (void*)&info)) {
+                c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: Failed to get item info",
                                                 c->sfd);
@@ -3808,7 +4034,7 @@ static void add_set_replace_executor(conn *c, void *packet,
 
     if (!c->ewouldblock) {
         /* release the c->item reference */
-        settings.engine.v1->release(settings.engine.v0, c, c->item);
+        c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
         c->item = 0;
     }
 }
@@ -3870,7 +4096,7 @@ static void append_prepend_executor(conn *c,
         item *it;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = settings.engine.v1->allocate(settings.engine.v0, c,
+            ret = c->bucket.engine->allocate((void*)c->bucket.engine, c,
                                                &it, key, nkey,
                                                vlen, 0, 0,
                                                req->message.header.request.datatype);
@@ -3890,11 +4116,9 @@ static void append_prepend_executor(conn *c,
             return;
         }
 
-        item_set_cas(c, it, ntohll(req->message.header.request.cas));
-        if (!settings.engine.v1->get_item_info(settings.engine.v0,
-                                               c, it,
-                                               (void*)&info)) {
-            settings.engine.v1->release(settings.engine.v0, c, it);
+        bucket_item_set_cas(c, it, ntohll(req->message.header.request.cas));
+        if (!bucket_get_item_info(c, it, (void*)&info)) {
+            c->bucket.engine->release((void*)c->bucket.engine, c, it);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
@@ -3907,8 +4131,7 @@ static void append_prepend_executor(conn *c,
             if (checkUTF8JSON((void*)info.info.value[0].iov_base,
                               (int)info.info.value[0].iov_len)) {
                 info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-                if (!settings.engine.v1->set_item_info(settings.engine.v0, c,
-                                                       it, &info.info)) {
+                if (!bucket_set_item_info(c, it, &info.info)) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                             "%d: Failed to set item info",
                             c->sfd);
@@ -3918,9 +4141,8 @@ static void append_prepend_executor(conn *c,
     }
 
     if (ret == ENGINE_SUCCESS) {
-        ret = settings.engine.v1->store(settings.engine.v0, c,
-                                        c->item, &c->cas, store_op,
-                                        ntohs(req->message.header.request.vbucket));
+        ret = bucket_store(c, c->item, &c->cas, store_op,
+                           ntohs(req->message.header.request.vbucket));
     }
 
     switch (ret) {
@@ -3929,10 +4151,8 @@ static void append_prepend_executor(conn *c,
         if (c->supports_mutation_extras) {
             memset(&info, 0, sizeof(info));
             info.info.nvalue = 1;
-            if (!settings.engine.v1->get_item_info(settings.engine.v0, c,
-                                                   c->item,
-                                                   (void*)&info)) {
-                settings.engine.v1->release(settings.engine.v0, c, c->item);
+            if (!bucket_get_item_info(c, c->item, (void*)&info)) {
+                c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: Failed to get item info",
                                                 c->sfd);
@@ -3962,7 +4182,7 @@ static void append_prepend_executor(conn *c,
 
     if (!c->ewouldblock) {
         /* release the c->item reference */
-        settings.engine.v1->release(settings.engine.v0, c, c->item);
+        c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
         c->item = 0;
     }
 }
@@ -4052,13 +4272,14 @@ static void stat_executor(conn *c, void *packet)
     if (ret == ENGINE_SUCCESS) {
         if (nkey == 0) {
             /* request all statistics */
-            ret = settings.engine.v1->get_stats(settings.engine.v0, c, NULL, 0, append_stats);
+            ret = c->bucket.engine->get_stats((void*)c->bucket.engine, c,
+                                              NULL, 0, append_stats);
             if (ret == ENGINE_SUCCESS) {
                 server_stats(&append_stats, c, false);
             }
         } else if (strncmp(subcommand, "reset", 5) == 0) {
             stats_reset(c);
-            settings.engine.v1->reset_stats(settings.engine.v0, c);
+            bucket_reset_stats(c);
         } else if (strncmp(subcommand, "settings", 8) == 0) {
             process_stat_settings(&append_stats, c);
         } else if (nkey == 5 && strncmp(subcommand, "audit", 5) == 0) {
@@ -4071,6 +4292,8 @@ static void stat_executor(conn *c, void *packet)
         } else if (strncmp(subcommand, "cachedump", 9) == 0) {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
             return;
+        } else if (nkey == 14 && strncmp(subcommand, "bucket details", 14) == 0) {
+            process_bucket_details(c);
         } else if (strncmp(subcommand, "aggregate", 9) == 0) {
             server_stats(&append_stats, c, true);
         } else if (strncmp(subcommand, "connections", 11) == 0) {
@@ -4088,7 +4311,7 @@ static void stat_executor(conn *c, void *packet)
             }
             connection_stats(&append_stats, c, fd);
         } else {
-            ret = settings.engine.v1->get_stats(settings.engine.v0, c,
+            ret = c->bucket.engine->get_stats((void*)c->bucket.engine, c,
                                                 subcommand, (int)nkey,
                                                 append_stats);
         }
@@ -4194,7 +4417,7 @@ static void arithmetic_executor(conn *c, void *packet)
 
     item* item = NULL;
     if (ret == ENGINE_SUCCESS) {
-        ret = settings.engine.v1->arithmetic(settings.engine.v0,
+        ret = c->bucket.engine->arithmetic((void*)c->bucket.engine,
                                              c, key, (int)nkey, incr,
                                              req->message.body.expiration != 0xffffffff,
                                              delta, initial, expiration,
@@ -4210,9 +4433,8 @@ static void arithmetic_executor(conn *c, void *packet)
         /* Lookup the item's info for necessary metadata. */
         item_info info;
         info.nvalue = 1;
-        if (!settings.engine.v1->get_item_info(settings.engine.v0, c, item,
-                                               &info)) {
-            settings.engine.v1->release(settings.engine.v0, c, item);
+        if (!bucket_get_item_info(c, item, &info)) {
+            c->bucket.engine->release((void*)c->bucket.engine, c, item);
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Failed to get item info",
                                             c->sfd);
@@ -4242,7 +4464,7 @@ static void arithmetic_executor(conn *c, void *packet)
         }
 
         /* No further need for item; release it. */
-        settings.engine.v1->release(settings.engine.v0, c, item);
+        c->bucket.engine->release((void*)c->bucket.engine, c, item);
 
         if (incr) {
             STATS_INCR(c, incr_hits, key, nkey);
@@ -4531,12 +4753,154 @@ static void audit_put_executor(conn *c, void *packet) {
     }
 }
 
-static void not_supported_executor(conn *c, void *packet)
+static void create_bucket_main(void *c);
+
+/**
+ * The create bucket contains message have the following format:
+ *    key: bucket name
+ *    body: module\nconfig
+ */
+static void create_bucket_executor(conn *c, void *packet)
 {
+    ENGINE_ERROR_CODE ret = c->aiostat;
     (void)packet;
-    write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    if (ret == ENGINE_SUCCESS) {
+        cb_thread_t tid;
+        int err;
+
+        err = cb_create_thread(&tid, create_bucket_main, c, 1);
+        if (err == 0) {
+            ret = ENGINE_EWOULDBLOCK;
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "Failed to create thread to "
+                                            "create bucket:: %s",
+                                            strerror(err));
+            ret = ENGINE_FAILED;
+        }
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->ewouldblock = true;
+        conn_set_state(c, conn_create_bucket);
+        break;
+    case ENGINE_DISCONNECT:
+        conn_set_state(c, conn_closing);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
+    }
 }
 
+
+static void list_bucket_executor(conn *c, void *packet)
+{
+    ENGINE_ERROR_CODE ret;
+    int ii;
+    size_t max_size = (settings.max_buckets * MAX_BUCKET_NAME_LENGTH) +
+        settings.max_buckets + 2;
+    int offset = 0;
+    char *blob = malloc(max_size);
+    if (blob == NULL) {
+        ret = ENGINE_ENOMEM;
+    } else {
+        for (ii = 0; ii < settings.max_buckets; ++ii) {
+            cb_mutex_enter(&all_buckets[ii].mutex);
+            if (all_buckets[ii].state == BUCKET_STATE_READY) {
+                offset += snprintf(blob + offset, max_size - offset, "%s ",
+                                   all_buckets[ii].name);
+            }
+            cb_mutex_exit(&all_buckets[ii].mutex);
+        }
+
+        if (offset > 0) {
+            /* remove trailing " " */
+            blob[offset] = '\0';
+        }
+        ret = ENGINE_SUCCESS;
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        if (binary_response_handler(NULL, 0, NULL, 0, blob,
+                                    offset, 0,
+                                    PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                                    c)) {
+            write_and_free(c, &c->dynamic_buffer);
+        } else {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        }
+        free(blob);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
+    }
+}
+
+static void delete_bucket_main(void *c);
+
+static void delete_bucket_executor(conn *c, void *packet)
+{
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    (void)packet;
+
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    if (ret == ENGINE_SUCCESS) {
+        cb_thread_t tid;
+        int err;
+
+        err = cb_create_thread(&tid, delete_bucket_main, c, 1);
+        if (err == 0) {
+            ret = ENGINE_EWOULDBLOCK;
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "Failed to create thread to "
+                                            "delete bucket:: %s",
+                                            strerror(err));
+            ret = ENGINE_FAILED;
+        }
+    }
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_EWOULDBLOCK:
+        c->ewouldblock = true;
+        conn_set_state(c, conn_delete_bucket);
+        break;
+    case ENGINE_DISCONNECT:
+        conn_set_state(c, conn_closing);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
+    }
+}
+
+static void select_bucket_executor(conn *c, void *packet) {
+    /* The validator ensured that we're not doing a buffer overflow */
+    char bucketname[1024];
+    protocol_binary_request_no_extras *req = packet;
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    memcpy(bucketname, req->bytes + (sizeof(*req)), klen);
+    bucketname[klen] = '\0';
+
+    if (associate_bucket(c, bucketname)) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    } else {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+    }
+}
 
 typedef int (*bin_package_validate)(void *packet);
 typedef void (*bin_package_execute)(conn *c, void *packet);
@@ -4626,22 +4990,11 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST] = subdoc_array_push_first_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE] = subdoc_array_add_unique_executor;
 
-}
+    executors[PROTOCOL_BINARY_CMD_CREATE_BUCKET] = create_bucket_executor;
+    executors[PROTOCOL_BINARY_CMD_LIST_BUCKETS] = list_bucket_executor;
+    executors[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = delete_bucket_executor;
+    executors[PROTOCOL_BINARY_CMD_SELECT_BUCKET] = select_bucket_executor;
 
-static void setup_not_supported_handlers(void) {
-    if (settings.engine.v1->get_tap_iterator == NULL) {
-        executors[PROTOCOL_BINARY_CMD_TAP_CONNECT] = not_supported_executor;
-    }
-
-    if (settings.engine.v1->tap_notify == NULL) {
-        executors[PROTOCOL_BINARY_CMD_TAP_MUTATION] = not_supported_executor;
-        executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = not_supported_executor;
-        executors[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = not_supported_executor;
-        executors[PROTOCOL_BINARY_CMD_TAP_DELETE] = not_supported_executor;
-        executors[PROTOCOL_BINARY_CMD_TAP_FLUSH] = not_supported_executor;
-        executors[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = not_supported_executor;
-        executors[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = not_supported_executor;
-    }
 }
 
 static int invalid_datatype(conn *c) {
@@ -4690,6 +5043,10 @@ static void process_bin_packet(conn *c) {
         break;
     case AUTH_OK:
         if (validator != NULL && validator(packet) != 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Invalid format for specified for %s",
+                                            c->sfd,
+                                            memcached_opcode_2_text(opcode));
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         } else if (executor != NULL) {
             executor(c, packet);
@@ -4735,6 +5092,12 @@ static CB_INLINE bool is_initialized(conn *c, uint8_t opcode)
 
 static void dispatch_bin_command(conn *c) {
     uint16_t keylen = c->binary_header.request.keylen;
+
+    /* @trond this should be in the conn-connect part.. */
+    /*        and in the select bucket */
+    if (c->bucket.engine == NULL) {
+        c->bucket.engine = all_buckets[c->bucket.idx].engine;
+    }
 
     if (!is_initialized(c, c->binary_header.request.opcode)) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
@@ -4808,10 +5171,9 @@ static void process_bin_delete(conn *c) {
 
     mutation_descr_t mut_info;
     if (ret == ENGINE_SUCCESS) {
-        ret = settings.engine.v1->remove(settings.engine.v0, c, key, nkey,
-                                         &cas,
-                                         c->binary_header.request.vbucket,
-                                         &mut_info);
+        ret = c->bucket.engine->remove((void*)c->bucket.engine, c, key, nkey,
+                                       &cas, c->binary_header.request.vbucket,
+                                       &mut_info);
     }
 
     /* For some reason the SLAB_INCR tries to access this... */
@@ -4885,7 +5247,7 @@ static void reset_cmd_handler(conn *c) {
     c->cmd = -1;
     c->substate = bin_no_state;
     if(c->item != NULL) {
-        settings.engine.v1->release(settings.engine.v0, c, c->item);
+        c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
         c->item = NULL;
     }
 
@@ -4946,10 +5308,6 @@ void append_stat(const char *name, ADD_STAT add_stats, conn *c,
     add_stats(name, (uint16_t)strlen(name), val_str, vlen, c);
 }
 
-static void aggregate_callback(void *in, void *out) {
-    threadlocal_stats_aggregate(in, out);
-}
-
 /* return server specific stats only */
 static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
 #ifdef WIN32
@@ -4966,15 +5324,8 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     struct thread_stats thread_stats;
     threadlocal_stats_clear(&thread_stats);
 
-    if (aggregate && settings.engine.v1->aggregate_stats != NULL) {
-        settings.engine.v1->aggregate_stats(settings.engine.v0,
-                                            (const void *)c,
-                                            aggregate_callback,
-                                            &thread_stats);
-    } else {
-        threadlocal_stats_aggregate(get_independent_stats(c),
-                                    &thread_stats);
-    }
+    threadlocal_stats_aggregate(all_buckets[c->bucket.idx].stats,
+                                &thread_stats);
 
     slab_stats_aggregate(&thread_stats, &slab_stats);
 
@@ -5199,6 +5550,89 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
         add_stats("audit", (uint16_t)strlen("audit"),
                   settings.audit_file, (uint32_t)strlen(settings.audit_file), c);
     }
+}
+
+static cJSON *get_bucket_details(int idx)
+{
+    bucket_t *bucket = all_buckets + idx;
+    bucket_t copy;
+
+    /* make a copy so I don't have to do everything with the locks */
+    cb_mutex_enter(&bucket->mutex);
+    memcpy(&copy, bucket, sizeof(copy));
+    cb_mutex_exit(&bucket->mutex);
+
+    if (copy.state == BUCKET_STATE_NONE) {
+        return NULL;
+    }
+
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "index", idx);
+    switch (copy.state) {
+    case BUCKET_STATE_CREATING:
+        cJSON_AddStringToObject(root, "state", "creating");
+        break;
+    case BUCKET_STATE_INITIALIZING:
+        cJSON_AddStringToObject(root, "state", "initializing");
+        break;
+    case BUCKET_STATE_READY:
+        cJSON_AddStringToObject(root, "state", "ready");
+        break;
+    case BUCKET_STATE_STOPPING:
+        cJSON_AddStringToObject(root, "state", "stopping");
+        break;
+    case BUCKET_STATE_DESTROYING:
+        cJSON_AddStringToObject(root, "state", "destroying");
+        break;
+    default:
+        cb_assert(false);
+    }
+
+    cJSON_AddNumberToObject(root, "clients", copy.clients);
+    cJSON_AddStringToObject(root, "name", copy.name);
+
+    switch (copy.type) {
+    case BUCKET_TYPE_NO_BUCKET:
+        cJSON_AddStringToObject(root, "type", "no bucket");
+        break;
+    case BUCKET_TYPE_MEMCACHED:
+        cJSON_AddStringToObject(root, "type", "memcached");
+        break;
+    case BUCKET_TYPE_COUCHSTORE:
+        cJSON_AddStringToObject(root, "type", "couchstore");
+        break;
+    case BUCKET_TYPE_EWOULDBLOCK:
+        cJSON_AddStringToObject(root, "type", "ewouldblock");
+        break;
+    default:
+        cb_assert(false);
+    }
+
+    return root;
+}
+
+/**
+ * This is a very slow thing that you shouldn't use in production ;-)
+ *
+ * @param c the connection to return the details for
+ */
+static void process_bucket_details(conn *c)
+{
+    cJSON *obj = cJSON_CreateObject();
+
+    cJSON *array = cJSON_CreateArray();
+    for (int ii = 0; ii < settings.max_buckets; ++ii) {
+        cJSON *o = get_bucket_details(ii);
+        if (o != NULL) {
+            cJSON_AddItemToArray(array, o);
+        }
+    }
+    cJSON_AddItemToObject(obj, "buckets", array);
+
+    char *stats_str = cJSON_PrintUnformatted(obj);
+    append_stats("bucket details", 14, stats_str, strlen(stats_str), c);
+    cJSON_Free(stats_str);
+    cJSON_Delete(obj);
 }
 
 /*
@@ -6001,7 +6435,30 @@ bool conn_ship_log(conn *c) {
     return cont;
 }
 
+static bool is_bucket_dying(conn *c)
+{
+    bool disconnect = false;
+    bucket_t *b = &all_buckets[c->bucket.idx];
+    cb_mutex_enter(&b->mutex);
+
+    if (b->state != BUCKET_STATE_READY) {
+        disconnect = true;
+    }
+    cb_mutex_exit(&b->mutex);
+
+    if (disconnect) {
+        conn_set_state(c, conn_closing);
+        return true;
+    }
+
+    return false;
+}
+
 bool conn_waiting(conn *c) {
+    if (is_bucket_dying(c)) {
+        return true;
+    }
+
     if (!update_event(c, EV_READ | EV_PERSIST)) {
         conn_set_state(c, conn_closing);
         return true;
@@ -6011,6 +6468,10 @@ bool conn_waiting(conn *c) {
 }
 
 bool conn_read(conn *c) {
+    if (is_bucket_dying(c)) {
+        return true;
+    }
+
     int res = try_read_network(c);
     switch (res) {
     case READ_NO_DATA_RECEIVED:
@@ -6040,6 +6501,10 @@ bool conn_parse_cmd(conn *c) {
 }
 
 bool conn_new_cmd(conn *c) {
+    if (is_bucket_dying(c)) {
+        return true;
+    }
+
     c->start = 0;
     --c->nevents;
 
@@ -6187,7 +6652,7 @@ bool conn_mwrite(conn *c) {
         if (c->state == conn_mwrite) {
             while (c->ileft > 0) {
                 item *it = *(c->icurr);
-                settings.engine.v1->release(settings.engine.v0, c, it);
+                c->bucket.engine->release((void*)c->bucket.engine, c, it);
                 c->icurr++;
                 c->ileft--;
             }
@@ -6258,6 +6723,7 @@ bool conn_immediate_close(conn *c) {
     STATS_UNLOCK();
 
     perform_callbacks(ON_DISCONNECT, NULL, c);
+    disassociate_bucket(c);
     conn_close(c);
 
     return false;
@@ -6384,6 +6850,47 @@ bool conn_audit_configuring(conn *c) {
     return true;
 }
 
+bool conn_create_bucket(conn *c) {
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    cb_assert(ret != ENGINE_EWOULDBLOCK);
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_DISCONNECT:
+        conn_set_state(c, conn_closing);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
+    }
+
+    return true;
+}
+
+bool conn_delete_bucket(conn *c) {
+    ENGINE_ERROR_CODE ret = c->aiostat;
+    c->aiostat = ENGINE_SUCCESS;
+    c->ewouldblock = false;
+
+    cb_assert(ret != ENGINE_EWOULDBLOCK);
+
+    switch (ret) {
+    case ENGINE_SUCCESS:
+        write_bin_response(c, NULL, 0, 0, 0);
+        break;
+    case ENGINE_DISCONNECT:
+        conn_set_state(c, conn_closing);
+        break;
+    default:
+        write_bin_packet(c, engine_error_2_protocol_error(ret));
+    }
+
+    return true;
+}
 
 void event_handler(evutil_socket_t fd, short which, void *arg) {
     conn *c = arg;
@@ -6874,20 +7381,6 @@ static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {
     }
 }
 
-static void register_callback(ENGINE_HANDLE *eh,
-                              ENGINE_EVENT_TYPE type,
-                              EVENT_CALLBACK cb, const void *cb_data) {
-    (void)eh;
-    struct engine_event_handler *h =
-        calloc(sizeof(struct engine_event_handler), 1);
-
-    cb_assert(h);
-    h->cb = cb;
-    h->cb_data = cb_data;
-    h->next = engine_event_handlers[type];
-    engine_event_handlers[type] = h;
-}
-
 static void count_eviction(const void *cookie, const void *key, const int nkey) {
     (void)cookie;
     (void)key;
@@ -7135,9 +7628,8 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.set_admin = cookie_set_admin;
         server_cookie_api.is_admin = cookie_is_admin;
         server_cookie_api.set_priority = cookie_set_priority;
+        server_cookie_api.get_bucket_id = get_bucket_id;
 
-        server_stat_api.new_stats = new_independent_stats;
-        server_stat_api.release_stats = release_independent_stats;
         server_stat_api.evicting = count_eviction;
 
         server_log_api.get_logger = get_logger;
@@ -7172,8 +7664,9 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         rv.alloc_hooks = &hooks_api;
     }
 
+    // @trondn fixme!!!
     if (rv.engine == NULL) {
-        rv.engine = settings.engine.v0;
+        /* rv.engine = settings.engine.v0; */
     }
 
     return &rv;
@@ -7185,9 +7678,10 @@ static void process_bin_dcp_response(conn *c) {
 
     c->supports_datatype = true;
     packet = (c->read.curr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
-    if (settings.engine.v1->dcp.response_handler != NULL) {
-        ret = settings.engine.v1->dcp.response_handler(settings.engine.v0, c,
-                                                       (void*)packet);
+
+    if (c->bucket.engine->dcp.response_handler != NULL) {
+        ret = c->bucket.engine->dcp.response_handler((void*)c->bucket.engine, c,
+                                                     (void*)packet);
     }
 
     if (ret == ENGINE_DISCONNECT) {
@@ -7197,6 +7691,360 @@ static void process_bin_dcp_response(conn *c) {
     }
 }
 
+/* BUCKET FUNCTIONS */
+
+/**
+ * @todo this should be run as its own thread!!! look at cbsasl refresh..
+ */
+static ENGINE_ERROR_CODE do_create_bucket(char *bucket_name,
+                                          char *config,
+                                          bucket_type_t engine) {
+    int ii;
+    int first_free = -1;
+    bool found = false;
+    ENGINE_ERROR_CODE ret;
+
+    /*
+     * the number of buckets cannot change without a restart, but we don't want
+     * to lock the entire bucket array during checking for the existence
+     * of the bucket and while we're locating the next entry.
+     */
+    cb_mutex_enter(&buckets_lock);
+
+    for (ii = 0; ii < settings.max_buckets && !found; ++ii) {
+        cb_mutex_enter(&all_buckets[ii].mutex);
+        if (first_free == -1 && all_buckets[ii].state == BUCKET_STATE_NONE) {
+            first_free = ii;
+        }
+        if (strcmp(bucket_name, all_buckets[ii].name) == 0) {
+            found = true;
+        }
+        cb_mutex_exit(&all_buckets[ii].mutex);
+    }
+
+    if (found) {
+        ret = ENGINE_KEY_EEXISTS;
+    } else if (first_free == -1) {
+        ret = ENGINE_E2BIG;
+    } else {
+        ret = ENGINE_SUCCESS;
+        ii = first_free;
+        /*
+         * split the creation of fhe bucket in two... so
+         * we can release the global lock..
+         */
+        cb_mutex_enter(&all_buckets[ii].mutex);
+        all_buckets[ii].state = BUCKET_STATE_CREATING;
+        all_buckets[ii].type = engine;
+        strcpy(all_buckets[ii].name, bucket_name);
+        cb_mutex_exit(&all_buckets[ii].mutex);
+    }
+    cb_mutex_exit(&buckets_lock);
+
+    if (ret == ENGINE_SUCCESS) {
+        /* People aren't allowed to use the engine in this state,
+         * so we can do stuff without locking..
+         */
+        if (new_engine_instance(engine, get_server_api, (ENGINE_HANDLE**)&all_buckets[ii].engine)) {
+            cb_mutex_enter(&all_buckets[ii].mutex);
+            all_buckets[ii].state = BUCKET_STATE_INITIALIZING;
+            cb_mutex_exit(&all_buckets[ii].mutex);
+
+            ret = all_buckets[ii].engine->initialize((void*)all_buckets[ii].engine, config);
+            if (ret == ENGINE_SUCCESS) {
+                cb_mutex_enter(&all_buckets[ii].mutex);
+                all_buckets[ii].state = BUCKET_STATE_READY;
+                cb_mutex_exit(&all_buckets[ii].mutex);
+            } else {
+                cb_mutex_enter(&all_buckets[ii].mutex);
+                all_buckets[ii].state = BUCKET_STATE_DESTROYING;
+                cb_mutex_exit(&all_buckets[ii].mutex);
+                all_buckets[ii].engine->destroy((void*)all_buckets[ii].engine, false);
+
+                cb_mutex_enter(&all_buckets[ii].mutex);
+                all_buckets[ii].state = BUCKET_STATE_NONE;
+                all_buckets[ii].name[0] = '\0';
+                cb_mutex_exit(&all_buckets[ii].mutex);
+
+                ret = ENGINE_NOT_STORED;
+            }
+        } else {
+            cb_mutex_enter(&all_buckets[ii].mutex);
+            all_buckets[ii].state = BUCKET_STATE_NONE;
+            all_buckets[ii].name[0] = '\0';
+            cb_mutex_exit(&all_buckets[ii].mutex);
+            /* @todo should I change the error code? */
+        }
+    }
+
+    return ret;
+}
+
+void create_bucket_main(void *arg)
+{
+    conn *c = arg;
+    ENGINE_ERROR_CODE ret;
+    char *packet = (c->read.curr - (c->binary_header.request.bodylen +
+                                    sizeof(c->binary_header)));
+    protocol_binary_request_create_bucket *req = (void*)packet;
+    /* decode packet */
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+    blen -= klen;
+
+    char *key = malloc(klen + 1);
+    char *value = malloc(blen + 1);
+
+    if (key == NULL || value == NULL) {
+        ret = ENGINE_ENOMEM;
+    } else {
+        char *config = NULL;
+        bucket_type_t engine;
+
+        memcpy(key, req + 1, klen);
+        key[klen] = '\0';
+        memcpy(value, (char*)(req + 1) + klen, blen);
+        value[blen] = '\0';
+
+        if (strlen(value) != blen) {
+            config = value + strlen(value) + 1;
+        }
+
+        engine = module_to_bucket_type(value);
+        if (engine == BUCKET_TYPE_UNKNOWN) {
+            /* We should have other error codes as well :-) */
+            ret = ENGINE_NOT_STORED;
+        } else {
+            ret = do_create_bucket(key, config, engine);
+        }
+    }
+
+    free(key);
+    free(value);
+    notify_io_complete(c, ret);
+}
+
+void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
+    for (int ii = 0; ii < settings.max_buckets; ++ii) {
+        bool destroy = false;
+        cb_mutex_enter(&all_buckets[ii].mutex);
+        if (all_buckets[ii].state == BUCKET_STATE_DESTROYING) {
+            destroy = true;
+        }
+        cb_mutex_exit(&all_buckets[ii].mutex);
+        if (destroy) {
+            signal_idle_clients(me, ii);
+        }
+    }
+}
+
+/**
+ * @todo this should be run as its own thread!!! look at cbsasl refresh..
+ */
+static ENGINE_ERROR_CODE do_delete_bucket(conn *c, char *bucket_name, bool force)
+{
+    ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
+    /*
+     * the number of buckets cannot change without a restart, but we don't want
+     * to lock the entire bucket array during checking for the existence
+     * of the bucket and while we're locating the next entry.
+     */
+    int idx;
+    int ii;
+    for (ii = 0; ii < settings.max_buckets; ++ii) {
+        cb_mutex_enter(&all_buckets[ii].mutex);
+        if (strcmp(bucket_name, all_buckets[ii].name) == 0) {
+            idx = ii;
+            if (all_buckets[ii].state == BUCKET_STATE_READY) {
+                ret = ENGINE_SUCCESS;
+                all_buckets[ii].state = BUCKET_STATE_DESTROYING;
+            } else {
+                ret = ENGINE_KEY_EEXISTS;
+            }
+        }
+        cb_mutex_exit(&all_buckets[ii].mutex);
+        if (ret != ENGINE_KEY_ENOENT) {
+            break;
+        }
+    }
+
+    if (ret != ENGINE_SUCCESS) {
+        return ret;
+    }
+
+    /* If this thread is connected to the requested bucket... release it */
+    if (ii == c->bucket.idx) {
+        disassociate_bucket(c);
+    }
+
+    /* Let all of the worker threads start invalidating connections */
+    threads_initiate_bucket_deletion();
+
+
+    /* Wait until all users disconnected... */
+    cb_mutex_enter(&all_buckets[idx].mutex);
+    while (all_buckets[idx].clients > 0) {
+        /* drop the lock and notify the worker threads */
+        cb_mutex_exit(&all_buckets[idx].mutex);
+        threads_notify_bucket_deletion();
+        cb_mutex_enter(&all_buckets[idx].mutex);
+
+        cb_cond_timedwait(&all_buckets[idx].cond,
+                          &all_buckets[idx].mutex,
+                          1000);
+    }
+    cb_mutex_exit(&all_buckets[idx].mutex);
+
+    /* Tell the worker threads to stop trying to invalidating connections */
+    threads_complete_bucket_deletion();
+
+    /* assert that all associations are gone. */
+    assert_no_associations(idx);
+
+    all_buckets[idx].engine->destroy((void*)all_buckets[idx].engine, force);
+
+    /* Clean up the stats... */
+    struct thread_stats *ts = all_buckets[idx].stats;
+    int numthread = settings.num_threads + 1;
+    for (ii = 0; ii < numthread; ii++) {
+        cb_mutex_destroy(&ts[ii].mutex);
+    }
+    memset(ts, 0, numthread * sizeof(struct thread_stats));
+    for (ii = 0; ii < numthread; ii++) {
+        cb_mutex_initialize(&ts[ii].mutex);
+    }
+
+    memset(&all_buckets[idx].engine_event_handlers, 0,
+           sizeof(all_buckets[idx].engine_event_handlers));
+
+    cb_mutex_enter(&all_buckets[idx].mutex);
+    all_buckets[idx].state = BUCKET_STATE_NONE;
+    all_buckets[idx].engine = NULL;
+    all_buckets[idx].name[0] = '\0';
+    cb_mutex_exit(&all_buckets[idx].mutex);
+
+    return ret;
+}
+
+static void delete_bucket_main(void *arg)
+{
+    conn *c = arg;
+    ENGINE_ERROR_CODE ret;
+    char *packet = (c->read.curr - (c->binary_header.request.bodylen +
+                                    sizeof(c->binary_header)));
+
+    protocol_binary_request_delete_bucket *req = (void*)packet;
+    /* decode packet */
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+    blen -= klen;
+
+    char *key = malloc(klen + 1);
+    char *config = malloc(blen + 1);
+
+    if (key == NULL || config == NULL) {
+        ret = ENGINE_ENOMEM;
+    } else {
+        bool force = false;
+        struct config_item items[2];
+
+        memcpy(key, req + 1, klen);
+        key[klen] = '\0';
+        memcpy(config, (char*)(req + 1) + klen, blen);
+        config[blen] = '\0';
+
+        memset(&items, 0, sizeof(items));
+        items[0].key = "force";
+        items[0].datatype = DT_BOOL;
+        items[0].value.dt_bool = &force;
+        items[1].key = NULL;
+
+        if (parse_config(config, items, stderr) == 0) {
+            ret = do_delete_bucket(c, key, force);
+        } else {
+            ret = ENGINE_EINVAL;
+        }
+    }
+    free(key);
+    free(config);
+
+    notify_io_complete(c, ret);
+}
+
+static void initialize_buckets(void) {
+    cb_mutex_initialize(&buckets_lock);
+    all_buckets = calloc(settings.max_buckets, sizeof(*all_buckets));
+
+    for (int ii = 0; ii < settings.max_buckets; ++ii) {
+        cb_mutex_initialize(&all_buckets[ii].mutex);
+        cb_cond_initialize(&all_buckets[ii].cond);
+        all_buckets[ii].state = BUCKET_STATE_NONE;
+
+        // setup the stats
+        int numthread = settings.num_threads + 1;
+        struct thread_stats *ts = calloc(numthread,
+                                         sizeof(struct thread_stats));
+        for (int jj = 0; jj < numthread; jj++) {
+            cb_mutex_initialize(&ts[jj].mutex);
+        }
+        all_buckets[ii].stats = ts;
+    }
+
+    // To make the life easier for us in the code, index 0
+    // in the array is "no bucket"
+    all_buckets[0].type = BUCKET_TYPE_NO_BUCKET;
+    all_buckets[0].state = BUCKET_STATE_READY;
+    ENGINE_HANDLE *handle;
+    cb_assert(new_engine_instance(BUCKET_TYPE_NO_BUCKET,
+                                  get_server_api,
+                                  &handle));
+
+    all_buckets[0].engine = (ENGINE_HANDLE_V1*)handle;
+    cb_assert(all_buckets[0].engine != NULL);
+}
+
+static void cleanup_buckets(void) {
+    for (int ii = 0; ii < settings.max_buckets; ++ii) {
+        bool waiting;
+
+        do {
+            waiting = false;
+            cb_mutex_enter(&all_buckets[ii].mutex);
+            switch (all_buckets[ii].state) {
+            case BUCKET_STATE_STOPPING:
+            case BUCKET_STATE_DESTROYING:
+            case BUCKET_STATE_CREATING:
+            case BUCKET_STATE_INITIALIZING:
+                waiting = true;
+                break;
+            default:
+                /* Empty */
+                ;
+            }
+            cb_mutex_exit(&all_buckets[ii].mutex);
+            if (waiting) {
+                usleep(250);
+            }
+        } while (waiting);
+
+        if (all_buckets[ii].state == BUCKET_STATE_READY) {
+            all_buckets[ii].engine->destroy((void*)all_buckets[ii].engine,
+                                            false);
+        }
+
+
+        struct thread_stats *ts = all_buckets[ii].stats;
+        int numthread = settings.num_threads + 1;
+        for (int jj = 0; jj < numthread; jj++) {
+            cb_mutex_destroy(&ts[jj].mutex);
+        }
+        free(all_buckets[ii].stats);
+
+        cb_cond_destroy(&all_buckets[ii].cond);
+        cb_mutex_destroy(&all_buckets[ii].mutex);
+    }
+    free(all_buckets);
+}
 
 static void initialize_binary_lookup_map(void) {
     int ii;
@@ -7526,9 +8374,6 @@ static void load_extensions(void) {
 }
 
 int main (int argc, char **argv) {
-    ENGINE_HANDLE *engine_handle = NULL;
-    engine_reference* engine_ref = NULL;
-
     // MB-14649 log() crash on windows on some CPU's
 #ifdef _WIN64
     _set_FMA3_enable (0);
@@ -7624,6 +8469,18 @@ int main (int argc, char **argv) {
     /* Aggregate the maximum number of connections */
     calculate_maxconns();
 
+    {
+        char *errmsg;
+        if (!initialize_engine_map(&errmsg, settings.extensions.logger)) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "%s", errmsg);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    /* Initialize bucket engine */
+    initialize_buckets();
+
     /* allocate the connection array */
     initialize_connections();
 
@@ -7639,38 +8496,8 @@ int main (int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-
-    /* Load the storage engine */
-    if ((engine_ref = load_engine(settings.engine_module,
-                                  settings.extensions.logger)) == NULL) {
-        /* Error already reported */
-        exit(EXIT_FAILURE);
-    }
-
-    if (!create_engine_instance(engine_ref,
-                                get_server_api,
-                                settings.extensions.logger,
-                                &engine_handle)) {
-        exit(EXIT_FAILURE);
-    }
-
-    if (!init_engine_instance(engine_handle,
-                              settings.engine_config,
-                              settings.extensions.logger)) {
-        exit(EXIT_FAILURE);
-    }
-
-    if (settings.verbose > 0) {
-        log_engine_details(engine_handle,settings.extensions.logger);
-    }
-    settings.engine.v1 = (ENGINE_HANDLE_V1 *) engine_handle;
-
-    setup_not_supported_handlers();
-
     /* initialize other stuff */
     stats_init();
-
-    default_independent_stats = new_independent_stats();
 
 #ifndef WIN32
     /*
@@ -7740,7 +8567,8 @@ int main (int argc, char **argv) {
 
     threads_shutdown();
 
-    settings.engine.v1->destroy(settings.engine.v0, false);
+    close_all_connections();
+    cleanup_buckets();
 
     threads_cleanup();
 
@@ -7750,13 +8578,9 @@ int main (int argc, char **argv) {
     }
 
     event_base_free(main_base);
-    release_independent_stats(default_independent_stats);
     destroy_connections();
 
-    if (get_alloc_hooks_type() == none) {
-        unload_engine(engine_ref);
-    }
-
+    shutdown_engine_map();
     destroy_breakpad();
 
     cJSON_Free((char*)settings.config);

@@ -45,6 +45,9 @@ void initialize_connections(void);
 /* Destroy all connections and reset connection management */
 void destroy_connections(void);
 
+/* Run through all the connections and close them */
+void close_all_connections(void);
+
 /* Run the connection event loop; until an event handler returns false. */
 void run_event_loop(conn* c);
 
@@ -96,6 +99,22 @@ bool connection_set_nodelay(conn *c, bool enable);
  * Use engine::release to drop any data we may have allocated with engine::allocate
  */
 void conn_cleanup_engine_allocations(conn* c);
+
+/**
+ * Signal (set writable) all idle clients bound to a given bucket.
+ * Due to the threading model we're only going to look at the clients
+ * connected to the thread represented by me.
+ *
+ * @param me the thread to inpect
+ * @param bucket_idx the bucket we'd like to signal
+ */
+void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx);
+
+/**
+ * Assert that none of the connections is assciated with
+ * the given bucket (debug function).
+ */
+void assert_no_associations(int bucket_idx);
 
 #ifdef __cplusplus
 } // extern "C"

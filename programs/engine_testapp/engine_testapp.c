@@ -368,44 +368,6 @@ static bool mock_get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                                          cookie, item, item_info);
 }
 
-static void *mock_get_stats_struct(ENGINE_HANDLE* handle, const void* cookie)
-{
-    struct mock_engine *me = get_handle(handle);
-    return me->the_engine->get_stats_struct((ENGINE_HANDLE*)me->the_engine, cookie);
-}
-
-static ENGINE_ERROR_CODE mock_aggregate_stats(ENGINE_HANDLE* handle,
-                                              const void* cookie,
-                                              void (*callback)(void*, void*),
-                                              void *vptr)
-{
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
-    if (c == NULL) {
-        c = (void*)create_mock_cookie();
-    }
-
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->aggregate_stats((ENGINE_HANDLE*)me->the_engine, c,
-                                                  callback, vptr)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-    {
-        ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
-        ret = c->status;
-    }
-    cb_mutex_exit(&c->mutex);
-
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
-    return ret;
-}
-
 static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
                                         const void *cookie,
                                         void *engine_specific,
@@ -901,7 +863,7 @@ static int report_test(const char *name, time_t duration, enum test_result r, bo
 
 static engine_reference* engine_ref = NULL;
 static bool start_your_engine(const char *engine) {
-    if ((engine_ref = load_engine(engine, logger_descriptor)) == NULL) {
+    if ((engine_ref = load_engine(engine, NULL, NULL, logger_descriptor)) == NULL) {
         fprintf(stderr, "Failed to load engine %s.\n", engine);
         return false;
     }
@@ -933,8 +895,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         mock_engine->me.flush = mock_flush;
         mock_engine->me.get_stats = mock_get_stats;
         mock_engine->me.reset_stats = mock_reset_stats;
-        mock_engine->me.get_stats_struct = mock_get_stats_struct;
-        mock_engine->me.aggregate_stats = mock_aggregate_stats;
         mock_engine->me.unknown_command = mock_unknown_command;
         mock_engine->me.tap_notify = mock_tap_notify;
         mock_engine->me.get_tap_iterator = mock_get_tap_iterator;
@@ -964,12 +924,6 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         /* testcases to verify that they initialize them.. */
         cb_assert(mock_engine->me.interface.interface == mock_engine->the_engine->interface.interface);
 
-        if (mock_engine->the_engine->get_stats_struct == NULL) {
-            mock_engine->me.get_stats_struct = NULL;
-        }
-        if (mock_engine->the_engine->aggregate_stats == NULL) {
-            mock_engine->me.aggregate_stats = NULL;
-        }
         if (mock_engine->the_engine->unknown_command == NULL) {
             mock_engine->me.unknown_command = NULL;
         }

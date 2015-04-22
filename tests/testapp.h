@@ -53,6 +53,9 @@ public:
     // Called after the last test in this test case.
     static void TearDownTestCase();
 
+
+    static uint16_t sasl_auth(const char *username, const char *password);
+
 protected:
     // per test setup function.
     virtual void SetUp();
@@ -64,6 +67,8 @@ protected:
 
     static void start_memcached_server(cJSON* config);
 
+    // Create the bucket used for testing
+    static void CreateTestBucket();
 };
 
 SOCKET connect_to_server_plain(in_port_t port, bool nonblocking);

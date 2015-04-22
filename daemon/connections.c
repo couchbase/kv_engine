@@ -76,6 +76,38 @@ const char *get_peername(const conn *c)
 }
 
 
+void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
+{
+    cb_mutex_enter(&connections.mutex);
+    conn *c = connections.sentinal.all_next;
+    while (c != &connections.sentinal) {
+        if (c->thread == me && c->bucket.idx == bucket_idx) {
+            if (c->state == conn_read || c->state == conn_waiting) {
+                /* set write access to ensure it's handled */
+                if (!update_event(c, EV_READ | EV_WRITE | EV_PERSIST)) {
+                    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                                    "Couldn't update event");
+                }
+            }
+        }
+        c = c->all_next;
+    }
+
+    cb_mutex_exit(&connections.mutex);
+}
+
+void assert_no_associations(int bucket_idx)
+{
+    cb_mutex_enter(&connections.mutex);
+    conn *c = connections.sentinal.all_next;
+    while (c != &connections.sentinal) {
+        cb_assert(c->bucket.idx != bucket_idx);
+        c = c->all_next;
+    }
+
+    cb_mutex_exit(&connections.mutex);
+}
+
 void initialize_connections(void)
 {
     cb_mutex_initialize(&connections.mutex);
@@ -94,6 +126,38 @@ void destroy_connections(void)
     }
     connections.sentinal.all_next = &connections.sentinal;
     connections.sentinal.all_prev = &connections.sentinal;
+}
+
+void close_all_connections(void)
+{
+    /* traverse the list of connections. */
+    conn *c = connections.sentinal.all_next;
+    while (c != &connections.sentinal) {
+        conn *next = c->all_next;
+
+        if (c->sfd != INVALID_SOCKET) {
+            safe_close(c->sfd);
+            c->sfd = INVALID_SOCKET;
+        }
+
+        if (c->refcount > 1) {
+            perform_callbacks(ON_DISCONNECT, NULL, c);
+        }
+        c = next;
+    }
+
+    /*
+     * do a second loop, this time wait for all of them to
+     * be closed.
+     */
+    c = connections.sentinal.all_next;
+    while (c != &connections.sentinal) {
+        conn *next = c->all_next;
+        while (c->refcount > 1) {
+            usleep(500);
+        }
+        c = next;
+    }
 }
 
 void run_event_loop(conn* c) {
@@ -341,6 +405,13 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->ewouldblock = false;
     c->refcount = 1;
 
+    if (init_state != conn_listening) {
+        associate_initial_bucket(c);
+    } else {
+        c->bucket.engine = NULL;
+        c->bucket.idx = -1;
+    }
+
     MEMCACHED_CONN_ALLOCATE(c->sfd);
 
     perform_callbacks(ON_CONNECT, NULL, c);
@@ -350,13 +421,13 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
 
 void conn_cleanup_engine_allocations(conn* c) {
     if (c->item) {
-        settings.engine.v1->release(settings.engine.v0, c, c->item);
-        c->item = 0;
+        c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
+        c->item = NULL;
     }
 
     if (c->ileft != 0) {
         for (; c->ileft > 0; c->ileft--,c->icurr++) {
-            settings.engine.v1->release(settings.engine.v0, c, *(c->icurr));
+            c->bucket.engine->release((void*)c->bucket.engine, c, *(c->icurr));
         }
     }
 }

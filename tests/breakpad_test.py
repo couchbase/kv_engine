@@ -64,8 +64,7 @@ else:
 rbac = {"foo": "bar"}
 rbac_json = json.dumps(rbac)
 
-config = {"engine": {"module": "crash_engine.so"},
-          "interfaces": [{"port": 0,
+config = {"interfaces": [{"port": 0,
                           "maxconn":  1000,
                           "backlog":  1024,
                           "host": "*"}],
@@ -81,8 +80,11 @@ config_file = tempfile.NamedTemporaryFile(delete=False)
 config_file.write(config_json)
 config_file.close()
 
+os.environ['MEMCACHED_UNIT_TESTS'] = "true"
+os.environ['MEMCACHED_CRASH_TEST'] = "true"
+
 args = [memcached_exe, "-C", os.path.abspath(config_file.name)]
-memcached = subprocess.Popen(args, stderr=subprocess.PIPE)
+memcached = subprocess.Popen(args, stderr=subprocess.PIPE, env = os.environ)
 
 # Wait for memcached to initialise (and consequently crash due to loading
 # crash_engine).

@@ -164,7 +164,7 @@ public:
         }
 
         engine_reference* engine_ref = NULL;
-        if ((engine_ref = load_engine(real_engine_name.c_str(), NULL)) == NULL) {
+        if ((engine_ref = load_engine(real_engine_name.c_str(), NULL, NULL, NULL)) == NULL) {
             fprintf(stderr,
                     "ERROR: EWB_Engine::initialize(): Failed to load real engine "
                     "'%s'\n",

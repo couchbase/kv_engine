@@ -403,6 +403,13 @@ extern "C" {
          */
         void (*reset_stats)(ENGINE_HANDLE* handle, const void *cookie);
 
+        /* @todo: We are going to kill get_stats_struct and and
+         * aggregate_stats moving forward. They're just in here
+         * so that we may commit memcached before we kill
+         * the methods from ep_engine (which sets them to NULL)
+         */
+
+
         /**
          * Get an array of per-thread stats. This allows the engine to
          * keep separate stats per cookie. Your implementation of this

@@ -63,13 +63,6 @@ extern "C" {
 
     typedef struct {
         /**
-         * Allocate and deallocate thread-specific stats arrays for
-         * engine-maintained separate stats.
-         */
-        void *(*new_stats)(void);
-        void (*release_stats)(void*);
-
-        /**
          * Tell the server we've evicted an item.
          */
         void (*evicting)(const void *cookie,
@@ -214,6 +207,13 @@ extern "C" {
          */
         void (*set_priority)(const void *cookie, CONN_PRIORITY priority);
 
+        /**
+         * Get the bucket the connection is bound to
+         *
+         * @cookie The connection object
+         * @return the bucket identifier for a cookie
+         */
+        bucket_id_t (*get_bucket_id)(const void *cookie);
     } SERVER_COOKIE_API;
 
 #ifdef WIN32

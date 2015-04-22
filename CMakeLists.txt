@@ -81,9 +81,11 @@ IF (BREAKPAD_FOUND)
       # file with GDB.
       FIND_PROGRAM(GDB_EXECUTABLE gdb)
       IF (GDB_EXECUTABLE)
-         ADD_TEST(breakpad-test ${PYTHON_EXECUTABLE}
+         ADD_TEST(memcached-breakpad-test ${PYTHON_EXECUTABLE}
                   ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
                   ${Memcached_BINARY_DIR}/memcached ${MINIDUMP2CORE} ${GDB_EXECUTABLE})
+      ELSE (GDB_EXECUTABLE)
+         MESSAGE(STATUS "GDB not available, skipping breakpad test")
       ENDIF (GDB_EXECUTABLE)
 
    ELSEIF (WIN32)
@@ -131,11 +133,6 @@ ADD_LIBRARY(default_engine SHARED
             engines/default_engine/slabs.c)
 ADD_LIBRARY(nobucket SHARED
             engines/nobucket/nobucket.c)
-ADD_LIBRARY(bucket_engine SHARED
-            engines/bucket_engine/bucket_engine.c
-            engines/bucket_engine/topkeys.c
-            engines/bucket_engine/genhash.c
-            utilities/engine_loader.c)
 ADD_LIBRARY(crash_engine SHARED
             engines/crash_engine/crash_engine.c)
 ADD_LIBRARY(ewouldblock_engine SHARED
@@ -145,9 +142,6 @@ ADD_LIBRARY(basic_engine_testsuite SHARED testsuite/basic_engine_testsuite.c)
 ADD_LIBRARY(blackhole_logger SHARED extensions/loggers/blackhole_logger.c)
 ADD_LIBRARY(stdin_term_handler SHARED extensions/daemon/stdin_check.c)
 ADD_LIBRARY(tap_mock_engine SHARED engines/tap_mock_engine/tap_mock_engine.cc)
-ADD_LIBRARY(bucket_engine_mock_engine SHARED
-            engines/bucket_engine/mock_engine.c
-            engines/bucket_engine/genhash.c)
 ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.cc)
 ADD_LIBRARY(testapp_extension SHARED extensions/protocol/testapp_extension.c)
 
@@ -155,24 +149,18 @@ ADD_SUBDIRECTORY(auditd)
 
 SET_TARGET_PROPERTIES(default_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(nobucket PROPERTIES PREFIX "")
-SET_TARGET_PROPERTIES(bucket_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(crash_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(ewouldblock_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(basic_engine_testsuite PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(tap_mock_engine PROPERTIES PREFIX "")
-SET_TARGET_PROPERTIES(bucket_engine_mock_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(file_logger PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(testapp_extension PROPERTIES PREFIX "")
 
 #
 # All of the binaries we're building
 #
-ADD_EXECUTABLE(bucket_engine_testapp
-               engines/bucket_engine/testapp.cc
-               engines/bucket_engine/genhash.c
-               utilities/engine_loader.c)
 ADD_EXECUTABLE(engine_testapp programs/engine_testapp/engine_testapp.c
                               programs/engine_testapp/mock_server.c
                               programs/engine_testapp/mock_server.h
@@ -211,6 +199,8 @@ ADD_EXECUTABLE(memcached
                daemon/connections.h
                daemon/debug_helpers.cc
                daemon/debug_helpers.h
+               daemon/enginemap.h
+               daemon/enginemap.cc
                daemon/hash.c
                daemon/ioctl.c
                daemon/mcaudit.c
@@ -220,7 +210,6 @@ ADD_EXECUTABLE(memcached
                daemon/memcached.c
                daemon/privileges.c
                daemon/subdocument.cc
-               daemon/stats.c
                daemon/thread.c
                daemon/timings.cc
                daemon/mc_time.c
@@ -297,7 +286,6 @@ TARGET_LINK_LIBRARIES(cbsasl platform)
 #
 # Add linker flags to all of the binaries
 #
-TARGET_LINK_LIBRARIES(bucket_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
 TARGET_LINK_LIBRARIES(default_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(ewouldblock_engine mcd_util)
 
@@ -305,10 +293,8 @@ TARGET_LINK_LIBRARIES(basic_engine_testsuite mcd_util platform ${COUCHBASE_NETWO
 TARGET_LINK_LIBRARIES(stdin_term_handler platform)
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${MALLOC_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 APPEND_MALLOC_LINKER_FLAGS(engine_testapp)
-TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(testapp_extension mcd_util platform ${COUCHBASE_NETWORK_LIBS})
-
 TARGET_LINK_LIBRARIES(mcd_util platform)
 TARGET_LINK_LIBRARIES(memcached auditd mcd_util cbsasl platform cJSON JSON_checker subjson ${SNAPPY_LIBRARIES} ${MALLOC_LIBRARIES} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${BREAKPAD_LIBRARIES})
 APPEND_MALLOC_LINKER_FLAGS(memcached)
@@ -347,7 +333,7 @@ INSTALL(TARGETS mcd_util
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
 
-INSTALL(TARGETS default_engine nobucket bucket_engine blackhole_logger
+INSTALL(TARGETS default_engine nobucket blackhole_logger
                 stdin_term_handler file_logger
         RUNTIME DESTINATION lib/memcached
         LIBRARY DESTINATION lib/memcached
@@ -367,7 +353,6 @@ INSTALL(TARGETS cbsasl
 ADD_TEST(memcached-basic-unit-tests-plain memcached_testapp --gtest_filter=-PlainOrSSL/*/1)
 ADD_TEST(memcached-basic-unit-tests-SSL memcached_testapp  --gtest_filter=PlainOrSSL/*/1)
 
-ADD_TEST(memcached-bucket_engine-unit-tests bucket_engine_testapp)
 ADD_TEST(memcached-basic-engine-tests engine_testapp -E default_engine.so -T basic_engine_testsuite.so)
 
 ADD_TEST(memcached-utilities-tests utilities_testapp)
@@ -432,8 +417,6 @@ IF (${CMAKE_MAJOR_VERSION} LESS 3)
     SET_TARGET_PROPERTIES(mcd_util PROPERTIES INSTALL_NAME_DIR
                           ${CMAKE_INSTALL_PREFIX}/lib/memcached)
     SET_TARGET_PROPERTIES(default_engine PROPERTIES INSTALL_NAME_DIR
-                          ${CMAKE_INSTALL_PREFIX}/lib/memcached)
-    SET_TARGET_PROPERTIES(bucket_engine PROPERTIES INSTALL_NAME_DIR
                           ${CMAKE_INSTALL_PREFIX}/lib/memcached)
     SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES INSTALL_NAME_DIR
                           ${CMAKE_INSTALL_PREFIX}/lib/memcached)

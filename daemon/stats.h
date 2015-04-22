@@ -3,13 +3,6 @@
 #ifndef STATS_H
 #define STATS_H
 
-/* Default statistics, accessed from memcached.c */
-extern struct thread_stats *default_independent_stats;
-
-void *new_independent_stats(void);
-void release_independent_stats(void *stats);
-
-struct thread_stats* get_independent_stats(conn *c);
 struct thread_stats *get_thread_stats(conn *c);
 
 /*

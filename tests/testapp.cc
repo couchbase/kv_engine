@@ -91,7 +91,6 @@ static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking);
 
 static void destroy_ssl_socket();
 static void ewouldblock_engine_configure(EWBEngine_Mode mode, uint32_t value);
-
 static void set_mutation_seqno_feature(bool enable);
 
 std::ostream& operator << (std::ostream& os, const Transport& t)
@@ -107,23 +106,94 @@ std::ostream& operator << (std::ostream& os, const Transport& t)
     return os;
 }
 
+void McdTestappTest::CreateTestBucket()
+{
+    // We need to create the bucket
+    int phase = current_phase;
+    current_phase = phase_plain;
+
+    sock = connect_to_server_plain(port, false);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("_admin",
+                                                          "password"));
+    union {
+        protocol_binary_request_create_bucket request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    char cfg[80];
+    memset(cfg, 0, sizeof(cfg));
+    snprintf(cfg, sizeof(cfg), "ewouldblock_engine.so%cdefault_engine.so",
+             0);
+
+    size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                              PROTOCOL_BINARY_CMD_CREATE_BUCKET,
+                              "mybucket", strlen("mybucket"),
+                              cfg, sizeof(cfg));
+
+
+    safe_send(buffer.bytes, plen, false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_CREATE_BUCKET,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    closesocket(sock);
+    sock = INVALID_SOCKET;
+
+    current_phase = phase;
+}
+
 // Per-test-case set-up.
 // Called before the first test in this test case.
 void McdTestappTest::SetUpTestCase() {
     cJSON *config = generate_config();
     start_memcached_server(config);
     cJSON_Delete(config);
+
+    if (HasFailure()) {
+        server_pid = reinterpret_cast<pid_t>(-1);
+    } else {
+        CreateTestBucket();
+    }
 }
 
 // Per-test-case tear-down.
 // Called after the last test in this test case.
 void McdTestappTest::TearDownTestCase() {
+    closesocket(sock);
+
+    if (server_pid != reinterpret_cast<pid_t>(-1)) {
+        current_phase = phase_plain;
+        sock = connect_to_server_plain(port, false);
+        ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("_admin",
+                                                              "password"));
+        union {
+            protocol_binary_request_delete_bucket request;
+            protocol_binary_response_no_extras response;
+            char bytes[1024];
+        } buffer;
+
+        size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                  PROTOCOL_BINARY_CMD_DELETE_BUCKET,
+                                  "mybucket", strlen("mybucket"),
+                                  NULL, 0);
+
+        safe_send(buffer.bytes, plen, false);
+        safe_recv_packet(&buffer, sizeof(buffer));
+
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_DELETE_BUCKET,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
     shutdown_openssl();
     stop_memcached_server();
 }
 
 // per test setup function.
 void McdTestappTest::SetUp() {
+    ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
     if (GetParam() == Transport::Plain) {
         current_phase = phase_plain;
         sock = connect_to_server_plain(port, false);
@@ -133,6 +203,10 @@ void McdTestappTest::SetUp() {
         sock_ssl = connect_to_server_ssl(ssl_port, false);
         ASSERT_NE(INVALID_SOCKET, sock_ssl);
     }
+
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("mybucket",
+                                                          "mybucketpassword"));
+
     // Se ewouldblock_engine test harness to default mode.
     ewouldblock_engine_configure(EWBEngineMode_FIRST, /*unused*/0);
 }
@@ -422,7 +496,7 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
     server_pid = pinfo.hProcess;
 #else
     server_pid = fork();
-    ASSERT_NE(static_cast<pid_t>(-1), server_pid);
+    ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
 
     if (server_pid == 0) {
         /* Child */
@@ -623,6 +697,9 @@ static void reconnect_to_server(bool nonblocking) {
         sock = connect_to_server_plain(port, nonblocking);
         ASSERT_NE(INVALID_SOCKET, sock);
     }
+
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, McdTestappTest::sasl_auth("mybucket",
+                                                                          "mybucketpassword"));
 }
 
 static char *isasl_file;
@@ -645,11 +722,18 @@ void McdTestappTest::start_memcached_server(cJSON* config) {
     FILE *fp = fopen(isasl_file, "w");
     ASSERT_NE(nullptr, fp);
     fprintf(fp, "_admin password \n");
+    fprintf(fp, "mybucket mybucketpassword \n");
     fclose(fp);
 
     snprintf(isasl_pwfile_env, sizeof(isasl_pwfile_env), "ISASL_PWFILE=%s",
              isasl_file);
     putenv(isasl_pwfile_env);
+
+    // We need to set MEMCACHED_UNIT_TESTS to enable the use of
+    // the ewouldblock engine..
+    static char envvar[80];
+    snprintf(envvar, sizeof(envvar), "MEMCACHED_UNIT_TESTS=true");
+    putenv(envvar);
 
     server_start_time = time(0);
     start_server(&port, &ssl_port, false, 600);
@@ -658,14 +742,17 @@ void McdTestappTest::start_memcached_server(cJSON* config) {
 static void stop_memcached_server(void) {
     closesocket(sock);
     sock = INVALID_SOCKET;
+
+    if (server_pid != reinterpret_cast<pid_t>(-1)) {
 #ifdef WIN32
-    TerminateProcess(server_pid, 0);
+        TerminateProcess(server_pid, 0);
 #else
-    if (kill(server_pid, SIGTERM) == 0) {
-        /* Wait for the process to be gone... */
-        waitpid(server_pid, NULL, 0);
-    }
+        if (kill(server_pid, SIGTERM) == 0) {
+            /* Wait for the process to be gone... */
+            waitpid(server_pid, NULL, 0);
+        }
 #endif
+    }
 
     cJSON_Free(config_string);
     EXPECT_NE(-1, remove(config_file));
@@ -3658,7 +3745,7 @@ static int sasl_get_password(cbsasl_conn_t *conn, void *context, int id,
     return CBSASL_OK;
 }
 
-static uint16_t sasl_auth(const char *username, const char *password) {
+uint16_t McdTestappTest::sasl_auth(const char *username, const char *password) {
     cbsasl_error_t err;
     const char *data;
     unsigned int len;
@@ -3825,4 +3912,3 @@ int main(int argc, char **argv) {
 
     return RUN_ALL_TESTS();
 }
-
