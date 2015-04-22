@@ -147,13 +147,22 @@ static void expect_subdoc_cmd(const SubdocCmd& cmd,
                              cmd.cmd, expected_status);
 
     // TODO: Check extras for subdoc command and mutation / seqno (if enabled).
-    if (!expected_value.empty()) {
-        const protocol_binary_response_header* header = &receive.response.message.header;
-        const char* val_ptr = receive.bytes + sizeof(*header) +
-                              header->response.extlen;
-        const size_t vallen = header->response.bodylen + header->response.extlen;
+
+    const protocol_binary_response_header* header = &receive.response.message.header;
+    const char* val_ptr = receive.bytes + sizeof(*header) +
+                          header->response.extlen;
+    const size_t vallen = header->response.bodylen + header->response.extlen;
+
+    if (!expected_value.empty() &&
+        (cmd.cmd != PROTOCOL_BINARY_CMD_SUBDOC_EXISTS)) {
         const std::string val(val_ptr, val_ptr + vallen);
         check_equal(val, expected_value);
+    } else {
+        // Expect zero length on success (on error the error message string is
+        // returned).
+        if (header->response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            cb_assert(vallen == 0);
+        }
     }
 }
 
@@ -183,12 +192,13 @@ static void store_object(const std::string& key, const std::string& value,
 }
 
 // Non JSON document, optionally compressed. Subdoc commands should fail.
-static enum test_return test_subdoc_get_binary(bool compress) {
+static enum test_return test_subdoc_get_binary(bool compress,
+                                               protocol_binary_command cmd) {
     const char not_JSON[] = "not; json";
     store_object("binary", not_JSON);
 
     // a). Check that access fails with DOC_NOTJSON
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "binary", "[0]"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "binary", "[0]"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON, "");
 
     delete_object("binary");
@@ -197,58 +207,70 @@ static enum test_return test_subdoc_get_binary(bool compress) {
 }
 
 enum test_return test_subdoc_get_binary_raw() {
-    return test_subdoc_get_binary(/*compress*/false);
+    return test_subdoc_get_binary(/*compress*/false,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 enum test_return test_subdoc_get_binary_compressed() {
-    return test_subdoc_get_binary(/*compress*/true);
+    return test_subdoc_get_binary(/*compress*/true,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 
-// JSON document consisting of a toplevel array.
-static enum test_return test_subdoc_get_array_simple(bool compressed) {
+enum test_return test_subdoc_exists_binary_raw() {
+    return test_subdoc_get_binary(/*compress*/false,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+}
+enum test_return test_subdoc_exists_binary_compressed() {
+    return test_subdoc_get_binary(/*compress*/true,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+}
+
+// retrieve from a JSON document consisting of a toplevel array.
+static enum test_return
+test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd) {
+
+    cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
+              (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 
     const char array[] = "[ 0, \"one\", 2.0 ]";
     store_object("array", array, /*JSON*/true, compressed);
 
     // a). Check successful access to each array element.
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[0]"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", "[0]"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "0");
 
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[1]"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", "[1]"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "\"one\"");
 
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[2]"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", "[2]"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "2.0");
 
     // b). Check successful access to last element (using -1).
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[-1]"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", "[-1]"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "2.0");
 
     // c). Check -2 treated as invalid index (only -1 permitted).
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[-2]"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", "[-2]"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL, "");
 
     // d). Check failure accessing out-of-range index.
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[3]"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", "[3]"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[9999]"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", "[9999]"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
 
     // e). Check failure accessing array as dict.
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array",
-                                "missing_key"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", "missing_key"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array",
-                                "[2].nothing_here"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", "[2].nothing_here"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
 
     // f). Check path longer than SUBDOC_PATH_MAX_LENGTH is invalid.
     std::string too_long_path(1024 + 1, '.');
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array",
-                                too_long_path),
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", too_long_path),
                       PROTOCOL_BINARY_RESPONSE_EINVAL, "");
 
     // g). Check that incorrect flags (i.e. non-zero) is invalid.
-    SubdocCmd bad_flags(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[0]");
+    SubdocCmd bad_flags(cmd, "array", "[0]");
     bad_flags.flags = SUBDOC_FLAG_MKDIR_P;
     expect_subdoc_cmd(bad_flags, PROTOCOL_BINARY_RESPONSE_EINVAL, "");
 
@@ -258,15 +280,29 @@ static enum test_return test_subdoc_get_array_simple(bool compressed) {
 }
 
 enum test_return test_subdoc_get_array_simple_raw() {
-    return test_subdoc_get_array_simple(/*compressed*/false);
+    return test_subdoc_fetch_array_simple(/*compressed*/false,
+                                          PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 enum test_return test_subdoc_get_array_simple_compressed() {
-    return test_subdoc_get_array_simple(/*compressed*/true);
+    return test_subdoc_fetch_array_simple(/*compressed*/true,
+                                          PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 
+enum test_return test_subdoc_exists_array_simple_raw() {
+    return test_subdoc_fetch_array_simple(/*compressed*/false,
+                                         PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+}
+enum test_return test_subdoc_exists_array_simple_compressed() {
+    return test_subdoc_fetch_array_simple(/*compressed*/true,
+                                         PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+}
 
 // JSON document containing toplevel dict.
-static enum test_return test_subdoc_get_dict_simple(bool compressed) {
+static enum test_return test_subdoc_fetch_dict_simple(bool compressed,
+                                                      protocol_binary_command cmd) {
+
+    cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
+              (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 
     const char dict[] = "{ \"int\": 1,"
                         "  \"string\": \"two\","
@@ -275,26 +311,25 @@ static enum test_return test_subdoc_get_dict_simple(bool compressed) {
     store_object("dict", dict, /*JSON*/true, compressed);
 
     // a). Check successful access to each dict element.
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict", "int"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict", "int"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "1");
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict", "string"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict", "string"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "\"two\"");
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict", "true"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict", "true"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "true");
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict", "false"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict", "false"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "false");
 
     // b). Check failure accessing non-existent keys.
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict", "missing_key"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict", "missing_key"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
 
     // c). Check failure accessing object incorrectly (wrong type).
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict", "[0]"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict", "[0]"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict", "[-1]"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict", "[-1]"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
-                                "int.nothing_here"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict", "int.nothing_here"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
 
     delete_object("dict");
@@ -303,15 +338,29 @@ static enum test_return test_subdoc_get_dict_simple(bool compressed) {
 }
 
 enum test_return test_subdoc_get_dict_simple_raw() {
-    return test_subdoc_get_dict_simple(/*compressed*/false);
+    return test_subdoc_fetch_dict_simple(/*compressed*/false,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 enum test_return test_subdoc_get_dict_simple_compressed() {
-    return test_subdoc_get_dict_simple(/*compressed*/true);
+    return test_subdoc_fetch_dict_simple(/*compressed*/true,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 
+enum test_return test_subdoc_exists_dict_simple_raw() {
+    return test_subdoc_fetch_dict_simple(/*compressed*/false,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+}
+enum test_return test_subdoc_exists_dict_simple_compressed() {
+    return test_subdoc_fetch_dict_simple(/*compressed*/true,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+}
 
 // JSON document containing nested dictionary.
-static enum test_return test_subdoc_get_dict_nested(bool compressed) {
+static enum test_return test_subdoc_fetch_dict_nested(bool compressed,
+                                                      protocol_binary_command cmd) {
+
+    cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
+              (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 
     // Getting a bit complex to do raw (with all the quote escaping so use
     // cJSON API.
@@ -341,33 +390,27 @@ static enum test_return test_subdoc_get_dict_nested(bool compressed) {
     cJSON_Free(dict_str);
 
     // a). Check successful access to individual nested components.
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict2",
-                                "name.title"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict2", "name.title"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "\"Mr\"");
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict2",
-                                "name.first"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict2", "name.first"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "\"Joseph\"");
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict2",
-                                "name.last"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict2", "name.last"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "\"Bloggs\"");
 
     // b). Check successful access to a whole sub-dictionary.
     char* name_str = cJSON_PrintUnformatted(name);
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict2",
-                                "name"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict2", "name"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, name_str);
     cJSON_Free(name_str);
 
     // c). Check successful access to a whole sub-array.
     char* orders_str = cJSON_PrintUnformatted(orders);
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict2",
-                                "orders"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict2", "orders"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, orders_str);
     cJSON_Free(orders_str);
 
     // d). Check access to dict in array.
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict2",
-                                "orders[0].date"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict2", "orders[0].date"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS,
                       "\"2020-04-04T18:17:04Z\"");
 
@@ -377,10 +420,20 @@ static enum test_return test_subdoc_get_dict_nested(bool compressed) {
 }
 
 enum test_return test_subdoc_get_dict_nested_raw() {
-    return test_subdoc_get_dict_nested(/*compressed*/false);
+    return test_subdoc_fetch_dict_nested(/*compressed*/false,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 enum test_return test_subdoc_get_dict_nested_compressed() {
-    return test_subdoc_get_dict_nested(/*compressed*/true);
+    return test_subdoc_fetch_dict_nested(/*compressed*/true,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_GET);
+}
+enum test_return test_subdoc_exists_dict_nested_raw() {
+    return test_subdoc_fetch_dict_nested(/*compressed*/false,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+}
+enum test_return test_subdoc_exists_dict_nested_compressed() {
+    return test_subdoc_fetch_dict_nested(/*compressed*/true,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
 // Creates a nested dictionary with the specified number of levels.
@@ -399,7 +452,8 @@ static cJSON* make_nested_dict(int nlevels) {
 }
 
 // Deeply nested JSON dictionary; verify limits on how deep documents can be.
-enum test_return test_subdoc_get_dict_deep() {
+static enum test_return
+test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
 
     // Maximum depth for a document (and path) is 32. Create documents
     // that large and one bigger to test with.
@@ -416,8 +470,7 @@ enum test_return test_subdoc_get_dict_deep() {
     for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS; depth++) {
         valid_max_path += std::string(".") + std::to_string(depth);
     }
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "max_dict",
-                                valid_max_path),
+    expect_subdoc_cmd(SubdocCmd(cmd, "max_dict", valid_max_path),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "{}");
 
     delete_object("max_dict");
@@ -432,13 +485,19 @@ enum test_return test_subdoc_get_dict_deep() {
     for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS + 1; depth++) {
         too_long_path += std::string(".") + std::to_string(depth);
     }
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "too_deep_dict",
-                                too_long_path),
+    expect_subdoc_cmd(SubdocCmd(cmd, "too_deep_dict", too_long_path),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG, "");
 
     delete_object("too_deep_dict");
 
     return TEST_PASS;
+}
+
+enum test_return test_subdoc_get_dict_deep() {
+    return test_subdoc_fetch_dict_deep(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+}
+enum test_return test_subdoc_exists_dict_deep() {
+    return test_subdoc_fetch_dict_deep(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
 // Creates a nested array with the specified number of levels.
@@ -456,7 +515,8 @@ static cJSON* make_nested_array(int nlevels) {
 }
 
 // Deeply nested JSON array; verify limits on how deep documents can be.
-enum test_return test_subdoc_get_array_deep() {
+static enum test_return
+test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
 
     // Maximum depth for a document (and path) is 32. Create documents
     // that large and one bigger to test with.
@@ -474,8 +534,7 @@ enum test_return test_subdoc_get_array_deep() {
     for (int depth = 1; depth < MAX_SUBDOC_PATH_COMPONENTS; depth++) {
         valid_max_path += "[0]";
     }
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "max_array",
-                                valid_max_path),
+    expect_subdoc_cmd(SubdocCmd(cmd, "max_array", valid_max_path),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "[]");
     delete_object("max_array");
 
@@ -489,10 +548,16 @@ enum test_return test_subdoc_get_array_deep() {
     for (int depth = 1; depth < MAX_SUBDOC_PATH_COMPONENTS + 1; depth++) {
         too_long_path += "[0]";
     }
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "too_deep_array",
-                                too_long_path),
+    expect_subdoc_cmd(SubdocCmd(cmd, "too_deep_array", too_long_path),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG, "");
     delete_object("too_deep_array");
 
     return TEST_PASS;
+}
+
+enum test_return test_subdoc_get_array_deep() {
+    return test_subdoc_fetch_array_deep(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+}
+enum test_return test_subdoc_exists_array_deep() {
+    return test_subdoc_fetch_array_deep(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }

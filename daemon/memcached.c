@@ -5249,7 +5249,8 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME] = get_adjusted_time_validator;
     validators[PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE] = set_drift_counter_state_validator;
 
-    validators[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_validator;
+    validators[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_exists_validator;
+    validators[PROTOCOL_BINARY_CMD_SUBDOC_EXISTS] = subdoc_get_exists_validator;
 
     validators[PROTOCOL_BINARY_CMD_SETQ] = set_replace_validator;
     validators[PROTOCOL_BINARY_CMD_SET] = set_replace_validator;
@@ -5332,6 +5333,7 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] = audit_config_reload_executor;
 
     executors[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_executor;
+    executors[PROTOCOL_BINARY_CMD_SUBDOC_EXISTS] = subdoc_exists_executor;
 
 }
 

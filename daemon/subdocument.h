@@ -32,11 +32,12 @@ extern "C" {
 /* Maximum sub-document path length */
 const size_t SUBDOC_PATH_MAX_LENGTH = 1024;
 
-/* Validate a subdocument get command. returns 0 if valid, else -1. */
-int subdoc_get_validator(void* packet);
+/* Subdocument validator functions. Returns 0 if valid, else -1. */
+int subdoc_get_exists_validator(void* packet);
 
-/* Execute a subdocument get command. */
+/* Subdocument executor functions. */
 void subdoc_get_executor(conn *c, void *packet);
+void subdoc_exists_executor(conn *c, void *packet);
 
 #if defined(__cplusplus)
 } // extern "C"

@@ -30,11 +30,42 @@ struct sized_buffer {
     size_t len;
 };
 
+/* Convert integers to types, to allow type traits for different
+ * protocol_binary_commands, etc.
+ */
+template <protocol_binary_command C>
+struct Cmd2Type
+{
+  enum { value = C };
+};
+
+/* Traits of each of the sub-document commands. These are used to build up
+ * the individual implementations using generic building blocks:
+ *
+ *   optype: The subjson API optype for this command.
+ *   response_has_value: Does the command response include a value?
+ */
+template <typename T>
+struct cmd_traits;
+
+template <>
+struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_GET> > {
+  static const subdoc_OPTYPE optype = SUBDOC_CMD_GET;
+  static const bool response_has_value = true;
+};
+
+template <>
+struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS> > {
+  static const subdoc_OPTYPE optype = SUBDOC_CMD_EXISTS;
+  static const bool response_has_value = false;
+};
+
 /*
  * Subdocument command validators
  */
 
-int subdoc_get_validator(void* packet) {
+template<protocol_binary_command CMD>
+static int subdoc_validator(void* packet) {
     const protocol_binary_request_subdocument *req =
             reinterpret_cast<protocol_binary_request_subdocument*>(packet);
     const protocol_binary_request_header* header = &req->message.header;
@@ -58,6 +89,10 @@ int subdoc_get_validator(void* packet) {
     }
 
     return 0;
+}
+
+int subdoc_get_exists_validator(void* packet) {
+    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_GET>(packet);
 }
 
 /******************************************************************************
@@ -376,7 +411,7 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
         // Prepare the specified sub-document command.
         subdoc_OPERATION* op = c->thread->subdoc_op;
         subdoc_op_clear(op);
-        SUBDOC_OP_SETCODE(op, SUBDOC_CMD_GET);
+        SUBDOC_OP_SETCODE(op, cmd_traits<Cmd2Type<CMD>>::optype);
         SUBDOC_OP_SETDOC(op, doc.buf, doc.len);
 
         // ... and execute it.
@@ -433,8 +468,10 @@ void subdoc_response(conn* c) {
 
     const char* value = NULL;
     size_t vallen = 0;
-    value = c->thread->subdoc_op->match.loc_match.at;
-    vallen = c->thread->subdoc_op->match.loc_match.length;
+    if (cmd_traits<Cmd2Type<CMD>>::response_has_value) {
+        value = c->thread->subdoc_op->match.loc_match.at;
+        vallen = c->thread->subdoc_op->match.loc_match.length;
+    }
 
     if (add_bin_header(c, 0, /*extlen*/0, /*keylen*/0, vallen,
                        PROTOCOL_BINARY_RAW_BYTES) == -1) {
@@ -443,11 +480,16 @@ void subdoc_response(conn* c) {
     }
     rsp->message.header.response.cas = htonll(c->cas);
 
-    add_iov(c, value, vallen);
-
+    if (cmd_traits<Cmd2Type<CMD>>::response_has_value) {
+        add_iov(c, value, vallen);
+    }
     conn_set_state(c, conn_mwrite);
 }
 
 void subdoc_get_executor(conn *c, void* packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_GET>(c, packet);
+}
+
+void subdoc_exists_executor(conn *c, void* packet) {
+    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>(c, packet);
 }

@@ -38,6 +38,17 @@ enum test_return test_subdoc_get_dict_nested_compressed();
 enum test_return test_subdoc_get_dict_deep();
 enum test_return test_subdoc_get_array_deep();
 
+enum test_return test_subdoc_exists_binary_raw();
+enum test_return test_subdoc_exists_binary_compressed();
+enum test_return test_subdoc_exists_array_simple_raw();
+enum test_return test_subdoc_exists_array_simple_compressed();
+enum test_return test_subdoc_exists_dict_simple_raw();
+enum test_return test_subdoc_exists_dict_simple_compressed();
+enum test_return test_subdoc_exists_dict_nested_raw();
+enum test_return test_subdoc_exists_dict_nested_compressed();
+enum test_return test_subdoc_exists_dict_deep();
+enum test_return test_subdoc_exists_array_deep();
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
