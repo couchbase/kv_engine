@@ -123,6 +123,8 @@ ADD_LIBRARY(bucket_engine SHARED
             engines/bucket_engine/genhash.c)
 ADD_LIBRARY(crash_engine SHARED
             engines/crash_engine/crash_engine.c)
+ADD_LIBRARY(ewouldblock_engine SHARED
+            engines/ewouldblock_engine/ewouldblock_engine.cc)
 
 ADD_LIBRARY(basic_engine_testsuite SHARED testsuite/basic_engine_testsuite.c)
 ADD_LIBRARY(blackhole_logger SHARED extensions/loggers/blackhole_logger.c)
@@ -140,6 +142,7 @@ SET_TARGET_PROPERTIES(default_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(nobucket PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(bucket_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(crash_engine PROPERTIES PREFIX "")
+SET_TARGET_PROPERTIES(ewouldblock_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(basic_engine_testsuite PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES PREFIX "")
@@ -270,6 +273,8 @@ TARGET_LINK_LIBRARIES(cbsasl platform)
 #
 TARGET_LINK_LIBRARIES(bucket_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
 TARGET_LINK_LIBRARIES(default_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS})
+TARGET_LINK_LIBRARIES(ewouldblock_engine mcd_util)
+
 TARGET_LINK_LIBRARIES(basic_engine_testsuite mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(stdin_term_handler platform)
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${MALLOC_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})

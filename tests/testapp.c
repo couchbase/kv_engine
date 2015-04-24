@@ -273,7 +273,8 @@ static cJSON *generate_config(void)
     strncat(pem_path, CERTIFICATE_PATH(testapp.pem), 256);
     strncat(cert_path, CERTIFICATE_PATH(testapp.cert), 256);
 
-    cJSON_AddStringToObject(obj, "module", "default_engine.so");
+    cJSON_AddStringToObject(obj, "module", "ewouldblock_engine.so");
+    cJSON_AddStringToObject(obj, "config", "default_engine.so");
     cJSON_AddItemToObject(root, "engine", obj);
 
     obj = cJSON_CreateObject();
