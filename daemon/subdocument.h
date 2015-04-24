@@ -33,11 +33,14 @@ extern "C" {
 const size_t SUBDOC_PATH_MAX_LENGTH = 1024;
 
 /* Subdocument validator functions. Returns 0 if valid, else -1. */
-int subdoc_get_exists_validator(void* packet);
+int subdoc_get_validator(void* packet);
+int subdoc_exists_validator(void* packet);
+int subdoc_dict_add_validator(void* packet);
 
 /* Subdocument executor functions. */
 void subdoc_get_executor(conn *c, void *packet);
 void subdoc_exists_executor(conn *c, void *packet);
+void subdoc_dict_add_executor(conn *c, void *packet);
 
 #if defined(__cplusplus)
 } // extern "C"

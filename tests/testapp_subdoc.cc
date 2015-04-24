@@ -21,6 +21,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include <cJSON.h>
 #include <memcached/protocol_binary.h>
@@ -32,6 +33,11 @@
  * testapp testcases for sub-document API.
  */
 
+// Maximum depth for a document (and path) is 32. Create documents
+// that large and one bigger to test with.
+const int MAX_SUBDOC_PATH_COMPONENTS = 32;
+
+
 // helper class for use with std::unique_ptr in managing cJSON* objects.
 struct cJSONDeleter {
   void operator()(cJSON* j) { cJSON_Delete(j); }
@@ -41,6 +47,8 @@ typedef std::unique_ptr<cJSON, cJSONDeleter> unique_cJSON_ptr;
 
 // Checks that a and b are equal; if not then assert.
 #define check_equal(a, b) check_equal_impl((a), (b), #a, #b, __FILE__, __LINE__)
+// Checks that a and b are not equal; asserts if not the case.
+#define check_ne(a, b) check_not_equal_impl((a), (b), #a, #b, __FILE__, __LINE__)
 
 // Overload of check_equal_impl for std::string
 static void check_equal_impl(const std::string& a_value, const std::string& b_value,
@@ -53,18 +61,49 @@ static void check_equal_impl(const std::string& a_value, const std::string& b_va
     }
 }
 
+// Overload of check_not_equal_impl for uint64_t
+static void check_not_equal_impl(uint64_t a_value, uint64_t b_value,
+                             const char* a_name, const char* b_name,
+                             const char* file, int line) {
+    if (a_value == b_value) {
+        fprintf(stderr, "Check '%s != %s' failed - '%" PRId64 " == %" PRId64 "' at %s:%d\n",
+                a_name, b_name, a_value, b_value, file, line);
+        abort();
+    }
+}
+
 // Class representing a subdoc command; to assist in constructing / encoding one.
 struct SubdocCmd {
     // Always need at least a cmd, key and path.
-    SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
-                  const std::string& path_)
-      : cmd(cmd_), key(key_), path(path_), value(""), flags() {}
+    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
+                       const std::string& path_)
+      : cmd(cmd_), key(key_), path(path_), value(""), flags(), cas() {}
+
+    // Constructor including a value.
+    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
+                       const std::string& path_, const std::string& value_)
+      : cmd(cmd_), key(key_), path(path_), value(value_), flags(), cas() {}
+
+    // Constructor additionally including flags.
+    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
+                       const std::string& path_, const std::string& value_,
+                       protocol_binary_subdoc_flag flags_)
+      : cmd(cmd_), key(key_), path(path_), value(value_), flags(flags_),
+        cas() {}
+
+    // Constructor additionally including CAS.
+    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
+                       const std::string& path_, const std::string& value_,
+                       protocol_binary_subdoc_flag flags_, uint64_t cas_)
+      : cmd(cmd_), key(key_), path(path_), value(value_), flags(flags_),
+        cas(cas_) {}
 
     protocol_binary_command cmd;
     std::string key;
     std::string path;
     std::string value;
     protocol_binary_subdoc_flag flags;
+    uint64_t cas;
 };
 
 /* Encode the specified subdoc command into `buf`.
@@ -99,7 +138,7 @@ static off_t encode_subdoc_command(char* buf, size_t bufsz,
     header->request.bodylen = htonl(header->request.extlen + cmd.key.size() +
                                     cmd.path.size() + cmd.value.size());
     header->request.opaque = 0xdeadbeef;
-    header->request.cas = 0;
+    header->request.cas = cmd.cas;
 
     // Add extras: flags, pathlen.
     request->message.extras.subdoc_flags = cmd.flags;
@@ -125,10 +164,11 @@ static off_t encode_subdoc_command(char* buf, size_t bufsz,
  * the response and validates that the status matches the expected one.
  * If expected_value is non-empty, also verifies that the response value equals
  * expectd_value.
+ * @return CAS value (if applicable for the command, else zero).
  */
-static void expect_subdoc_cmd(const SubdocCmd& cmd,
-                              protocol_binary_response_status expected_status,
-                              const std::string& expected_value) {
+static uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
+                                  protocol_binary_response_status expected_status,
+                                  const std::string& expected_value) {
     union {
         protocol_binary_request_subdocument request;
         char bytes[2048];
@@ -164,6 +204,7 @@ static void expect_subdoc_cmd(const SubdocCmd& cmd,
             cb_assert(vallen == 0);
         }
     }
+    return header->response.cas;
 }
 
 /* Stores the given document.
@@ -455,10 +496,6 @@ static cJSON* make_nested_dict(int nlevels) {
 static enum test_return
 test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
 
-    // Maximum depth for a document (and path) is 32. Create documents
-    // that large and one bigger to test with.
-    const int MAX_SUBDOC_PATH_COMPONENTS = 32;
-
     // a). Should be able to access a deeply nested document as long as the
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
     unique_cJSON_ptr max_dict(make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS));
@@ -518,10 +555,6 @@ static cJSON* make_nested_array(int nlevels) {
 static enum test_return
 test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
 
-    // Maximum depth for a document (and path) is 32. Create documents
-    // that large and one bigger to test with.
-    const int MAX_SUBDOC_PATH_COMPONENTS = 32;
-
     // a). Should be able to access a deeply nested document as long as the
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
 
@@ -560,4 +593,189 @@ enum test_return test_subdoc_get_array_deep() {
 }
 enum test_return test_subdoc_exists_array_deep() {
     return test_subdoc_fetch_array_deep(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+}
+
+// Test adding to a JSON dictionary.
+static enum test_return test_subdoc_dict_add_simple(bool compress) {
+    const std::vector<std::pair<std::string, std::string>> key_vals({
+            {"int", "2"},
+            {"float", "2.0"},
+            {"object", "{ \"foo\": \"bar\" }"},
+            {"array", "[ \"a\", \"b\", \"c\"]"},
+            {"true", "true"},
+            {"false", "false"},
+            {"null", "null"}});
+
+    // a). Attempt to add to non-existent document should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+                                "int", "2"),
+                      PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "");
+
+    // b). Attempt to add to non-JSON document should return ENOT_JSON
+    const char not_JSON[] = "not; valid, JSON";
+    store_object("binary", not_JSON, /*JSON*/false, compress);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "binary",
+                                "int", "2"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON, "");
+    delete_object("binary");
+
+    // Store a simple JSON document to work on.
+    const char dict[] = "{ \"key1\": 1 }";
+    store_object("dict", dict, /*JSON*/true, compress);
+
+    // c). Addition of primitive types to the dict.
+    for (const auto& kv : key_vals) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+                                    kv.first, kv.second),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
+                                    kv.first),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, kv.second);
+    }
+
+    // d). Check that attempts to add keys which already exist fail.
+    for (const auto& kv : key_vals) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+                                    kv.first, kv.second),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, "");
+    }
+
+    // e). Check that attempts to add keys with a missing intermediate
+    // dict path fail.
+    for (const auto& kv : key_vals) {
+        auto key = "intermediate." + kv.first;
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+                                    key, kv.second),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
+    }
+
+    // f). Check that attempts to add keys with missing intermediate
+    // array path fail.
+    for (const auto& kv : key_vals) {
+        auto key = "intermediate_array[0]." + kv.first;
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+                                    key, kv.second),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
+    }
+
+    // g). ... and they still fail even if MKDIR_P flag is specified (as
+    // intermediate array paths are never automatically created).
+    for (const auto& kv : key_vals) {
+        auto key = "intermediate_array[0]." + kv.first;
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+                                    key, kv.second, SUBDOC_FLAG_MKDIR_P),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
+    }
+
+    // h) However attempts to add keys with _dict_ intermediate paths should
+    // succeed if the MKDIR_P flag is set.
+    for (const auto& kv : key_vals) {
+        auto key = "intermediate." + kv.first;
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+                                    key, kv.second, SUBDOC_FLAG_MKDIR_P),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
+                                    key),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, kv.second);
+    }
+
+    // i). Check that attempts to add various invalid JSON fragments all fail.
+    const std::vector<std::pair<std::string, std::string>> invalid_key_vals({
+            {"bad_int", "\"2"},
+            {"bad_int2", "2a"},
+            {"bad_int3", "0x2"},
+            {"bad_int4", "2."},
+            {"bad_float", "2.0a"},
+            {"bad_float2", "2.0.0"},
+            {"bad_object", "{ \"foo\": }"},
+            {"bad_array", "[ \"a\" "},
+            {"bad_array2", "[ \"a\" }"},
+            {"bad_array3", "[ \"a\", }"},
+            {"bad_true", "TRUE"},
+            {"bad_false", "FALSE"},
+            {"bad_null", "nul"},
+    });
+    for (const auto& kv : invalid_key_vals) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+                                    kv.first, kv.second),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT, "");
+    }
+
+    // j). Check CAS support - cmd with correct CAS should succeed.
+    // Get the current CAS.
+    uint64_t cas = expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                                               "dict", "int"),
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    uint64_t new_cas = expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                                                   "dict", "new_int", "3",
+                                                   protocol_binary_subdoc_flag(0),
+                                                   cas),
+                                         PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    check_ne(cas, new_cas);
+
+    // k). CAS - cmd with old cas should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+                                "new_int2", "4",
+                                protocol_binary_subdoc_flag(0), cas),
+                      PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
+
+    // l). CAS - manually corrupted (off by one) cas should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+                                "new_int2", "4",
+                                protocol_binary_subdoc_flag(0), new_cas + 1),
+                      PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
+
+
+    delete_object("dict");
+
+    return TEST_PASS;
+}
+
+enum test_return test_subdoc_dict_add_simple_raw() {
+    return test_subdoc_dict_add_simple(/*compress*/false);
+}
+
+enum test_return test_subdoc_dict_add_simple_compressed() {
+    return test_subdoc_dict_add_simple(/*compress*/true);
+}
+
+enum test_return test_subdoc_dict_add_deep() {
+
+    // a). Check that we can add elements to a document at the maximum nested
+    // level.
+    unique_cJSON_ptr one_less_max_dict(
+            make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS - 1));
+    char* one_less_max_dict_str = cJSON_PrintUnformatted(one_less_max_dict.get());
+    cb_assert(store_object("dict", one_less_max_dict_str) == TEST_PASS);
+    cJSON_Free(one_less_max_dict_str);
+
+    std::string one_less_max_path(std::to_string(1));
+    for (int depth = 2; depth < MAX_SUBDOC_PATH_COMPONENTS - 1; depth++) {
+        one_less_max_path += std::string(".") + std::to_string(depth);
+    }
+    // Check precondition - should have an empty dict we can access.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
+                                one_less_max_path),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "{}");
+
+    // a). Check we can add primitive elements to this path.
+    const std::vector<std::pair<std::string, std::string>> primitive_key_vals({
+            {"int", "2"},
+            {"float", "2.0"},
+            {"true", "true"},
+            {"false", "false"},
+            {"null", "null"}});
+    for (const auto& kv : primitive_key_vals) {
+        const auto key = one_less_max_path + "." + kv.first;
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                                    "dict", key, kv.second),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
+                                    key),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, kv.second);
+    }
+
+    delete_object("dict");
+
+    return TEST_PASS;
 }

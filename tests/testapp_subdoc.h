@@ -49,6 +49,10 @@ enum test_return test_subdoc_exists_dict_nested_compressed();
 enum test_return test_subdoc_exists_dict_deep();
 enum test_return test_subdoc_exists_array_deep();
 
+enum test_return test_subdoc_dict_add_simple_raw();
+enum test_return test_subdoc_dict_add_simple_compressed();
+enum test_return test_subdoc_dict_add_deep();
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif
