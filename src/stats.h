@@ -552,6 +552,8 @@ public:
         tapBgMinLoad.store(999999999);
         tapBgMaxLoad.store(0);
         replicationThrottled.store(0);
+        oom_errors.store(0);
+        tmp_oom_errors.store(0);
         pendingOps.store(0);
         pendingOpsTotal.store(0);
         pendingOpsMax.store(0);

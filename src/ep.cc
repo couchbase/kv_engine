@@ -1199,15 +1199,17 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         }
 
         vb->setState(to, engine.getServerApi());
-        if (to == vbucket_state_active && !transfer) {
 
+        if (to == vbucket_state_active && oldstate == vbucket_state_replica) {
             /**
              * Update snapshot range when vbucket goes from being a replica
              * to active, to maintain the correct snapshot sequence numbers
              * even in a failover scenario.
              */
             vb->checkpointManager.resetSnapshotRange();
+        }
 
+        if (to == vbucket_state_active && !transfer) {
             snapshot_range_t range;
             vb->getPersistedSnapshot(range);
             if (range.end == vbMap.getPersistenceSeqno(vbid)) {
