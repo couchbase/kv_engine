@@ -97,7 +97,7 @@ extern "C" {
         StatFile* sf = reinterpret_cast<StatFile*>(h);
         sf->stats->readSizeHisto.add(sz);
         if(sf->last_offs) {
-            sf->stats->readSeekHisto.add(abs(off - sf->last_offs));
+            sf->stats->readSeekHisto.add(std::abs(off - sf->last_offs));
         }
         sf->last_offs = off;
         BlockTimer bt(&sf->stats->readTimeHisto);
