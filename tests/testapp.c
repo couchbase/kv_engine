@@ -2410,7 +2410,6 @@ static enum test_return test_pipeline_hickup(void)
     usleep(250);
 #endif
 
-    srand((int)time(NULL));
     for (ii = 0; ii < 2; ++ii) {
         test_pipeline_hickup_chunk(buffer, buffersize);
     }
@@ -3661,7 +3660,6 @@ static enum test_return test_pipeline_impl(int cmd,
     uint8_t* current_message = buffer;
     int session = 0; /* something to stick in opaque */
 
-    srand((unsigned int)time(0));
     session = rand() % 100;
 
     cb_assert(buffer != NULL);
