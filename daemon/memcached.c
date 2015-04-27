@@ -896,7 +896,8 @@ static void process_bin_get(conn *c) {
         keylen = 0;
         bodylen = sizeof(rsp->message.body) + info.info.nbytes;
 
-        if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
+        if ((c->cmd == PROTOCOL_BINARY_CMD_GETK) ||
+            (c->cmd == PROTOCOL_BINARY_CMD_GETKQ)) {
             bodylen += (uint32_t)nkey;
             keylen = (uint16_t)nkey;
         }
@@ -930,7 +931,8 @@ static void process_bin_get(conn *c) {
             rsp->message.body.flags = info.info.flags;
             add_iov(c, &rsp->message.body, sizeof(rsp->message.body));
 
-            if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
+            if ((c->cmd == PROTOCOL_BINARY_CMD_GETK) ||
+                (c->cmd == PROTOCOL_BINARY_CMD_GETKQ)) {
                 add_iov(c, info.info.key, nkey);
             }
 
@@ -951,7 +953,8 @@ static void process_bin_get(conn *c) {
         if (c->noreply) {
             conn_set_state(c, conn_new_cmd);
         } else {
-            if (c->cmd == PROTOCOL_BINARY_CMD_GETK) {
+            if ((c->cmd == PROTOCOL_BINARY_CMD_GETK) ||
+                (c->cmd == PROTOCOL_BINARY_CMD_GETKQ)) {
                 char *ofs = c->write.buf + sizeof(protocol_binary_response_header);
                 if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
                                    0, (uint16_t)nkey,
@@ -4662,14 +4665,12 @@ static void get_executor(conn *c, void *packet)
 
     switch (c->cmd) {
     case PROTOCOL_BINARY_CMD_GETQ:
-        c->cmd = PROTOCOL_BINARY_CMD_GET;
         c->noreply = true;
         break;
     case PROTOCOL_BINARY_CMD_GET:
         c->noreply = false;
         break;
     case PROTOCOL_BINARY_CMD_GETKQ:
-        c->cmd = PROTOCOL_BINARY_CMD_GETK;
         c->noreply = true;
         break;
     case PROTOCOL_BINARY_CMD_GETK:
@@ -4813,14 +4814,12 @@ static void arithmetic_executor(conn *c, void *packet)
 
     switch (c->cmd) {
     case PROTOCOL_BINARY_CMD_INCREMENTQ:
-        c->cmd = PROTOCOL_BINARY_CMD_INCREMENT;
         c->noreply = true;
         break;
     case PROTOCOL_BINARY_CMD_INCREMENT:
         c->noreply = false;
         break;
     case PROTOCOL_BINARY_CMD_DECREMENTQ:
-        c->cmd = PROTOCOL_BINARY_CMD_DECREMENT;
         c->noreply = true;
         break;
     case PROTOCOL_BINARY_CMD_DECREMENT:
@@ -4926,7 +4925,8 @@ static void arithmetic_executor(conn *c, void *packet)
         break;
     case ENGINE_KEY_ENOENT:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-        if (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT) {
+        if ((c->cmd == PROTOCOL_BINARY_CMD_INCREMENT) ||
+            (c->cmd == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
             STATS_INCR(c, incr_misses, key, nkey);
         } else {
             STATS_INCR(c, decr_misses, key, nkey);
