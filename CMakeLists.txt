@@ -125,7 +125,6 @@ ADD_LIBRARY(crash_engine SHARED
 
 ADD_LIBRARY(basic_engine_testsuite SHARED testsuite/basic_engine_testsuite.c)
 ADD_LIBRARY(blackhole_logger SHARED extensions/loggers/blackhole_logger.c)
-ADD_LIBRARY(fragment_rw_ops SHARED extensions/protocol/fragment_rw.c)
 ADD_LIBRARY(stdin_term_handler SHARED extensions/daemon/stdin_check.c)
 ADD_LIBRARY(tap_mock_engine SHARED engines/tap_mock_engine/tap_mock_engine.cc)
 ADD_LIBRARY(bucket_engine_mock_engine SHARED
@@ -142,7 +141,6 @@ SET_TARGET_PROPERTIES(bucket_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(crash_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(basic_engine_testsuite PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES PREFIX "")
-SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(tap_mock_engine PROPERTIES PREFIX "")
 SET_TARGET_PROPERTIES(bucket_engine_mock_engine PROPERTIES PREFIX "")
@@ -269,7 +267,6 @@ TARGET_LINK_LIBRARIES(bucket_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS} 
 TARGET_LINK_LIBRARIES(default_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(basic_engine_testsuite mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(stdin_term_handler platform)
-TARGET_LINK_LIBRARIES(fragment_rw_ops mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${MALLOC_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
 TARGET_LINK_LIBRARIES(tap_mock_engine platform ${COUCHBASE_NETWORK_LIBS})
@@ -312,7 +309,7 @@ INSTALL(TARGETS mcd_util
         ARCHIVE DESTINATION lib/memcached)
 
 INSTALL(TARGETS default_engine nobucket bucket_engine blackhole_logger
-                fragment_rw_ops stdin_term_handler file_logger
+                stdin_term_handler file_logger
         RUNTIME DESTINATION lib/memcached
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
@@ -395,8 +392,6 @@ IF (${CMAKE_MAJOR_VERSION} LESS 3)
     SET_TARGET_PROPERTIES(bucket_engine PROPERTIES INSTALL_NAME_DIR
                           ${CMAKE_INSTALL_PREFIX}/lib/memcached)
     SET_TARGET_PROPERTIES(blackhole_logger PROPERTIES INSTALL_NAME_DIR
-                          ${CMAKE_INSTALL_PREFIX}/lib/memcached)
-    SET_TARGET_PROPERTIES(fragment_rw_ops PROPERTIES INSTALL_NAME_DIR
                           ${CMAKE_INSTALL_PREFIX}/lib/memcached)
     SET_TARGET_PROPERTIES(stdin_term_handler PROPERTIES INSTALL_NAME_DIR
                           ${CMAKE_INSTALL_PREFIX}/lib/memcached)

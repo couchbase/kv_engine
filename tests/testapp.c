@@ -17,7 +17,6 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/config_parser.h>
 #include <cbsasl/cbsasl.h>
-#include "extensions/protocol/fragment_rw.h"
 #include "extensions/protocol/testapp_extension.h"
 #include <platform/platform.h>
 #include "memcached/openssl.h"
@@ -267,10 +266,6 @@ static cJSON *generate_config(void)
 
     obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "module", "blackhole_logger.so");
-    cJSON_AddItemToArray(array, obj);
-    obj = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj, "module", "fragment_rw_ops.so");
-    cJSON_AddStringToObject(obj, "config", "r=225;w=226");
     cJSON_AddItemToArray(array, obj);
     obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "module", "testapp_extension.so");
@@ -2902,125 +2897,6 @@ static enum test_return store_object(const char *key, char *value) {
     return TEST_PASS;
 }
 
-static enum test_return test_read(void) {
-    union {
-        protocol_binary_request_read request;
-        protocol_binary_response_read response;
-        char bytes[1024];
-    } buffer;
-    size_t len;
-    char *ptr;
-
-    store_object("hello", "world");
-
-    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                      read_command, "hello",
-                      strlen("hello"), NULL, 0);
-    buffer.request.message.body.offset = htonl(1);
-    buffer.request.message.body.length = htonl(3);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, read_command,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    cb_assert(buffer.response.message.header.response.bodylen == 3);
-    ptr = buffer.bytes + sizeof(buffer.response);
-    cb_assert(memcmp(ptr, "orl", 3) == 0);
-
-
-    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                      read_command, "hello",
-                      strlen("hello"), NULL, 0);
-    buffer.request.message.body.offset = htonl(7);
-    buffer.request.message.body.length = htonl(2);
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, read_command,
-                             PROTOCOL_BINARY_RESPONSE_ERANGE);
-
-    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                      read_command, "myhello",
-                      strlen("myhello"), NULL, 0);
-    buffer.request.message.body.offset = htonl(0);
-    buffer.request.message.body.length = htonl(5);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, read_command,
-                             PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-    return TEST_PASS;
-}
-
-static enum test_return test_write(void) {
-    union {
-        protocol_binary_request_read request;
-        protocol_binary_response_read response;
-        char bytes[1024];
-    } buffer;
-    size_t len;
-
-    store_object("hello", "world");
-
-    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             write_command, "hello",
-                             strlen("hello"), "bubba", 5);
-    buffer.request.message.body.offset = htonl(0);
-    buffer.request.message.body.length = htonl(5);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, write_command,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    validate_object("hello", "bubba");
-
-    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             write_command, "hello",
-                             strlen("hello"), "zz", 2);
-    buffer.request.message.body.offset = htonl(2);
-    buffer.request.message.body.length = htonl(2);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, write_command,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    validate_object("hello", "buzza");
-
-    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             write_command, "hello",
-                             strlen("hello"), "zz", 2);
-    buffer.request.message.body.offset = htonl(7);
-    buffer.request.message.body.length = htonl(2);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, write_command,
-                             PROTOCOL_BINARY_RESPONSE_ERANGE);
-
-    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             write_command, "hello",
-                             strlen("hello"), "bb", 2);
-    buffer.request.message.body.offset = htonl(2);
-    buffer.request.message.body.length = htonl(2);
-    buffer.request.message.header.request.cas = 1;
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, write_command,
-                             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
-
-    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                      write_command, "myhello",
-                      strlen("myhello"), "bubba", 5);
-    buffer.request.message.body.offset = htonl(0);
-    buffer.request.message.body.length = htonl(5);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, write_command,
-                             PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-    return TEST_PASS;
-}
-
 static enum test_return test_hello(void) {
     union {
         protocol_binary_request_hello request;
@@ -4273,8 +4149,6 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("roles", test_roles),
     TESTCASE_PLAIN_AND_SSL("scrub", test_scrub),
     TESTCASE_PLAIN_AND_SSL("verbosity", test_verbosity),
-    TESTCASE_PLAIN_AND_SSL("read", test_read),
-    TESTCASE_PLAIN_AND_SSL("write", test_write),
     TESTCASE_PLAIN_AND_SSL("MB-10114", test_mb_10114),
     TESTCASE_SSL("MB-12762-ssl_handshake_hang", test_mb_12762_ssl_handshake_hang),
     TESTCASE_PLAIN_AND_SSL("dcp_noop", test_dcp_noop),
