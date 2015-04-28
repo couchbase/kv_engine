@@ -185,6 +185,12 @@ struct net_buf {
     uint32_t bytes; /** how much data, starting from curr, do we have unparsed */
 };
 
+struct dynamic_buffer {
+     char *buffer;   /** Start of the allocated buffer */
+     size_t size;    /** Total allocated size */
+     size_t offset;  /** How much of the buffer has been used so far. */
+};
+
 typedef struct {
     cb_thread_t thread_id;      /* unique ID of this thread */
     struct event_base *base;    /* libevent handle this thread uses */
@@ -253,7 +259,9 @@ struct conn {
 
     /** which state to go into after finishing current write */
     STATE_FUNC   write_and_go;
-    void   *write_and_free; /** free this memory after finishing writing */
+    void   *write_and_free; /** free this memory after finishing writing. Note:
+                                used only by write_and_free(); shouldn't be
+                                directly used by any commands.*/
 
     char   *ritem;  /** when we read in an item's value, it goes here */
     uint32_t rlbytes;
@@ -310,11 +318,7 @@ struct conn {
      */
     bool supports_mutation_extras;
 
-    struct {
-        char *buffer;
-        size_t size;
-        size_t offset;
-    } dynamic_buffer;
+    struct dynamic_buffer dynamic_buffer;
 
     void *engine_storage;
     hrtime_t start;
@@ -503,8 +507,8 @@ int add_iov(conn *c, const void *buf, size_t len);
 int add_bin_header(conn *c, uint16_t err, uint8_t ext_len, uint16_t key_len,
                    uint32_t body_len, uint8_t datatype);
 
-/* set up a connection to write a buffer then free it, used for stats */
-void write_and_free(conn *c, char *buf, size_t bytes);
+/* set up a connection to write a dynamic_buffer then free it once sent. */
+void write_and_free(conn *c, struct dynamic_buffer* buf);
 
 void write_bin_packet(conn *c, protocol_binary_response_status err);
 

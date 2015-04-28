@@ -775,10 +775,7 @@ void write_bin_packet(conn *c, protocol_binary_response_status err) {
         ret = settings.engine.v1->get_engine_vb_map(settings.engine.v0, c,
                                                     get_vb_map_cb);
         if (ret == ENGINE_SUCCESS) {
-            write_and_free(c, c->dynamic_buffer.buffer,
-                           c->dynamic_buffer.offset);
-            c->dynamic_buffer.buffer = NULL;
-            c->dynamic_buffer.size = 0;
+            write_and_free(c, &c->dynamic_buffer);
         } else {
             conn_set_state(c, conn_closing);
         }
@@ -912,9 +909,7 @@ static void process_bin_get(conn *c) {
                                                datatype,
                                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                                info.info.cas, c)) {
-                write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-                c->dynamic_buffer.size = 0;
+                write_and_free(c, &c->dynamic_buffer);
                 settings.engine.v1->release(settings.engine.v0, c, it);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
@@ -1668,9 +1663,7 @@ static void process_bin_unknown_packet(conn *c) {
     switch (ret) {
     case ENGINE_SUCCESS:
         if (c->dynamic_buffer.buffer != NULL) {
-            write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-            c->dynamic_buffer.buffer = NULL;
-            c->dynamic_buffer.size = 0;
+            write_and_free(c, &c->dynamic_buffer);
         } else {
             conn_set_state(c, conn_new_cmd);
         }
@@ -3441,10 +3434,7 @@ static void dcp_get_failover_log_executor(conn *c, void *packet) {
         switch (ret) {
         case ENGINE_SUCCESS:
             if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-                c->dynamic_buffer.size = 0;
+                write_and_free(c, &c->dynamic_buffer);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             }
@@ -3503,10 +3493,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
             c->dcp = 1;
             c->max_reqs_per_event = settings.reqs_per_event_med_priority;
             if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-                c->dynamic_buffer.size = 0;
+                write_and_free(c, &c->dynamic_buffer);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             }
@@ -3518,10 +3505,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
                                         sizeof(rollback_seqno), 0,
                                         PROTOCOL_BINARY_RESPONSE_ROLLBACK, 0,
                                         c)) {
-                write_and_free(c, c->dynamic_buffer.buffer,
-                               c->dynamic_buffer.offset);
-                c->dynamic_buffer.buffer = NULL;
-                c->dynamic_buffer.size = 0;
+                write_and_free(c, &c->dynamic_buffer);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             }
@@ -4106,10 +4090,7 @@ static void process_hello_packet_executor(conn *c, void *packet) {
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                 0, c);
-        write_and_free(c, c->dynamic_buffer.buffer,
-                       c->dynamic_buffer.offset);
-        c->dynamic_buffer.buffer = NULL;
-        c->dynamic_buffer.size = 0;
+        write_and_free(c, &c->dynamic_buffer);
     }
 
 
@@ -4764,9 +4745,7 @@ static void stat_executor(conn *c, void *packet)
     switch (ret) {
     case ENGINE_SUCCESS:
         append_stats(NULL, 0, NULL, 0, c);
-        write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-        c->dynamic_buffer.buffer = NULL;
-        c->dynamic_buffer.size = 0;
+        write_and_free(c, &c->dynamic_buffer);
         break;
     case ENGINE_ENOMEM:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
@@ -4966,9 +4945,7 @@ static void get_cmd_timer_executor(conn *c, void *packet)
     protocol_binary_request_get_cmd_timer *req = packet;
 
     generate_timings(req->message.body.opcode, c);
-    write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-    c->dynamic_buffer.buffer = NULL;
-    c->dynamic_buffer.size = 0;
+    write_and_free(c, &c->dynamic_buffer);
 }
 
 static void set_ctrl_token_executor(conn *c, void *packet)
@@ -4993,9 +4970,7 @@ static void set_ctrl_token_executor(conn *c, void *packet)
                             ret, session_cas.value, c);
     cb_mutex_exit(&(session_cas.mutex));
 
-    write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-    c->dynamic_buffer.buffer = NULL;
-    c->dynamic_buffer.size = 0;
+    write_and_free(c, &c->dynamic_buffer);
 }
 
 static void get_ctrl_token_executor(conn *c, void *packet)
@@ -5007,9 +4982,7 @@ static void get_ctrl_token_executor(conn *c, void *packet)
                             PROTOCOL_BINARY_RESPONSE_SUCCESS,
                             session_cas.value, c);
     cb_mutex_exit(&(session_cas.mutex));
-    write_and_free(c, c->dynamic_buffer.buffer, c->dynamic_buffer.offset);
-    c->dynamic_buffer.buffer = NULL;
-    c->dynamic_buffer.size = 0;
+    write_and_free(c, &c->dynamic_buffer);
 }
 
 static void init_complete_executor(conn *c, void *packet)
@@ -5047,9 +5020,7 @@ static void ioctl_get_executor(conn *c, void *packet)
                                     length,
                                     PROTOCOL_BINARY_RAW_BYTES,
                                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
-            write_and_free(c, c->dynamic_buffer.buffer,
-                           c->dynamic_buffer.offset);
-            c->dynamic_buffer.buffer = NULL;
+            write_and_free(c, &c->dynamic_buffer);
         } else {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
@@ -5118,9 +5089,7 @@ static void config_validate_executor(conn *c, void *packet) {
                                     (uint32_t)strlen(error_string), 0,
                                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
                                     c)) {
-            write_and_free(c, c->dynamic_buffer.buffer,
-                           c->dynamic_buffer.offset);
-            c->dynamic_buffer.buffer = NULL;
+            write_and_free(c, &c->dynamic_buffer);
         } else {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
@@ -5630,13 +5599,17 @@ static void reset_cmd_handler(conn *c) {
     }
 }
 
-void write_and_free(conn *c, char *buf, size_t bytes) {
-    if (buf) {
-        c->write_and_free = buf;
-        c->write.curr = buf;
-        c->write.bytes = (uint32_t)bytes;
+void write_and_free(conn *c, struct dynamic_buffer* buf) {
+    if (buf->buffer) {
+        c->write_and_free = buf->buffer;
+        c->write.curr = buf->buffer;
+        c->write.bytes = (uint32_t)buf->offset;
         conn_set_state(c, conn_write);
         c->write_and_go = conn_new_cmd;
+
+        buf->buffer = NULL;
+        buf->size = 0;
+        buf->offset = 0;
     } else {
         conn_set_state(c, conn_closing);
     }
