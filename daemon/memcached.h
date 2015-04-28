@@ -230,6 +230,8 @@ extern bool create_notification_pipe(LIBEVENT_THREAD *me);
 typedef struct conn conn;
 typedef bool (*STATE_FUNC)(conn *);
 
+// Command context destructor function pointer.
+typedef void (*cmd_context_dtor_t)(void*);
 
 /**
  * The structure representing a connection into memcached.
@@ -271,10 +273,9 @@ struct conn {
     /**
      * item is used to hold an item structure created after reading the command
      * line of set/add/replace commands, but before we finished reading the actual
-     * data. The data is read into ITEM_data(item) to avoid extra copying.
+     * data.
      */
-
-    void   *item;     /* for commands set/add/replace  */
+    void   *item;
 
     /* data for the swallow state */
     uint32_t sbytes;    /* how many bytes to swallow */
@@ -320,7 +321,11 @@ struct conn {
 
     struct dynamic_buffer dynamic_buffer;
 
+    // Pointer to engine-specific data which the engine has requested the server
+    // to persist for the life of the connection.
+    // See SERVER_COOKIE_API::{get,store}_engine_specific()
     void *engine_storage;
+
     hrtime_t start;
 
     /* Binary protocol stuff */
@@ -341,6 +346,19 @@ struct conn {
     in_port_t parent_port; /* Listening port that creates this connection instance */
 
     int dcp;
+
+    /** command-specific context - for use by command executors to maintain
+     *  additional state while executing a command. For example
+     *  a command may want to maintain some temporary state between retries
+     *  due to engine returning EWOULDBLOCK.
+     *  Between each command this is reset to NULL. To allow for any cleanup
+     *  of resources before setting it to NULL a cmd_context destructor can be
+     *  assigned. If the dtor is non-NULL (and cmd_context is also non-NULL)
+     *  then cmd_context_dtor(cmd_context) is called before resetting them
+     *  both back to NULL.
+     */
+    void* cmd_context;
+    cmd_context_dtor_t cmd_context_dtor;
 
     /* Clean up this at one point.. */
     struct {

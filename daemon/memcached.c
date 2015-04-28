@@ -5586,6 +5586,16 @@ static void reset_cmd_handler(conn *c) {
         c->item = NULL;
     }
 
+    // If command context is non-NULL then call it's destructor (if set) before
+    // resetting.
+    if (c->cmd_context != NULL) {
+        if (c->cmd_context_dtor != NULL) {
+            c->cmd_context_dtor(c->cmd_context);
+        }
+        c->cmd_context = NULL;
+        c->cmd_context_dtor = NULL;
+    }
+
     if (c->read.bytes == 0) {
         /* Make the whole read buffer available. */
         c->read.curr = c->read.buf;

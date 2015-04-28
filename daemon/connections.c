@@ -348,6 +348,8 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->supports_datatype = false;
     c->supports_mutation_extras = false;
     c->noreply = false;
+    c->cmd_context = NULL;
+    c->cmd_context_dtor = NULL;
 
     event_set(&c->event, sfd, event_flags, event_handler, (void *)c);
     event_base_set(base, &c->event);
