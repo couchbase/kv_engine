@@ -525,7 +525,7 @@ void CouchKVStore::del(const Item &itm,
                        Callback<int> &cb) {
     cb_assert(!isReadOnly());
     cb_assert(intransaction);
-    uint16_t fileRev = dbFileRevMap[itm.getVBucketId()];
+    uint64_t fileRev = dbFileRevMap[itm.getVBucketId()];
     CouchRequestCallback requestcb;
     requestcb.delCb = &cb;
     CouchRequest *req = new CouchRequest(itm, fileRev, requestcb, true);
