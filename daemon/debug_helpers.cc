@@ -44,9 +44,8 @@ ssize_t key_to_printable_buffer(char *dest, size_t destsz, SOCKET client,
                                 bool from_client, const char *prefix,
                                 const char *key, size_t nkey)
 {
-    ssize_t nw = std::snprintf(dest, destsz, "%c%d %s ",
-                               from_client ? '>' : '<',
-                               (int)client, prefix);
+    ssize_t nw = snprintf(dest, destsz, "%c%d %s ", from_client ? '>' : '<',
+                          (int)client, prefix);
     if (nw == -1) {
         return -1;
     }
@@ -54,4 +53,3 @@ ssize_t key_to_printable_buffer(char *dest, size_t destsz, SOCKET client,
     destsz -= nw;
     return buf_to_printable_buffer(ptr, destsz, key, nkey);
 }
-
