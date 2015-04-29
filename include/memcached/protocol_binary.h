@@ -173,7 +173,12 @@ extern "C"
 
         /** [For arithmetic ops] The operation would result in a number
          * outside the valid range (cannot be represented as an int64_t). */
-        PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE = 0xc8
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE = 0xc8,
+
+        /** [For mutations only] The requested operation requires the path to
+         * not already exist, but it exists. */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS = 0xc9
+
 
     } protocol_binary_response_status;
 

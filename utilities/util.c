@@ -242,6 +242,8 @@ const char *memcached_protocol_errcode_2_text(protocol_binary_response_status er
         return "Subdoc: Existing number outside valid arithmetic range";
     case PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE:
          return "Subdoc: Delta outside valid arithmetic range";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS:
+         return "Subdoc: Document path already exists";
 
     default:
         return "Unknown error code";
