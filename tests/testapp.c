@@ -35,8 +35,7 @@
 static uint8_t read_command = 0xe1;
 static uint8_t write_command = 0xe2;
 
-static cJSON *json_config = NULL;
-const char *config_string = NULL;
+char *config_string = NULL;
 char config_file[] = "memcached_testapp.json.XXXXXX";
 char rbac_file[] = "testapp_rbac.json.XXXXXX";
 
@@ -68,6 +67,20 @@ static SSL_CTX *ssl_ctx = NULL;
 static SSL *ssl = NULL;
 static BIO *ssl_bio_r = NULL;
 static BIO *ssl_bio_w = NULL;
+
+/* static storage for the different environment variables set by
+ * putenv().
+ *
+ * (These must be static as putenv() essentially 'takes ownership' of
+ * the provided array, so it is unsafe to use an automatic variable.
+ * However, if we use the result of malloc() (i.e. the heap) then
+ * memory leak checkers (e.g. Valgrind) will report the memory as
+ * leaked as it's impossible to free it).
+ */
+static char mcd_parent_monitor_env[80];
+static char mcd_port_filename_env[80];
+static char isasl_pwfile_env[1024];
+
 
 static void set_mutation_seqno_feature(bool enable);
 
@@ -386,19 +399,18 @@ static pid_t
 #endif
 start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon,
              int timeout) {
-    char environment[80];
-    char *filename= environment + strlen("MEMCACHED_PORT_FILENAME=");
+    char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
 #ifdef __sun
     char coreadm[128];
 #endif
     FILE *fp;
     char buffer[80];
 
-    char env[80];
-    snprintf(env, sizeof(env), "MEMCACHED_PARENT_MONITOR=%lu", (unsigned long)getpid());
-    putenv(env);
+    snprintf(mcd_parent_monitor_env, sizeof(mcd_parent_monitor_env),
+             "MEMCACHED_PARENT_MONITOR=%lu", (unsigned long)getpid());
+    putenv(mcd_parent_monitor_env);
 
-    snprintf(environment, sizeof(environment),
+    snprintf(mcd_port_filename_env, sizeof(mcd_port_filename_env),
              "MEMCACHED_PORT_FILENAME=memcached_ports.%lu", (long)getpid());
     remove(filename);
 
@@ -421,7 +433,7 @@ start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon,
     char commandline[1024];
     sprintf(commandline, "memcached.exe -C %s", config_file);
 
-    putenv(environment);
+    putenv(mcd_port_filename_env);
 
     if (!CreateProcess("memcached.exe", commandline,
                        NULL, NULL, FALSE,
@@ -453,7 +465,7 @@ start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon,
         char tmo[24];
 
         snprintf(tmo, sizeof(tmo), "%u", timeout);
-        putenv(environment);
+        putenv(mcd_port_filename_env);
 
         if (getenv("RUN_UNDER_VALGRIND") != NULL) {
             argv[arg++] = "valgrind";
@@ -891,6 +903,7 @@ static enum test_return test_config_parser(void) {
     cb_assert(strcmp("WARNING: Found duplicate entry for \"size_t\"", trim(buffer)) == 0);
     cb_assert(fgets(buffer, sizeof(buffer), error) == NULL);
 
+    cb_assert(fclose(error) == 0);
     remove(outfile);
     return TEST_PASS;
 }
@@ -910,11 +923,13 @@ static enum test_return start_memcached_server(void) {
     cJSON_Free(rbac_text);
     cJSON_Delete(rbac);
 
-    json_config = generate_config();
-    config_string = cJSON_Print(json_config);
     if (cb_mktemp(config_file) == NULL) {
         return TEST_FAIL;
     }
+
+    cJSON *json_config = generate_config();
+    config_string = cJSON_Print(json_config);
+    cJSON_Delete(json_config);
     if (write_config_to_file(config_string, config_file) == -1) {
         return TEST_FAIL;
     }
@@ -930,9 +945,10 @@ static enum test_return start_memcached_server(void) {
     cb_assert(fp != NULL);
     fprintf(fp, "_admin password \n");
     fclose(fp);
-    char env[1024];
-    snprintf(env, sizeof(env), "ISASL_PWFILE=%s", isasl_file);
-    putenv(env);
+
+    snprintf(isasl_pwfile_env, sizeof(isasl_pwfile_env), "ISASL_PWFILE=%s",
+             isasl_file);
+    putenv(isasl_pwfile_env);
 
     server_start_time = time(0);
     server_pid = start_server(&port, &ssl_port, false, 600);
@@ -963,6 +979,7 @@ static enum test_return stop_memcached_server(void) {
     }
 #endif
 
+    cJSON_Free(config_string);
     remove(config_file);
     remove(isasl_file);
     free(isasl_file);
@@ -2297,7 +2314,7 @@ static void binary_hickup_recv_verification_thread(void *arg) {
 
 static enum test_return test_pipeline_hickup_chunk(void *buffer, size_t buffersize) {
     off_t offset = 0;
-    char *key[256];
+    char *key[256] = {0};
     uint64_t value = 0xfeedfacedeadbeef;
 
     while (hickup_thread_running &&
@@ -2462,7 +2479,7 @@ static enum test_return test_ioctl_set(void) {
 
     /* Very long (> IOCTL_KEY_LENGTH) is invalid. */
     {
-        char long_key[128 + 1];
+        char long_key[128 + 1] = {0};
         len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                           PROTOCOL_BINARY_CMD_IOCTL_SET, long_key,
                           sizeof(long_key), NULL, 0);
@@ -3308,7 +3325,7 @@ static enum test_return test_session_ctrl_token(void) {
 }
 
 static enum test_return test_mb_10114(void) {
-    char buffer[512];
+    char buffer[512] = {0};
     const char *key = "mb-10114";
     union {
         protocol_binary_request_no_extras request;
@@ -4054,6 +4071,7 @@ static enum test_return test_exceed_max_packet_size(void)
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, receive;
+    memset(send.bytes, 0, sizeof(send.bytes));
 
     storage_command(send.bytes, sizeof(send.bytes),
                     PROTOCOL_BINARY_CMD_SET,
