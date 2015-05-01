@@ -6113,7 +6113,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(const
             auto state = vb->getState();
             if (state == vbucket_state_active || state == vbucket_state_replica) {
                 uint16_t vbid = htons(static_cast<uint16_t>(id));
-                uint64_t highSeqno = htonll(vb->getHighSeqno());
+                uint64_t highSeqno;
+                if (vb->getState() == vbucket_state_active) {
+                    highSeqno = htonll(vb->getHighSeqno());
+                } else {
+                    highSeqno = htonll(vb->checkpointManager.getLastClosedChkBySeqno());
+                }
                 auto offset = payload.size();
                 payload.resize(offset + sizeof(vbid) + sizeof(highSeqno));
                 memcpy(payload.data() + offset, &vbid, sizeof(vbid));
