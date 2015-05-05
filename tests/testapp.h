@@ -40,6 +40,9 @@ size_t compress_document(const char* data, size_t datalen, char** deflated);
 /* Set the datatype feature on the connection to the specified value */
 void set_datatype_feature(bool enable);
 
+/* Attempts to get the given key and checks if it's value matches {value} */
+enum test_return validate_object(const char *key, const char *value);
+
 /* Attempts to store an object with the given key and value */
 enum test_return store_object(const char *key, const char *value);
 

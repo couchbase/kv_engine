@@ -783,6 +783,7 @@ static void initialize() {
     validators[PROTOCOL_BINARY_CMD_SUBDOC_EXISTS] = subdoc_exists_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD] = subdoc_dict_add_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT] = subdoc_dict_upsert_validator;
+    validators[PROTOCOL_BINARY_CMD_SUBDOC_DELETE] = subdoc_delete_validator;
 #endif
 
     validators[PROTOCOL_BINARY_CMD_SETQ] = set_replace_validator;

@@ -57,6 +57,11 @@ enum test_return test_subdoc_dict_upsert_simple_raw();
 enum test_return test_subdoc_dict_upsert_simple_compressed();
 enum test_return test_subdoc_dict_upsert_deep();
 
+enum test_return test_subdoc_delete_simple_raw();
+enum test_return test_subdoc_delete_simple_compressed();
+enum test_return test_subdoc_delete_array();
+enum test_return test_subdoc_delete_array_nested();
+
 #if defined(__cplusplus)
 } // extern "C"
 #endif

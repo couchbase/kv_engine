@@ -2889,7 +2889,7 @@ static enum test_return test_verbosity(void) {
     return TEST_PASS;
 }
 
-static enum test_return validate_object(const char *key, const char *value) {
+enum test_return validate_object(const char *key, const char *value) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -4276,6 +4276,10 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("subdoc_dict_upsert_simple_raw", test_subdoc_dict_upsert_simple_raw),
     TESTCASE_PLAIN_AND_SSL("subdoc_dict_upsert_simple_compressed", test_subdoc_dict_upsert_simple_compressed),
     TESTCASE_PLAIN_AND_SSL("subdoc_dict_upsert_deep", test_subdoc_dict_upsert_deep),
+    TESTCASE_PLAIN_AND_SSL("subdoc_delete_simple_raw", test_subdoc_delete_simple_raw),
+    TESTCASE_PLAIN_AND_SSL("subdoc_delete_simple_compressed", test_subdoc_delete_simple_compressed),
+    TESTCASE_PLAIN_AND_SSL("subdoc_delete_array", test_subdoc_delete_array),
+    TESTCASE_PLAIN_AND_SSL("subdoc_delete_array_nested", test_subdoc_delete_array_nested),
     TESTCASE_PLAIN(NULL, NULL)
 };
 

@@ -133,6 +133,7 @@
                     "START_PERSISTENCE",
                     "STAT",
                     "STOP_PERSISTENCE",
+                    "SUBDOC_DELETE",
                     "SUBDOC_DICT_ADD",
                     "SUBDOC_DICT_UPSERT",
                     "SUBDOC_EXISTS",

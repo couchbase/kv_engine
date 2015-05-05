@@ -816,3 +816,153 @@ enum test_return test_subdoc_dict_add_deep() {
 enum test_return test_subdoc_dict_upsert_deep() {
     return test_subdoc_dict_add_upsert_deep(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
+
+enum test_return test_subdoc_delete_simple(bool compress) {
+
+    // a). Create a document containing each of the primitive types, and then
+    // ensure we can successfully delete each type.
+    const char dict[] = "{"
+            "\"0\": 1,"
+            "\"1\": 2.0,"
+            "\"2\": 3.141e3,"
+            "\"3\": \"four\","
+            "\"4\": {\"foo\": \"bar\"},"
+            "\"5\": [1, 1, 1, 1],"
+            "\"6\": true,"
+            "\"7\": false"
+            "}";
+    store_object("dict", dict, /*JSON*/true, compress);
+
+    // Attempts to delete non-existent elements should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict",
+                                "bad_key"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
+
+    for (unsigned int ii = 0; ii < 8; ii++) {
+        // Assert we can access it initially:
+        std::string path(std::to_string(ii));
+        uint64_t cas = expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                                                   "dict", path),
+                                         PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+        // Deleting with the wrong CAS should fail:
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict",
+                                    path, "", protocol_binary_subdoc_flag(0),
+                                    cas + 1),
+                          PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict",
+                                    path),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+        // Should be able to delete with no CAS specified.
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict",
+                                    path),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        // ... and should no longer exist:
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict",
+                                    path),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
+    }
+
+    // After deleting everything the dictionary should be empty.
+    validate_object("dict", "{}");
+    delete_object("dict");
+
+    return TEST_PASS;
+}
+
+enum test_return test_subdoc_delete_simple_raw() {
+    return test_subdoc_delete_simple(/*compress*/false);
+}
+
+enum test_return test_subdoc_delete_simple_compressed() {
+    return test_subdoc_delete_simple(/*compress*/true);
+}
+
+enum test_return test_subdoc_delete_array() {
+
+    // Create an array, then test deleting elements.
+    store_object("a", "[0,1,2,3,4]", /*JSON*/true, /*compress*/false);
+
+    // Sanity check - 3rd element should be 2
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[2]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "2");
+
+    // a). Attempts to delete out of range elements should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[5]"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
+
+    // b). Test deleting at end of array.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[4]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    //     3rd element should still be 2; last element should now be 3.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[2]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "2");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[-1]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "3");
+    validate_object("a", "[0,1,2,3]");
+
+    // c). Test deleting at start of array; elements are shuffled down.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[0]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    //     3rd element should now be 3; last element should still be 3.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[2]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "3");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[-1]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "3");
+    validate_object("a", "[1,2,3]");
+
+    // d). Test deleting of last element using [-1].
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[-1]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    //     Last element should now be 2.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[-1]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "2");
+    validate_object("a", "[1,2]");
+
+    // e). Delete remaining elements.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[0]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    validate_object("a", "[2]");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "a", "[0]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    // Should have an empty array.
+    validate_object("a", "[]");
+
+    delete_object("a");
+
+    return TEST_PASS;
+}
+
+enum test_return test_subdoc_delete_array_nested() {
+    // Nested array containing different objects.
+    store_object("b", "[0,[10,20,[100]],{\"key\":\"value\"}]",
+                 /*JSON*/true, /*compress*/false);
+
+    // Sanity check - 2nd element should be "[10,20,[100]]"
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "b", "[1]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "[10,20,[100]]");
+
+    // a). Delete nested array element
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "b", "[1][2][0]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "b", "[1]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "[10,20,[]]");
+
+    // b). Delete the (now empty) nested array.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "b", "[1][2]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "b", "[1]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "[10,20]");
+
+    // c). Delete the next level up array.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "b", "[1]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    // element [1] should now be the dict.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "b", "[1]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "{\"key\":\"value\"}");
+
+    delete_object("b");
+
+    return TEST_PASS;
+}

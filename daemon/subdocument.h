@@ -37,12 +37,14 @@ int subdoc_get_validator(void* packet);
 int subdoc_exists_validator(void* packet);
 int subdoc_dict_add_validator(void* packet);
 int subdoc_dict_upsert_validator(void* packet);
+int subdoc_delete_validator(void* packet);
 
 /* Subdocument executor functions. */
 void subdoc_get_executor(conn *c, void *packet);
 void subdoc_exists_executor(conn *c, void *packet);
 void subdoc_dict_add_executor(conn *c, void *packet);
 void subdoc_dict_upsert_executor(conn *c, void *packet);
+void subdoc_delete_executor(conn *c, void *packet);
 
 #if defined(__cplusplus)
 } // extern "C"
