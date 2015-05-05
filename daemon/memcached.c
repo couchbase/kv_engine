@@ -46,6 +46,9 @@
 #include <snappy-c.h>
 #include <JSON_checker.h>
 
+// MB-14649: log crashing on windows..
+#include <math.h>
+
 static void cookie_set_admin(const void *cookie);
 static bool cookie_is_admin(const void *cookie);
 
@@ -8220,6 +8223,11 @@ static void load_extensions(void) {
 
 int main (int argc, char **argv) {
     ENGINE_HANDLE *engine_handle = NULL;
+
+    // MB-14649 log() crash on windows on some CPU's
+#ifdef _WIN64
+    _set_FMA3_enable (0);
+#endif
 
     initialize_openssl();
 

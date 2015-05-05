@@ -15,12 +15,6 @@
                               }
                },
                {
-                "tools" :     {
-                               "startid" : 12288,
-                               "file" : "couchbase-cli/etc/tools_descriptor.json"
-                              }
-               },
-               {
                 "xdcr" : {
                                "startid" : 16384,
                                "file" : "goproj/src/github.com/couchbase/goxdcr/etc/audit_descriptor.json"
