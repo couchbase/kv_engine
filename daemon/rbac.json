@@ -134,6 +134,7 @@
                     "STAT",
                     "STOP_PERSISTENCE",
                     "SUBDOC_DICT_ADD",
+                    "SUBDOC_DICT_UPSERT",
                     "SUBDOC_EXISTS",
                     "SUBDOC_GET",
                     "TOUCH",

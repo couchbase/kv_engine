@@ -595,8 +595,17 @@ enum test_return test_subdoc_exists_array_deep() {
     return test_subdoc_fetch_array_deep(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
-// Test adding to a JSON dictionary.
-static enum test_return test_subdoc_dict_add_simple(bool compress) {
+/* Test adding to a JSON dictionary.
+ * @param compress If true operate on compressed JSON documents.
+ * @param cmd The binary protocol command to test. Permitted values are:
+ *            - PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD
+ *            - PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT
+ */
+static enum test_return test_subdoc_dict_add_simple(bool compress,
+                                                    protocol_binary_command cmd) {
+    cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
+              (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
+
     const std::vector<std::pair<std::string, std::string>> key_vals({
             {"int", "2"},
             {"float", "2.0"},
@@ -607,15 +616,14 @@ static enum test_return test_subdoc_dict_add_simple(bool compress) {
             {"null", "null"}});
 
     // a). Attempt to add to non-existent document should fail.
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict",
                                 "int", "2"),
                       PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "");
 
     // b). Attempt to add to non-JSON document should return ENOT_JSON
     const char not_JSON[] = "not; valid, JSON";
     store_object("binary", not_JSON, /*JSON*/false, compress);
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "binary",
-                                "int", "2"),
+    expect_subdoc_cmd(SubdocCmd(cmd, "binary", "int", "2"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON, "");
     delete_object("binary");
 
@@ -625,27 +633,34 @@ static enum test_return test_subdoc_dict_add_simple(bool compress) {
 
     // c). Addition of primitive types to the dict.
     for (const auto& kv : key_vals) {
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
-                                    kv.first, kv.second),
+        expect_subdoc_cmd(SubdocCmd(cmd, "dict", kv.first, kv.second),
                           PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
         expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
                                     kv.first),
                           PROTOCOL_BINARY_RESPONSE_SUCCESS, kv.second);
     }
 
-    // d). Check that attempts to add keys which already exist fail.
+    // d). Check that attempts to add keys which already exist fail for DICT_ADD,
+    // and are permitted for DICT_UPSERT.
     for (const auto& kv : key_vals) {
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
-                                    kv.first, kv.second),
-                          PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, "");
+        SubdocCmd sd_cmd(cmd, "dict", kv.first, kv.second);
+        if (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) {
+            expect_subdoc_cmd(sd_cmd,
+                              PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, "");
+        } else { // DICT_UPSERT
+            expect_subdoc_cmd(sd_cmd,
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+            expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
+                                        kv.first),
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS, kv.second);
+        }
     }
 
     // e). Check that attempts to add keys with a missing intermediate
     // dict path fail.
     for (const auto& kv : key_vals) {
         auto key = "intermediate." + kv.first;
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
-                                    key, kv.second),
+        expect_subdoc_cmd(SubdocCmd(cmd, "dict", key, kv.second),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
     }
 
@@ -653,8 +668,7 @@ static enum test_return test_subdoc_dict_add_simple(bool compress) {
     // array path fail.
     for (const auto& kv : key_vals) {
         auto key = "intermediate_array[0]." + kv.first;
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
-                                    key, kv.second),
+        expect_subdoc_cmd(SubdocCmd(cmd, "dict", key, kv.second),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
     }
 
@@ -662,8 +676,8 @@ static enum test_return test_subdoc_dict_add_simple(bool compress) {
     // intermediate array paths are never automatically created).
     for (const auto& kv : key_vals) {
         auto key = "intermediate_array[0]." + kv.first;
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
-                                    key, kv.second, SUBDOC_FLAG_MKDIR_P),
+        expect_subdoc_cmd(SubdocCmd(cmd, "dict", key, kv.second,
+                                    SUBDOC_FLAG_MKDIR_P),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
     }
 
@@ -671,8 +685,8 @@ static enum test_return test_subdoc_dict_add_simple(bool compress) {
     // succeed if the MKDIR_P flag is set.
     for (const auto& kv : key_vals) {
         auto key = "intermediate." + kv.first;
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
-                                    key, kv.second, SUBDOC_FLAG_MKDIR_P),
+        expect_subdoc_cmd(SubdocCmd(cmd, "dict", key, kv.second,
+                                    SUBDOC_FLAG_MKDIR_P),
                           PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
         expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
                                     key),
@@ -696,8 +710,7 @@ static enum test_return test_subdoc_dict_add_simple(bool compress) {
             {"bad_null", "nul"},
     });
     for (const auto& kv : invalid_key_vals) {
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
-                                    kv.first, kv.second),
+        expect_subdoc_cmd(SubdocCmd(cmd, "dict", kv.first, kv.second),
                           PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT, "");
     }
 
@@ -706,40 +719,57 @@ static enum test_return test_subdoc_dict_add_simple(bool compress) {
     uint64_t cas = expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                                                "dict", "int"),
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
-    uint64_t new_cas = expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
-                                                   "dict", "new_int", "3",
+    uint64_t new_cas = expect_subdoc_cmd(SubdocCmd(cmd, "dict", "new_int", "3",
                                                    protocol_binary_subdoc_flag(0),
                                                    cas),
                                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
     check_ne(cas, new_cas);
 
     // k). CAS - cmd with old cas should fail.
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
-                                "new_int2", "4",
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict", "new_int2", "4",
                                 protocol_binary_subdoc_flag(0), cas),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
 
     // l). CAS - manually corrupted (off by one) cas should fail.
-    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD, "dict",
-                                "new_int2", "4",
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict","new_int2", "4",
                                 protocol_binary_subdoc_flag(0), new_cas + 1),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
 
-
     delete_object("dict");
+
+    // m). Attempt to perform dict command on array should fail.
+    store_object("array", "[1,2]", /*JSON*/true, compress);
+    expect_subdoc_cmd(SubdocCmd(cmd, "array","foo", "\"bar\""),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
+    delete_object("array");
 
     return TEST_PASS;
 }
 
 enum test_return test_subdoc_dict_add_simple_raw() {
-    return test_subdoc_dict_add_simple(/*compress*/false);
+    return test_subdoc_dict_add_simple(/*compress*/false,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
 
 enum test_return test_subdoc_dict_add_simple_compressed() {
-    return test_subdoc_dict_add_simple(/*compress*/true);
+    return test_subdoc_dict_add_simple(/*compress*/true,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
 
-enum test_return test_subdoc_dict_add_deep() {
+enum test_return test_subdoc_dict_upsert_simple_raw() {
+    return test_subdoc_dict_add_simple(/*compress*/false,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+}
+
+enum test_return test_subdoc_dict_upsert_simple_compressed() {
+    return test_subdoc_dict_add_simple(/*compress*/true,
+                                       PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+}
+
+static enum test_return test_subdoc_dict_add_upsert_deep(protocol_binary_command cmd) {
+
+    cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
+              (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
 
     // a). Check that we can add elements to a document at the maximum nested
     // level.
@@ -767,8 +797,7 @@ enum test_return test_subdoc_dict_add_deep() {
             {"null", "null"}});
     for (const auto& kv : primitive_key_vals) {
         const auto key = one_less_max_path + "." + kv.first;
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
-                                    "dict", key, kv.second),
+        expect_subdoc_cmd(SubdocCmd(cmd, "dict", key, kv.second),
                           PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
         expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
                                     key),
@@ -778,4 +807,12 @@ enum test_return test_subdoc_dict_add_deep() {
     delete_object("dict");
 
     return TEST_PASS;
+}
+
+enum test_return test_subdoc_dict_add_deep() {
+    return test_subdoc_dict_add_upsert_deep(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+}
+
+enum test_return test_subdoc_dict_upsert_deep() {
+    return test_subdoc_dict_add_upsert_deep(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }

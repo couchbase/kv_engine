@@ -1391,6 +1391,7 @@ void validate_response_header(protocol_binary_response_no_extras *response,
             cb_assert(header->response.cas != 0);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
+        case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
             cb_assert(header->response.keylen == 0);
             cb_assert(header->response.extlen == 0);
             cb_assert(header->response.bodylen == 0);
@@ -4272,6 +4273,9 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("subdoc_dict_add_simple_raw", test_subdoc_dict_add_simple_raw),
     TESTCASE_PLAIN_AND_SSL("subdoc_dict_add_simple_compressed", test_subdoc_dict_add_simple_compressed),
     TESTCASE_PLAIN_AND_SSL("subdoc_dict_add_deep", test_subdoc_dict_add_deep),
+    TESTCASE_PLAIN_AND_SSL("subdoc_dict_upsert_simple_raw", test_subdoc_dict_upsert_simple_raw),
+    TESTCASE_PLAIN_AND_SSL("subdoc_dict_upsert_simple_compressed", test_subdoc_dict_upsert_simple_compressed),
+    TESTCASE_PLAIN_AND_SSL("subdoc_dict_upsert_deep", test_subdoc_dict_upsert_deep),
     TESTCASE_PLAIN(NULL, NULL)
 };
 
