@@ -6458,9 +6458,10 @@ static enum try_read_result try_read_network(conn *c) {
             if (is_blocking(error)) {
                 break;
             }
-            char prefix[80];
+            char prefix[160];
             snprintf(prefix, sizeof(prefix),
-                     "%d Closing connection due to read error: %%s", c->sfd);
+                     "%d Closing connection [%s - %s] due to read error: %%s",
+                     c->sfd, get_peername(c), get_sockname(c));
             log_errcode_error(EXTENSION_LOG_WARNING, c, prefix, error);
 
             return READ_ERROR;
