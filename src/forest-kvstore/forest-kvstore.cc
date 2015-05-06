@@ -510,15 +510,9 @@ static void populateMetaData(const Item &itm, uint8_t *meta, bool deletion) {
     uint64_t cas = htonll(itm.getCas());
     uint64_t rev_seqno = htonll(itm.getRevSeqno());
     uint32_t flags = itm.getFlags();
-    uint32_t vlen = itm.getNBytes();
     uint32_t exptime = itm.getExptime();
     uint32_t texptime = 0;
     uint8_t confresmode = static_cast<uint8_t>(itm.getConflictResMode());
-    uint8_t datatype = 0x00;
-
-    if (vlen) {
-        datatype = itm.getDataType();
-    }
 
     if (deletion) {
         texptime = ep_real_time();
@@ -595,7 +589,38 @@ void ForestKVStore::get(const std::string &key, uint16_t vb,
 }
 
 void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
+    bool meta_only = true;
+    vb_bgfetch_queue_t::iterator itr = itms.begin();
+    for (; itr != itms.end(); ++itr) {
+        std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
+        std::list<VBucketBGFetchItem *>:: iterator fitr = fetches.begin();
 
+        /* Check if we need to just fetch meta data or the whole data */
+        for (; fitr != fetches.end(); ++fitr) {
+            if (!((*fitr)->metaDataOnly)) {
+                meta_only = false;
+                break;
+            }
+        }
+
+        RememberingCallback<GetValue> gcb;
+        if (meta_only) {
+            gcb.val.setPartial();
+        }
+
+        const std::string &key = (*itr).first;
+        get(key, vb, gcb);
+        ENGINE_ERROR_CODE status = gcb.val.getStatus();
+        if (status != ENGINE_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING, "Failed to retrieve key: %s",
+                key.c_str());
+        }
+
+        for (fitr = fetches.begin(); fitr != fetches.end(); ++fitr) {
+            (*fitr)->value = gcb.val;
+        }
+        meta_only = true;
+    }
 }
 
 void ForestKVStore::del(const Item &itm, Callback<int> &cb) {
