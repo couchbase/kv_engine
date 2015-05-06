@@ -59,6 +59,17 @@ ELSE (MEMORY_ALLOCATOR)
    SET(MALLOC_LIBRARIES "")
 ENDIF (MEMORY_ALLOCATOR)
 
+FUNCTION(APPEND_MALLOC_LINKER_FLAGS _target)
+   IF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") AND WIN32)
+      SET(__ldflag "/INCLUDE:__tcmalloc")
+      GET_TARGET_PROPERTY(__existing_ldflags ${_target} LINK_FLAG)
+      IF (__existing_ldflags)
+         SET(__ldflags "${__existing_ldflags} ${__ldflags}")
+      ENDIF (__existing_ldflags)
+      SET_TARGET_PROPERTIES(memcached PROPERTIES LINK_FLAG "${__memcached_ldflags}")
+   ENDIF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") AND WIN32)
+ENDFUNCTION()
+
 IF (BREAKPAD_FOUND)
    ADD_DEFINITIONS(-DHAVE_BREAKPAD)
    INCLUDE_DIRECTORIES(AFTER ${BREAKPAD_INCLUDE_DIR})
@@ -338,6 +349,7 @@ TARGET_LINK_LIBRARIES(basic_engine_testsuite mcd_util platform ${COUCHBASE_NETWO
 TARGET_LINK_LIBRARIES(stdin_term_handler platform)
 TARGET_LINK_LIBRARIES(fragment_rw_ops mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform ${MALLOC_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
+APPEND_MALLOC_LINKER_FLAGS(engine_testapp)
 TARGET_LINK_LIBRARIES(bucket_engine_testapp mcd_util platform ${COUCHBASE_NETWORK_LIBS} ${COUCHBASE_MATH_LIBS})
 TARGET_LINK_LIBRARIES(cbsasladm platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
 TARGET_LINK_LIBRARIES(mcstat platform ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})
@@ -351,6 +363,8 @@ TARGET_LINK_LIBRARIES(testapp_extension mcd_util platform ${COUCHBASE_NETWORK_LI
 
 TARGET_LINK_LIBRARIES(mcd_util platform)
 TARGET_LINK_LIBRARIES(memcached auditd mcd_util cbsasl platform cJSON JSON_checker ${SNAPPY_LIBRARIES} ${MALLOC_LIBRARIES} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${BREAKPAD_LIBRARIES})
+APPEND_MALLOC_LINKER_FLAGS(memcached)
+
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
 
 TARGET_LINK_LIBRARIES(file_logger mcd_time platform)
@@ -446,6 +460,7 @@ IF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") OR
                                           utilities/extension_loggers.c
                                           tests/tcmalloc_test.cc)
    TARGET_LINK_LIBRARIES(memcached_tcmalloc_test platform ${MALLOC_LIBRARIES})
+   APPEND_MALLOC_LINKER_FLAGS(memcached_tcmalloc_test)
    ADD_TEST(memcached-tcmalloc-hooks memcached_tcmalloc_test)
 ENDIF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") OR
        ("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "jemalloc"))
