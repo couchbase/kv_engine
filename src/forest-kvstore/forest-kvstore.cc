@@ -20,7 +20,6 @@
 #include <platform/dirutils.h>
 #include <vbucket.h>
 #include <cJSON.h>
-#include <JSON_checker.h>
 
 using namespace CouchbaseDirectoryUtilities;
 
@@ -269,142 +268,10 @@ void ForestKVStore::delVBucket(uint16_t vbucket) {
 
 }
 
-ENGINE_ERROR_CODE ForestKVStore::forestErr2EngineErr(fdb_status errCode) {
-    switch (errCode) {
-    case FDB_RESULT_SUCCESS:
-        return ENGINE_SUCCESS;
-    case FDB_RESULT_ALLOC_FAIL:
-        return ENGINE_ENOMEM;
-    case FDB_RESULT_KEY_NOT_FOUND:
-        return ENGINE_KEY_ENOENT;
-    case FDB_RESULT_NO_SUCH_FILE:
-    case FDB_RESULT_NO_DB_HEADERS:
-    default:
-        // same as the general error return code of
-        // EventuallyPersistentStore::getInternal
-        return ENGINE_TMPFAIL;
-    }
-}
-
 void ForestKVStore::getWithHeader(void *dbHandle, const std::string &key,
                                   uint16_t vb, Callback<GetValue> &cb,
                                   bool fetchDelete) {
-    fdb_file_handle *dbFileHandle = (fdb_file_handle *)dbHandle;
-    RememberingCallback<GetValue> *rc =
-                       static_cast<RememberingCallback<GetValue> *>(&cb);
-    bool getMetaOnly = rc && rc->val.isPartial();
-    GetValue rv;
-    fdb_kvs_handle *kvsHandle = NULL;
-    fdb_status status;
-    char kvsName[20];
-    sprintf(kvsName, "partition%d", vb);
 
-    unordered_map<uint16_t, fdb_kvs_handle*>::iterator found =
-                                                       readHandleMap.find(vb);
-
-    //There will always be a handle in the handle map for readers. It will be
-    //initialized to NULL if one hasn't been initialized yet.
-    cb_assert(found != readHandleMap.end());
-    if (!(found->second)) {
-        status = fdb_kvs_open(dbFileHandle, &kvsHandle, kvsName, &kvsConfig);
-        if (status != FDB_RESULT_SUCCESS) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Opening the vbucket state KV store instance failed "
-                "with error: %s", fdb_error_msg(status));
-            rv.setStatus(forestErr2EngineErr(status));
-            cb.callback(rv);
-            return;
-        }
-        found->second = kvsHandle;
-    }
-    else {
-        kvsHandle = found->second;
-    }
-
-    fdb_doc *rdoc;
-    fdb_doc_create(&rdoc, key.c_str(), key.length(), NULL, 0 , NULL, 0);
-
-    if (!getMetaOnly) {
-        status = fdb_get(kvsHandle, rdoc);
-    } else {
-        status = fdb_get_metaonly(kvsHandle, rdoc);
-    }
-
-    if (status != FDB_RESULT_SUCCESS) {
-        if (!getMetaOnly) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Warning: failed to retrieve metadata from "
-                "database, vbucketId:%d key:%s error:%s\n",
-                vb, key.c_str(), fdb_error_msg(status));
-        } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Warning: failed to retrieve key value from database,"
-                "vbucketId:%d key:%s error:%s deleted:%s", vb, key.c_str(),
-                fdb_error_msg(status), rdoc->deleted ? "yes" : "no");
-        }
-    } else {
-        rv = docToItem(kvsHandle, rdoc, vb, getMetaOnly, fetchDelete);
-    }
-
-    fdb_doc_free(rdoc);
-    rv.setStatus(forestErr2EngineErr(status));
-    cb.callback(rv);
-}
-
-GetValue ForestKVStore::docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc,
-                                  uint16_t vbId, bool metaOnly, bool fetchDelete) {
-    char *metadata = (char *)rdoc->meta;
-    uint64_t cas;
-    uint64_t rev_seqno;
-    uint32_t exptime;
-    uint32_t texptime;
-    uint32_t itemFlags;
-    uint8_t ext_meta[EXT_META_LEN];
-    uint8_t ext_len;
-    uint8_t conf_res_mode = 0;
-
-    //TODO: handle metadata upgrade?
-    memcpy(&cas, metadata, 8);
-    memcpy(&exptime, metadata + 8, 4);
-    memcpy(&texptime, metadata + 12, 4);
-    memcpy(&itemFlags, metadata + 16, 4);
-    memcpy(&rev_seqno, metadata + 20, 8);
-    memcpy(ext_meta, metadata + 29, EXT_META_LEN);
-    memcpy(&conf_res_mode, metadata + 30, CONFLICT_RES_META_LEN);
-    ext_len = EXT_META_LEN;
-
-    cas = ntohll(cas);
-    exptime = ntohl(exptime);
-    texptime = ntohl(texptime);
-    rev_seqno = ntohll(rev_seqno);
-
-    Item *it = NULL;
-    if (metaOnly || (fetchDelete && rdoc->deleted)) {
-        it = new Item((char *)rdoc->key, rdoc->keylen, itemFlags,
-                      texptime, NULL, 0, ext_meta, ext_len, cas,
-                      (uint64_t)rdoc->seqnum, vbId);
-        if (rdoc->deleted) {
-            it->setDeleted();
-        }
-    } else {
-        size_t valuelen = rdoc->bodylen;
-        void *valuePtr = rdoc->body;
-
-        if (checkUTF8JSON((const unsigned char *)valuePtr, valuelen)) {
-            ext_meta[0] = PROTOCOL_BINARY_DATATYPE_JSON;
-        } else {
-            ext_meta[0] = PROTOCOL_BINARY_RAW_BYTES;
-        }
-
-        it = new Item((char *)rdoc->key, rdoc->keylen, itemFlags,
-                      exptime, valuePtr, valuelen, ext_meta, ext_len,
-                      cas, (uint64_t)rdoc->seqnum, vbId);
-    }
-
-    it->setConflictResMode(
-                   static_cast<enum conflict_resolution_mode>(conf_res_mode));
-    it->setRevSeqno(rev_seqno);
-    return GetValue(it);
 }
 
 bool ForestKVStore::commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
@@ -424,7 +291,7 @@ void ForestKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
 
 void ForestKVStore::get(const std::string &key, uint16_t vb,
                         Callback<GetValue> &cb, bool fetchDelete) {
-    getWithHeader(dbFileHandle, key, vb, cb, fetchDelete);
+
 }
 
 void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
