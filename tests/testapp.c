@@ -3668,7 +3668,7 @@ static enum test_return test_pipeline_huge(void) {
                                 PROTOCOL_BINARY_CMD_SET,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                 true,
-                                8000,
+                                200,
                                 1023 * 1024);
 }
 
