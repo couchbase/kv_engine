@@ -138,6 +138,7 @@ DcpResponse* ActiveStream::next() {
     stream_state_t initState = state_;
 
     DcpResponse* response = NULL;
+
     switch (state_) {
         case STREAM_PENDING:
             break;
@@ -462,6 +463,13 @@ DcpResponse* ActiveStream::nextQueuedItem() {
 
 void ActiveStream::nextCheckpointItem() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    if (!vbucket) {
+        /* The entity deleting the vbucket must set stream to dead,
+           calling setDead(END_STREAM_STATE) will cause deadlock because
+           it will try to grab streamMutex which is already acquired at this
+           point here */
+        return;
+    }
 
     bool mark = false;
     std::vector<queued_item> items;
