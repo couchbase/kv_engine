@@ -409,13 +409,13 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
         }
 
         // Prepare the specified sub-document command.
-        subdoc_OPERATION* op = c->thread->subdoc_op;
-        subdoc_op_clear(op);
-        SUBDOC_OP_SETCODE(op, cmd_traits<Cmd2Type<CMD>>::optype);
-        SUBDOC_OP_SETDOC(op, doc.buf, doc.len);
+        Subdoc::Operation* op = c->thread->subdoc_op;
+        op->clear();
+        op->set_code(cmd_traits<Cmd2Type<CMD>>::optype);
+        op->set_doc(doc.buf, doc.len);
 
         // ... and execute it.
-        subdoc_ERRORS subdoc_res = subdoc_op_exec(op, path, pathlen);
+        Subdoc::Error subdoc_res = op->op_exec(path, pathlen);
 
         switch (subdoc_res) {
         case SUBDOC_STATUS_SUCCESS:
