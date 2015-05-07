@@ -138,6 +138,7 @@
                     "SUBDOC_DICT_UPSERT",
                     "SUBDOC_EXISTS",
                     "SUBDOC_GET",
+                    "SUBDOC_REPLACE",
                     "TOUCH",
                     "UNLOCK_KEY",
                     "VBUCKET_BATCH_COUNT",

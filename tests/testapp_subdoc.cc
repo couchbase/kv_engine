@@ -551,6 +551,14 @@ static cJSON* make_nested_array(int nlevels) {
     return parent;
 }
 
+std::string make_nested_array_path(int nlevels) {
+    std::string path;
+    for (int depth = 1; depth < nlevels; depth++) {
+        path += "[0]";
+    }
+    return path;
+}
+
 // Deeply nested JSON array; verify limits on how deep documents can be.
 static enum test_return
 test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
@@ -563,10 +571,8 @@ test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
     cb_assert(store_object("max_array", max_array_str) == TEST_PASS);
     cJSON_Free(max_array_str);
 
-    std::string valid_max_path;
-    for (int depth = 1; depth < MAX_SUBDOC_PATH_COMPONENTS; depth++) {
-        valid_max_path += "[0]";
-    }
+    std::string valid_max_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS));
+
     expect_subdoc_cmd(SubdocCmd(cmd, "max_array", valid_max_path),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "[]");
     delete_object("max_array");
@@ -577,10 +583,8 @@ test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
     cb_assert(store_object("too_deep_array", too_deep_array_str) == TEST_PASS);
     cJSON_Free(too_deep_array_str);
 
-    std::string too_long_path;
-    for (int depth = 1; depth < MAX_SUBDOC_PATH_COMPONENTS + 1; depth++) {
-        too_long_path += "[0]";
-    }
+    std::string too_long_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS + 1));
+
     expect_subdoc_cmd(SubdocCmd(cmd, "too_deep_array", too_long_path),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG, "");
     delete_object("too_deep_array");
@@ -963,6 +967,109 @@ enum test_return test_subdoc_delete_array_nested() {
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "{\"key\":\"value\"}");
 
     delete_object("b");
+
+    return TEST_PASS;
+}
+
+const std::vector<std::string> JSON_VALUE_REPLACEMENTS({
+    "1.1",
+    "\"value\"",
+    "{\"inner\":\"dict\"}",
+    "[1,2]",
+    "true",
+    "false",
+    "null"});
+
+enum test_return test_subdoc_replace_simple_dict()
+{
+    // Simple dictionary, replace first element with various types.
+    store_object("a", "{\"key\":0,\"key2\":1}", /*JSON*/true, /*compress*/false);
+
+    // Sanity check - 'key' should be "0"
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "key"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "0");
+
+    // Replace the initial key with each primitive type:
+    for (const auto& replace : JSON_VALUE_REPLACEMENTS) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a", "key",
+                                    replace),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "key"),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, replace);
+    }
+    // Sanity-check the final document
+    validate_object("a", "{\"key\":null,\"key2\":1}");
+
+    delete_object("a");
+
+    return TEST_PASS;
+}
+
+enum test_return test_subdoc_replace_simple_array()
+{
+    // Simple array, replace first element with various types.
+    store_object("a", "[0,1]", /*JSON*/true, /*compress*/false);
+
+    // Sanity check - [0] should be "0"
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[0]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "0");
+
+    // Replace the first element with each primitive type:
+    for (const auto& replace : JSON_VALUE_REPLACEMENTS) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a", "[0]",
+                                    replace),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[0]"),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, replace);
+    }
+    // Sanity-check the final document
+    validate_object("a", "[null,1]");
+
+    delete_object("a");
+
+    return TEST_PASS;
+}
+
+enum test_return test_subdoc_replace_array_deep()
+{
+    // Test replacing in deeply nested arrays.
+
+    // Create an array at one less than the maximum depth and an associated path.
+    unique_cJSON_ptr one_less_max(make_nested_array(MAX_SUBDOC_PATH_COMPONENTS));
+    char* one_less_max_str = cJSON_PrintUnformatted(one_less_max.get());
+    cb_assert(store_object("a", one_less_max_str) == TEST_PASS);
+    cJSON_Free(one_less_max_str);
+
+    std::string valid_max_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS));
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a",
+                                valid_max_path),
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "[]");
+
+    // a). Should be able to replace an element at the max depth.
+    std::string new_value("[\"deep\"]");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a",
+                                valid_max_path, new_value),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+#if 0 // TODO: 2015-05-07: Fails - need to report to MarkN
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a",
+                                valid_max_path),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, new_value);
+
+    // b). But adding a nested array (taking the document over the maximum
+    // depth) should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a",
+                                valid_max_path, "[0]"),
+                      PROTOCOL_BINARY_RESPONSE_E2BIG, "");
+#endif
+
+#if 0 // TODO: 2015-05-07: Fails - need to report to MarkN
+    // Replace the whole deep array with a single toplevel element.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a",
+                                "[0]", "[]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+#endif
+
+    delete_object("a");
 
     return TEST_PASS;
 }
