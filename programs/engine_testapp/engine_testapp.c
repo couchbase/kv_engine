@@ -1367,7 +1367,14 @@ int main(int argc, char **argv) {
             fprintf(stderr, "Invalid test case id specified\n");
             exit(EXIT_FAILURE);
         }
-        exit(execute_test(testcases[test_case_id], engine, engine_args));
+
+        // check there's a test to run, some modules need cleaning up of dead tests
+        // if all modules are fixed, this if/else can be removed.
+        if (testcases[test_case_id].tfun || testcases[test_case_id].api_v2.tfun) {
+            exit(execute_test(testcases[test_case_id], engine, engine_args));
+        } else {
+            exit(PENDING); // ignored tests would always return PENDING
+        }
     }
 
     cmdline = malloc(64*1024); /* should be enough */
