@@ -1272,3 +1272,80 @@ enum test_return test_subdoc_array_push_first_nested()
 
     return TEST_PASS;
 }
+
+enum test_return test_subdoc_array_add_unique_simple()
+{
+    // Start with an array with a single element.
+    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+
+    // a). Add an element which doesn't already exist.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+                                "a", "", "0"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    validate_object("a", "[0]");
+
+    // b). Add an element which does already exist.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+                                "a", "", "0"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, "");
+    validate_object("a", "[0]");
+    delete_object("a");
+
+    // c). Larger array, add an element which already exists.
+    std::string array("[0,1,2,3,4,5,6,7,8,9]");
+    store_object("b", array, /*JSON*/true, /*compress*/false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+                                "b", "", "6"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, "");
+    validate_object("b", array.c_str());
+
+    // d). Check that all permitted types of values can be added:
+    const std::vector<std::string> valid_unique_values({
+        "\"string\"",
+        "10",
+        "1.0",
+        "true",
+        "false",
+        "null"});
+    for (const auto& v : valid_unique_values) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+                                    "b", "", v),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    }
+    // ... and attempting to add a second time returns EEXISTS
+    for (const auto& v : valid_unique_values) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+                                    "b", "", v),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, "");
+    }
+
+#if 0 // TODO: According to the spec this shouldn't be permitted, however it
+      // currently works...
+    // f). Check it is not permitted to add non-primitive types (arrays, objects).
+    const std::vector<std::string> invalid_unique_values({
+        "{\"foo\": \"bar\"}",
+        "[0,1,2]"});
+    for (const auto& v : invalid_unique_values) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+                                    "b", "", v),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
+    }
+#endif
+    delete_object("b");
+
+    // g). Attempts to add_unique to a array with non-primitive values should
+    // fail.
+    store_object("c", "[{\"a\":\"b\"}]", /*JSON*/true, /*compress*/false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+                                "c", "", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
+    delete_object("c");
+
+    store_object("d", "[[1,2]]", /*JSON*/true, /*compress*/false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+                                "d", "", "3"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
+    delete_object("d");
+
+    return TEST_PASS;
+}

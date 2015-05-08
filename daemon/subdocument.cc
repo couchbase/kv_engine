@@ -136,6 +136,17 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST> > {
   static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
 };
 
+template <>
+struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE> > {
+  static const subdoc_OPTYPE optype = SUBDOC_CMD_ARRAY_ADD_UNIQUE;
+  static const bool request_has_value = true;
+  static const bool allow_empty_path = true;
+  static const bool response_has_value = false;
+  static const bool is_mutator = true;
+  static const protocol_binary_subdoc_flag valid_flags =
+          protocol_binary_subdoc_flag(0);
+};
+
 /*
  * Subdocument command validators
  */
@@ -218,6 +229,10 @@ int subdoc_array_push_last_validator(void* packet) {
 
 int subdoc_array_push_first_validator(void* packet) {
     return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>(packet);
+}
+
+int subdoc_array_add_unique_validator(void* packet) {
+    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>(packet);
 }
 
 /******************************************************************************
@@ -800,4 +815,8 @@ void subdoc_array_push_last_executor(conn *c, void *packet) {
 
 void subdoc_array_push_first_executor(conn *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>(c, packet);
+}
+
+void subdoc_array_add_unique_executor(conn *c, void *packet) {
+    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>(c, packet);
 }
