@@ -786,6 +786,7 @@ static void initialize() {
     validators[PROTOCOL_BINARY_CMD_SUBDOC_DELETE] = subdoc_delete_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_REPLACE] = subdoc_replace_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST] = subdoc_array_push_last_validator;
+    validators[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST] = subdoc_array_push_first_validator;
 #endif
 
     validators[PROTOCOL_BINARY_CMD_SETQ] = set_replace_validator;

@@ -126,6 +126,16 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST> > {
   static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
 };
 
+template <>
+struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST> > {
+  static const subdoc_OPTYPE optype = SUBDOC_CMD_ARRAY_PREPEND;
+  static const bool request_has_value = true;
+  static const bool allow_empty_path = true;
+  static const bool response_has_value = false;
+  static const bool is_mutator = true;
+  static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
+};
+
 /*
  * Subdocument command validators
  */
@@ -206,6 +216,9 @@ int subdoc_array_push_last_validator(void* packet) {
     return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>(packet);
 }
 
+int subdoc_array_push_first_validator(void* packet) {
+    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>(packet);
+}
 
 /******************************************************************************
  * Subdocument executors
@@ -783,4 +796,8 @@ void subdoc_replace_executor(conn *c, void *packet) {
 
 void subdoc_array_push_last_executor(conn *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>(c, packet);
+}
+
+void subdoc_array_push_first_executor(conn *c, void *packet) {
+    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>(c, packet);
 }

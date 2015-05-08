@@ -1173,3 +1173,102 @@ enum test_return test_subdoc_array_push_last_nested()
 
     return TEST_PASS;
 }
+
+enum test_return test_subdoc_array_push_first_simple()
+{
+    // a). Empty array, prepend to it.
+    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a",
+                                "", "0"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[0]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "0");
+    validate_object("a", "[0]");
+
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a",
+                                "", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[0]"),
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "1");
+    validate_object("a", "[1,0]");
+
+    uint64_t cas = expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                               "a", "", "2"),
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[0]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "2");
+    validate_object("a", "[2,1,0]");
+
+    // b). Check that using the correct CAS succeeds.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                "a", "", "3", protocol_binary_subdoc_flag(0), cas),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[0]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "3");
+    validate_object("a", "[3,2,1,0]");
+
+    // c). But using the wrong one fails.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                "a", "", "4", protocol_binary_subdoc_flag(0), cas),
+                      PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
+    validate_object("a", "[3,2,1,0]");
+    delete_object("a");
+
+    // d). Check various other object types prepend successfully.
+    store_object("b", "[]", /*JSON*/true, /*compress*/false);
+    for (const auto& value : JSON_VALUES) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                    "b", "", value),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "b", "[0]"),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, value);
+    }
+    delete_object("b");
+
+    // e). Check we can prepend multiple values at once.
+    store_object("c", "[]", /*JSON*/true, /*compress*/false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                "c", "", "0,1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    validate_object("c", "[0,1]");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                "c", "", "\"two\",3.141,{\"four\":4}"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    validate_object("c", "[\"two\",3.141,{\"four\":4},0,1]");
+    delete_object("c");
+
+    // f). Check MKDIR_P flag works.
+    store_object("d", "{}", /*JSON*/true, /*compress*/false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                "d", "foo", "0", SUBDOC_FLAG_MKDIR_P),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    delete_object("d");
+
+    return TEST_PASS;
+}
+
+enum test_return test_subdoc_array_push_first_nested()
+{
+    // Operations on a nested array.
+    // a). Begin with an empty nested array, prepend to it.
+    store_object("a", "[[]]", /*JSON*/true, /*compress*/false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a",
+                                "", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[0]"),
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "1");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[1]"),
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "[]");
+    validate_object("a", "[1,[]]");
+
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, "a",
+                                "", "2"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[0]"),
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "2");
+    validate_object("a", "[2,1,[]]");
+
+    delete_object("a");
+
+    return TEST_PASS;
+}
