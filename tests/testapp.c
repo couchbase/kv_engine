@@ -4283,6 +4283,8 @@ struct testcase testcases[] = {
     TESTCASE_PLAIN_AND_SSL("subdoc_replace_simple_dict", test_subdoc_replace_simple_dict),
     TESTCASE_PLAIN_AND_SSL("subdoc_replace_simple_array", test_subdoc_replace_simple_array),
     TESTCASE_PLAIN_AND_SSL("subdoc_replace_array_deep", test_subdoc_replace_array_deep),
+    TESTCASE_PLAIN_AND_SSL("subdoc_array_push_last_simple", test_subdoc_array_push_last_simple),
+    TESTCASE_PLAIN_AND_SSL("subdoc_array_push_last_nested", test_subdoc_array_push_last_nested),
     TESTCASE_PLAIN(NULL, NULL)
 };
 

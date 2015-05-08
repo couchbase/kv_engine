@@ -44,6 +44,7 @@ struct Cmd2Type
  *
  *   optype: The subjson API optype for this command.
  *   request_has_value: Does the command request require a value?
+ *   allow_empty_path: Is the path field allowed to be empty (zero-length)?
  *   response_has_value: Does the command response require a value?
  *   is_mutator: Does the command mutate (modify) the document?
  *   valid_flags: What flags are valid for this command.
@@ -55,6 +56,7 @@ template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_GET> > {
   static const subdoc_OPTYPE optype = SUBDOC_CMD_GET;
   static const bool request_has_value = false;
+  static const bool allow_empty_path = false;
   static const bool response_has_value = true;
   static const bool is_mutator = false;
   static const protocol_binary_subdoc_flag valid_flags =
@@ -65,6 +67,7 @@ template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS> > {
   static const subdoc_OPTYPE optype = SUBDOC_CMD_EXISTS;
   static const bool request_has_value = false;
+  static const bool allow_empty_path = false;
   static const bool response_has_value = false;
   static const bool is_mutator = false;
   static const protocol_binary_subdoc_flag valid_flags =
@@ -75,6 +78,7 @@ template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD> > {
   static const subdoc_OPTYPE optype = SUBDOC_CMD_DICT_ADD;
   static const bool request_has_value = true;
+  static const bool allow_empty_path = false;
   static const bool response_has_value = false;
   static const bool is_mutator = true;
   static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
@@ -84,6 +88,7 @@ template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT> > {
   static const subdoc_OPTYPE optype = SUBDOC_CMD_DICT_UPSERT;
   static const bool request_has_value = true;
+  static const bool allow_empty_path = false;
   static const bool response_has_value = false;
   static const bool is_mutator = true;
   static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
@@ -93,6 +98,7 @@ template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DELETE> > {
   static const subdoc_OPTYPE optype = SUBDOC_CMD_DELETE;
   static const bool request_has_value = false;
+  static const bool allow_empty_path = false;
   static const bool response_has_value = false;
   static const bool is_mutator = true;
   static const protocol_binary_subdoc_flag valid_flags =
@@ -103,10 +109,21 @@ template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE> > {
   static const subdoc_OPTYPE optype = SUBDOC_CMD_REPLACE;
   static const bool request_has_value = true;
+  static const bool allow_empty_path = false;
   static const bool response_has_value = false;
   static const bool is_mutator = true;
   static const protocol_binary_subdoc_flag valid_flags =
           protocol_binary_subdoc_flag(0);
+};
+
+template <>
+struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST> > {
+  static const subdoc_OPTYPE optype = SUBDOC_CMD_ARRAY_APPEND;
+  static const bool request_has_value = true;
+  static const bool allow_empty_path = true;
+  static const bool response_has_value = false;
+  static const bool is_mutator = true;
+  static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
 };
 
 /*
@@ -130,7 +147,7 @@ static int subdoc_validator(void* packet) {
     if ((header->request.magic != PROTOCOL_BINARY_REQ) ||
         (keylen == 0) ||
         (extlen != sizeof(uint16_t) + sizeof(uint8_t)) ||
-        (pathlen == 0) || (pathlen > SUBDOC_PATH_MAX_LENGTH) ||
+        (pathlen > SUBDOC_PATH_MAX_LENGTH) ||
         (header->request.datatype != PROTOCOL_BINARY_RAW_BYTES)) {
         return -1;
     }
@@ -150,6 +167,11 @@ static int subdoc_validator(void* packet) {
 
     // Check only valid flags are specified.
     if ((subdoc_flags & ~cmd_traits<Cmd2Type<CMD> >::valid_flags) != 0) {
+        return -1;
+    }
+
+    if (!cmd_traits<Cmd2Type<CMD> >::allow_empty_path &&
+        (pathlen == 0)) {
         return -1;
     }
 
@@ -179,6 +201,11 @@ int subdoc_delete_validator(void* packet) {
 int subdoc_replace_validator(void* packet) {
     return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>(packet);
 }
+
+int subdoc_array_push_last_validator(void* packet) {
+    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>(packet);
+}
+
 
 /******************************************************************************
  * Subdocument executors
@@ -752,4 +779,8 @@ void subdoc_delete_executor(conn *c, void *packet) {
 
 void subdoc_replace_executor(conn *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>(c, packet);
+}
+
+void subdoc_array_push_last_executor(conn *c, void *packet) {
+    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>(c, packet);
 }
