@@ -5,5 +5,6 @@ IF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") OR
     tcmalloc_test.cc)
   TARGET_LINK_LIBRARIES(memcached_tcmalloc_test platform ${MALLOC_LIBRARIES})
   ADD_TEST(memcached-tcmalloc-hooks memcached_tcmalloc_test)
+  APPEND_MALLOC_LINKER_FLAGS(memcached_tcmalloc_test)
 ENDIF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") OR
        ("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "jemalloc"))
