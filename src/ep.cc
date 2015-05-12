@@ -2729,16 +2729,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                 return addTempItemForBgFetch(lh, bucket_num, key, vb,
                                              cookie, true, isReplication);
             } else {
-                // As bloomfilter predicted that item surely doesn't exist
-                // on disk, return ENOENT for deleteWithMeta().
-                return ENGINE_KEY_ENOENT;
-            }
-        }
-    } else {
-        if (!v) {
-            // Create a temp item and delete it below as it is a force deletion,
-            // only if the bloomfilter predicts that the item may exist on disk.
-            if (vb->maybeKeyExistsInFilter(key)) {
+                // Even though bloomfilter predicted that item doesn't exist
+                // on disk, we must put this delete on disk if the cas is valid.
                 add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
                                                             eviction_policy,
                                                             isReplication);
@@ -2747,9 +2739,19 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                 }
                 v = vb->ht.unlocked_find(key, bucket_num, true, false);
                 v->setStoredValueState(StoredValue::state_deleted_key);
-            } else {
-                return ENGINE_KEY_ENOENT;
             }
+        }
+    } else {
+        if (!v) {
+            // We should always try to persist a delete here.
+            add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
+                                                        eviction_policy,
+                                                        isReplication);
+            if (rv == ADD_NOMEM) {
+                return ENGINE_ENOMEM;
+            }
+            v = vb->ht.unlocked_find(key, bucket_num, true, false);
+            v->setStoredValueState(StoredValue::state_deleted_key);
         } else if (v->isTempInitialItem()) {
             v->setStoredValueState(StoredValue::state_deleted_key);
         }

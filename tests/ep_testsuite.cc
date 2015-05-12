@@ -9660,6 +9660,58 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_delete_with_meta_nonexistent_no_temp(ENGINE_HANDLE *h,
+                                                                  ENGINE_HANDLE_V1 *h1) {
+    const char *key1 = "delete_with_meta_no_temp_key1";
+    const size_t keylen1 = strlen(key1);
+    ItemMetaData itm_meta1;
+
+    // Run compaction to start using the bloomfilter
+    useconds_t sleepTime = 128;
+    compact_db(h, h1, 0, 1, 1, 0);
+    while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
+        decayingSleep(&sleepTime);
+    }
+
+    // put some random metadata and delete the item with new meta data
+    itm_meta1.revSeqno = 10;
+    itm_meta1.cas = 0xdeadbeef;
+    itm_meta1.exptime = 1735689600; // expires in 2025
+    itm_meta1.flags = 0xdeadbeef;
+
+    // do delete with meta with the correct cas value.
+    // skipConflictResolution false
+    del_with_meta(h, h1, key1, keylen1, 0, &itm_meta1, 0, false);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    wait_for_flusher_to_settle(h, h1);
+
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 1, "Expect one op");
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+
+    // do delete with meta with the correct cas value.
+    // skipConflictResolution true
+    const char *key2 = "delete_with_meta_no_temp_key2";
+    const size_t keylen2 = strlen(key2);
+    ItemMetaData itm_meta2;
+
+    // put some random metadata and delete the item with new meta data
+    itm_meta2.revSeqno = 10;
+    itm_meta2.cas = 0xdeadbeef;
+    itm_meta2.exptime = 1735689600; // expires in 2025
+    itm_meta2.flags = 0xdeadbeef;
+
+    del_with_meta(h, h1, key2, keylen2, 0, &itm_meta2, 0, true);
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    wait_for_flusher_to_settle(h, h1);
+
+    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 2, "Expect one op");
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+
+    return SUCCESS;
+}
+
 static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     char const *key1 = "key1";
@@ -13376,6 +13428,9 @@ TestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("delete with meta nonexistent",
                  test_delete_with_meta_nonexistent, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("delete with meta nonexistent no temp",
+                 test_delete_with_meta_nonexistent_no_temp, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("delete_with_meta race with concurrent delete",
                  test_delete_with_meta_race_with_delete, test_setup,
