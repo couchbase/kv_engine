@@ -206,6 +206,8 @@ ADD_EXECUTABLE(memcached
                daemon/ioctl.c
                daemon/mcaudit.c
                daemon/mcaudit.h
+               daemon/mcbp_validators.cc
+               daemon/mcbp_validators.h
                daemon/memcached.c
                daemon/privileges.c
                daemon/subdocument.cc
