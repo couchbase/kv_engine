@@ -3655,7 +3655,6 @@ static int dcp_snapshot_marker_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         req->message.header.request.bodylen != htonl(20) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        abort();
         return -1;
     }
 
