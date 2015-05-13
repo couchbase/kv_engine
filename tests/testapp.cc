@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,6 +10,10 @@
 #include <evutil.h>
 #include <snappy-c.h>
 #include <cJSON.h>
+
+#include <algorithm>
+#include <string>
+#include <vector>
 
 #include "testapp.h"
 #include "testapp_subdoc.h"
@@ -460,7 +464,7 @@ start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon,
 
     if (pid == 0) {
         /* Child */
-        char *argv[20];
+        const char *argv[20];
         int arg = 0;
         char tmo[24];
 
@@ -481,7 +485,7 @@ start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon,
         argv[arg++] = (char*)config_file;
 
         argv[arg++] = NULL;
-        cb_assert(execvp(argv[0], argv) != -1);
+        cb_assert(execvp(argv[0], const_cast<char **>(argv)) != -1);
     }
 #endif // !WIN32
 
@@ -1012,7 +1016,7 @@ static ssize_t phase_send(const void *buf, size_t len) {
         }
     } else {
 #ifdef WIN32
-        rv = send(sock, buf, (int)len, 0);
+        rv = send(sock, reinterpret_cast<const char*>(buf), (int)len, 0);
 #else
         rv = send(sock, buf, len, 0);
 #endif
@@ -1029,7 +1033,7 @@ static ssize_t phase_recv(void *buf, size_t len) {
         {
             /* nope, keep feeding SSL until we can */
 #ifdef WIN32
-            rv = recv(sock_ssl, buf, (int)len, 0);
+            rv = recv(sock_ssl, reinterpret_cast<char*>(buf), (int)len, 0);
 #else
             rv = recv(sock_ssl, buf, len, 0);
 #endif
@@ -1046,7 +1050,7 @@ static ssize_t phase_recv(void *buf, size_t len) {
     }
     else {
 #ifdef WIN32
-        rv = recv(sock, buf, (int)len, 0);
+        rv = recv(sock, reinterpret_cast<char*>(buf), (int)len, 0);
 #else
         rv = recv(sock, buf, len, 0);
 #endif
@@ -1071,8 +1075,8 @@ static char* phase_get_errno() {
 
 void safe_send(const void* buf, size_t len, bool hickup)
 {
-    off_t offset = 0;
-    const char* ptr = buf;
+    size_t offset = 0;
+    const char* ptr = reinterpret_cast<const char*>(buf);
     do {
         size_t num_bytes = len - offset;
         ssize_t nw;
@@ -1101,7 +1105,7 @@ void safe_send(const void* buf, size_t len, bool hickup)
 }
 
 static bool safe_recv(void *buf, size_t len) {
-    off_t offset = 0;
+    size_t offset = 0;
     if (len == 0) {
         return true;
     }
@@ -1127,8 +1131,8 @@ static bool safe_recv(void *buf, size_t len) {
 }
 
 bool safe_recv_packet(void *buf, size_t size) {
-    protocol_binary_response_no_extras *response = buf;
-    char *ptr;
+    protocol_binary_response_no_extras *response =
+            reinterpret_cast<protocol_binary_response_no_extras*>(buf);
     size_t len;
 
     cb_assert(size >= sizeof(*response));
@@ -1140,7 +1144,7 @@ bool safe_recv_packet(void *buf, size_t size) {
     response->message.header.response.bodylen = ntohl(response->message.header.response.bodylen);
 
     len = sizeof(*response);
-    ptr = buf;
+    char* ptr = reinterpret_cast<char*>(buf);
     ptr += len;
     cb_assert(size >= (sizeof(*response) + response->message.header.response.bodylen));
     if (!safe_recv(ptr, response->message.header.response.bodylen)) {
@@ -1150,7 +1154,10 @@ bool safe_recv_packet(void *buf, size_t size) {
     return true;
 }
 
-static off_t storage_command(char*buf,
+/** Constructs a storage command using the give arguments into buf. Returns
+ *  the number of bytes written.
+ */
+static size_t storage_command(char*buf,
                              size_t bufsz,
                              uint8_t cmd,
                              const void* key,
@@ -1160,8 +1167,9 @@ static off_t storage_command(char*buf,
                              uint32_t flags,
                              uint32_t exp) {
     /* all of the storage commands use the same command layout */
-    off_t key_offset;
-    protocol_binary_request_set *request = (void*)buf;
+    size_t key_offset;
+    protocol_binary_request_set *request =
+        reinterpret_cast<protocol_binary_request_set*>(buf);
     cb_assert(bufsz >= sizeof(*request) + keylen + dtalen);
 
     memset(request, 0, sizeof(*request));
@@ -1181,7 +1189,7 @@ static off_t storage_command(char*buf,
         memcpy(buf + key_offset + keylen, dta, dtalen);
     }
 
-    return (off_t)(key_offset + keylen + dtalen);
+    return key_offset + keylen + dtalen;
 }
 
 off_t raw_command(char* buf,
@@ -1193,7 +1201,8 @@ off_t raw_command(char* buf,
                          size_t dtalen) {
     /* all of the storage commands use the same command layout */
     off_t key_offset;
-    protocol_binary_request_no_extras *request = (void*)buf;
+    protocol_binary_request_no_extras *request =
+        reinterpret_cast<protocol_binary_request_no_extras*>(buf);
     cb_assert(bufsz >= sizeof(*request) + keylen + dtalen);
 
     memset(request, 0, sizeof(*request));
@@ -1223,7 +1232,8 @@ off_t raw_command(char* buf,
 
 static off_t flush_command(char* buf, size_t bufsz, uint8_t cmd, uint32_t exptime, bool use_extra) {
     off_t size;
-    protocol_binary_request_flush *request = (void*)buf;
+    protocol_binary_request_flush *request =
+        reinterpret_cast<protocol_binary_request_flush*>(buf);
     cb_assert(bufsz > sizeof(*request));
 
     memset(request, 0, sizeof(*request));
@@ -1252,7 +1262,8 @@ static off_t arithmetic_command(char* buf,
                                 uint64_t initial,
                                 uint32_t exp) {
     off_t key_offset;
-    protocol_binary_request_incr *request = (void*)buf;
+    protocol_binary_request_incr *request =
+            reinterpret_cast<protocol_binary_request_incr*>(buf);
     cb_assert(bufsz > sizeof(*request) + keylen);
 
     memset(request, 0, sizeof(*request));
@@ -2316,7 +2327,8 @@ static enum test_return test_roles(void) {
 volatile bool hickup_thread_running;
 
 static void binary_hickup_recv_verification_thread(void *arg) {
-    protocol_binary_response_no_extras *response = malloc(65*1024);
+    protocol_binary_response_no_extras *response =
+            reinterpret_cast<protocol_binary_response_no_extras*>(malloc(65*1024));
     if (response != NULL) {
         while (safe_recv_packet(response, 65*1024)) {
             /* Just validate the packet format */
@@ -2422,8 +2434,7 @@ static enum test_return test_pipeline_hickup_chunk(void *buffer, size_t buffersi
 
 static enum test_return test_pipeline_hickup(void)
 {
-    size_t buffersize = 65 * 1024;
-    void *buffer = malloc(buffersize);
+    std::vector<char> buffer(65 * 1024);
     int ii;
     cb_thread_t tid;
     int ret;
@@ -2433,7 +2444,6 @@ static enum test_return test_pipeline_hickup(void)
     hickup_thread_running = true;
     if ((ret = cb_create_thread(&tid, binary_hickup_recv_verification_thread, NULL, 0)) != 0) {
         fprintf(stderr, "Can't create thread: %s\n", strerror(ret));
-        free(buffer);
         return TEST_FAIL;
     }
 
@@ -2445,16 +2455,15 @@ static enum test_return test_pipeline_hickup(void)
 #endif
 
     for (ii = 0; ii < 2; ++ii) {
-        test_pipeline_hickup_chunk(buffer, buffersize);
+        test_pipeline_hickup_chunk(buffer.data(), buffer.size());
     }
 
     /* send quitq to shut down the read thread ;-) */
-    len = raw_command(buffer, buffersize, PROTOCOL_BINARY_CMD_QUITQ,
+    len = raw_command(buffer.data(), buffer.size(), PROTOCOL_BINARY_CMD_QUITQ,
                       NULL, 0, NULL, 0);
-    safe_send(buffer, len, false);
+    safe_send(buffer.data(), len, false);
 
     cb_join_thread(tid);
-    free(buffer);
 
     reconnect_to_server(false);
     return TEST_PASS;
@@ -3122,7 +3131,6 @@ static void get_object_w_datatype(const char *key,
 {
     protocol_binary_response_no_extras response;
     protocol_binary_request_no_extras request;
-    char *body;
     int keylen = (int)strlen(key);
     uint32_t flags;
     uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
@@ -3157,8 +3165,8 @@ static void get_object_w_datatype(const char *key,
     cb_assert(len > 4);
     safe_recv(&flags, sizeof(flags));
     len -= 4;
-    cb_assert((body = malloc(len)) != NULL);
-    safe_recv(body, len);
+    std::vector<char> body(len);
+    safe_recv(body.data(), len);
 
     if (conversion) {
         cb_assert(response.message.header.response.datatype == PROTOCOL_BINARY_RAW_BYTES);
@@ -3167,8 +3175,7 @@ static void get_object_w_datatype(const char *key,
     }
 
     cb_assert(len == datalen);
-    cb_assert(memcmp(data, body, len) == 0);
-    free(body);
+    cb_assert(memcmp(data, body.data(), body.size()) == 0);
 }
 
 static enum test_return test_datatype_json(void) {
@@ -3321,7 +3328,7 @@ static uint64_t get_session_ctrl_token(void) {
 }
 
 static void prepare_set_session_ctrl_token(protocol_binary_request_set_ctrl_token *req,
-                                           uint64_t old, uint64_t new)
+                                           uint64_t old, uint64_t new_cas)
 {
     memset(req, 0, sizeof(*req));
     req->message.header.request.magic = PROTOCOL_BINARY_REQ;
@@ -3329,7 +3336,7 @@ static void prepare_set_session_ctrl_token(protocol_binary_request_set_ctrl_toke
     req->message.header.request.extlen = sizeof(uint64_t);
     req->message.header.request.bodylen = htonl(sizeof(uint64_t));
     req->message.header.request.cas = htonll(old);
-    req->message.body.new_cas = htonll(new);
+    req->message.body.new_cas = htonll(new_cas);
 }
 
 static enum test_return test_session_ctrl_token(void) {
@@ -3659,22 +3666,19 @@ static enum test_return test_set_huge_impl(const char *key,
 
     /* some error case may return a body in the response */
     char receive[sizeof(protocol_binary_response_no_extras) + 32];
-    size_t len = message_size + sizeof(protocol_binary_request_set) + strlen(key);
-    char* set_message = malloc(len);
-    char* message = set_message + (sizeof(protocol_binary_request_set) + strlen(key));
+    const size_t len = message_size + sizeof(protocol_binary_request_set) + strlen(key);
+    std::vector<char> set_message(len);
+    char* message = set_message.data() + (sizeof(protocol_binary_request_set) + strlen(key));
     int ii;
     memset(message, 0xb0, message_size);
 
-    cb_assert(len == storage_command(set_message, len, cmd,
-                          key, strlen(key), NULL,
-                          message_size, 0, 0));
+    cb_assert(len == storage_command(set_message.data(), len, cmd, key,
+                                     strlen(key), NULL, message_size,
+                                     0, 0));
 
     for (ii = 0; ii < iterations; ++ii) {
-        if (pipeline) {
-            safe_send(set_message, len, false);
-        } else {
-            safe_send(set_message, len, false);
-
+        safe_send(set_message.data(), len, false);
+        if (!pipeline) {
             if (cmd == PROTOCOL_BINARY_CMD_SET) {
                 safe_recv_packet(&receive, sizeof(receive));
                 validate_response_header((protocol_binary_response_no_extras*)receive, cmd, result);
@@ -3689,7 +3693,6 @@ static enum test_return test_set_huge_impl(const char *key,
         }
     }
 
-    free(set_message);
     return rv;
 }
 
@@ -3731,26 +3734,25 @@ static enum test_return test_pipeline_huge(void) {
 
 /* support set, get, delete */
 static enum test_return test_pipeline_impl(int cmd,
-                                                int result,
-                                                char* key_root,
-                                                uint32_t messages_in_stream,
-                                                size_t value_size) {
+                                           int result,
+                                           const char* key_root,
+                                           uint32_t messages_in_stream,
+                                           size_t value_size) {
     enum test_return rv = TEST_PASS;
 
     size_t largest_protocol_packet = sizeof(protocol_binary_request_set); /* set has the largest protocol message */
     size_t key_root_len = strlen(key_root);
     size_t key_digit_len = 5; /*append 00001, 00002 etc.. to key_root */
-    size_t buffer_len = (largest_protocol_packet + key_root_len + key_digit_len + value_size) * messages_in_stream;
+    const size_t buffer_len = (largest_protocol_packet + key_root_len +
+                               key_digit_len + value_size) * messages_in_stream;
     size_t out_message_len = 0, in_message_len = 0, send_len = 0, receive_len = 0;
-    uint8_t* buffer = malloc(buffer_len); /* space for creating and receiving a stream */
-    char* key = malloc(key_root_len + key_digit_len + 1); /* space for building keys */
-    uint8_t* current_message = buffer;
+    std::vector<uint8_t> buffer(buffer_len); /* space for creating and receiving a stream */
+    std::vector<char> key(key_root_len + key_digit_len + 1); /* space for building keys */
+    uint8_t* current_message = buffer.data();
     int session = 0; /* something to stick in opaque */
 
     session = rand() % 100;
 
-    cb_assert(buffer != NULL);
-    cb_assert(key != NULL);
     cb_assert(messages_in_stream <= 99999);
 
     /* now figure out the correct send and receive lengths */
@@ -3786,35 +3788,38 @@ static enum test_return test_pipeline_impl(int cmd,
     receive_len = in_message_len * messages_in_stream;
 
     /* entire buffer and thus any values are 0xaf */
-    memset(buffer, 0xaf, buffer_len);
+    std::fill(buffer.begin(), buffer.end(), 0xaf);
 
     for (uint32_t ii = 0; ii < messages_in_stream; ii++) {
-        snprintf(key, key_root_len + key_digit_len + 1, "%s%05d", key_root, ii);
+        snprintf(key.data(), key_root_len + key_digit_len + 1, "%s%05d", key_root, ii);
         if (PROTOCOL_BINARY_CMD_SET == cmd) {
             protocol_binary_request_set* this_req = (protocol_binary_request_set*)current_message;
-            current_message = current_message + storage_command((char*)current_message, out_message_len, cmd,
-                                             key, strlen(key), NULL,
-                                             value_size, 0, 0);
+            current_message += storage_command((char*)current_message,
+                                               out_message_len, cmd,
+                                               key.data(), strlen(key.data()),
+                                               NULL, value_size, 0, 0);
             this_req->message.header.request.opaque = htonl((session << 8) | ii);
         } else {
             protocol_binary_request_no_extras* this_req = (protocol_binary_request_no_extras*)current_message;
-            current_message = current_message + raw_command((char*)current_message, out_message_len, cmd,
-                                             key, strlen(key), NULL, 0);
+            current_message += raw_command((char*)current_message,
+                                           out_message_len, cmd,
+                                           key.data(), strlen(key.data()),
+                                           NULL, 0);
             this_req->message.header.request.opaque = htonl((session << 8) | ii);
         }
     }
 
-    cb_assert(buffer_len >= send_len);
+    cb_assert(buffer.size() >= send_len);
 
-    safe_send(buffer, send_len, false);
+    safe_send(buffer.data(), send_len, false);
 
-    memset(buffer, 0, buffer_len);
+    std::fill(buffer.begin(), buffer.end(), 0);
 
     /* and get it all back in the same buffer */
-    cb_assert(buffer_len >= receive_len);
+    cb_assert(buffer.size() >= receive_len);
 
-    safe_recv(buffer, receive_len);
-    current_message = buffer;
+    safe_recv(buffer.data(), receive_len);
+    current_message = buffer.data();
     for (uint32_t ii = 0; ii < messages_in_stream; ii++) {
         protocol_binary_response_no_extras* message = (protocol_binary_response_no_extras*)current_message;
 
@@ -3828,9 +3833,8 @@ static enum test_return test_pipeline_impl(int cmd,
 
         /* a value? */
         if (bodylen != 0 && result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            int jj = 0;
             uint8_t* value = current_message + sizeof(protocol_binary_response_no_extras) + extlen;
-            for (jj = 0; jj < value_size; jj++) {
+            for (size_t jj = 0; jj < value_size; jj++) {
                 cb_assert(value[jj] == 0xaf);
             }
             current_message = current_message + bodylen + sizeof(protocol_binary_response_no_extras);
@@ -3839,8 +3843,6 @@ static enum test_return test_pipeline_impl(int cmd,
         }
     }
 
-    free(buffer);
-    free(key);
     return rv;
 }
 
@@ -3865,7 +3867,7 @@ static enum test_return test_pipeline_set(void) {
 }
 
 static enum test_return test_pipeline_set_get_del(void) {
-    char* key_root = "key_set_get_del";
+    const char key_root[] = "key_set_get_del";
     enum test_return rv;
 
     rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
@@ -3953,7 +3955,7 @@ static enum test_return test_mb_12762_ssl_handshake_hang(void) {
     return TEST_PASS;
 }
 
-static char *get_sasl_mechs(void) {
+std::string get_sasl_mechs(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -3970,19 +3972,16 @@ static char *get_sasl_mechs(void) {
                              PROTOCOL_BINARY_CMD_SASL_LIST_MECHS,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    char *ret = malloc(buffer.response.message.header.response.bodylen + 1);
-    cb_assert(ret != NULL);
-    memcpy(ret, buffer.bytes + sizeof(buffer.response.bytes),
-           buffer.response.message.header.response.bodylen);
-    ret[buffer.response.message.header.response.bodylen] = '\0';
+    std::string ret;
+    ret.assign(buffer.bytes + sizeof(buffer.response.bytes),
+               buffer.response.message.header.response.bodylen);
     return ret;
 }
 
 
 static enum test_return test_sasl_list_mech(void) {
-    char *mech = get_sasl_mechs();
-    cb_assert(mech != NULL);
-    free(mech);
+    std::string mech(get_sasl_mechs());
+    cb_assert(mech.size() != 0);
     return TEST_PASS;
 }
 
@@ -3994,7 +3993,7 @@ struct my_sasl_ctx {
 static int sasl_get_username(void *context, int id, const char **result,
                              unsigned int *len)
 {
-    struct my_sasl_ctx *ctx = context;
+    struct my_sasl_ctx *ctx = reinterpret_cast<struct my_sasl_ctx *>(context);
     if (!context || !result || (id != CBSASL_CB_USER && id != CBSASL_CB_AUTHNAME)) {
         return CBSASL_BADPARAM;
     }
@@ -4010,7 +4009,7 @@ static int sasl_get_username(void *context, int id, const char **result,
 static int sasl_get_password(cbsasl_conn_t *conn, void *context, int id,
                              cbsasl_secret_t **psecret)
 {
-    struct my_sasl_ctx *ctx = context;
+    struct my_sasl_ctx *ctx = reinterpret_cast<struct my_sasl_ctx *>(context);
     if (!conn || ! psecret || id != CBSASL_CB_PASS || ctx == NULL) {
         return CBSASL_BADPARAM;
     }
@@ -4027,7 +4026,7 @@ static uint16_t sasl_auth(const char *username, const char *password) {
     struct my_sasl_ctx context;
     cbsasl_callback_t sasl_callbacks[4];
     cbsasl_conn_t *client;
-    char *mech = get_sasl_mechs();
+    std::string mech(get_sasl_mechs());
 
     sasl_callbacks[0].id = CBSASL_CB_USER;
     sasl_callbacks[0].proc = (int( *)(void)) &sasl_get_username;
@@ -4043,13 +4042,13 @@ static uint16_t sasl_auth(const char *username, const char *password) {
     sasl_callbacks[3].context = NULL;
 
     context.username = username;
-    context.secret = calloc(1, 100);
+    context.secret = reinterpret_cast<cbsasl_secret_t*>(calloc(1, 100));
     memcpy(context.secret->data, password, strlen(password));
     context.secret->len = (unsigned long)strlen(password);
 
     err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
     cb_assert(err == CBSASL_OK);
-    err = cbsasl_client_start(client, mech, NULL, &data, &len, &chosenmech);
+    err = cbsasl_client_start(client, mech.c_str(), NULL, &data, &len, &chosenmech);
     cb_assert(err == CBSASL_OK);
 
     union {
@@ -4099,7 +4098,6 @@ static uint16_t sasl_auth(const char *username, const char *password) {
                                  PROTOCOL_BINARY_CMD_SASL_AUTH,
                                  buffer.response.message.header.response.status);
     }
-    free(mech);
     free(context.secret);
     cbsasl_dispose(&client);
 
@@ -4318,7 +4316,7 @@ int main(int argc, char **argv)
     enum test_return ret;
 
     int test_phase_order[] = {phase_setup, phase_plain, phase_ssl, phase_cleanup};
-    char* test_phase_strings[] = {"setup", "plain", "SSL", "cleanup"};
+    const char* test_phase_strings[] = {"setup", "plain", "SSL", "cleanup"};
 
     /* If user specifies a particular mode (plain/SSL), only enable that phase.
      */

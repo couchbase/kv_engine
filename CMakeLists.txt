@@ -255,7 +255,7 @@ ENDIF (ENABLE_DTRACE)
 
 
 ADD_EXECUTABLE(memcached_testapp
-               tests/testapp.c tests/testapp.h
+               tests/testapp.cc tests/testapp.h
                tests/testapp_subdoc.cc
                programs/utilities.c)
 
