@@ -48,6 +48,9 @@ INCLUDE_DIRECTORIES(BEFORE
                     ${Platform_SOURCE_DIR}/include
                     ${subjson_SOURCE_DIR})
 
+INCLUDE_DIRECTORIES(AFTER
+                    ${gtest_SOURCE_DIR}/include)
+
 IF (MEMORY_ALLOCATOR)
    INCLUDE_DIRECTORIES(AFTER ${MALLOC_INCLUDE_DIR})
 ELSE (MEMORY_ALLOCATOR)
@@ -304,7 +307,7 @@ TARGET_LINK_LIBRARIES(mcd_util platform)
 TARGET_LINK_LIBRARIES(memcached auditd mcd_util cbsasl platform cJSON JSON_checker subjson ${SNAPPY_LIBRARIES} ${MALLOC_LIBRARIES} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${BREAKPAD_LIBRARIES})
 APPEND_MALLOC_LINKER_FLAGS(memcached)
 
-TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
+TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform gtest gtest_main ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
 
 TARGET_LINK_LIBRARIES(file_logger mcd_time platform)
 
@@ -353,8 +356,11 @@ INSTALL(TARGETS cbsasl
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
-ADD_TEST(memcached-basic-unit-tests-plain memcached_testapp plain)
-ADD_TEST(memcached-basic-unit-tests-SSL memcached_testapp ssl)
+# Note: As well as the Transport (plain/SSL) tests there are also some other
+# unit tests in memcached_testapp. Therefore run all _but_ the SSL tests in 'plain'.
+ADD_TEST(memcached-basic-unit-tests-plain memcached_testapp --gtest_filter=-PlainOrSSL/*/1)
+ADD_TEST(memcached-basic-unit-tests-SSL memcached_testapp  --gtest_filter=PlainOrSSL/*/1)
+
 ADD_TEST(memcached-bucket_engine-unit-tests bucket_engine_testapp)
 ADD_TEST(memcached-basic-engine-tests engine_testapp -E default_engine.so -T basic_engine_testsuite.so)
 

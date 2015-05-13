@@ -10,7 +10,9 @@
 #include <evutil.h>
 #include <snappy-c.h>
 #include <cJSON.h>
+#include <gtest/gtest.h>
 
+#include <atomic>
 #include <algorithm>
 #include <string>
 #include <vector>
@@ -48,23 +50,18 @@ char rbac_file[] = "testapp_rbac.json.XXXXXX";
 #define BACKLOG 1024
 
 /* test phases (bitmasks) */
-#define phase_setup 0x1
 #define phase_plain 0x2
 #define phase_ssl 0x4
-#define phase_cleanup 0x8
 
 #define phase_max 4
 static int current_phase = 0;
-
-/* by default all phases enabled (but cmd line args may disable some). */
-static int phases_enabled = phase_setup | phase_plain | phase_ssl | phase_cleanup;
 
 static pid_t server_pid;
 static in_port_t port = -1;
 static in_port_t ssl_port = -1;
 static SOCKET sock;
 static SOCKET sock_ssl;
-static bool allow_closed_read = false;
+static std::atomic_bool allow_closed_read;
 static time_t server_start_time = 0;
 static SSL_CTX *ssl_ctx = NULL;
 static SSL *ssl = NULL;
@@ -84,15 +81,63 @@ static char mcd_parent_monitor_env[80];
 static char mcd_port_filename_env[80];
 static char isasl_pwfile_env[1024];
 
+static enum test_return start_memcached_server(void);
+static enum test_return stop_memcached_server(void);
+static void connect_to_server_plain(in_port_t port, bool nonblocking);
+static void connect_to_server_ssl(in_port_t ssl_port, bool nonblocking);
+
+static void destroy_ssl_socket();
 
 static void set_mutation_seqno_feature(bool enable);
 
-/* Returns true if the specified test phase is enabled. */
-static bool phase_enabled(int phase) {
-    return phases_enabled & phase;
+std::ostream& operator << (std::ostream& os, const Transport& t)
+{
+    switch (t) {
+    case Transport::Plain:
+        os << "Transport::Plain";
+        break;
+    case Transport::SSL:
+        os << "Transport::SSL";
+        break;
+    }
+    return os;
 }
 
-static enum test_return test_safe_strtoul(void) {
+// Per-test-case set-up.
+// Called before the first test in this test case.
+void McdTestappTest::SetUpTestCase() {
+    ASSERT_EQ(TEST_PASS, start_memcached_server());
+}
+
+// Per-test-case tear-down.
+// Called after the last test in this test case.
+void McdTestappTest::TearDownTestCase() {
+    shutdown_openssl();
+    ASSERT_EQ(TEST_PASS, stop_memcached_server());
+}
+
+// per test setup function.
+void McdTestappTest::SetUp() {
+    if (GetParam() == Transport::Plain) {
+        current_phase = phase_plain;
+        connect_to_server_plain(port, false);
+    } else {
+        current_phase = phase_ssl;
+        connect_to_server_ssl(ssl_port, false);
+    }
+}
+
+// per test tear-down function.
+void McdTestappTest::TearDown() {
+    if (GetParam() == Transport::Plain) {
+        closesocket(sock);
+    } else {
+        closesocket(sock_ssl);
+        destroy_ssl_socket();
+    }
+}
+
+TEST(StringTest, safe_strtoul) {
     uint32_t val;
     cb_assert(safe_strtoul("123", &val));
     cb_assert(val == 123);
@@ -111,11 +156,10 @@ static enum test_return test_safe_strtoul(void) {
        cb_assert(!safe_strtoul("4294967296", &val)); 2**32
     */
     cb_assert(!safe_strtoul("-1", &val));  /* negative */
-    return TEST_PASS;
 }
 
 
-static enum test_return test_safe_strtoull(void) {
+TEST(StringTest, safe_strtoull) {
     uint64_t val;
     uint64_t exp = -1;
     cb_assert(safe_strtoull("123", &val));
@@ -131,10 +175,9 @@ static enum test_return test_safe_strtoull(void) {
     cb_assert(val == exp);
     cb_assert(!safe_strtoull("18446744073709551616", &val)); /* 2**64 */
     cb_assert(!safe_strtoull("-1", &val));  /* negative */
-    return TEST_PASS;
 }
 
-static enum test_return test_safe_strtoll(void) {
+TEST(StringTest, safe_strtoll) {
     int64_t val;
     int64_t exp = 1;
     exp <<= 63;
@@ -163,10 +206,9 @@ static enum test_return test_safe_strtoll(void) {
     /* We'll allow space to terminate the string.  And leading space. */
     cb_assert(safe_strtoll(" 123 foo", &val));
     cb_assert(val == 123);
-    return TEST_PASS;
 }
 
-static enum test_return test_safe_strtol(void) {
+TEST(StringTest, safe_strtol) {
     int32_t val;
     cb_assert(safe_strtol("123", &val));
     cb_assert(val == 123);
@@ -191,10 +233,9 @@ static enum test_return test_safe_strtol(void) {
     /* We'll allow space to terminate the string.  And leading space. */
     cb_assert(safe_strtol(" 123 foo", &val));
     cb_assert(val == 123);
-    return TEST_PASS;
 }
 
-static enum test_return test_safe_strtof(void) {
+TEST(StringTest, safe_strtof) {
     float val;
     cb_assert(safe_strtof("123", &val));
     cb_assert(val == 123.00f);
@@ -214,8 +255,6 @@ static enum test_return test_safe_strtof(void) {
 
     cb_assert(safe_strtof("123.00", &val));
     cb_assert(val == 123.00f);
-
-    return TEST_PASS;
 }
 
 #ifdef WIN32
@@ -299,18 +338,29 @@ static cJSON *generate_config(void)
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddItemToArray(array, obj);
 
-    if (phase_enabled(phase_ssl)) {
-        obj = cJSON_CreateObject();
-        cJSON_AddNumberToObject(obj, "port", 11996);
-        cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
-        cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
-        cJSON_AddStringToObject(obj, "host", "*");
-        obj_ssl = cJSON_CreateObject();
-        cJSON_AddStringToObject(obj_ssl, "key", pem_path);
-        cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
-        cJSON_AddItemToObject(obj, "ssl", obj_ssl);
-        cJSON_AddItemToArray(array, obj);
-    }
+    // We need to ensure that if >1 instance of this testsuite is run at once
+    // then there each has a unique SSL port.
+    // For the first interface this is simple: we can specify the magic value
+    // '0' which will cause memcached to automatically select an available port, however for
+    // the second (SSL) port this isn't possible (port numbers - even when
+    // zero - are used to uniquely identify interfaces in memcached.
+    // The (somewhat hacky) solution we use here is to derive a SSL port number
+    // using the process ID. While not guaranteed to be unique (port namespace
+    // is 16bit whereas PIDs are normally at least 32bit) but given the common
+    // case will be 2 testapp processes it should suffice in reality.
+    uint16_t ssl_port = 40000 + (getpid() % 10000);
+
+    obj = cJSON_CreateObject();
+    cJSON_AddNumberToObject(obj, "port", ssl_port);
+    cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
+    cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
+    cJSON_AddStringToObject(obj, "host", "*");
+    obj_ssl = cJSON_CreateObject();
+    cJSON_AddStringToObject(obj_ssl, "key", pem_path);
+    cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
+    cJSON_AddItemToObject(obj, "ssl", obj_ssl);
+    cJSON_AddItemToArray(array, obj);
+
     cJSON_AddItemToObject(root, "interfaces", array);
 
     cJSON_AddStringToObject(root, "admin", "");
@@ -582,13 +632,15 @@ static SOCKET create_connect_ssl_socket(const char *hostname, in_port_t port, bo
     BIO* temp_bio = NULL;
 
     snprintf(port_str, 32, "%d", port);
-    create_ssl_connection(&ssl_ctx, &temp_bio, hostname, port_str, NULL, NULL, 1);
+    EXPECT_EQ(0, create_ssl_connection(&ssl_ctx, &temp_bio, hostname, port_str, NULL, NULL, 1));
 
     if (ssl_bio_r) {
         BIO_free(ssl_bio_r);
+        ssl_bio_r = NULL;
     }
     if (ssl_bio_w) {
         BIO_free(ssl_bio_w);
+        ssl_bio_w = NULL;
     }
 
     /* SSL "trickery". To ensure we have full control over send/receive of data.
@@ -602,8 +654,21 @@ static SOCKET create_connect_ssl_socket(const char *hostname, in_port_t port, bo
     BIO_get_ssl(temp_bio, &ssl);
     ssl_bio_r = BIO_new(BIO_s_mem());
     ssl_bio_w = BIO_new(BIO_s_mem());
+
+    // Note: previous BIO (temp_bio) freed as a result of this call.
     SSL_set_bio(ssl, ssl_bio_r, ssl_bio_w);
+
     return sfd;
+}
+
+static void destroy_ssl_socket() {
+    BIO_free(ssl_bio_r);
+    ssl_bio_r = NULL;
+
+    BIO_free(ssl_bio_w);
+    ssl_bio_w = NULL;
+
+    SSL_CTX_free(ssl_ctx);
 }
 
 static void connect_to_server_plain(in_port_t port, bool nonblocking) {
@@ -636,6 +701,8 @@ static void connect_to_server_ssl(in_port_t ssl_port, bool nonblocking) {
 static void reconnect_to_server(bool nonblocking) {
     if (current_phase == phase_ssl) {
         closesocket(sock_ssl);
+        SSL_CTX_free(ssl_ctx);
+
         connect_to_server_ssl(ssl_port, nonblocking);
     } else {
         closesocket(sock);
@@ -643,10 +710,8 @@ static void reconnect_to_server(bool nonblocking) {
     }
 }
 
-static enum test_return test_vperror(void) {
-#ifdef WIN32
-    return TEST_SKIP;
-#else
+#ifndef WIN32
+TEST(VperrorTest, A) {
     int rv = 0;
     int oldstderr = dup(STDERR_FILENO);
     char tmpl[sizeof(TMP_TEMPLATE)+1];
@@ -691,9 +756,9 @@ static enum test_return test_vperror(void) {
             "\nGot:       ``%s''\n", expected, buf);
     */
 
-    return strcmp(expected, buf) == 0 ? TEST_PASS : TEST_FAIL;
-#endif
+    EXPECT_STREQ(expected, buf);
 }
+#endif // !WIN32
 
 static char* trim(char* ptr) {
     char *start = ptr;
@@ -712,7 +777,7 @@ static char* trim(char* ptr) {
     return start;
 }
 
-static enum test_return test_config_parser(void) {
+TEST(ConfigParserTest, A) {
     bool bool_val = false;
     size_t size_val = 0;
     ssize_t ssize_val = 0;
@@ -909,7 +974,6 @@ static enum test_return test_config_parser(void) {
 
     cb_assert(fclose(error) == 0);
     remove(outfile);
-    return TEST_PASS;
 }
 
 static char *isasl_file;
@@ -956,15 +1020,6 @@ static enum test_return start_memcached_server(void) {
 
     server_start_time = time(0);
     server_pid = start_server(&port, &ssl_port, false, 600);
-    return TEST_PASS;
-}
-
-static enum test_return test_connect_to_server(void) {
-    if (current_phase == phase_ssl) {
-        connect_to_server_ssl(ssl_port, false);
-    } else {
-        connect_to_server_plain(port, false);
-    }
     return TEST_PASS;
 }
 
@@ -1288,16 +1343,16 @@ void validate_response_header(protocol_binary_response_no_extras *response,
 {
     protocol_binary_response_header* header = &response->message.header;
 
-    cb_assert(header->response.magic == PROTOCOL_BINARY_RES);
-    cb_assert(header->response.opcode == cmd);
-    cb_assert(header->response.datatype == PROTOCOL_BINARY_RAW_BYTES);
+    EXPECT_EQ(PROTOCOL_BINARY_RES, header->response.magic);
+    EXPECT_EQ(cmd, header->response.opcode);
+    EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, header->response.datatype);
     if (status == PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND) {
         if (header->response.status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED) {
             header->response.status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         }
     }
-    cb_assert(header->response.status == status);
-    cb_assert(header->response.opaque == 0xdeadbeef);
+    EXPECT_EQ(status, header->response.status);
+    EXPECT_EQ(0xdeadbeef, header->response.opaque);
 
     if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         switch (cmd) {
@@ -1311,7 +1366,7 @@ void validate_response_header(protocol_binary_response_no_extras *response,
         case PROTOCOL_BINARY_CMD_QUITQ:
         case PROTOCOL_BINARY_CMD_REPLACEQ:
         case PROTOCOL_BINARY_CMD_SETQ:
-            cb_assert("Quiet command shouldn't return on success" == NULL);
+            ADD_FAILURE() << "Quiet command shouldn't return on success";
         default:
             break;
         }
@@ -1322,101 +1377,101 @@ void validate_response_header(protocol_binary_response_no_extras *response,
         case PROTOCOL_BINARY_CMD_SET:
         case PROTOCOL_BINARY_CMD_APPEND:
         case PROTOCOL_BINARY_CMD_PREPEND:
-            cb_assert(header->response.keylen == 0);
+            EXPECT_EQ(0, header->response.keylen);
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            cb_assert(header->response.extlen == 0 ||
-                      header->response.extlen == 16);
-            cb_assert(header->response.bodylen == 0 ||
-                      header->response.bodylen == 16);
-            cb_assert(header->response.cas != 0);
+            EXPECT_TRUE(header->response.extlen == 0 ||
+                        header->response.extlen == 16);
+            EXPECT_TRUE(header->response.bodylen == 0 ||
+                        header->response.bodylen == 16);
+            EXPECT_NE(header->response.cas, 0u);
             break;
         case PROTOCOL_BINARY_CMD_FLUSH:
         case PROTOCOL_BINARY_CMD_NOOP:
         case PROTOCOL_BINARY_CMD_QUIT:
-            cb_assert(header->response.keylen == 0);
-            cb_assert(header->response.extlen == 0);
-            cb_assert(header->response.bodylen == 0);
+            EXPECT_EQ(0, header->response.keylen);
+            EXPECT_EQ(0, header->response.extlen);
+            EXPECT_EQ(0u, header->response.bodylen);
             break;
         case PROTOCOL_BINARY_CMD_DELETE:
-            cb_assert(header->response.keylen == 0);
+            EXPECT_EQ(0, header->response.keylen);
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            cb_assert(header->response.extlen == 0 ||
-                      header->response.extlen == 16);
-            cb_assert(header->response.bodylen == 0 ||
-                      header->response.bodylen == 16);
+            EXPECT_TRUE(header->response.extlen == 0 ||
+                        header->response.extlen == 16);
+            EXPECT_TRUE(header->response.bodylen == 0 ||
+                        header->response.bodylen == 16);
             break;
         case PROTOCOL_BINARY_CMD_DECREMENT:
         case PROTOCOL_BINARY_CMD_INCREMENT:
-            cb_assert(header->response.keylen == 0);
+            EXPECT_EQ(0, header->response.keylen);
             /* extlen is permitted to be either zero, or 16 if MUTATION_SEQNO
              * is enabled.
              */
-            cb_assert(header->response.extlen == 0 ||
-                      header->response.extlen == 16);
+            EXPECT_TRUE(header->response.extlen == 0 ||
+                        header->response.extlen == 16);
             /* similary, bodylen must be either 8 or 24. */
-            cb_assert(header->response.bodylen == 8 ||
-                      header->response.bodylen == 24);
-            cb_assert(header->response.cas != 0);
+            EXPECT_TRUE(header->response.bodylen == 8 ||
+                        header->response.bodylen == 24);
+            EXPECT_NE(0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_STAT:
-            cb_assert(header->response.extlen == 0);
+            EXPECT_EQ(0, header->response.extlen);
             /* key and value exists in all packets except in the terminating */
-            cb_assert(header->response.cas == 0);
+            EXPECT_EQ(0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_VERSION:
-            cb_assert(header->response.keylen == 0);
-            cb_assert(header->response.extlen == 0);
-            cb_assert(header->response.bodylen != 0);
-            cb_assert(header->response.cas == 0);
+            EXPECT_EQ(0, header->response.keylen);
+            EXPECT_EQ(0, header->response.extlen);
+            EXPECT_NE(0u, header->response.bodylen);
+            EXPECT_EQ(0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_GET:
         case PROTOCOL_BINARY_CMD_GETQ:
-            cb_assert(header->response.keylen == 0);
-            cb_assert(header->response.extlen == 4);
-            cb_assert(header->response.cas != 0);
+            EXPECT_EQ(0, header->response.keylen);
+            EXPECT_EQ(4, header->response.extlen);
+            EXPECT_NE(0u, header->response.cas);
             break;
 
         case PROTOCOL_BINARY_CMD_GETK:
         case PROTOCOL_BINARY_CMD_GETKQ:
-            cb_assert(header->response.keylen != 0);
-            cb_assert(header->response.extlen == 4);
-            cb_assert(header->response.cas != 0);
+            EXPECT_NE(0, header->response.keylen);
+            EXPECT_EQ(4, header->response.extlen);
+            EXPECT_NE(0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_GET:
-            cb_assert(header->response.keylen == 0);
-            cb_assert(header->response.extlen == 0);
-            cb_assert(header->response.bodylen != 0);
-            cb_assert(header->response.cas != 0);
+            EXPECT_EQ(0, header->response.keylen);
+            EXPECT_EQ(0, header->response.extlen);
+            EXPECT_NE(0u, header->response.bodylen);
+            EXPECT_NE(0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_EXISTS:
-            cb_assert(header->response.keylen == 0);
-            cb_assert(header->response.extlen == 0);
-            cb_assert(header->response.bodylen == 0);
-            cb_assert(header->response.cas != 0);
+            EXPECT_EQ(0, header->response.keylen);
+            EXPECT_EQ(0, header->response.extlen);
+            EXPECT_EQ(0u, header->response.bodylen);
+            EXPECT_NE(0u, header->response.cas);
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
-            cb_assert(header->response.keylen == 0);
-            cb_assert(header->response.extlen == 0);
-            cb_assert(header->response.bodylen == 0);
-            cb_assert(header->response.cas != 0);
+            EXPECT_EQ(0, header->response.keylen);
+            EXPECT_EQ(0, header->response.extlen);
+            EXPECT_EQ(0u, header->response.bodylen);
+            EXPECT_NE(0u, header->response.cas);
             break;
         default:
             /* Undefined command code */
             break;
         }
     } else {
-        cb_assert(header->response.cas == 0);
-        cb_assert(header->response.extlen == 0);
+        EXPECT_EQ(0u, header->response.cas);
+        EXPECT_EQ(0, header->response.extlen);
         if (cmd != PROTOCOL_BINARY_CMD_GETK) {
-            cb_assert(header->response.keylen == 0);
+            EXPECT_EQ(0, header->response.keylen);
         }
     }
 }
@@ -1436,6 +1491,7 @@ static void validate_arithmetic(const protocol_binary_response_incr* incr,
     }
 }
 
+// Note: retained as a seperate function as other tests call this.
 static enum test_return test_noop(void) {
     union {
         protocol_binary_request_no_extras request;
@@ -1453,6 +1509,10 @@ static enum test_return test_noop(void) {
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     return TEST_PASS;
+}
+
+TEST_P(McdTestappTest, Noop) {
+    test_noop();
 }
 
 static enum test_return test_quit_impl(uint8_t cmd) {
@@ -1479,12 +1539,12 @@ static enum test_return test_quit_impl(uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_quit(void) {
-    return test_quit_impl(PROTOCOL_BINARY_CMD_QUIT);
+TEST_P(McdTestappTest, Quit) {
+    test_quit_impl(PROTOCOL_BINARY_CMD_QUIT);
 }
 
-static enum test_return test_quitq(void) {
-    return test_quit_impl(PROTOCOL_BINARY_CMD_QUITQ);
+TEST_P(McdTestappTest, QuitQ) {
+    test_quit_impl(PROTOCOL_BINARY_CMD_QUITQ);
 }
 
 static enum test_return test_set_impl(const char *key, uint8_t cmd) {
@@ -1527,12 +1587,12 @@ static enum test_return test_set_impl(const char *key, uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_set(void) {
-    return test_set_impl("test_set", PROTOCOL_BINARY_CMD_SET);
+TEST_P(McdTestappTest, Set) {
+    test_set_impl("test_set", PROTOCOL_BINARY_CMD_SET);
 }
 
-static enum test_return test_setq(void) {
-    return test_set_impl("test_setq", PROTOCOL_BINARY_CMD_SETQ);
+TEST_P(McdTestappTest, SetQ) {
+    test_set_impl("test_setq", PROTOCOL_BINARY_CMD_SETQ);
 }
 
 static enum test_return test_add_impl(const char *key, uint8_t cmd) {
@@ -1570,15 +1630,18 @@ static enum test_return test_add_impl(const char *key, uint8_t cmd) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     validate_response_header(&receive.response, cmd,
                              PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+
+    delete_object(key);
+
     return TEST_PASS;
 }
 
-static enum test_return test_add(void) {
-    return test_add_impl("test_add", PROTOCOL_BINARY_CMD_ADD);
+TEST_P(McdTestappTest, Add) {
+    test_add_impl("test_add", PROTOCOL_BINARY_CMD_ADD);
 }
 
-static enum test_return test_addq(void) {
-    return test_add_impl("test_addq", PROTOCOL_BINARY_CMD_ADDQ);
+TEST_P(McdTestappTest, AddQ) {
+    test_add_impl("test_addq", PROTOCOL_BINARY_CMD_ADDQ);
 }
 
 static enum test_return test_replace_impl(const char* key, uint8_t cmd) {
@@ -1620,17 +1683,17 @@ static enum test_return test_replace_impl(const char* key, uint8_t cmd) {
         test_noop();
     }
 
+    delete_object(key);
+
     return TEST_PASS;
 }
 
-static enum test_return test_replace(void) {
-    return test_replace_impl("test_replace",
-                                    PROTOCOL_BINARY_CMD_REPLACE);
+TEST_P(McdTestappTest, Replace) {
+    test_replace_impl("test_replace", PROTOCOL_BINARY_CMD_REPLACE);
 }
 
-static enum test_return test_replaceq(void) {
-    return test_replace_impl("test_replaceq",
-                                    PROTOCOL_BINARY_CMD_REPLACEQ);
+TEST_P(McdTestappTest, ReplaceQ) {
+    test_replace_impl("test_replaceq", PROTOCOL_BINARY_CMD_REPLACEQ);
 }
 
 static enum test_return test_delete_impl(const char *key, uint8_t cmd) {
@@ -1672,14 +1735,12 @@ static enum test_return test_delete_impl(const char *key, uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_delete(void) {
-    return test_delete_impl("test_delete",
-                                   PROTOCOL_BINARY_CMD_DELETE);
+TEST_P(McdTestappTest, Delete) {
+    test_delete_impl("test_delete", PROTOCOL_BINARY_CMD_DELETE);
 }
 
-static enum test_return test_deleteq(void) {
-    return test_delete_impl("test_deleteq",
-                                   PROTOCOL_BINARY_CMD_DELETEQ);
+TEST_P(McdTestappTest, DeleteQ) {
+    test_delete_impl("test_deleteq", PROTOCOL_BINARY_CMD_DELETEQ);
 }
 
 static enum test_return test_delete_cas_impl(const char *key, bool bad) {
@@ -1717,21 +1778,19 @@ static enum test_return test_delete_cas_impl(const char *key, bool bad) {
 }
 
 
-static enum test_return test_delete_cas(void) {
-    return test_delete_cas_impl("test_delete_cas", false);
+TEST_P(McdTestappTest, DeleteCAS) {
+    test_delete_cas_impl("test_delete_cas", false);
 }
 
-static enum test_return test_delete_bad_cas(void) {
-    return test_delete_cas_impl("test_delete_bad_cas", true);
+TEST_P(McdTestappTest, DeleteBadCAS) {
+    test_delete_cas_impl("test_delete_bad_cas", true);
 }
 
-static enum test_return test_delete_mutation_seqno(void) {
+TEST_P(McdTestappTest, DeleteMutationSeqno) {
     /* Enable mutation seqno support, then call the normal delete test. */
     set_mutation_seqno_feature(true);
-    enum test_return result = test_delete_impl("test_delete_mutation_seqno",
-                                               PROTOCOL_BINARY_CMD_DELETE);
+    test_delete_impl("test_delete_mutation_seqno", PROTOCOL_BINARY_CMD_DELETE);
     set_mutation_seqno_feature(false);
-    return result;
 }
 
 static enum test_return test_get_impl(const char *key, uint8_t cmd) {
@@ -1778,15 +1837,16 @@ static enum test_return test_get_impl(const char *key, uint8_t cmd) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
+    delete_object(key);
     return TEST_PASS;
 }
 
-static enum test_return test_get(void) {
-    return test_get_impl("test_get", PROTOCOL_BINARY_CMD_GET);
+TEST_P(McdTestappTest, Get) {
+    test_get_impl("test_get", PROTOCOL_BINARY_CMD_GET);
 }
 
-static enum test_return test_getk(void) {
-    return test_get_impl("test_getk", PROTOCOL_BINARY_CMD_GETK);
+TEST_P(McdTestappTest, GetK) {
+    test_get_impl("test_getk", PROTOCOL_BINARY_CMD_GETK);
 }
 
 static enum test_return test_getq_impl(const char *key, uint8_t cmd) {
@@ -1822,15 +1882,18 @@ static enum test_return test_getq_impl(const char *key, uint8_t cmd) {
     validate_response_header(&receive.response, cmd,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
+    delete_object(key);
     return TEST_PASS;
 }
 
-static enum test_return test_getq(void) {
-    return test_getq_impl("test_getq", PROTOCOL_BINARY_CMD_GETQ);
+TEST_P(McdTestappTest, GetQ) {
+    EXPECT_EQ(TEST_PASS,
+              test_getq_impl("test_getq", PROTOCOL_BINARY_CMD_GETQ));
 }
 
-static enum test_return test_getkq(void) {
-    return test_getq_impl("test_getkq", PROTOCOL_BINARY_CMD_GETKQ);
+TEST_P(McdTestappTest, GetKQ) {
+    EXPECT_EQ(TEST_PASS,
+              test_getq_impl("test_getkq", PROTOCOL_BINARY_CMD_GETKQ));
 }
 
 static enum test_return test_incr_impl(const char* key, uint8_t cmd) {
@@ -1857,17 +1920,17 @@ static enum test_return test_incr_impl(const char* key, uint8_t cmd) {
     if (cmd == PROTOCOL_BINARY_CMD_INCREMENTQ) {
         test_noop();
     }
+
+    delete_object(key);
     return TEST_PASS;
 }
 
-static enum test_return test_incr(void) {
-    return test_incr_impl("test_incr",
-                                 PROTOCOL_BINARY_CMD_INCREMENT);
+TEST_P(McdTestappTest, Incr) {
+    test_incr_impl("test_incr", PROTOCOL_BINARY_CMD_INCREMENT);
 }
 
-static enum test_return test_incrq(void) {
-    return test_incr_impl("test_incrq",
-                                 PROTOCOL_BINARY_CMD_INCREMENTQ);
+TEST_P(McdTestappTest, IncrQ) {
+    test_incr_impl("test_incrq", PROTOCOL_BINARY_CMD_INCREMENTQ);
 }
 
 static enum test_return test_incr_invalid_cas_impl(const char* key, uint8_t cmd) {
@@ -1888,24 +1951,20 @@ static enum test_return test_incr_invalid_cas_impl(const char* key, uint8_t cmd)
     return TEST_PASS;
 }
 
-static enum test_return test_invalid_cas_incr(void) {
-    return test_incr_invalid_cas_impl("test_incr",
-                                             PROTOCOL_BINARY_CMD_INCREMENT);
+TEST_P(McdTestappTest, InvalidCASIncr) {
+    test_incr_invalid_cas_impl("test_incr", PROTOCOL_BINARY_CMD_INCREMENT);
 }
 
-static enum test_return test_invalid_cas_incrq(void) {
-    return test_incr_invalid_cas_impl("test_incrq",
-                                             PROTOCOL_BINARY_CMD_INCREMENTQ);
+TEST_P(McdTestappTest, InvalidCASIncrQ) {
+    test_incr_invalid_cas_impl("test_incrq", PROTOCOL_BINARY_CMD_INCREMENTQ);
 }
 
-static enum test_return test_invalid_cas_decr(void) {
-    return test_incr_invalid_cas_impl("test_incr",
-                                             PROTOCOL_BINARY_CMD_DECREMENT);
+TEST_P(McdTestappTest, InvalidCASDecr) {
+    test_incr_invalid_cas_impl("test_decr", PROTOCOL_BINARY_CMD_DECREMENT);
 }
 
-static enum test_return test_invalid_cas_decrq(void) {
-    return test_incr_invalid_cas_impl("test_incrq",
-                                             PROTOCOL_BINARY_CMD_DECREMENTQ);
+TEST_P(McdTestappTest, InvalidCASDecrQ) {
+    test_incr_invalid_cas_impl("test_decrq", PROTOCOL_BINARY_CMD_DECREMENTQ);
 }
 
 static enum test_return test_decr_impl(const char* key, uint8_t cmd) {
@@ -1940,38 +1999,33 @@ static enum test_return test_decr_impl(const char* key, uint8_t cmd) {
         test_noop();
     }
 
+    delete_object(key);
     return TEST_PASS;
 }
 
-static enum test_return test_decr(void) {
-    return test_decr_impl("test_decr",
-                                 PROTOCOL_BINARY_CMD_DECREMENT);
+TEST_P(McdTestappTest, Decr) {
+    test_decr_impl("test_decr",PROTOCOL_BINARY_CMD_DECREMENT);
 }
 
-static enum test_return test_decrq(void) {
-    return test_decr_impl("test_decrq",
-                                 PROTOCOL_BINARY_CMD_DECREMENTQ);
+TEST_P(McdTestappTest, DecrQ) {
+    test_decr_impl("test_decrq", PROTOCOL_BINARY_CMD_DECREMENTQ);
 }
 
-static enum test_return test_incr_mutation_seqno(void) {
+TEST_P(McdTestappTest, IncrMutationSeqno) {
     /* Enable mutation seqno support, then call the normal incr test. */
     set_mutation_seqno_feature(true);
-    enum test_return result = test_incr_impl("test_incr_mutation_seqno",
-                                             PROTOCOL_BINARY_CMD_INCREMENT);
+    test_incr_impl("test_incr_mutation_seqno", PROTOCOL_BINARY_CMD_INCREMENT);
     set_mutation_seqno_feature(false);
-    return result;
 }
 
-static enum test_return test_decr_mutation_seqno(void) {
+TEST_P(McdTestappTest, DecrMutationSeqno) {
     /* Enable mutation seqno support, then call the normal decr test. */
     set_mutation_seqno_feature(true);
-    enum test_return result = test_decr_impl("test_decr_mutation_seqno",
-                                             PROTOCOL_BINARY_CMD_DECREMENT);
+    test_decr_impl("test_decr_mutation_seqno", PROTOCOL_BINARY_CMD_DECREMENT);
     set_mutation_seqno_feature(false);
-    return result;
 }
 
-static enum test_return test_version(void) {
+TEST_P(McdTestappTest, Version) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1986,8 +2040,6 @@ static enum test_return test_version(void) {
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_VERSION,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    return TEST_PASS;
 }
 
 static enum test_return test_flush_impl(const char *key, uint8_t cmd) {
@@ -2060,32 +2112,24 @@ static enum test_return test_flush_impl(const char *key, uint8_t cmd) {
     return TEST_PASS;
 }
 
-static enum test_return test_flush(void) {
-    return test_flush_impl("test_flush",
-                                  PROTOCOL_BINARY_CMD_FLUSH);
+TEST_P(McdTestappTest, Flush) {
+    test_flush_impl("test_flush", PROTOCOL_BINARY_CMD_FLUSH);
 }
 
-static enum test_return test_flushq(void) {
-    return test_flush_impl("test_flushq",
-                                  PROTOCOL_BINARY_CMD_FLUSHQ);
+TEST_P(McdTestappTest, FlushQ) {
+    test_flush_impl("test_flushq", PROTOCOL_BINARY_CMD_FLUSHQ);
 }
 
-static enum test_return test_cas(void) {
+TEST_P(McdTestappTest, CAS) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, receive;
     uint64_t value = 0xdeadbeefdeadcafe;
-    size_t len = flush_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_FLUSH,
-                               0, false);
-    safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_FLUSH,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    len = storage_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_SET,
-                          "FOO", 3, &value, sizeof(value), 0, 0);
+    size_t len = storage_command(send.bytes, sizeof(send.bytes),
+                                 PROTOCOL_BINARY_CMD_SET,
+                                 "FOO", 3, &value, sizeof(value), 0, 0);
 
     send.request.message.header.request.cas = 0x7ffffff;
     safe_send(send.bytes, len, false);
@@ -2110,10 +2154,12 @@ static enum test_return test_cas(void) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                              PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
-    return TEST_PASS;
+
+    // Cleanup
+    delete_object("FOO");
 }
 
-static enum test_return test_concat_impl(const char *key, uint8_t cmd) {
+void test_concat_impl(const char *key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2176,30 +2222,27 @@ static enum test_return test_concat_impl(const char *key, uint8_t cmd) {
     ptr += strlen(value);
     cb_assert(memcmp(ptr, value, strlen(value)) == 0);
 
-    return TEST_PASS;
+    // Cleanup
+    delete_object(key);
 }
 
-static enum test_return test_append(void) {
-    return test_concat_impl("test_append",
-                                   PROTOCOL_BINARY_CMD_APPEND);
+TEST_P(McdTestappTest, Append) {
+    test_concat_impl("test_append", PROTOCOL_BINARY_CMD_APPEND);
 }
 
-static enum test_return test_prepend(void) {
-    return test_concat_impl("test_prepend",
-                                   PROTOCOL_BINARY_CMD_PREPEND);
+TEST_P(McdTestappTest, Prepend) {
+    test_concat_impl("test_prepend", PROTOCOL_BINARY_CMD_PREPEND);
 }
 
-static enum test_return test_appendq(void) {
-    return test_concat_impl("test_appendq",
-                                   PROTOCOL_BINARY_CMD_APPENDQ);
+TEST_P(McdTestappTest, AppendQ) {
+    test_concat_impl("test_appendq", PROTOCOL_BINARY_CMD_APPENDQ);
 }
 
-static enum test_return test_prependq(void) {
-    return test_concat_impl("test_prependq",
-                                   PROTOCOL_BINARY_CMD_PREPENDQ);
+TEST_P(McdTestappTest, PrependQ) {
+    test_concat_impl("test_prependq", PROTOCOL_BINARY_CMD_PREPENDQ);
 }
 
-static enum test_return test_stat(void) {
+TEST_P(McdTestappTest, Stat) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2216,11 +2259,9 @@ static enum test_return test_stat(void) {
         validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     } while (buffer.response.message.header.response.keylen != 0);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_stat_connections(void) {
+TEST_P(McdTestappTest, StatConnections) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2237,31 +2278,29 @@ static enum test_return test_stat_connections(void) {
         validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     } while (buffer.response.message.header.response.keylen != 0);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_scrub(void) {
+TEST_P(McdTestappTest, Scrub) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
         char bytes[1024];
-    } buffer;
+    } send, recv;
 
-    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             PROTOCOL_BINARY_CMD_SCRUB,
-                             NULL, 0, NULL, 0);
+    size_t len = raw_command(send.bytes, sizeof(send.bytes),
+                             PROTOCOL_BINARY_CMD_SCRUB, NULL, 0, NULL, 0);
 
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_SCRUB,
+    // Retry if scrubber is already running.
+    do {
+        safe_send(send.bytes, len, false);
+        safe_recv_packet(recv.bytes, sizeof(recv.bytes));
+    } while (recv.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_EBUSY);
+
+    validate_response_header(&recv.response, PROTOCOL_BINARY_CMD_SCRUB,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    return TEST_PASS;
 }
 
-
-static enum test_return test_roles(void) {
+TEST_P(McdTestappTest, Roles) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2321,10 +2360,10 @@ static enum test_return test_roles(void) {
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     /* And noop should work again! */
-    return test_noop();
+    test_noop();
 }
 
-volatile bool hickup_thread_running;
+std::atomic_bool hickup_thread_running;
 
 static void binary_hickup_recv_verification_thread(void *arg) {
     protocol_binary_response_no_extras *response =
@@ -2374,11 +2413,6 @@ static enum test_return test_pipeline_hickup_chunk(void *buffer, size_t buffersi
         case PROTOCOL_BINARY_CMD_PREPENDQ:
             len = raw_command(command.bytes, sizeof(command.bytes), cmd,
                               key, keylen, &value, sizeof(value));
-            break;
-        case PROTOCOL_BINARY_CMD_FLUSH:
-        case PROTOCOL_BINARY_CMD_FLUSHQ:
-            len = raw_command(command.bytes, sizeof(command.bytes), cmd,
-                              NULL, 0, NULL, 0);
             break;
         case PROTOCOL_BINARY_CMD_NOOP:
             len = raw_command(command.bytes, sizeof(command.bytes), cmd,
@@ -2432,7 +2466,7 @@ static enum test_return test_pipeline_hickup_chunk(void *buffer, size_t buffersi
     return TEST_PASS;
 }
 
-static enum test_return test_pipeline_hickup(void)
+TEST_P(McdTestappTest, PipelineHickup)
 {
     std::vector<char> buffer(65 * 1024);
     int ii;
@@ -2442,9 +2476,9 @@ static enum test_return test_pipeline_hickup(void)
 
     allow_closed_read = true;
     hickup_thread_running = true;
-    if ((ret = cb_create_thread(&tid, binary_hickup_recv_verification_thread, NULL, 0)) != 0) {
-        fprintf(stderr, "Can't create thread: %s\n", strerror(ret));
-        return TEST_FAIL;
+    if ((ret = cb_create_thread(&tid, binary_hickup_recv_verification_thread,
+                                NULL, 0)) != 0) {
+        FAIL() << "Can't create thread: " << strerror(ret);
     }
 
     /* Allow the thread to start */
@@ -2458,18 +2492,17 @@ static enum test_return test_pipeline_hickup(void)
         test_pipeline_hickup_chunk(buffer.data(), buffer.size());
     }
 
-    /* send quitq to shut down the read thread ;-) */
-    len = raw_command(buffer.data(), buffer.size(), PROTOCOL_BINARY_CMD_QUITQ,
+    /* send quit to shut down the read thread ;-) */
+    len = raw_command(buffer.data(), buffer.size(), PROTOCOL_BINARY_CMD_QUIT,
                       NULL, 0, NULL, 0);
     safe_send(buffer.data(), len, false);
 
     cb_join_thread(tid);
 
     reconnect_to_server(false);
-    return TEST_PASS;
 }
 
-static enum test_return test_ioctl_get(void) {
+TEST_P(McdTestappTest, IOCTL_Get) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2484,11 +2517,9 @@ static enum test_return test_ioctl_get(void) {
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_IOCTL_GET,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_ioctl_set(void) {
+TEST_P(McdTestappTest, IOCTL_Set) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2529,12 +2560,10 @@ static enum test_return test_ioctl_set(void) {
         validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_IOCTL_SET,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
-
-    return TEST_PASS;
 }
 
 #if defined(HAVE_TCMALLOC)
-static enum test_return test_ioctl_tcmalloc_aggr_decommit(void) {
+TEST_P(McdTestappTest, IOCTL_TCMallocAggrDecommit) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2574,12 +2603,10 @@ static enum test_return test_ioctl_tcmalloc_aggr_decommit(void) {
         validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_IOCTL_SET,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
-
-    return TEST_PASS;
 }
 #endif /* defined(HAVE_TCMALLOC) */
 
-static enum test_return test_config_validate(void) {
+TEST_P(McdTestappTest, Config_Validate) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2681,16 +2708,18 @@ static enum test_return test_config_validate(void) {
                                  PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
-
-    return TEST_PASS;
 }
 
-static enum test_return test_config_reload(void) {
+TEST_P(McdTestappTest, Config_Reload) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
+
+    if (GetParam() != Transport::Plain) {
+        return;
+    }
 
     /* reload identity config */
     {
@@ -2717,7 +2746,7 @@ static enum test_return test_config_reload(void) {
         cJSON_Delete(dynamic);
         if (write_config_to_file(dyn_string, config_file) == -1) {
             cJSON_Free(dyn_string);
-            return TEST_FAIL;
+            FAIL() << "Failed to write config to file";
         }
         cJSON_Free(dyn_string);
 
@@ -2744,7 +2773,7 @@ static enum test_return test_config_reload(void) {
         cJSON_Delete(dynamic);
         if (write_config_to_file(dyn_string, config_file) == -1) {
             cJSON_Free(dyn_string);
-            return TEST_FAIL;
+            FAIL() << "Failed to write config to file";
         }
         cJSON_Free(dyn_string);
 
@@ -2770,7 +2799,7 @@ static enum test_return test_config_reload(void) {
         cJSON_Delete(dynamic);
         if (write_config_to_file(dyn_string, config_file) == -1) {
             cJSON_Free(dyn_string);
-            return TEST_FAIL;
+            FAIL() << "Failed to write config to file";
         }
         cJSON_Free(dyn_string);
 
@@ -2791,7 +2820,7 @@ static enum test_return test_config_reload(void) {
     cJSON_Delete(dynamic);
     if (write_config_to_file(dyn_string, config_file) == -1) {
         cJSON_Free(dyn_string);
-        return TEST_FAIL;
+        FAIL() << "Failed to write config to file";
     }
     cJSON_Free(dyn_string);
 
@@ -2804,16 +2833,18 @@ static enum test_return test_config_reload(void) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_config_reload_ssl(void) {
+TEST_P(McdTestappTest, Config_Reload_SSL) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
+
+    if (GetParam() != Transport::SSL) {
+        return;
+    }
 
     /* Change ssl cert/key on second interface. */
     cJSON *dynamic = generate_config();
@@ -2835,7 +2866,7 @@ static enum test_return test_config_reload_ssl(void) {
     cJSON_Delete(dynamic);
     if (write_config_to_file(dyn_string, config_file) == -1) {
         cJSON_Free(dyn_string);
-        return TEST_FAIL;
+        FAIL() << "Failed to write config to file";
     }
     cJSON_Free(dyn_string);
 
@@ -2848,11 +2879,9 @@ static enum test_return test_config_reload_ssl(void) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_audit_put(void) {
+TEST_P(McdTestappTest, Audit_Put) {
     union {
         protocol_binary_request_audit_put request;
         protocol_binary_response_audit_put response;
@@ -2870,10 +2899,9 @@ static enum test_return test_audit_put(void) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_AUDIT_PUT,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    return TEST_PASS;
 }
 
-static enum test_return test_audit_config_reload(void) {
+TEST_P(McdTestappTest, Audit_ConfigReload) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2889,11 +2917,10 @@ static enum test_return test_audit_config_reload(void) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    return TEST_PASS;
 }
 
 
-static enum test_return test_verbosity(void) {
+TEST_P(McdTestappTest, Verbosity) {
     union {
         protocol_binary_request_verbosity request;
         protocol_binary_response_no_extras response;
@@ -2914,8 +2941,6 @@ static enum test_return test_verbosity(void) {
                                  PROTOCOL_BINARY_CMD_VERBOSITY,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
-
-    return TEST_PASS;
 }
 
 enum test_return validate_object(const char *key, const char *value) {
@@ -2975,7 +3000,7 @@ enum test_return delete_object(const char* key) {
     return TEST_PASS;
 }
 
-static enum test_return test_hello(void) {
+TEST_P(McdTestappTest, Hello) {
     union {
         protocol_binary_request_hello request;
         protocol_binary_response_hello response;
@@ -3034,8 +3059,6 @@ static enum test_return test_hello(void) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_HELLO,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
-
-    return TEST_PASS;
 }
 
 static void set_feature(const protocol_binary_hello_features feature,
@@ -3178,7 +3201,7 @@ static void get_object_w_datatype(const char *key,
     cb_assert(memcmp(data, body.data(), body.size()) == 0);
 }
 
-static enum test_return test_datatype_json(void) {
+TEST_P(McdTestappTest, DatatypeJSON) {
     const char body[] = "{ \"value\" : 1234123412 }";
     set_datatype_feature(true);
     store_object_w_datatype("myjson", body, strlen(body), false, true);
@@ -3187,11 +3210,9 @@ static enum test_return test_datatype_json(void) {
 
     set_datatype_feature(false);
     get_object_w_datatype("myjson", body, strlen(body), false, true, true);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_datatype_json_without_support(void) {
+TEST_P(McdTestappTest, DatatypeJSONWithoutSupport) {
     const char body[] = "{ \"value\" : 1234123412 }";
     set_datatype_feature(false);
     store_object_w_datatype("myjson", body, strlen(body), false, false);
@@ -3200,8 +3221,6 @@ static enum test_return test_datatype_json_without_support(void) {
 
     set_datatype_feature(true);
     get_object_w_datatype("myjson", body, strlen(body), false, true, false);
-
-    return TEST_PASS;
 }
 
 /* Compress the specified document, storing the compressed result in the
@@ -3222,7 +3241,7 @@ size_t compress_document(const char* data, size_t datalen, char** deflated) {
     return deflated_len;
 }
 
-static enum test_return test_datatype_compressed(void) {
+TEST_P(McdTestappTest, DatatypeCompressed) {
     const char inflated[] = "aaaaaaaaabbbbbbbccccccdddddd";
     size_t inflated_len = strlen(inflated);
     char* deflated;
@@ -3240,11 +3259,9 @@ static enum test_return test_datatype_compressed(void) {
                           true, false, true);
 
     free(deflated);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_datatype_compressed_json(void) {
+TEST_P(McdTestappTest, DatatypeCompressedJSON) {
     const char inflated[] = "{ \"value\" : \"aaaaaaaaabbbbbbbccccccdddddd\" }";
     size_t inflated_len = strlen(inflated);
 
@@ -3264,11 +3281,9 @@ static enum test_return test_datatype_compressed_json(void) {
                           true, true, true);
 
     free(deflated);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_invalid_datatype(void) {
+TEST_P(McdTestappTest, DatatypeInvalid) {
     protocol_binary_request_no_extras request;
     union {
         protocol_binary_response_no_extras response;
@@ -3299,8 +3314,6 @@ static enum test_return test_invalid_datatype(void) {
     cb_assert(code == PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     reconnect_to_server(false);
-
-    return TEST_PASS;
 }
 
 static uint64_t get_session_ctrl_token(void) {
@@ -3339,7 +3352,7 @@ static void prepare_set_session_ctrl_token(protocol_binary_request_set_ctrl_toke
     req->message.body.new_cas = htonll(new_cas);
 }
 
-static enum test_return test_session_ctrl_token(void) {
+TEST_P(McdTestappTest, SessionCtrlToken) {
     union {
         protocol_binary_request_set_ctrl_token request;
         protocol_binary_response_set_ctrl_token response;
@@ -3385,11 +3398,9 @@ static enum test_return test_session_ctrl_token(void) {
               PROTOCOL_BINARY_RESPONSE_SUCCESS);
     cb_assert(0xdeadbeef == ntohll(buffer.response.message.header.response.cas));
     cb_assert(0xdeadbeef == get_session_ctrl_token());
-
-    return TEST_PASS;
 }
 
-static enum test_return test_mb_10114(void) {
+TEST_P(McdTestappTest, MB_10114) {
     char buffer[512] = {0};
     const char *key = "mb-10114";
     union {
@@ -3418,11 +3429,9 @@ static enum test_return test_mb_10114(void) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_DELETE,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_dcp_noop(void) {
+TEST_P(McdTestappTest, DCP_Noop) {
     union {
         protocol_binary_request_dcp_noop request;
         protocol_binary_response_dcp_noop response;
@@ -3450,11 +3459,9 @@ static enum test_return test_dcp_noop(void) {
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_DCP_NOOP,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_dcp_buffer_ack(void) {
+TEST_P(McdTestappTest, DCP_BufferAck) {
     union {
         protocol_binary_request_dcp_buffer_acknowledgement request;
         protocol_binary_response_dcp_noop response;
@@ -3495,11 +3502,9 @@ static enum test_return test_dcp_buffer_ack(void) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_dcp_control(void) {
+TEST_P(McdTestappTest, DCP_Control) {
     union {
         protocol_binary_request_dcp_control request;
         protocol_binary_response_dcp_control response;
@@ -3551,11 +3556,9 @@ static enum test_return test_dcp_control(void) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_DCP_CONTROL,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
-
-    return TEST_PASS;
 }
 
-static enum test_return test_isasl_refresh(void) {
+TEST_P(McdTestappTest, ISASL_Refresh) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -3573,8 +3576,6 @@ static enum test_return test_isasl_refresh(void) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_ISASL_REFRESH,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    return TEST_PASS;
 }
 
 /*
@@ -3642,7 +3643,7 @@ static enum test_return test_expiry(const char* key, time_t expiry,
     return TEST_PASS;
 }
 
-static enum test_return test_expiry_relative_with_clock_change_backwards(void) {
+TEST_P(McdTestappTest, ExpiryRelativeWithClockChangeBackwards) {
     /*
        Just test for MB-11548
        120 second expiry.
@@ -3651,8 +3652,8 @@ static enum test_return test_expiry_relative_with_clock_change_backwards(void) {
        (defect was that time went negative and expired keys immediatley)
     */
     time_t now = time(0);
-    return test_expiry("test_expiry_relative_with_clock_change_backwards",
-                       120, 2, (int)(0 - ((now - server_start_time) * 2)));
+    test_expiry("test_expiry_relative_with_clock_change_backwards",
+                120, 2, (int)(0 - ((now - server_start_time) * 2)));
 }
 
 static enum test_return test_set_huge_impl(const char *key,
@@ -3696,50 +3697,33 @@ static enum test_return test_set_huge_impl(const char *key,
     return rv;
 }
 
-static enum test_return test_set_huge(void) {
-    return test_set_huge_impl("test_set_huge",
-                                PROTOCOL_BINARY_CMD_SET,
-                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                false,
-                                10,
-                                1023 * 1024);
+TEST_P(McdTestappTest, SetHuge) {
+    test_set_huge_impl("test_set_huge", PROTOCOL_BINARY_CMD_SET,
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, false, 10,
+                       1023 * 1024);
 }
 
-static enum test_return test_set_e2big(void) {
-    return test_set_huge_impl("test_set_e2big",
-                                PROTOCOL_BINARY_CMD_SET,
-                                PROTOCOL_BINARY_RESPONSE_E2BIG,
-                                false,
-                                10,
-                                1024 * 1024);
+TEST_P(McdTestappTest, SetE2BIG) {
+    test_set_huge_impl("test_set_e2big", PROTOCOL_BINARY_CMD_SET,
+                       PROTOCOL_BINARY_RESPONSE_E2BIG, false, 10,
+                       1024 * 1024);
 }
 
-static enum test_return test_setq_huge(void) {
-    return test_set_huge_impl("test_setq_huge",
-                                PROTOCOL_BINARY_CMD_SET,
-                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                false,
-                                10,
-                                1023 * 1024);
+TEST_P(McdTestappTest, SetQHuge) {
+    test_set_huge_impl("test_setq_huge", PROTOCOL_BINARY_CMD_SETQ,
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, false, 10,
+                       1023 * 1024);
 }
 
-static enum test_return test_pipeline_huge(void) {
-    return test_set_huge_impl("test_pipeline_huge",
-                                PROTOCOL_BINARY_CMD_SET,
-                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                true,
-                                200,
-                                1023 * 1024);
+TEST_P(McdTestappTest, PipelineHuge) {
+    test_set_huge_impl("test_pipeline_huge", PROTOCOL_BINARY_CMD_SET,
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, true, 200,
+                       1023 * 1024);
 }
 
 /* support set, get, delete */
-static enum test_return test_pipeline_impl(int cmd,
-                                           int result,
-                                           const char* key_root,
-                                           uint32_t messages_in_stream,
-                                           size_t value_size) {
-    enum test_return rv = TEST_PASS;
-
+void test_pipeline_impl(int cmd, int result, const char* key_root,
+                        uint32_t messages_in_stream, size_t value_size) {
     size_t largest_protocol_packet = sizeof(protocol_binary_request_set); /* set has the largest protocol message */
     size_t key_root_len = strlen(key_root);
     size_t key_digit_len = 5; /*append 00001, 00002 etc.. to key_root */
@@ -3780,8 +3764,7 @@ static enum test_return test_pipeline_impl(int cmd,
         /* receives a plain response, no extra */
         in_message_len = sizeof(protocol_binary_response_no_extras);
     } else {
-        fprintf(stderr, "invalid cmd (%d) in test_pipeline_impl", cmd);
-        rv = TEST_FAIL;
+        FAIL() << "invalid cmd (" << cmd << ") in test_pipeline_impl";
     }
 
     send_len    = out_message_len * messages_in_stream;
@@ -3842,72 +3825,57 @@ static enum test_return test_pipeline_impl(int cmd,
             current_message = (uint8_t*)(message + 1);
         }
     }
-
-    return rv;
 }
 
-static enum test_return test_pipeline_set(void) {
-    enum test_return rv;
-    int ii = 1;
+TEST_P(McdTestappTest, PipelineSet) {
     /*
       MB-11203 would break at iteration 529 where we happen to send 57916 bytes in 1 pipe
       this triggered some edge cases in our SSL recv code.
     */
-    for (ii = 1; ii < 1000; ii++) {
-        rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
-                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                    "key_set_pipe", 100, ii);
-        if (rv == TEST_PASS) {
-            rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
-                                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                     "key_set_pipe", 100, ii);
-        }
+    for (int ii = 1; ii < 1000; ii++) {
+        test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS, "key_set_pipe",
+                           100, ii);
+        test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS, "key_set_pipe",
+                           100, ii);
     }
-    return rv;
 }
 
-static enum test_return test_pipeline_set_get_del(void) {
+TEST_P(McdTestappTest, PipelineSetGetDel) {
     const char key_root[] = "key_set_get_del";
-    enum test_return rv;
 
-    rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
-                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                key_root, 5000, 256);
+    test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, key_root, 5000, 256);
 
-    if (rv == TEST_PASS) {
-        rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_GET,
-                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                     key_root, 5000, 256);
-        if (rv == TEST_PASS) {
-            rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
-                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                               key_root, 5000, 256);
-        }
-    }
-    return rv;
+    test_pipeline_impl(PROTOCOL_BINARY_CMD_GET,
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, key_root, 5000, 256);
+
+    test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, key_root, 5000, 256);
 }
 
-static enum test_return test_pipeline_set_del(void) {
-    enum test_return rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
-                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                "key_root", 5000, 256);
+TEST_P(McdTestappTest, PipelineSetDel) {
+    test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "key_root",
+                       5000, 256);
 
-    if (rv == TEST_PASS) {
-        rv = test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
-                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                    "key_root", 5000, 256);
-    }
-
-    return rv;
+    test_pipeline_impl(PROTOCOL_BINARY_CMD_DELETE,
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "key_root",
+                       5000, 256);
 }
 
 /* Send one character to the SSL port, then check memcached correctly closes
  * the connection (and doesn't hold it open for ever trying to read) more bytes
  * which will never come.
  */
-static enum test_return test_mb_12762_ssl_handshake_hang(void) {
+TEST_P(McdTestappTest, MB_12762_SSLHandshakeHang) {
 
-    cb_assert(current_phase == phase_ssl);
+    // Requires SSL.
+    if (current_phase != phase_ssl) {
+        return;
+    }
+
     /* Setup: Close the existing (handshaked) SSL connection, and create a
      * 'plain' TCP connection to the SSL port - i.e. without any SSL handshake.
      */
@@ -3951,8 +3919,6 @@ static enum test_return test_mb_12762_ssl_handshake_hang(void) {
 
     /* Restore the SSL connection to a sane state :) */
     reconnect_to_server(false);
-
-    return TEST_PASS;
 }
 
 std::string get_sasl_mechs(void) {
@@ -3979,10 +3945,9 @@ std::string get_sasl_mechs(void) {
 }
 
 
-static enum test_return test_sasl_list_mech(void) {
+TEST_P(McdTestappTest, SASL_ListMech) {
     std::string mech(get_sasl_mechs());
-    cb_assert(mech.size() != 0);
-    return TEST_PASS;
+    EXPECT_NE(0u, mech.size());
 }
 
 struct my_sasl_ctx {
@@ -4104,23 +4069,17 @@ static uint16_t sasl_auth(const char *username, const char *password) {
     return buffer.response.message.header.response.status;
 }
 
-static enum test_return test_sasl_success(void) {
-    if (sasl_auth("_admin", "password") == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        return TEST_PASS;
-    } else {
-        return TEST_FAIL;
-    }
+TEST_P(McdTestappTest, SASL_Success) {
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              sasl_auth("_admin", "password"));
 }
 
-static enum test_return test_sasl_fail(void) {
-    if (sasl_auth("_admin", "asdf") == PROTOCOL_BINARY_RESPONSE_AUTH_ERROR) {
-        return TEST_PASS;
-    } else {
-        return TEST_FAIL;
-    }
+TEST_P(McdTestappTest, SASL_Fail) {
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_AUTH_ERROR,
+              sasl_auth("_admin", "asdf"));
 }
 
-static enum test_return test_exceed_max_packet_size(void)
+TEST_P(McdTestappTest, ExceedMaxPacketSize)
 {
     union {
         protocol_binary_request_no_extras request;
@@ -4140,247 +4099,9 @@ static enum test_return test_exceed_max_packet_size(void)
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     reconnect_to_server(false);
-    return TEST_PASS;
 }
 
 
-typedef enum test_return (*TEST_FUNC)(void);
-struct testcase {
-    const char *description;
-    TEST_FUNC function;
-    const int phases; /*1 bit per phase*/
-};
-
-/* Returns true if the specified test is required and it cannot be skipped
- * be skipped.
- */
-static bool test_required(const struct testcase* testcase) {
-    /* Always require setup and cleanup. */
-    const int phases_required = phase_setup | phase_cleanup;
-    if ((testcase->phases & phases_required) != 0) {
-        return true;
-    }
-
-    /* Only one unskippable test so far - need `connect` to do anything useful. */
-    return testcase->function == test_connect_to_server;
-}
-
-/*
-  Test cases currently run as follows.
-
-  Either with plain_sockets only -> TESTCASE
-  or
-  plain_sockets and ssl ->  TESTCASE_SSL_MODE
-*/
-#define TESTCASE_SETUP(desc, func) {desc, func, phase_setup}
-#define TESTCASE_PLAIN(desc, func) {desc, func, phase_plain}
-#define TESTCASE_PLAIN_AND_SSL(desc, func) {desc, func, (phase_plain|phase_ssl)}
-#define TESTCASE_SSL(desc, func) {desc, func, phase_ssl}
-#define TESTCASE_CLEANUP(desc, func) {desc, func, phase_cleanup}
-
-struct testcase testcases[] = {
-    TESTCASE_PLAIN("strtof", test_safe_strtof),
-    TESTCASE_PLAIN("strtol", test_safe_strtol),
-    TESTCASE_PLAIN("strtoll", test_safe_strtoll),
-    TESTCASE_PLAIN("strtoul", test_safe_strtoul),
-    TESTCASE_PLAIN("strtoull", test_safe_strtoull),
-    TESTCASE_PLAIN("vperror", test_vperror),
-    TESTCASE_PLAIN("config_parser", test_config_parser),
-    /* The following tests all run towards the same server */
-    TESTCASE_SETUP("start_server", start_memcached_server),
-    TESTCASE_PLAIN_AND_SSL("connect", test_connect_to_server),
-    TESTCASE_PLAIN_AND_SSL("noop", test_noop),
-    TESTCASE_PLAIN_AND_SSL("sasl list mech", test_sasl_list_mech),
-    TESTCASE_PLAIN_AND_SSL("sasl fail", test_sasl_fail),
-    TESTCASE_PLAIN_AND_SSL("sasl success", test_sasl_success),
-    TESTCASE_PLAIN_AND_SSL("quit", test_quit),
-    TESTCASE_PLAIN_AND_SSL("quitq", test_quitq),
-    TESTCASE_PLAIN_AND_SSL("set", test_set),
-    TESTCASE_PLAIN_AND_SSL("setq", test_setq),
-    TESTCASE_PLAIN_AND_SSL("add", test_add),
-    TESTCASE_PLAIN_AND_SSL("addq", test_addq),
-    TESTCASE_PLAIN_AND_SSL("replace", test_replace),
-    TESTCASE_PLAIN_AND_SSL("replaceq", test_replaceq),
-    TESTCASE_PLAIN_AND_SSL("delete", test_delete),
-    TESTCASE_PLAIN_AND_SSL("delete_cas", test_delete_cas),
-    TESTCASE_PLAIN_AND_SSL("delete_bad_cas", test_delete_bad_cas),
-    TESTCASE_PLAIN_AND_SSL("deleteq", test_deleteq),
-    TESTCASE_PLAIN_AND_SSL("delete_mutation_seqno", test_delete_mutation_seqno),
-    TESTCASE_PLAIN_AND_SSL("get", test_get),
-    TESTCASE_PLAIN_AND_SSL("getq", test_getq),
-    TESTCASE_PLAIN_AND_SSL("getk", test_getk),
-    TESTCASE_PLAIN_AND_SSL("getkq", test_getkq),
-    TESTCASE_PLAIN_AND_SSL("incr", test_incr),
-    TESTCASE_PLAIN_AND_SSL("incrq", test_incrq),
-    TESTCASE_PLAIN_AND_SSL("decr", test_decr),
-    TESTCASE_PLAIN_AND_SSL("decrq", test_decrq),
-    TESTCASE_PLAIN_AND_SSL("incr_invalid_cas", test_invalid_cas_incr),
-    TESTCASE_PLAIN_AND_SSL("incrq_invalid_cas", test_invalid_cas_incrq),
-    TESTCASE_PLAIN_AND_SSL("decr_invalid_cas", test_invalid_cas_decr),
-    TESTCASE_PLAIN_AND_SSL("decrq_invalid_cas", test_invalid_cas_decrq),
-    TESTCASE_PLAIN_AND_SSL("incr_mutation_seqno", test_incr_mutation_seqno),
-    TESTCASE_PLAIN_AND_SSL("decr_mutation_seqno", test_decr_mutation_seqno),
-    TESTCASE_PLAIN_AND_SSL("version", test_version),
-    TESTCASE_PLAIN_AND_SSL("flush", test_flush),
-    TESTCASE_PLAIN_AND_SSL("flushq", test_flushq),
-    TESTCASE_PLAIN_AND_SSL("cas", test_cas),
-    TESTCASE_PLAIN_AND_SSL("append", test_append),
-    TESTCASE_PLAIN_AND_SSL("appendq", test_appendq),
-    TESTCASE_PLAIN_AND_SSL("prepend", test_prepend),
-    TESTCASE_PLAIN_AND_SSL("prependq", test_prependq),
-    TESTCASE_PLAIN_AND_SSL("stat", test_stat),
-    TESTCASE_PLAIN_AND_SSL("stat_connections", test_stat_connections),
-    TESTCASE_PLAIN_AND_SSL("roles", test_roles),
-    TESTCASE_PLAIN_AND_SSL("scrub", test_scrub),
-    TESTCASE_PLAIN_AND_SSL("verbosity", test_verbosity),
-    TESTCASE_PLAIN_AND_SSL("MB-10114", test_mb_10114),
-    TESTCASE_SSL("MB-12762-ssl_handshake_hang", test_mb_12762_ssl_handshake_hang),
-    TESTCASE_PLAIN_AND_SSL("dcp_noop", test_dcp_noop),
-    TESTCASE_PLAIN_AND_SSL("dcp_buffer_acknowledgment", test_dcp_buffer_ack),
-    TESTCASE_PLAIN_AND_SSL("dcp_control", test_dcp_control),
-    TESTCASE_PLAIN_AND_SSL("hello", test_hello),
-    TESTCASE_PLAIN_AND_SSL("isasl_refresh", test_isasl_refresh),
-    TESTCASE_PLAIN_AND_SSL("ioctl_get", test_ioctl_get),
-    TESTCASE_PLAIN_AND_SSL("ioctl_set", test_ioctl_set),
-#if defined(HAVE_TCMALLOC)
-    TESTCASE_PLAIN_AND_SSL("ioctl_tcmalloc_aggr_decommit",
-                           test_ioctl_tcmalloc_aggr_decommit),
-#endif
-    TESTCASE_PLAIN_AND_SSL("config_validate", test_config_validate),
-    TESTCASE_PLAIN("config_reload", test_config_reload),
-    TESTCASE_SSL("config_reload_ssl", test_config_reload_ssl),
-    TESTCASE_PLAIN_AND_SSL("audit_put", test_audit_put),
-    TESTCASE_PLAIN("audit_config_reload", test_audit_config_reload),
-    TESTCASE_PLAIN_AND_SSL("datatype_json", test_datatype_json),
-    TESTCASE_PLAIN_AND_SSL("datatype_json_without_support", test_datatype_json_without_support),
-    TESTCASE_PLAIN_AND_SSL("datatype_compressed", test_datatype_compressed),
-    TESTCASE_PLAIN_AND_SSL("datatype_compressed_json", test_datatype_compressed_json),
-    TESTCASE_PLAIN_AND_SSL("invalid_datatype", test_invalid_datatype),
-    TESTCASE_PLAIN_AND_SSL("session_ctrl_token", test_session_ctrl_token),
-    TESTCASE_PLAIN_AND_SSL("expiry_relative_with_clock_change", test_expiry_relative_with_clock_change_backwards),
-    TESTCASE_PLAIN("pipeline_hickup", test_pipeline_hickup),
-    TESTCASE_PLAIN_AND_SSL("set_huge", test_set_huge),
-    TESTCASE_PLAIN_AND_SSL("setq_huge", test_setq_huge),
-    TESTCASE_PLAIN_AND_SSL("set_e2big", test_set_e2big),
-    TESTCASE_PLAIN_AND_SSL("pipeline_huge",  test_pipeline_huge),
-    TESTCASE_SSL("pipeline_mb-11203",test_pipeline_set),
-    TESTCASE_PLAIN_AND_SSL("pipeline_1", test_pipeline_set_get_del),
-    TESTCASE_PLAIN_AND_SSL("pipeline_2", test_pipeline_set_del),
-    TESTCASE_PLAIN("exceed_max_packet_size", test_exceed_max_packet_size),
-    TESTCASE_CLEANUP("stop_server", stop_memcached_server),
-    TESTCASE_PLAIN_AND_SSL("subdoc_get_binary_raw", test_subdoc_get_binary_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_get_binary_compressed", test_subdoc_get_binary_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_get_array_simple_raw", test_subdoc_get_array_simple_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_get_array_simple_compressed", test_subdoc_get_array_simple_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_get_dict_simple_raw", test_subdoc_get_dict_simple_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_get_dict_simple_compressed", test_subdoc_get_dict_simple_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_get_dict_nested_raw", test_subdoc_get_dict_nested_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_get_dict_nested_compressed", test_subdoc_get_dict_nested_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_get_dict_deep", test_subdoc_get_dict_deep),
-    TESTCASE_PLAIN_AND_SSL("subdoc_get_array_deep", test_subdoc_get_array_deep),
-    TESTCASE_PLAIN_AND_SSL("subdoc_exists_binary_raw", test_subdoc_exists_binary_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_exists_binary_compressed", test_subdoc_exists_binary_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_exists_array_simple_raw", test_subdoc_exists_array_simple_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_exists_array_simple_compressed", test_subdoc_exists_array_simple_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_exists_dict_simple_raw", test_subdoc_exists_dict_simple_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_exists_dict_simple_compressed", test_subdoc_exists_dict_simple_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_exists_dict_nested_raw", test_subdoc_exists_dict_nested_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_exists_dict_nested_compressed", test_subdoc_exists_dict_nested_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_exists_dict_deep", test_subdoc_exists_dict_deep),
-    TESTCASE_PLAIN_AND_SSL("subdoc_exists_array_deep", test_subdoc_exists_array_deep),
-    TESTCASE_PLAIN_AND_SSL("subdoc_dict_add_simple_raw", test_subdoc_dict_add_simple_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_dict_add_simple_compressed", test_subdoc_dict_add_simple_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_dict_add_deep", test_subdoc_dict_add_deep),
-    TESTCASE_PLAIN_AND_SSL("subdoc_dict_upsert_simple_raw", test_subdoc_dict_upsert_simple_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_dict_upsert_simple_compressed", test_subdoc_dict_upsert_simple_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_dict_upsert_deep", test_subdoc_dict_upsert_deep),
-    TESTCASE_PLAIN_AND_SSL("subdoc_delete_simple_raw", test_subdoc_delete_simple_raw),
-    TESTCASE_PLAIN_AND_SSL("subdoc_delete_simple_compressed", test_subdoc_delete_simple_compressed),
-    TESTCASE_PLAIN_AND_SSL("subdoc_delete_array", test_subdoc_delete_array),
-    TESTCASE_PLAIN_AND_SSL("subdoc_delete_array_nested", test_subdoc_delete_array_nested),
-    TESTCASE_PLAIN_AND_SSL("subdoc_replace_simple_dict", test_subdoc_replace_simple_dict),
-    TESTCASE_PLAIN_AND_SSL("subdoc_replace_simple_array", test_subdoc_replace_simple_array),
-    TESTCASE_PLAIN_AND_SSL("subdoc_replace_array_deep", test_subdoc_replace_array_deep),
-    TESTCASE_PLAIN_AND_SSL("subdoc_array_push_last_simple", test_subdoc_array_push_last_simple),
-    TESTCASE_PLAIN_AND_SSL("subdoc_array_push_last_nested", test_subdoc_array_push_last_nested),
-    TESTCASE_PLAIN_AND_SSL("subdoc_array_push_first_simple", test_subdoc_array_push_first_simple),
-    TESTCASE_PLAIN_AND_SSL("subdoc_array_push_first_nested", test_subdoc_array_push_first_nested),
-    TESTCASE_PLAIN_AND_SSL("subdoc_array_add_unique_simple", test_subdoc_array_add_unique_simple),
-    TESTCASE_PLAIN(NULL, NULL)
-};
-
-int main(int argc, char **argv)
-{
-    int exitcode = 0;
-    int ii = 0;
-    enum test_return ret;
-
-    int test_phase_order[] = {phase_setup, phase_plain, phase_ssl, phase_cleanup};
-    const char* test_phase_strings[] = {"setup", "plain", "SSL", "cleanup"};
-
-    /* If user specifies a particular mode (plain/SSL), only enable that phase.
-     */
-    if (argc > 1) {
-        if (strcmp("plain", argv[1]) == 0) {
-            /* disable SSL phase */
-            phases_enabled &= ~phase_ssl;
-        } else if (strcmp("ssl", argv[1]) == 0 || strcmp("SSL", argv[1]) == 0) {
-            /* disable plain phase */
-            phases_enabled &= ~phase_plain;
-        } else {
-            fprintf(stderr, "Error: Unrecognized argument '%s'\n", argv[1]);
-            exit(1);
-        }
-    }
-
-    /* Check if user specified a subset of tests to run. */
-    const char* test_subset = NULL;
-    if (argc > 2) {
-        test_subset = argv[2];
-    }
-
-    cb_initialize_sockets();
-    /* Use unbuffered stdio */
-    setbuf(stdout, NULL);
-    setbuf(stderr, NULL);
-
-    /* loop through the test phases and runs tests applicable to each phase*/
-    for (int phase_index = 0; phase_index < phase_max; phase_index++) {
-        current_phase = test_phase_order[phase_index];
-        if (!phase_enabled(current_phase)) {
-            continue;
-        }
-
-        for (ii = 0; testcases[ii].description != NULL; ++ii) {
-            int jj;
-
-            if ((current_phase & testcases[ii].phases) != current_phase) {
-                continue;
-            }
-
-            if (!test_required(&testcases[ii]) &&
-                test_subset != NULL &&
-                strstr(testcases[ii].description, test_subset) == NULL) {
-                continue;
-            }
-
-            fprintf(stdout, "\r");
-            for (jj = 0; jj < 60; ++jj) {
-                fprintf(stdout, " ");
-            }
-            fprintf(stdout, "\rRunning %04d %s (%s) - ", ii + 1, testcases[ii].description, test_phase_strings[phase_index]);
-            fflush(stdout);
-            ret = testcases[ii].function();
-            if (ret == TEST_SKIP) {
-                fprintf(stdout, " SKIP\n");
-            } else if (ret != TEST_PASS) {
-                fprintf(stdout, " FAILED\n");
-                exitcode = 1;
-            }
-            fflush(stdout);
-        }
-    }
-
-    fprintf(stdout, "\r                                     \n");
-    return exitcode;
-}
+INSTANTIATE_TEST_CASE_P(PlainOrSSL,
+                        McdTestappTest,
+                        ::testing::Values(Transport::Plain, Transport::SSL));

@@ -45,33 +45,6 @@ struct cJSONDeleter {
 
 typedef std::unique_ptr<cJSON, cJSONDeleter> unique_cJSON_ptr;
 
-// Checks that a and b are equal; if not then assert.
-#define check_equal(a, b) check_equal_impl((a), (b), #a, #b, __FILE__, __LINE__)
-// Checks that a and b are not equal; asserts if not the case.
-#define check_ne(a, b) check_not_equal_impl((a), (b), #a, #b, __FILE__, __LINE__)
-
-// Overload of check_equal_impl for std::string
-static void check_equal_impl(const std::string& a_value, const std::string& b_value,
-                             const char* a_name, const char* b_name,
-                             const char* file, int line) {
-    if (a_value != b_value) {
-        fprintf(stderr, "Check '%s == %s' failed - '%s == %s' at %s:%d\n",
-                a_name, b_name, a_value.c_str(), b_value.c_str(), file, line);
-        abort();
-    }
-}
-
-// Overload of check_not_equal_impl for uint64_t
-static void check_not_equal_impl(uint64_t a_value, uint64_t b_value,
-                             const char* a_name, const char* b_name,
-                             const char* file, int line) {
-    if (a_value == b_value) {
-        fprintf(stderr, "Check '%s != %s' failed - '%" PRId64 " == %" PRId64 "' at %s:%d\n",
-                a_name, b_name, a_value, b_value, file, line);
-        abort();
-    }
-}
-
 // Class representing a subdoc command; to assist in constructing / encoding one.
 struct SubdocCmd {
     // Always need at least a cmd, key and path.
@@ -193,12 +166,12 @@ static uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
     if (!expected_value.empty() &&
         (cmd.cmd != PROTOCOL_BINARY_CMD_SUBDOC_EXISTS)) {
         const std::string val(val_ptr, val_ptr + vallen);
-        check_equal(val, expected_value);
+        EXPECT_EQ(expected_value, val);
     } else {
         // Expect zero length on success (on error the error message string is
         // returned).
         if (header->response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            cb_assert(vallen == 0);
+            EXPECT_EQ(0u, vallen);
         }
     }
     return header->response.cas;
@@ -230,8 +203,7 @@ static void store_object(const std::string& key, const std::string& value,
 }
 
 // Non JSON document, optionally compressed. Subdoc commands should fail.
-static enum test_return test_subdoc_get_binary(bool compress,
-                                               protocol_binary_command cmd) {
+void test_subdoc_get_binary(bool compress, protocol_binary_command cmd) {
     const char not_JSON[] = "not; json";
     store_object("binary", not_JSON);
 
@@ -240,31 +212,26 @@ static enum test_return test_subdoc_get_binary(bool compress,
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON, "");
 
     delete_object("binary");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_get_binary_raw() {
-    return test_subdoc_get_binary(/*compress*/false,
-                                  PROTOCOL_BINARY_CMD_SUBDOC_GET);
+TEST_P(McdTestappTest, SubdocGet_BinaryRaw) {
+    test_subdoc_get_binary(/*compress*/false, PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-enum test_return test_subdoc_get_binary_compressed() {
-    return test_subdoc_get_binary(/*compress*/true,
-                                  PROTOCOL_BINARY_CMD_SUBDOC_GET);
+TEST_P(McdTestappTest, SubdocGet_BinaryCompressed) {
+    test_subdoc_get_binary(/*compress*/true, PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 
-enum test_return test_subdoc_exists_binary_raw() {
-    return test_subdoc_get_binary(/*compress*/false,
-                                  PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+TEST_P(McdTestappTest, SubdocExists_BinaryRaw) {
+    test_subdoc_get_binary(/*compress*/false,
+                           PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
-enum test_return test_subdoc_exists_binary_compressed() {
-    return test_subdoc_get_binary(/*compress*/true,
-                                  PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+TEST_P(McdTestappTest, SubdocExists_BinaryCompressed) {
+    test_subdoc_get_binary(/*compress*/true,
+                           PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
 // retrieve from a JSON document consisting of a toplevel array.
-static enum test_return
-test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd) {
+void test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd) {
 
     cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
               (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
@@ -313,31 +280,29 @@ test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd) {
     expect_subdoc_cmd(bad_flags, PROTOCOL_BINARY_RESPONSE_EINVAL, "");
 
     delete_object("array");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_get_array_simple_raw() {
-    return test_subdoc_fetch_array_simple(/*compressed*/false,
-                                          PROTOCOL_BINARY_CMD_SUBDOC_GET);
+TEST_P(McdTestappTest, SubdocGet_ArraySimpleRaw) {
+    test_subdoc_fetch_array_simple(/*compressed*/false,
+                                   PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-enum test_return test_subdoc_get_array_simple_compressed() {
-    return test_subdoc_fetch_array_simple(/*compressed*/true,
-                                          PROTOCOL_BINARY_CMD_SUBDOC_GET);
+TEST_P(McdTestappTest, SubdocGet_ArraySimpleCompressed) {
+    test_subdoc_fetch_array_simple(/*compressed*/true,
+                                   PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 
-enum test_return test_subdoc_exists_array_simple_raw() {
-    return test_subdoc_fetch_array_simple(/*compressed*/false,
-                                         PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+TEST_P(McdTestappTest, SubdocExists_ArraySimpleRaw) {
+    test_subdoc_fetch_array_simple(/*compressed*/false,
+                                   PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
-enum test_return test_subdoc_exists_array_simple_compressed() {
-    return test_subdoc_fetch_array_simple(/*compressed*/true,
-                                         PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+TEST_P(McdTestappTest, SubdocExists_ArraySimpleCompressed) {
+    test_subdoc_fetch_array_simple(/*compressed*/true,
+                                   PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
 // JSON document containing toplevel dict.
-static enum test_return test_subdoc_fetch_dict_simple(bool compressed,
-                                                      protocol_binary_command cmd) {
+void test_subdoc_fetch_dict_simple(bool compressed,
+                                   protocol_binary_command cmd) {
 
     cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
               (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
@@ -371,31 +336,29 @@ static enum test_return test_subdoc_fetch_dict_simple(bool compressed,
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
 
     delete_object("dict");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_get_dict_simple_raw() {
-    return test_subdoc_fetch_dict_simple(/*compressed*/false,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_GET);
+TEST_P(McdTestappTest, SubdocGet_DictSimpleRaw) {
+    test_subdoc_fetch_dict_simple(/*compressed*/false,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-enum test_return test_subdoc_get_dict_simple_compressed() {
-    return test_subdoc_fetch_dict_simple(/*compressed*/true,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_GET);
+TEST_P(McdTestappTest, SubdocGet_DictSimpleCompressed) {
+    test_subdoc_fetch_dict_simple(/*compressed*/true,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
 
-enum test_return test_subdoc_exists_dict_simple_raw() {
-    return test_subdoc_fetch_dict_simple(/*compressed*/false,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+TEST_P(McdTestappTest, SubdocExists_DictSimpleRaw) {
+    test_subdoc_fetch_dict_simple(/*compressed*/false,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
-enum test_return test_subdoc_exists_dict_simple_compressed() {
-    return test_subdoc_fetch_dict_simple(/*compressed*/true,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+TEST_P(McdTestappTest, SubdocExists_DictSimpleCompressed) {
+    test_subdoc_fetch_dict_simple(/*compressed*/true,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
 // JSON document containing nested dictionary.
-static enum test_return test_subdoc_fetch_dict_nested(bool compressed,
-                                                      protocol_binary_command cmd) {
+void test_subdoc_fetch_dict_nested(bool compressed,
+                                   protocol_binary_command cmd) {
 
     cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
               (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
@@ -453,25 +416,23 @@ static enum test_return test_subdoc_fetch_dict_nested(bool compressed,
                       "\"2020-04-04T18:17:04Z\"");
 
     delete_object("dict2");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_get_dict_nested_raw() {
-    return test_subdoc_fetch_dict_nested(/*compressed*/false,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_GET);
+TEST_P(McdTestappTest, SubdocGet_DictNestedRaw) {
+    test_subdoc_fetch_dict_nested(/*compressed*/false,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-enum test_return test_subdoc_get_dict_nested_compressed() {
-    return test_subdoc_fetch_dict_nested(/*compressed*/true,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_GET);
+TEST_P(McdTestappTest, SubdocGet_DictNestedCompressed) {
+    test_subdoc_fetch_dict_nested(/*compressed*/true,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-enum test_return test_subdoc_exists_dict_nested_raw() {
-    return test_subdoc_fetch_dict_nested(/*compressed*/false,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+TEST_P(McdTestappTest, SubdocExists_DictNestedRaw) {
+    test_subdoc_fetch_dict_nested(/*compressed*/false,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
-enum test_return test_subdoc_exists_dict_nested_compressed() {
-    return test_subdoc_fetch_dict_nested(/*compressed*/true,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+TEST_P(McdTestappTest, SubdocExists_DictNestedCompressed) {
+    test_subdoc_fetch_dict_nested(/*compressed*/true,
+                                  PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
 // Creates a nested dictionary with the specified number of levels.
@@ -490,8 +451,7 @@ static cJSON* make_nested_dict(int nlevels) {
 }
 
 // Deeply nested JSON dictionary; verify limits on how deep documents can be.
-static enum test_return
-test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
+void test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
 
     // a). Should be able to access a deeply nested document as long as the
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
@@ -523,15 +483,13 @@ test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG, "");
 
     delete_object("too_deep_dict");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_get_dict_deep() {
-    return test_subdoc_fetch_dict_deep(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+TEST_P(McdTestappTest, SubdocGet_DictDeep) {
+    test_subdoc_fetch_dict_deep(PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-enum test_return test_subdoc_exists_dict_deep() {
-    return test_subdoc_fetch_dict_deep(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+TEST_P(McdTestappTest, SubdocExists_DictDeep) {
+    test_subdoc_fetch_dict_deep(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
 // Creates a nested array with the specified number of levels.
@@ -557,8 +515,7 @@ std::string make_nested_array_path(int nlevels) {
 }
 
 // Deeply nested JSON array; verify limits on how deep documents can be.
-static enum test_return
-test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
+void test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
 
     // a). Should be able to access a deeply nested document as long as the
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
@@ -585,15 +542,13 @@ test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
     expect_subdoc_cmd(SubdocCmd(cmd, "too_deep_array", too_long_path),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG, "");
     delete_object("too_deep_array");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_get_array_deep() {
-    return test_subdoc_fetch_array_deep(PROTOCOL_BINARY_CMD_SUBDOC_GET);
+TEST_P(McdTestappTest, SubdocGet_ArrayDeep) {
+    test_subdoc_fetch_array_deep(PROTOCOL_BINARY_CMD_SUBDOC_GET);
 }
-enum test_return test_subdoc_exists_array_deep() {
-    return test_subdoc_fetch_array_deep(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
+TEST_P(McdTestappTest, SubdocExists_ArrayDeep) {
+    test_subdoc_fetch_array_deep(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS);
 }
 
 /* Test adding to a JSON dictionary.
@@ -602,8 +557,7 @@ enum test_return test_subdoc_exists_array_deep() {
  *            - PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD
  *            - PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT
  */
-static enum test_return test_subdoc_dict_add_simple(bool compress,
-                                                    protocol_binary_command cmd) {
+void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
     cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
               (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
 
@@ -724,7 +678,7 @@ static enum test_return test_subdoc_dict_add_simple(bool compress,
                                                    protocol_binary_subdoc_flag(0),
                                                    cas),
                                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
-    check_ne(cas, new_cas);
+    EXPECT_NE(cas, new_cas);
 
     // k). CAS - cmd with old cas should fail.
     expect_subdoc_cmd(SubdocCmd(cmd, "dict", "new_int2", "4",
@@ -743,31 +697,29 @@ static enum test_return test_subdoc_dict_add_simple(bool compress,
     expect_subdoc_cmd(SubdocCmd(cmd, "array","foo", "\"bar\""),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
     delete_object("array");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_dict_add_simple_raw() {
-    return test_subdoc_dict_add_simple(/*compress*/false,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+TEST_P(McdTestappTest, SubdocDictAdd_SimpleRaw) {
+    test_subdoc_dict_add_simple(/*compress*/false,
+                                PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
 
-enum test_return test_subdoc_dict_add_simple_compressed() {
-    return test_subdoc_dict_add_simple(/*compress*/true,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+TEST_P(McdTestappTest, SubdocDictAdd_SimpleCompressed) {
+    test_subdoc_dict_add_simple(/*compress*/true,
+                                PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
 
-enum test_return test_subdoc_dict_upsert_simple_raw() {
-    return test_subdoc_dict_add_simple(/*compress*/false,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+TEST_P(McdTestappTest, SubdocDictUpsert_SimpleRaw) {
+    test_subdoc_dict_add_simple(/*compress*/false,
+                                PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 
-enum test_return test_subdoc_dict_upsert_simple_compressed() {
-    return test_subdoc_dict_add_simple(/*compress*/true,
-                                       PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+TEST_P(McdTestappTest, SubdocDictUpsert_SimpleCompressed) {
+    test_subdoc_dict_add_simple(/*compress*/true,
+                                PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 
-static enum test_return test_subdoc_dict_add_upsert_deep(protocol_binary_command cmd) {
+void test_subdoc_dict_add_upsert_deep(protocol_binary_command cmd) {
 
     cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
               (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
@@ -806,19 +758,17 @@ static enum test_return test_subdoc_dict_add_upsert_deep(protocol_binary_command
     }
 
     delete_object("dict");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_dict_add_deep() {
-    return test_subdoc_dict_add_upsert_deep(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+TEST_P(McdTestappTest, SubdocDictAdd_Deep) {
+    test_subdoc_dict_add_upsert_deep(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
 }
 
-enum test_return test_subdoc_dict_upsert_deep() {
-    return test_subdoc_dict_add_upsert_deep(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+TEST_P(McdTestappTest, SubdocDictUpsert_Deep) {
+    test_subdoc_dict_add_upsert_deep(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 
-enum test_return test_subdoc_delete_simple(bool compress) {
+void test_subdoc_delete_simple(bool compress) {
 
     // a). Create a document containing each of the primitive types, and then
     // ensure we can successfully delete each type.
@@ -868,19 +818,17 @@ enum test_return test_subdoc_delete_simple(bool compress) {
     // After deleting everything the dictionary should be empty.
     validate_object("dict", "{}");
     delete_object("dict");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_delete_simple_raw() {
-    return test_subdoc_delete_simple(/*compress*/false);
+TEST_P(McdTestappTest, SubdocDelete_SimpleRaw) {
+    test_subdoc_delete_simple(/*compress*/false);
 }
 
-enum test_return test_subdoc_delete_simple_compressed() {
-    return test_subdoc_delete_simple(/*compress*/true);
+TEST_P(McdTestappTest, SubdocDelete_SimpleCompressed) {
+    test_subdoc_delete_simple(/*compress*/true);
 }
 
-enum test_return test_subdoc_delete_array() {
+TEST_P(McdTestappTest, SubdocDelete_Array) {
 
     // Create an array, then test deleting elements.
     store_object("a", "[0,1,2,3,4]", /*JSON*/true, /*compress*/false);
@@ -931,11 +879,9 @@ enum test_return test_subdoc_delete_array() {
     validate_object("a", "[]");
 
     delete_object("a");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_delete_array_nested() {
+TEST_P(McdTestappTest, SubdocDelete_ArrayNested) {
     // Nested array containing different objects.
     store_object("b", "[0,[10,20,[100]],{\"key\":\"value\"}]",
                  /*JSON*/true, /*compress*/false);
@@ -964,8 +910,6 @@ enum test_return test_subdoc_delete_array_nested() {
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "{\"key\":\"value\"}");
 
     delete_object("b");
-
-    return TEST_PASS;
 }
 
 const std::vector<std::string> JSON_VALUES({
@@ -977,7 +921,7 @@ const std::vector<std::string> JSON_VALUES({
     "false",
     "null"});
 
-enum test_return test_subdoc_replace_simple_dict()
+TEST_P(McdTestappTest, SubdocReplace_SimpleDict)
 {
     // Simple dictionary, replace first element with various types.
     store_object("a", "{\"key\":0,\"key2\":1}", /*JSON*/true, /*compress*/false);
@@ -998,11 +942,9 @@ enum test_return test_subdoc_replace_simple_dict()
     validate_object("a", "{\"key\":null,\"key2\":1}");
 
     delete_object("a");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_replace_simple_array()
+TEST_P(McdTestappTest, SubdocReplace_SimpleArray)
 {
     // Simple array, replace first element with various types.
     store_object("a", "[0,1]", /*JSON*/true, /*compress*/false);
@@ -1023,11 +965,9 @@ enum test_return test_subdoc_replace_simple_array()
     validate_object("a", "[null,1]");
 
     delete_object("a");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_replace_array_deep()
+TEST_P(McdTestappTest, SubdocReplace_ArrayDeep)
 {
     // Test replacing in deeply nested arrays.
 
@@ -1068,11 +1008,9 @@ enum test_return test_subdoc_replace_array_deep()
                        PROTOCOL_BINARY_RESPONSE_SUCCESS, "[]");
 
     delete_object("a");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_array_push_last_simple()
+TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
 {
     // a). Empty array, append to it.
     store_object("a", "[]", /*JSON*/true, /*compress*/false);
@@ -1145,11 +1083,9 @@ enum test_return test_subdoc_array_push_last_simple()
                                 "d", "foo", "0", SUBDOC_FLAG_MKDIR_P),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
     delete_object("d");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_array_push_last_nested()
+TEST_P(McdTestappTest, SubdocArrayPushLast_Nested)
 {
     // Operations on a nested array,
     // a). Begin with an empty nested array, append to it.
@@ -1171,11 +1107,9 @@ enum test_return test_subdoc_array_push_last_nested()
     validate_object("a", "[[],1,2]");
 
     delete_object("a");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_array_push_first_simple()
+TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
 {
     // a). Empty array, prepend to it.
     store_object("a", "[]", /*JSON*/true, /*compress*/false);
@@ -1244,11 +1178,9 @@ enum test_return test_subdoc_array_push_first_simple()
                                 "d", "foo", "0", SUBDOC_FLAG_MKDIR_P),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
     delete_object("d");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_array_push_first_nested()
+TEST_P(McdTestappTest, SubdocArrayPushFirst_Nested)
 {
     // Operations on a nested array.
     // a). Begin with an empty nested array, prepend to it.
@@ -1270,11 +1202,9 @@ enum test_return test_subdoc_array_push_first_nested()
     validate_object("a", "[2,1,[]]");
 
     delete_object("a");
-
-    return TEST_PASS;
 }
 
-enum test_return test_subdoc_array_add_unique_simple()
+TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
 {
     // Start with an array with a single element.
     store_object("a", "[]", /*JSON*/true, /*compress*/false);
@@ -1347,6 +1277,4 @@ enum test_return test_subdoc_array_add_unique_simple()
                                 "d", "", "3"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
     delete_object("d");
-
-    return TEST_PASS;
 }

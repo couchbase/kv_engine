@@ -27,53 +27,6 @@
 extern "C" {
 #endif
 
-enum test_return test_subdoc_get_binary_raw();
-enum test_return test_subdoc_get_binary_compressed();
-enum test_return test_subdoc_get_array_simple_raw();
-enum test_return test_subdoc_get_array_simple_compressed();
-enum test_return test_subdoc_get_dict_simple_raw();
-enum test_return test_subdoc_get_dict_simple_compressed();
-enum test_return test_subdoc_get_dict_nested_raw();
-enum test_return test_subdoc_get_dict_nested_compressed();
-enum test_return test_subdoc_get_dict_deep();
-enum test_return test_subdoc_get_array_deep();
-
-enum test_return test_subdoc_exists_binary_raw();
-enum test_return test_subdoc_exists_binary_compressed();
-enum test_return test_subdoc_exists_array_simple_raw();
-enum test_return test_subdoc_exists_array_simple_compressed();
-enum test_return test_subdoc_exists_dict_simple_raw();
-enum test_return test_subdoc_exists_dict_simple_compressed();
-enum test_return test_subdoc_exists_dict_nested_raw();
-enum test_return test_subdoc_exists_dict_nested_compressed();
-enum test_return test_subdoc_exists_dict_deep();
-enum test_return test_subdoc_exists_array_deep();
-
-enum test_return test_subdoc_dict_add_simple_raw();
-enum test_return test_subdoc_dict_add_simple_compressed();
-enum test_return test_subdoc_dict_add_deep();
-
-enum test_return test_subdoc_dict_upsert_simple_raw();
-enum test_return test_subdoc_dict_upsert_simple_compressed();
-enum test_return test_subdoc_dict_upsert_deep();
-
-enum test_return test_subdoc_delete_simple_raw();
-enum test_return test_subdoc_delete_simple_compressed();
-enum test_return test_subdoc_delete_array();
-enum test_return test_subdoc_delete_array_nested();
-
-enum test_return test_subdoc_replace_simple_dict();
-enum test_return test_subdoc_replace_simple_array();
-enum test_return test_subdoc_replace_array_deep();
-
-enum test_return test_subdoc_array_push_last_simple();
-enum test_return test_subdoc_array_push_last_nested();
-
-enum test_return test_subdoc_array_push_first_simple();
-enum test_return test_subdoc_array_push_first_nested();
-
-enum test_return test_subdoc_array_add_unique_simple();
-
 #if defined(__cplusplus)
 } // extern "C"
 #endif

@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015 Couchbase, Inc
  *
@@ -22,14 +22,37 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <string>
 
+#include <gtest/gtest.h>
 #include <memcached/protocol_binary.h>
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
 enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
+
+enum class Transport {
+    Plain,
+    SSL
+};
+
+// Test the various memcached binary protocol commands against a
+// external `memcached` process.
+class McdTestappTest : public ::testing::TestWithParam<Transport> {
+public:
+    // Per-test-case set-up.
+    // Called before the first test in this test case.
+    static void SetUpTestCase();
+
+    // Per-test-case tear-down.
+    // Called after the last test in this test case.
+    static void TearDownTestCase();
+
+protected:
+    // per test setup function.
+    virtual void SetUp();
+
+    // per test tear-down function.
+    virtual void TearDown();
+};
 
 /* Compress the given document. Returns the size of the compressed document,
  * and deflated is updated to point to the compressed buffer.
@@ -69,7 +92,3 @@ bool safe_recv_packet(void *buf, size_t size);
  */
 void validate_response_header(protocol_binary_response_no_extras *response,
                               uint8_t cmd, uint16_t status);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif

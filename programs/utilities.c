@@ -1,6 +1,8 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include <memcached/protocol_binary.h>
+#include <openssl/conf.h>
+#include <openssl/engine.h>
 
 #include "utilities.h"
 
@@ -133,6 +135,15 @@ void initialize_openssl(void) {
     SSL_load_error_strings();
     ERR_load_BIO_strings();
     OpenSSL_add_all_algorithms();
+}
+
+void shutdown_openssl() {
+    ENGINE_cleanup();
+    CONF_modules_unload(1);
+    EVP_cleanup();
+    CRYPTO_cleanup_all_ex_data();
+    ERR_remove_state(0);
+    ERR_free_strings();
 }
 
 int create_ssl_connection(SSL_CTX** ctx,

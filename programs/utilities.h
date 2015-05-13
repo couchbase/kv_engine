@@ -11,6 +11,9 @@ extern "C" {
     int do_sasl_auth(BIO *bio, const char *user, const char *pass);
     void initialize_openssl(void);
 
+    // Frees all resources allocated by initialize_openssl().
+    void shutdown_openssl(void);
+
     int create_ssl_connection(SSL_CTX** ctx,
                               BIO** bio,
                               const char* host,
