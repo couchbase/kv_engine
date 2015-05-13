@@ -601,7 +601,7 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
         Subdoc::Error subdoc_res = op->op_exec(path, pathlen);
 
         switch (subdoc_res) {
-        case SUBDOC_STATUS_SUCCESS:
+        case Subdoc::Error::SUCCESS:
             // Save the information necessary to construct the result of the
             // subdoc.
             context->in_doc = doc;
@@ -612,31 +612,31 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
             }
             break;
 
-        case SUBDOC_STATUS_PATH_ENOENT:
+        case Subdoc::Error::PATH_ENOENT:
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
             return false;
 
-        case SUBDOC_STATUS_PATH_MISMATCH:
+        case Subdoc::Error::PATH_MISMATCH:
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH);
             return false;
 
-        case SUBDOC_STATUS_DOC_ETOODEEP:
+        case Subdoc::Error::DOC_ETOODEEP:
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_E2DEEP);
             return false;
 
-        case SUBDOC_STATUS_PATH_EINVAL:
+        case Subdoc::Error::PATH_EINVAL:
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL);
             return false;
 
-        case SUBDOC_STATUS_DOC_EEXISTS:
+        case Subdoc::Error::DOC_EEXISTS:
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS);
             return false;
 
-        case SUBDOC_STATUS_PATH_E2BIG:
+        case Subdoc::Error::PATH_E2BIG:
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG);
             return false;
 
-        case SUBDOC_STATUS_VALUE_CANTINSERT:
+        case Subdoc::Error::VALUE_CANTINSERT:
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT);
             return false;
 
