@@ -177,8 +177,11 @@ extern "C"
 
         /** [For mutations only] The requested operation requires the path to
          * not already exist, but it exists. */
-        PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS = 0xc9
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS = 0xc9,
 
+        /** [For mutations only] Inserting the value would cause the document
+         * to be too deep. */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP = 0xca
 
     } protocol_binary_response_status;
 

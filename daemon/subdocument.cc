@@ -640,6 +640,10 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT);
             return false;
 
+        case Subdoc::Error::VALUE_ETOODEEP:
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP);
+            return false;
+
         default:
             // TODO: handle remaining errors.
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,

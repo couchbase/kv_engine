@@ -1043,11 +1043,11 @@ enum test_return test_subdoc_replace_array_deep()
                        PROTOCOL_BINARY_RESPONSE_SUCCESS, "[]");
 
     // a). Should be able to replace an element at the max depth.
-    std::string new_value("[\"deep\"]");
+    std::string new_value("\"deep\"");
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a",
                                 valid_max_path, new_value),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
-#if 0 // TODO: 2015-05-07: Fails - need to report to MarkN
+
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a",
                                 valid_max_path),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, new_value);
@@ -1056,15 +1056,16 @@ enum test_return test_subdoc_replace_array_deep()
     // depth) should fail.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a",
                                 valid_max_path, "[0]"),
-                      PROTOCOL_BINARY_RESPONSE_E2BIG, "");
-#endif
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP, "");
 
-#if 0 // TODO: 2015-05-07: Fails - need to report to MarkN
-    // Replace the whole deep array with a single toplevel element.
+
+    // c). Replace the whole deep array with a single toplevel element.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "a",
                                 "[0]", "[]"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
-#endif
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a",
+                                "[0]"),
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "[]");
 
     delete_object("a");
 
