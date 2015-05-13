@@ -22,8 +22,6 @@
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
-#include <string>
-#include <vector>
 
 #define WHITESPACE_DB "whitespace sucks.db"
 
@@ -46,28 +44,7 @@ bool teardown_suite(void);
 #endif
 
 
-class BaseTestCase {
-public:
-    BaseTestCase(const char *_name,  const char *_cfg, bool _skip = false);
-
-    BaseTestCase(const BaseTestCase &o);
-
-    engine_test_t *getTest();
-
-    const char *getName() {
-        return name;
-    }
-
-protected:
-    engine_test_t test;
-
-private:
-    const char *name;
-    const char *cfg;
-    bool skip;
-};
-
-class TestCase : public BaseTestCase {
+class TestCase {
 public:
     TestCase(const char *_name,
              enum test_result(*_tfun)(ENGINE_HANDLE *, ENGINE_HANDLE_V1 *),
@@ -77,18 +54,20 @@ public:
              enum test_result (*_prepare)(engine_test_t *test),
              void (*_cleanup)(engine_test_t *test, enum test_result result),
              bool _skip = false);
-};
 
-class TestCaseV2 : public BaseTestCase {
-public:
-    TestCaseV2(const char *_name,
-               enum test_result(*_tfun)(engine_test_t *),
-               bool(*_test_setup)(engine_test_t *),
-               bool(*_test_teardown)(engine_test_t *),
-               const char *_cfg,
-               enum test_result (*_prepare)(engine_test_t *test),
-               void (*_cleanup)(engine_test_t *test, enum test_result result),
-               bool _skip = false);
+    TestCase(const TestCase &o);
+
+    const char *getName() {
+        return name;
+    }
+
+    engine_test_t *getTest();
+
+private:
+    engine_test_t test;
+    const char *name;
+    const char *cfg;
+    bool skip;
 };
 
 // Name to use for database directory
@@ -97,46 +76,19 @@ extern const char *dbname_env;
 // Handle of the test_harness, provided by engine_testapp.
 extern struct test_harness testHarness;
 
-enum test_result rmdb(const char* path);
 enum test_result rmdb(void);
 
-
-// Default testcase setup function
+// Default testcase setup function.
 bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 
-// Default testcase teardown function
+// Default testcase teardown function.
 bool teardown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
-bool teardown_v2(engine_test_t* test);
-
 
 // Default testcase prepare function.
 enum test_result prepare(engine_test_t *test);
 
 // Default testcase cleanup function.
 void cleanup(engine_test_t *test, enum test_result result);
-
-struct BucketHolder {
-    BucketHolder(ENGINE_HANDLE* _h, ENGINE_HANDLE_V1* _h1, std::string _dbpath)
-      : h(_h),
-        h1(_h1),
-        dbpath(_dbpath) {}
-
-    ENGINE_HANDLE *h;
-    ENGINE_HANDLE_V1 *h1;
-    std::string dbpath;
-};
-
-/*
-  Create n_buckets and add to the buckets vector.
-  Returns the number of buckets actually created.
-*/
-int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &buckets);
-
-/*
-  Destroy all of the buckets in the vector and delete the DB path.
-*/
-void destroy_buckets(std::vector<BucketHolder> &buckets);
-
 
 
 #endif /* TESTS_EP_TESTSUITE_COMMON_H_ */

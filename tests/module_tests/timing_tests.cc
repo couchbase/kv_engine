@@ -211,9 +211,9 @@ extern "C" MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
 
     static engine_test_t tests[]  = {
-        TEST_CASE("test persistence", test_persistence, NULL, teardown, NULL,
-         NULL, NULL),
-        TEST_CASE(NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+        {"test persistence", test_persistence, NULL, teardown, NULL,
+         NULL, NULL},
+        {NULL, NULL, NULL, NULL, NULL, NULL, NULL}
     };
     return tests;
 }

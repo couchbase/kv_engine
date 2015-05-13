@@ -128,20 +128,32 @@ void print_timings(std::vector<std::pair<std::string, std::vector<hrtime_t>*> > 
  ** Testcases
  *****************************************************************************/
 
-static void perf_latency_core(ENGINE_HANDLE *h,
-                              ENGINE_HANDLE_V1 *h1,
-                              int num_docs,
-                              std::vector<hrtime_t> &add_timings,
-                              std::vector<hrtime_t> &get_timings,
-                              std::vector<hrtime_t> &replace_timings,
-                              std::vector<hrtime_t> &delete_timings) {
+static enum test_result perf_latency(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1,
+                                     const char* title) {
+    // Only timing front-end performance, not considering persistence.
+    stop_persistence(h, h1);
 
     const void *cookie = testHarness.create_cookie();
+
+    const unsigned int num_docs = 500000;
     const std::string data(100, 'x');
+
+    std::vector<hrtime_t> add_timings, get_timings, replace_timings, delete_timings;
+    add_timings.reserve(num_docs);
+    get_timings.reserve(num_docs);
+    replace_timings.reserve(num_docs);
+    delete_timings.reserve(num_docs);
+
+    int printed = 0;
+    printf("\n\n=== Latency [%s] - %u items (µs) %n", title, num_docs, &printed);
+    for (int i = 0; i < 81-printed; i++) {
+        putchar('=');
+    }
 
     // Build vector of keys
     std::vector<std::string> keys;
-    for (int i = 0; i < num_docs; i++) {
+    for (unsigned int i = 0; i < num_docs; i++) {
         keys.push_back(std::to_string(i));
     }
 
@@ -190,31 +202,6 @@ static void perf_latency_core(ENGINE_HANDLE *h,
         const hrtime_t end = gethrtime();
         delete_timings.push_back(end - start);
     }
-}
-
-static enum test_result perf_latency(ENGINE_HANDLE *h,
-                                     ENGINE_HANDLE_V1 *h1,
-                                     const char* title) {
-
-    const unsigned int num_docs = 500000;
-
-    // Only timing front-end performance, not considering persistence.
-    stop_persistence(h, h1);
-
-    std::vector<hrtime_t> add_timings, get_timings, replace_timings, delete_timings;
-    add_timings.reserve(num_docs);
-    get_timings.reserve(num_docs);
-    replace_timings.reserve(num_docs);
-    delete_timings.reserve(num_docs);
-
-    int printed = 0;
-    printf("\n\n=== Latency [%s] - %u items (µs) %n", title, num_docs, &printed);
-    for (int i = 0; i < 81-printed; i++) {
-        putchar('=');
-    }
-
-    // run and measure on this thread.
-    perf_latency_core(h, h1, num_docs, add_timings, get_timings, replace_timings, delete_timings);
 
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     all_timings.push_back(std::make_pair("Add", &add_timings));
@@ -222,6 +209,7 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     all_timings.push_back(std::make_pair("Replace", &replace_timings));
     all_timings.push_back(std::make_pair("Delete", &delete_timings));
     print_timings(all_timings);
+
     return SUCCESS;
 }
 
@@ -246,133 +234,11 @@ static enum test_result perf_latency_expiry_pager(ENGINE_HANDLE *h,
     return perf_latency(h, h1, "With constant Expiry pager");
 }
 
-struct ThreadArguments {
-    void reserve(int n) {
-        add_timings.reserve(n);
-        get_timings.reserve(n);
-        replace_timings.reserve(n);
-        delete_timings.reserve(n);
-    }
-    ENGINE_HANDLE* h;
-    ENGINE_HANDLE_V1* h1;
-    int num_docs;
-    std::vector<hrtime_t> add_timings;
-    std::vector<hrtime_t> get_timings;
-    std::vector<hrtime_t> replace_timings;
-    std::vector<hrtime_t> delete_timings;
-};
-
-extern "C" {
-    static void perf_latency_thread(void *arg) {
-        ThreadArguments* threadArgs = static_cast<ThreadArguments*>(arg);
-        // run and measure on this thread.
-        perf_latency_core(threadArgs->h,
-                          threadArgs->h1,
-                          threadArgs->num_docs,
-                          threadArgs->add_timings,
-                          threadArgs->get_timings,
-                          threadArgs->replace_timings,
-                          threadArgs->delete_timings);
-    }
-}
-
-//
-// Test performance of many buckets.
-//
-static enum test_result perf_latency_baseline_multi_bucket(engine_test_t* test,
-                                                           int n_buckets,
-                                                           int num_docs) {
-    std::vector<BucketHolder> buckets;
-
-    int printed = 0;
-    printf("\n\n=== Latency (%d-buckets) - %u items (µs) %n", n_buckets,
-                                                              num_docs,
-                                                              &printed);
-    for (int i = 0; i < 81-printed; i++) {
-        putchar('=');
-    }
-
-    create_buckets(test->cfg, n_buckets, buckets);
-
-    for (int ii = 0; ii < n_buckets; ii++) {
-        // re-use test_setup to wait for ready
-        test_setup(buckets[ii].h, buckets[ii].h1);
-        // Only timing front-end performance, not considering persistence.
-        stop_persistence(buckets[ii].h, buckets[ii].h1);
-    }
-
-    std::vector<ThreadArguments> thread_args(n_buckets);
-    std::vector<cb_thread_t> threads(n_buckets);
-
-    // setup the arguments each thread will use.
-    for (int ii = 0; ii < n_buckets; ii++) {
-        thread_args[ii].h = buckets[ii].h;
-        thread_args[ii].h1 = buckets[ii].h1;
-        thread_args[ii].reserve(num_docs);
-        thread_args[ii].num_docs = num_docs;
-    }
-
-    // Now drive each bucket from 1 thread
-    for (int i = 0; i < n_buckets; i++) {
-        int r = cb_create_thread(&threads[i], perf_latency_thread, &thread_args[i], 0);
-        cb_assert(r == 0);
-    }
-
-    for (int i = 0; i < n_buckets; i++) {
-        int r = cb_join_thread(threads[i]);
-        cb_assert(r == 0);
-    }
-
-    // destroy the buckets and rm the db path
-    for (int ii = 0; ii < n_buckets; ii++) {
-        testHarness.destroy_bucket(buckets[ii].h, buckets[ii].h1, false);
-        rmdb(buckets[ii].dbpath.c_str());
-    }
-
-    // For the results, bring all the bucket timings into a single array
-    std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
-    std::vector<hrtime_t> add_timings, get_timings, replace_timings, delete_timings;
-    for (int ii = 0; ii < n_buckets; ii++) {
-        add_timings.insert(add_timings.end(),
-                           thread_args[ii].add_timings.begin(),
-                           thread_args[ii].add_timings.end());
-        get_timings.insert(get_timings.end(),
-                           thread_args[ii].get_timings.begin(),
-                           thread_args[ii].get_timings.end());
-        replace_timings.insert(replace_timings.end(),
-                               thread_args[ii].replace_timings.begin(),
-                               thread_args[ii].replace_timings.end());
-        delete_timings.insert(delete_timings.end(),
-                              thread_args[ii].delete_timings.begin(),
-                              thread_args[ii].delete_timings.end());
-        // done with these arrays now
-        thread_args[ii].add_timings.clear();
-        thread_args[ii].get_timings.clear();
-        thread_args[ii].replace_timings.clear();
-        thread_args[ii].delete_timings.clear();
-    }
-    all_timings.push_back(std::make_pair("Add", &add_timings));
-    all_timings.push_back(std::make_pair("Get", &get_timings));
-    all_timings.push_back(std::make_pair("Replace", &replace_timings));
-    all_timings.push_back(std::make_pair("Delete", &delete_timings));
-    print_timings(all_timings);
-
-    return SUCCESS;
-}
-
-static enum test_result perf_latency_baseline_multi_bucket_2(engine_test_t* test) {
-    return perf_latency_baseline_multi_bucket(test, 2, 150000);
-}
-
-static enum test_result perf_latency_baseline_multi_bucket_4(engine_test_t* test) {
-    return perf_latency_baseline_multi_bucket(test, 4, 150000);
-}
-
 /*****************************************************************************
  * List of testcases
  *****************************************************************************/
 
-BaseTestCase testsuite_testcases[] = {
+TestCase testsuite_testcases[] = {
         TestCase("Baseline latency", perf_latency_baseline,
                  test_setup, teardown,
                  "ht_size=393209", prepare, cleanup),
@@ -388,10 +254,6 @@ BaseTestCase testsuite_testcases[] = {
                  // Run expiry pager constantly.
                  ";exp_pager_stime=0",
                  prepare, cleanup),
-        TestCaseV2("Multi bucket latency", perf_latency_baseline_multi_bucket_2,
-                   NULL, NULL, "ht_size=393209", prepare, cleanup),
-        TestCaseV2("Multi bucket latency", perf_latency_baseline_multi_bucket_4,
-                   NULL, NULL, "ht_size=393209", prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };
