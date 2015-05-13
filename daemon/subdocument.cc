@@ -54,7 +54,7 @@ struct cmd_traits;
 
 template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_GET> > {
-  static const subdoc_OPTYPE optype = SUBDOC_CMD_GET;
+  static const Subdoc::Command::Code optype = Subdoc::Command::GET;
   static const bool request_has_value = false;
   static const bool allow_empty_path = false;
   static const bool response_has_value = true;
@@ -65,7 +65,7 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_GET> > {
 
 template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS> > {
-  static const subdoc_OPTYPE optype = SUBDOC_CMD_EXISTS;
+  static const Subdoc::Command::Code optype = Subdoc::Command::EXISTS;
   static const bool request_has_value = false;
   static const bool allow_empty_path = false;
   static const bool response_has_value = false;
@@ -76,7 +76,7 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS> > {
 
 template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD> > {
-  static const subdoc_OPTYPE optype = SUBDOC_CMD_DICT_ADD;
+  static const Subdoc::Command::Code optype = Subdoc::Command::DICT_ADD;
   static const bool request_has_value = true;
   static const bool allow_empty_path = false;
   static const bool response_has_value = false;
@@ -86,7 +86,7 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD> > {
 
 template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT> > {
-  static const subdoc_OPTYPE optype = SUBDOC_CMD_DICT_UPSERT;
+  static const Subdoc::Command::Code optype = Subdoc::Command::DICT_UPSERT;
   static const bool request_has_value = true;
   static const bool allow_empty_path = false;
   static const bool response_has_value = false;
@@ -96,7 +96,7 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT> > {
 
 template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DELETE> > {
-  static const subdoc_OPTYPE optype = SUBDOC_CMD_DELETE;
+  static const Subdoc::Command::Code optype = Subdoc::Command::REMOVE;
   static const bool request_has_value = false;
   static const bool allow_empty_path = false;
   static const bool response_has_value = false;
@@ -107,7 +107,7 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DELETE> > {
 
 template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE> > {
-  static const subdoc_OPTYPE optype = SUBDOC_CMD_REPLACE;
+  static const Subdoc::Command::Code optype = Subdoc::Command::REPLACE;
   static const bool request_has_value = true;
   static const bool allow_empty_path = false;
   static const bool response_has_value = false;
@@ -118,7 +118,7 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE> > {
 
 template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST> > {
-  static const subdoc_OPTYPE optype = SUBDOC_CMD_ARRAY_APPEND;
+  static const Subdoc::Command::Code optype = Subdoc::Command::ARRAY_APPEND;
   static const bool request_has_value = true;
   static const bool allow_empty_path = true;
   static const bool response_has_value = false;
@@ -128,7 +128,7 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST> > {
 
 template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST> > {
-  static const subdoc_OPTYPE optype = SUBDOC_CMD_ARRAY_PREPEND;
+  static const Subdoc::Command::Code optype = Subdoc::Command::ARRAY_PREPEND;
   static const bool request_has_value = true;
   static const bool allow_empty_path = true;
   static const bool response_has_value = false;
@@ -138,7 +138,7 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST> > {
 
 template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE> > {
-  static const subdoc_OPTYPE optype = SUBDOC_CMD_ARRAY_ADD_UNIQUE;
+  static const Subdoc::Command::Code optype = Subdoc::Command::ARRAY_ADD_UNIQUE;
   static const bool request_has_value = true;
   static const bool allow_empty_path = true;
   static const bool response_has_value = false;
@@ -281,7 +281,7 @@ struct SubdocCmdContext {
     uint64_t in_cas;
 
     // Location of the fragments consisting of the _new_ value.
-    subdoc_LOC doc_new[8];
+    Subdoc::Loc doc_new[8];
     // Number of fragments active.
     size_t doc_new_len;
 
@@ -587,9 +587,9 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
         // Prepare the specified sub-document command.
         Subdoc::Operation* op = c->thread->subdoc_op;
         op->clear();
-        subdoc_OPTYPE opcode = cmd_traits<Cmd2Type<CMD>>::optype;
+        Subdoc::Command opcode = cmd_traits<Cmd2Type<CMD>>::optype;
         if ((flags & SUBDOC_FLAG_MKDIR_P) == SUBDOC_FLAG_MKDIR_P) {
-            opcode = subdoc_OPTYPE(opcode | SUBDOC_CMD_FLAG_MKDIR_P);
+            opcode = Subdoc::Command(opcode | Subdoc::Command::FLAG_MKDIR_P);
         }
         op->set_code(opcode);
         op->set_doc(doc.buf, doc.len);
@@ -677,7 +677,7 @@ bool subdoc_update(conn* c, ENGINE_ERROR_CODE ret, const char* key,
     // Calculate the updated document length.
     size_t new_doc_len = 0;
     for (size_t ii = 0; ii < context->doc_new_len; ii++) {
-        const subdoc_LOC& loc = context->doc_new[ii];
+        const Subdoc::Loc& loc = context->doc_new[ii];
         new_doc_len += loc.length;
     }
 
@@ -728,7 +728,7 @@ bool subdoc_update(conn* c, ENGINE_ERROR_CODE ret, const char* key,
         // Copy the new document into the item.
         char* write_ptr = static_cast<char*>(new_doc_info.value[0].iov_base);
         for (size_t ii = 0; ii < context->doc_new_len; ii++) {
-            const subdoc_LOC& loc = context->doc_new[ii];
+            const Subdoc::Loc& loc = context->doc_new[ii];
             std::memcpy(write_ptr, loc.at, loc.length);
             write_ptr += loc.length;
         }
