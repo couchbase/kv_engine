@@ -1,5 +1,7 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
+
+#include <atomic>
 #include <stdio.h>
 #include <stdlib.h>
 #include <strings.h>
@@ -89,7 +91,7 @@ struct connstruct {
     const char *uname;
     const char *config;
     void *engine_data;
-    bool connected;
+    std::atomic_bool connected;
     bool admin;
     struct connstruct *next;
 };
@@ -129,9 +131,7 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
 }
 
 static void mock_connect(struct connstruct *c) {
-    cb_mutex_enter(&connstructs_mutex);
     c->connected = true;
-    cb_mutex_exit(&connstructs_mutex);
 
     perform_callbacks(ON_CONNECT, NULL, c);
     if (c->uname) {
@@ -142,13 +142,10 @@ static void mock_connect(struct connstruct *c) {
 }
 
 static void mock_disconnect(struct connstruct *c) {
-    bool old_value;
-    cb_mutex_enter(&connstructs_mutex);
-    if ((old_value = c->connected)) {
-        c->connected = false;
-    }
-    cb_mutex_exit(&connstructs_mutex);
-    if (old_value) {
+    bool expected = true;
+    bool changed = c->connected.compare_exchange_strong(expected, false);
+
+    if (changed) {
         perform_callbacks(ON_DISCONNECT, NULL, c);
     }
 }
