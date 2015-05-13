@@ -167,7 +167,7 @@ SET_TARGET_PROPERTIES(testapp_extension PROPERTIES PREFIX "")
 # All of the binaries we're building
 #
 ADD_EXECUTABLE(bucket_engine_testapp
-               engines/bucket_engine/testapp.c
+               engines/bucket_engine/testapp.cc
                engines/bucket_engine/genhash.c
                utilities/engine_loader.c)
 ADD_EXECUTABLE(engine_testapp programs/engine_testapp/engine_testapp.c

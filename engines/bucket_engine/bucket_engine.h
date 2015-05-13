@@ -69,7 +69,7 @@ typedef struct engine_specific {
     /** The engine this cookie is connected to */
     proxied_engine_handle_t *peh;
     /** The userdata stored by the underlying engine */
-    void *engine_specific;
+    void *specific;
     /** The number of times the underlying engine tried to reserve
      * this connection */
     /* 0x1000 is added while we think memcached connection is
@@ -117,7 +117,7 @@ struct bucket_engine {
     } shutdown;
 
     union {
-      engine_info engine_info;
+      engine_info eng_info;
       char buffer[sizeof(engine_info) +
                   (sizeof(feature_info) * LAST_REGISTERED_ENGINE_FEATURE)];
     } info;

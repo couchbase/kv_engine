@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,7 +64,7 @@ static void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE code) {
     cb_mutex_exit(&notify_mutex);
 }
 
-protocol_binary_response_status last_status = 0;
+protocol_binary_response_status last_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 char *last_key = NULL;
 char *last_body = NULL;
 
@@ -154,7 +154,8 @@ static void mock_disconnect(struct connstruct *c) {
 }
 
 static struct connstruct *mk_conn(const char *user, const char *config) {
-    struct connstruct *rv = calloc(sizeof(struct connstruct), 1);
+    struct connstruct *rv =
+        reinterpret_cast<struct connstruct *>(calloc(sizeof(struct connstruct), 1));
     cb_assert(rv);
     rv->magic = CONN_MAGIC;
     rv->admin = false;
@@ -173,8 +174,8 @@ static void register_callback(ENGINE_HANDLE *eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb,
                               const void *cb_data) {
-    struct engine_event_handler *h =
-        calloc(sizeof(struct engine_event_handler), 1);
+    struct engine_event_handler *h = reinterpret_cast<struct engine_event_handler*>(
+            calloc(sizeof(struct engine_event_handler), 1));
     cb_assert(h);
     h->cb = cb;
     h->cb_data = cb_data;
@@ -361,13 +362,13 @@ static bool add_response(const void *key, uint16_t keylen,
     (void)datatype;
     (void)cas;
     (void)cookie;
-    last_status = status;
+    last_status = protocol_binary_response_status(status);
     if (last_body) {
         free(last_body);
         last_body = NULL;
     }
     if (bodylen > 0) {
-        last_body = malloc(bodylen);
+        last_body = reinterpret_cast<char*>(malloc(bodylen));
         cb_assert(last_body);
         memcpy(last_body, body, bodylen);
     }
@@ -376,7 +377,7 @@ static bool add_response(const void *key, uint16_t keylen,
         last_key = NULL;
     }
     if (keylen > 0) {
-        last_key = malloc(keylen);
+        last_key = reinterpret_cast<char*>(malloc(keylen));
         cb_assert(last_key);
         memcpy(last_key, key, keylen);
     }
@@ -451,8 +452,8 @@ static enum test_result test_default_storage(ENGINE_HANDLE *h,
                                              ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL, *fetched_item;
     const void *cookie = mk_conn(NULL, NULL);
-    char *key = "somekey";
-    char *value = "some value";
+    const char key[] = "somekey";
+    const char value[] = "some value";
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     item_info info;
     info.nvalue = 1;
@@ -485,8 +486,8 @@ static enum test_result test_default_storage_key_overrun(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL, *fetched_item;
     const void *cookie = mk_conn(NULL, NULL);
-    char *key = "somekeyx";
-    char *value = "some value";
+    const char key[] = "somekeyx";
+    const char value[] = "some value";
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     mutation_descr_t mut_info;
     item_info info;
@@ -524,8 +525,8 @@ static enum test_result test_default_unlinked_remove(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
     const void *cookie = mk_conn(NULL, NULL);
-    char *key = "somekeyx";
-    const char *value = "the value";
+    const char key[] = "somekeyx";
+    const char value[] = "the value";
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     uint64_t cas = 0;
     mutation_descr_t mut_info;
@@ -547,8 +548,8 @@ static enum test_result test_two_engines_no_autocreate(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL, *fetched_item;
     const void *cookie = mk_conn("autouser", NULL);
-    char *key = "somekey";
-    char *value = "some value";
+    const char key[] = "somekey";
+    const char value[] = "some value";
     uint64_t result = 0;
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     uint64_t cas = 0;
@@ -584,8 +585,8 @@ static enum test_result test_no_default_storage(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL, *fetched_item;
     const void *cookie = mk_conn(NULL, NULL);
-    char *key = "somekey";
-    char *value = "some value";
+    const char key[] = "somekey";
+    const char value[] = "some value";
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
     rv = h1->allocate(h, cookie, &itm,
@@ -604,8 +605,9 @@ static enum test_result test_two_engines(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
     item *item1, *item2, *fetched_item1 = NULL, *fetched_item2 = NULL;
     const void *cookie1 = mk_conn("user1", NULL), *cookie2 = mk_conn("user2", NULL);
-    char *key = "somekey";
-    char *value1 = "some value1", *value2 = "some value 2";
+    const char key[] = "somekey";
+    const char value1[] = "some value1";
+    const char value2[] = "some value 2";
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
     store(h, h1, cookie1, key, value1, &item1);
@@ -630,8 +632,9 @@ static enum test_result test_two_engines_del(ENGINE_HANDLE *h,
                                              ENGINE_HANDLE_V1 *h1) {
     item *item1, *item2, *fetched_item1 = NULL, *fetched_item2 = NULL;
     const void *cookie1 = mk_conn("user1", NULL), *cookie2 = mk_conn("user2", NULL);
-    char *key = "somekey";
-    char *value1 = "some value1", *value2 = "some value 2";
+    const char key[] = "somekey";
+    const char value1[] = "some value1";
+    const char value2[] = "some value 2";
     ENGINE_ERROR_CODE rv;
     uint64_t cas = 0;
     mutation_descr_t mut_info;
@@ -661,8 +664,9 @@ static enum test_result test_two_engines_flush(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
     item *item1, *item2, *fetched_item1 = NULL, *fetched_item2 = NULL;
     const void *cookie1 = mk_conn("user1", NULL), *cookie2 = mk_conn("user2", NULL);
-    char *key = "somekey";
-    char *value1 = "some value1", *value2 = "some value 2";
+    const char key[] = "somekey";
+    const char value1[] = "some value1";
+    const char value2[] = "some value 2";
     ENGINE_ERROR_CODE rv;
 
     store(h, h1, cookie1, key, value1, &item1);
@@ -688,7 +692,7 @@ static enum test_result test_two_engines_flush(ENGINE_HANDLE *h,
 
 static enum test_result test_arith(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = mk_conn("user1", NULL), *cookie2 = mk_conn("user2", NULL);
-    char *key = "somekey";
+    const char key[] = "somekey";
     uint64_t result = 0;
     item *result_item1, *result_item2;
     ENGINE_ERROR_CODE rv;
@@ -724,8 +728,9 @@ static enum test_result test_get_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return strncmp(info->description, "Bucket engine", 13) == 0 ? SUCCESS : FAIL;
 }
 
-static void* create_packet4(uint8_t opcode, const char *key, const char *val,
-                            size_t vlen, uint64_t cas) {
+static protocol_binary_request_header*
+create_packet4(uint8_t opcode, const char *key, const char *val, size_t vlen,
+               uint64_t cas) {
     void *pkt_raw = calloc(1,
                            sizeof(protocol_binary_request_header)
                            + strlen(key)
@@ -741,23 +746,25 @@ static void* create_packet4(uint8_t opcode, const char *key, const char *val,
            key, strlen(key));
     memcpy((char*)pkt_raw + sizeof(protocol_binary_request_header) + strlen(key),
            val, vlen);
-    return pkt_raw;
+    return req;
 }
 
-static void* create_packet(uint8_t opcode, const char *key, const char *val) {
+static protocol_binary_request_header*
+create_packet(uint8_t opcode, const char *key, const char *val) {
     return create_packet4(opcode, key, val, strlen(val), 0);
 }
 
-static void* create_create_bucket_pkt(const char *user, const char *path,
-                                       const char *args) {
+static protocol_binary_request_header*
+create_create_bucket_pkt(const char *user, const char *path, const char *args) {
     char buf[1024];
     snprintf(buf, sizeof(buf), "%s%c%s", path, 0, args);
     return create_packet4(PROTOCOL_BINARY_CMD_CREATE_BUCKET, user,
                           buf, strlen(path) + strlen(args) + 1, 0);
 }
 
-static void* create_create_bucket_pkt_with_cas(const char *user, const char *path,
-                                               const char *args, uint64_t cas) {
+static protocol_binary_request_header*
+create_create_bucket_pkt_with_cas(const char *user, const char *path,
+                                  const char *args, uint64_t cas) {
     char buf[1024];
     snprintf(buf, sizeof(buf), "%s%c%s", path, 0, args);
     return create_packet4(PROTOCOL_BINARY_CMD_CREATE_BUCKET, user,
@@ -768,10 +775,9 @@ static enum test_result test_create_bucket(ENGINE_HANDLE *h,
                                            ENGINE_HANDLE_V1 *h1) {
     const void *adm_cookie = mk_conn("admin", NULL);
     const void *user_cookie = NULL;
-    const char *key = "somekey";
+    const char key[] = "somekey";
     const char *value = "the value";
     item *itm;
-    void *pkt;
     ENGINE_ERROR_CODE rv;
 
     rv = h1->allocate(h, mk_conn("someuser", NULL), &itm,
@@ -780,7 +786,8 @@ static enum test_result test_create_bucket(ENGINE_HANDLE *h,
                       PROTOCOL_BINARY_RAW_BYTES);
     cb_assert(rv == ENGINE_NO_BUCKET);
 
-    pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
+    protocol_binary_request_header* pkt =
+            create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -802,7 +809,8 @@ static enum test_result test_double_create_bucket(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     const void *adm_cookie = mk_conn("admin", NULL);
     ENGINE_ERROR_CODE rv;
-    void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+            create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -820,11 +828,10 @@ static enum test_result test_double_create_bucket(ENGINE_HANDLE *h,
 static enum test_result test_create_bucket_with_params(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
     const void *adm_cookie = mk_conn("admin", NULL), *other_cookie = mk_conn("someuser", NULL);
-    const char *key = "somekey";
+    const char key[] = "somekey";
     const char *value = "the value";
     item *itm;
     ENGINE_ERROR_CODE rv;
-    void *pkt;
 
     rv = h1->allocate(h, adm_cookie, &itm,
                       key, strlen(key),
@@ -832,7 +839,8 @@ static enum test_result test_create_bucket_with_params(ENGINE_HANDLE *h,
                       PROTOCOL_BINARY_RAW_BYTES);
     cb_assert(rv == ENGINE_NO_BUCKET);
 
-    pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "no_alloc");
+    protocol_binary_request_header* pkt =
+            create_create_bucket_pkt("someuser", ENGINE_PATH, "no_alloc");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -851,10 +859,9 @@ static enum test_result test_create_bucket_with_cas(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
     const void *adm_cookie = mk_conn("admin", NULL);
     const void *user_cookie = NULL;
-    const char *key = "somekey";
+    const char key[] = "somekey";
     const char *value = "the value";
     item *itm;
-    void *pkt;
     ENGINE_ERROR_CODE rv;
 
     rv = h1->allocate(h, mk_conn("someuser", NULL), &itm,
@@ -863,8 +870,9 @@ static enum test_result test_create_bucket_with_cas(ENGINE_HANDLE *h,
                       PROTOCOL_BINARY_RAW_BYTES);
     cb_assert(rv == ENGINE_NO_BUCKET);
 
-    pkt = create_create_bucket_pkt_with_cas("someuser", ENGINE_PATH, "",
-                                            0x0111111111111111);
+    protocol_binary_request_header* pkt =
+            create_create_bucket_pkt_with_cas("someuser", ENGINE_PATH, "",
+                                              0x0111111111111111);
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_KEY_EEXISTS);
@@ -893,7 +901,8 @@ static enum test_result test_admin_user(ENGINE_HANDLE *h,
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
     /* Test with no user. */
-    void *pkt = create_create_bucket_pkt("newbucket", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+            create_create_bucket_pkt("newbucket", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn(NULL, NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_ENOTSUP);
@@ -918,12 +927,13 @@ static enum test_result do_test_delete_bucket(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1,
                                               bool delete_on_same_connection) {
     const void *adm_cookie = mk_conn("admin", NULL);
-    const char *key = "somekey";
+    const char key[] = "somekey";
     const char *value = "the value";
     item *itm;
     ENGINE_ERROR_CODE rv;
     const void *other_cookie;
-    void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+            create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -987,12 +997,12 @@ struct handle_pair {
 };
 
 static void conc_del_bucket_thread(void *arg) {
-    struct handle_pair *hp = arg;
+    struct handle_pair *hp = reinterpret_cast<struct handle_pair*>(arg);
 
     bool have_connection = false;
-    void *cokie = NULL;
+    struct connstruct *cokie = NULL;
     while (true) {
-        static const char *key = "somekey";
+        static const char key[] = "somekey";
         static size_t klen = 7;
         static size_t vlen = 9;
         item *itm;
@@ -1025,7 +1035,7 @@ static enum test_result test_release(ENGINE_HANDLE *h,
                                      ENGINE_HANDLE_V1 *h1) {
     void *cokie = mk_conn("someuser", NULL);
     item *itm;
-    const void *key = "release_me";
+    const char key[] = "release_me";
     const size_t klen = strlen(key);
     const size_t vlen = 81985;
     ENGINE_ERROR_CODE rv = h1->allocate(h, cokie, &itm,
@@ -1067,19 +1077,21 @@ static enum test_result do_test_delete_bucket_concurrent(ENGINE_HANDLE *h,
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     struct handle_pair hp;
     int i;
-    void *other_cookie = mk_conn("someuser", NULL);
+    struct connstruct *other_cookie = mk_conn("someuser", NULL);
     item *itm;
     const char* key = "testkey";
     const char* value = "testvalue";
     cb_thread_t *threads;
 
-    void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+            create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
     cb_assert(last_status == 0);
 
-    peh = genhash_find(bucket_engine->engines, "someuser", strlen("someuser"));
+    peh = reinterpret_cast<proxied_engine_handle_t*>
+        (genhash_find(bucket_engine->engines, "someuser", strlen("someuser")));
     cb_assert(peh);
 
     cb_assert(peh->refcount == 1);
@@ -1091,7 +1103,7 @@ static enum test_result do_test_delete_bucket_concurrent(ENGINE_HANDLE *h,
     if (n_threads < 1) {
         n_threads = 1;
     }
-    threads = calloc(n_threads, sizeof(*threads));
+    threads = reinterpret_cast<cb_thread_t*>(calloc(n_threads, sizeof(*threads)));
     cb_assert(threads != NULL);
     hp.h = h;
     hp.h1 = h1;
@@ -1185,11 +1197,11 @@ static enum test_result test_delete_bucket_shutdown_race(ENGINE_HANDLE *h,
     ENGINE_ERROR_CODE rv;
     const void *cookie1;
     item *item1;
-    const char *key = "somekey";
+    const char key[] = "somekey";
     const char *value1 = "some value1";
-    void *pkt;
 
-    pkt = create_create_bucket_pkt("mybucket", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+            create_create_bucket_pkt("mybucket", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1227,7 +1239,8 @@ static enum test_result test_bucket_name_validation(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
 
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    void *pkt = create_create_bucket_pkt("bucket one", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+        create_create_bucket_pkt("bucket one", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1246,7 +1259,8 @@ static enum test_result test_list_buckets_none(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     /* Go find all the buckets. */
-    void *pkt = create_packet(PROTOCOL_BINARY_CMD_LIST_BUCKETS, "", "");
+    protocol_binary_request_header *pkt =
+        create_packet(PROTOCOL_BINARY_CMD_LIST_BUCKETS, "", "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1264,7 +1278,8 @@ static enum test_result test_list_buckets_one(ENGINE_HANDLE *h,
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
     /* Create a bucket first. */
-    void *pkt = create_create_bucket_pkt("bucket1", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+        create_create_bucket_pkt("bucket1", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1288,7 +1303,8 @@ static enum test_result test_list_buckets_two(ENGINE_HANDLE *h,
     const void *cookie = mk_conn("admin", NULL);
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     /* Create two buckets first. */
-    void *pkt = create_create_bucket_pkt("bucket1", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+        create_create_bucket_pkt("bucket1", ENGINE_PATH, "");
     rv = h1->unknown_command(h, cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1317,7 +1333,8 @@ static enum test_result test_list_buckets_two(ENGINE_HANDLE *h,
 static enum test_result test_unknown_call(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+        create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1334,7 +1351,8 @@ static enum test_result test_unknown_call(ENGINE_HANDLE *h,
 static enum test_result test_select_no_admin(ENGINE_HANDLE *h,
                                              ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+        create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1351,7 +1369,8 @@ static enum test_result test_select_no_admin(ENGINE_HANDLE *h,
 static enum test_result test_select_no_bucket(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    void *pkt = create_packet(PROTOCOL_BINARY_CMD_SELECT_BUCKET, "stuff", "");
+    protocol_binary_request_header *pkt =
+        create_packet(PROTOCOL_BINARY_CMD_SELECT_BUCKET, "stuff", "");
     rv = h1->unknown_command(h, mk_conn("admin", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1364,10 +1383,9 @@ static enum test_result test_select(ENGINE_HANDLE *h,
                                     ENGINE_HANDLE_V1 *h1) {
     item *item1, *fetched_item1 = NULL, *fetched_item2;
     const void *cookie1 = mk_conn("user1", NULL), *admin = mk_conn("admin", NULL);
-    char *key = "somekey";
-    char *value1 = "some value1";
+    const char key[] = "somekey";
+    const char value1[] = "some value1";
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
-    void *pkt;
 
     store(h, h1, cookie1, key, value1, &item1);
     rv = h1->get(h, cookie1, &fetched_item1, key, (int)strlen(key), 0);
@@ -1377,7 +1395,8 @@ static enum test_result test_select(ENGINE_HANDLE *h,
 
     assert_item_eq(h, h1, cookie1, item1, cookie1, fetched_item1);
 
-    pkt = create_packet(PROTOCOL_BINARY_CMD_SELECT_BUCKET, "user1", "");
+    protocol_binary_request_header* pkt =
+        create_packet(PROTOCOL_BINARY_CMD_SELECT_BUCKET, "user1", "");
     rv = h1->unknown_command(h, admin, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1420,7 +1439,8 @@ static enum test_result test_stats_bucket(ENGINE_HANDLE *h,
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     const void *adm_cookie = mk_conn("admin", NULL);
 
-    void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+        create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_SUCCESS);
@@ -1448,7 +1468,8 @@ static enum test_result test_unknown_call_no_bucket(ENGINE_HANDLE *h,
 
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
-    void *pkt = create_packet(0xfe, "somekey", "someval");
+    protocol_binary_request_header *pkt =
+        create_packet(0xfe, "somekey", "someval");
     rv = h1->unknown_command(h, mk_conn("someuser", NULL), pkt, add_response);
     free(pkt);
     cb_assert(rv == ENGINE_NO_BUCKET);
@@ -1460,8 +1481,8 @@ static enum test_result test_auto_config(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
     const void *cookie = mk_conn("someuser", MOCK_CONFIG_NO_ALLOC);
-    char *key = "somekey";
-    char *value = "some value";
+    const char key[] = "somekey";
+    const char value[] = "some value";
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
 
     rv = h1->allocate(h, cookie, &itm,
@@ -1476,7 +1497,7 @@ static enum test_result test_auto_config(ENGINE_HANDLE *h,
 static enum test_result test_get_tap_iterator(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
     /* This is run for its side effect of not crashing. */
-    const void *cookie = mk_conn(NULL, NULL);
+    struct connstruct *cookie = mk_conn(NULL, NULL);
     tap_event_t e;
     TAP_ITERATOR ti = h1->get_tap_iterator(h, cookie,
                                            NULL, 0, 0, NULL, 0);
@@ -1493,7 +1514,7 @@ static enum test_result test_get_tap_iterator(ENGINE_HANDLE *h,
                &flags, &seqno, &vbucket);
     } while (e != TAP_DISCONNECT);
 
-    mock_disconnect((void*)cookie);
+    mock_disconnect(cookie);
 
     return SUCCESS;
 }
@@ -1547,8 +1568,8 @@ static void cleanup_connection_pool(ENGINE_HANDLE *h) {
 
 static void network_io_thread(void *arg) {
     int num_ops = 500000;
-    ENGINE_HANDLE *h = arg;
-    ENGINE_HANDLE_V1 *h1 = arg;
+    ENGINE_HANDLE *h = reinterpret_cast<ENGINE_HANDLE*>(arg);
+    ENGINE_HANDLE_V1 *h1 = reinterpret_cast<ENGINE_HANDLE_V1*>(arg);
     int ii;
     for (ii = 0; ii < num_ops; ++ii) {
         long idx = (rand() & 0xffff) % 1000;
@@ -1632,7 +1653,8 @@ static enum test_result test_topkeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *adm_cookie = mk_conn("admin", NULL);
     int cmd;
     char *val;
-    void *pkt = create_create_bucket_pkt("someuser", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+        create_create_bucket_pkt("someuser", ENGINE_PATH, "");
     rv = h1->unknown_command(h, adm_cookie, pkt, add_response);
     cb_assert(rv == ENGINE_SUCCESS);
     free(pkt);
@@ -1652,7 +1674,7 @@ static enum test_result test_topkeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     rv = h1->get_stats(h, adm_cookie, "topkeys", 7, add_stats);
     cb_assert(rv == ENGINE_SUCCESS);
     cb_assert(genhash_size(stats_hash) == 1);
-    val = genhash_find(stats_hash, "somekey", strlen("somekey"));
+    val = reinterpret_cast<char*>(genhash_find(stats_hash, "somekey", strlen("somekey")));
     cb_assert(val != NULL);
     cb_assert(strstr(val, "get_hits=10") != NULL);
     return SUCCESS;
@@ -1695,11 +1717,11 @@ static void stop_your_engines() {
 
 static int report_test(enum test_result r) {
     int rc = 0;
-    char *msg = NULL;
+    const char *msg = NULL;
     bool color_enabled = getenv("TESTAPP_ENABLE_COLOR") != NULL;
     int color = 0;
     char color_str[8] = { 0 };
-    char *reset_color = "\033[m";
+    const char reset_color[] = "\033[m";
     switch(r) {
     case SUCCESS:
         msg="OK";
@@ -1767,7 +1789,7 @@ static int hash_key_eq(const void *key, size_t nk,
 }
 
 static void* hash_strdup(const void *x, size_t n) {
-    char *rv = calloc(n + 1, sizeof(char));
+    char *rv = reinterpret_cast<char*>(calloc(n + 1, sizeof(char)));
     cb_assert(rv);
     return memcpy(rv, x, n);
 }
@@ -1787,7 +1809,7 @@ static int execute_test(struct test test) {
         stats_hash_ops.freeKey = free;
         stats_hash_ops.freeValue = free;
 
-        last_status = 0xff;
+        last_status = protocol_binary_response_status(0xff);
         stats_hash = genhash_init(25, stats_hash_ops);
 
         /* Start the engines and go */
@@ -1816,7 +1838,7 @@ struct warmer_arg {
 };
 
 static void bench_warmer(void *arg) {
-    struct warmer_arg *wa = arg;
+    struct warmer_arg *wa = reinterpret_cast<struct warmer_arg *>(arg);
     char key[32];
     const void *cookie = mk_conn("bench", NULL);
     int i;
@@ -1834,7 +1856,8 @@ static void runBench(void) {
     cb_assert(h1);
     ENGINE_HANDLE *h = (ENGINE_HANDLE*)h1;
     const void *adm_cookie = mk_conn("admin", NULL);
-    void *pkt = create_create_bucket_pkt("bench", ENGINE_PATH, "");
+    protocol_binary_request_header *pkt =
+            create_create_bucket_pkt("bench", ENGINE_PATH, "");
     ENGINE_ERROR_CODE rv = h1->unknown_command(h, adm_cookie, pkt,
                                                add_response);
 #define NUM_WORKERS 4
@@ -1946,7 +1969,8 @@ int main(int argc, char **argv) {
     cb_mutex_initialize(&session_mutex);
     cb_cond_initialize(&notify_cond);
     init_stderr_logger();
-    putenv("MEMCACHED_TOP_KEYS=10");
+    static char top_keys_env[] = "MEMCACHED_TOP_KEYS=10";
+    putenv(top_keys_env);
     for (maxtests = 0; tests[maxtests].name; maxtests++) {
     }
     if (argc == 2) {

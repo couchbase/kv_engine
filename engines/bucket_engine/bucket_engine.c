@@ -492,7 +492,7 @@ static void bucket_store_engine_specific(const void *cookie, void *engine_data) 
     engine_specific_t *es;
     es = bucket_engine.upstream_server->cookie->get_engine_specific(cookie);
     cb_assert(es);
-    es->engine_specific = engine_data;
+    es->specific = engine_data;
 }
 
 /**
@@ -503,7 +503,7 @@ static void* bucket_get_engine_specific(const void *cookie) {
     engine_specific_t *es;
     es = bucket_engine.upstream_server->cookie->get_engine_specific(cookie);
     cb_assert(es);
-    return es->engine_specific;
+    return es->specific;
 }
 
 /**
@@ -617,10 +617,10 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     cb_mutex_initialize(&bucket_engine.shutdown.mutex);
     cb_cond_initialize(&bucket_engine.shutdown.cond);
     cb_cond_initialize(&bucket_engine.shutdown.refcount_cond);
-    bucket_engine.info.engine_info.description = "Bucket engine v0.2";
-    bucket_engine.info.engine_info.num_features = 1;
-    bucket_engine.info.engine_info.features[0].feature = ENGINE_FEATURE_MULTI_TENANCY;
-    bucket_engine.info.engine_info.features[0].description = "Multi tenancy";
+    bucket_engine.info.eng_info.description = "Bucket engine v0.2";
+    bucket_engine.info.eng_info.num_features = 1;
+    bucket_engine.info.eng_info.features[0].feature = ENGINE_FEATURE_MULTI_TENANCY;
+    bucket_engine.info.eng_info.features[0].description = "Multi tenancy";
 
     *handle = (ENGINE_HANDLE*)&bucket_engine;
     bucket_engine.upstream_server = gsapi();
@@ -1050,7 +1050,7 @@ static struct bucket_engine* get_handle(ENGINE_HANDLE* handle) {
  * Implementation of the the get_info function in the engine interface
  */
 static const engine_info* bucket_get_info(ENGINE_HANDLE* handle) {
-    return &(get_handle(handle)->info.engine_info);
+    return &(get_handle(handle)->info.eng_info);
 }
 
 /***********************************************************
@@ -1155,7 +1155,7 @@ static void handle_disconnect(const void *cookie,
          *
          * Commands to be considered: DELETE_BUCKET
          */
-        if (es->engine_specific != NULL) {
+        if (es->specific != NULL) {
             uint8_t opcode = e->upstream_server->cookie->
                                     get_opcode_if_ewouldblock_set(cookie);
             if (opcode == PROTOCOL_BINARY_CMD_DELETE_BUCKET) {
