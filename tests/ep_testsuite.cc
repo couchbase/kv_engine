@@ -3619,7 +3619,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        uint64_t start, uint64_t end, uint64_t vb_uuid,
                        uint64_t snap_start_seqno, uint64_t snap_end_seqno,
                        int exp_mutations, int exp_deletions, int exp_markers,
-                       int extra_takeover_ops, int exp_nru_value,
+                       int extra_takeover_ops,
                        bool exp_disk_snapshot = false,
                        bool time_sync_enabled = false,
                        uint8_t exp_conflict_res = 0,
@@ -3724,7 +3724,6 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
             switch (dcp_last_op) {
                 case PROTOCOL_BINARY_CMD_DCP_MUTATION:
                     check(last_by_seqno < dcp_last_byseqno, "Expected bigger seqno");
-                    check(dcp_last_nru == exp_nru_value, "Expected different NRU value");
                     last_by_seqno = dcp_last_byseqno;
                     num_mutations++;
                     bytes_read += dcp_last_packet_size;
@@ -3894,7 +3893,7 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     dcp_stream(h, h1, "unittest", cookie, 0, 0, 95, 209, vb_uuid, 95, 95, 105,
-               100, 2, 0, 2);
+               100, 2, 0);
 
     testHarness.destroy_cookie(cookie);
 
@@ -3934,7 +3933,7 @@ static enum test_result test_dcp_producer_stream_req_partial_with_time_sync(
     const void *cookie = testHarness.create_cookie();
 
     dcp_stream(h, h1, "unittest", cookie, 0, 0, 95, 209, vb_uuid, 95, 95, 105,
-               100, 2, 0, 2, false, true, 1);
+               100, 2, 0, false, true, 1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -3965,7 +3964,7 @@ static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     dcp_stream(h, h1, "unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0,
-               num_items, 0, 1, 0, 2);
+               num_items, 0, 1, 0);
 
     testHarness.destroy_cookie(cookie);
 
@@ -3996,7 +3995,7 @@ static enum test_result test_dcp_producer_stream_req_disk(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     dcp_stream(h, h1,"unittest", cookie, 0, 0, 0, 200, vb_uuid, 0, 0, 200, 0, 1,
-               0, 2);
+               0);
 
     testHarness.destroy_cookie(cookie);
 
@@ -4028,7 +4027,7 @@ static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     dcp_stream(h, h1, "unittest", cookie, 0, flags, 0, -1, vb_uuid, 0, 0, 300,
-               0, 1, 0, 2);
+               0, 1, 0);
 
     testHarness.destroy_cookie(cookie);
 
@@ -4058,7 +4057,7 @@ static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     dcp_stream(h, h1, "unittest", cookie, 0, 0, 200, 300, vb_uuid, 200, 200,
-               100, 0, 1, 0, 2);
+               100, 0, 1, 0);
 
     testHarness.destroy_cookie(cookie);
 
@@ -4094,7 +4093,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     dcp_stream(h, h1,"unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0, i, 0, 1,
-               0, 2);
+               0);
 
     testHarness.destroy_cookie(cookie);
 
@@ -4125,7 +4124,7 @@ static enum test_result test_dcp_producer_stream_latest(ENGINE_HANDLE *h,
 
     uint32_t flags = DCP_ADD_STREAM_FLAG_LATEST;
     dcp_stream(h, h1, "unittest", cookie, 0, flags, 200, 205, vb_uuid, 200, 200,
-               100, 0, 1, 0, 2);
+               100, 0, 1, 0);
 
     testHarness.destroy_cookie(cookie);
 
@@ -4184,7 +4183,7 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         snprintf(name, sizeof(name), "unittest_%d", j);
         cookie[j] = testHarness.create_cookie();
         dcp_stream(h, h1, name, cookie[j], 0, 0, 200, 300, vb_uuid, 200, 200,
-                   100, 0, 1, 0, 2, false, false, 0, false, &total_bytes);
+                   100, 0, 1, 0, false, false, 0, false, &total_bytes);
     }
 
     check(get_int_stat(h, h1, "unittest:producer_count", "dcpagg _") == 5,
@@ -4227,7 +4226,7 @@ static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     const void *cookie1 = testHarness.create_cookie();
     dcp_stream(h, h1, "unittest", cookie1, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
-               0, 2, 10, 2);
+               0, 2, 10);
 
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
 
@@ -8970,7 +8969,7 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     dcp_stream(h, h1, "unittest", cookie, 0, 0, 0, high_seqno, vb_uuid, 0, 0,
-               1, 1, 1, 0, 2, false, false, 0, true);
+               1, 1, 1, 0, false, false, 0, true);
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -9003,7 +9002,7 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     /* Create a DCP stream to send 3 items to the replica */
     const void *cookie = testHarness.create_cookie();
     dcp_stream(h, h1, "unittest", cookie, 0, 0, 0, high_seqno, vb_uuid, 0, 0,
-               3, 0, 1, 0, 2, false, false, 0, true);
+               3, 0, 1, 0, false, false, 0, true);
 
     testHarness.destroy_cookie(cookie);
 
