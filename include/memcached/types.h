@@ -103,6 +103,8 @@ extern "C" {
         uint64_t seqno; /** sequence number of the mutation. */
     } mutation_descr_t;
 
+    typedef uint32_t bucket_id_t;
+
 #ifdef __cplusplus
 }
 #endif
