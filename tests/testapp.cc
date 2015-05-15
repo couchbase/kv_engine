@@ -139,42 +139,42 @@ void McdTestappTest::TearDown() {
 
 TEST(StringTest, safe_strtoul) {
     uint32_t val;
-    cb_assert(safe_strtoul("123", &val));
-    cb_assert(val == 123);
-    cb_assert(safe_strtoul("+123", &val));
-    cb_assert(val == 123);
-    cb_assert(!safe_strtoul("", &val));  /* empty */
-    cb_assert(!safe_strtoul("123BOGUS", &val));  /* non-numeric */
+    EXPECT_TRUE(safe_strtoul("123", &val));
+    EXPECT_EQ(123u, val);
+    EXPECT_TRUE(safe_strtoul("+123", &val));
+    EXPECT_EQ(123u, val);
+    EXPECT_FALSE(safe_strtoul("", &val));  /* empty */
+    EXPECT_FALSE(safe_strtoul("123BOGUS", &val));  /* non-numeric */
     /* Not sure what it does, but this works with ICC :/
-       cb_assert(!safe_strtoul("92837498237498237498029383", &val)); // out of range
+       EXPECT_FALSE(safe_strtoul("92837498237498237498029383", &val)); // out of range
     */
 
     /* extremes: */
-    cb_assert(safe_strtoul("4294967295", &val)); /* 2**32 - 1 */
-    cb_assert(val == 4294967295L);
+    EXPECT_TRUE(safe_strtoul("4294967295", &val)); /* 2**32 - 1 */
+    EXPECT_EQ(4294967295L, val);
     /* This actually works on 64-bit ubuntu
-       cb_assert(!safe_strtoul("4294967296", &val)); 2**32
+       EXPECT_FALSE(safe_strtoul("4294967296", &val)); 2**32
     */
-    cb_assert(!safe_strtoul("-1", &val));  /* negative */
+    EXPECT_FALSE(safe_strtoul("-1", &val));  /* negative */
 }
 
 
 TEST(StringTest, safe_strtoull) {
     uint64_t val;
     uint64_t exp = -1;
-    cb_assert(safe_strtoull("123", &val));
-    cb_assert(val == 123);
-    cb_assert(safe_strtoull("+123", &val));
-    cb_assert(val == 123);
-    cb_assert(!safe_strtoull("", &val));  /* empty */
-    cb_assert(!safe_strtoull("123BOGUS", &val));  /* non-numeric */
-    cb_assert(!safe_strtoull("92837498237498237498029383", &val)); /* out of range */
+    EXPECT_TRUE(safe_strtoull("123", &val));
+    EXPECT_EQ(123u, val);
+    EXPECT_TRUE(safe_strtoull("+123", &val));
+    EXPECT_EQ(123u, val);
+    EXPECT_FALSE(safe_strtoull("", &val));  /* empty */
+    EXPECT_FALSE(safe_strtoull("123BOGUS", &val));  /* non-numeric */
+    EXPECT_FALSE(safe_strtoull("92837498237498237498029383", &val)); /* out of range */
 
     /* extremes: */
-    cb_assert(safe_strtoull("18446744073709551615", &val)); /* 2**64 - 1 */
-    cb_assert(val == exp);
-    cb_assert(!safe_strtoull("18446744073709551616", &val)); /* 2**64 */
-    cb_assert(!safe_strtoull("-1", &val));  /* negative */
+    EXPECT_TRUE(safe_strtoull("18446744073709551615", &val)); /* 2**64 - 1 */
+    EXPECT_EQ(exp, val);
+    EXPECT_FALSE(safe_strtoull("18446744073709551616", &val)); /* 2**64 */
+    EXPECT_FALSE(safe_strtoull("-1", &val));  /* negative */
 }
 
 TEST(StringTest, safe_strtoll) {
@@ -182,79 +182,79 @@ TEST(StringTest, safe_strtoll) {
     int64_t exp = 1;
     exp <<= 63;
     exp -= 1;
-    cb_assert(safe_strtoll("123", &val));
-    cb_assert(val == 123);
-    cb_assert(safe_strtoll("+123", &val));
-    cb_assert(val == 123);
-    cb_assert(safe_strtoll("-123", &val));
-    cb_assert(val == -123);
-    cb_assert(!safe_strtoll("", &val));  /* empty */
-    cb_assert(!safe_strtoll("123BOGUS", &val));  /* non-numeric */
-    cb_assert(!safe_strtoll("92837498237498237498029383", &val)); /* out of range */
+    EXPECT_TRUE(safe_strtoll("123", &val));
+    EXPECT_EQ(123, val);
+    EXPECT_TRUE(safe_strtoll("+123", &val));
+    EXPECT_EQ(123, val);
+    EXPECT_TRUE(safe_strtoll("-123", &val));
+    EXPECT_EQ(-123, val);
+    EXPECT_FALSE(safe_strtoll("", &val));  /* empty */
+    EXPECT_FALSE(safe_strtoll("123BOGUS", &val));  /* non-numeric */
+    EXPECT_FALSE(safe_strtoll("92837498237498237498029383", &val)); /* out of range */
 
     /* extremes: */
-    cb_assert(!safe_strtoll("18446744073709551615", &val)); /* 2**64 - 1 */
-    cb_assert(safe_strtoll("9223372036854775807", &val)); /* 2**63 - 1 */
+    EXPECT_FALSE(safe_strtoll("18446744073709551615", &val)); /* 2**64 - 1 */
+    EXPECT_TRUE(safe_strtoll("9223372036854775807", &val)); /* 2**63 - 1 */
 
-    cb_assert(val == exp); /* 9223372036854775807LL); */
+    EXPECT_EQ(exp, val); /* 9223372036854775807LL); */
     /*
-      cb_assert(safe_strtoll("-9223372036854775808", &val)); // -2**63
-      cb_assert(val == -9223372036854775808LL);
+      EXPECT_EQ(safe_strtoll("-9223372036854775808", &val)); // -2**63
+      EXPECT_EQ(val, -9223372036854775808LL);
     */
-    cb_assert(!safe_strtoll("-9223372036854775809", &val)); /* -2**63 - 1 */
+    EXPECT_FALSE(safe_strtoll("-9223372036854775809", &val)); /* -2**63 - 1 */
 
     /* We'll allow space to terminate the string.  And leading space. */
-    cb_assert(safe_strtoll(" 123 foo", &val));
-    cb_assert(val == 123);
+    EXPECT_TRUE(safe_strtoll(" 123 foo", &val));
+    EXPECT_EQ(123, val);
 }
 
 TEST(StringTest, safe_strtol) {
     int32_t val;
-    cb_assert(safe_strtol("123", &val));
-    cb_assert(val == 123);
-    cb_assert(safe_strtol("+123", &val));
-    cb_assert(val == 123);
-    cb_assert(safe_strtol("-123", &val));
-    cb_assert(val == -123);
-    cb_assert(!safe_strtol("", &val));  /* empty */
-    cb_assert(!safe_strtol("123BOGUS", &val));  /* non-numeric */
-    cb_assert(!safe_strtol("92837498237498237498029383", &val)); /* out of range */
+    EXPECT_TRUE(safe_strtol("123", &val));
+    EXPECT_EQ(123, val);
+    EXPECT_TRUE(safe_strtol("+123", &val));
+    EXPECT_EQ(123, val);
+    EXPECT_TRUE(safe_strtol("-123", &val));
+    EXPECT_EQ(-123, val);
+    EXPECT_FALSE(safe_strtol("", &val));  /* empty */
+    EXPECT_FALSE(safe_strtol("123BOGUS", &val));  /* non-numeric */
+    EXPECT_FALSE(safe_strtol("92837498237498237498029383", &val)); /* out of range */
 
     /* extremes: */
     /* This actually works on 64-bit ubuntu
-       cb_assert(!safe_strtol("2147483648", &val)); // (expt 2.0 31.0)
+       EXPECT_FALSE(safe_strtol("2147483648", &val)); // (expt 2.0 31.0)
     */
-    cb_assert(safe_strtol("2147483647", &val)); /* (- (expt 2.0 31) 1) */
-    cb_assert(val == 2147483647L);
+    EXPECT_TRUE(safe_strtol("2147483647", &val)); /* (- (expt 2.0 31) 1) */
+    EXPECT_EQ(2147483647L, val);
     /* This actually works on 64-bit ubuntu
-       cb_assert(!safe_strtol("-2147483649", &val)); // (- (expt -2.0 31) 1)
+       EXPECT_FALSE(safe_strtol("-2147483649", &val)); // (- (expt -2.0 31) 1)
     */
 
     /* We'll allow space to terminate the string.  And leading space. */
-    cb_assert(safe_strtol(" 123 foo", &val));
-    cb_assert(val == 123);
+    EXPECT_TRUE(safe_strtol(" 123 foo", &val));
+    EXPECT_EQ(123, val);
 }
 
 TEST(StringTest, safe_strtof) {
     float val;
-    cb_assert(safe_strtof("123", &val));
-    cb_assert(val == 123.00f);
-    cb_assert(safe_strtof("+123", &val));
-    cb_assert(val == 123.00f);
-    cb_assert(safe_strtof("-123", &val));
-    cb_assert(val == -123.00f);
-    cb_assert(!safe_strtof("", &val));  /* empty */
-    cb_assert(!safe_strtof("123BOGUS", &val));  /* non-numeric */
+    EXPECT_TRUE(safe_strtof("123", &val));
+    EXPECT_EQ(123.00f, val);
+    EXPECT_TRUE(safe_strtof("+123", &val));
+    EXPECT_EQ(123.00f, val);
+    EXPECT_TRUE(safe_strtof("-123", &val));
+    EXPECT_EQ(-123.00f, val);
+    EXPECT_FALSE(safe_strtof("", &val));  /* empty */
+    EXPECT_FALSE(safe_strtof("123BOGUS", &val));  /* non-numeric */
 
     /* We'll allow space to terminate the string.  And leading space. */
-    cb_assert(safe_strtof(" 123 foo", &val));
-    cb_assert(val == 123.00f);
+    EXPECT_TRUE(safe_strtof(" 123 foo", &val));
+    EXPECT_EQ(123.00f, val);
 
-    cb_assert(safe_strtof("123.23", &val));
-    cb_assert(val == 123.23f);
+    EXPECT_TRUE(safe_strtof("123.23", &val));
+    EXPECT_EQ(123.23f, val);
 
-    cb_assert(safe_strtof("123.00", &val));
-    cb_assert(val == 123.00f);
+    EXPECT_TRUE(safe_strtof("123.00", &val));
+    EXPECT_EQ(123.00f, val);
 }
 
 #ifdef WIN32
@@ -673,6 +673,7 @@ static void destroy_ssl_socket() {
 
 static void connect_to_server_plain(in_port_t port, bool nonblocking) {
     sock = create_connect_plain_socket("127.0.0.1", port, nonblocking);
+    ASSERT_NE(INVALID_SOCKET, sock);
 
     if (nonblocking) {
         if (evutil_make_socket_nonblocking(sock) == -1) {
@@ -684,6 +685,7 @@ static void connect_to_server_plain(in_port_t port, bool nonblocking) {
 
 static void connect_to_server_ssl(in_port_t ssl_port, bool nonblocking) {
     sock_ssl = create_connect_ssl_socket("127.0.0.1", ssl_port, nonblocking);
+    ASSERT_NE(INVALID_SOCKET, sock);
 
     if (nonblocking) {
         if (evutil_make_socket_nonblocking(sock_ssl) == -1) {
@@ -724,25 +726,25 @@ TEST(VperrorTest, A) {
     strncpy(tmpl, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
 
     newfile = mkstemp(tmpl);
-    cb_assert(newfile > 0);
+    ASSERT_GT(newfile, 0);
     rv = dup2(newfile, STDERR_FILENO);
-    cb_assert(rv == STDERR_FILENO);
+    ASSERT_EQ(STDERR_FILENO, rv);
     rv = close(newfile);
-    cb_assert(rv == 0);
+    ASSERT_EQ(0, rv);
 
     errno = EIO;
     vperror("Old McDonald had a farm.  %s", "EI EIO");
 
     /* Restore stderr */
     rv = dup2(oldstderr, STDERR_FILENO);
-    cb_assert(rv == STDERR_FILENO);
+    ASSERT_EQ(STDERR_FILENO, rv);
 
 
     /* Go read the file */
     efile = fopen(tmpl, "r");
-    cb_assert(efile);
+    ASSERT_TRUE(efile);
     prv = fgets(buf, sizeof(buf), efile);
-    cb_assert(prv);
+    EXPECT_TRUE(prv);
     fclose(efile);
 
     unlink(tmpl);
@@ -826,38 +828,38 @@ TEST(ConfigParserTest, A) {
     items[ii].key = NULL;
     ++ii;
 
-    cb_assert(ii == 7);
+    ASSERT_EQ(7, ii);
     strncpy(outfile, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
     strncpy(cfgfile, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
 
-    assert(cb_mktemp(outfile) != NULL);
+    ASSERT_NE(cb_mktemp(outfile), nullptr);
     error = fopen(outfile, "w");
 
-    cb_assert(error != NULL);
-    cb_assert(parse_config("", items, error) == 0);
+    ASSERT_NE(error, nullptr);
+    ASSERT_EQ(0, parse_config("", items, error));
     /* Nothing should be found */
     for (ii = 0; ii < 5; ++ii) {
-        cb_assert(!items[0].found);
+        EXPECT_FALSE(items[0].found);
     }
 
-    cb_assert(parse_config("bool=true", items, error) == 0);
-    cb_assert(bool_val);
+    ASSERT_EQ(0, parse_config("bool=true", items, error));
+    EXPECT_TRUE(bool_val);
     /* only bool should be found */
-    cb_assert(items[0].found);
+    EXPECT_TRUE(items[0].found);
     items[0].found = false;
     for (ii = 0; ii < 5; ++ii) {
-        cb_assert(!items[0].found);
+        EXPECT_FALSE(items[0].found);
     }
 
     /* It should allow illegal keywords */
-    cb_assert(parse_config("pacman=dead", items, error) == 1);
+    ASSERT_EQ(1, parse_config("pacman=dead", items, error));
     /* and illegal values */
-    cb_assert(parse_config("bool=12", items, error) == -1);
-    cb_assert(!items[0].found);
+    ASSERT_EQ(-1, parse_config("bool=12", items, error));
+    EXPECT_FALSE(items[0].found);
     /* and multiple occurences of the same value */
-    cb_assert(parse_config("size_t=1; size_t=1024", items, error) == 0);
-    cb_assert(items[1].found);
-    cb_assert(size_val == 1024);
+    ASSERT_EQ(0, parse_config("size_t=1; size_t=1024", items, error));
+    EXPECT_TRUE(items[1].found);
+    EXPECT_EQ(1024u, size_val);
     items[1].found = false;
 
     /* Empty string */
@@ -868,111 +870,111 @@ TEST(ConfigParserTest, A) {
     items[4].found = false;
     */
     /* Plain string */
-    cb_assert(parse_config("string=sval", items, error) == 0);
-    cb_assert(items[4].found);
-    cb_assert(strcmp(string_val, "sval") == 0);
+    ASSERT_EQ(0, parse_config("string=sval", items, error));
+    EXPECT_TRUE(items[4].found);
+    EXPECT_STREQ("sval", string_val);
     items[4].found = false;
     free(string_val);
     /* Leading space */
-    cb_assert(parse_config("string= sval", items, error) == 0);
-    cb_assert(items[4].found);
-    cb_assert(strcmp(string_val, "sval") == 0);
+    ASSERT_EQ(0, parse_config("string= sval", items, error));
+    EXPECT_TRUE(items[4].found);
+    EXPECT_STREQ("sval", string_val);
     items[4].found = false;
     free(string_val);
     /* Escaped leading space */
-    cb_assert(parse_config("string=\\ sval", items, error) == 0);
-    cb_assert(items[4].found);
-    cb_assert(strcmp(string_val, " sval") == 0);
+    ASSERT_EQ(0, parse_config("string=\\ sval", items, error));
+    EXPECT_TRUE(items[4].found);
+    EXPECT_STREQ(" sval", string_val);
     items[4].found = false;
     free(string_val);
     /* trailing space */
-    cb_assert(parse_config("string=sval ", items, error) == 0);
-    cb_assert(items[4].found);
-    cb_assert(strcmp(string_val, "sval") == 0);
+    ASSERT_EQ(0, parse_config("string=sval ", items, error));
+    EXPECT_TRUE(items[4].found);
+    EXPECT_STREQ("sval", string_val);
     items[4].found = false;
     free(string_val);
     /* escaped trailing space */
-    cb_assert(parse_config("string=sval\\ ", items, error) == 0);
-    cb_assert(items[4].found);
-    cb_assert(strcmp(string_val, "sval ") == 0);
+    ASSERT_EQ(0, parse_config("string=sval\\ ", items, error));
+    EXPECT_TRUE(items[4].found);
+    EXPECT_STREQ("sval ", string_val);
     items[4].found = false;
     free(string_val);
     /* escaped stop char */
-    cb_assert(parse_config("string=sval\\;blah=x", items, error) == 0);
-    cb_assert(items[4].found);
-    cb_assert(strcmp(string_val, "sval;blah=x") == 0);
+    ASSERT_EQ(0, parse_config("string=sval\\;blah=x", items, error));
+    EXPECT_TRUE(items[4].found);
+    EXPECT_STREQ("sval;blah=x", string_val);
     items[4].found = false;
     free(string_val);
     /* middle space */
-    cb_assert(parse_config("string=s val", items, error) == 0);
-    cb_assert(items[4].found);
-    cb_assert(strcmp(string_val, "s val") == 0);
+    ASSERT_EQ(0, parse_config("string=s val", items, error));
+    EXPECT_TRUE(items[4].found);
+    EXPECT_STREQ("s val", string_val);
     items[4].found = false;
     free(string_val);
 
     /* And all of the variables */
-    cb_assert(parse_config("bool=true;size_t=1024;float=12.5;string=somestr",
-                        items, error) == 0);
-    cb_assert(bool_val);
-    cb_assert(size_val == 1024);
-    cb_assert(float_val == 12.5f);
-    cb_assert(strcmp(string_val, "somestr") == 0);
+    ASSERT_EQ(0, parse_config("bool=true;size_t=1024;float=12.5;string=somestr",
+                              items, error));
+    EXPECT_TRUE(bool_val);
+    EXPECT_EQ(1024u, size_val);
+    EXPECT_EQ(12.5f, float_val);
+    EXPECT_STREQ("somestr", string_val);
     free(string_val);
     for (ii = 0; ii < 5; ++ii) {
         items[ii].found = false;
     }
 
-    cb_assert(parse_config("size_t=1k", items, error) == 0);
-    cb_assert(items[1].found);
-    cb_assert(size_val == 1024);
+    ASSERT_EQ(0, parse_config("size_t=1k", items, error));
+    EXPECT_TRUE(items[1].found);
+    EXPECT_EQ(1024u, size_val);
     items[1].found = false;
-    cb_assert(parse_config("size_t=1m", items, error) == 0);
-    cb_assert(items[1].found);
-    cb_assert(size_val == 1024*1024);
+    ASSERT_EQ(0, parse_config("size_t=1m", items, error));
+    EXPECT_TRUE(items[1].found);
+    EXPECT_EQ(1024u * 1024u, size_val);
     items[1].found = false;
-    cb_assert(parse_config("size_t=1g", items, error) == 0);
-    cb_assert(items[1].found);
-    cb_assert(size_val == 1024*1024*1024);
+    ASSERT_EQ(0, parse_config("size_t=1g", items, error));
+    EXPECT_TRUE(items[1].found);
+    EXPECT_EQ(1024u * 1024u * 1024u ,size_val);
     items[1].found = false;
-    cb_assert(parse_config("size_t=1K", items, error) == 0);
-    cb_assert(items[1].found);
-    cb_assert(size_val == 1024);
+    ASSERT_EQ(0, parse_config("size_t=1K", items, error));
+    EXPECT_TRUE(items[1].found);
+    EXPECT_EQ(1024u, size_val);
     items[1].found = false;
-    cb_assert(parse_config("size_t=1M", items, error) == 0);
-    cb_assert(items[1].found);
-    cb_assert(size_val == 1024*1024);
+    ASSERT_EQ(0, parse_config("size_t=1M", items, error));
+    EXPECT_TRUE(items[1].found);
+    EXPECT_EQ(1024u * 1024u, size_val);
     items[1].found = false;
-    cb_assert(parse_config("size_t=1G", items, error) == 0);
-    cb_assert(items[1].found);
-    cb_assert(size_val == 1024*1024*1024);
+    ASSERT_EQ(0, parse_config("size_t=1G", items, error));
+    EXPECT_TRUE(items[1].found);
+    EXPECT_EQ(1024u * 1024u * 1024u, size_val);
     items[1].found = false;
 
-    cb_assert(cb_mktemp(cfgfile) != NULL);
+    ASSERT_NE(cb_mktemp(cfgfile), nullptr);
     cfg = fopen(cfgfile, "w");
-    cb_assert(cfg != NULL);
+    ASSERT_NE(cfg, nullptr);
     fprintf(cfg, "# This is a config file\nbool=true\nsize_t=1023\nfloat=12.4\n");
     fclose(cfg);
     sprintf(buffer, "config_file=%s", cfgfile);
-    cb_assert(parse_config(buffer, items, error) == 0);
-    cb_assert(bool_val);
-    cb_assert(size_val == 1023);
-    cb_assert(float_val == 12.4f);
+    ASSERT_EQ(0, parse_config(buffer, items, error));
+    EXPECT_TRUE(bool_val);
+    EXPECT_EQ(1023u, size_val);
+    EXPECT_EQ(12.4f, float_val);
     fclose(error);
 
     remove(cfgfile);
     /* Verify that I received the error messages ;-) */
     error = fopen(outfile, "r");
-    cb_assert(error);
+    ASSERT_TRUE(error);
 
-    cb_assert(fgets(buffer, sizeof(buffer), error));
-    cb_assert(strcmp("Unsupported key: <pacman>", trim(buffer)) == 0);
-    cb_assert(fgets(buffer, sizeof(buffer), error));
-    cb_assert(strcmp("Invalid entry, Key: <bool> Value: <12>", trim(buffer)) == 0);
-    cb_assert(fgets(buffer, sizeof(buffer), error));
-    cb_assert(strcmp("WARNING: Found duplicate entry for \"size_t\"", trim(buffer)) == 0);
-    cb_assert(fgets(buffer, sizeof(buffer), error) == NULL);
+    EXPECT_TRUE(fgets(buffer, sizeof(buffer), error));
+    EXPECT_STREQ("Unsupported key: <pacman>", trim(buffer));
+    EXPECT_TRUE(fgets(buffer, sizeof(buffer), error));
+    EXPECT_STREQ("Invalid entry, Key: <bool> Value: <12>", trim(buffer));
+    EXPECT_TRUE(fgets(buffer, sizeof(buffer), error));
+    EXPECT_STREQ("WARNING: Found duplicate entry for \"size_t\"", trim(buffer));
+    EXPECT_EQ(nullptr, fgets(buffer, sizeof(buffer), error));
 
-    cb_assert(fclose(error) == 0);
+    EXPECT_EQ(0, fclose(error));
     remove(outfile);
 }
 
@@ -1063,7 +1065,7 @@ static ssize_t phase_send(const void *buf, size_t len) {
 #endif
 
         if (send_rv > 0) {
-            cb_assert(send_len == send_rv);
+            EXPECT_EQ(send_len, send_rv);
             (void)BIO_reset(ssl_bio_w);
         } else {
             /* flag failure to user */
@@ -1258,7 +1260,7 @@ off_t raw_command(char* buf,
     off_t key_offset;
     protocol_binary_request_no_extras *request =
         reinterpret_cast<protocol_binary_request_no_extras*>(buf);
-    cb_assert(bufsz >= sizeof(*request) + keylen + dtalen);
+    EXPECT_GE(bufsz, (sizeof(*request) + keylen + dtalen));
 
     memset(request, 0, sizeof(*request));
     if (cmd == read_command || cmd == write_command) {
@@ -1482,17 +1484,17 @@ static void validate_arithmetic(const protocol_binary_response_incr* incr,
             + sizeof(incr->message.header)
             + incr->message.header.response.extlen;
     const uint64_t result = ntohll(*(uint64_t*)ptr);
-    cb_assert(result == expected);
+    EXPECT_EQ(expected, result);
 
     /* Check for extras - if present should be {vbucket_uuid, seqno) pair for
      * mutation seqno support. */
     if (incr->message.header.response.extlen != 0) {
-        cb_assert(incr->message.header.response.extlen == 16);
+        EXPECT_EQ(16, incr->message.header.response.extlen);
     }
 }
 
 // Note: retained as a seperate function as other tests call this.
-static enum test_return test_noop(void) {
+void test_noop(void) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1507,15 +1509,13 @@ static enum test_return test_noop(void) {
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_NOOP,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, Noop) {
     test_noop();
 }
 
-static enum test_return test_quit_impl(uint8_t cmd) {
+void test_quit_impl(uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1532,11 +1532,9 @@ static enum test_return test_quit_impl(uint8_t cmd) {
     }
 
     /* Socket should be closed now, read should return 0 */
-    cb_assert(phase_recv(buffer.bytes, sizeof(buffer.bytes)) == 0);
+    EXPECT_EQ(0, phase_recv(buffer.bytes, sizeof(buffer.bytes)));
 
     reconnect_to_server(false);
-
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, Quit) {
@@ -1547,7 +1545,7 @@ TEST_P(McdTestappTest, QuitQ) {
     test_quit_impl(PROTOCOL_BINARY_CMD_QUITQ);
 }
 
-static enum test_return test_set_impl(const char *key, uint8_t cmd) {
+void test_set_impl(const char *key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -1579,12 +1577,11 @@ static enum test_return test_set_impl(const char *key, uint8_t cmd) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         validate_response_header(&receive.response, cmd,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        cb_assert(receive.response.message.header.response.cas != send.request.message.header.request.cas);
+        EXPECT_NE(receive.response.message.header.response.cas,
+                  send.request.message.header.request.cas);
     } else {
         return test_noop();
     }
-
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, Set) {
@@ -2209,18 +2206,19 @@ void test_concat_impl(const char *key, uint8_t cmd) {
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GETK,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    cb_assert(receive.response.message.header.response.keylen == strlen(key));
-    cb_assert(receive.response.message.header.response.bodylen == (strlen(key) + 2*strlen(value) + 4));
+    EXPECT_EQ(strlen(key), receive.response.message.header.response.keylen);
+    EXPECT_EQ((strlen(key) + 2*strlen(value) + 4),
+              receive.response.message.header.response.bodylen);
 
     ptr = receive.bytes;
     ptr += sizeof(receive.response);
     ptr += 4;
 
-    cb_assert(memcmp(ptr, key, strlen(key)) == 0);
+    EXPECT_EQ(0, memcmp(ptr, key, strlen(key)));
     ptr += strlen(key);
-    cb_assert(memcmp(ptr, value, strlen(value)) == 0);
+    EXPECT_EQ(0, memcmp(ptr, value, strlen(value)));
     ptr += strlen(value);
-    cb_assert(memcmp(ptr, value, strlen(value)) == 0);
+    EXPECT_EQ(0, memcmp(ptr, value, strlen(value)));
 
     // Cleanup
     delete_object(key);
@@ -2582,7 +2580,7 @@ TEST_P(McdTestappTest, IOCTL_TCMallocAggrDecommit) {
     validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_IOCTL_GET,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    cb_assert(buffer.response.message.header.response.bodylen > 0);
+    EXPECT_GT(buffer.response.message.header.response.bodylen, 0);
     value = atoi(buffer.bytes + sizeof(buffer.response));
     cb_assert(value == 0 || value == 1);
 
@@ -2943,7 +2941,7 @@ TEST_P(McdTestappTest, Verbosity) {
     }
 }
 
-enum test_return validate_object(const char *key, const char *value) {
+void validate_object(const char *key, const char *value) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2957,14 +2955,13 @@ enum test_return validate_object(const char *key, const char *value) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    cb_assert(receive.response.message.header.response.bodylen - 4 == strlen(value));
+    ASSERT_EQ(strlen(value),
+              receive.response.message.header.response.bodylen - 4);
     ptr = receive.bytes + sizeof(receive.response) + 4;
-    cb_assert(memcmp(value, ptr, strlen(value)) == 0);
-
-    return TEST_PASS;
+    EXPECT_EQ(0, memcmp(value, ptr, strlen(value)));
 }
 
-enum test_return store_object(const char *key, const char *value) {
+void store_object(const char *key, const char *value) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2981,10 +2978,9 @@ enum test_return store_object(const char *key, const char *value) {
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     validate_object(key, value);
-    return TEST_PASS;
 }
 
-enum test_return delete_object(const char* key) {
+void delete_object(const char* key) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2997,7 +2993,6 @@ enum test_return delete_object(const char* key) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_DELETE,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    return TEST_PASS;
 }
 
 TEST_P(McdTestappTest, Hello) {
@@ -3028,13 +3023,13 @@ TEST_P(McdTestappTest, Hello) {
                              PROTOCOL_BINARY_CMD_HELLO,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    cb_assert(buffer.response.message.header.response.bodylen == 6);
+    EXPECT_EQ(6u, buffer.response.message.header.response.bodylen);
     ptr = (uint16_t*)(buffer.bytes + sizeof(buffer.response));
-    cb_assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_DATATYPE);
+    EXPECT_EQ(PROTOCOL_BINARY_FEATURE_DATATYPE, ntohs(*ptr));
     ptr++;
-    cb_assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_TCPNODELAY);
+    EXPECT_EQ(PROTOCOL_BINARY_FEATURE_TCPNODELAY, ntohs(*ptr));
     ptr++;
-    cb_assert(ntohs(*ptr) == PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO);
+    EXPECT_EQ(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO, ntohs(*ptr));
 
     features[0] = 0xffff;
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
@@ -3047,7 +3042,7 @@ TEST_P(McdTestappTest, Hello) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_HELLO,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    cb_assert(buffer.response.message.header.response.bodylen == 0);
+    EXPECT_EQ(0u, buffer.response.message.header.response.bodylen);
 
     len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                              PROTOCOL_BINARY_CMD_HELLO,
@@ -3090,11 +3085,12 @@ static void set_feature(const protocol_binary_hello_features feature,
     safe_recv(&buffer.response, sizeof(buffer.response));
     len = ntohl(buffer.response.message.header.response.bodylen);
     if (enable) {
-        cb_assert(len == 2);
+        EXPECT_EQ(2u, len);
         safe_recv(&wire_feature, sizeof(wire_feature));
-        cb_assert(wire_feature == htons(feature));
+        wire_feature = ntohs(wire_feature);
+        EXPECT_EQ(feature, wire_feature);
     } else {
-        cb_assert(len == 0);
+        EXPECT_EQ(0u, len);
     }
 }
 
@@ -3302,7 +3298,7 @@ TEST_P(McdTestappTest, DatatypeInvalid) {
     safe_recv_packet(res.buffer, sizeof(res.buffer));
 
     code = res.response.message.header.response.status;
-    cb_assert(code == PROTOCOL_BINARY_RESPONSE_EINVAL);
+    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, code);
 
     reconnect_to_server(false);
 
@@ -3311,7 +3307,7 @@ TEST_P(McdTestappTest, DatatypeInvalid) {
     safe_send(&request.bytes, sizeof(request.bytes), false);
     safe_recv_packet(res.buffer, sizeof(res.buffer));
     code = res.response.message.header.response.status;
-    cb_assert(code == PROTOCOL_BINARY_RESPONSE_EINVAL);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, code);
 
     reconnect_to_server(false);
 }

@@ -79,21 +79,29 @@ struct SubdocCmd {
     uint64_t cas;
 };
 
+std::ostream& operator<<(std::ostream& os, const SubdocCmd& obj)
+{
+    os << "[cmd:" << memcached_opcode_2_text(obj.cmd)
+       << " key:" << obj.key << " path:" << obj.path << " value:" << obj.value
+       << " flags:" << obj.flags << " cas:" << obj.cas << "]";
+    return os;
+}
+
 /* Encode the specified subdoc command into `buf`.
  *
- * @return the size of the encoded data.
+ * @param lengrh The size of the encoded data
  */
-static off_t encode_subdoc_command(char* buf, size_t bufsz,
-                                   const SubdocCmd& cmd) {
+void encode_subdoc_command(char* buf, size_t bufsz, const SubdocCmd& cmd,
+                           ssize_t& length) {
     protocol_binary_request_subdocument* request = (protocol_binary_request_subdocument*)buf;
-    cb_assert(bufsz >= (sizeof(*request) + cmd.key.size() + cmd.path.size()
-                        + cmd.value.size()));
+    ASSERT_GE(bufsz,
+              (sizeof(*request) + cmd.key.size() + cmd.path.size() + cmd.value.size()));
 
     // Always need a key.
-    cb_assert(cmd.key.empty() == false);
+    ASSERT_FALSE(cmd.key.empty());
 
     // path is encoded in extras as a uint16_t.
-    cb_assert(cmd.path.size() < std::numeric_limits<uint16_t>::max());
+    ASSERT_LT(cmd.path.size(), std::numeric_limits<uint16_t>::max());
 
     memset(request, 0, sizeof(*request));
 
@@ -127,7 +135,7 @@ static off_t encode_subdoc_command(char* buf, size_t bufsz,
     }
 
     const off_t encoded_bytes = value_offset + cmd.value.size();
-    return encoded_bytes;
+    length = encoded_bytes;
 }
 
 /* Encodes and sends a sub-document command with the given parameters, receives
@@ -148,8 +156,13 @@ static uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
         char bytes[1024];
     } receive;
 
-    size_t len = encode_subdoc_command(send.bytes, sizeof(send.bytes),
-                                       cmd);
+    ssize_t len = -1;
+    encode_subdoc_command(send.bytes, sizeof(send.bytes), cmd, len);
+    if (len == -1) {
+        ADD_FAILURE() << "Failed to encode subdoc command " << cmd;
+        return 0;
+    }
+
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
 
@@ -233,8 +246,8 @@ TEST_P(McdTestappTest, SubdocExists_BinaryCompressed) {
 // retrieve from a JSON document consisting of a toplevel array.
 void test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd) {
 
-    cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
-              (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
+    ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
+                (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 
     const char array[] = "[ 0, \"one\", 2.0 ]";
     store_object("array", array, /*JSON*/true, compressed);
@@ -304,8 +317,8 @@ TEST_P(McdTestappTest, SubdocExists_ArraySimpleCompressed) {
 void test_subdoc_fetch_dict_simple(bool compressed,
                                    protocol_binary_command cmd) {
 
-    cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
-              (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
+    ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
+                (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 
     const char dict[] = "{ \"int\": 1,"
                         "  \"string\": \"two\","
@@ -360,8 +373,8 @@ TEST_P(McdTestappTest, SubdocExists_DictSimpleCompressed) {
 void test_subdoc_fetch_dict_nested(bool compressed,
                                    protocol_binary_command cmd) {
 
-    cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
-              (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
+    ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
+                (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
 
     // Getting a bit complex to do raw (with all the quote escaping so use
     // cJSON API.
@@ -457,7 +470,8 @@ void test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
     // path we ask for is no longer than MAX_SUBDOC_PATH_COMPONENTS.
     unique_cJSON_ptr max_dict(make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS));
     char* max_dict_str = cJSON_PrintUnformatted(max_dict.get());
-    cb_assert(store_object("max_dict", max_dict_str) == TEST_PASS);
+    store_object("max_dict", max_dict_str);
+
     cJSON_Free(max_dict_str);
 
     std::string valid_max_path(std::to_string(1));
@@ -472,7 +486,7 @@ void test_subdoc_fetch_dict_deep(protocol_binary_command cmd) {
     // b). Accessing a deeper document should fail.
     unique_cJSON_ptr too_deep_dict(make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS + 1));
     char* too_deep_dict_str = cJSON_PrintUnformatted(too_deep_dict.get());
-    cb_assert(store_object("too_deep_dict", too_deep_dict_str) == TEST_PASS);
+    store_object("too_deep_dict", too_deep_dict_str);
     cJSON_Free(too_deep_dict_str);
 
     std::string too_long_path(std::to_string(1));
@@ -522,7 +536,7 @@ void test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
 
     unique_cJSON_ptr max_array(make_nested_array(MAX_SUBDOC_PATH_COMPONENTS));
     char* max_array_str = cJSON_PrintUnformatted(max_array.get());
-    cb_assert(store_object("max_array", max_array_str) == TEST_PASS);
+    store_object("max_array", max_array_str);
     cJSON_Free(max_array_str);
 
     std::string valid_max_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS));
@@ -534,7 +548,7 @@ void test_subdoc_fetch_array_deep(protocol_binary_command cmd) {
     // b). Accessing a deeper array should fail.
     unique_cJSON_ptr too_deep_array(make_nested_array(MAX_SUBDOC_PATH_COMPONENTS + 1));
     char* too_deep_array_str = cJSON_PrintUnformatted(too_deep_array.get());
-    cb_assert(store_object("too_deep_array", too_deep_array_str) == TEST_PASS);
+    store_object("too_deep_array", too_deep_array_str);
     cJSON_Free(too_deep_array_str);
 
     std::string too_long_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS + 1));
@@ -558,8 +572,8 @@ TEST_P(McdTestappTest, SubdocExists_ArrayDeep) {
  *            - PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT
  */
 void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
-    cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
-              (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
+    ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
+                (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
 
     const std::vector<std::pair<std::string, std::string>> key_vals({
             {"int", "2"},
@@ -721,15 +735,15 @@ TEST_P(McdTestappTest, SubdocDictUpsert_SimpleCompressed) {
 
 void test_subdoc_dict_add_upsert_deep(protocol_binary_command cmd) {
 
-    cb_assert((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
-              (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
+    ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
+                (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
 
     // a). Check that we can add elements to a document at the maximum nested
     // level.
     unique_cJSON_ptr one_less_max_dict(
             make_nested_dict(MAX_SUBDOC_PATH_COMPONENTS - 1));
     char* one_less_max_dict_str = cJSON_PrintUnformatted(one_less_max_dict.get());
-    cb_assert(store_object("dict", one_less_max_dict_str) == TEST_PASS);
+    store_object("dict", one_less_max_dict_str);
     cJSON_Free(one_less_max_dict_str);
 
     std::string one_less_max_path(std::to_string(1));
@@ -974,7 +988,7 @@ TEST_P(McdTestappTest, SubdocReplace_ArrayDeep)
     // Create an array at one less than the maximum depth and an associated path.
     unique_cJSON_ptr one_less_max(make_nested_array(MAX_SUBDOC_PATH_COMPONENTS));
     char* one_less_max_str = cJSON_PrintUnformatted(one_less_max.get());
-    cb_assert(store_object("a", one_less_max_str) == TEST_PASS);
+    store_object("a", one_less_max_str);
     cJSON_Free(one_less_max_str);
 
     std::string valid_max_path(make_nested_array_path(MAX_SUBDOC_PATH_COMPONENTS));
