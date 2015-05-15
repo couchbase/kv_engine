@@ -6062,7 +6062,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(const
         RCPtr<VBucket> vb = getVBucket(id);
         if (vb) {
             auto state = vb->getState();
-            if (state == vbucket_state_active || state == vbucket_state_replica) {
+            if (state == vbucket_state_active ||
+                state == vbucket_state_replica ||
+                state == vbucket_state_pending) {
                 uint16_t vbid = htons(static_cast<uint16_t>(id));
                 uint64_t highSeqno;
                 if (vb->getState() == vbucket_state_active) {
