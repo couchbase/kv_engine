@@ -58,6 +58,8 @@ static void item_set_cas(const void *cookie, item *it, uint64_t cas) {
     settings.engine.v1->item_set_cas(settings.engine.v0, cookie, it, cas);
 }
 
+static void shutdown_server(void);
+
 #define MAX_SASL_MECH_LEN 32
 
 volatile sig_atomic_t memcached_shutdown;
@@ -6719,20 +6721,22 @@ static int sigignore(int sig) {
 }
 #endif /* !HAVE_SIGIGNORE */
 
-static void sigterm_handler(int sig) {
-    cb_assert(sig == SIGTERM || sig == SIGINT);
-    memcached_shutdown = 1;
+static void sigterm_handler(evutil_socket_t fd, short what, void *arg) {
+    shutdown_server();
 }
 #endif
 
 static int install_sigterm_handler(void) {
 #ifndef WIN32
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = sigterm_handler;
+    struct event *term_event = evsignal_new(main_base, SIGTERM,
+                                            sigterm_handler, NULL);
+    if (term_event == NULL || event_add(term_event, NULL) < 0) {
+        return -1;
+    }
 
-    if (sigemptyset(&sa.sa_mask) == -1 || sigaction(SIGTERM, &sa, 0) == -1 ||
-        sigaction(SIGINT, &sa, 0) == -1) {
+    struct event *int_event = evsignal_new(main_base, SIGINT,
+                                           sigterm_handler, NULL);
+    if (int_event == NULL || event_add(int_event, NULL) < 0) {
         return -1;
     }
 #endif
@@ -7018,6 +7022,7 @@ static void* get_extension(extension_type_t type)
 
 static void shutdown_server(void) {
     memcached_shutdown = 1;
+    event_base_loopbreak(main_base);
 }
 
 static EXTENSION_LOGGER_DESCRIPTOR* get_logger(void)
@@ -7616,12 +7621,6 @@ int main (int argc, char **argv) {
 
     set_max_filehandles();
 
-    if (install_sigterm_handler() != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to install SIGTERM handler\n");
-        exit(EXIT_FAILURE);
-    }
-
     /* Aggregate the maximum number of connections */
     calculate_maxconns();
 
@@ -7632,6 +7631,14 @@ int main (int argc, char **argv) {
 
     /* initialize main thread libevent instance */
     main_base = event_base_new();
+
+    /* Initialize SIGINT/SIGTERM handler (requires libevent). */
+    if (install_sigterm_handler() != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Failed to install SIGTERM handler\n");
+        exit(EXIT_FAILURE);
+    }
+
 
     /* Load the storage engine */
     if ((engine_ref = load_engine(settings.engine_module,

@@ -136,7 +136,6 @@ static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *a
     t.tv_usec = 0;
 
     if (memcached_shutdown) {
-        event_base_loopbreak(main_ev_base);
         return ;
     }
 

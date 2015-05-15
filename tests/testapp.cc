@@ -1033,10 +1033,7 @@ static enum test_return stop_memcached_server(void) {
 #else
     if (kill(server_pid, SIGTERM) == 0) {
         /* Wait for the process to be gone... */
-        while (kill(server_pid, 0) == 0) {
-            sleep(1);
-            waitpid(server_pid, NULL, WNOHANG);
-        }
+        waitpid(server_pid, NULL, WNOHANG);
     }
 #endif
 
