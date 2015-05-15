@@ -255,7 +255,7 @@ struct SubdocCmdContext {
       : cookie(c),
         in_doc({NULL, 0}),
         in_cas(0),
-        doc_new_len(0),
+        doc_new(NULL, 0),
         out_doc(NULL) {}
 
     ~SubdocCmdContext() {
@@ -280,10 +280,7 @@ struct SubdocCmdContext {
     // new document which was derived from the same original input document.
     uint64_t in_cas;
 
-    // Location of the fragments consisting of the _new_ value.
-    Subdoc::Loc doc_new[8];
-    // Number of fragments active.
-    size_t doc_new_len;
+    Subdoc::Buffer<Subdoc::Loc> doc_new;
 
     // [Mutations only] New item to store into engine. _Must_ be released
     // back to the engine using ENGINE_HANDLE_V1::release()
@@ -601,17 +598,15 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
         Subdoc::Error subdoc_res = op->op_exec(path, pathlen);
 
         switch (subdoc_res) {
-        case Subdoc::Error::SUCCESS:
+        case Subdoc::Error::SUCCESS: {
             // Save the information necessary to construct the result of the
             // subdoc.
             context->in_doc = doc;
             context->in_cas = doc_cas;
-            context->doc_new_len = op->doc_new_len;
-            for (unsigned int i = 0; i < op->doc_new_len; i++) {
-                context->doc_new[i] = op->doc_new[i];
-            }
-            break;
 
+            context->doc_new = op->newdoc();
+            break;
+        }
         case Subdoc::Error::PATH_ENOENT:
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
             return false;
@@ -676,8 +671,7 @@ bool subdoc_update(conn* c, ENGINE_ERROR_CODE ret, const char* key,
 
     // Calculate the updated document length.
     size_t new_doc_len = 0;
-    for (size_t ii = 0; ii < context->doc_new_len; ii++) {
-        const Subdoc::Loc& loc = context->doc_new[ii];
+    for (auto& loc : context->doc_new) {
         new_doc_len += loc.length;
     }
 
@@ -727,8 +721,7 @@ bool subdoc_update(conn* c, ENGINE_ERROR_CODE ret, const char* key,
 
         // Copy the new document into the item.
         char* write_ptr = static_cast<char*>(new_doc_info.value[0].iov_base);
-        for (size_t ii = 0; ii < context->doc_new_len; ii++) {
-            const Subdoc::Loc& loc = context->doc_new[ii];
+        for (auto& loc : context->doc_new) {
             std::memcpy(write_ptr, loc.at, loc.length);
             write_ptr += loc.length;
         }
@@ -772,8 +765,9 @@ void subdoc_response(conn* c) {
     const char* value = NULL;
     size_t vallen = 0;
     if (cmd_traits<Cmd2Type<CMD>>::response_has_value) {
-        value = c->thread->subdoc_op->match.loc_match.at;
-        vallen = c->thread->subdoc_op->match.loc_match.length;
+        auto mloc = c->thread->subdoc_op->matchloc();
+        value = mloc.at;
+        vallen = mloc.length;
     }
 
     if (add_bin_header(c, 0, /*extlen*/0, /*keylen*/0, vallen,
