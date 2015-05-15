@@ -178,6 +178,12 @@ ADD_EXECUTABLE(engine_testapp programs/engine_testapp/engine_testapp.c
                               programs/engine_testapp/mock_server.h
                               ${MEMORY_TRACKING_SRCS})
 
+ADD_EXECUTABLE(utilities_testapp
+               utilities/config_parser.c
+               utilities/util.c
+               utilities/util_test.cc)
+TARGET_LINK_LIBRARIES(utilities_testapp gtest gtest_main platform)
+
 ADD_EXECUTABLE(generate_rbac programs/generate_rbac/generate_rbac.c)
 TARGET_LINK_LIBRARIES(generate_rbac platform)
 
@@ -363,6 +369,8 @@ ADD_TEST(memcached-basic-unit-tests-SSL memcached_testapp  --gtest_filter=PlainO
 
 ADD_TEST(memcached-bucket_engine-unit-tests bucket_engine_testapp)
 ADD_TEST(memcached-basic-engine-tests engine_testapp -E default_engine.so -T basic_engine_testsuite.so)
+
+ADD_TEST(memcached-utilities-tests utilities_testapp)
 
 IF(${COUCHBASE_PYTHON})
     FOREACH(ID RANGE 9)
