@@ -58,6 +58,7 @@ def stats_perform(mc, cmd=''):
     except Exception, e:
         print "Stats '%s' are not available from the requested engine. (%s)"\
                 % (cmd, e)
+        sys.exit(1)
 
 def stats_formatter(stats, prefix=" ", cmp=None):
     if stats:
@@ -182,10 +183,10 @@ def stats_key(mc, key, vb):
         vbs = mc.stats(cmd)
     except mc_bin_client.MemcachedError, e:
         print e.message
-        sys.exit()
+        sys.exit(1)
     except Exception, e:
         print "Stats '%s' are not available from the requested engine." % cmd
-        sys.exit()
+        sys.exit(1)
 
     if vbs:
         print "stats for key", key
@@ -198,10 +199,10 @@ def stats_vkey(mc, key, vb):
         vbs = mc.stats(cmd)
     except mc_bin_client.MemcachedError, e:
         print e.message
-        sys.exit()
+        sys.exit(1)
     except Exception, e:
         print "Stats '%s' are not available from the requested engine." % cmd
-        sys.exit()
+        sys.exit(1)
 
     if vbs:
         print "verification for key", key
