@@ -40,12 +40,12 @@
  * Depending on how it is configured, it can simply pass the request on to the
  * real engine, or artificially return EWOULDBLOCK back to memcached.
  *
- * See the 'Modes' enum below for the possible modes. The mode can be selected
- * by sending a `request_ewouldblock_ctl` command
+ * See the 'Modes' enum below for the possible modes for a connection. The mode
+ * can be selected by sending a `request_ewouldblock_ctl` command
  *  (opcode PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL).
  */
 
-#include "config.h"
+#include "ewouldblock_engine.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -80,51 +80,8 @@ extern "C" {
     void destroy_engine(void);
 }
 
-/** Binary protocol command used to control this engine. */
-const uint8_t PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL = 0xeb;
-
-extern "C" {
-    /**
-     * Definition of the packet used to control this engine:
-     */
-    typedef union {
-        struct {
-            protocol_binary_request_header header;
-            struct {
-                uint32_t mode; // See EWB_Engine::Mode
-                uint32_t value;
-            } body;
-        } message;
-        uint8_t bytes[sizeof(protocol_binary_request_header) +
-                      sizeof(uint32_t) +
-                      sizeof(uint32_t)];
-    } request_ewouldblock_ctl;
-
-    /**
-     * Definition of the packet returned by ewouldblock_ctl requests.
-     */
-    typedef protocol_binary_response_no_extras response_ewouldblock_ctl;
-}
-
 /** ewouldblock_engine class */
 class EWB_Engine : public ENGINE_HANDLE_V1 {
-public:
-
-    // The mode the engine is currently operating in. Determines when it will
-    // inject EWOULDBLOCK instead of the real return code.
-    enum class Mode {
-        NEXT_N, // Make the next_N calls into engine return EWOULDBLOCK.
-                // N specified by the {value} field.
-        RANDOM, // Randomly return EWOULDBLOCK. Chance to return EWOULDBLOCK is
-                // specified as an integer percentage (1,100) in the {value}
-                // field.
-        FIRST,  // The first call to a given function from each connection will
-                // return EWOULDBLOCK, with the next (and subsequent) calls to
-                // the *same* function operating normally. Calling a different
-                // function will reset back to failing again.  In other words,
-                // return EWOULDBLOCK iif the previous function was not this
-                // one.
-    };
 
 private:
     enum class Cmd { NONE, GET_INFO, ALLOCATE, REMOVE, GET, STORE, ARITHMETIC,
@@ -146,35 +103,33 @@ public:
      */
     bool should_return_EWOULDBLOCK(Cmd cmd, const void* cookie) {
         bool block = false;
-        switch (mode) {
-            case Mode::NEXT_N:
-                if (value > 0) {
-                    --value;
+        std::lock_guard<std::mutex> guard(cookie_map_mutex);
+        CookieState& state = cookie_map[cookie];
+        switch (state.mode) {
+            case EWBEngineMode_NEXT_N:
+                if (state.value > 0) {
+                    --state.value;
                     block = true;
                 }
                 break;
-            case Mode::RANDOM:
+            case EWBEngineMode_RANDOM:
             {
                 std::random_device rd;
                 std::mt19937 gen(rd());
                 std::uniform_int_distribution<uint32_t> dis(1, 100);
-                if (dis(gen) < value) {
+                if (dis(gen) < state.value) {
                     block = true;
                 }
                 break;
             }
-            case Mode::FIRST:
+            case EWBEngineMode_FIRST:
             {
                 // Block unless the previous command from this cookie
                 // was the same - i.e. all of a connections' commands
                 // will EWOULDBLOCK the first time they are called.
-                std::lock_guard<std::mutex> guard(prev_cmd_mutex);
-                const auto& it = prev_cmd_for_cookie.find(cookie);
-                Cmd prev_cmd = (it != prev_cmd_for_cookie.end()) ? it->second
-                                                                 : Cmd::NONE;
-                block = (prev_cmd != cmd);
+                block = (state.prev_cmd != cmd);
 
-                prev_cmd_for_cookie[cookie] = cmd;
+                state.prev_cmd = cmd;
             }
         }
 
@@ -374,26 +329,29 @@ public:
         if (request->request.opcode == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
             request_ewouldblock_ctl* req =
                     reinterpret_cast<request_ewouldblock_ctl*>(request);
-            const Mode mode = static_cast<Mode>(ntohl(req->message.body.mode));
+            const EWBEngine_Mode mode = static_cast<EWBEngine_Mode>(ntohl(req->message.body.mode));
             const uint32_t value = ntohl(req->message.body.value);
+            CookieState& state = ewb->cookie_map[cookie];
             switch (mode) {
-                case Mode::NEXT_N:
-                    ewb->mode = mode;
-                    ewb->value = value;
-                    fprintf(stderr, "EWB_Engine(): Next %u requests will return EWOULDBLOCK.\n",
-                            value);
+                case EWBEngineMode_NEXT_N:
+                    state.mode = mode;
+                    state.value = value;
                     return ENGINE_SUCCESS;
-                case Mode::RANDOM:
-                    ewb->mode = mode;
-                    ewb->value = value;
-                    fprintf(stderr, "EWB_Engine(): %u%% of requests will return EWOULDBLOCK.\n",
-                            value);
+
+                case EWBEngineMode_RANDOM:
+                    state.mode = mode;
+                    state.value = value;
                     return ENGINE_SUCCESS;
-                case Mode::FIRST:
-                    ewb->mode = mode;
-                    fprintf(stderr, "EWB_Engine(): First requests to each function will return EWOULDBLOCK.\n");
+
+                case EWBEngineMode_FIRST:
+                    state.mode = mode;
+                    state.value = 0;
                     return ENGINE_SUCCESS;
+
                 default:
+                    fprintf(stderr, "EWB_Engine::unknown_command(): "
+                            "Got unexpected mode=%d for EWOULDBLOCK_CTL, "
+                            "aborting.\n", mode);
                     abort();
             }
         } else {
@@ -440,18 +398,28 @@ public:
 
 private:
 
-    // Current mode of EWOULDBLOCK
-    Mode mode;
-    // Value associated with the current mode.
-    uint32_t value;
-
     // Handle of the notification thread.
     std::thread notification_thread;
 
-    // Map of connections (aka cookies) to the previous command they issued.
-    std::map<const void*, Cmd> prev_cmd_for_cookie;
+    // Per-cookie (connection) state.
+    struct CookieState {
+        CookieState()
+          : prev_cmd(Cmd::NONE), mode(EWBEngineMode_FIRST), value(0) {}
+
+        // Last command issued by this cookie.
+        Cmd prev_cmd;
+
+        // Current mode of EWOULDBLOCK
+        EWBEngine_Mode mode;
+
+        // Value associated with the current mode.
+        uint32_t value;
+    };
+
+    // Map of connections (aka cookies) to their current state
+    std::map<const void*, CookieState> cookie_map;
     // Mutex for above map.
-    std::mutex prev_cmd_mutex;
+    std::mutex cookie_map_mutex;
 };
 
 void process_pending_queue(SERVER_HANDLE_V1* server) {
@@ -469,8 +437,6 @@ void process_pending_queue(SERVER_HANDLE_V1* server) {
 EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
   : gsa(gsa_),
     real_engine(NULL),
-    mode(Mode::FIRST),
-    value(0),
     notification_thread(process_pending_queue, gsa())
 {
     interface.interface = 1;
