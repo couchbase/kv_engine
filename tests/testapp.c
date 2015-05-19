@@ -2776,6 +2776,26 @@ static enum test_return test_config_reload(void) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
+    /* Restore original configuration. */
+    cJSON *dynamic = generate_config();
+    char* dyn_string = cJSON_Print(dynamic);
+    cJSON_Delete(dynamic);
+    if (write_config_to_file(dyn_string, config_file) == -1) {
+        cJSON_Free(dyn_string);
+        return TEST_FAIL;
+    }
+    cJSON_Free(dyn_string);
+
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
+                             NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
     return TEST_PASS;
 }
 
