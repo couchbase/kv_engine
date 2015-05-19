@@ -118,12 +118,12 @@ public:
         RANDOM, // Randomly return EWOULDBLOCK. Chance to return EWOULDBLOCK is
                 // specified as an integer percentage (1,100) in the {value}
                 // field.
-        FIRST,  // The first call to a given function will return EWOULDBLOCK,
-                // with the next (and subsequent) calls to the *same* function
-                // operating normally. Calling a different function will reset
-                // back to failing again.
-                // In other words, return EWOULDBLOCK iif the previous function
-                // was not this one.
+        FIRST,  // The first call to a given function from each connection will
+                // return EWOULDBLOCK, with the next (and subsequent) calls to
+                // the *same* function operating normally. Calling a different
+                // function will reset back to failing again.  In other words,
+                // return EWOULDBLOCK iif the previous function was not this
+                // one.
     };
 
 private:
@@ -165,11 +165,16 @@ public:
             }
             case Mode::FIRST:
             {
-                // Block unless the previous command was the same - i.e.
-                // all command will EWOULDBLOCK the first time they are called.
-                static Cmd prev_cmd = Cmd::NONE;
-                block = prev_cmd != cmd;
-                prev_cmd = cmd;
+                // Block unless the previous command from this cookie
+                // was the same - i.e. all of a connections' commands
+                // will EWOULDBLOCK the first time they are called.
+                std::lock_guard<std::mutex> guard(prev_cmd_mutex);
+                const auto& it = prev_cmd_for_cookie.find(cookie);
+                Cmd prev_cmd = (it != prev_cmd_for_cookie.end()) ? it->second
+                                                                 : Cmd::NONE;
+                block = (prev_cmd != cmd);
+
+                prev_cmd_for_cookie[cookie] = cmd;
             }
         }
 
@@ -442,6 +447,11 @@ private:
 
     // Handle of the notification thread.
     std::thread notification_thread;
+
+    // Map of connections (aka cookies) to the previous command they issued.
+    std::map<const void*, Cmd> prev_cmd_for_cookie;
+    // Mutex for above map.
+    std::mutex prev_cmd_mutex;
 };
 
 void process_pending_queue(SERVER_HANDLE_V1* server) {
