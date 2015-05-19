@@ -127,20 +127,17 @@ void run_event_loop(conn* c) {
  * @param addr the sockaddr_storage received from getsockname or
  *             getpeername
  * @param addr_len the current length used by the sockaddr_storage
- * @param port The port number to use. It looks like getsockname
- *             isn't filling out the local port the connection was
- *             established to.
  * @return a textual string representing the connection. or NULL
  *         if an error occurs (caller takes ownership of the buffer and
  *         must call free)
  */
 static char *sockaddr_to_string(const struct sockaddr_storage *addr,
-                                socklen_t addr_len,
-                                in_port_t port)
+                                socklen_t addr_len)
 {
     char host[50];
+    char port[50];
     int err = getnameinfo((struct sockaddr*)addr, addr_len, host, sizeof(host),
-                          0, 0, NI_NUMERICHOST);
+                          port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV);
     if (err != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "getnameinfo failed with error %d",
@@ -149,31 +146,7 @@ static char *sockaddr_to_string(const struct sockaddr_storage *addr,
     }
 
     char peer[128];
-    if (port == 0) {
-        switch(addr->ss_family) {
-        case AF_INET6:
-            {
-                struct sockaddr_in6* addr6 = (struct sockaddr_in6*)&addr;
-                port = addr6->sin6_port;
-            }
-            break;
-        case AF_INET:
-            {
-                struct sockaddr_in* addr4 = (struct sockaddr_in*)&addr;
-                port = addr4->sin_port;
-            }
-            break;
-        default:
-            /* We don't know how to determine the port number.. skip it */
-            ;
-        }
-    }
-
-    if (port) {
-        snprintf(peer, sizeof(peer), "%s:%u", host, port);
-    } else {
-        snprintf(peer, sizeof(peer), "%s", host);
-    }
+    snprintf(peer, sizeof(peer), "%s:%s", host, port);
 
     return strdup(peer);
 }
@@ -188,8 +161,7 @@ static char *sockaddr_to_string(const struct sockaddr_storage *addr,
  */
 static void initialize_socket_names(const SOCKET sfd,
                                     char **peername,
-                                    char **sockname,
-                                    in_port_t parent_port)
+                                    char **sockname)
 {
     int err;
     struct sockaddr_storage peer;
@@ -213,8 +185,8 @@ static void initialize_socket_names(const SOCKET sfd,
         return;
     }
 
-    *peername = sockaddr_to_string(&peer, peer_len, 0);
-    *sockname = sockaddr_to_string(&sock, sock_len, parent_port);
+    *peername = sockaddr_to_string(&peer, peer_len);
+    *sockname = sockaddr_to_string(&sock, sock_len);
 
     if (*sockname == NULL || *peername == NULL) {
         free(*sockname);
@@ -235,7 +207,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
 
     memset(&c->ssl, 0, sizeof(c->ssl));
     if (init_state != conn_listening) {
-        initialize_socket_names(sfd, &c->peername, &c->sockname, parent_port);
+        initialize_socket_names(sfd, &c->peername, &c->sockname);
         if (c->auth_context) {
             auth_destroy(c->auth_context);
         }
