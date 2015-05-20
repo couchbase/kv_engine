@@ -255,7 +255,6 @@ struct SubdocCmdContext {
       : cookie(c),
         in_doc({NULL, 0}),
         in_cas(0),
-        doc_new(NULL, 0),
         out_doc(NULL) {}
 
     ~SubdocCmdContext() {
@@ -280,7 +279,8 @@ struct SubdocCmdContext {
     // new document which was derived from the same original input document.
     uint64_t in_cas;
 
-    Subdoc::Buffer<Subdoc::Loc> doc_new;
+    // In/Out parameter which contains the result of the executed operation
+    Subdoc::Result result;
 
     // [Mutations only] New item to store into engine. _Must_ be released
     // back to the engine using ENGINE_HANDLE_V1::release()
@@ -588,6 +588,7 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
         if ((flags & SUBDOC_FLAG_MKDIR_P) == SUBDOC_FLAG_MKDIR_P) {
             opcode = Subdoc::Command(opcode | Subdoc::Command::FLAG_MKDIR_P);
         }
+        op->set_result_buf(&context->result);
         op->set_code(opcode);
         op->set_doc(doc.buf, doc.len);
         if (cmd_traits<Cmd2Type<CMD>>::request_has_value) {
@@ -603,8 +604,6 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
             // subdoc.
             context->in_doc = doc;
             context->in_cas = doc_cas;
-
-            context->doc_new = op->newdoc();
             break;
         }
         case Subdoc::Error::PATH_ENOENT:
@@ -671,7 +670,7 @@ bool subdoc_update(conn* c, ENGINE_ERROR_CODE ret, const char* key,
 
     // Calculate the updated document length.
     size_t new_doc_len = 0;
-    for (auto& loc : context->doc_new) {
+    for (auto& loc : context->result.newdoc()) {
         new_doc_len += loc.length;
     }
 
@@ -721,7 +720,7 @@ bool subdoc_update(conn* c, ENGINE_ERROR_CODE ret, const char* key,
 
         // Copy the new document into the item.
         char* write_ptr = static_cast<char*>(new_doc_info.value[0].iov_base);
-        for (auto& loc : context->doc_new) {
+        for (auto& loc : context->result.newdoc()) {
             std::memcpy(write_ptr, loc.at, loc.length);
             write_ptr += loc.length;
         }
