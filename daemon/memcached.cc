@@ -24,6 +24,7 @@
 #include "timings.h"
 #include "cmdline.h"
 #include "connections.h"
+#include "mcbp_topkeys.h"
 #include "mcbp_validators.h"
 #include "ioctl.h"
 #include "mc_time.h"
@@ -36,6 +37,7 @@
 #include "enginemap.h"
 #include "buckets.h"
 #include "hash.h"
+#include "topkeys.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -73,6 +75,8 @@ bool binary_response_handler(const void *key, uint16_t keylen,
  */
 static cb_mutex_t buckets_lock;
 std::vector<Bucket> all_buckets;
+
+bool *topkey_commands;
 
 static void cookie_set_admin(const void *cookie);
 static bool cookie_is_admin(const void *cookie);
@@ -1121,6 +1125,19 @@ static void write_bin_response(conn *c, const void *d, int extlen, int keylen,
     }
 }
 
+/**
+ * Triggers topkeys_update (i.e., increments topkeys stats) if called by a
+ * valid operation.
+ */
+void update_topkeys(const char *key, size_t nkey, conn *c) {
+
+    if (topkey_commands[c->binary_header.request.opcode]) {
+        cb_assert(all_buckets[c->bucket.idx].topkeys != nullptr);
+        topkeys_update(all_buckets[c->bucket.idx].topkeys, key, nkey,
+                       mc_time_get_current_time());
+    }
+}
+
 static void process_bin_get(conn *c) {
     item *it;
     protocol_binary_response_get* rsp = (protocol_binary_response_get*)c->write.buf;
@@ -1224,6 +1241,7 @@ static void process_bin_get(conn *c) {
             /* Remember this item so we can garbage collect it later */
             c->item = it;
         }
+        update_topkeys(key, nkey, c);
         break;
     case ENGINE_KEY_ENOENT:
         STATS_MISS(c, get, key, nkey);
@@ -1941,14 +1959,22 @@ static void process_bin_unknown_packet(conn *c) {
                            binary_response_handler);
     }
 
+
+
     switch (ret) {
     case ENGINE_SUCCESS:
-        if (c->dynamic_buffer.buffer != NULL) {
-            write_and_free(c, &c->dynamic_buffer);
-        } else {
-            conn_set_state(c, conn_new_cmd);
+        {
+            if (c->dynamic_buffer.buffer != NULL) {
+                write_and_free(c, &c->dynamic_buffer);
+            } else {
+                conn_set_state(c, conn_new_cmd);
+            }
+            const char *key = packet +
+                              sizeof(c->binary_header.request) +
+                              c->binary_header.request.extlen;
+            update_topkeys(key, c->binary_header.request.keylen, c);
+            break;
         }
-        break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
         break;
@@ -4009,6 +4035,7 @@ static void add_set_replace_executor(conn *c, void *packet,
 
         switch (ret) {
         case ENGINE_SUCCESS:
+            update_topkeys(key, nkey, c);
             break;
         case ENGINE_EWOULDBLOCK:
             c->ewouldblock = true;
@@ -4215,6 +4242,8 @@ static void append_prepend_executor(conn *c,
                 }
             }
         }
+        update_topkeys(key, nkey, c);
+
     }
 
     if (ret == ENGINE_SUCCESS) {
@@ -4386,6 +4415,25 @@ static void stat_executor(conn *c, void *packet)
                 }
             }
             connection_stats(&append_stats, c, fd);
+        } else if (strncmp(subcommand, "topkeys", nkey) == 0) {
+            ret = topkeys_stats(all_buckets[c->bucket.idx].topkeys, TK_SHARDS, c,
+                                mc_time_get_current_time(), append_stats);
+        } else if (strncmp(subcommand, "topkeys_json", nkey) == 0) {
+            cJSON *topkeys_doc = cJSON_CreateObject();
+
+            ret = topkeys_json_stats(all_buckets[c->bucket.idx].topkeys,
+                                     topkeys_doc, TK_SHARDS,
+                                     mc_time_get_current_time());
+
+            if (ret == ENGINE_SUCCESS) {
+                char key[] = "topkeys_json";
+                char *topkeys_str = cJSON_PrintUnformatted(topkeys_doc);
+                append_stats(key, (uint16_t)strlen(key),
+                             topkeys_str, (uint32_t)strlen(topkeys_str), c);
+                cJSON_Free(topkeys_str);
+            }
+            cJSON_Delete(topkeys_doc);
+
         } else {
             ret = c->bucket.engine->get_stats(v1_handle_2_handle(c->bucket.engine), c,
                                                 subcommand, (int)nkey,
@@ -4548,6 +4596,7 @@ static void arithmetic_executor(conn *c, void *packet)
         } else {
             STATS_INCR(c, decr_hits, key, nkey);
         }
+        update_topkeys(key, nkey, c);
         break;
     }
     case ENGINE_KEY_EEXISTS:
@@ -5017,6 +5066,7 @@ bin_package_execute executors[0xff];
 
 static void setup_bin_packet_handlers(void) {
     validators = get_mcbp_validators();
+    topkey_commands = get_mcbp_topkeys();
 
     executors[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;
@@ -5289,6 +5339,7 @@ static void process_bin_delete(conn *c) {
             write_bin_response(c, NULL, 0, 0, 0);
         }
         SLAB_INCR(c, delete_hits, key, nkey);
+        update_topkeys(key, nkey, c);
         break;
     case ENGINE_KEY_EEXISTS:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
@@ -7843,6 +7894,11 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
     int first_free = -1;
     bool found = false;
     ENGINE_ERROR_CODE ret;
+    int topkey_count = 0;
+    char *tmp = getenv("MEMCACHED_TOP_KEYS");
+    if(tmp != NULL) {
+        topkey_count = (int)strtol(tmp, NULL, 10);
+    }
 
     /*
      * the number of buckets cannot change without a restart, but we don't want
@@ -7877,6 +7933,7 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
         all_buckets[ii].state = BucketState::Creating;
         all_buckets[ii].type = engine;
         strcpy(all_buckets[ii].name, bucket_name.c_str());
+        all_buckets[ii].topkeys = topkeys_init(topkey_count);
         cb_mutex_exit(&all_buckets[ii].mutex);
     }
     cb_mutex_exit(&buckets_lock);
@@ -8061,6 +8118,8 @@ static ENGINE_ERROR_CODE do_delete_bucket(conn *c,
     all_buckets[idx].state = BucketState::None;
     all_buckets[idx].engine = NULL;
     all_buckets[idx].name[0] = '\0';
+    topkeys_free(all_buckets[idx].topkeys);
+    all_buckets[idx].topkeys = nullptr;
     cb_mutex_exit(&all_buckets[idx].mutex);
     // don't need lock because all timing data uses atomics
     all_buckets[idx].timings.reset();

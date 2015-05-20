@@ -5,10 +5,15 @@
 #include <platform/cbassert.h>
 #include <memcached/engine.h>
 #include "genhash.h"
+#include <cJSON.h>
 
 #define TK_MAX_VAL_LEN 500
 
 #define TK_SHARDS 8
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef struct dlist {
     struct dlist *next;
@@ -20,7 +25,6 @@ typedef struct topkey_item {
     int ti_nkey;
     rel_time_t ti_ctime, ti_atime; /* Time this item was created/last accessed */
     int access_count; /* Int count for number of times key has been accessed */
-    /* char ti_key[]; /\* A variable length array in the struct itself *\/ */
 } topkey_item_t;
 
 typedef struct topkeys {
@@ -39,12 +43,32 @@ topkey_item_t *topkeys_item_get_or_create(topkeys_t *tk,
                                           size_t nkey,
                                           const rel_time_t ctime);
 /* Update the access_count for any valid operation */
-void topkeys_update(topkeys_t **tks, const void *key, size_t nkey,
+void topkeys_update(topkeys_t *tks, const void *key, size_t nkey,
                     rel_time_t operation_time);
 
-ENGINE_ERROR_CODE topkeys_stats(topkeys_t **tk, size_t n,
+ENGINE_ERROR_CODE topkeys_stats(topkeys_t *tk, size_t n,
                                 const void *cookie,
                                 const rel_time_t current_time,
                                 ADD_STAT add_stat);
-
+/**
+ * Passing a set of topkeys, shards, and relevant context data will
+ * return a cJSON object containing an array of topkeys:
+ * {
+ *   "topkeys": [
+ *      {
+ *          "key": "somekey",
+ *          "access_count": nnn,
+ *          "ctime": ccc,
+ *          "atime": aaa
+ *      }, ..., { ... }
+ *    ]
+ * }
+ */
+ENGINE_ERROR_CODE topkeys_json_stats(topkeys_t *tks, cJSON *object,
+                                     size_t shards,
+                                     const rel_time_t current_time);
+#ifdef __cplusplus
+}   /* extern "C" */
 #endif
+
+#endif /* TOPKEYS_H */

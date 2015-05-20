@@ -547,6 +547,9 @@ void write_and_free(conn *c, struct dynamic_buffer* buf);
 
 void write_bin_packet(conn *c, protocol_binary_response_status err);
 
+/* Increments topkeys count for a key when called by a valid operation. */
+void update_topkeys(const char *key, size_t nkey, conn *c);
+
 /**
  * Convert an error code generated from the storage engine to the corresponding
  * error code used by the protocol layer.

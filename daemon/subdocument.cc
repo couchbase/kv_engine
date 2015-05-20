@@ -23,6 +23,7 @@
 #include "connections.h"
 #include "debug_helpers.h"
 #include "timings.h"
+#include "topkeys.h"
 #include "utilities/protocol2text.h"
 
 struct sized_buffer {
@@ -450,6 +451,8 @@ void subdoc_executor(conn *c, const void *packet) {
         } else if (ret != ENGINE_SUCCESS) {
             return;
         }
+
+        update_topkeys(key, keylen, c);
 
         // 4. Form a response and send it back to the client.
         subdoc_response<CMD>(c);

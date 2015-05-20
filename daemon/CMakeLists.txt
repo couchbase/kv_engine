@@ -49,10 +49,14 @@ ADD_EXECUTABLE(memcached
                debug_helpers.h
                enginemap.h
                enginemap.cc
+               genhash.c
+               genhash.h
                hash.c
                ioctl.cc
                mcaudit.cc
                mcaudit.h
+               mcbp_topkeys.cc
+               mcbp_topkeys.h
                mcbp_validators.cc
                mcbp_validators.h
                memcached.cc
@@ -61,6 +65,8 @@ ADD_EXECUTABLE(memcached
                subdocument.cc
                thread.cc
                timings.cc
+               topkeys.c
+               topkeys.h
                mc_time.cc
                rbac.cc
                rbac.h

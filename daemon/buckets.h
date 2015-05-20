@@ -19,6 +19,7 @@
 #include <memcached/engine.h>
 #include <cstring>
 #include "timings.h"
+#include "topkeys.h"
 
 enum class BucketState : uint8_t {
     /** This bucket entry is not used */
@@ -124,6 +125,6 @@ public:
     /**
      * Topkeys
      */
-    void *topkeys;
+    topkeys_t *topkeys;
 
 };

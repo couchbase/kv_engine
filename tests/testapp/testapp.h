@@ -38,7 +38,6 @@ enum class Transport {
     SSL
 };
 
-
 // Needed by subdocument tests in seperate .cc file.
 extern SOCKET sock;
 extern in_port_t port;

@@ -29,6 +29,7 @@
 #include "memcached/openssl.h"
 #include "programs/utilities.h"
 #include "utilities/protocol2text.h"
+#include "daemon/topkeys.h"
 
 #ifdef WIN32
 #include <process.h>
@@ -448,6 +449,10 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
     snprintf(mcd_port_filename_env, sizeof(mcd_port_filename_env),
              "MEMCACHED_PORT_FILENAME=memcached_ports.%lu", (long)getpid());
     remove(filename);
+
+    static char topkeys_env[] = "MEMCACHED_TOP_KEYS=10";
+    putenv(topkeys_env);
+
 
 #ifdef __sun
     /* I want to name the corefiles differently so that they don't
@@ -3916,6 +3921,278 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize)
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     reconnect_to_server(false);
+}
+
+/**
+ * Returns the current access count of the test key ("someval") as an integer
+ * via the old string format.
+ */
+int get_topkeys_legacy_value(const std::string& key) {
+
+    char *response_string = NULL;
+    char *token;
+    int access_count = 0;
+    bool found = false;
+
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[8192];
+    } buffer;
+
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_STAT,
+                             "topkeys", strlen("topkeys"),
+                             NULL, 0);
+    safe_send(buffer.bytes, len, false);
+
+    do {
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        response_string = buffer.bytes + (sizeof(buffer.response) +
+                  buffer.response.message.header.response.keylen +
+                  buffer.response.message.header.response.extlen);
+
+        /* Return the get_hits aggregate count of the desired key
+         * - ("someval"). Legacy never used to check prior count.*/
+        if (!found &&
+            strstr((buffer.bytes + sizeof(buffer.response)), key.c_str())) {
+            while ((token = strtok(response_string, "=,"))) {
+                if (strncmp(token, "get_hits", 8) == 0) {
+                    found = true;
+                    access_count = (int)strtol(strtok(NULL, "=,"), NULL, 10);
+                    break;
+                }
+                strtok(NULL, "=,");
+            }
+        }
+
+    } while (buffer.response.message.header.response.keylen != 0);
+
+    EXPECT_TRUE(found);
+
+    return access_count;
+}
+
+/**
+ * Accesses either the maximum value or the current value of the key via
+ * the JSON formatted topkeys return.
+ */
+int get_topkeys_json_value(const std::string& key) {
+
+    char *response_string = NULL;
+    int max_value = 0;
+    int current_value = 0;
+
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[8192];
+    } buffer;
+
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_STAT,
+                             "topkeys_json", strlen("topkeys_json"),
+                             NULL, 0);
+    safe_send(buffer.bytes, len, false);
+
+    // Expect 1 valid packet followed by 1 null
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    EXPECT_NE(0, buffer.response.message.header.response.keylen);
+
+    response_string = buffer.bytes + (sizeof(buffer.response) +
+             buffer.response.message.header.response.keylen +
+             buffer.response.message.header.response.extlen);
+
+
+    // Consume NULL stats packet.
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
+                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    EXPECT_EQ(0, buffer.response.message.header.response.keylen);
+
+    // Check for response string
+    EXPECT_TRUE(response_string != NULL);
+
+    cJSON *topkeys = cJSON_Parse(response_string);
+    char *topkeys_string = cJSON_Print(cJSON_GetObjectItem(topkeys, "topkeys"));
+
+    if (strcmp(topkeys_string, "[]") != 0)
+    {
+
+        for (int ii = 0; ii < cJSON_GetArraySize(topkeys); ii++) {
+            cJSON *current_key = cJSON_GetArrayItem(cJSON_GetObjectItem(topkeys,
+                                                    "topkeys"), ii);
+
+            current_value = cJSON_GetObjectItem(current_key,
+                                                "access_count")->valueint;
+
+            if (current_value > max_value) {
+                max_value = current_value;
+            }
+
+            if (strcmp(cJSON_GetObjectItem(current_key, "key")->valuestring,
+                       key.c_str()) == 0) {
+                cJSON_Delete(topkeys);
+                cJSON_Free(topkeys_string);
+                // Return current value of existing key.
+                return (current_value);
+            }
+        }
+    }
+
+    cJSON_Free(topkeys_string);
+    cJSON_Delete(topkeys);
+
+    // Return current largest value if key doesn't exist.
+    return (max_value * -1);
+}
+
+/**
+ * Used to compare actual value of topkeys (json/legacy_value) vs the expected
+ * value (current + sum).
+ */
+static void check_topkeys_value(const std::string key, const int expect_value) {
+
+    /* Get old and new topkeys return values */
+    const int json_value = get_topkeys_json_value(key);
+    const int legacy_value = get_topkeys_legacy_value(key);
+
+    /* Check old and new topkeys implementations return same value */
+    ASSERT_EQ(json_value, legacy_value);
+
+    /* Ensure returned value is equal to prior value + sum operations */
+    ASSERT_EQ(expect_value, json_value);
+}
+
+/**
+ * Set a key a number of times and assert that the return value matches the
+ * change after the number of set operations.
+ */
+static void test_set_topkeys(const std::string& key) {
+    int sum = 0;
+    int current = get_topkeys_json_value(key);
+
+    int ii;
+    size_t len;
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+    memset(buffer.bytes, 0, sizeof(buffer));
+
+    if (current < 0) {
+        sum = (current * -1) + 1;
+        current = 0;
+    } else {
+        sum = current + 1;
+    }
+
+    /* Send CMD_SET for current key 'sum' number of times (and validate
+     * response). */
+    for (ii = 0; ii < sum; ii++) {
+        len = storage_command(buffer.bytes, sizeof(buffer.bytes),
+                              PROTOCOL_BINARY_CMD_SET, key.c_str(),
+                              key.length(),
+                              "foo", strlen("foo"), 0, 0);
+
+        safe_send(buffer.bytes, len, false);
+
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_SET,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    check_topkeys_value(key, (current + sum));
+}
+
+
+/**
+ * Get a key a number of times and assert that the return value matches the
+ * change after the number of get operations.
+ */
+static void test_get_topkeys(const std::string& key) {
+    int sum = 0;
+    int current = get_topkeys_json_value(key);
+
+    int ii;
+    size_t len;
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[2048];
+    } buffer;
+    memset(buffer.bytes, 0, sizeof(buffer));
+
+    if (current < 0) {
+        sum = (current * -1) + 1;
+        current = 0;
+    } else {
+        sum = current + 1;
+    }
+
+    for (ii = 0; ii < sum; ii++) {
+        len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                          PROTOCOL_BINARY_CMD_GET, key.c_str(), key.length(),
+                          NULL, 0);
+        safe_send(buffer.bytes, len, false);
+
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_GET,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    check_topkeys_value(key, (current + sum));
+}
+
+/**
+ * Delete a key and assert that the return value matches the change
+ * after the delete operation.
+ */
+static void test_delete_topkeys(const std::string& key) {
+    int sum = 1;
+    int current = get_topkeys_json_value(key);
+
+    size_t len;
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+    memset(buffer.bytes, 0, sizeof(buffer));
+
+    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                      PROTOCOL_BINARY_CMD_DELETE, key.c_str(), key.length(),
+                      NULL, 0);
+    safe_send(buffer.bytes, len, false);
+
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_DELETE,
+                           PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    check_topkeys_value(key, (current + sum));
+}
+
+
+/**
+ * Test for JSON document formatted topkeys (part of bucket_engine). Tests for
+ * correct values when issuing CMD_SET, CMD_GET, and CMD_DELETE.
+ */
+TEST_P(McdTestappTest, test_topkeys) {
+
+    /* Key for use throughout tests to prevent ENGINE_ENOENT */
+    std::string key = "foo";
+
+    test_set_topkeys(key);
+
+    test_get_topkeys(key);
+
+    test_delete_topkeys(key);
 }
 
 INSTANTIATE_TEST_CASE_P(PlainOrSSL,
