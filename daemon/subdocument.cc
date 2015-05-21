@@ -764,7 +764,7 @@ void subdoc_response(conn* c) {
     const char* value = NULL;
     size_t vallen = 0;
     if (cmd_traits<Cmd2Type<CMD>>::response_has_value) {
-        auto mloc = c->thread->subdoc_op->matchloc();
+        auto mloc = context->result.matchloc();
         value = mloc.at;
         vallen = mloc.length;
     }
