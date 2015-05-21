@@ -428,8 +428,10 @@ void process_pending_queue(SERVER_HANDLE_V1* server) {
         condvar.wait(lk);
         while (!pending_io_ops.empty()) {
             const void* cookie = pending_io_ops.front();
-            server->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
             pending_io_ops.pop();
+            lk.unlock();
+            server->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
+            lk.lock();
         }
     }
 }

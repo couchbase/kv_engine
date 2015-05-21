@@ -24,6 +24,7 @@
 #include <sys/types.h>
 #include <string>
 
+#include <cJSON.h>
 #include <gtest/gtest.h>
 #include <memcached/protocol_binary.h>
 
@@ -33,6 +34,12 @@ enum class Transport {
     Plain,
     SSL
 };
+
+
+// Needed by subdocument tests in seperate .cc file.
+extern SOCKET sock;
+extern in_port_t port;
+
 
 // Test the various memcached binary protocol commands against a
 // external `memcached` process.
@@ -52,7 +59,14 @@ protected:
 
     // per test tear-down function.
     virtual void TearDown();
+
+    static cJSON* generate_config(int num_threads = -1);
+
+    static void start_memcached_server(cJSON* config);
+
 };
+
+SOCKET connect_to_server_plain(in_port_t port, bool nonblocking);
 
 /* Compress the given document. Returns the size of the compressed document,
  * and deflated is updated to point to the compressed buffer.
@@ -63,8 +77,10 @@ size_t compress_document(const char* data, size_t datalen, char** deflated);
 /* Set the datatype feature on the connection to the specified value */
 void set_datatype_feature(bool enable);
 
-/* Attempts to get the given key and checks if it's value matches {value} */
-void validate_object(const char *key, const char *value);
+/* Attempts to get the given key and checks if it's value matches
+ * {expected_value}.
+ */
+void validate_object(const char *key, const std::string& expected_value);
 
 /* Attempts to store an object with the given key and value */
 void store_object(const char *key, const char *value);

@@ -9,7 +9,6 @@
 #include <time.h>
 #include <evutil.h>
 #include <snappy-c.h>
-#include <cJSON.h>
 #include <gtest/gtest.h>
 
 #include <atomic>
@@ -42,8 +41,10 @@ static uint8_t read_command = 0xe1;
 static uint8_t write_command = 0xe2;
 
 char *config_string = NULL;
-char config_file[] = "memcached_testapp.json.XXXXXX";
-char rbac_file[] = "testapp_rbac.json.XXXXXX";
+#define CFG_FILE_PATTERN "memcached_testapp.json.XXXXXX"
+char config_file[] = CFG_FILE_PATTERN;
+#define RBAC_FILE_PATTERN "testapp_rbac.json.XXXXXX"
+char rbac_file[] = RBAC_FILE_PATTERN;
 
 #define MAX_CONNECTIONS 1000
 #define BACKLOG 1024
@@ -56,9 +57,9 @@ char rbac_file[] = "testapp_rbac.json.XXXXXX";
 static int current_phase = 0;
 
 static pid_t server_pid;
-static in_port_t port = -1;
+in_port_t port = -1;
 static in_port_t ssl_port = -1;
-static SOCKET sock;
+SOCKET sock;
 static SOCKET sock_ssl;
 static std::atomic_bool allow_closed_read;
 static time_t server_start_time = 0;
@@ -80,10 +81,8 @@ static char mcd_parent_monitor_env[80];
 static char mcd_port_filename_env[80];
 static char isasl_pwfile_env[1024];
 
-static void start_memcached_server(void);
 static void stop_memcached_server(void);
-static void connect_to_server_plain(in_port_t port, bool nonblocking);
-static void connect_to_server_ssl(in_port_t ssl_port, bool nonblocking);
+static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking);
 
 static void destroy_ssl_socket();
 static void ewouldblock_engine_configure(EWBEngine_Mode mode, uint32_t value);
@@ -106,7 +105,9 @@ std::ostream& operator << (std::ostream& os, const Transport& t)
 // Per-test-case set-up.
 // Called before the first test in this test case.
 void McdTestappTest::SetUpTestCase() {
-    start_memcached_server();
+    cJSON *config = generate_config();
+    start_memcached_server(config);
+    cJSON_Delete(config);
 }
 
 // Per-test-case tear-down.
@@ -120,10 +121,12 @@ void McdTestappTest::TearDownTestCase() {
 void McdTestappTest::SetUp() {
     if (GetParam() == Transport::Plain) {
         current_phase = phase_plain;
-        connect_to_server_plain(port, false);
+        sock = connect_to_server_plain(port, false);
+        ASSERT_NE(INVALID_SOCKET, sock);
     } else {
         current_phase = phase_ssl;
-        connect_to_server_ssl(ssl_port, false);
+        sock_ssl = connect_to_server_ssl(ssl_port, false);
+        ASSERT_NE(INVALID_SOCKET, sock_ssl);
     }
     // Se ewouldblock_engine test harness to default mode.
     ewouldblock_engine_configure(EWBEngineMode_FIRST, /*unused*/0);
@@ -181,7 +184,7 @@ static void get_working_current_directory(char* out_buf, int out_buf_len) {
     }
 }
 
-static cJSON *generate_config(void)
+cJSON* McdTestappTest::generate_config(int num_threads)
 {
     cJSON *root = cJSON_CreateObject();
     cJSON *array = cJSON_CreateArray();
@@ -249,6 +252,9 @@ static cJSON *generate_config(void)
     cJSON_AddStringToObject(root, "admin", "");
     cJSON_AddTrueToObject(root, "datatype_support");
     cJSON_AddStringToObject(root, "rbac_file", rbac_path);
+    if (num_threads != -1) {
+        cJSON_AddNumberToObject(root, "threads", num_threads);
+    }
 
     return root;
 }
@@ -558,9 +564,12 @@ static void destroy_ssl_socket() {
     SSL_CTX_free(ssl_ctx);
 }
 
-static void connect_to_server_plain(in_port_t port, bool nonblocking) {
-    sock = create_connect_plain_socket("127.0.0.1", port, nonblocking);
-    ASSERT_NE(INVALID_SOCKET, sock);
+SOCKET connect_to_server_plain(in_port_t port, bool nonblocking) {
+    SOCKET sock = create_connect_plain_socket("127.0.0.1", port, nonblocking);
+    if (sock == INVALID_SOCKET) {
+        ADD_FAILURE() << "Failed to connect socket to port" << port;
+        return INVALID_SOCKET;
+    }
 
     if (nonblocking) {
         if (evutil_make_socket_nonblocking(sock) == -1) {
@@ -568,18 +577,23 @@ static void connect_to_server_plain(in_port_t port, bool nonblocking) {
             abort();
         }
     }
+    return sock;
 }
 
-static void connect_to_server_ssl(in_port_t ssl_port, bool nonblocking) {
-    sock_ssl = create_connect_ssl_socket("127.0.0.1", ssl_port, nonblocking);
-    ASSERT_NE(INVALID_SOCKET, sock);
+static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking) {
+    SOCKET sock = create_connect_ssl_socket("127.0.0.1", ssl_port, nonblocking);
+    if (sock == INVALID_SOCKET) {
+        ADD_FAILURE() << "Failed to connect SSL socket to port" << ssl_port;
+        return INVALID_SOCKET;
+    }
 
     if (nonblocking) {
-        if (evutil_make_socket_nonblocking(sock_ssl) == -1) {
+        if (evutil_make_socket_nonblocking(sock) == -1) {
             fprintf(stderr, "evutil_make_socket_nonblocking failed\n");
             abort();
         }
     }
+    return sock;
 }
 
 /*
@@ -592,32 +606,24 @@ static void reconnect_to_server(bool nonblocking) {
         closesocket(sock_ssl);
         SSL_CTX_free(ssl_ctx);
 
-        connect_to_server_ssl(ssl_port, nonblocking);
+        sock_ssl = connect_to_server_ssl(ssl_port, nonblocking);
+        ASSERT_NE(INVALID_SOCKET, sock_ssl);
     } else {
         closesocket(sock);
-        connect_to_server_plain(port, nonblocking);
+        sock = connect_to_server_plain(port, nonblocking);
+        ASSERT_NE(INVALID_SOCKET, sock);
     }
 }
 
 static char *isasl_file;
 
-static void start_memcached_server(void) {
-    cJSON *rbac = generate_rbac_config();
-    char *rbac_text = cJSON_Print(rbac);
+void McdTestappTest::start_memcached_server(cJSON* config) {
 
-    ASSERT_NE(nullptr, cb_mktemp(rbac_file));
-    ASSERT_NE(-1, write_config_to_file(rbac_text, rbac_file));
+    strncpy(config_file, CFG_FILE_PATTERN, sizeof(config_file));
+    ASSERT_NE(cb_mktemp(config_file), nullptr);
 
-    cJSON_Free(rbac_text);
-    cJSON_Delete(rbac);
-
-    ASSERT_NE(nullptr, cb_mktemp(config_file));
-
-    cJSON *json_config = generate_config();
-    config_string = cJSON_Print(json_config);
-    cJSON_Delete(json_config);
-
-    ASSERT_NE(-1, write_config_to_file(config_string, config_file));
+    config_string = cJSON_Print(config);
+    ASSERT_EQ(0, write_config_to_file(config_string, config_file));
 
     char fname[1024];
     snprintf(fname, sizeof(fname), "isasl.%lu.%lu.pw",
@@ -655,7 +661,6 @@ static void stop_memcached_server(void) {
     EXPECT_NE(-1, remove(config_file));
     EXPECT_NE(-1, remove(isasl_file));
     free(isasl_file);
-    EXPECT_NE(-1, remove(rbac_file));
 }
 
 static ssize_t phase_send(const void *buf, size_t len) {
@@ -2571,13 +2576,12 @@ TEST_P(McdTestappTest, Verbosity) {
     }
 }
 
-void validate_object(const char *key, const char *value) {
+void validate_object(const char *key, const std::string& expected_value) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, receive;
-    char *ptr;
     size_t len = raw_command(send.bytes, sizeof(send.bytes),
                              PROTOCOL_BINARY_CMD_GET,
                              key, strlen(key), NULL, 0);
@@ -2585,10 +2589,10 @@ void validate_object(const char *key, const char *value) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    ASSERT_EQ(strlen(value),
-              receive.response.message.header.response.bodylen - 4);
-    ptr = receive.bytes + sizeof(receive.response) + 4;
-    EXPECT_EQ(0, memcmp(value, ptr, strlen(value)));
+    char* ptr = receive.bytes + sizeof(receive.response) + 4;
+    size_t vallen = receive.response.message.header.response.bodylen - 4;
+    std::string actual(ptr, vallen);
+    EXPECT_EQ(expected_value, actual);
 }
 
 void store_object(const char *key, const char *value) {
@@ -3746,7 +3750,38 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize)
     reconnect_to_server(false);
 }
 
-
 INSTANTIATE_TEST_CASE_P(PlainOrSSL,
                         McdTestappTest,
                         ::testing::Values(Transport::Plain, Transport::SSL));
+
+class McdEnvironment : public ::testing::Environment{
+public:
+    virtual void SetUp() {
+        // Create an rbac config file for use for all tests
+        cJSON *rbac = generate_rbac_config();
+        char *rbac_text = cJSON_Print(rbac);
+
+        strncpy(rbac_file, RBAC_FILE_PATTERN, sizeof(rbac_file));
+        ASSERT_NE(cb_mktemp(rbac_file), nullptr);
+
+        ASSERT_EQ(0, write_config_to_file(rbac_text, rbac_file));
+
+        cJSON_Free(rbac_text);
+        cJSON_Delete(rbac);
+    }
+
+    virtual void TearDown() {
+        // Cleanup RBAC config file.
+        EXPECT_NE(-1, remove(rbac_file));
+    }
+};
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+
+    McdEnvironment* env = new McdEnvironment();
+    ::testing::AddGlobalTestEnvironment(env);
+
+    return RUN_ALL_TESTS();
+}
+

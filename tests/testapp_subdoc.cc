@@ -138,36 +138,35 @@ void encode_subdoc_command(char* buf, size_t bufsz, const SubdocCmd& cmd,
     length = encoded_bytes;
 }
 
-/* Encodes and sends a sub-document command with the given parameters, receives
- * the response and validates that the status matches the expected one.
- * If expected_value is non-empty, also verifies that the response value equals
- * expectd_value.
- * @return CAS value (if applicable for the command, else zero).
+/* Encodes and sends a sub-document command, without waiting for any response.
  */
-static uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
-                                  protocol_binary_response_status expected_status,
-                                  const std::string& expected_value) {
+void send_subdoc_cmd(const SubdocCmd& cmd) {
     union {
         protocol_binary_request_subdocument request;
         char bytes[2048];
     } send;
+
+    ssize_t len = -1;
+    encode_subdoc_command(send.bytes, sizeof(send.bytes), cmd, len);
+    if (len == -1) {
+        FAIL() << "Failed to encode subdoc command " << cmd;
+    }
+
+    safe_send(send.bytes, len, false);
+}
+
+uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
+                              protocol_binary_response_status expected_status,
+                              const std::string& expected_value) {
     union {
         protocol_binary_response_subdocument response;
         char bytes[1024];
     } receive;
 
-    ssize_t len = -1;
-    encode_subdoc_command(send.bytes, sizeof(send.bytes), cmd, len);
-    if (len == -1) {
-        ADD_FAILURE() << "Failed to encode subdoc command " << cmd;
-        return 0;
-    }
-
-    safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
 
     validate_response_header((protocol_binary_response_no_extras*)&receive.response,
-                             cmd.cmd, expected_status);
+                             expected_cmd, expected_status);
 
     // TODO: Check extras for subdoc command and mutation / seqno (if enabled).
 
@@ -177,7 +176,7 @@ static uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
     const size_t vallen = header->response.bodylen + header->response.extlen;
 
     if (!expected_value.empty() &&
-        (cmd.cmd != PROTOCOL_BINARY_CMD_SUBDOC_EXISTS)) {
+        (expected_cmd != PROTOCOL_BINARY_CMD_SUBDOC_EXISTS)) {
         const std::string val(val_ptr, val_ptr + vallen);
         EXPECT_EQ(expected_value, val);
     } else {
@@ -190,14 +189,22 @@ static uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
     return header->response.cas;
 }
 
-/* Stores the given document.
- * @param key Document key
- * @param value Document value
- * @param json If true store as JSON, if false as binary
- * @param compress If true compress the provided value before storing.
+/* Encodes and sends a sub-document command with the given parameters, receives
+ * the response and validates that the status matches the expected one.
+ * If expected_value is non-empty, also verifies that the response value equals
+ * expectd_value.
+ * @return CAS value (if applicable for the command, else zero).
  */
-static void store_object(const std::string& key, const std::string& value,
-                         bool JSON, bool compress) {
+uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
+                           protocol_binary_response_status expected_status,
+                           const std::string& expected_value) {
+    send_subdoc_cmd(cmd);
+    return recv_subdoc_response(cmd.cmd, expected_status, expected_value);
+}
+
+void store_object(const std::string& key,
+                  const std::string& value,
+                  bool JSON, bool compress) {
     const char* payload = value.c_str();
     size_t payload_len = value.size();
     char* deflated = NULL;
@@ -1292,3 +1299,103 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
     delete_object("d");
 }
+
+// Tests how a single worker handles multiple "concurrent" connections
+// performing operations.
+class WorkerConcurrencyTest : public McdTestappTest {
+public:
+    static void SetUpTestCase() {
+        // Change the number of worker threads to one so we guarantee that
+        // multiple connections are handled by a single worker.
+        cJSON *config = generate_config(1);
+        start_memcached_server(config);
+        cJSON_Delete(config);
+    }
+};
+
+
+TEST_P(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
+    // Concurrently add to two different array documents, using two connections.
+
+    // Current SSL connection code is very stateful (i.e. non-trivial to spin
+    // up a second connection). Only run this test for plain connections.
+    if (GetParam() == Transport::SSL) {
+        return;
+    }
+
+    // Setup the initial empty objects.
+    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+    store_object("b", "[]", /*JSON*/true, /*compress*/false);
+
+    // Create an additional second connection to memcached.
+    SOCKET* current_sock = &sock;
+    SOCKET sock1 = *current_sock;
+    SOCKET sock2 = connect_to_server_plain(port, false);
+    ASSERT_NE(sock2, INVALID_SOCKET);
+
+    const size_t push_count = 100;
+
+    char send_buf[1024 * 10];
+    char* ptr = send_buf;
+    ssize_t len = -1;
+
+    // Build pipeline for the even commands.
+    std::string expected_a;
+    for (unsigned int i = 0; i < push_count; i += 2) {
+        expected_a += std::to_string(i) + ",";
+
+        encode_subdoc_command(ptr, sizeof(send_buf) - (ptr - send_buf),
+                SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+                        "a", "", std::to_string(i)),
+                len);
+        ASSERT_NE(len, -1);
+        ptr += len;
+    }
+    *current_sock = sock1;
+    safe_send(send_buf, ptr - send_buf, false);
+
+    // .. and the odd commands.
+    ptr = send_buf;
+    std::string expected_b;
+    for (unsigned int i = 1; i < push_count; i += 2) {
+        expected_b += std::to_string(i) + ",";
+
+        encode_subdoc_command(ptr, sizeof(send_buf) - (ptr - send_buf),
+                SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+                        "b", "", std::to_string(i)),
+                len);
+        ASSERT_NE(len, -1);
+        ptr += len;
+    }
+    *current_sock = sock2;
+    safe_send(send_buf, ptr - send_buf, false);
+
+    // Fixup the expected values - remove the trailing comma and bookend with
+    // [ ].
+    expected_a.insert(0, "[");
+    expected_a.replace(expected_a.size() - 1, 1, "]");
+    expected_b.insert(0, "[");
+    expected_b.replace(expected_b.size() - 1, 1, "]");
+
+    // Consume all the responses we should be expecting back.
+    for (unsigned int i = 0; i < push_count; i++) {
+        sock = (i % 2) ? sock1 : sock2;
+        recv_subdoc_response(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+                PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    }
+
+    // Validate correct data was written.
+    validate_object("a", expected_a);
+    validate_object("b", expected_b);
+
+    // Restore original socket; free second one.
+    *current_sock = sock1;
+    closesocket(sock2);
+
+    delete_object("a");
+    delete_object("b");
+}
+
+INSTANTIATE_TEST_CASE_P(PlainOrSSL,
+                        WorkerConcurrencyTest,
+                        ::testing::Values(Transport::Plain, Transport::SSL));
