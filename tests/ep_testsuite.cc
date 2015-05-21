@@ -5589,6 +5589,11 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
             "Failed dcp mutate.");
     delete emd;
 
+    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
+
+    check(h1->dcp.close_stream(h, cookie, opaque, 0) == ENGINE_SUCCESS,
+            "Expected success");
+
     check(set_vbucket_state(h, h1, 0, vbucket_state_active),
           "Failed to set vbucket state.");
 
