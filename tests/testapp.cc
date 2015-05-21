@@ -1,9 +1,11 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <getopt.h>
 #include <fcntl.h>
 #include <ctype.h>
 #include <time.h>
@@ -67,6 +69,8 @@ static SSL_CTX *ssl_ctx = NULL;
 static SSL *ssl = NULL;
 static BIO *ssl_bio_r = NULL;
 static BIO *ssl_bio_w = NULL;
+
+bool memcached_verbose = false;
 
 /* static storage for the different environment variables set by
  * putenv().
@@ -204,9 +208,14 @@ cJSON* McdTestappTest::generate_config(int num_threads)
     cJSON_AddStringToObject(obj, "config", "default_engine.so");
     cJSON_AddItemToObject(root, "engine", obj);
 
-    obj = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj, "module", "blackhole_logger.so");
-    cJSON_AddItemToArray(array, obj);
+    if (memcached_verbose) {
+        cJSON_AddNumberToObject(root, "verbosity", 2);
+    } else {
+        obj = cJSON_CreateObject();
+        cJSON_AddStringToObject(obj, "module", "blackhole_logger.so");
+        cJSON_AddItemToArray(array, obj);
+    }
+
     obj = cJSON_CreateObject();
     cJSON_AddStringToObject(obj, "module", "testapp_extension.so");
     cJSON_AddItemToArray(array, obj);
@@ -3778,6 +3787,21 @@ public:
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
+
+    int cmd;
+    while ((cmd = getopt(argc, argv, "v")) != EOF) {
+        switch (cmd) {
+        case 'v':
+            memcached_verbose = true;
+            break;
+        default:
+            std::cerr << "Usage: " << argv[0] << " [-v]" << std::endl
+                      << std::endl
+                      << "  -v Verbose - Print verbose memcached output "
+                      << "to stderr.\n" << std::endl;
+            return 1;
+        }
+    }
 
     McdEnvironment* env = new McdEnvironment();
     ::testing::AddGlobalTestEnvironment(env);
