@@ -97,19 +97,21 @@ public:
         return reinterpret_cast<EWB_Engine*> (handle);
     }
 
-    /* Returns true if the next command should return EWOULDBLOCK.
+    /* Returns true if the next command should have a fake error code injected.
      * @param func Address of the command function (get, store, etc).
      * @param cookie The cookie for the user's request.
+     * @param[out] Error code to return.
      */
-    bool should_return_EWOULDBLOCK(Cmd cmd, const void* cookie) {
-        bool block = false;
+    bool should_inject_error(Cmd cmd, const void* cookie,
+                             ENGINE_ERROR_CODE& err) {
+        bool inject = false;
         std::lock_guard<std::mutex> guard(cookie_map_mutex);
         CookieState& state = cookie_map[cookie];
         switch (state.mode) {
             case EWBEngineMode_NEXT_N:
                 if (state.value > 0) {
                     --state.value;
-                    block = true;
+                    inject = true;
                 }
                 break;
             case EWBEngineMode_RANDOM:
@@ -118,7 +120,7 @@ public:
                 std::mt19937 gen(rd());
                 std::uniform_int_distribution<uint32_t> dis(1, 100);
                 if (dis(gen) < state.value) {
-                    block = true;
+                    inject = true;
                 }
                 break;
             }
@@ -127,20 +129,30 @@ public:
                 // Block unless the previous command from this cookie
                 // was the same - i.e. all of a connections' commands
                 // will EWOULDBLOCK the first time they are called.
-                block = (state.prev_cmd != cmd);
+                inject = (state.prev_cmd != cmd);
 
                 state.prev_cmd = cmd;
+                break;
+            }
+            default:
+                abort();
+        }
+
+        if (inject) {
+            err = state.injected_error;
+            if (err == ENGINE_EWOULDBLOCK) {
+                // The server expects that if EWOULDBLOCK is returned then the
+                // server should be notified in the future when the operation is
+                // ready - so add this op to the pending IO queue.
+                {
+                    std::lock_guard<std::mutex> guard(mutex);
+                    pending_io_ops.push(cookie);
+                }
+                condvar.notify_one();
             }
         }
 
-        if (block) {
-            {
-                std::lock_guard<std::mutex> guard(mutex);
-                pending_io_ops.push(cookie);
-            }
-            condvar.notify_one();
-        }
-        return block;
+        return inject;
     }
 
     /* Implementation of all the engine functions. ***************************/
@@ -220,8 +232,9 @@ public:
                                       const int flags, const rel_time_t exptime,
                                       uint8_t datatype) {
         EWB_Engine* ewb = to_engine(handle);
-        if (ewb->should_return_EWOULDBLOCK(Cmd::ALLOCATE, cookie)) {
-            return ENGINE_EWOULDBLOCK;
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::ALLOCATE, cookie, err)) {
+            return err;
         } else {
             return ewb->real_engine->allocate(ewb->real_handle, cookie, item,
                                               key, nkey, nbytes, flags, exptime,
@@ -234,8 +247,9 @@ public:
                                     uint64_t* cas, uint16_t vbucket,
                                     mutation_descr_t* mut_info) {
         EWB_Engine* ewb = to_engine(handle);
-        if (ewb->should_return_EWOULDBLOCK(Cmd::REMOVE, cookie)) {
-            return ENGINE_EWOULDBLOCK;
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::REMOVE, cookie, err)) {
+            return err;
         } else {
             return ewb->real_engine->remove(ewb->real_handle, cookie, key, nkey,
                                             cas, vbucket, mut_info);
@@ -251,8 +265,9 @@ public:
                                  item** item, const void* key, const int nkey,
                                  uint16_t vbucket) {
         EWB_Engine* ewb = to_engine(handle);
-        if (ewb->should_return_EWOULDBLOCK(Cmd::GET, cookie)) {
-            return ENGINE_EWOULDBLOCK;
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::GET, cookie, err)) {
+            return err;
         } else {
             return ewb->real_engine->get(ewb->real_handle, cookie, item, key,
                                          nkey, vbucket);
@@ -264,8 +279,9 @@ public:
                                    ENGINE_STORE_OPERATION operation,
                                    uint16_t vbucket) {
         EWB_Engine* ewb = to_engine(handle);
-        if (ewb->should_return_EWOULDBLOCK(Cmd::STORE,cookie)) {
-            return ENGINE_EWOULDBLOCK;
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::STORE, cookie, err)) {
+            return err;
         } else {
             return ewb->real_engine->store(ewb->real_handle, cookie, item, cas,
                                            operation, vbucket);
@@ -281,8 +297,9 @@ public:
                                         uint8_t datatype, uint64_t *result,
                                         uint16_t vbucket) {
         EWB_Engine* ewb = to_engine(handle);
-        if (ewb->should_return_EWOULDBLOCK(Cmd::ARITHMETIC, cookie)) {
-            return ENGINE_EWOULDBLOCK;
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::ARITHMETIC, cookie, err)) {
+            return err;
         } else {
             return ewb->real_engine->arithmetic(ewb->real_handle, cookie, key,
                                                 nkey, increment, create, delta,
@@ -305,8 +322,9 @@ public:
                                        const void* cookie, const char* stat_key,
                                        int nkey, ADD_STAT add_stat) {
         EWB_Engine* ewb = to_engine(handle);
-        if (ewb->should_return_EWOULDBLOCK(Cmd::GET_STATS, cookie)) {
-            return ENGINE_EWOULDBLOCK;
+        ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+        if (ewb->should_inject_error(Cmd::GET_STATS, cookie, err)) {
+            return err;
         } else {
             return ewb->real_engine->get_stats(ewb->real_handle, cookie, stat_key,
                                                nkey, add_stat);
@@ -333,13 +351,18 @@ public:
                     reinterpret_cast<request_ewouldblock_ctl*>(request);
             const EWBEngine_Mode mode = static_cast<EWBEngine_Mode>(ntohl(req->message.body.mode));
             const uint32_t value = ntohl(req->message.body.value);
+            const ENGINE_ERROR_CODE injected_error =
+                    static_cast<ENGINE_ERROR_CODE>(ntohl(req->message.body.inject_error));
             CookieState& state = ewb->cookie_map[cookie];
+
+            // Validate mode.
             switch (mode) {
                 case EWBEngineMode_NEXT_N:
                 case EWBEngineMode_RANDOM:
                 case EWBEngineMode_FIRST:
                     state.mode = mode;
                     state.value = value;
+                    state.injected_error = injected_error;
 
                     response(nullptr, 0, nullptr, 0, nullptr, 0,
                              PROTOCOL_BINARY_RAW_BYTES,
@@ -360,8 +383,9 @@ public:
                     return ENGINE_FAILED;
             }
         } else {
-            if (ewb->should_return_EWOULDBLOCK(Cmd::UNKNOWN_COMMAND, cookie)) {
-                return ENGINE_EWOULDBLOCK;
+            ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+            if (ewb->should_inject_error(Cmd::UNKNOWN_COMMAND, cookie, err)) {
+                return err;
             } else {
                 return ewb->real_engine->unknown_command(ewb->real_handle, cookie,
                                                          request, response);
@@ -409,7 +433,10 @@ private:
     // Per-cookie (connection) state.
     struct CookieState {
         CookieState()
-          : prev_cmd(Cmd::NONE), mode(EWBEngineMode_FIRST), value(0) {}
+          : prev_cmd(Cmd::NONE),
+            mode(EWBEngineMode_FIRST),
+            value(0),
+            injected_error(ENGINE_EWOULDBLOCK) {}
 
         // Last command issued by this cookie.
         Cmd prev_cmd;
@@ -419,6 +446,9 @@ private:
 
         // Value associated with the current mode.
         uint32_t value;
+
+        // Error code to inject
+        ENGINE_ERROR_CODE injected_error;
     };
 
     // Map of connections (aka cookies) to their current state

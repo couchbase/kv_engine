@@ -39,9 +39,11 @@ extern "C" {
             struct {
                 uint32_t mode; // See EWB_Engine_Mode
                 uint32_t value;
+                uint32_t inject_error; // ENGINE_ERROR_CODE to inject.
             } body;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) +
+                      sizeof(uint32_t) +
                       sizeof(uint32_t) +
                       sizeof(uint32_t)];
     } request_ewouldblock_ctl;

@@ -23,6 +23,7 @@
 
 #include <memcached/util.h>
 #include <memcached/config_parser.h>
+#include <memcached/types.h>
 #include <cbsasl/cbsasl.h>
 #include "engines/ewouldblock_engine/ewouldblock_engine.h"
 #include "extensions/protocol/testapp_extension.h"
@@ -90,7 +91,10 @@ static void stop_memcached_server(void);
 static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking);
 
 static void destroy_ssl_socket();
-static void ewouldblock_engine_configure(EWBEngine_Mode mode, uint32_t value);
+static void ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
+                                         EWBEngine_Mode mode, uint32_t value);
+static void ewouldblock_engine_disable();
+
 static void set_mutation_seqno_feature(bool enable);
 
 std::ostream& operator << (std::ostream& os, const Transport& t)
@@ -207,8 +211,9 @@ void McdTestappTest::SetUp() {
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("mybucket",
                                                           "mybucketpassword"));
 
-    // Se ewouldblock_engine test harness to default mode.
-    ewouldblock_engine_configure(EWBEngineMode_FIRST, /*unused*/0);
+    // Set ewouldblock_engine test harness to default mode.
+    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_FIRST,
+                                 /*unused*/0);
 }
 
 // per test tear-down function.
@@ -980,7 +985,7 @@ off_t raw_command(char* buf,
     } else if (cmd == PROTOCOL_BINARY_CMD_AUDIT_PUT) {
         request->message.header.request.extlen = 4;
     } else if (cmd == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
-        request->message.header.request.extlen = 8;
+        request->message.header.request.extlen = 12;
     }
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
     request->message.header.request.opcode = cmd;
@@ -1220,7 +1225,8 @@ static void validate_arithmetic(const protocol_binary_response_incr* incr,
 
 // Configues the ewouldblock_engine to use the given mode; value
 // is a mode-specific parameter.
-void ewouldblock_engine_configure(EWBEngine_Mode mode, uint32_t value) {
+void ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
+                                  EWBEngine_Mode mode, uint32_t value) {
     union {
         request_ewouldblock_ctl request;
         protocol_binary_response_no_extras response;
@@ -1232,6 +1238,7 @@ void ewouldblock_engine_configure(EWBEngine_Mode mode, uint32_t value) {
                              NULL, 0, NULL, 0);
     buffer.request.message.body.mode = htonl(mode);
     buffer.request.message.body.value = htonl(value);
+    buffer.request.message.body.inject_error = htonl(err_code);
 
     safe_send(buffer.bytes, len, false);
 
@@ -1241,6 +1248,11 @@ void ewouldblock_engine_configure(EWBEngine_Mode mode, uint32_t value) {
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
+/* Disable the ewouldblock_engine. */
+void ewouldblock_engine_disable() {
+    // Value for err_code doesn't matter...
+    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_NEXT_N, 0);
+}
 
 // Note: retained as a seperate function as other tests call this.
 void test_noop(void) {
@@ -3155,7 +3167,7 @@ TEST_P(McdTestappTest, MB_10114) {
     size_t len;
 
     // Disable ewouldblock_engine - not wanted / needed for this MB regression test.
-    ewouldblock_engine_configure(EWBEngineMode_NEXT_N, 0);
+    ewouldblock_engine_disable();
 
     store_object(key, "world");
     do {
@@ -3412,9 +3424,9 @@ static enum test_return test_set_huge_impl(const char *key,
 
     enum test_return rv = TEST_PASS;
 
-    // This ia a large, long test. Disable ewouldblock_engine while
+    // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
-    ewouldblock_engine_configure(EWBEngineMode_NEXT_N, 0);
+    ewouldblock_engine_disable();
 
     /* some error case may return a body in the response */
     char receive[sizeof(protocol_binary_response_no_extras) + 32];
@@ -3579,9 +3591,9 @@ void test_pipeline_impl(int cmd, int result, const char* key_root,
 }
 
 TEST_P(McdTestappTest, PipelineSet) {
-    // This ia a large, long test. Disable ewouldblock_engine while
+    // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
-    ewouldblock_engine_configure(EWBEngineMode_NEXT_N, 0);
+    ewouldblock_engine_disable();
 
     /*
       MB-11203 would break at iteration 529 where we happen to send 57916 bytes in 1 pipe
@@ -3600,9 +3612,9 @@ TEST_P(McdTestappTest, PipelineSet) {
 TEST_P(McdTestappTest, PipelineSetGetDel) {
     const char key_root[] = "key_set_get_del";
 
-    // This ia a large, long test. Disable ewouldblock_engine while
+    // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
-    ewouldblock_engine_configure(EWBEngineMode_NEXT_N, 0);
+    ewouldblock_engine_disable();
 
     test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
                        PROTOCOL_BINARY_RESPONSE_SUCCESS, key_root, 5000, 256);
@@ -3615,9 +3627,9 @@ TEST_P(McdTestappTest, PipelineSetGetDel) {
 }
 
 TEST_P(McdTestappTest, PipelineSetDel) {
-    // This ia a large, long test. Disable ewouldblock_engine while
+    // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
-    ewouldblock_engine_configure(EWBEngineMode_NEXT_N, 0);
+    ewouldblock_engine_disable();
 
     test_pipeline_impl(PROTOCOL_BINARY_CMD_SET,
                        PROTOCOL_BINARY_RESPONSE_SUCCESS, "key_root",
