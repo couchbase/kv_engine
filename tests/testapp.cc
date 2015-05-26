@@ -220,16 +220,17 @@ static cJSON *generate_config(void)
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddItemToArray(array, obj);
 
-    // We need to ensure that if >1 instance of this testsuite is run at once
-    // then there each has a unique SSL port.
-    // For the first interface this is simple: we can specify the magic value
-    // '0' which will cause memcached to automatically select an available port, however for
-    // the second (SSL) port this isn't possible (port numbers - even when
-    // zero - are used to uniquely identify interfaces in memcached.
-    // The (somewhat hacky) solution we use here is to derive a SSL port number
-    // using the process ID. While not guaranteed to be unique (port namespace
-    // is 16bit whereas PIDs are normally at least 32bit) but given the common
-    // case will be 2 testapp processes it should suffice in reality.
+    // We need to ensure that if >1 instance of this testsuite is run
+    // at once then there each has a unique SSL port.  For the first
+    // interface this is simple: we can specify the magic value '0'
+    // which will cause memcached to automatically select an available
+    // port, however for the second (SSL) port this isn't possible
+    // (port numbers - even when zero - are used to uniquely identify
+    // interfaces in memcached.  The (somewhat hacky) solution we use
+    // here is to derive a SSL port number using the process ID. While
+    // not guaranteed to be unique (port namespace is 16bit whereas
+    // PIDs are normally at least 32bit) but given the common case
+    // will be 2 testapp processes it should suffice in reality.
     uint16_t ssl_port = 40000 + (getpid() % 10000);
 
     obj = cJSON_CreateObject();
