@@ -105,9 +105,7 @@ class ForestKVStore : public KVStore
      *
      * @return true if the commit is completed successfully.
      */
-    bool commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
-                uint64_t snapEndSeqno, uint64_t maxCas,
-                uint64_t driftCounter);
+    bool commit(Callback<kvstats_ctx> *cb);
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -215,7 +213,12 @@ class ForestKVStore : public KVStore
 
     vbucket_state *getVBucketState(uint16_t vbid);
 
-    ENGINE_ERROR_CODE updateVBState(uint16_t vbucketId, vbucket_state *vbState);
+    ENGINE_ERROR_CODE updateVBState(uint16_t vbucketId,
+                                    uint64_t maxDeletedRevSeqno,
+                                    uint64_t snapStartSeqno,
+                                    uint64_t snapEndSeqno,
+                                    uint64_t maxCas,
+                                    uint64_t driftCounter);
 
     /**
      * Do a rollback to the specified sequence number on the particular vbucket
@@ -273,7 +276,6 @@ private:
     unordered_map<uint16_t, fdb_kvs_handle *> writeHandleMap;
     unordered_map<uint16_t, fdb_kvs_handle *> readHandleMap;
     fdb_kvs_handle *vbStateHandle;
-    std::vector<vbucket_state *> cachedVBStates;
     fdb_config fileConfig;
     fdb_kvs_config kvsConfig;
     std::vector<ForestRequest *> pendingReqsQ;

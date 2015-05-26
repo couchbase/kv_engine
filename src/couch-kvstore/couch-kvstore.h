@@ -250,9 +250,7 @@ public:
      *
      * @return true if the commit is completed successfully.
      */
-    bool commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
-                uint64_t snapEndSeqno, uint64_t maxCas,
-                uint64_t driftCounter);
+    bool commit(Callback<kvstats_ctx> *cb);
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -367,7 +365,12 @@ public:
 
     vbucket_state *getVBucketState(uint16_t vbid);
 
-    ENGINE_ERROR_CODE updateVBState(uint16_t vbucketId, vbucket_state *vbState);
+    ENGINE_ERROR_CODE updateVBState(uint16_t vbucketId,
+                                    uint64_t maxDeletedRevSeqno,
+                                    uint64_t snapStartSeqno,
+                                    uint64_t snapEndSeqno,
+                                    uint64_t maxCas,
+                                    uint64_t driftCounter);
 
     /**
      * Does the underlying storage system support key-only retrieval operations?
@@ -497,9 +500,7 @@ private:
     void operator=(const CouchKVStore &from);
 
     void close();
-    bool commit2couchstore(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
-                           uint64_t snapEndSeqno, uint64_t maxCas,
-                           uint64_t driftCounter);
+    bool commit2couchstore(Callback<kvstats_ctx> *cb);
 
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
     void populateFileNameMap(std::vector<std::string> &filenames,
@@ -514,11 +515,7 @@ private:
                                     Db **db, uint64_t *newFileRev);
     couchstore_error_t saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
                                 DocInfo **docinfos, size_t docCount,
-                                kvstats_ctx &kvctx,
-                                uint64_t snapStartSeqno,
-                                uint64_t snapEndSeqno,
-                                uint64_t maxCas,
-                                uint64_t driftCounter);
+                                kvstats_ctx &kvctx);
     void commitCallback(std::vector<CouchRequest *> &committedReqs,
                         kvstats_ctx &kvctx,
                         couchstore_error_t errCode);
@@ -553,8 +550,6 @@ private:
     /* all stats */
     CouchKVStoreStats   st;
     couch_file_ops statCollectingFileOps;
-    /* vbucket state cache*/
-    std::vector<vbucket_state *> cachedVBStates;
     /* deleted docs in each file*/
     unordered_map<uint16_t, size_t> cachedDeleteCount;
     /* non-deleted docs in each file */

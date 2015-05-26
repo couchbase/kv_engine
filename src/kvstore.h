@@ -375,9 +375,7 @@ public:
      *
      * @return false if the commit fails
      */
-    virtual bool commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
-                        uint64_t snapEndSeqno, uint64_t maxCas,
-                        uint64_t driftCounter) = 0;
+    virtual bool commit(Callback<kvstats_ctx> *cb) = 0;
 
     /**
      * Rollback the current transaction.
@@ -460,7 +458,11 @@ public:
     virtual vbucket_state *getVBucketState(uint16_t vbid) = 0;
 
     virtual ENGINE_ERROR_CODE updateVBState(uint16_t vbucketId,
-                                            vbucket_state *vbState) = 0;
+                                            uint64_t maxDeletedRevSeqno,
+                                            uint64_t snapStartSeqno,
+                                            uint64_t snapEndSeqno,
+                                            uint64_t maxCas,
+                                            uint64_t driftCounter) = 0;
 
     /**
      * Check if the underlying store supports dumping all of the keys
@@ -531,7 +533,11 @@ public:
 protected:
     KVStoreConfig &configuration;
     bool readOnly;
+    std::vector<vbucket_state *> cachedVBStates;
     void createDataDir(const std::string& dbname);
+    std::string updateCachedVBState(uint16_t vbid, uint64_t maxDeletedRevSeqno,
+                                    uint64_t snapStartSeqno, uint64_t snapEndSeqno,
+                                    uint64_t maxCas, uint64_t driftCounter);
 };
 
 /**

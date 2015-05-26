@@ -85,7 +85,7 @@ void basic_kvstore_test(std::string& backend) {
     WriteCallback wc;
     kvstore->set(item, wc);
 
-    kvstore->commit(&sc, 1, 1, 1, 0);
+    kvstore->commit(&sc);
 
     GetCallback gc;
     kvstore->get("key", 0, gc);

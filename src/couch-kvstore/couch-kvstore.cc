@@ -144,19 +144,6 @@ static void discoverDbFiles(const std::string &dir,
     }
 }
 
-static uint64_t computeMaxDeletedSeqNum(DocInfo **docinfos,
-                                        const int numdocs) {
-    uint64_t max = 0;
-    for (int idx = 0; idx < numdocs; idx++) {
-        if (docinfos[idx]->deleted) {
-            // check seq number only from a deleted file
-            uint64_t seqNum = docinfos[idx]->rev_seq;
-            max = std::max(seqNum, max);
-        }
-    }
-    return max;
-}
-
 static int getMutationStatus(couchstore_error_t errCode) {
     switch (errCode) {
     case COUCHSTORE_SUCCESS:
@@ -888,7 +875,6 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
         cachedDocCount[vbid] = info.doc_count;
     }
 
-    // Notify MCCouch that compaction is Done...
     closeDatabaseHandle(targetDb);
 
     // Removing the stale couch file
@@ -901,7 +887,15 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
 
 
 ENGINE_ERROR_CODE CouchKVStore::updateVBState(uint16_t vbucketId,
-                                              vbucket_state *vbState) {
+                                              uint64_t maxDeletedRevSeqno,
+                                              uint64_t snapStartSeqno,
+                                              uint64_t snapEndSeqno,
+                                              uint64_t maxCas,
+                                              uint64_t driftCounter) {
+
+    updateCachedVBState(vbucketId, maxDeletedRevSeqno, snapStartSeqno,
+                        snapEndSeqno, maxCas, driftCounter);
+
     return ENGINE_SUCCESS;
 }
 
@@ -1079,13 +1073,10 @@ StorageProperties CouchKVStore::getStorageProperties() {
     return rv;
 }
 
-bool CouchKVStore::commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
-                          uint64_t snapEndSeqno, uint64_t maxCas,
-                          uint64_t driftCounter) {
+bool CouchKVStore::commit(Callback<kvstats_ctx> *cb) {
     cb_assert(!isReadOnly());
     if (intransaction) {
-        if (commit2couchstore(cb, snapStartSeqno, snapEndSeqno,
-                              maxCas, driftCounter)) {
+        if (commit2couchstore(cb)) {
             intransaction = false;
         }
     }
@@ -1712,10 +1703,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     return COUCHSTORE_SUCCESS;
 }
 
-bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb,
-                                     uint64_t snapStartSeqno,
-                                     uint64_t snapEndSeqno,
-                                     uint64_t maxCas, uint64_t driftCounter) {
+bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb) {
     bool success = true;
 
     size_t pendingCommitCnt = pendingReqsQ.size();
@@ -1741,9 +1729,8 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb,
     kvctx.vbucket = vbucket2flush;
     // flush all
     couchstore_error_t errCode = saveDocs(vbucket2flush, fileRev, docs,
-                                          docinfos, pendingCommitCnt, kvctx,
-                                          snapStartSeqno, snapEndSeqno, maxCas,
-                                          driftCounter);
+                                          docinfos, pendingCommitCnt,
+                                          kvctx);
     if (errCode) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: commit failed, cannot save CouchDB docs "
@@ -1783,10 +1770,7 @@ static int readDocInfos(Db *db, DocInfo *docinfo, void *ctx) {
 
 couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
                                           Doc **docs, DocInfo **docinfos,
-                                          size_t docCount, kvstats_ctx &kvctx,
-                                          uint64_t snapStartSeqno,
-                                          uint64_t snapEndSeqno,
-                                          uint64_t maxCas, uint64_t driftCounter) {
+                                          size_t docCount, kvstats_ctx &kvctx) {
     couchstore_error_t errCode;
     uint64_t fileRev = rev;
     DbInfo info;
@@ -1801,16 +1785,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
                 "fileRev = %llu numDocs = %d", vbid, fileRev, docCount);
         return errCode;
     } else {
-        uint64_t max = computeMaxDeletedSeqNum(docinfos, docCount);
-
         vbucket_state *state = cachedVBStates[vbid];
         cb_assert(state);
-
-        // update max_deleted_seq in the local doc (vbstate)
-        // before save docs for the given vBucket
-        if (max > 0 && state->maxDeletedSeqno < max) {
-            state->maxDeletedSeqno = max;
-        }
 
         uint64_t maxDBSeqno = 0;
         sized_buf *ids = new sized_buf[docCount];
@@ -1839,13 +1815,6 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
             return errCode;
         }
 
-        state->lastSnapStart = snapStartSeqno;
-        state->lastSnapEnd = snapEndSeqno;
-
-        if (maxCas > state->maxCas) {
-            state->maxCas = maxCas;
-        }
-        state->driftCounter = driftCounter;
         errCode = saveVBState(db, *state);
         if (errCode != COUCHSTORE_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING, "Warning: failed to save local docs to "

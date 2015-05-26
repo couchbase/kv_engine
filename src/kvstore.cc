@@ -25,6 +25,7 @@
 #include "couch-kvstore/couch-kvstore.h"
 #include "forest-kvstore/forest-kvstore.h"
 #include "kvstore.h"
+#include "vbucket.h"
 #include <platform/dirutils.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -67,6 +68,42 @@ void KVStore::createDataDir(const std::string& dbname) {
             throw std::runtime_error(ss.str());
         }
     }
+}
+
+std::string KVStore::updateCachedVBState(uint16_t vbid, uint64_t maxDeletedRevSeqno,
+                                         uint64_t snapStartSeqno, uint64_t snapEndSeqno,
+                                         uint64_t maxCas, uint64_t driftCounter) {
+
+    vbucket_state *vbState = cachedVBStates[vbid];
+
+    cb_assert(vbState);
+
+    if (maxDeletedRevSeqno > 0 &&
+           vbState->maxDeletedSeqno < maxDeletedRevSeqno) {
+        vbState->maxDeletedSeqno = maxDeletedRevSeqno;
+    }
+
+    vbState->lastSnapStart = snapStartSeqno;
+    vbState->lastSnapEnd = snapEndSeqno;
+
+    if (maxCas > vbState->maxCas) {
+        vbState->maxCas = maxCas;
+    }
+
+    vbState->driftCounter = driftCounter;
+
+    std::stringstream jsonState;
+    jsonState << "{\"state\": \"" << VBucket::toString(vbState->state) << "\""
+              << ",\"checkpoint_id\": \"" << vbState->checkpointId << "\""
+              << ",\"max_deleted_seqno\": \"" << vbState->maxDeletedSeqno << "\""
+              << ",\"failover_table\": " << vbState->failovers
+              << ",\"snap_start\": \"" << vbState->lastSnapStart << "\""
+              << ",\"snap_end\": \"" << vbState->lastSnapEnd << "\""
+              << ",\"max_cas\": \"" << vbState->maxCas << "\""
+              << ",\"drift_counter\": \"" << vbState->driftCounter << "\""
+              << "}";
+
+    return jsonState.str();
 }
 
 IORequest::IORequest(uint16_t vbId, MutationRequestCallback &cb , bool del,

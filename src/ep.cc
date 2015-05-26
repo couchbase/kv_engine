@@ -3135,29 +3135,13 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 range.end = maxSeqno;
             }
 
-            KVStoreConfig &config = rwUnderlying->getConfig();
-            if (config.getBackend().compare("forestdb") == 0) {
-                vbucket_state *vbState = rwUnderlying->getVBucketState(vb->getId());
-                cb_assert(vbState);
-                if (maxDeletedRevSeqno > 0 &&
-                        vbState->maxDeletedSeqno < maxDeletedRevSeqno) {
-                    vbState->maxDeletedSeqno = maxDeletedRevSeqno;
-                }
-
-                vbState->lastSnapStart = maxSeqno;
-                vbState->lastSnapEnd = maxSeqno;
-
-                if (maxCas > vbState->maxCas) {
-                    vbState->maxCas = maxCas;
-                }
-
-                vbState->driftCounter = vb->getDriftCounter();
-
-                rwUnderlying->updateVBState(vb->getId(), vbState);
+            if (rwUnderlying->updateVBState(vb->getId(), maxDeletedRevSeqno,
+                                            range.start, range.end, maxCas,
+                                            vb->getDriftCounter()) != ENGINE_SUCCESS) {
+                return RETRY_FLUSH_VBUCKET;
             }
 
-            while (!rwUnderlying->commit(&cb, range.start, range.end, maxCas,
-                                         vb->getDriftCounter())) {
+            while (!rwUnderlying->commit(&cb)) {
                 ++stats.commitFailed;
                 LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
                     "1 sec...\n");

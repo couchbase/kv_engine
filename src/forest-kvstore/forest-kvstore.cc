@@ -425,19 +425,14 @@ vbucket_state * ForestKVStore::getVBucketState(uint16_t vbucketId) {
 }
 
 ENGINE_ERROR_CODE ForestKVStore::updateVBState(uint16_t vbucketId,
-                                               vbucket_state *vbState) {
-    std::stringstream jsonState;
-    jsonState << "{\"state\": \"" << VBucket::toString(vbState->state) << "\""
-              << ",\"checkpoint_id\": \"" << vbState->checkpointId << "\""
-              << ",\"max_deleted_seqno\": \"" << vbState->maxDeletedSeqno << "\""
-              << ",\"failover_table\": " << vbState->failovers
-              << ",\"snap_start\": \"" << vbState->lastSnapStart << "\""
-              << ",\"snap_end\": \"" << vbState->lastSnapEnd << "\""
-              << ",\"max_cas\": \"" << vbState->maxCas << "\""
-              << ",\"drift_counter\": \"" << vbState->driftCounter << "\""
-              << "}";
-
-    std::string state = jsonState.str();
+                                               uint64_t maxDeletedRevSeqno,
+                                               uint64_t snapStartSeqno,
+                                               uint64_t snapEndSeqno,
+                                               uint64_t maxCas,
+                                               uint64_t driftCounter) {
+    std::string state = updateCachedVBState(vbucketId, maxDeletedRevSeqno,
+                                            snapStartSeqno, snapEndSeqno,
+                                            maxCas, driftCounter);
     char keybuf[20];
     fdb_doc statDoc;
     sprintf(keybuf, "partition%d", vbucketId);
@@ -458,9 +453,7 @@ ENGINE_ERROR_CODE ForestKVStore::updateVBState(uint16_t vbucketId,
     return ENGINE_SUCCESS;
 }
 
-bool ForestKVStore::commit(Callback<kvstats_ctx> *cb, uint64_t snapStartSeqno,
-                           uint64_t snapEndSeqno, uint64_t maxCas,
-                           uint64_t driftCounter) {
+bool ForestKVStore::commit(Callback<kvstats_ctx> *cb) {
     return true;
 }
 
