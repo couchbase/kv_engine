@@ -1124,6 +1124,7 @@ static void validate_arithmetic(const protocol_binary_response_incr* incr,
 void ewouldblock_engine_configure(EWBEngine_Mode mode, uint32_t value) {
     union {
         request_ewouldblock_ctl request;
+        protocol_binary_response_no_extras response;
         char bytes[1024];
     } buffer;
 
@@ -1134,6 +1135,11 @@ void ewouldblock_engine_configure(EWBEngine_Mode mode, uint32_t value) {
     buffer.request.message.body.value = htonl(value);
 
     safe_send(buffer.bytes, len, false);
+
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 

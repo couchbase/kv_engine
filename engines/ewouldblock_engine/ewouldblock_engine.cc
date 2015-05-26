@@ -334,25 +334,26 @@ public:
             CookieState& state = ewb->cookie_map[cookie];
             switch (mode) {
                 case EWBEngineMode_NEXT_N:
-                    state.mode = mode;
-                    state.value = value;
-                    return ENGINE_SUCCESS;
-
                 case EWBEngineMode_RANDOM:
-                    state.mode = mode;
-                    state.value = value;
-                    return ENGINE_SUCCESS;
-
                 case EWBEngineMode_FIRST:
                     state.mode = mode;
-                    state.value = 0;
+                    state.value = value;
+
+                    response(nullptr, 0, nullptr, 0, nullptr, 0,
+                             PROTOCOL_BINARY_RAW_BYTES,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0,
+                             cookie);
                     return ENGINE_SUCCESS;
 
                 default:
                     fprintf(stderr, "EWB_Engine::unknown_command(): "
-                            "Got unexpected mode=%d for EWOULDBLOCK_CTL, "
-                            "aborting.\n", mode);
-                    abort();
+                            "Got unexpected mode=%d for EWOULDBLOCK_CTL.\n",
+                            mode);
+                    response(nullptr, 0, nullptr, 0, nullptr, 0,
+                             PROTOCOL_BINARY_RAW_BYTES,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL, /*cas*/0,
+                             cookie);
+                    return ENGINE_FAILED;
             }
         } else {
             if (ewb->should_return_EWOULDBLOCK(Cmd::UNKNOWN_COMMAND, cookie)) {
