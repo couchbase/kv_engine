@@ -80,8 +80,8 @@ static char mcd_parent_monitor_env[80];
 static char mcd_port_filename_env[80];
 static char isasl_pwfile_env[1024];
 
-static enum test_return start_memcached_server(void);
-static enum test_return stop_memcached_server(void);
+static void start_memcached_server(void);
+static void stop_memcached_server(void);
 static void connect_to_server_plain(in_port_t port, bool nonblocking);
 static void connect_to_server_ssl(in_port_t ssl_port, bool nonblocking);
 
@@ -106,14 +106,14 @@ std::ostream& operator << (std::ostream& os, const Transport& t)
 // Per-test-case set-up.
 // Called before the first test in this test case.
 void McdTestappTest::SetUpTestCase() {
-    ASSERT_EQ(TEST_PASS, start_memcached_server());
+    start_memcached_server();
 }
 
 // Per-test-case tear-down.
 // Called after the last test in this test case.
 void McdTestappTest::TearDownTestCase() {
     shutdown_openssl();
-    ASSERT_EQ(TEST_PASS, stop_memcached_server());
+    stop_memcached_server();
 }
 
 // per test setup function.
@@ -320,22 +320,33 @@ static int write_config_to_file(const char* config, const char *fname) {
     return 0;
 }
 
+static bool isMemcachedAlive() {
+#ifdef WIN32
+    DWORD status;
+    if (GetExitCodeProcess(server_pid, &status)) {
+        if (status != STILL_ACTIVE) {
+            return false;
+        }
+    }
+    // GetExitCodeProcessed failed for some reason...
+    return true;
+#else
+    return waitpid(server_pid, 0, WNOHANG) == 0;
+#endif
+}
+
 /**
- * Function to start the server and let it listen on a random port
+ * Function to start the server and let it listen on a random port.
+ * Set <code>server_pid</code> to the pid of the process
  *
  * @param port_out where to store the TCP port number the server is
  *                 listening on
  * @param daemon set to true if you want to run the memcached server
  *               as a daemon process
- * @return the pid of the memcached server
  */
-#ifdef WIN32
-static HANDLE
-#else
-static pid_t
-#endif
-start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon,
-             int timeout) {
+static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
+                         bool daemon, int timeout)
+{
     char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
 #ifdef __sun
     char coreadm[128];
@@ -391,11 +402,13 @@ start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon,
         }
         exit(EXIT_FAILURE);
     }
-#else
-    pid_t pid = fork();
-    cb_assert(pid != -1);
 
-    if (pid == 0) {
+    server_pid = pinfo.hProcess;
+#else
+    server_pid = fork();
+    ASSERT_NE(static_cast<pid_t>(-1), server_pid);
+
+    if (server_pid == 0) {
         /* Child */
         const char *argv[20];
         int arg = 0;
@@ -425,14 +438,11 @@ start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon,
     /* Yeah just let us "busy-wait" for the file to be created ;-) */
     while (access(filename, F_OK) == -1) {
         usleep(10);
+        ASSERT_TRUE(isMemcachedAlive());
     }
 
     fp = fopen(filename, "r");
-    if (fp == NULL) {
-        fprintf(stderr, "Failed to open the file containing port numbers: %s\n",
-                strerror(errno));
-        cb_assert(false);
-    }
+    ASSERT_NE(nullptr, fp);
 
     *port_out = (in_port_t)-1;
     *ssl_port_out = (in_port_t)-1;
@@ -449,13 +459,7 @@ start_server(in_port_t *port_out, in_port_t *ssl_port_out, bool daemon,
         }
     }
     fclose(fp);
-    cb_assert(remove(filename) == 0);
-
-#ifdef WIN32
-    return pinfo.hProcess;
-#else
-    return pid;
-#endif
+    EXPECT_EQ(0, remove(filename));
 }
 
 static struct addrinfo *lookuphost(const char *hostname, in_port_t port)
@@ -597,39 +601,33 @@ static void reconnect_to_server(bool nonblocking) {
 
 static char *isasl_file;
 
-static enum test_return start_memcached_server(void) {
+static void start_memcached_server(void) {
     cJSON *rbac = generate_rbac_config();
     char *rbac_text = cJSON_Print(rbac);
 
-    if (cb_mktemp(rbac_file) == NULL) {
-        return TEST_FAIL;
-    }
-    if (write_config_to_file(rbac_text, rbac_file) == -1) {
-        return TEST_FAIL;
-    }
+    ASSERT_NE(nullptr, cb_mktemp(rbac_file));
+    ASSERT_NE(-1, write_config_to_file(rbac_text, rbac_file));
+
     cJSON_Free(rbac_text);
     cJSON_Delete(rbac);
 
-    if (cb_mktemp(config_file) == NULL) {
-        return TEST_FAIL;
-    }
+    ASSERT_NE(nullptr, cb_mktemp(config_file));
 
     cJSON *json_config = generate_config();
     config_string = cJSON_Print(json_config);
     cJSON_Delete(json_config);
-    if (write_config_to_file(config_string, config_file) == -1) {
-        return TEST_FAIL;
-    }
+
+    ASSERT_NE(-1, write_config_to_file(config_string, config_file));
 
     char fname[1024];
     snprintf(fname, sizeof(fname), "isasl.%lu.%lu.pw",
              (unsigned long)getpid(),
              (unsigned long)time(NULL));
     isasl_file = strdup(fname);
-    cb_assert(isasl_file != NULL);
+    ASSERT_NE(nullptr, isasl_file);
 
     FILE *fp = fopen(isasl_file, "w");
-    cb_assert(fp != NULL);
+    ASSERT_NE(nullptr, fp);
     fprintf(fp, "_admin password \n");
     fclose(fp);
 
@@ -638,11 +636,10 @@ static enum test_return start_memcached_server(void) {
     putenv(isasl_pwfile_env);
 
     server_start_time = time(0);
-    server_pid = start_server(&port, &ssl_port, false, 600);
-    return TEST_PASS;
+    start_server(&port, &ssl_port, false, 600);
 }
 
-static enum test_return stop_memcached_server(void) {
+static void stop_memcached_server(void) {
     closesocket(sock);
     sock = INVALID_SOCKET;
 #ifdef WIN32
@@ -650,17 +647,15 @@ static enum test_return stop_memcached_server(void) {
 #else
     if (kill(server_pid, SIGTERM) == 0) {
         /* Wait for the process to be gone... */
-        waitpid(server_pid, NULL, WNOHANG);
+        waitpid(server_pid, NULL, 0);
     }
 #endif
 
     cJSON_Free(config_string);
-    remove(config_file);
-    remove(isasl_file);
+    EXPECT_NE(-1, remove(config_file));
+    EXPECT_NE(-1, remove(isasl_file));
     free(isasl_file);
-    remove(rbac_file);
-
-    return TEST_PASS;
+    EXPECT_NE(-1, remove(rbac_file));
 }
 
 static ssize_t phase_send(const void *buf, size_t len) {
