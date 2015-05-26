@@ -43,7 +43,6 @@ extern "C" {
 }
 
 void ExecutorThread::start() {
-    cb_assert(state == EXECUTOR_CREATING);
     if (cb_create_thread(&thread, launch_executor_thread, this, 0) != 0) {
         std::stringstream ss;
         ss << name.c_str() << ": Initialization error!!!";
@@ -55,7 +54,9 @@ void ExecutorThread::stop(bool wait) {
     if (!wait && (state == EXECUTOR_SHUTDOWN || state == EXECUTOR_DEAD)) {
         return;
     }
+
     state = EXECUTOR_SHUTDOWN;
+
     if (!wait) {
         LOG(EXTENSION_LOG_INFO, "%s: Stopping", name.c_str());
         return;
@@ -65,8 +66,6 @@ void ExecutorThread::stop(bool wait) {
 }
 
 void ExecutorThread::run() {
-    state = EXECUTOR_RUNNING;
-
     LOG(EXTENSION_LOG_DEBUG, "Thread %s running..", getName().c_str());
 
     for (uint8_t tick = 1;; tick++) {
@@ -175,8 +174,6 @@ void ExecutorThread::addLogEntry(const std::string &desc,
 
 const std::string ExecutorThread::getStateName() {
     switch (state.load()) {
-    case EXECUTOR_CREATING:
-        return std::string("creating");
     case EXECUTOR_RUNNING:
         return std::string("running");
     case EXECUTOR_WAITING:

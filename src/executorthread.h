@@ -44,7 +44,6 @@ class TaskQueue;
 class WorkLoadPolicy;
 
 typedef enum {
-    EXECUTOR_CREATING,
     EXECUTOR_RUNNING,
     EXECUTOR_WAITING,
     EXECUTOR_SLEEPING,
@@ -61,7 +60,7 @@ public:
     ExecutorThread(ExecutorPool *m, int startingQueue,
                    const std::string nm) : manager(m),
           startIndex(startingQueue), name(nm),
-          state(EXECUTOR_CREATING), taskStart(0),
+          state(EXECUTOR_RUNNING), taskStart(0),
           currentTask(NULL), curTaskType(NO_TASK_TYPE),
           tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {
               gettimeofday(&now, NULL);
@@ -77,8 +76,6 @@ public:
     void run(void);
 
     void stop(bool wait=true);
-
-    void shutdown() { state = EXECUTOR_SHUTDOWN; }
 
     void schedule(ExTask &task);
 
