@@ -760,6 +760,15 @@ static void stop_memcached_server(void) {
     free(isasl_file);
 }
 
+static ssize_t socket_send(SOCKET s, const char *buf, size_t len)
+{
+#ifdef WIN32
+    return send(s, buf, (int)len, 0);
+#else
+    return send(s, buf, len, 0);
+#endif
+}
+
 static ssize_t phase_send(const void *buf, size_t len) {
     ssize_t rv = 0, send_rv = 0;
     if (current_phase == phase_ssl) {
@@ -769,11 +778,7 @@ static ssize_t phase_send(const void *buf, size_t len) {
         rv = (ssize_t)SSL_write(ssl, (const char*)buf, (int)len);
         send_len = BIO_get_mem_data(ssl_bio_w, &send_buf);
 
-#ifdef WIN32
-        send_rv = send(sock_ssl, send_buf, (int)send_len, 0);
-#else
-        send_rv = send(sock_ssl, send_buf, send_len, 0);
-#endif
+        send_rv = socket_send(sock_ssl, send_buf, send_len);
 
         if (send_rv > 0) {
             EXPECT_EQ(send_len, send_rv);
@@ -783,13 +788,18 @@ static ssize_t phase_send(const void *buf, size_t len) {
             rv = send_rv;
         }
     } else {
-#ifdef WIN32
-        rv = send(sock, reinterpret_cast<const char*>(buf), (int)len, 0);
-#else
-        rv = send(sock, buf, len, 0);
-#endif
+        rv = socket_send(sock, reinterpret_cast<const char*>(buf), len);
     }
     return rv;
+}
+
+static ssize_t socket_recv(SOCKET s, char *buf, size_t len)
+{
+#ifdef WIN32
+    return recv(s, buf, (int)len, 0);
+#else
+    return recv(s, buf, len, 0);
+#endif
 }
 
 static ssize_t phase_recv(void *buf, size_t len) {
@@ -800,11 +810,7 @@ static ssize_t phase_recv(void *buf, size_t len) {
         while((rv = SSL_peek(ssl, buf, (int)len)) == -1)
         {
             /* nope, keep feeding SSL until we can */
-#ifdef WIN32
-            rv = recv(sock_ssl, reinterpret_cast<char*>(buf), (int)len, 0);
-#else
-            rv = recv(sock_ssl, buf, len, 0);
-#endif
+            rv = socket_recv(sock_ssl, reinterpret_cast<char*>(buf), len);
 
             if(rv > 0) {
                 /* write into the BIO what came off the network */
@@ -815,13 +821,8 @@ static ssize_t phase_recv(void *buf, size_t len) {
         }
         /* now pull the data out and return */
         rv = SSL_read(ssl, buf, (int)len);
-    }
-    else {
-#ifdef WIN32
-        rv = recv(sock, reinterpret_cast<char*>(buf), (int)len, 0);
-#else
-        rv = recv(sock, buf, len, 0);
-#endif
+    } else {
+        rv = socket_recv(sock, reinterpret_cast<char*>(buf), len);
     }
     return rv;
 }
