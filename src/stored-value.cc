@@ -86,7 +86,7 @@ bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
                               // by setting it to true when bg fetch is
                               // scheduled (full eviction mode).
     } else {
-        --ht.numNonResidentItems;
+        ht.decrNumNonResidentItems();
     }
 
     if (isTempInitialItem()) {
@@ -183,10 +183,10 @@ bool HashTable::unlocked_ejectItem(StoredValue*& vptr,
                 ++stats.numValueEjects;
             }
             if (!vptr->isResident() && !v->isTempItem()) {
-                --numNonResidentItems; // Decrement because the item is
-                                       // fully evicted.
+                decrNumNonResidentItems(); // Decrement because the item is
+                                           // fully evicted.
             }
-            --numItems; // Decrement because the item is fully evicted.
+            decrNumItems(); // Decrement because the item is fully evicted.
             ++numEjects;
             updateMaxDeletedRevSeqno(vptr->getRevSeqno());
 
@@ -240,7 +240,7 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
         }
 
         if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
-            --numNonResidentItems;
+            decrNumNonResidentItems();
         }
 
         if (v->isTempItem()) {

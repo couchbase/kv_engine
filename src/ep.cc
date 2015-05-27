@@ -2817,7 +2817,7 @@ public:
                         ++vbucket->opsCreate;
                         vbucket->incrMetaDataDisk(*queuedItem);
                     } else { // Update in full eviction mode.
-                        --vbucket->ht.numTotalItems;
+                        vbucket->ht.decrNumTotalItems();
                         ++vbucket->opsUpdate;
                     }
                     v->setNewCacheItem(false);
@@ -2896,7 +2896,7 @@ public:
                     // exists on DB file, but not in memory (i.e., full eviction),
                     // because we created the temp item in memory and incremented
                     // the item counter when a deletion is pushed in the queue.
-                    --vbucket->ht.numTotalItems;
+                    vbucket->ht.decrNumTotalItems();
                 }
             }
 
