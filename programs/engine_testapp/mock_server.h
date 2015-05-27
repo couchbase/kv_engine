@@ -21,6 +21,7 @@ struct mock_connstruct {
     int nblocks; /* number of ewouldblocks */
     bool handle_ewouldblock;
     bool handle_mutation_extras;
+    bool handle_datatype_support;
     cb_mutex_t mutex;
     cb_cond_t cond;
     int references;
@@ -52,6 +53,9 @@ MEMCACHED_PUBLIC_API void mock_set_ewouldblock_handling(const void *cookie, bool
 
 MEMCACHED_PUBLIC_API void mock_set_mutation_extras_handling(const void *cookie,
                                                             bool enable);
+
+MEMCACHED_PUBLIC_API void mock_set_datatype_support(const void *cookie,
+                                                    bool enable);
 
 MEMCACHED_PUBLIC_API void lock_mock_cookie(const void *cookie);
 

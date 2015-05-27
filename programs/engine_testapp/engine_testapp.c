@@ -1289,6 +1289,7 @@ int main(int argc, char **argv) {
     harness.destroy_cookie = destroy_mock_cookie;
     harness.set_ewouldblock_handling = mock_set_ewouldblock_handling;
     harness.set_mutation_extras_handling = mock_set_mutation_extras_handling;
+    harness.set_datatype_support = mock_set_datatype_support;
     harness.lock_cookie = lock_mock_cookie;
     harness.unlock_cookie = unlock_mock_cookie;
     harness.waitfor_cookie = waitfor_mock_cookie;
