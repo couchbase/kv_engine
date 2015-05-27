@@ -29,6 +29,7 @@
 #include <platform/platform.h>
 #include "memcached/openssl.h"
 #include "programs/utilities.h"
+#include "utilities/protocol2text.h"
 
 #ifdef WIN32
 #include <process.h>
@@ -971,14 +972,24 @@ void validate_response_header(protocol_binary_response_no_extras *response,
     protocol_binary_response_header* header = &response->message.header;
 
     EXPECT_EQ(PROTOCOL_BINARY_RES, header->response.magic);
-    EXPECT_EQ(cmd, header->response.opcode);
+    EXPECT_EQ(cmd, header->response.opcode)
+        << "Expected (as string): '" << memcached_opcode_2_text(cmd)
+        << "', actual (as string): '"
+        << memcached_opcode_2_text((header->response.opcode)) << "'";
+
     EXPECT_EQ(PROTOCOL_BINARY_RAW_BYTES, header->response.datatype);
     if (status == PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND) {
         if (header->response.status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED) {
             header->response.status = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
         }
     }
-    EXPECT_EQ(status, header->response.status);
+    EXPECT_EQ(status, header->response.status)
+        << "Expected (as string): '"
+        << memcached_protocol_errcode_2_text(static_cast<protocol_binary_response_status>(status))
+        << "', actual (as string): '"
+        << memcached_protocol_errcode_2_text(static_cast<protocol_binary_response_status>(header->response.status))
+        << "'";
+
     EXPECT_EQ(0xdeadbeef, header->response.opaque);
 
     if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
