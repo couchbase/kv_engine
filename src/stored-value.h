@@ -872,6 +872,42 @@ public:
         return numTotalItems;
     }
 
+    void decrNumItems(void) {
+        size_t count;
+        do {
+            count = numItems.load();
+            if (count == 0) {
+                LOG(EXTENSION_LOG_DEBUG,
+                    "Cannot decrement numItems, value at 0 already");
+                break;
+            }
+        } while (!numItems.compare_exchange_strong(count, count - 1));
+    }
+
+    void decrNumTotalItems(void) {
+        size_t count;
+        do {
+            count = numTotalItems.load();
+            if (count == 0) {
+                LOG(EXTENSION_LOG_DEBUG,
+                    "Cannot decrement numTotalItems, value at 0 already");
+                break;
+            }
+        } while (!numTotalItems.compare_exchange_strong(count, count - 1));
+    }
+
+    void decrNumNonResidentItems(void) {
+        size_t count;
+        do {
+            count = numNonResidentItems.load();
+            if (count == 0) {
+                LOG(EXTENSION_LOG_DEBUG,
+                    "Cannot decrement numNonResidentItems, value at 0 already");
+                break;
+            }
+        } while (!numNonResidentItems.compare_exchange_strong(count, count - 1));
+    }
+
     /**
      * Get the number of items whose values are ejected from this hash table.
      */
@@ -1029,7 +1065,7 @@ public:
 
             rv = v->isClean() ? WAS_CLEAN : WAS_DIRTY;
             if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
-                --numNonResidentItems;
+                decrNumNonResidentItems();
             }
 
             if (v->isTempItem()) {
@@ -1185,7 +1221,7 @@ public:
         if (v) {
             if (v->isExpired(ep_real_time()) && !use_meta) {
                 if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
-                    --numNonResidentItems;
+                    decrNumNonResidentItems();
                 }
                 v->setRevSeqno(metadata.revSeqno);
                 v->del(*this, use_meta);
@@ -1205,7 +1241,7 @@ public:
             }
 
             if (!v->isResident() && !v->isDeleted() && !v->isTempItem()) {
-                --numNonResidentItems;
+                decrNumNonResidentItems();
             }
 
             if (v->isTempItem()) {
@@ -1373,8 +1409,8 @@ public:
             if (v->isTempItem()) {
                 --numTempItems;
             } else {
-                --numItems;
-                --numTotalItems;
+                decrNumItems();
+                decrNumTotalItems();
             }
             delete v;
             return true;
@@ -1393,8 +1429,8 @@ public:
                 if (tmp->isTempItem()) {
                     --numTempItems;
                 } else {
-                    --numItems;
-                    --numTotalItems;
+                    decrNumItems();
+                    decrNumTotalItems();
                 }
                 delete tmp;
                 return true;
