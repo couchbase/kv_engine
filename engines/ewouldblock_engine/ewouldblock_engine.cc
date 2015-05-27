@@ -152,6 +152,7 @@ public:
     static ENGINE_ERROR_CODE initialize(ENGINE_HANDLE* handle,
                                         const char* config_str) {
         EWB_Engine* ewb = to_engine(handle);
+        auto logger = ewb->gsa()->log->get_logger();
 
         // Extract the name of the real engine we will be proxying; then
         // create and initialize it.
@@ -164,26 +165,27 @@ public:
         }
 
         engine_reference* engine_ref = NULL;
-        if ((engine_ref = load_engine(real_engine_name.c_str(), NULL, NULL, NULL)) == NULL) {
-            fprintf(stderr,
-                    "ERROR: EWB_Engine::initialize(): Failed to load real engine "
-                    "'%s'\n",
-                    real_engine_name.c_str());
+        if ((engine_ref = load_engine(real_engine_name.c_str(), NULL, NULL,
+                                      logger)) == NULL) {
+            logger->log(EXTENSION_LOG_WARNING, NULL,
+                        "ERROR: EWB_Engine::initialize(): Failed to load real "
+                        "engine '%s'", real_engine_name.c_str());
             abort();
         }
 
-        if (!create_engine_instance(engine_ref, ewb->gsa, NULL, &ewb->real_handle)) {
-            fprintf(stderr,
-                    "ERROR: EWB_Engine::initialize(): Failed create engine instance "
-                    "'%s'\n",
-                    real_engine_name.c_str());
+        if (!create_engine_instance(engine_ref, ewb->gsa, NULL,
+                                    &ewb->real_handle)) {
+            logger->log(EXTENSION_LOG_WARNING, NULL,
+                        "ERROR: EWB_Engine::initialize(): Failed create "
+                        "engine instance '%s'", real_engine_name.c_str());
             abort();
         }
 
         if (ewb->real_handle->interface != 1) {
-            fprintf(stderr, "ERROR: EWB_Engine::initialize(): Only support engine "
-                    "with interface v1 - got v%" PRIu64 ".",
-                    ewb->real_engine->interface.interface);
+            logger->log(EXTENSION_LOG_WARNING, NULL,
+                        "ERROR: EWB_Engine::initialize(): Only support engine "
+                        "with interface v1 - got v%" PRIu64 ".",
+                        ewb->real_engine->interface.interface);
             abort();
         }
         ewb->real_engine =
@@ -346,9 +348,11 @@ public:
                     return ENGINE_SUCCESS;
 
                 default:
-                    fprintf(stderr, "EWB_Engine::unknown_command(): "
-                            "Got unexpected mode=%d for EWOULDBLOCK_CTL.\n",
-                            mode);
+                    auto logger = ewb->gsa()->log->get_logger();
+                    logger->log(EXTENSION_LOG_WARNING, NULL,
+                                "EWB_Engine::unknown_command(): "
+                                "Got unexpected mode=%d for EWOULDBLOCK_CTL, ",
+                                mode);
                     response(nullptr, 0, nullptr, 0, nullptr, 0,
                              PROTOCOL_BINARY_RAW_BYTES,
                              PROTOCOL_BINARY_RESPONSE_EINVAL, /*cas*/0,
