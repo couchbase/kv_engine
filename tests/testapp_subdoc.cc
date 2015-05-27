@@ -740,6 +740,65 @@ TEST_P(McdTestappTest, SubdocDictUpsert_SimpleCompressed) {
                                 PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
 }
 
+void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
+                                              protocol_binary_command cmd) {
+    ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||
+                (cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT));
+
+    // Store a simple JSON document to work on.
+    store_object("dict", "{}", /*JSON*/true, compress);
+
+    // a). Check that a CAS mismatch internally (between reading the JSON
+    // (doc to operate on and storing it), is correctly retried.
+    // (Note: the auto-retry only occurs when there is no CAS specified by the
+    // user).
+
+    // Configure the ewouldblock_engine to inject fake CAS failure for the
+    // 3rd call (i.e. the 1st engine->store() attempt). We only expect 6 calls
+    // total, so also make anything after that fail.
+    ewouldblock_engine_configure(ENGINE_KEY_EEXISTS, EWBEngineMode_SEQUENCE,
+                                 0xffffffc4 /* <3 MSBytes all-ones>, 0b11,000,100 */);
+
+    // .. Yet a client request should succeed, as internal CAS failure should
+    // be retried.
+    uint64_t new_cas = expect_subdoc_cmd(SubdocCmd(cmd, "dict","new_int3", "3"),
+                                         PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+    // b). Check that if the user specifies an explicit CAS, then a mismatch
+    // isn't retried and EEXISTS is returned back to the user.
+
+    // Setup ewouldblock_engine - first two calls succeed, 3rd (engine->store)
+    // fails. Do not expect more than 3 calls so make any further calls error.
+    ewouldblock_engine_configure(ENGINE_KEY_EEXISTS, EWBEngineMode_SEQUENCE,
+                                 0xfffffffc /* <3 MSBytes all-ones>, 0b11,111,100 */);
+
+    expect_subdoc_cmd(SubdocCmd(cmd, "dict","new_int4", "4",
+                                protocol_binary_subdoc_flag(0), new_cas),
+                      PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
+
+    // Cleanup.
+    ewouldblock_engine_disable();
+    delete_object("dict");
+}
+
+TEST_P(McdTestappTest, SubdocDictAdd_CasRaw) {
+    test_subdoc_dict_add_cas(/*compress*/false,
+                             PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+}
+TEST_P(McdTestappTest, SubdocDictAdd_CasCompressed) {
+    test_subdoc_dict_add_cas(/*compress*/true,
+                             PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+}
+TEST_P(McdTestappTest, SubdocDictUpsert_CasRaw) {
+    test_subdoc_dict_add_cas(/*compress*/false,
+                             PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+}
+TEST_P(McdTestappTest, SubdocDictUpsert_CasCompressed) {
+    test_subdoc_dict_add_cas(/*compress*/true,
+                             PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+}
+
+
 void test_subdoc_dict_add_upsert_deep(protocol_binary_command cmd) {
 
     ASSERT_TRUE((cmd == PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD) ||

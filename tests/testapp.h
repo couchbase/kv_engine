@@ -27,6 +27,9 @@
 #include <cJSON.h>
 #include <gtest/gtest.h>
 #include <memcached/protocol_binary.h>
+#include <memcached/types.h>
+
+#include "engines/ewouldblock_engine/ewouldblock_engine.h"
 
 enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
 
@@ -69,6 +72,20 @@ protected:
 
     // Create the bucket used for testing
     static void CreateTestBucket();
+
+    /* Configure the ewouldblock error-injecting engine */
+    static void ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
+                                             EWBEngine_Mode mode,
+                                             uint32_t value);
+
+    /* Disable the ewouldblock_engine. */
+    static void ewouldblock_engine_disable();
+
+    /* Helpers for individual testcases */
+    void test_set_huge_impl(const char *key, uint8_t cmd, int result,
+                            bool pipeline, int iterations, int message_size);
+
+    void test_subdoc_dict_add_cas(bool compress, protocol_binary_command cmd);
 };
 
 SOCKET connect_to_server_plain(in_port_t port, bool nonblocking);

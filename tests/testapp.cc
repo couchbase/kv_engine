@@ -23,9 +23,7 @@
 
 #include <memcached/util.h>
 #include <memcached/config_parser.h>
-#include <memcached/types.h>
 #include <cbsasl/cbsasl.h>
-#include "engines/ewouldblock_engine/ewouldblock_engine.h"
 #include "extensions/protocol/testapp_extension.h"
 #include <platform/platform.h>
 #include "memcached/openssl.h"
@@ -91,9 +89,6 @@ static void stop_memcached_server(void);
 static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking);
 
 static void destroy_ssl_socket();
-static void ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
-                                         EWBEngine_Mode mode, uint32_t value);
-static void ewouldblock_engine_disable();
 
 static void set_mutation_seqno_feature(bool enable);
 
@@ -1225,8 +1220,9 @@ static void validate_arithmetic(const protocol_binary_response_incr* incr,
 
 // Configues the ewouldblock_engine to use the given mode; value
 // is a mode-specific parameter.
-void ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
-                                  EWBEngine_Mode mode, uint32_t value) {
+void McdTestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
+                                                  EWBEngine_Mode mode,
+                                                  uint32_t value) {
     union {
         request_ewouldblock_ctl request;
         protocol_binary_response_no_extras response;
@@ -1248,8 +1244,7 @@ void ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
-/* Disable the ewouldblock_engine. */
-void ewouldblock_engine_disable() {
+void McdTestappTest::ewouldblock_engine_disable() {
     // Value for err_code doesn't matter...
     ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_NEXT_N, 0);
 }
@@ -3415,14 +3410,9 @@ TEST_P(McdTestappTest, ExpiryRelativeWithClockChangeBackwards) {
                 120, 2, (int)(0 - ((now - server_start_time) * 2)));
 }
 
-static enum test_return test_set_huge_impl(const char *key,
-                                                uint8_t cmd,
-                                                int result,
-                                                bool pipeline,
-                                                int iterations,
-                                                int message_size) {
-
-    enum test_return rv = TEST_PASS;
+void McdTestappTest::test_set_huge_impl(const char *key, uint8_t cmd,
+                                        int result, bool pipeline,
+                                        int iterations, int message_size) {
 
     // This is a large, long test. Disable ewouldblock_engine while
     // running it to speed it up.
@@ -3456,8 +3446,6 @@ static enum test_return test_set_huge_impl(const char *key,
             validate_response_header((protocol_binary_response_no_extras*)receive, cmd, result);
         }
     }
-
-    return rv;
 }
 
 TEST_P(McdTestappTest, SetHuge) {
