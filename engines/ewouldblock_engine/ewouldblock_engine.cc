@@ -87,6 +87,8 @@ private:
     enum class Cmd { NONE, GET_INFO, ALLOCATE, REMOVE, GET, STORE, ARITHMETIC,
                      FLUSH, GET_STATS, UNKNOWN_COMMAND };
 
+    std::string to_string(Cmd cmd);
+
 public:
     EWB_Engine(GET_SERVER_API gsa_);
 
@@ -104,42 +106,15 @@ public:
      */
     bool should_inject_error(Cmd cmd, const void* cookie,
                              ENGINE_ERROR_CODE& err) {
-        bool inject = false;
         std::lock_guard<std::mutex> guard(cookie_map_mutex);
-        CookieState& state = cookie_map[cookie];
-        switch (state.mode) {
-            case EWBEngineMode_NEXT_N:
-                if (state.value > 0) {
-                    --state.value;
-                    inject = true;
-                }
-                break;
-            case EWBEngineMode_RANDOM:
-            {
-                std::random_device rd;
-                std::mt19937 gen(rd());
-                std::uniform_int_distribution<uint32_t> dis(1, 100);
-                if (dis(gen) < state.value) {
-                    inject = true;
-                }
-                break;
-            }
-            case EWBEngineMode_FIRST:
-            {
-                // Block unless the previous command from this cookie
-                // was the same - i.e. all of a connections' commands
-                // will EWOULDBLOCK the first time they are called.
-                inject = (state.prev_cmd != cmd);
-
-                state.prev_cmd = cmd;
-                break;
-            }
-            default:
-                abort();
+        auto& state = cookie_map[cookie];
+        if (state == nullptr) {
+            return false;
         }
 
+        const bool inject = state->should_inject_error(cmd, err);
+
         if (inject) {
-            err = state.injected_error;
             if (err == ENGINE_EWOULDBLOCK) {
                 // The server expects that if EWOULDBLOCK is returned then the
                 // server should be notified in the future when the operation is
@@ -353,34 +328,48 @@ public:
             const uint32_t value = ntohl(req->message.body.value);
             const ENGINE_ERROR_CODE injected_error =
                     static_cast<ENGINE_ERROR_CODE>(ntohl(req->message.body.inject_error));
-            CookieState& state = ewb->cookie_map[cookie];
 
-            // Validate mode.
+            std::shared_ptr<FaultInjectMode> new_mode = nullptr;
+
+            // Validate mode, and construct new fault injector.
             switch (mode) {
                 case EWBEngineMode_NEXT_N:
-                case EWBEngineMode_RANDOM:
-                case EWBEngineMode_FIRST:
-                    state.mode = mode;
-                    state.value = value;
-                    state.injected_error = injected_error;
+                    new_mode = std::make_shared<ErrOnNextN>(injected_error, value);
+                    break;
 
-                    response(nullptr, 0, nullptr, 0, nullptr, 0,
-                             PROTOCOL_BINARY_RAW_BYTES,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0,
-                             cookie);
-                    return ENGINE_SUCCESS;
+                case EWBEngineMode_RANDOM:
+                    new_mode = std::make_shared<ErrRandom>(injected_error, value);
+                    break;
+
+                case EWBEngineMode_FIRST:
+                    new_mode = std::make_shared<ErrOnFirst>(injected_error);
+                    break;
+
+                case EWBEngineMode_SEQUENCE:
+                    new_mode = std::make_shared<ErrSequence>(injected_error, value);
+                    break;
 
                 default:
-                    auto logger = ewb->gsa()->log->get_logger();
-                    logger->log(EXTENSION_LOG_WARNING, NULL,
-                                "EWB_Engine::unknown_command(): "
-                                "Got unexpected mode=%d for EWOULDBLOCK_CTL, ",
-                                mode);
-                    response(nullptr, 0, nullptr, 0, nullptr, 0,
-                             PROTOCOL_BINARY_RAW_BYTES,
-                             PROTOCOL_BINARY_RESPONSE_EINVAL, /*cas*/0,
-                             cookie);
-                    return ENGINE_FAILED;
+                    break;
+            }
+
+            if (new_mode == nullptr) {
+                auto logger = ewb->gsa()->log->get_logger();
+                logger->log(EXTENSION_LOG_WARNING, NULL,
+                            "EWB_Engine::unknown_command(): "
+                            "Got unexpected mode=%d for EWOULDBLOCK_CTL, ",
+                            mode);
+                response(nullptr, 0, nullptr, 0, nullptr, 0,
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_EINVAL, /*cas*/0, cookie);
+                return ENGINE_FAILED;
+            } else {
+                ewb->cookie_map.erase(cookie);
+                ewb->cookie_map[cookie] = new_mode;
+                response(nullptr, 0, nullptr, 0, nullptr, 0,
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
+                return ENGINE_SUCCESS;
             }
         } else {
             ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
@@ -430,29 +419,111 @@ private:
     // Handle of the notification thread.
     std::thread notification_thread;
 
-    // Per-cookie (connection) state.
-    struct CookieState {
-        CookieState()
-          : prev_cmd(Cmd::NONE),
-            mode(EWBEngineMode_FIRST),
-            value(0),
-            injected_error(ENGINE_EWOULDBLOCK) {}
+    // Base class for all fault injection modes.
+    struct FaultInjectMode {
+        FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
+          : injected_error(injected_error_) {}
 
-        // Last command issued by this cookie.
-        Cmd prev_cmd;
+        virtual bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) = 0;
 
-        // Current mode of EWOULDBLOCK
-        EWBEngine_Mode mode;
-
-        // Value associated with the current mode.
-        uint32_t value;
-
-        // Error code to inject
+    protected:
         ENGINE_ERROR_CODE injected_error;
     };
 
-    // Map of connections (aka cookies) to their current state
-    std::map<const void*, CookieState> cookie_map;
+    // Subclasses for each fault inject mode: /////////////////////////////////
+
+    class ErrOnFirst : public FaultInjectMode {
+    public:
+        ErrOnFirst(ENGINE_ERROR_CODE injected_error_)
+          : FaultInjectMode(injected_error_),
+            prev_cmd(Cmd::NONE) {}
+
+        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+            // Block unless the previous command from this cookie
+            // was the same - i.e. all of a connections' commands
+            // will EWOULDBLOCK the first time they are called.
+            bool inject = (prev_cmd != cmd);
+            prev_cmd = cmd;
+            if (inject) {
+                err = injected_error;
+            }
+            return inject;
+        }
+
+    private:
+        // Last command issued by this cookie.
+        Cmd prev_cmd;
+    };
+
+    class ErrOnNextN : public FaultInjectMode {
+    public:
+        ErrOnNextN(ENGINE_ERROR_CODE injected_error_, uint32_t count_)
+          : FaultInjectMode(injected_error_),
+            count(count_) {}
+
+        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+            if (count > 0) {
+                --count;
+                err = injected_error;
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+    private:
+        // The count of commands issued that should return error.
+        uint32_t count;
+    };
+
+    class ErrRandom : public FaultInjectMode {
+    public:
+        ErrRandom(ENGINE_ERROR_CODE injected_error_, uint32_t percentage_)
+          : FaultInjectMode(injected_error_),
+            percentage_to_err(percentage_) {}
+
+        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<uint32_t> dis(1, 100);
+            if (dis(gen) < percentage_to_err) {
+                err = injected_error;
+                return true;
+            } else {
+                return false;
+            }
+        }
+    private:
+        // Percentage chance that the specified error should be injected.
+        uint32_t percentage_to_err;
+    };
+
+    class ErrSequence : public FaultInjectMode {
+    public:
+        ErrSequence(ENGINE_ERROR_CODE injected_error_, uint32_t sequence_)
+            : FaultInjectMode(injected_error_),
+              sequence(sequence_),
+              pos(0) {}
+
+        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+            bool inject = false;
+            if (pos < 32) {
+                inject = (sequence & (1 << pos)) != 0;
+                pos++;
+            }
+            if (inject) {
+                err = injected_error;
+            }
+            return inject;
+        }
+
+    private:
+        uint32_t sequence;
+        uint32_t pos;
+    };
+
+    // Map of connections (aka cookies) to their current mode.
+    std::map<const void*, std::shared_ptr<FaultInjectMode> > cookie_map;
     // Mutex for above map.
     std::mutex cookie_map_mutex;
 };
@@ -530,4 +601,19 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
 
 void destroy_engine(void) {
     // nothing todo.
+}
+
+std::string EWB_Engine::to_string(const Cmd cmd) {
+    const std::map<Cmd, std::string> names({
+        {Cmd::NONE, "NONE"},
+        {Cmd::GET_INFO, "GET_INFO"},
+        {Cmd::ALLOCATE, "ALLOCATE"},
+        {Cmd::REMOVE, "REMOVE"},
+        {Cmd::GET, "GET"},
+        {Cmd::STORE, "STORE"},
+        {Cmd::ARITHMETIC, "ARITHMETIC"},
+        {Cmd::FLUSH, "FLUSH"},
+        {Cmd::GET_STATS, "GET_STATS"},
+        {Cmd::UNKNOWN_COMMAND, "UNKNOWN_COMMAND"}});
+    return names.at(cmd);
 }
