@@ -1922,7 +1922,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     clusterConfig(), epstore(NULL), workload(NULL),
     workloadPriority(NO_BUCKET_PRIORITY),
     replicationThrottle(NULL), getServerApiFunc(get_server_api),
-    tapConnMap(NULL), tapConfig(NULL), checkpointConfig(NULL),
+    dcpConnMap_(NULL), tapConnMap(NULL) ,tapConfig(NULL), checkpointConfig(NULL),
     trafficEnabled(false), flushAllEnabled(false),startupTime(0)
 {
     interface.interface = 1;
