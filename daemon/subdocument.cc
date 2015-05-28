@@ -137,6 +137,17 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST> > {
 };
 
 template <>
+struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT> > {
+  static const Subdoc::Command::Code optype = Subdoc::Command::ARRAY_INSERT;
+  static const bool request_has_value = true;
+  static const bool allow_empty_path = false;
+  static const bool response_has_value = false;
+  static const bool is_mutator = true;
+  static const protocol_binary_subdoc_flag valid_flags =
+          protocol_binary_subdoc_flag(0);
+};
+
+template <>
 struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE> > {
   static const Subdoc::Command::Code optype = Subdoc::Command::ARRAY_ADD_UNIQUE;
   static const bool request_has_value = true;
@@ -229,6 +240,10 @@ int subdoc_array_push_last_validator(void* packet) {
 
 int subdoc_array_push_first_validator(void* packet) {
     return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>(packet);
+}
+
+int subdoc_array_insert_validator(void* packet) {
+    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>(packet);
 }
 
 int subdoc_array_add_unique_validator(void* packet) {
@@ -855,6 +870,10 @@ void subdoc_array_push_last_executor(conn *c, void *packet) {
 
 void subdoc_array_push_first_executor(conn *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>(c, packet);
+}
+
+void subdoc_array_insert_executor(conn *c, void *packet) {
+    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>(c, packet);
 }
 
 void subdoc_array_add_unique_executor(conn *c, void *packet) {

@@ -861,6 +861,7 @@ static void initialize() {
     validators[PROTOCOL_BINARY_CMD_SUBDOC_REPLACE] = subdoc_replace_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST] = subdoc_array_push_last_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST] = subdoc_array_push_first_validator;
+    validators[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT] = subdoc_array_insert_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE] = subdoc_array_add_unique_validator;
 #endif
 

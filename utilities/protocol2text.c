@@ -270,6 +270,8 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "SUBDOC_ARRAY_PUSH_LAST";
     case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST:
         return "SUBDOC_ARRAY_PUSH_FIRST";
+    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT:
+        return "SUBDOC_ARRAY_INSERT";
     case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE:
         return "SUBDOC_ARRAY_ADD_UNIQUE";
     case PROTOCOL_BINARY_CMD_SUBDOC_INCREMENT:
@@ -708,6 +710,9 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
     if (strcasecmp("SUBDOC_ARRAY_PUSH_FIRST", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST;
+    }
+    if (strcasecmp("SUBDOC_ARRAY_INSERT", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT;
     }
     if (strcasecmp("SUBDOC_ARRAY_ADD_UNIQUE", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE;

@@ -295,9 +295,8 @@ void test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd
                       PROTOCOL_BINARY_RESPONSE_EINVAL, "");
 
     // g). Check that incorrect flags (i.e. non-zero) is invalid.
-    SubdocCmd bad_flags(cmd, "array", "[0]");
-    bad_flags.flags = SUBDOC_FLAG_MKDIR_P;
-    expect_subdoc_cmd(bad_flags, PROTOCOL_BINARY_RESPONSE_EINVAL, "");
+    expect_subdoc_cmd(SubdocCmd(cmd, "array", "[0]", "", SUBDOC_FLAG_MKDIR_P),
+                      PROTOCOL_BINARY_RESPONSE_EINVAL, "");
 
     delete_object("array");
 }
@@ -1357,6 +1356,82 @@ TEST_P(McdTestappTest, SubdocArrayAddUnique_Simple)
                                 "d", "", "3"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
     delete_object("d");
+}
+
+TEST_P(McdTestappTest, SubdocArrayInsert_Simple)
+{
+    // Start with an empty array.
+    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+
+    // a). Attempt to insert at position 0 should succeed.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                                "a", "[0]", "2"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    validate_object("a", "[2]");
+
+    // b). Second insert at zero should succeed and shuffle existing element
+    // down.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                                "a", "[0]", "0"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    validate_object("a", "[0,2]");
+
+    // c). Insert at position 1 should shuffle down elements after, leave alone
+    // elements before.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                                "a", "[1]", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    validate_object("a", "[0,1,2]");
+
+    // d). Insert at len(array) should add to the end, without moving existing
+    // elements.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                                "a", "[3]", "3"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    validate_object("a", "[0,1,2,3]");
+
+    delete_object("a");
+}
+
+TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
+{
+    // Start with an empty array.
+    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+
+    // a). Attempt to insert past the end of the (empty) array should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                                "a", "[1]", "0"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
+    validate_object("a", "[]");
+
+#if 0 // 2015-05-28 Incorrectly passes - need to report to MarkN
+    // b). Insert at position '-1' is invalid.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                                "a", "[-1]", "3"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
+    validate_object("a", "[]");
+#endif
+
+    // c). MKDIR_P flag is not valid for ARRAY_INSERT
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                                "a", "[0]", "1", SUBDOC_FLAG_MKDIR_P),
+                      PROTOCOL_BINARY_RESPONSE_EINVAL, "");
+    validate_object("a", "[]");
+
+    // d). A path larger than len(array) should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                                "a", "[1]", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
+    validate_object("a", "[]");
+    delete_object("a");
+
+    // e). Attempt to insert to a dict should fail.
+    store_object("b", "{}", /*JSON*/true, /*compress*/false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                                "b", "[0]", "0"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
+    validate_object("b", "{}");
+    delete_object("b");
 }
 
 // Tests how a single worker handles multiple "concurrent" connections
