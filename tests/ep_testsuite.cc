@@ -5520,11 +5520,11 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
                            lockTime, NULL, 0, 0) == ENGINE_SUCCESS,
           "Failed dcp mutate.");
 
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
-          "Failed to set vbucket state.");
-
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
                         "dcp");
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     check_key_value(h, h1, "key", data, dataLen);
 
