@@ -904,30 +904,52 @@ static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_datatype_support(cookie, false);
+
     uint64_t result = 0;
     item *i = NULL;
-    check(h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0,
+    check(h1->arithmetic(h, cookie, "key", 3, true, true, 1, 1, 0,
                          &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed first arith");
-    h1->release(h, NULL, i);
+    h1->release(h, cookie, i);
     check(result == 1, "Failed result verification.");
 
-    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
+    // Check datatype of counter
+    check(h1->get(h, cookie, &i, "key", 3, 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+    item_info info;
+    info.nvalue = 1;
+    h1->get_item_info(h, cookie, i, &info);
+    h1->release(h, cookie, i);
+    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+
+    check(h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
                          &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed second arith.");
-    h1->release(h, NULL, i);
+    h1->release(h, cookie, i);
     check(result == 2, "Failed second result verification.");
 
-    check(h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0,
+    check(h1->arithmetic(h, cookie, "key", 3, true, true, 1, 1, 0,
                          &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed third arith.");
-    h1->release(h, NULL, i);
+    h1->release(h, cookie, i);
     check(result == 3, "Failed third result verification.");
 
     check_key_value(h, h1, "key", "3", 1);
+
+    // Check datatype of counter
+    check(h1->get(h, cookie, &i, "key", 3, 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+    info.nvalue = 1;
+    h1->get_item_info(h, cookie, i, &info);
+    h1->release(h, cookie, i);
+    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -1311,19 +1333,39 @@ static enum test_result test_append_prepend_to_json(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_datatype_support(cookie, true);
+
     uint64_t result = 0;
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_ADD,"key", "1", &i) == ENGINE_SUCCESS,
+    const char *key = "key";
+    const char *val = "1";
+    check(store(h, h1, NULL, OPERATION_ADD,key, val, &i,
+                0, 0, 3600,
+                checkUTF8JSON((const unsigned char *)val, 1))
+            == ENGINE_SUCCESS,
           "Failed to add value.");
     h1->release(h, NULL, i);
 
-    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
+    check(h1->arithmetic(h, NULL, key, 3, true, false, 1, 1, 0,
                          &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed to incr value.");
     h1->release(h, NULL, i);
 
-    check_key_value(h, h1, "key", "2", 1);
+    check_key_value(h, h1, key, "2", 1);
+
+    // Check datatype of counter
+    check(h1->get(h, cookie, &i, key, 3, 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+    item_info info;
+    info.nvalue = 1;
+    h1->get_item_info(h, cookie, i, &info);
+    h1->release(h, cookie, i);
+    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+
+    testHarness.destroy_cookie(cookie);
+
     return SUCCESS;
 }
 

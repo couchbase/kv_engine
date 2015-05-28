@@ -40,6 +40,8 @@
 #include "tapconnection.h"
 #include "workload.h"
 
+#include <JSON_checker.h>
+
 class DcpConnMap;
 class TapConnMap;
 class TapThrottle;
@@ -357,6 +359,16 @@ public:
                 vals << val;
                 size_t nb = vals.str().length();
                 *result = val;
+
+                if (!isDatatypeSupported(cookie)) {
+                    const int len = (int)nb;
+                    const unsigned char *data =
+                                        (const unsigned char*) vals.str().c_str();
+                    if (checkUTF8JSON(data, len)) {
+                        *(ext_meta) = PROTOCOL_BINARY_DATATYPE_JSON;
+                    }
+                }
+
                 nit = new Item(key, (uint16_t)nkey, itm->getFlags(),
                                      itm->getExptime(), vals.str().c_str(), nb,
                                      ext_meta, ext_len);
@@ -378,6 +390,15 @@ public:
                 vals << initial;
                 size_t nb = vals.str().length();
                 *result = initial;
+
+                if (!isDatatypeSupported(cookie)) {
+                    const int len = (int)nb;
+                    const unsigned char *data =
+                                        (const unsigned char*) vals.str().c_str();
+                    if (checkUTF8JSON(data, len)) {
+                        *(ext_meta) = PROTOCOL_BINARY_DATATYPE_JSON;
+                    }
+                }
                 nit = new Item(key, (uint16_t)nkey, 0, expiretime,
                                      vals.str().c_str(), nb, ext_meta, ext_len);
                 ret = store(cookie, nit, &cas, OPERATION_ADD, vbucket);
