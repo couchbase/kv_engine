@@ -250,20 +250,20 @@ void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                  const size_t keylen, const char *val, const size_t vallen,
                  const uint32_t vb, const uint64_t cas, const uint32_t flags,
                  const uint32_t exp, const uint32_t type,
-                 uint8_t datatype = 0x00);
+                 uint8_t datatype = 0x00, const void *cookie = NULL);
 void set_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                   const size_t keylen, const char *val, const size_t vallen,
                   const uint32_t vb, const uint64_t cas = 0,
                   const uint32_t flags = 0, const uint32_t exp = 0,
-                  uint8_t datatype = 0x00);
+                  uint8_t datatype = 0x00, const void *cookie = NULL);
 void add_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                   const size_t keylen, const char *val, const size_t vallen,
                   const uint32_t vb, const uint64_t cas = 0,
                   const uint32_t flags = 0, const uint32_t exp = 0,
-                  uint8_t datatype = 0x00);
+                  uint8_t datatype = 0x00, const void *cookie = NULL);
 void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                   const size_t keylen, const uint32_t vb,
-                  const uint64_t cas = 0);
+                  const uint64_t cas = 0, const void *cookie = NULL);
 
 // DCP Operations
 void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie);
