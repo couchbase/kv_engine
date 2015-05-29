@@ -1820,7 +1820,7 @@ static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HA
     wait_for_persisted_value(h, h1, key, "value2delete");
 
     // whack the db file and directory where the key is stored
-    rmdb();
+    rmdb(dbname_env);
 
     item *i = NULL;
     int errorCode = h1->get(h, NULL, &i, key, strlen(key), 0);

@@ -33,6 +33,9 @@
 
 #include <platform/dirutils.h>
 
+static const char *default_dbname = "/tmp/test";
+const char *dbname_env = NULL;
+
 static enum test_result skipped_test_function(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1);
 
@@ -134,25 +137,6 @@ enum test_result rmdb(const char* path) {
     return SUCCESS;
 }
 
-const char *dbname_env;
-enum test_result rmdb(void) {
-    const char *files[] = { WHITESPACE_DB,
-                            "/tmp/test",
-                            "/tmp/mutation.log",
-                            dbname_env,
-                            NULL };
-    int ii = 0;
-    test_result rv = SUCCESS;
-    while (files[ii] != NULL && rv == SUCCESS) {
-        rv = rmdb(files[ii]);
-        ++ii;
-    }
-
-    return rv;
-}
-
-
-
 bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_warmup_complete(h, h1);
 
@@ -186,6 +170,27 @@ bool teardown_v2(engine_test_t* test) {
     return true;
 }
 
+std::string get_dbname(const char* test_cfg) {
+    std::string dbname;
+
+    if (!test_cfg) {
+        dbname.assign(dbname_env);
+        return dbname;
+    }
+
+    const char *nm = strstr(test_cfg, "dbname=");
+    if (nm == NULL) {
+        dbname.assign(dbname_env);
+    } else {
+        dbname.assign(nm + 7);
+        std::string::size_type end = dbname.find(';');
+        if (end != dbname.npos) {
+            dbname = dbname.substr(0, end);
+        }
+    }
+    return dbname;
+}
+
 enum test_result prepare(engine_test_t *test) {
 #ifdef __sun
         // Some of the tests doesn't work on Solaris.. Don't know why yet..
@@ -196,46 +201,19 @@ enum test_result prepare(engine_test_t *test) {
         }
 #endif
 
-    if (test->cfg == NULL || strstr(test->cfg, "backend") == NULL) {
-        return rmdb();
-    }
-
-    enum test_result ret = rmdb();
-    if (ret != SUCCESS) {
-        return ret;
-    }
-
-    if (strstr(test->cfg, "backend=couchdb") != NULL) {
-        std::string dbname;
-        const char *nm = strstr(test->cfg, "dbname=");
-        if (nm == NULL) {
-            dbname.assign(dbname_env);
-        } else {
-            dbname.assign(nm + 7);
-            std::string::size_type end = dbname.find(';');
-            if (end != dbname.npos) {
-                dbname = dbname.substr(0, end);
-            }
-        }
-        if (dbname.find("/non/") == dbname.npos) {
-            mkdir(dbname.c_str(), 0777);
-        }
-    } else {
-        // unknow backend!
-        using namespace std;
-
-        cerr << endl << "Unknown backend specified! " << endl
-             << test->cfg << endl;
-
-        return FAIL;
-    }
+    std::string dbname = get_dbname(test->cfg);
+    /* Remove if the same DB directory already exists */
+    rmdb(dbname.c_str());
+    mkdir(dbname.c_str(), 0777);
     return SUCCESS;
 }
 
 void cleanup(engine_test_t *test, enum test_result result) {
     (void)result;
     // Nuke the database files we created
-    rmdb();
+    std::string dbname = get_dbname(test->cfg);
+    /* Remove only the db file this test created */
+    rmdb(dbname.c_str());
     free(const_cast<char*>(test->name));
     free(const_cast<char*>(test->cfg));
 }
@@ -265,19 +243,18 @@ engine_test_t* get_tests(void) {
     oneTestIdx = -1;
     char *testNum = getenv("EP_TEST_NUM");
     if (testNum) {
-       sscanf(testNum, "%d", &oneTestIdx);
-       if (oneTestIdx < 0 || oneTestIdx > num) {
-           oneTestIdx = -1;
-       }
+        sscanf(testNum, "%d", &oneTestIdx);
+        if (oneTestIdx < 0 || oneTestIdx > num) {
+            oneTestIdx = -1;
+        }
     }
     dbname_env = getenv("EP_TEST_DIR");
     if (!dbname_env) {
-        dbname_env = "/tmp/test";
+        dbname_env = default_dbname;
     }
 
     if (oneTestIdx == -1) {
-        testcases = static_cast<engine_test_t*>(calloc(num + 1,
-                    sizeof(engine_test_t)));
+        testcases = static_cast<engine_test_t*>(calloc(num + 1, sizeof(engine_test_t)));
 
         int ii = 0;
         for (int jj = 0; jj < num; ++jj) {
@@ -287,8 +264,7 @@ engine_test_t* get_tests(void) {
             }
         }
     } else {
-        testcases = static_cast<engine_test_t*>(calloc(1 + 1,
-                    sizeof(engine_test_t)));
+        testcases = static_cast<engine_test_t*>(calloc(1 + 1, sizeof(engine_test_t)));
 
         engine_test_t *r = testsuite_testcases[oneTestIdx].getTest();
         if (r != 0) {
@@ -300,7 +276,7 @@ engine_test_t* get_tests(void) {
 }
 
 MEMCACHED_PUBLIC_API
-    bool setup_suite(struct test_harness *th) {
+bool setup_suite(struct test_harness *th) {
     putenv(const_cast<char*>("EP-ENGINE-TESTSUITE=true"));
     testHarness = *th;
     return true;
@@ -308,7 +284,7 @@ MEMCACHED_PUBLIC_API
 
 
 MEMCACHED_PUBLIC_API
-    bool teardown_suite() {
+bool teardown_suite() {
     free(testcases);
     testcases = NULL;
     return true;
@@ -318,11 +294,24 @@ MEMCACHED_PUBLIC_API
  * Create n_buckets and return how many were actually created.
  */
 int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &buckets) {
+    std::string dbname = get_dbname(cfg);
+
     for (int ii = 0; ii < n_buckets; ii++) {
         std::stringstream config, dbpath;
-        dbpath << "/tmp/test" << ii;
+        dbpath << dbname.c_str() << ii;
+        std::string str_cfg(cfg);
+        /* Find the position of "dbname=" in str_cfg */
+        size_t pos = str_cfg.find("dbname=");
+        if (pos != std::string::npos) {
+            /* Move till end of the dbname */
+            size_t new_pos = str_cfg.find(';', pos);
+            str_cfg.insert(new_pos, std::to_string(ii));
+            config << str_cfg;
+        } else {
+            config << str_cfg << "dbname=" << dbpath.str();
+        }
+
         rmdb(dbpath.str().c_str());
-        config << cfg << "dbname=" << dbpath.str();
         ENGINE_HANDLE_V1* handle = testHarness.create_bucket(true, config.str().c_str());
         if (handle) {
             buckets.push_back(BucketHolder((ENGINE_HANDLE*)handle, handle, dbpath.str()));
