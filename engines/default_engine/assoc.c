@@ -100,7 +100,8 @@ static void assoc_expand(struct default_engine *engine) {
         engine->assoc.expand_bucket = 0;
 
         /* start a thread to do the expansion */
-        if ((ret = cb_create_thread(&tid, assoc_maintenance_thread, engine, 1)) != 0)
+        if ((ret = cb_create_named_thread(&tid, assoc_maintenance_thread,
+                                          engine, 1, "mc:assoc maint")) != 0)
         {
             EXTENSION_LOGGER_DESCRIPTOR *logger;
             logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);

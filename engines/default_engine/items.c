@@ -1125,7 +1125,8 @@ bool item_start_scrub(struct default_engine *engine)
         engine->scrubber.cleaned = 0;
         engine->scrubber.running = true;
 
-        if (cb_create_thread(&t, item_scubber_main, engine, 1) != 0)
+        if (cb_create_named_thread(&t, item_scubber_main, engine, 1,
+                                   "mc:item scrub") != 0)
         {
             engine->scrubber.running = false;
         } else {
