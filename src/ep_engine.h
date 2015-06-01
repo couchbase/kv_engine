@@ -40,6 +40,8 @@
 #include "tapconnection.h"
 #include "workload.h"
 
+#include <JSON_checker.h>
+
 class DcpConnMap;
 class TapConnMap;
 class ReplicationThrottle;
@@ -321,9 +323,11 @@ public:
         item *it = NULL;
         Item *nit = NULL;
         uint64_t cas = 0;
+
         uint8_t ext_meta[1];
         uint8_t ext_len = EXT_META_LEN;
-        *(ext_meta) = datatype;
+        //Datatype of arithmetic values is always JSON
+        *(ext_meta) = PROTOCOL_BINARY_DATATYPE_JSON;
 
         rel_time_t expiretime = (exptime == 0 ||
                                  exptime == 0xffffffff) ?
@@ -361,6 +365,7 @@ public:
                 vals << val;
                 size_t nb = vals.str().length();
                 *result = val;
+
                 nit = new Item(key, (uint16_t)nkey, itm->getFlags(),
                                      itm->getExptime(), vals.str().c_str(), nb,
                                      ext_meta, ext_len);
@@ -382,6 +387,7 @@ public:
                 vals << initial;
                 size_t nb = vals.str().length();
                 *result = initial;
+
                 nit = new Item(key, (uint16_t)nkey, 0, expiretime,
                                      vals.str().c_str(), nb, ext_meta, ext_len);
                 ret = store(cookie, nit, &cas, OPERATION_ADD, vbucket);

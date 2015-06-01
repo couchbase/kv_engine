@@ -826,30 +826,52 @@ static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_datatype_support(cookie, false);
+
     uint64_t result = 0;
     item *i = NULL;
-    check(h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0,
+    check(h1->arithmetic(h, cookie, "key", 3, true, true, 1, 1, 0,
                          &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed first arith");
-    h1->release(h, NULL, i);
+    h1->release(h, cookie, i);
     check(result == 1, "Failed result verification.");
 
-    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
+    // Check datatype of counter
+    check(h1->get(h, cookie, &i, "key", 3, 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+    item_info info;
+    info.nvalue = 1;
+    h1->get_item_info(h, cookie, i, &info);
+    h1->release(h, cookie, i);
+    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+
+    check(h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
                          &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed second arith.");
-    h1->release(h, NULL, i);
+    h1->release(h, cookie, i);
     check(result == 2, "Failed second result verification.");
 
-    check(h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0,
+    check(h1->arithmetic(h, cookie, "key", 3, true, true, 1, 1, 0,
                          &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed third arith.");
-    h1->release(h, NULL, i);
+    h1->release(h, cookie, i);
     check(result == 3, "Failed third result verification.");
 
     check_key_value(h, h1, "key", "3", 1);
+
+    // Check datatype of counter
+    check(h1->get(h, cookie, &i, "key", 3, 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+    info.nvalue = 1;
+    h1->get_item_info(h, cookie, i, &info);
+    h1->release(h, cookie, i);
+    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -1233,19 +1255,39 @@ static enum test_result test_append_prepend_to_json(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_datatype_support(cookie, true);
+
     uint64_t result = 0;
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_ADD,"key", "1", &i) == ENGINE_SUCCESS,
+    const char *key = "key";
+    const char *val = "1";
+    check(store(h, h1, NULL, OPERATION_ADD,key, val, &i,
+                0, 0, 3600,
+                checkUTF8JSON((const unsigned char *)val, 1))
+            == ENGINE_SUCCESS,
           "Failed to add value.");
     h1->release(h, NULL, i);
 
-    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
+    check(h1->arithmetic(h, NULL, key, 3, true, false, 1, 1, 0,
                          &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                          0) == ENGINE_SUCCESS,
           "Failed to incr value.");
     h1->release(h, NULL, i);
 
-    check_key_value(h, h1, "key", "2", 1);
+    check_key_value(h, h1, key, "2", 1);
+
+    // Check datatype of counter
+    check(h1->get(h, cookie, &i, key, 3, 0) == ENGINE_SUCCESS,
+            "Unable to get stored item");
+    item_info info;
+    info.nvalue = 1;
+    h1->get_item_info(h, cookie, i, &info);
+    h1->release(h, cookie, i);
+    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+
+    testHarness.destroy_cookie(cookie);
+
     return SUCCESS;
 }
 
@@ -5437,11 +5479,11 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
                            lockTime, NULL, 0, 0) == ENGINE_SUCCESS,
           "Failed dcp mutate.");
 
-    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
-          "Failed to set vbucket state.");
-
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
                         "dcp");
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     check_key_value(h, h1, "key", data, dataLen);
 
@@ -7616,25 +7658,28 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
 }
 
 static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_datatype_support(cookie, true);
+
     item *itm = NULL;
     char key[15] = "{\"foo\":\"bar\"}";
     uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     uint64_t cas = 0;
 
-    ENGINE_ERROR_CODE rv = h1->allocate(h, NULL, &itm, key,
+    ENGINE_ERROR_CODE rv = h1->allocate(h, cookie, &itm, key,
                                         strlen(key), 1, 0, 0,
                                         datatype);
     check(rv == ENGINE_SUCCESS, "Allocation failed.");
-    rv = h1->store(h, NULL, itm, &cas, OPERATION_SET, 0);
-    h1->release(h, NULL, itm);
+    rv = h1->store(h, cookie, itm, &cas, OPERATION_SET, 0);
+    h1->release(h, cookie, itm);
 
-    check(h1->get(h, NULL, &itm, key, strlen(key), 0) == ENGINE_SUCCESS,
+    check(h1->get(h, cookie, &itm, key, strlen(key), 0) == ENGINE_SUCCESS,
             "Unable to get stored item");
 
     item_info info;
     info.nvalue = 1;
-    h1->get_item_info(h, NULL, itm, &info);
-    h1->release(h, NULL, itm);
+    h1->get_item_info(h, cookie, itm, &info);
+    h1->release(h, cookie, itm);
     check(info.datatype == 0x01, "Invalid datatype");
 
     const char* key1 = "foo";
@@ -7645,20 +7690,23 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     itm_meta.exptime = info.exptime;
     itm_meta.flags = info.flags;
     set_with_meta(h, h1, key1, strlen(key1), val1, strlen(val1), 0, &itm_meta,
-                  last_cas, false, info.datatype);
+                  last_cas, false, info.datatype, false, 0, 0, cookie);
 
-    check(h1->get(h, NULL, &itm, key1, strlen(key1), 0) == ENGINE_SUCCESS,
+    check(h1->get(h, cookie, &itm, key1, strlen(key1), 0) == ENGINE_SUCCESS,
             "Unable to get stored item");
 
-    h1->get_item_info(h, NULL, itm, &info);
-    h1->release(h, NULL, itm);
+    h1->get_item_info(h, cookie, itm, &info);
+    h1->release(h, cookie, itm);
     check(info.datatype == 0x01, "Invalid datatype, when setWithMeta");
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
 static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
                                                            ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.set_datatype_support(cookie, true);
     item *itm = NULL;
     const char* key = "foo";
     const char* val = "{\"foo\":\"bar\"}";
@@ -7672,23 +7720,25 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
 
     //SET_WITH_META
     set_with_meta(h, h1, key, strlen(key), val, strlen(val), 0, &itm_meta,
-                  0, false, datatype);
+                  0, false, datatype, false, 0, 0, cookie);
 
-    check(h1->get(h, NULL, &itm, key, strlen(key), 0) == ENGINE_SUCCESS,
+    check(h1->get(h, cookie, &itm, key, strlen(key), 0) == ENGINE_SUCCESS,
             "Unable to get stored item");
 
     item_info info;
     info.nvalue = 1;
-    h1->get_item_info(h, NULL, itm, &info);
+    h1->get_item_info(h, cookie, itm, &info);
     h1->release(h, NULL, itm);
     check(info.datatype == 0x01, "Invalid datatype, when setWithMeta");
 
     //SET_RETURN_META
-    set_ret_meta(h, h1, "foo1", 4, val, strlen(val), 0, 0, 0, 0, datatype);
+    set_ret_meta(h, h1, "foo1", 4, val, strlen(val), 0, 0, 0, 0, datatype,
+                 cookie);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected set returing meta to succeed");
     check(last_datatype == 0x01, "Invalid datatype, when set_return_meta");
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 

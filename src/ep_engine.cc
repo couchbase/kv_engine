@@ -49,8 +49,6 @@
 #include "dcp/producer.h"
 #include "warmup.h"
 
-#include <JSON_checker.h>
-
 static ALLOCATOR_HOOKS_API *hooksApi;
 static SERVER_LOG_API *loggerApi;
 
