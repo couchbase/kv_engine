@@ -168,6 +168,7 @@ TARGET_LINK_LIBRARIES(ep-engine_checkpoint_test ${SNAPPY_LIBRARIES} cJSON platfo
 
 ADD_EXECUTABLE(ep-engine_chunk_creation_test
   tests/module_tests/chunk_creation_test.cc)
+TARGET_LINK_LIBRARIES(ep-engine_chunk_creation_test platform)
 
 ADD_EXECUTABLE(ep-engine_hash_table_test
   tests/module_tests/hash_table_test.cc src/item.cc
@@ -178,17 +179,21 @@ ADD_EXECUTABLE(ep-engine_hash_table_test
 TARGET_LINK_LIBRARIES(ep-engine_hash_table_test ${SNAPPY_LIBRARIES} platform)
 
 ADD_EXECUTABLE(ep-engine_histo_test tests/module_tests/histo_test.cc)
+TARGET_LINK_LIBRARIES(ep-engine_histo_test platform)
 ADD_EXECUTABLE(ep-engine_hrtime_test tests/module_tests/hrtime_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_hrtime_test platform)
 
 ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
+TARGET_LINK_LIBRARIES(ep-engine_misc_test platform)
 ADD_EXECUTABLE(ep-engine_mutex_test
   tests/module_tests/mutex_test.cc src/testlogger.cc src/mutex.cc)
 TARGET_LINK_LIBRARIES(ep-engine_mutex_test platform)
 
-ADD_EXECUTABLE(ep-engine_priority_test  tests/module_tests/priority_test.cc
-                        src/priority.cc)
+ADD_EXECUTABLE(ep-engine_priority_test  tests/module_tests/priority_test.cc src/priority.cc)
+TARGET_LINK_LIBRARIES(ep-engine_priority_test platform)
+
 ADD_EXECUTABLE(ep-engine_ringbuffer_test tests/module_tests/ringbuffer_test.cc)
+TARGET_LINK_LIBRARIES(ep-engine_ringbuffer_test platform)
 
 ADD_EXECUTABLE(ep-engine_failover_table_test tests/module_tests/failover_table_test.cc
                         src/failover-table.cc src/mutex.cc src/testlogger.cc
