@@ -114,6 +114,7 @@ ELSE (WIN32)
    ADD_EXECUTABLE(mcbasher programs/mcbasher.cc)
    TARGET_LINK_LIBRARIES(mcbasher platform ${COUCHBASE_NETWORK_LIBS})
    ADD_EXECUTABLE(timedrun programs/timedrun.c)
+   TARGET_LINK_LIBRARIES(timedrun platform)
 ENDIF (WIN32)
 
 ADD_SUBDIRECTORY(time)
@@ -151,6 +152,9 @@ ADD_LIBRARY(bucket_engine_mock_engine SHARED
             engines/bucket_engine/genhash.c)
 ADD_LIBRARY(file_logger SHARED extensions/loggers/file_logger.cc)
 ADD_LIBRARY(testapp_extension SHARED extensions/protocol/testapp_extension.c)
+
+TARGET_LINK_LIBRARIES(bucket_engine_mock_engine platform)
+
 
 ADD_SUBDIRECTORY(auditd)
 
@@ -277,7 +281,7 @@ ENDIF (ENABLE_DTRACE)
 
 ADD_EXECUTABLE(memcached_config_test tests/config_test.c
                daemon/config_util.c daemon/config_util.h)
-TARGET_LINK_LIBRARIES(memcached_config_test cJSON)
+TARGET_LINK_LIBRARIES(memcached_config_test cJSON platform)
 ADD_EXECUTABLE(ssltest tests/ssltest.c
                        programs/utilities.c
                        programs/utilities.h)
@@ -302,6 +306,7 @@ ADD_EXECUTABLE(cbsasl_hmac_test tests/cbsasl/hmac_test.c
                                 cbsasl/cram-md5/hmac.h
                                 cbsasl/cram-md5/md5.c
                                 cbsasl/cram-md5/md5.h)
+TARGET_LINK_LIBRARIES(cbsasl_hmac_test platform)
 
 ADD_EXECUTABLE(cbsasl_pwfile_test tests/cbsasl/pwfile_test.c
                                   cbsasl/pwfile.c
@@ -327,6 +332,7 @@ ADD_EXECUTABLE(cbsasl_strcmp_test tests/cbsasl/strcmp_test.c
                                   include/cbsasl/cbsasl.h
                                   include/cbsasl/visibility.h
                                   cbsasl/strcmp.c)
+TARGET_LINK_LIBRARIES(cbsasl_strcmp_test platform)
 
 ADD_EXECUTABLE(config_parse_test  tests/config_parse_test.c
                                   daemon/config_util.c daemon/config_util.h
@@ -446,6 +452,7 @@ IF(${COUCHBASE_PYTHON})
                     testsuite/breakdancer/suite_stubs.c
                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_${ID}.c)
         SET_TARGET_PROPERTIES(memcached_generated_testsuite_${ID} PROPERTIES PREFIX "")
+        TARGET_LINK_LIBRARIES(memcached_generated_testsuite_${ID} platform)
         ADD_DEPENDENCIES(memcached_generated_testsuite_${ID}
                          DUMMY_generated_suite)
 
