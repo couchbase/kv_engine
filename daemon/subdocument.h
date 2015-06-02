@@ -43,6 +43,7 @@ int subdoc_array_push_last_validator(void* packet);
 int subdoc_array_push_first_validator(void* packet);
 int subdoc_array_insert_validator(void* packet);
 int subdoc_array_add_unique_validator(void* packet);
+int subdoc_counter_validator(void* packet);
 
 /* Subdocument executor functions. */
 void subdoc_get_executor(conn *c, void *packet);
@@ -55,6 +56,7 @@ void subdoc_array_push_last_executor(conn *c, void *packet);
 void subdoc_array_push_first_executor(conn *c, void *packet);
 void subdoc_array_insert_executor(conn* c, void* packet);
 void subdoc_array_add_unique_executor(conn* c, void* packet);
+void subdoc_counter_executor(conn *c, void *packet);
 
 #if defined(__cplusplus)
 } // extern "C"

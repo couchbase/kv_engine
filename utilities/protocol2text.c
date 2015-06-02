@@ -274,10 +274,8 @@ const char *memcached_opcode_2_text(uint8_t opcode) {
         return "SUBDOC_ARRAY_INSERT";
     case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE:
         return "SUBDOC_ARRAY_ADD_UNIQUE";
-    case PROTOCOL_BINARY_CMD_SUBDOC_INCREMENT:
-        return "SUBDOC_INCREMENT";
-    case PROTOCOL_BINARY_CMD_SUBDOC_DECREMENT:
-        return "SUBDOC_DECREMENT";
+    case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
+        return "SUBDOC_COUNTER";
     case PROTOCOL_BINARY_CMD_SCRUB:
         return "SCRUB";
     case PROTOCOL_BINARY_CMD_ISASL_REFRESH:
@@ -717,11 +715,8 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     if (strcasecmp("SUBDOC_ARRAY_ADD_UNIQUE", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE;
     }
-    if (strcasecmp("SUBDOC_INCREMENT", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_INCREMENT;
-    }
-    if (strcasecmp("SUBDOC_DECREMENT", cmd) == 0) {
-        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_DECREMENT;
+    if (strcasecmp("SUBDOC_COUNTER", cmd) == 0) {
+        return (uint8_t)PROTOCOL_BINARY_CMD_SUBDOC_COUNTER;
     }
     if (strcasecmp("SCRUB", cmd) == 0) {
         return (uint8_t)PROTOCOL_BINARY_CMD_SCRUB;

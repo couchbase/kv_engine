@@ -158,6 +158,16 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE> > {
           protocol_binary_subdoc_flag(0);
 };
 
+template <>
+struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER> > {
+  static const Subdoc::Command::Code optype = Subdoc::Command::COUNTER;
+  static const bool request_has_value = true;
+  static const bool allow_empty_path = true;
+  static const bool response_has_value = true;
+  static const bool is_mutator = true;
+  static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
+};
+
 /*
  * Subdocument command validators
  */
@@ -248,6 +258,10 @@ int subdoc_array_insert_validator(void* packet) {
 
 int subdoc_array_add_unique_validator(void* packet) {
     return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>(packet);
+}
+
+int subdoc_counter_validator(void* packet) {
+    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>(packet);
 }
 
 /******************************************************************************
@@ -694,6 +708,14 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG);
             return false;
 
+        case Subdoc::Error::NUM_E2BIG:
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE);
+            return false;
+
+        case Subdoc::Error::DELTA_E2BIG:
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE);
+            return false;
+
         case Subdoc::Error::VALUE_CANTINSERT:
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT);
             return false;
@@ -891,4 +913,8 @@ void subdoc_array_insert_executor(conn *c, void *packet) {
 
 void subdoc_array_add_unique_executor(conn *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>(c, packet);
+}
+
+void subdoc_counter_executor(conn *c, void *packet) {
+    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>(c, packet);
 }

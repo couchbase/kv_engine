@@ -99,6 +99,12 @@ size_t compress_document(const char* data, size_t datalen, char** deflated);
 /* Set the datatype feature on the connection to the specified value */
 void set_datatype_feature(bool enable);
 
+// Attempts to fetch the document with the given key.
+// Returns a pair of {status, value}; where status is the response code from
+// the server and value is the documents value (if status == SUCCESS).
+std::pair<protocol_binary_response_status, std::string>
+fetch_value(const std::string& key);
+
 /* Attempts to get the given key and checks if it's value matches
  * {expected_value}.
  */

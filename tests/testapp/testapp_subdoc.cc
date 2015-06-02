@@ -1434,6 +1434,136 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
     delete_object("b");
 }
 
+TEST_P(McdTestappTest, SubdocCounter_Simplet)
+{
+    store_object("a", "{}", /*JSON*/true, /*compress*/false);
+
+    // a). Check that empty document, empty path creates a new element.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                "a", "key", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "1");
+    auto result = fetch_value("a");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("{\"key\":1}", result.second);
+
+    // b). Check we can now increment it further.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                "a", "key", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "2");
+    result = fetch_value("a");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("{\"key\":2}", result.second);
+
+    // c). Decrement by 2; should go back to zero.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                "a", "key", "-2"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "0");
+    result = fetch_value("a");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("{\"key\":0}", result.second);
+
+    // d). Decrement by 1; should go negative.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                "a", "key", "-1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "-1");
+    result = fetch_value("a");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("{\"key\":-1}", result.second);
+
+    delete_object("a");
+}
+
+TEST_P(McdTestappTest, SubdocCounter_InvalidNotInt)
+{
+    // Cannot increment things which are not integers.
+    const std::vector<std::string> not_integer({
+        "true",
+        "false",
+        "null",
+        "\"string\"",
+        "[0]",
+        "{\"foo\": \"bar\"}",
+        "1.1"
+    });
+    for (auto& val : not_integer) {
+        const std::string doc("{\"key\":" + val + "}");
+        store_object("a", doc, /*JSON*/true, /*compress*/false);
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                    "a", "key", "1"),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
+        auto result = fetch_value("a");
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+        EXPECT_EQ(doc, result.second);
+        delete_object("a");
+    }
+}
+
+TEST_P(McdTestappTest, SubdocCounter_InvalidERange)
+{
+    // Cannot increment things which are not representable as int64_t.
+    const auto int64_max = std::numeric_limits<int64_t>::max();
+
+    const std::vector<std::string> unrepresentable({
+        std::to_string(uint64_t(int64_max) + 1),
+        "-" + std::to_string(uint64_t(int64_max) + 2),
+    });
+    for (auto& val : unrepresentable) {
+        const std::string doc("{\"key\":" + val + "}");
+        store_object("b", doc, /*JSON*/true, /*compress*/false);
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                    "b", "key", "1"),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE, "");
+        auto result = fetch_value("b");
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+        EXPECT_EQ(doc, result.second);
+        delete_object("b");
+    }
+}
+
+TEST_P(McdTestappTest, SubdocCounter_Limits)
+{
+    // a). Attempting to increment value one less than int64_t::MAX by one
+    //     should succeed.
+    const int64_t max = std::numeric_limits<int64_t>::max();
+
+    store_object("a", "{\"key\":" + std::to_string(max - 1) + "}",
+                 /*JSON*/true, /*compress*/false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                "a", "key", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, std::to_string(max));
+
+    auto result = fetch_value("a");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("{\"key\":" + std::to_string(max) + "}", result.second);
+
+    // b). A further increment by one should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                "a", "key", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE, "");
+
+    delete_object("a");
+
+    // c). Same with int64_t::min() and decrement.
+    const int64_t min = std::numeric_limits<int64_t>::min();
+
+    store_object("b", "{\"key\":" + std::to_string(min + 1) + "}",
+                 /*JSON*/true, /*compress*/false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                "b", "key", "-1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, std::to_string(min));
+
+    result = fetch_value("b");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("{\"key\":" + std::to_string(min) + "}", result.second);
+
+    // b). A further decrement by one should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                "b", "key", "-1"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE, "");
+
+    delete_object("b");
+}
+
 // Tests how a single worker handles multiple "concurrent" connections
 // performing operations.
 class WorkerConcurrencyTest : public McdTestappTest {

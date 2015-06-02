@@ -422,8 +422,8 @@ extern "C"
         PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE = 0xce,
 
         /* Arithmetic commands */
-        PROTOCOL_BINARY_CMD_SUBDOC_INCREMENT = 0xcf,
-        PROTOCOL_BINARY_CMD_SUBDOC_DECREMENT = 0xd0,
+        PROTOCOL_BINARY_CMD_SUBDOC_COUNTER = 0xcf,
+
 
         /* Scrub the data */
         PROTOCOL_BINARY_CMD_SCRUB = 0xf0,

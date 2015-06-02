@@ -2697,6 +2697,31 @@ TEST_P(McdTestappTest, Verbosity) {
     }
 }
 
+std::pair<protocol_binary_response_status, std::string>
+fetch_value(const std::string& key) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } send, receive;
+    const size_t len = raw_command(send.bytes, sizeof(send.bytes),
+                                   PROTOCOL_BINARY_CMD_GET,
+                                   key.data(), key.size(), NULL, 0);
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+
+    protocol_binary_response_status status =
+            protocol_binary_response_status(receive.response.message.header.response.status);
+    if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        const char* ptr = receive.bytes + sizeof(receive.response) + 4;
+        const size_t vallen = receive.response.message.header.response.bodylen - 4;
+        return std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              std::string(ptr, vallen));
+    } else {
+        return std::make_pair(status, "");
+    }
+}
+
 void validate_object(const char *key, const std::string& expected_value) {
     union {
         protocol_binary_request_no_extras request;
