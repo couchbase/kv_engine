@@ -1105,6 +1105,9 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
             vb->setBackfillPhase(false);
         }
 
+        uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
+        vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+
         if (cur_snapshot_ack) {
             LockHolder lh(streamMutex);
             readyQ.push(new SnapshotMarkerResponse(opaque_, ENGINE_SUCCESS));
