@@ -78,8 +78,8 @@ MemoryTracker::MemoryTracker() {
             std::cout.flush();
             tracking = true;
             updateStats();
-            if (cb_create_thread(&statsThreadId, updateStatsThread, this, 0)
-                != 0) {
+            if (cb_create_named_thread(&statsThreadId, updateStatsThread,
+                                           this, 0, "mc:mem stats") != 0) {
                 throw std::runtime_error(
                                       "Error creating thread to update stats");
             }

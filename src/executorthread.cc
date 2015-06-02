@@ -44,7 +44,16 @@ extern "C" {
 
 void ExecutorThread::start() {
     cb_assert(state == EXECUTOR_CREATING);
-    if (cb_create_thread(&thread, launch_executor_thread, this, 0) != 0) {
+    std::string thread_name("mc:" + getName());
+    // Only permitted 15 characters of name; therefore abbreviate thread names.
+    std::string worker("_worker");
+    std::string::size_type pos = thread_name.find(worker);
+    if (pos != std::string::npos) {
+        thread_name.replace(pos, worker.size(), "");
+    }
+    thread_name.resize(15);
+    if (cb_create_named_thread(&thread, launch_executor_thread, this, 0,
+                               thread_name.c_str()) != 0) {
         std::stringstream ss;
         ss << name.c_str() << ": Initialization error!!!";
         throw std::runtime_error(ss.str().c_str());
