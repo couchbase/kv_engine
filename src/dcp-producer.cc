@@ -353,10 +353,17 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
     if (strncmp(param, "connection_buffer_size", nkey) == 0) {
         uint32_t size;
         if (parseUint32(valueStr.c_str(), &size)) {
-            if (!log) {
+            /* Size 0 implies the client (DCP consumer) does not support
+               flow control */
+            if (!log && size) {
                 log = new BufferLog(size);
-            } else if (log->getBufferSize() != size) {
-                log->setBufferSize(size);
+            } else if (log && log->getBufferSize() != size) {
+                if (size) {
+                    log->setBufferSize(size);
+                } else {
+                    delete log;
+                    log = NULL;
+                }
             }
             return ENGINE_SUCCESS;
         }

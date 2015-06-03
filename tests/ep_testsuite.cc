@@ -4677,10 +4677,19 @@ static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
     char stats_buffer[50];
+    char status_buffer[50];
 
     // Open consumer connection
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
             == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+
+    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                          "0", 1) == ENGINE_SUCCESS,
+                          "Failed to establish connection buffer");
+    snprintf(status_buffer, sizeof(status_buffer),
+             "eq_dcpq:%s:flow_control", name);
+    std::string status = get_str_stat(h, h1, status_buffer, "dcp");
+    check(status.compare("disabled") == 0, "Flow control enabled!");
 
     check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
                           "512", 4) == ENGINE_SUCCESS,
@@ -4698,6 +4707,13 @@ static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
 
     check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
             == 1024, "Buffer Size did not get reset");
+
+    /* Set flow control buffer size to zero which implies disable it */
+    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                          "0", 1) == ENGINE_SUCCESS,
+          "Failed to establish connection buffer");
+    status = get_str_stat(h, h1, status_buffer, "dcp");
+    check(status.compare("disabled") == 0, "Flow control enabled!");
 
     testHarness.destroy_cookie(cookie);
 
