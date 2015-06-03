@@ -135,6 +135,7 @@ ADD_LIBRARY(default_engine SHARED
 
 ADD_LIBRARY(nobucket SHARED
             engines/nobucket/nobucket.c)
+TARGET_LINK_LIBRARIES(nobucket platform)
 ADD_LIBRARY(crash_engine SHARED
             engines/crash_engine/crash_engine.c)
 ADD_LIBRARY(ewouldblock_engine SHARED
@@ -252,7 +253,6 @@ IF (ENABLE_DTRACE)
 
    ENDIF (DTRACE_NEED_INSTUMENT)
 ENDIF (ENABLE_DTRACE)
-
 
 ADD_EXECUTABLE(memcached_testapp
                tests/testapp.cc tests/testapp.h
@@ -384,6 +384,7 @@ IF(${COUCHBASE_PYTHON})
                     testsuite/breakdancer/suite_stubs.c
                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_${ID}.c)
         SET_TARGET_PROPERTIES(memcached_generated_testsuite_${ID} PROPERTIES PREFIX "")
+        TARGET_LINK_LIBRARIES(memcached_generated_testsuite_${ID} platform)
         ADD_DEPENDENCIES(memcached_generated_testsuite_${ID}
                          DUMMY_generated_suite)
 
