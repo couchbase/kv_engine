@@ -165,10 +165,11 @@ static void cqi_free(CQ_ITEM *item) {
 /*
  * Creates a worker thread.
  */
-static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id) {
+static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
+                          const char* name) {
     int ret;
 
-    if ((ret = cb_create_thread(id, func, arg, 0)) != 0) {
+    if ((ret = cb_create_named_thread(id, func, arg, 0, name)) != 0) {
         log_system_error(EXTENSION_LOG_WARNING, NULL,
                          "Can't create thread: %s");
         exit(1);
@@ -647,7 +648,9 @@ void thread_init(int nthr, struct event_base *main_base,
 
     /* Create threads after we've done all the libevent setup. */
     for (i = 0; i < nthreads; i++) {
-        create_worker(worker_libevent, &threads[i], &thread_ids[i]);
+        char name[16];
+        snprintf(name, sizeof(name), "mc:worker %d", i);
+        create_worker(worker_libevent, &threads[i], &thread_ids[i], name);
         threads[i].thread_id = thread_ids[i];
     }
 

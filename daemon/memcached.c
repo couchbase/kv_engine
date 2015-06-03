@@ -1902,7 +1902,8 @@ static ENGINE_ERROR_CODE refresh_cbsasl(conn *c)
     cb_thread_t tid;
     int err;
 
-    err = cb_create_thread(&tid, cbsasl_refresh_main, c, 1);
+    err = cb_create_named_thread(&tid, cbsasl_refresh_main, c, 1,
+                                 "mc:refresh sasl");
     if (err != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "Failed to create cbsasl db "
@@ -8260,7 +8261,8 @@ static void setup_parent_monitor(void) {
     char *env = getenv("MEMCACHED_PARENT_MONITOR");
     if (env != NULL) {
         cb_thread_t t;
-        if (cb_create_thread(&t, parent_monitor_thread, env, 1) != 0) {
+        if (cb_create_named_thread(&t, parent_monitor_thread, env, 1,
+                                   "mc:parent mon") != 0) {
             log_system_error(EXTENSION_LOG_WARNING, NULL,
                 "Failed to open parent process: %s");
             exit(EXIT_FAILURE);
@@ -8540,6 +8542,8 @@ int main (int argc, char **argv) {
 
     /* Optional parent monitor */
     setup_parent_monitor();
+
+    cb_set_thread_name("mc:listener");
 
     if (!memcached_shutdown) {
         /* enter the event loop */

@@ -105,7 +105,8 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
     AuditConfig::min_file_rotation_time = extension_data->min_file_rotation_time;
     AuditConfig::max_file_rotation_time = extension_data->max_file_rotation_time;
 
-    if (cb_create_thread(&audit.consumer_tid, consume_events, NULL, 0) != 0) {
+    if (cb_create_named_thread(&audit.consumer_tid, consume_events, NULL, 0,
+                               "mc:auditd") != 0) {
         Audit::log_error(CB_CREATE_THREAD_ERROR, NULL);
         return AUDIT_FAILED;
     }

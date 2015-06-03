@@ -667,7 +667,8 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         return EXTENSION_FATAL;
     }
 
-    if (cb_create_thread(&tid, logger_thead_main, fname, 0) < 0) {
+    if (cb_create_named_thread(&tid, logger_thead_main, fname, 0,
+                               "mc:file_logger") < 0) {
         fprintf(stderr, "Failed to initialize the logger\n");
         free(fname);
         free(buffers[0].data);

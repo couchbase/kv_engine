@@ -160,6 +160,7 @@ void ScrubberTask::placeOnWorkQueue(struct default_engine* engine, bool destroy)
 }
 
 void ScrubberTask::run() {
+    cb_set_thread_name("mc:item scrub");
 
     while (true) {
         std::unique_lock<std::mutex> lck(lock);

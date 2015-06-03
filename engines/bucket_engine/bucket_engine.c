@@ -1603,7 +1603,8 @@ static void maybe_start_engine_shutdown(proxied_engine_handle_t *e) {
     if (e->state == STATE_STOPPING && e->clients == 0 && ATOMIC_CAS(&e->state, STATE_STOPPING, STATE_STOPPED)) {
         /* Spin off a new thread to shut down the engine.. */
         cb_thread_t tid;
-        if (cb_create_thread(&tid, engine_shutdown_thread, e, 1) != 0) {
+        if (cb_create_named_thread(&tid, engine_shutdown_thread, e, 1,
+                                   "mc:eng_shutdown") != 0) {
             logger->log(EXTENSION_LOG_WARNING, NULL,
                         "Failed to start shutdown of \"%s\"!", e->name);
             abort();
