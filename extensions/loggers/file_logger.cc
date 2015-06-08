@@ -253,22 +253,9 @@ static void syslog_event_receiver(SyslogEvent *event) {
         fprintf(stderr, "ERROR: Unknown syslog_severity\n");
     }
 
-    struct tm tval;
-    tval.tm_sec = event->time_second;
-    tval.tm_min = event->time_minute + event->offset_minute;
-    tval.tm_hour = event->time_hour + event->offset_hour;
-    tval.tm_mday = event->date_mday;
-    tval.tm_mon = event->date_month - 1;
-    tval.tm_year = event->date_fullyear - 1900;
-    tval.tm_isdst = -1;
-    tval.tm_wday = -1;
-    tval.tm_yday = -1;
-
-    time_t nsec = mktime(&tval);
-
     char buffer[2048];
     ISOTime::ISO8601String timestamp;
-    ISOTime::generatetimestamp(timestamp, nsec, event->time_secfrac);
+    ISOTime::generatetimestamp(timestamp, event->time, event->time_secfrac);
     int offset = snprintf(buffer, sizeof(buffer), "%s %s ", timestamp.data(),
                           severity2string(severity));
     int prefixlen = offset;
@@ -294,7 +281,7 @@ static void syslog_event_receiver(SyslogEvent *event) {
         }
 
         if (severity >= current_log_level) {
-            add_log_entry(nsec, buffer, prefixlen, strlen(buffer));
+            add_log_entry(event->time, buffer, prefixlen, strlen(buffer));
         }
     }
 }
@@ -361,23 +348,8 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
 
     /* Fill-in date structure */
     if (cb_get_timeofday(&now) == 0) {
-        struct tm localval, utcval;
-        time_t nsec = (time_t)now.tv_sec;
-
-        cb_gmtime_r(&nsec, &utcval);
-        cb_localtime_r(&nsec, &localval);
-
-        event.date_fullyear = 1900 + utcval.tm_year;
-        event.date_month = 1 + utcval.tm_mon;
-        event.date_mday = utcval.tm_mday;
-        event.time_hour = utcval.tm_hour;
-        event.time_minute = utcval.tm_min;
-        event.time_second = utcval.tm_sec;
-        event.time_secfrac = now.tv_usec;
-        /* Calculate the offset from UTC to local-time */
-        event.offset_hour = localval.tm_hour - utcval.tm_hour;
-        event.offset_minute = localval.tm_min - utcval.tm_min;
-
+        event.time = (time_t)now.tv_sec;
+        event.time_secfrac = (uint32_t)now.tv_usec;
     } else {
         fprintf(stderr, "gettimeofday failed in file_logger.c: %s\n", strerror(errno));
         return;
