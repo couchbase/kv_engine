@@ -15,7 +15,13 @@ def cmd(f):
 
     def g(*args, **kwargs):
         mc = args[0]
-        vbucket = int(args[1])
+
+        try:
+            vbucket = int(args[1])
+        except IndexError:
+            print "Must specify a vbucket id after the compact argument"
+            sys.exit(1)
+
         n = f.func_code.co_argcount
         if len(args) > n:
             print "Too many args, given %s, but expected a maximum of %s"\
