@@ -360,14 +360,27 @@ void subdoc_executor(conn *c, const void *packet) {
     if (settings.verbose > 1) {
         char clean_key[KEY_MAX_LENGTH + 32];
         char clean_path[SUBDOC_PATH_MAX_LENGTH];
+        char clean_value[80]; // only print the first few characters of the value.
         if ((key_to_printable_buffer(clean_key, sizeof(clean_key), c->sfd, true,
                                      memcached_opcode_2_text(CMD),
                                      key, keylen) != -1) &&
             (buf_to_printable_buffer(clean_path, sizeof(clean_path),
                                      path, pathlen) != -1)) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "%s path:%s\n", clean_key,
-                                            clean_path);
+
+            // print key, path & value if there is a value.
+            if ((vallen > 0) &&
+                (buf_to_printable_buffer(clean_value, sizeof(clean_value),
+                                         value, vallen) != -1)) {
+                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                                "%s path:'%s' value:'%s'",
+                                                clean_key, clean_path,
+                                                clean_value);
+            } else {
+                // key & path only
+                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                                "%s path:'%s'", clean_key,
+                                                clean_path);
+            }
         }
     }
 
