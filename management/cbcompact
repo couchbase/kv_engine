@@ -50,7 +50,9 @@ def compact(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
         return mc.compact_db(vbucket, purgeBeforeTs, purgeBeforeSeq,
                              dropDeletes)
      except:
-         print "Unable to compact '%d %d %d %d' in requested engine."\
+         print "Unable to compact vbucket %d with the following parameters "\
+               "(purge before time: %d, purge before seqno: %d, drop deletes: "\
+               "%d) in requested engine."\
              % (vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes)
 
 def main():
