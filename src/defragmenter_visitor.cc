@@ -38,7 +38,7 @@ private:
     // Do we need to capture an initial time for measuring progress?
     bool need_initial_time;
 
-    hrtime_t next_visit_count_check;
+    size_t next_visit_count_check;
     hrtime_t deadline;
     hrtime_t previous_time;
     size_t previous_visited;
