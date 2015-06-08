@@ -1,6 +1,11 @@
 PROJECT(auditd)
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 
+unset(CMAKE_RUNTIME_OUTPUT_DIRECTORY)
+unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY)
+unset(CMAKE_ARCHIVE_OUTPUT_DIRECTORY)
+
+
 IF (${CMAKE_MAJOR_VERSION} GREATER 2)
     CMAKE_POLICY(SET CMP0042 NEW)
 ENDIF (${CMAKE_MAJOR_VERSION} GREATER 2)
@@ -43,7 +48,8 @@ ADD_DEPENDENCIES(auditd generate_audit_descriptors)
 
 ADD_EXECUTABLE(memcached_auditd_tests src/testauditd.cc)
 TARGET_LINK_LIBRARIES(memcached_auditd_tests auditd mcd_util mcd_time cJSON dirutils)
-ADD_TEST(memcached-auditd-test memcached_auditd_tests)
+ADD_TEST(NAME memcached-auditd-test
+         COMMAND memcached_auditd_tests)
 
 ADD_SUBDIRECTORY(tests)
 
