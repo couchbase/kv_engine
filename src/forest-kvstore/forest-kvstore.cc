@@ -21,9 +21,6 @@
 #include <vbucket.h>
 #include <cJSON.h>
 #include <JSON_checker.h>
-#ifdef HAVE_ALLOCA_H
-#include <alloca.h>
-#endif
 
 using namespace CouchbaseDirectoryUtilities;
 
@@ -335,8 +332,6 @@ void ForestKVStore::getWithHeader(void *dbHandle, const std::string &key,
     memset(&rdoc, 0, sizeof(rdoc));
     rdoc.key = const_cast<char *>(key.c_str());
     rdoc.keylen = key.length();
-    rdoc.meta = alloca(sizeof(uint8_t) * FORESTDB_METADATA_SIZE);
-    rdoc.metalen = FORESTDB_METADATA_SIZE;
 
     if (!getMetaOnly) {
         status = fdb_get(kvsHandle, &rdoc);
@@ -361,6 +356,7 @@ void ForestKVStore::getWithHeader(void *dbHandle, const std::string &key,
     }
 
     rdoc.key = NULL;
+    free(rdoc.meta);
     free(rdoc.body);
 
     rv.setStatus(forestErr2EngineErr(status));
