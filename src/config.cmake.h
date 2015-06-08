@@ -1,6 +1,7 @@
 #pragma once
 
 /* Header files */
+#cmakedefine HAVE_ALLOCA_H ${HAVE_ALLOCA_H}
 #cmakedefine HAVE_ARPA_INET_H ${HAVE_ARPA_INET_H}
 #cmakedefine HAVE_ATOMIC_H ${HAVE_ATOMIC_H}
 #cmakedefine HAVE_MACH_MACH_TIME_H ${HAVE_MACH_MACH_TIME_H}

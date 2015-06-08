@@ -21,6 +21,9 @@
 #include <vbucket.h>
 #include <cJSON.h>
 #include <JSON_checker.h>
+#ifdef HAVE_ALLOCA_H
+#include <alloca.h>
+#endif
 
 using namespace CouchbaseDirectoryUtilities;
 
