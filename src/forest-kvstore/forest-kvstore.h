@@ -286,6 +286,7 @@ private:
     fdb_kvs_config getKVConfig();
     void readVBState(uint16_t vbId);
     fdb_kvs_handle *getKvsHandle(uint16_t vbId);
+    bool save2forestdb(Callback<kvstats_ctx> *cb);
     GetValue docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc, uint16_t vbId,
                        bool metaOnly = false, bool fetchDelete = false);
     ENGINE_ERROR_CODE forestErr2EngineErr(fdb_status errCode);

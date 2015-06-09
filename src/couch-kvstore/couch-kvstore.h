@@ -416,13 +416,6 @@ public:
                             shared_ptr<RollbackCB> cb);
 
     /**
-     * Perform the pre-optimizations before persisting dirty items
-     *
-     * @param items list of dirty items that can be pre-optimized
-     */
-    void optimizeWrites(std::vector<queued_item> &items);
-
-    /**
      * Perform pending tasks after persisting dirty items
      */
     void pendingTasks();

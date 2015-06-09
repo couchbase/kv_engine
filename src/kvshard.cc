@@ -36,6 +36,7 @@ KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
     vbuckets = new RCPtr<VBucket>[maxVbuckets];
 
     std::string backend = kvConfig.getBackend();
+    uint16_t commitInterval = 1;
 
     if (backend.compare("couchdb") == 0) {
         rwUnderlying = KVStoreFactory::create(kvConfig, false);
@@ -43,9 +44,10 @@ KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
     } else if (backend.compare("forestdb") == 0) {
         rwUnderlying = KVStoreFactory::create(kvConfig);
         roUnderlying = rwUnderlying;
+        commitInterval = config.getMaxVbuckets()/config.getMaxNumShards();
     }
 
-    flusher = new Flusher(&store, this);
+    flusher = new Flusher(&store, this, commitInterval);
     bgFetcher = new BgFetcher(&store, this, stats);
 }
 

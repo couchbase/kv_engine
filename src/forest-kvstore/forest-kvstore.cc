@@ -452,8 +452,53 @@ ENGINE_ERROR_CODE ForestKVStore::updateVBState(uint16_t vbucketId,
     return ENGINE_SUCCESS;
 }
 
-bool ForestKVStore::commit(Callback<kvstats_ctx> *cb) {
+static void commitCallback(std::vector<ForestRequest *> &committedReqs) {
+    size_t commitSize = committedReqs.size();
+
+    for (size_t index = 0; index < commitSize; index++) {
+        int rv = committedReqs[index]->getStatus();
+        if (committedReqs[index]->isDelete()) {
+            committedReqs[index]->getDelCallback()->callback(rv);
+        } else {
+            //TODO: For now, all mutations are passed in as insertions.
+            //This needs to be revisited in order to update stats.
+            mutation_result p(rv, true);
+            committedReqs[index]->getSetCallback()->callback(p);
+        }
+    }
+}
+
+bool ForestKVStore::save2forestdb(Callback<kvstats_ctx> *cb) {
+    size_t pendingCommitCnt = pendingReqsQ.size();
+    if (pendingCommitCnt == 0) {
+        return true;
+    }
+
+    fdb_status status = fdb_commit(dbFileHandle, FDB_COMMIT_NORMAL);
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "fdb_commit failed with error: %s", fdb_error_msg(status));
+        return false;
+    }
+
+    commitCallback(pendingReqsQ);
+
+    for (size_t i = 0; i < pendingCommitCnt; i++) {
+        delete pendingReqsQ[i];
+    }
+
+    pendingReqsQ.clear();
     return true;
+}
+
+bool ForestKVStore::commit(Callback<kvstats_ctx> *cb) {
+    if (intransaction) {
+        if (save2forestdb(cb)) {
+            intransaction = false;
+        }
+    }
+
+    return !intransaction;
 }
 
 StorageProperties ForestKVStore::getStorageProperties(void) {

@@ -29,6 +29,8 @@
 #include "item.h"
 #include "configuration.h"
 
+class PersistenceCallback;
+
 class VBucketBGFetchItem {
 public:
     VBucketBGFetchItem(const void *c, bool meta_only) :
@@ -495,9 +497,18 @@ public:
      * This method is called before persisting a batch of data if you'd like to
      * do stuff to them that might improve performance at the IO layer.
      */
-    virtual void optimizeWrites(std::vector<queued_item> &items) {
-        (void)items;
-        // EMPTY
+    void optimizeWrites(std::vector<queued_item> &items) {
+        cb_assert(!isReadOnly());
+        if (items.empty()) {
+            return;
+        }
+
+        CompareQueuedItemsBySeqnoAndKey cq;
+        std::sort(items.begin(), items.end(), cq);
+    }
+
+    std::list<PersistenceCallback *>& getPersistenceCbList() {
+        return pcbs;
     }
 
     /**
@@ -534,6 +545,7 @@ protected:
     KVStoreConfig &configuration;
     bool readOnly;
     std::vector<vbucket_state *> cachedVBStates;
+    std::list<PersistenceCallback *> pcbs;
     void createDataDir(const std::string& dbname);
     std::string updateCachedVBState(uint16_t vbid, uint64_t maxDeletedRevSeqno,
                                     uint64_t snapStartSeqno, uint64_t snapEndSeqno,

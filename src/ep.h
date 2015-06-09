@@ -616,6 +616,7 @@ public:
     Position endPosition() const;
 
     const Flusher* getFlusher(uint16_t shardId);
+
     Warmup* getWarmup(void) const;
 
     ENGINE_ERROR_CODE getKeyStats(const std::string &key, uint16_t vbucket,
@@ -774,9 +775,11 @@ public:
     /**
      * Flushes all items waiting for persistence in a given vbucket
      * @param vbid The id of the vbucket to flush
-     * @return The amount of items flushed
+     * @return The number of items flushed
      */
     int flushVBucket(uint16_t vbid);
+
+    void commit(uint16_t shardId);
 
     void addKVStoreStats(ADD_STAT add_stat, const void* cookie);
 
@@ -920,6 +923,10 @@ private:
                                             const std::string &key, RCPtr<VBucket> &vb,
                                             const void *cookie, bool metadataOnly,
                                             bool isReplication = false);
+
+    uint16_t getCommitInterval(uint16_t shardId);
+
+    uint16_t decrCommitInterval(uint16_t shardId);
 
     friend class Warmup;
     friend class Flusher;

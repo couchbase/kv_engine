@@ -465,6 +465,16 @@ const Flusher* EventuallyPersistentStore::getFlusher(uint16_t shardId) {
     return vbMap.getShard(shardId)->getFlusher();
 }
 
+uint16_t EventuallyPersistentStore::getCommitInterval(uint16_t shardId) {
+    Flusher *flusher = vbMap.shards[shardId]->getFlusher();
+    return flusher->getCommitInterval();
+}
+
+uint16_t EventuallyPersistentStore::decrCommitInterval(uint16_t shardId) {
+    Flusher *flusher = vbMap.shards[shardId]->getFlusher();
+    return flusher->decrCommitInterval();
+}
+
 Warmup* EventuallyPersistentStore::getWarmup(void) const {
     return warmupTask;
 }
@@ -1041,7 +1051,7 @@ class KVStatsCallback : public Callback<kvstats_ctx> {
         KVStatsCallback(EventuallyPersistentStore *store)
             : epstore(store) { }
 
-        void callback(kvstats_ctx &ctx) {
+       void callback(kvstats_ctx &ctx) {
             RCPtr<VBucket> vb = epstore->getVBucket(ctx.vbucket);
             if (vb) {
                 vb->fileSpaceUsed = ctx.fileSpaceUsed;
@@ -3020,7 +3030,7 @@ private:
     }
 
     const queued_item queuedItem;
-    RCPtr<VBucket> &vbucket;
+    RCPtr<VBucket> vbucket;
     EventuallyPersistentStore *store;
     EPStats *stats;
     uint64_t cas;
@@ -3091,7 +3101,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             return RETRY_FLUSH_VBUCKET; // to avoid blocking flusher
         }
 
-        KVStatsCallback cb(this);
         std::vector<queued_item> items;
         KVStore *rwUnderlying = getRWUnderlying(vbid);
 
@@ -3119,7 +3128,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             uint64_t maxSeqno = 0;
             uint64_t maxCas = 0;
             uint64_t maxDeletedRevSeqno = 0;
-            std::list<PersistenceCallback*> pcbs;
+            std::list<PersistenceCallback*>& pcbs = rwUnderlying->getPersistenceCbList();
             std::vector<queued_item>::iterator it = items.begin();
             for(; it != items.end(); ++it) {
                 if ((*it)->getOperation() != queue_op_set &&
@@ -3146,9 +3155,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 }
             }
 
-            BlockTimer timer(&stats.diskCommitHisto, "disk_commit",
-                             stats.timingLog);
-            hrtime_t start = gethrtime();
 
             if (vb->getState() == vbucket_state_active) {
                 range.start = maxSeqno;
@@ -3161,13 +3167,20 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 return RETRY_FLUSH_VBUCKET;
             }
 
-            while (!rwUnderlying->commit(&cb)) {
-                ++stats.commitFailed;
-                LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
-                    "1 sec...\n");
-                sleep(1);
+            //commit all mutations to disk if the commit interval is zero
+            if (decrCommitInterval(shard->getId()) == 0) {
+                commit(shard->getId());
             }
 
+            hrtime_t end = gethrtime();
+            uint64_t trans_time = (end - flush_start) / 1000000;
+
+            lastTransTimePerItem = (items_flushed == 0) ? 0 :
+                static_cast<double>(trans_time) /
+                static_cast<double>(items_flushed);
+            stats.cumulativeFlushTime.fetch_add(ep_current_time()
+                                                - flush_start);
+            stats.flusher_todo.store(0);
             if (vb->rejectQueue.empty()) {
                 vb->setPersistedSnapshot(range.start, range.end);
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
@@ -3177,25 +3190,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                     vb->notifySeqnoPersisted(highSeqno);
                 }
             }
-
-            while (!pcbs.empty()) {
-                delete pcbs.front();
-                pcbs.pop_front();
-            }
-
-            ++stats.flusherCommits;
-            hrtime_t end = gethrtime();
-            uint64_t commit_time = (end - start) / 1000000;
-            uint64_t trans_time = (end - flush_start) / 1000000;
-
-            lastTransTimePerItem = (items_flushed == 0) ? 0 :
-                static_cast<double>(trans_time) /
-                static_cast<double>(items_flushed);
-            stats.commit_time.store(commit_time);
-            stats.cumulativeCommitTime.fetch_add(commit_time);
-            stats.cumulativeFlushTime.fetch_add(ep_current_time()
-                                                - flush_start);
-            stats.flusher_todo.store(0);
         }
 
         rwUnderlying->pendingTasks();
@@ -3219,6 +3213,32 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     }
 
     return items_flushed;
+}
+
+void EventuallyPersistentStore::commit(uint16_t shardId) {
+    KVStore *rwUnderlying = getRWUnderlyingByShard(shardId);
+    std::list<PersistenceCallback *>& pcbs = rwUnderlying->getPersistenceCbList();
+    BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
+    hrtime_t commit_start = gethrtime();
+
+    KVStatsCallback cb(this);
+    while (!rwUnderlying->commit(&cb)) {
+        ++stats.commitFailed;
+        LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
+            "1 sec...\n");
+        sleep(1);
+    }
+
+    while (!pcbs.empty()) {
+         delete pcbs.front();
+         pcbs.pop_front();
+    }
+
+    ++stats.flusherCommits;
+    hrtime_t commit_end = gethrtime();
+    uint64_t commit_time = (commit_end - commit_start) / 1000000;
+    stats.commit_time.store(commit_time);
+    stats.cumulativeCommitTime.fetch_add(commit_time);
 }
 
 PersistenceCallback*

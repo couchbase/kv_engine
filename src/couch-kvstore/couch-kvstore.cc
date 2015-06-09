@@ -1154,15 +1154,6 @@ void CouchKVStore::addStat(const std::string &prefix, const char *stat, T &val,
     add_casted_stat(fullstat.str().c_str(), val, add_stat, c);
 }
 
-void CouchKVStore::optimizeWrites(std::vector<queued_item> &items) {
-    cb_assert(!isReadOnly());
-    if (items.empty()) {
-        return;
-    }
-    CompareQueuedItemsBySeqnoAndKey cq;
-    std::sort(items.begin(), items.end(), cq);
-}
-
 void CouchKVStore::pendingTasks() {
 
     if (!pendingFileDeletions.empty()) {
