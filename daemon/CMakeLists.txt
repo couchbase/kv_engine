@@ -37,7 +37,7 @@ ADD_EXECUTABLE(memcached
                mcaudit.h
                mcbp_validators.cc
                mcbp_validators.h
-               memcached.c
+               memcached.cc
                privileges.c
                subdocument.cc
                thread.c

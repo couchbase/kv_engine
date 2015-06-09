@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *  memcached - memory caching daemon
  *
@@ -50,6 +50,7 @@
 #include <snappy-c.h>
 #include <JSON_checker.h>
 #include <engines/default_engine.h>
+#include <vector>
 // MB-14649: log crashing on windows..
 #include <math.h>
 
@@ -65,10 +66,15 @@ bucket_t *all_buckets;
 static void cookie_set_admin(const void *cookie);
 static bool cookie_is_admin(const void *cookie);
 
+static ENGINE_HANDLE* v1_handle_2_handle(ENGINE_HANDLE_V1* v1) {
+    return reinterpret_cast<ENGINE_HANDLE*>(v1);
+}
+
 /* Wrap the engine interface ! */
 
 void bucket_item_set_cas(conn *c, item *it, uint64_t cas) {
-    c->bucket.engine->item_set_cas((void*)c->bucket.engine, c, it, cas);
+    c->bucket.engine->item_set_cas(v1_handle_2_handle(c->bucket.engine),
+                                   c, it, cas);
 }
 
 void *bucket_get_stats_struct(conn *c) {
@@ -76,22 +82,22 @@ void *bucket_get_stats_struct(conn *c) {
 }
 
 void bucket_reset_stats(conn *c) {
-    c->bucket.engine->reset_stats((void*)c->bucket.engine, c);
+    c->bucket.engine->reset_stats(v1_handle_2_handle(c->bucket.engine), c);
 }
 
 ENGINE_ERROR_CODE bucket_get_engine_vb_map(conn *c,
                                            engine_get_vb_map_cb callback) {
-    return c->bucket.engine->get_engine_vb_map((void*)c->bucket.engine,
+    return c->bucket.engine->get_engine_vb_map(v1_handle_2_handle(c->bucket.engine),
                                                c, callback);
 }
 
 bool bucket_get_item_info(conn *c, const item* item, item_info *item_info) {
-    return c->bucket.engine->get_item_info((void*)c->bucket.engine,
+    return c->bucket.engine->get_item_info(v1_handle_2_handle(c->bucket.engine),
                                            c, item, item_info);
 }
 
 bool bucket_set_item_info(conn *c, item* item, const item_info *item_info) {
-    return c->bucket.engine->set_item_info((void*)c->bucket.engine,
+    return c->bucket.engine->set_item_info(v1_handle_2_handle(c->bucket.engine),
                                            c, item, item_info);
 }
 
@@ -100,7 +106,7 @@ ENGINE_ERROR_CODE bucket_store(conn *c,
                                uint64_t *cas,
                                ENGINE_STORE_OPERATION operation,
                                uint16_t vbucket) {
-    return c->bucket.engine->store((void*)c->bucket.engine, c, item,
+    return c->bucket.engine->store(v1_handle_2_handle(c->bucket.engine), c, item,
                                    cas, operation, vbucket);
 }
 
@@ -109,14 +115,14 @@ ENGINE_ERROR_CODE bucket_get(conn *c,
                              const void* key,
                              const int nkey,
                              uint16_t vbucket) {
-    return c->bucket.engine->get((void*)c->bucket.engine, c, item,
+    return c->bucket.engine->get(v1_handle_2_handle(c->bucket.engine), c, item,
                                  key, nkey, vbucket);
 }
 
 ENGINE_ERROR_CODE bucket_unknown_command(conn *c,
                                          protocol_binary_request_header *request,
                                          ADD_RESPONSE response) {
-    return c->bucket.engine->unknown_command((void*)c->bucket.engine, c,
+    return c->bucket.engine->unknown_command(v1_handle_2_handle(c->bucket.engine), c,
                                              request, response);
 }
 
@@ -124,6 +130,7 @@ static void shutdown_server(void);
 
 #define MAX_SASL_MECH_LEN 32
 
+extern "C" volatile sig_atomic_t memcached_shutdown;
 volatile sig_atomic_t memcached_shutdown;
 
 /* Lock for global stats */
@@ -331,7 +338,7 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
                        const void *cookie)
 {
-    const conn *connection = cookie; /* May not be true, but... */
+    const conn* connection = reinterpret_cast<const conn*>(cookie); /* May not be true, but... */
     struct engine_event_handler *h = NULL;
 
     switch (type) {
@@ -366,7 +373,8 @@ static void register_callback(ENGINE_HANDLE *eh,
                               const void *cb_data)
 {
     int idx;
-    struct engine_event_handler *h = calloc(sizeof(*h), 1);
+    engine_event_handler* h =
+            reinterpret_cast<engine_event_handler*>(calloc(sizeof(*h), 1));
 
     cb_assert(h);
     h->cb = cb;
@@ -405,7 +413,8 @@ static void stats_init(void) {
     stats.daemon_conns = 0;
     stats.rejected_conns = 0;
     stats.curr_conns = stats.total_conns = 0;
-    stats.listening_ports = calloc(settings.num_interfaces, sizeof(struct listening_port));
+    stats.listening_ports = reinterpret_cast<listening_port*>
+        (calloc(settings.num_interfaces, sizeof(struct listening_port)));
 }
 
 struct thread_stats *get_thread_stats(conn *c) {
@@ -525,7 +534,8 @@ static int add_msghdr(conn *c)
 
     if (c->msgsize == c->msgused) {
         cb_assert(c->msgsize > 0);
-        msg = realloc(c->msglist, c->msgsize * 2 * sizeof(struct msghdr));
+        msg = reinterpret_cast<struct msghdr*>(
+                realloc(c->msglist, c->msgsize * 2 * sizeof(struct msghdr)));
         if (! msg)
             return -1;
         c->msglist = msg;
@@ -830,13 +840,12 @@ static ssize_t bytes_to_output_string(char *dest, size_t destsz,
     ssize_t nw = snprintf(dest, destsz, "%c%d %s", from_client ? '>' : '<',
                           (int)client, prefix);
     ssize_t offset = nw;
-    ssize_t ii;
 
     if (nw == -1) {
         return -1;
     }
 
-    for (ii = 0; ii < size; ++ii) {
+    for (size_t ii = 0; ii < size; ++ii) {
         if (ii % 4 == 0) {
             if ((nw = snprintf(dest + offset, destsz - offset, "\n%c%d  ",
                                from_client ? '>' : '<', client)) == -1) {
@@ -1072,8 +1081,8 @@ static void process_bin_get(conn *c) {
     case ENGINE_SUCCESS:
         STATS_HIT(c, get, key, nkey);
 
-        if (!bucket_get_item_info(c, it, (void*)&info)) {
-            c->bucket.engine->release((void*)c->bucket.engine, c, it);
+        if (!bucket_get_item_info(c, it, &info.info)) {
+            c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Failed to get item info",
                                             c->sfd);
@@ -1110,7 +1119,7 @@ static void process_bin_get(conn *c) {
                                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                                info.info.cas, c)) {
                 write_and_free(c, &c->dynamic_buffer);
-                c->bucket.engine->release((void*)c->bucket.engine, c, it);
+                c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             }
@@ -1252,7 +1261,7 @@ static void bin_read_chunk(conn *c,
                         "%d: Need to grow buffer from %lu to %lu\n",
                         c->sfd, (unsigned long)c->read.size, (unsigned long)nsize);
             }
-            newm = realloc(c->read.buf, nsize);
+            newm = reinterpret_cast<char*>(realloc(c->read.buf, nsize));
             if (newm == NULL) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                             "%d: Failed to grow buffer.. closing connection",
@@ -1294,8 +1303,10 @@ static void handle_binary_protocol_error(conn *c) {
 static void get_auth_data(const void *cookie, auth_data_t *data) {
     conn *c = (conn*)cookie;
     if (c->sasl_conn) {
-        cbsasl_getprop(c->sasl_conn, CBSASL_USERNAME, (void*)&data->username);
-        cbsasl_getprop(c->sasl_conn, CBSASL_CONFIG, (void*)&data->config);
+        cbsasl_getprop(c->sasl_conn, CBSASL_USERNAME,
+                       reinterpret_cast<const void**>(&data->username));
+        cbsasl_getprop(c->sasl_conn, CBSASL_CONFIG,
+                       reinterpret_cast<const void**>(&data->config));
     } else {
         data->username = NULL;
         data->config = NULL;
@@ -1363,8 +1374,8 @@ bool binary_response_handler(const void *key, uint16_t keylen,
 
     needed = keylen + extlen + sizeof(protocol_binary_response_header);
     if (need_inflate) {
-        if (snappy_uncompressed_length(body, bodylen,
-                                       &inflated_length) != SNAPPY_OK) {
+        if (snappy_uncompressed_length(reinterpret_cast<const char*>(body),
+                                       bodylen, &inflated_length) != SNAPPY_OK) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                     "<%d ERROR: Failed to inflate body, "
                     "Key: %s may have an incorrect datatype, "
@@ -1418,7 +1429,8 @@ bool binary_response_handler(const void *key, uint16_t keylen,
 
     if (bodylen > 0) {
         if (need_inflate) {
-            if (snappy_uncompress(body, bodylen, buf, &inflated_length) != SNAPPY_OK) {
+        if (snappy_uncompress(reinterpret_cast<const char*>(body), bodylen,
+                              buf, &inflated_length) != SNAPPY_OK) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                         "<%d Failed to inflate item", c->sfd);
                 return false;
@@ -1441,7 +1453,7 @@ struct tap_cmd_stats {
     uint64_t mutation;
     uint64_t checkpoint_start;
     uint64_t checkpoint_end;
-    uint64_t delete;
+    uint64_t del;
     uint64_t flush;
     uint64_t opaque;
     uint64_t vbucket_set;
@@ -1461,7 +1473,7 @@ static bool conn_setup_itemlist(conn *c) {
     if (c->ilist == NULL) {
         void *ptr = malloc(sizeof(item *) * ITEM_LIST_INITIAL);
         if (ptr != NULL) {
-            c->ilist = ptr;
+            c->ilist = reinterpret_cast<void**>(ptr);
             c->isize = ITEM_LIST_INITIAL;
         } else {
             return false;
@@ -1517,7 +1529,7 @@ static void ship_tap_log(conn *c) {
 
         union {
             protocol_binary_request_tap_mutation mutation;
-            protocol_binary_request_tap_delete delete;
+            protocol_binary_request_tap_delete del;
             protocol_binary_request_tap_flush flush;
             protocol_binary_request_tap_opaque opaque;
             protocol_binary_request_noop noop;
@@ -1529,7 +1541,7 @@ static void ship_tap_log(conn *c) {
             break;
         }
 
-        event = c->tap_iterator((void*)c->bucket.engine, c, &it,
+        event = c->tap_iterator(v1_handle_2_handle(c->bucket.engine), c, &it,
                                 &engine, &nengine, &ttl,
                                 &tap_flags, &seqno, &vbucket);
         memset(&msg, 0, sizeof(msg));
@@ -1559,8 +1571,8 @@ static void ship_tap_log(conn *c) {
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
         case TAP_MUTATION:
-            if (!bucket_get_item_info(c, it, (void*)&info)) {
-                c->bucket.engine->release((void*)c->bucket.engine, c, it);
+            if (!bucket_get_item_info(c, it, &info.info)) {
+                c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: Failed to get item info\n", c->sfd);
                 break;
@@ -1615,9 +1627,9 @@ static void ship_tap_log(conn *c) {
             bodylen = 16 + info.info.nkey + nengine;
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
                 if (inflate) {
-                    if (snappy_uncompressed_length(info.info.value[0].iov_base,
-                                                   info.info.nbytes,
-                                                   &inflated_length) == SNAPPY_OK) {
+                    if (snappy_uncompressed_length
+                            (reinterpret_cast<const char*>(info.info.value[0].iov_base),
+                             info.info.nbytes, &inflated_length) == SNAPPY_OK) {
                         bodylen += (uint32_t)inflated_length;
                     } else {
                         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -1657,7 +1669,7 @@ static void ship_tap_log(conn *c) {
             add_iov(c, info.info.key, info.info.nkey);
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
                 if (inflate) {
-                    void *buf = malloc(inflated_length);
+                    char *buf = reinterpret_cast<char*>(malloc(inflated_length));
                     if (buf == NULL) {
                         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                         "%d: FATAL: failed to allocate buffer of size %" PRIu64
@@ -1666,7 +1678,7 @@ static void ship_tap_log(conn *c) {
                         conn_set_state(c, conn_closing);
                         return;
                     }
-                    void *body = info.info.value[0].iov_base;
+                    const char *body = reinterpret_cast<const char*>(info.info.value[0].iov_base);
                     size_t bodylen = info.info.value[0].iov_len;
                     if (snappy_uncompress(body, bodylen,
                                           buf, &inflated_length) == SNAPPY_OK) {
@@ -1692,28 +1704,28 @@ static void ship_tap_log(conn *c) {
             break;
         case TAP_DELETION:
             /* This is a delete */
-            if (!bucket_get_item_info(c, it, (void*)&info)) {
-                c->bucket.engine->release((void*)c->bucket.engine, c, it);
+            if (!bucket_get_item_info(c, it, &info.info)) {
+                c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: Failed to get item info\n", c->sfd);
                 break;
             }
             send_data = true;
             c->ilist[c->ileft++] = it;
-            msg.delete.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_DELETE;
-            msg.delete.message.header.request.cas = htonll(info.info.cas);
-            msg.delete.message.header.request.keylen = htons(info.info.nkey);
+            msg.del.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_DELETE;
+            msg.del.message.header.request.cas = htonll(info.info.cas);
+            msg.del.message.header.request.keylen = htons(info.info.nkey);
 
             bodylen = 8 + info.info.nkey + nengine;
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
                 bodylen += info.info.nbytes;
             }
-            msg.delete.message.header.request.bodylen = htonl(bodylen);
+            msg.del.message.header.request.bodylen = htonl(bodylen);
 
-            memcpy(c->write.curr, msg.delete.bytes, sizeof(msg.delete.bytes));
-            add_iov(c, c->write.curr, sizeof(msg.delete.bytes));
-            c->write.curr += sizeof(msg.delete.bytes);
-            c->write.bytes += sizeof(msg.delete.bytes);
+            memcpy(c->write.curr, msg.del.bytes, sizeof(msg.del.bytes));
+            add_iov(c, c->write.curr, sizeof(msg.del.bytes));
+            c->write.curr += sizeof(msg.del.bytes);
+            c->write.bytes += sizeof(msg.del.bytes);
 
             if (nengine > 0) {
                 memcpy(c->write.curr, engine, nengine);
@@ -1732,7 +1744,7 @@ static void ship_tap_log(conn *c) {
             }
 
             cb_mutex_enter(&tap_stats.mutex);
-            tap_stats.sent.delete++;
+            tap_stats.sent.del++;
             cb_mutex_exit(&tap_stats.mutex);
             break;
 
@@ -1810,7 +1822,7 @@ static ENGINE_ERROR_CODE default_unknown_command(EXTENSION_BINARY_PROTOCOL_DESCR
                                                  protocol_binary_request_header *request,
                                                  ADD_RESPONSE response)
 {
-    const conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
     (void)descriptor;
 
     if (!c->supports_datatype && request->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
@@ -1821,7 +1833,7 @@ static ENGINE_ERROR_CODE default_unknown_command(EXTENSION_BINARY_PROTOCOL_DESCR
             return ENGINE_DISCONNECT;
         }
     } else {
-        return bucket_unknown_command((void*)c, request, response);
+        return bucket_unknown_command(c, request, response);
     }
 }
 
@@ -1847,15 +1859,18 @@ static void setup_binary_lookup_cmd(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *descri
 }
 
 static void process_bin_unknown_packet(conn *c) {
-    void *packet = c->read.curr - (c->binary_header.request.bodylen +
-                               sizeof(c->binary_header));
+    char* packet = c->read.curr -
+                   (c->binary_header.request.bodylen + sizeof(c->binary_header));
+
+    auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
 
     if (ret == ENGINE_SUCCESS) {
         struct request_lookup *rq = request_handlers + c->binary_header.request.opcode;
-        ret = rq->callback(rq->descriptor, (void*)c->bucket.engine, c, packet,
+        ret = rq->callback(rq->descriptor,
+                           v1_handle_2_handle(c->bucket.engine), c, req,
                            binary_response_handler);
     }
 
@@ -1943,7 +1958,7 @@ static void process_bin_tap_connect(conn *c) {
     TAP_ITERATOR iterator;
     char *packet = (c->read.curr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
-    protocol_binary_request_tap_connect *req = (void*)packet;
+    auto* req = reinterpret_cast<protocol_binary_request_tap_connect*>(packet);
     const char *key = packet + sizeof(req->bytes);
     const char *data = key + c->binary_header.request.keylen;
     uint32_t flags = 0;
@@ -1971,7 +1986,7 @@ static void process_bin_tap_connect(conn *c) {
 
     if (settings.verbose && c->binary_header.request.keylen > 0) {
         char buffer[1024];
-        int len = c->binary_header.request.keylen;
+        size_t len = c->binary_header.request.keylen;
         if (len >= sizeof(buffer)) {
             len = sizeof(buffer) - 1;
         }
@@ -1982,7 +1997,7 @@ static void process_bin_tap_connect(conn *c) {
                                         c->sfd, buffer);
     }
 
-    iterator = c->bucket.engine->get_tap_iterator((void*)c->bucket.engine,
+    iterator = c->bucket.engine->get_tap_iterator(v1_handle_2_handle(c->bucket.engine),
                                                   c, key,
                                                   c->binary_header.request.keylen,
                                                   flags, data, ndata);
@@ -2004,7 +2019,6 @@ static void process_bin_tap_connect(conn *c) {
 
 static void process_bin_tap_packet(tap_event_t event, conn *c) {
     char *packet;
-    protocol_binary_request_tap_no_extras *tap;
     uint16_t nengine;
     uint16_t tap_flags;
     uint32_t seqno;
@@ -2021,7 +2035,7 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
     cb_assert(c != NULL);
     packet = (c->read.curr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
-    tap = (void*)packet;
+    auto* tap = reinterpret_cast<protocol_binary_request_tap_no_extras*>(packet);
     nengine = ntohs(tap->message.body.tap.enginespecific_length);
     tap_flags = ntohs(tap->message.body.tap.flags);
     seqno = ntohl(tap->message.header.request.opaque);
@@ -2040,7 +2054,8 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
     } else {
         if (event == TAP_MUTATION || event == TAP_CHECKPOINT_START ||
             event == TAP_CHECKPOINT_END) {
-            protocol_binary_request_tap_mutation *mutation = (void*)tap;
+            auto* mutation =
+                    reinterpret_cast<protocol_binary_request_tap_mutation*>(tap);
 
             /* engine_specific data in protocol_binary_request_tap_mutation is */
             /* at a different offset than protocol_binary_request_tap_no_extras */
@@ -2060,12 +2075,13 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
         if (ret == ENGINE_SUCCESS) {
             uint8_t datatype = c->binary_header.request.datatype;
             if (event == TAP_MUTATION && !c->supports_datatype) {
-                if (checkUTF8JSON((void*)data, ndata)) {
+                if (checkUTF8JSON(reinterpret_cast<unsigned char*>(data),
+                                  ndata)) {
                     datatype = PROTOCOL_BINARY_DATATYPE_JSON;
                 }
             }
 
-            ret = c->bucket.engine->tap_notify((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->tap_notify(v1_handle_2_handle(c->bucket.engine), c,
                                                engine_specific, nengine,
                                                ttl - 1, tap_flags,
                                                event, seqno,
@@ -2096,7 +2112,6 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
 
 static void process_bin_tap_ack(conn *c) {
     char *packet;
-    protocol_binary_response_no_extras *rsp;
     uint32_t seqno;
     uint16_t status;
     char *key;
@@ -2104,13 +2119,13 @@ static void process_bin_tap_ack(conn *c) {
 
     cb_assert(c != NULL);
     packet = (c->read.curr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
-    rsp = (void*)packet;
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(packet);
     seqno = ntohl(rsp->message.header.response.opaque);
     status = ntohs(rsp->message.header.response.status);
     key = packet + sizeof(rsp->bytes);
 
     if (c->bucket.engine->tap_notify != NULL) {
-        ret = c->bucket.engine->tap_notify((void*)c->bucket.engine, c, NULL, 0,
+        ret = c->bucket.engine->tap_notify(v1_handle_2_handle(c->bucket.engine), c, NULL, 0,
                                            0, status,
                                            TAP_ACK, seqno, key,
                                            c->binary_header.request.keylen, 0, 0,
@@ -2141,7 +2156,7 @@ static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void *cookie,
                                                       uint16_t vbucket)
 {
     protocol_binary_request_dcp_get_failover_log packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2173,7 +2188,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(const void *cookie,
                                                 uint64_t snap_end_seqno)
 {
     protocol_binary_request_dcp_stream_req packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2209,7 +2224,7 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void *cookie,
                                                          uint8_t status)
 {
     protocol_binary_response_dcp_add_stream packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2238,7 +2253,7 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(const void *cookie,
                                                      uint8_t status)
 {
     protocol_binary_response_dcp_snapshot_marker packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2266,7 +2281,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(const void *cook
                                                                 uint8_t status)
 {
     protocol_binary_response_dcp_set_vbucket_state packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2295,7 +2310,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(const void *cookie,
                                                 uint32_t flags)
 {
     protocol_binary_request_dcp_stream_end packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2327,7 +2342,7 @@ static ENGINE_ERROR_CODE dcp_message_marker(const void *cookie,
                                             uint32_t flags)
 {
     protocol_binary_request_dcp_snapshot_marker packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2364,7 +2379,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
                                               uint16_t nmeta,
                                               uint8_t nru)
 {
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
     item_info_holder info;
     protocol_binary_request_dcp_mutation packet;
     int xx;
@@ -2377,8 +2392,8 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     memset(&info, 0, sizeof(info));
     info.info.nvalue = IOV_MAX;
 
-    if (!bucket_get_item_info(c, it, (void*)&info)) {
-        c->bucket.engine->release((void*)c->bucket.engine, c, it);
+    if (!bucket_get_item_info(c, it, &info.info)) {
+        c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%d: Failed to get item info\n", c->sfd);
         return ENGINE_FAILED;
@@ -2432,7 +2447,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion(const void* cookie,
                                               const void *meta,
                                               uint16_t nmeta)
 {
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
     protocol_binary_request_dcp_deletion packet;
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
         return ENGINE_E2BIG;
@@ -2476,7 +2491,7 @@ static ENGINE_ERROR_CODE dcp_message_expiration(const void* cookie,
                                                 const void *meta,
                                                 uint16_t nmeta)
 {
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
     protocol_binary_request_dcp_deletion packet;
 
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
@@ -2515,7 +2530,7 @@ static ENGINE_ERROR_CODE dcp_message_flush(const void* cookie,
                                            uint16_t vbucket)
 {
     protocol_binary_request_dcp_flush packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2542,7 +2557,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
                                                        vbucket_state_t state)
 {
     protocol_binary_request_dcp_set_vbucket_state packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2586,7 +2601,7 @@ static ENGINE_ERROR_CODE dcp_message_noop(const void* cookie,
                                           uint32_t opaque)
 {
     protocol_binary_request_dcp_noop packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2612,7 +2627,7 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* cookie,
                                                             uint32_t buffer_bytes)
 {
     protocol_binary_request_dcp_buffer_acknowledgement packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2644,7 +2659,7 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* cookie,
                                              uint32_t nvalue)
 {
     protocol_binary_request_dcp_control packet;
-    conn *c = (void*)cookie;
+    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nvalue >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2720,7 +2735,7 @@ static void ship_dcp_log(conn *c) {
     c->icurr = c->ilist;
 
     c->ewouldblock = false;
-    ret = c->bucket.engine->dcp.step((void*)c->bucket.engine, c, &producers);
+    ret = c->bucket.engine->dcp.step(v1_handle_2_handle(c->bucket.engine), c, &producers);
     if (ret == ENGINE_SUCCESS) {
         /* the engine don't have more data to send at this moment */
         c->ewouldblock = true;
@@ -2773,7 +2788,7 @@ static void tap_delete_executor(conn *c, void *packet)
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         cb_mutex_enter(&tap_stats.mutex);
-        tap_stats.received.delete++;
+        tap_stats.received.del++;
         cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_DELETION, c);
     }
@@ -2849,7 +2864,7 @@ static void tap_checkpoint_end_executor(conn *c, void *packet)
  ******************************************************************************/
 static void dcp_open_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_open *req = packet;
+    auto *req = reinterpret_cast<protocol_binary_request_dcp_open*>(packet);
 
     if (c->bucket.engine->dcp.open == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -2860,7 +2875,7 @@ static void dcp_open_executor(conn *c, void *packet)
         c->supports_datatype = true;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->dcp.open((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.open(v1_handle_2_handle(c->bucket.engine), c,
                                              req->message.header.request.opaque,
                                              ntohl(req->message.body.seqno),
                                              ntohl(req->message.body.flags),
@@ -2890,7 +2905,7 @@ static void dcp_open_executor(conn *c, void *packet)
 
 static void dcp_add_stream_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_add_stream *req = packet;
+    auto *req = reinterpret_cast<protocol_binary_request_dcp_add_stream*>(packet);
 
     if (c->bucket.engine->dcp.add_stream == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -2900,7 +2915,7 @@ static void dcp_add_stream_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->dcp.add_stream((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.add_stream(v1_handle_2_handle(c->bucket.engine), c,
                                                    req->message.header.request.opaque,
                                                    ntohs(req->message.header.request.vbucket),
                                                    ntohl(req->message.body.flags));
@@ -2927,7 +2942,7 @@ static void dcp_add_stream_executor(conn *c, void *packet)
 
 static void dcp_close_stream_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_close_stream *req = packet;
+    auto *req = reinterpret_cast<protocol_binary_request_dcp_close_stream*>(packet);
 
     if (c->bucket.engine->dcp.close_stream == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -2939,7 +2954,7 @@ static void dcp_close_stream_executor(conn *c, void *packet)
         if (ret == ENGINE_SUCCESS) {
             uint16_t vbucket = ntohs(req->message.header.request.vbucket);
             uint32_t opaque = ntohl(req->message.header.request.opaque);
-            ret = c->bucket.engine->dcp.close_stream((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.close_stream(v1_handle_2_handle(c->bucket.engine), c,
                                                        opaque, vbucket);
         }
 
@@ -2992,7 +3007,7 @@ static ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t*entries,
 }
 
 static void dcp_get_failover_log_executor(conn *c, void *packet) {
-    protocol_binary_request_dcp_get_failover_log *req = packet;
+    auto *req = reinterpret_cast<protocol_binary_request_dcp_get_failover_log*>(packet);
 
     if (c->bucket.engine->dcp.get_failover_log == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3002,7 +3017,7 @@ static void dcp_get_failover_log_executor(conn *c, void *packet) {
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->dcp.get_failover_log((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.get_failover_log(v1_handle_2_handle(c->bucket.engine), c,
                                                          req->message.header.request.opaque,
                                                          ntohs(req->message.header.request.vbucket),
                                                          add_failover_log);
@@ -3033,7 +3048,7 @@ static void dcp_get_failover_log_executor(conn *c, void *packet) {
 
 static void dcp_stream_req_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_stream_req *req = packet;
+    auto *req = reinterpret_cast<protocol_binary_request_dcp_stream_req*>(packet);
 
     if (c->bucket.engine->dcp.stream_req == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3053,7 +3068,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
         cb_assert(ret != ENGINE_ROLLBACK);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->dcp.stream_req((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.stream_req(v1_handle_2_handle(c->bucket.engine), c,
                                                    flags,
                                                    c->binary_header.request.opaque,
                                                    c->binary_header.request.vbucket,
@@ -3104,7 +3119,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
 
 static void dcp_stream_end_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_stream_end *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_dcp_stream_end*>(packet);
 
     if (c->bucket.engine->dcp.stream_end == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3114,7 +3129,7 @@ static void dcp_stream_end_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->dcp.stream_end((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.stream_end(v1_handle_2_handle(c->bucket.engine), c,
                                                      req->message.header.request.opaque,
                                                      ntohs(req->message.header.request.vbucket),
                                                      ntohl(req->message.body.flags));
@@ -3141,7 +3156,7 @@ static void dcp_stream_end_executor(conn *c, void *packet)
 
 static void dcp_snapshot_marker_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_snapshot_marker *req = packet;
+    auto *req = reinterpret_cast<protocol_binary_request_dcp_snapshot_marker*>(packet);
 
     if (c->bucket.engine->dcp.snapshot_marker == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3157,7 +3172,7 @@ static void dcp_snapshot_marker_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->dcp.snapshot_marker((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.snapshot_marker(v1_handle_2_handle(c->bucket.engine), c,
                                                           opaque, vbucket,
                                                           start_seqno,
                                                           end_seqno, flags);
@@ -3184,7 +3199,7 @@ static void dcp_snapshot_marker_executor(conn *c, void *packet)
 
 static void dcp_mutation_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_mutation *req = packet;
+    auto *req = reinterpret_cast<protocol_binary_request_dcp_mutation*>(packet);
 
     if (c->bucket.engine->dcp.mutation == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3209,7 +3224,7 @@ static void dcp_mutation_executor(conn *c, void *packet)
             uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey
                 - req->message.header.request.extlen - nmeta;
 
-            ret = c->bucket.engine->dcp.mutation((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.mutation(v1_handle_2_handle(c->bucket.engine), c,
                                                  req->message.header.request.opaque,
                                                  key, nkey, value, nvalue, cas, vbucket,
                                                  flags, datatype, by_seqno, rev_seqno,
@@ -3239,7 +3254,7 @@ static void dcp_mutation_executor(conn *c, void *packet)
 
 static void dcp_deletion_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_deletion *req = packet;
+    auto *req = reinterpret_cast<protocol_binary_request_dcp_deletion*>(packet);
 
     if (c->bucket.engine->dcp.deletion == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3257,7 +3272,7 @@ static void dcp_deletion_executor(conn *c, void *packet)
             uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
             uint16_t nmeta = ntohs(req->message.body.nmeta);
 
-            ret = c->bucket.engine->dcp.deletion((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.deletion(v1_handle_2_handle(c->bucket.engine), c,
                                                  req->message.header.request.opaque,
                                                  key, nkey, cas, vbucket,
                                                  by_seqno, rev_seqno, key + nkey, nmeta);
@@ -3284,7 +3299,7 @@ static void dcp_deletion_executor(conn *c, void *packet)
 
 static void dcp_expiration_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_expiration *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_dcp_expiration*>(packet);
 
     if (c->bucket.engine->dcp.expiration == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3302,7 +3317,7 @@ static void dcp_expiration_executor(conn *c, void *packet)
             uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
             uint16_t nmeta = ntohs(req->message.body.nmeta);
 
-            ret = c->bucket.engine->dcp.expiration((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.expiration(v1_handle_2_handle(c->bucket.engine), c,
                                                    req->message.header.request.opaque,
                                                    key, nkey, cas, vbucket,
                                                    by_seqno, rev_seqno, key + nkey, nmeta);
@@ -3329,7 +3344,7 @@ static void dcp_expiration_executor(conn *c, void *packet)
 
 static void dcp_flush_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_flush *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_dcp_flush*>(packet);
 
     if (c->bucket.engine->dcp.flush == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3339,7 +3354,7 @@ static void dcp_flush_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->dcp.flush((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.flush(v1_handle_2_handle(c->bucket.engine), c,
                                               req->message.header.request.opaque,
                                               ntohs(req->message.header.request.vbucket));
         }
@@ -3365,7 +3380,7 @@ static void dcp_flush_executor(conn *c, void *packet)
 
 static void dcp_set_vbucket_state_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_set_vbucket_state *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_dcp_set_vbucket_state*>(packet);
 
     if (c->bucket.engine->dcp.set_vbucket_state== NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3376,7 +3391,7 @@ static void dcp_set_vbucket_state_executor(conn *c, void *packet)
 
         if (ret == ENGINE_SUCCESS) {
             vbucket_state_t state = (vbucket_state_t)req->message.body.state;
-            ret = c->bucket.engine->dcp.set_vbucket_state((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.set_vbucket_state(v1_handle_2_handle(c->bucket.engine), c,
                                                           c->binary_header.request.opaque,
                                                           c->binary_header.request.vbucket,
                                                           state);
@@ -3413,7 +3428,7 @@ static void dcp_noop_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->dcp.noop((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.noop(v1_handle_2_handle(c->bucket.engine), c,
                                              c->binary_header.request.opaque);
         }
 
@@ -3438,7 +3453,7 @@ static void dcp_noop_executor(conn *c, void *packet)
 
 static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
 {
-    protocol_binary_request_dcp_buffer_acknowledgement *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_dcp_buffer_acknowledgement*>(packet);
 
     if (c->bucket.engine->dcp.buffer_acknowledgement == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3450,7 +3465,7 @@ static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
         if (ret == ENGINE_SUCCESS) {
             uint32_t bbytes;
             memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
-            ret = c->bucket.engine->dcp.buffer_acknowledgement((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.buffer_acknowledgement(v1_handle_2_handle(c->bucket.engine), c,
                                                                c->binary_header.request.opaque,
                                                                c->binary_header.request.vbucket,
                                                                ntohl(bbytes));
@@ -3485,12 +3500,12 @@ static void dcp_control_executor(conn *c, void *packet)
         c->ewouldblock = false;
 
         if (ret == ENGINE_SUCCESS) {
-            protocol_binary_request_dcp_control *req = packet;
+            auto* req = reinterpret_cast<protocol_binary_request_dcp_control*>(packet);
             const uint8_t *key = req->bytes + sizeof(req->bytes);
             uint16_t nkey = ntohs(req->message.header.request.keylen);
             const uint8_t *value = key + nkey;
             uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
-            ret = c->bucket.engine->dcp.control((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->dcp.control(v1_handle_2_handle(c->bucket.engine), c,
                                                   c->binary_header.request.opaque,
                                                   key, nkey, value, nvalue);
         }
@@ -3572,7 +3587,7 @@ static void ssl_certs_refresh_executor(conn *c, void *packet)
 
 static void verbosity_executor(conn *c, void *packet)
 {
-    protocol_binary_request_verbosity *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_verbosity*>(packet);
     uint32_t level = (uint32_t)ntohl(req->message.body.level);
     if (level > MAX_VERBOSITY_LEVEL) {
         level = MAX_VERBOSITY_LEVEL;
@@ -3583,7 +3598,7 @@ static void verbosity_executor(conn *c, void *packet)
 }
 
 static void process_hello_packet_executor(conn *c, void *packet) {
-    protocol_binary_request_hello *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_hello*>(packet);
     char log_buffer[512];
     int offset = snprintf(log_buffer, sizeof(log_buffer), "HELO ");
     char *key = (char*)packet + sizeof(*req);
@@ -3720,7 +3735,7 @@ static void sasl_list_mech_executor(conn *c, void *packet)
 
 static void sasl_auth_executor(conn *c, void *packet)
 {
-    protocol_binary_request_no_extras *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
     char mech[1024];
     int nkey = c->binary_header.request.keylen;
     int vlen = c->binary_header.request.bodylen - nkey;
@@ -3742,7 +3757,8 @@ static void sasl_auth_executor(conn *c, void *packet)
                                         "bytes of data\n", c->sfd, mech, vlen);
     }
 
-    char *challenge = (void*)(req->bytes + sizeof(req->bytes) + nkey);
+    char *challenge =
+            reinterpret_cast<char*>(req->bytes + sizeof(req->bytes) + nkey);
     if (vlen == 0) {
         challenge = NULL;
     }
@@ -3857,7 +3873,7 @@ static void flush_executor(conn *c, void *packet)
 {
     ENGINE_ERROR_CODE ret;
     time_t exptime = 0;
-    protocol_binary_request_flush* req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_flush*>(packet);
 
     if (c->cmd == PROTOCOL_BINARY_CMD_FLUSHQ) {
         c->noreply = true;
@@ -3873,7 +3889,7 @@ static void flush_executor(conn *c, void *packet)
                                         (long)exptime);
     }
 
-    ret = c->bucket.engine->flush((void*)c->bucket.engine, c, exptime);
+    ret = c->bucket.engine->flush(v1_handle_2_handle(c->bucket.engine), c, exptime);
     switch (ret) {
     case ENGINE_SUCCESS:
         STATS_NOKEY(c, cmd_flush);
@@ -3894,7 +3910,7 @@ static void flush_executor(conn *c, void *packet)
 static void add_set_replace_executor(conn *c, void *packet,
                                      ENGINE_STORE_OPERATION store_op)
 {
-    protocol_binary_request_add *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_add*>(packet);
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -3916,7 +3932,7 @@ static void add_set_replace_executor(conn *c, void *packet,
 
         if (ret == ENGINE_SUCCESS) {
             rel_time_t expiration = ntohl(req->message.body.expiration);
-            ret = c->bucket.engine->allocate((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->allocate(v1_handle_2_handle(c->bucket.engine), c,
                                              &it, key, nkey, vlen,
                                              req->message.body.flags,
                                              expiration,
@@ -3938,8 +3954,8 @@ static void add_set_replace_executor(conn *c, void *packet,
         }
 
         bucket_item_set_cas(c, it, ntohll(req->message.header.request.cas));
-        if (!bucket_get_item_info(c, it, (void*)&info)) {
-            c->bucket.engine->release((void*)c->bucket.engine, c, it);
+        if (!bucket_get_item_info(c, it, &info.info)) {
+            c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
@@ -3949,8 +3965,8 @@ static void add_set_replace_executor(conn *c, void *packet,
         memcpy(info.info.value[0].iov_base, key + nkey, vlen);
 
         if (!c->supports_datatype) {
-            if (checkUTF8JSON((void*)info.info.value[0].iov_base,
-                              (int)info.info.value[0].iov_len)) {
+            if (checkUTF8JSON(reinterpret_cast<unsigned char*>(info.info.value[0].iov_base),
+                              info.info.value[0].iov_len)) {
                 info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
                 if (!bucket_set_item_info(c, it, &info.info)) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -3972,8 +3988,8 @@ static void add_set_replace_executor(conn *c, void *packet,
         if (c->supports_mutation_extras) {
             memset(&info, 0, sizeof(info));
             info.info.nvalue = 1;
-            if (!bucket_get_item_info(c, c->item, (void*)&info)) {
-                c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
+            if (!bucket_get_item_info(c, c->item, &info.info)) {
+                c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: Failed to get item info",
                                                 c->sfd);
@@ -4028,7 +4044,7 @@ static void add_set_replace_executor(conn *c, void *packet,
 
     if (!c->ewouldblock) {
         /* release the c->item reference */
-        c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
+        c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
         c->item = 0;
     }
 }
@@ -4074,7 +4090,7 @@ static void append_prepend_executor(conn *c,
                                     void *packet,
                                     ENGINE_STORE_OPERATION store_op)
 {
-    protocol_binary_request_append *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_append*>(packet);
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -4090,7 +4106,7 @@ static void append_prepend_executor(conn *c,
         item *it;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->allocate((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->allocate(v1_handle_2_handle(c->bucket.engine), c,
                                                &it, key, nkey,
                                                vlen, 0, 0,
                                                req->message.header.request.datatype);
@@ -4111,8 +4127,8 @@ static void append_prepend_executor(conn *c,
         }
 
         bucket_item_set_cas(c, it, ntohll(req->message.header.request.cas));
-        if (!bucket_get_item_info(c, it, (void*)&info)) {
-            c->bucket.engine->release((void*)c->bucket.engine, c, it);
+        if (!bucket_get_item_info(c, it, &info.info)) {
+            c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
@@ -4122,8 +4138,8 @@ static void append_prepend_executor(conn *c,
         memcpy(info.info.value[0].iov_base, key + nkey, vlen);
 
         if (!c->supports_datatype) {
-            if (checkUTF8JSON((void*)info.info.value[0].iov_base,
-                              (int)info.info.value[0].iov_len)) {
+            if (checkUTF8JSON(reinterpret_cast<unsigned char*>(info.info.value[0].iov_base),
+                              info.info.value[0].iov_len)) {
                 info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
                 if (!bucket_set_item_info(c, it, &info.info)) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -4145,8 +4161,8 @@ static void append_prepend_executor(conn *c,
         if (c->supports_mutation_extras) {
             memset(&info, 0, sizeof(info));
             info.info.nvalue = 1;
-            if (!bucket_get_item_info(c, c->item, (void*)&info)) {
-                c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
+            if (!bucket_get_item_info(c, c->item, &info.info)) {
+                c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: Failed to get item info",
                                                 c->sfd);
@@ -4176,7 +4192,7 @@ static void append_prepend_executor(conn *c,
 
     if (!c->ewouldblock) {
         /* release the c->item reference */
-        c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
+        c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
         c->item = 0;
     }
 }
@@ -4266,7 +4282,7 @@ static void stat_executor(conn *c, void *packet)
     if (ret == ENGINE_SUCCESS) {
         if (nkey == 0) {
             /* request all statistics */
-            ret = c->bucket.engine->get_stats((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->get_stats(v1_handle_2_handle(c->bucket.engine), c,
                                               NULL, 0, append_stats);
             if (ret == ENGINE_SUCCESS) {
                 server_stats(&append_stats, c, false);
@@ -4305,7 +4321,7 @@ static void stat_executor(conn *c, void *packet)
             }
             connection_stats(&append_stats, c, fd);
         } else {
-            ret = c->bucket.engine->get_stats((void*)c->bucket.engine, c,
+            ret = c->bucket.engine->get_stats(v1_handle_2_handle(c->bucket.engine), c,
                                                 subcommand, (int)nkey,
                                                 append_stats);
         }
@@ -4344,7 +4360,7 @@ static void stat_executor(conn *c, void *packet)
 
 static void arithmetic_executor(conn *c, void *packet)
 {
-    protocol_binary_request_incr* req = binary_get_request(c);
+    auto* req = reinterpret_cast<protocol_binary_request_incr*>(binary_get_request(c));
     ENGINE_ERROR_CODE ret;
     uint64_t delta;
     uint64_t initial;
@@ -4411,7 +4427,7 @@ static void arithmetic_executor(conn *c, void *packet)
 
     item* item = NULL;
     if (ret == ENGINE_SUCCESS) {
-        ret = c->bucket.engine->arithmetic((void*)c->bucket.engine,
+        ret = c->bucket.engine->arithmetic(v1_handle_2_handle(c->bucket.engine),
                                              c, key, (int)nkey, incr,
                                              req->message.body.expiration != 0xffffffff,
                                              delta, initial, expiration,
@@ -4428,7 +4444,7 @@ static void arithmetic_executor(conn *c, void *packet)
         item_info info;
         info.nvalue = 1;
         if (!bucket_get_item_info(c, item, &info)) {
-            c->bucket.engine->release((void*)c->bucket.engine, c, item);
+            c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, item);
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Failed to get item info",
                                             c->sfd);
@@ -4442,10 +4458,11 @@ static void arithmetic_executor(conn *c, void *packet)
         if (c->supports_mutation_extras) {
             /* Response includes vbucket UUID and sequence number (in addition
              * to value) */
-            struct {
+            struct mutation_extras_plus_body {
                 mutation_descr_t extras;
                 uint64_t value;
-            } *body = (void*)body_buf;
+            };
+            auto* body = reinterpret_cast<mutation_extras_plus_body*>(body_buf);
             body->extras.vbucket_uuid = htonll(info.vbucket_uuid);
             body->extras.seqno = htonll(info.seqno);
             body->value = htonll(result);
@@ -4458,7 +4475,7 @@ static void arithmetic_executor(conn *c, void *packet)
         }
 
         /* No further need for item; release it. */
-        c->bucket.engine->release((void*)c->bucket.engine, c, item);
+        c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, item);
 
         if (incr) {
             STATS_INCR(c, incr_hits, key, nkey);
@@ -4510,7 +4527,7 @@ static void arithmetic_executor(conn *c, void *packet)
 
 static void get_cmd_timer_executor(conn *c, void *packet)
 {
-    protocol_binary_request_get_cmd_timer *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_get_cmd_timer*>(packet);
 
     generate_timings(req->message.body.opcode, c);
     write_and_free(c, &c->dynamic_buffer);
@@ -4518,7 +4535,7 @@ static void get_cmd_timer_executor(conn *c, void *packet)
 
 static void set_ctrl_token_executor(conn *c, void *packet)
 {
-    protocol_binary_request_set_ctrl_token *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(packet);
     uint64_t old_cas = ntohll(req->message.header.request.cas);
     uint16_t ret = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
@@ -4555,7 +4572,7 @@ static void get_ctrl_token_executor(conn *c, void *packet)
 
 static void init_complete_executor(conn *c, void *packet)
 {
-    protocol_binary_request_init_complete *init = packet;
+    auto* init = reinterpret_cast<protocol_binary_request_init_complete*>(packet);
     uint64_t cas = ntohll(init->message.header.request.cas);;
     bool stale;
 
@@ -4573,7 +4590,7 @@ static void init_complete_executor(conn *c, void *packet)
 
 static void ioctl_get_executor(conn *c, void *packet)
 {
-    protocol_binary_request_ioctl_set *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
     size_t keylen = ntohs(req->message.header.request.keylen);
     size_t value;
@@ -4582,10 +4599,10 @@ static void ioctl_get_executor(conn *c, void *packet)
 
     if (status == ENGINE_SUCCESS) {
         char res_buffer[16];
-        int length = snprintf(res_buffer, sizeof(res_buffer), "%ld", value);
+        size_t length = snprintf(res_buffer, sizeof(res_buffer), "%ld", value);
         if ((length > sizeof(res_buffer) - 1) ||
             binary_response_handler(NULL, 0, NULL, 0, res_buffer,
-                                    length,
+                                    uint32_t(length),
                                     PROTOCOL_BINARY_RAW_BYTES,
                                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
             write_and_free(c, &c->dynamic_buffer);
@@ -4599,7 +4616,7 @@ static void ioctl_get_executor(conn *c, void *packet)
 
 static void ioctl_set_executor(conn *c, void *packet)
 {
-    protocol_binary_request_ioctl_set *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
     size_t keylen = ntohs(req->message.header.request.keylen);
     size_t vallen = ntohl(req->message.header.request.bodylen);
@@ -4613,9 +4630,8 @@ static void ioctl_set_executor(conn *c, void *packet)
 
 static void config_validate_executor(conn *c, void *packet) {
     const char* val_ptr = NULL;
-    char *val_buffer = NULL;
     cJSON *errors = NULL;
-    protocol_binary_request_ioctl_set *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
 
     size_t keylen = ntohs(req->message.header.request.keylen);
     size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
@@ -4635,8 +4651,28 @@ static void config_validate_executor(conn *c, void *packet) {
     val_ptr = (const char*)(req->bytes + sizeof(req->bytes)) + keylen;
 
     /* null-terminate value, and convert to integer */
-    val_buffer = malloc(vallen + 1); /* +1 for terminating '\0' */
-    if (val_buffer == NULL) {
+    try {
+        std::string val_buffer(val_ptr, vallen);
+        errors = cJSON_CreateArray();
+
+        if (validate_proposed_config_changes(val_buffer.c_str(), errors)) {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        } else {
+            /* problem(s). Send the errors back to the client. */
+            char* error_string = cJSON_PrintUnformatted(errors);
+            if (binary_response_handler(NULL, 0, NULL, 0, error_string,
+                                        (uint32_t)strlen(error_string), 0,
+                                        PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
+                                        c)) {
+                write_and_free(c, &c->dynamic_buffer);
+            } else {
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            }
+            cJSON_Free(error_string);
+        }
+
+        cJSON_Delete(errors);
+    } catch (const std::bad_alloc&) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%d: Failed to allocate buffer of size %" PRIu64
                                         " to validate config. Shutting down connection",
@@ -4644,27 +4680,7 @@ static void config_validate_executor(conn *c, void *packet) {
         conn_set_state(c, conn_closing);
         return;
     }
-    memcpy(val_buffer, val_ptr, vallen);
-    val_buffer[vallen] = '\0';
 
-    errors = cJSON_CreateArray();
-    if (validate_proposed_config_changes(val_buffer, errors)) {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    } else {
-        /* problem(s). Send the errors back to the client. */
-        char* error_string = cJSON_PrintUnformatted(errors);
-        if (binary_response_handler(NULL, 0, NULL, 0, error_string,
-                                    (uint32_t)strlen(error_string), 0,
-                                    PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
-                                    c)) {
-            write_and_free(c, &c->dynamic_buffer);
-        } else {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
-        }
-        free(error_string);
-    }
-    cJSON_Delete(errors);
-    free(val_buffer);
 }
 
 static void config_reload_executor(conn *c, void *packet) {
@@ -4694,23 +4710,20 @@ static void audit_config_reload_executor(conn *c, void *packet) {
 
 static void assume_role_executor(conn *c, void *packet)
 {
-    protocol_binary_request_assume_role *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_assume_role*>(packet);
     size_t rlen = ntohs(req->message.header.request.keylen);
     auth_error_t err;
 
     if (rlen > 0) {
-        char *role = malloc(rlen + 1);
+        try {
+            auto* role_ptr = reinterpret_cast<const char*>(req + 1);
+            std::string role(role_ptr, rlen);
+            err = auth_assume_role(c->auth_context, role.c_str());
 
-        if (role == NULL) {
+        } catch (const std::bad_alloc&) {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             return;
         }
-
-        memcpy(role, req + 1, rlen);
-        role[rlen] = '\0';
-
-        err = auth_assume_role(c->auth_context, role);
-        free(role);
     } else {
         err = auth_drop_role(c->auth_context);
     }
@@ -4732,7 +4745,7 @@ static void assume_role_executor(conn *c, void *packet)
 
 static void audit_put_executor(conn *c, void *packet) {
 
-    const protocol_binary_request_audit_put *req = packet;
+    auto *req = reinterpret_cast<const protocol_binary_request_audit_put*>(packet);
     const void *payload = req->bytes + sizeof(req->message.header) +
                           req->message.header.request.extlen;
 
@@ -4797,45 +4810,30 @@ static void create_bucket_executor(conn *c, void *packet)
 
 static void list_bucket_executor(conn *c, void *packet)
 {
-    ENGINE_ERROR_CODE ret;
-    int ii;
-    size_t max_size = (settings.max_buckets * MAX_BUCKET_NAME_LENGTH) +
-        settings.max_buckets + 2;
-    int offset = 0;
-    char *blob = malloc(max_size);
-    if (blob == NULL) {
-        ret = ENGINE_ENOMEM;
-    } else {
-        for (ii = 0; ii < settings.max_buckets; ++ii) {
+    try {
+        std::string blob;
+        for (int ii = 0; ii < settings.max_buckets; ++ii) {
             cb_mutex_enter(&all_buckets[ii].mutex);
             if (all_buckets[ii].state == BUCKET_STATE_READY) {
-                offset += snprintf(blob + offset, max_size - offset, "%s ",
-                                   all_buckets[ii].name);
+                blob += all_buckets[ii].name + std::string(" ");
             }
             cb_mutex_exit(&all_buckets[ii].mutex);
         }
 
-        if (offset > 0) {
+        if (blob.size() > 0) {
             /* remove trailing " " */
-            blob[offset] = '\0';
+            blob.pop_back();
         }
-        ret = ENGINE_SUCCESS;
-    }
 
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        if (binary_response_handler(NULL, 0, NULL, 0, blob,
-                                    offset, 0,
-                                    PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
-                                    c)) {
+        if (binary_response_handler(NULL, 0, NULL, 0, blob.data(),
+                                    uint32_t(blob.size()), 0,
+                                    PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
             write_and_free(c, &c->dynamic_buffer);
         } else {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
-        free(blob);
-        break;
-    default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret));
+    } catch (const std::bad_alloc&) {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
     }
 }
 
@@ -4884,7 +4882,7 @@ static void delete_bucket_executor(conn *c, void *packet)
 static void select_bucket_executor(conn *c, void *packet) {
     /* The validator ensured that we're not doing a buffer overflow */
     char bucketname[1024];
-    protocol_binary_request_no_extras *req = packet;
+    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
     memcpy(bucketname, req->bytes + (sizeof(*req)), klen);
     bucketname[klen] = '\0';
@@ -5129,7 +5127,8 @@ static void dispatch_bin_command(conn *c) {
 
 static void process_bin_delete(conn *c) {
     ENGINE_ERROR_CODE ret;
-    protocol_binary_request_delete* req = binary_get_request(c);
+    auto* req = reinterpret_cast<protocol_binary_request_delete*>
+            (binary_get_request(c));
     char* key = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
     uint64_t cas = ntohll(req->message.header.request.cas);
@@ -5155,7 +5154,7 @@ static void process_bin_delete(conn *c) {
 
     mutation_descr_t mut_info;
     if (ret == ENGINE_SUCCESS) {
-        ret = c->bucket.engine->remove((void*)c->bucket.engine, c, key, nkey,
+        ret = c->bucket.engine->remove(v1_handle_2_handle(c->bucket.engine), c, key, nkey,
                                        &cas, c->binary_header.request.vbucket,
                                        &mut_info);
     }
@@ -5231,7 +5230,7 @@ static void reset_cmd_handler(conn *c) {
     c->cmd = -1;
     c->substate = bin_no_state;
     if(c->item != NULL) {
-        c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
+        c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
         c->item = NULL;
     }
 
@@ -5274,7 +5273,7 @@ void write_and_free(conn *c, struct dynamic_buffer* buf) {
     }
 }
 
-void append_stat(const char *name, ADD_STAT add_stats, conn *c,
+void append_stat(const char *name, ADD_STAT add_stats, void *c,
                  const char *fmt, ...) {
     char val_str[STAT_VAL_LEN];
     int vlen;
@@ -5349,32 +5348,32 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     }
     APPEND_STAT("total_connections", "%u", stats.total_conns);
     APPEND_STAT("connection_structures", "%u", stats.conn_structs);
-    APPEND_STAT("cmd_get", "%"PRIu64, thread_stats.cmd_get);
-    APPEND_STAT("cmd_set", "%"PRIu64, slab_stats.cmd_set);
-    APPEND_STAT("cmd_flush", "%"PRIu64, thread_stats.cmd_flush);
-    APPEND_STAT("cmd_total_sets", "%"PRIu64,
+    APPEND_STAT("cmd_get", "%" PRIu64, thread_stats.cmd_get);
+    APPEND_STAT("cmd_set", "%" PRIu64, slab_stats.cmd_set);
+    APPEND_STAT("cmd_flush", "%" PRIu64, thread_stats.cmd_flush);
+    APPEND_STAT("cmd_total_sets", "%" PRIu64,
                 get_aggregated_cmd_stats(CMD_TOTAL_MUTATION));
-    APPEND_STAT("cmd_total_gets", "%"PRIu64,
+    APPEND_STAT("cmd_total_gets", "%" PRIu64,
                 get_aggregated_cmd_stats(CMD_TOTAL_RETRIVAL));
-    APPEND_STAT("cmd_total_ops", "%"PRIu64,
+    APPEND_STAT("cmd_total_ops", "%" PRIu64,
                 get_aggregated_cmd_stats(CMD_TOTAL));
-    APPEND_STAT("auth_cmds", "%"PRIu64, thread_stats.auth_cmds);
-    APPEND_STAT("auth_errors", "%"PRIu64, thread_stats.auth_errors);
-    APPEND_STAT("get_hits", "%"PRIu64, slab_stats.get_hits);
-    APPEND_STAT("get_misses", "%"PRIu64, thread_stats.get_misses);
-    APPEND_STAT("delete_misses", "%"PRIu64, thread_stats.delete_misses);
-    APPEND_STAT("delete_hits", "%"PRIu64, slab_stats.delete_hits);
-    APPEND_STAT("incr_misses", "%"PRIu64, thread_stats.incr_misses);
-    APPEND_STAT("incr_hits", "%"PRIu64, thread_stats.incr_hits);
-    APPEND_STAT("decr_misses", "%"PRIu64, thread_stats.decr_misses);
-    APPEND_STAT("decr_hits", "%"PRIu64, thread_stats.decr_hits);
-    APPEND_STAT("cas_misses", "%"PRIu64, thread_stats.cas_misses);
-    APPEND_STAT("cas_hits", "%"PRIu64, slab_stats.cas_hits);
-    APPEND_STAT("cas_badval", "%"PRIu64, slab_stats.cas_badval);
-    APPEND_STAT("bytes_read", "%"PRIu64, thread_stats.bytes_read);
-    APPEND_STAT("bytes_written", "%"PRIu64, thread_stats.bytes_written);
+    APPEND_STAT("auth_cmds", "%" PRIu64, thread_stats.auth_cmds);
+    APPEND_STAT("auth_errors", "%" PRIu64, thread_stats.auth_errors);
+    APPEND_STAT("get_hits", "%" PRIu64, slab_stats.get_hits);
+    APPEND_STAT("get_misses", "%" PRIu64, thread_stats.get_misses);
+    APPEND_STAT("delete_misses", "%" PRIu64, thread_stats.delete_misses);
+    APPEND_STAT("delete_hits", "%" PRIu64, slab_stats.delete_hits);
+    APPEND_STAT("incr_misses", "%" PRIu64, thread_stats.incr_misses);
+    APPEND_STAT("incr_hits", "%" PRIu64, thread_stats.incr_hits);
+    APPEND_STAT("decr_misses", "%" PRIu64, thread_stats.decr_misses);
+    APPEND_STAT("decr_hits", "%" PRIu64, thread_stats.decr_hits);
+    APPEND_STAT("cas_misses", "%" PRIu64, thread_stats.cas_misses);
+    APPEND_STAT("cas_hits", "%" PRIu64, slab_stats.cas_hits);
+    APPEND_STAT("cas_badval", "%" PRIu64, slab_stats.cas_badval);
+    APPEND_STAT("bytes_read", "%" PRIu64, thread_stats.bytes_read);
+    APPEND_STAT("bytes_written", "%" PRIu64, thread_stats.bytes_written);
     APPEND_STAT("accepting_conns", "%u",  is_listen_disabled() ? 0 : 1);
-    APPEND_STAT("listen_disabled_num", "%"PRIu64, get_listen_disabled_num());
+    APPEND_STAT("listen_disabled_num", "%" PRIu64, get_listen_disabled_num());
     APPEND_STAT("rejected_conns", "%" PRIu64, (uint64_t)stats.rejected_conns);
     APPEND_STAT("threads", "%d", settings.num_threads);
     APPEND_STAT("conn_yields", "%" PRIu64, (uint64_t)thread_stats.conn_yields);
@@ -5395,53 +5394,53 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     cb_mutex_exit(&tap_stats.mutex);
 
     if (ts.sent.connect) {
-        APPEND_STAT("tap_connect_sent", "%"PRIu64, ts.sent.connect);
+        APPEND_STAT("tap_connect_sent", "%" PRIu64, ts.sent.connect);
     }
     if (ts.sent.mutation) {
-        APPEND_STAT("tap_mutation_sent", "%"PRIu64, ts.sent.mutation);
+        APPEND_STAT("tap_mutation_sent", "%" PRIu64, ts.sent.mutation);
     }
     if (ts.sent.checkpoint_start) {
-        APPEND_STAT("tap_checkpoint_start_sent", "%"PRIu64, ts.sent.checkpoint_start);
+        APPEND_STAT("tap_checkpoint_start_sent", "%" PRIu64, ts.sent.checkpoint_start);
     }
     if (ts.sent.checkpoint_end) {
-        APPEND_STAT("tap_checkpoint_end_sent", "%"PRIu64, ts.sent.checkpoint_end);
+        APPEND_STAT("tap_checkpoint_end_sent", "%" PRIu64, ts.sent.checkpoint_end);
     }
-    if (ts.sent.delete) {
-        APPEND_STAT("tap_delete_sent", "%"PRIu64, ts.sent.delete);
+    if (ts.sent.del) {
+        APPEND_STAT("tap_delete_sent", "%" PRIu64, ts.sent.del);
     }
     if (ts.sent.flush) {
-        APPEND_STAT("tap_flush_sent", "%"PRIu64, ts.sent.flush);
+        APPEND_STAT("tap_flush_sent", "%" PRIu64, ts.sent.flush);
     }
     if (ts.sent.opaque) {
-        APPEND_STAT("tap_opaque_sent", "%"PRIu64, ts.sent.opaque);
+        APPEND_STAT("tap_opaque_sent", "%" PRIu64, ts.sent.opaque);
     }
     if (ts.sent.vbucket_set) {
-        APPEND_STAT("tap_vbucket_set_sent", "%"PRIu64,
+        APPEND_STAT("tap_vbucket_set_sent", "%" PRIu64,
                     ts.sent.vbucket_set);
     }
     if (ts.received.connect) {
-        APPEND_STAT("tap_connect_received", "%"PRIu64, ts.received.connect);
+        APPEND_STAT("tap_connect_received", "%" PRIu64, ts.received.connect);
     }
     if (ts.received.mutation) {
-        APPEND_STAT("tap_mutation_received", "%"PRIu64, ts.received.mutation);
+        APPEND_STAT("tap_mutation_received", "%" PRIu64, ts.received.mutation);
     }
     if (ts.received.checkpoint_start) {
-        APPEND_STAT("tap_checkpoint_start_received", "%"PRIu64, ts.received.checkpoint_start);
+        APPEND_STAT("tap_checkpoint_start_received", "%" PRIu64, ts.received.checkpoint_start);
     }
     if (ts.received.checkpoint_end) {
-        APPEND_STAT("tap_checkpoint_end_received", "%"PRIu64, ts.received.checkpoint_end);
+        APPEND_STAT("tap_checkpoint_end_received", "%" PRIu64, ts.received.checkpoint_end);
     }
-    if (ts.received.delete) {
-        APPEND_STAT("tap_delete_received", "%"PRIu64, ts.received.delete);
+    if (ts.received.del) {
+        APPEND_STAT("tap_delete_received", "%" PRIu64, ts.received.del);
     }
     if (ts.received.flush) {
-        APPEND_STAT("tap_flush_received", "%"PRIu64, ts.received.flush);
+        APPEND_STAT("tap_flush_received", "%" PRIu64, ts.received.flush);
     }
     if (ts.received.opaque) {
-        APPEND_STAT("tap_opaque_received", "%"PRIu64, ts.received.opaque);
+        APPEND_STAT("tap_opaque_received", "%" PRIu64, ts.received.opaque);
     }
     if (ts.received.vbucket_set) {
-        APPEND_STAT("tap_vbucket_set_received", "%"PRIu64,
+        APPEND_STAT("tap_vbucket_set_received", "%" PRIu64,
                     ts.received.vbucket_set);
     }
 }
@@ -5614,7 +5613,8 @@ static void process_bucket_details(conn *c)
     cJSON_AddItemToObject(obj, "buckets", array);
 
     char *stats_str = cJSON_PrintUnformatted(obj);
-    append_stats("bucket details", 14, stats_str, strlen(stats_str), c);
+    append_stats("bucket details", 14, stats_str, uint32_t(strlen(stats_str)),
+                 c);
     cJSON_Free(stats_str);
     cJSON_Delete(obj);
 }
@@ -5812,20 +5812,24 @@ static int do_ssl_pre_connection(conn *c) {
             set_ewouldblock();
             return -1;
         } else {
-            char *errmsg = malloc(8*1024);
-            if (errmsg) {
-                int offset = sprintf(errmsg,
-                                     "SSL_accept() returned %d with error %d\n",
-                                     r, SSL_get_error(c->ssl.client, r));
+            try {
+                std::string errmsg(
+                        "SSL_accept() returned " + std::to_string(r) +
+                        " with error " +
+                        std::to_string(SSL_get_error(c->ssl.client, r)));
 
-                ERR_error_string_n(ERR_get_error(), errmsg + offset,
-                                   8192 - offset);
+                std::vector<char> ssl_err(1024);
+                ERR_error_string_n(ERR_get_error(), ssl_err.data(),
+                                   ssl_err.size());
 
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: ERROR: %s",
-                                                c->sfd, errmsg);
-                free(errmsg);
+                                                "%d: ERROR: %s\n%s",
+                                                c->sfd, errmsg.c_str(),
+                                                ssl_err.data());
+            } catch (const std::bad_alloc&) {
+                // unable to print error message; continue.
             }
+
             set_econnreset();
             return -1;
         }
@@ -5837,7 +5841,7 @@ static int do_ssl_pre_connection(conn *c) {
 static int do_ssl_read(conn *c, char *dest, size_t nbytes) {
     int ret = 0;
 
-    while (ret < nbytes) {
+    while (ret < int(nbytes)) {
         int n;
         drain_bio_recv_pipe(c);
         if (c->ssl.error) {
@@ -5890,7 +5894,7 @@ static int do_ssl_read(conn *c, char *dest, size_t nbytes) {
     return ret;
 }
 
-static int do_data_recv(conn *c, void *dest, size_t nbytes) {
+static int do_data_recv(conn *c, char *dest, size_t nbytes) {
     int res;
     if (c->ssl.enabled) {
         drain_bio_recv_pipe(c);
@@ -5927,7 +5931,7 @@ static int do_ssl_write(conn *c, char *dest, size_t nbytes) {
 
     int chunksize = settings.bio_drain_buffer_sz;
 
-    while (ret < nbytes) {
+    while (ret < int(nbytes)) {
         int n;
         int chunk;
 
@@ -5980,11 +5984,10 @@ static int do_ssl_write(conn *c, char *dest, size_t nbytes) {
 static int do_data_sendmsg(conn *c, struct msghdr *m) {
     int res;
     if (c->ssl.enabled) {
-        int ii;
         res = 0;
-        for (ii = 0; ii < m->msg_iovlen; ++ii) {
+        for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
             int n = do_ssl_write(c,
-                                 m->msg_iov[ii].iov_base,
+                                 reinterpret_cast<char*>(m->msg_iov[ii].iov_base),
                                  m->msg_iov[ii].iov_len);
             if (n > 0) {
                 res += n;
@@ -6038,13 +6041,12 @@ static enum try_read_result try_read_network(conn *c) {
 #endif
 
         if (c->read.bytes >= c->read.size) {
-            char *new_rbuf;
-
             if (num_allocs == 4) {
                 return gotdata;
             }
             ++num_allocs;
-            new_rbuf = realloc(c->read.buf, c->read.size * 2);
+            char* new_rbuf = reinterpret_cast<char*>(realloc(c->read.buf,
+                                                             c->read.size * 2));
             if (!new_rbuf) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "Couldn't realloc input buffer");
@@ -6218,7 +6220,7 @@ static enum transmit_result transmit(conn *c) {
 
             /* We've written some of the data. Remove the completed
                iovec entries from the list of pending writes. */
-            while (m->msg_iovlen > 0 && res >= m->msg_iov->iov_len) {
+            while (m->msg_iovlen > 0 && res >= ssize_t(m->msg_iov->iov_len)) {
                 res -= (ssize_t)m->msg_iov->iov_len;
                 m->msg_iovlen--;
                 m->msg_iov++;
@@ -6247,11 +6249,10 @@ static enum transmit_result transmit(conn *c) {
                 log_socket_error(EXTENSION_LOG_WARNING, c,
                                  "Failed to write, and not due to blocking: %s");
             } else {
-                int ii;
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d - sendmsg returned 0\n",
                                                 c->sfd);
-                for (ii = 0; ii < m->msg_iovlen; ++ii) {
+                for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                     "\t%d - %zu\n",
                                                     c->sfd, m->msg_iov[ii].iov_len);
@@ -6630,7 +6631,7 @@ bool conn_mwrite(conn *c) {
         if (c->state == conn_mwrite) {
             while (c->ileft > 0) {
                 item *it = *(c->icurr);
-                c->bucket.engine->release((void*)c->bucket.engine, c, it);
+                c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
                 c->icurr++;
                 c->ileft--;
             }
@@ -6870,7 +6871,7 @@ bool conn_delete_bucket(conn *c) {
 }
 
 void event_handler(evutil_socket_t fd, short which, void *arg) {
-    conn *c = arg;
+    conn *c = reinterpret_cast<conn*>(arg);
     LIBEVENT_THREAD *thr;
 
     cb_assert(c != NULL);
@@ -6951,11 +6952,15 @@ static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
 static void maximize_sndbuf(const SOCKET sfd) {
     socklen_t intsize = sizeof(int);
     int last_good = 0;
-    int min, max, avg;
     int old_size;
+#if defined(WIN32)
+    char* old_ptr = reinterpret_cast<char*>(&old_size);
+#else
+    void* old_ptr = reinterpret_cast<void*>(&old_size);
+#endif
 
     /* Start with the default size. */
-    if (getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, (void *)&old_size, &intsize) != 0) {
+    if (getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, old_ptr, &intsize) != 0) {
         if (settings.verbose > 0) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "getsockopt(SO_SNDBUF): %s",
@@ -6966,12 +6971,17 @@ static void maximize_sndbuf(const SOCKET sfd) {
     }
 
     /* Binary-search for the real maximum. */
-    min = old_size;
-    max = MAX_SENDBUF_SIZE;
+    int min = old_size;
+    int max = MAX_SENDBUF_SIZE;
 
     while (min <= max) {
-        avg = ((unsigned int)(min + max)) / 2;
-        if (setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, (void *)&avg, intsize) == 0) {
+        int avg = ((unsigned int)(min + max)) / 2;
+#if defined(WIN32)
+        char* avg_ptr = reinterpret_cast<char*>(&avg);
+#else
+        void* avg_ptr = reinterpret_cast<void*>(&avg);
+#endif
+        if (setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, avg_ptr, intsize) == 0) {
             last_good = avg;
             min = avg + 1;
         } else {
@@ -7013,14 +7023,12 @@ static SOCKET new_socket(struct addrinfo *ai) {
  */
 static int server_socket(struct interface *interf, FILE *portnumber_file) {
     SOCKET sfd;
-    struct linger ling = {0, 0};
     struct addrinfo *ai;
     struct addrinfo *next;
     struct addrinfo hints;
     char port_buf[NI_MAXSERV];
     int error;
     int success = 0;
-    int flags =1;
     const char *host = NULL;
 
     memset(&hints, 0, sizeof(hints));
@@ -7061,6 +7069,17 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
     }
 
     for (next= ai; next; next= next->ai_next) {
+        const struct linger ling = {0, 0};
+        const int flags = 1;
+
+#if defined(WIN32)
+        const char* ling_ptr = reinterpret_cast<const char*>(&ling);
+        const char* flags_ptr = reinterpret_cast<const char*>(&flags);
+#else
+        const void* ling_ptr = reinterpret_cast<const char*>(&ling);
+        const void* flags_ptr = reinterpret_cast<const void*>(&flags);
+#endif
+
         struct listening_port *port_instance;
         conn *listen_conn_add;
         if ((sfd = new_socket(next)) == INVALID_SOCKET) {
@@ -7072,7 +7091,8 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
 
 #ifdef IPV6_V6ONLY
         if (next->ai_family == AF_INET6) {
-            error = setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, (char *) &flags, sizeof(flags));
+            error = setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, flags_ptr,
+                               sizeof(flags));
             if (error != 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                 "setsockopt(IPV6_V6ONLY): %s",
@@ -7083,15 +7103,16 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
         }
 #endif
 
-        setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void *)&flags, sizeof(flags));
-        error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&flags, sizeof(flags));
+        setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, flags_ptr, sizeof(flags));
+        error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, flags_ptr,
+                           sizeof(flags));
         if (error != 0) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "setsockopt(SO_KEEPALIVE): %s",
                                             strerror(errno));
         }
 
-        error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, (void *)&ling, sizeof(ling));
+        error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, ling_ptr, sizeof(ling));
         if (error != 0) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "setsockopt(SO_LINGER): %s",
@@ -7100,7 +7121,7 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
 
         if (interf->tcp_nodelay) {
             error = setsockopt(sfd, IPPROTO_TCP,
-                               TCP_NODELAY, (void *)&flags, sizeof(flags));
+                               TCP_NODELAY, flags_ptr, sizeof(flags));
             if (error != 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                 "setsockopt(TCP_NODELAY): %s",
@@ -7380,41 +7401,51 @@ static bool register_extension(extension_type_t type, void *extension)
     switch (type) {
     case EXTENSION_DAEMON:
         {
+            auto* ext_daemon =
+                    reinterpret_cast<EXTENSION_DAEMON_DESCRIPTOR*>(extension);
+
             EXTENSION_DAEMON_DESCRIPTOR *ptr;
             for (ptr = settings.extensions.daemons; ptr != NULL; ptr = ptr->next) {
-                if (ptr == extension) {
+                if (ptr == ext_daemon) {
                     return false;
                 }
             }
-            ((EXTENSION_DAEMON_DESCRIPTOR *)(extension))->next = settings.extensions.daemons;
-            settings.extensions.daemons = extension;
+            ext_daemon->next = settings.extensions.daemons;
+            settings.extensions.daemons = ext_daemon;
         }
         return true;
+
     case EXTENSION_LOGGER:
-        settings.extensions.logger = extension;
+        settings.extensions.logger =
+                reinterpret_cast<EXTENSION_LOGGER_DESCRIPTOR*>(extension);
         return true;
 
     case EXTENSION_BINARY_PROTOCOL:
-        if (settings.extensions.binary != NULL) {
-            EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *last;
-            for (last = settings.extensions.binary; last->next != NULL;
-                 last = last->next) {
-                if (last == extension) {
+        {
+            auto* ext_binprot =
+                    reinterpret_cast<EXTENSION_BINARY_PROTOCOL_DESCRIPTOR*>(extension);
+
+            if (settings.extensions.binary != NULL) {
+                EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *last;
+                for (last = settings.extensions.binary; last->next != NULL;
+                     last = last->next) {
+                    if (last == ext_binprot) {
+                        return false;
+                    }
+                }
+                if (last == ext_binprot) {
                     return false;
                 }
+                last->next = ext_binprot;
+                last->next->next = NULL;
+            } else {
+                settings.extensions.binary = ext_binprot;
+                settings.extensions.binary->next = NULL;
             }
-            if (last == extension) {
-                return false;
-            }
-            last->next = extension;
-            last->next->next = NULL;
-        } else {
-            settings.extensions.binary = extension;
-            settings.extensions.binary->next = NULL;
-        }
 
-        ((EXTENSION_BINARY_PROTOCOL_DESCRIPTOR*)extension)->setup(setup_binary_lookup_cmd);
-        return true;
+            ext_binprot->setup(setup_binary_lookup_cmd);
+            return true;
+        }
 
     default:
         return false;
@@ -7653,15 +7684,16 @@ static SERVER_HANDLE_V1 *get_server_api(void)
 }
 
 static void process_bin_dcp_response(conn *c) {
-    char *packet;
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
     c->supports_datatype = true;
-    packet = (c->read.curr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
 
     if (c->bucket.engine->dcp.response_handler != NULL) {
-        ret = c->bucket.engine->dcp.response_handler((void*)c->bucket.engine, c,
-                                                     (void*)packet);
+        auto* header = reinterpret_cast<protocol_binary_response_header*>
+            (c->read.curr - (c->binary_header.request.bodylen +
+                             sizeof(c->binary_header)));
+        ret = c->bucket.engine->dcp.response_handler
+                (v1_handle_2_handle(c->bucket.engine), c, header);
     }
 
     if (ret == ENGINE_DISCONNECT) {
@@ -7676,7 +7708,7 @@ static void process_bin_dcp_response(conn *c) {
 /**
  * @todo this should be run as its own thread!!! look at cbsasl refresh..
  */
-static ENGINE_ERROR_CODE do_create_bucket(char *bucket_name,
+static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
                                           char *config,
                                           bucket_type_t engine) {
     int ii;
@@ -7696,7 +7728,7 @@ static ENGINE_ERROR_CODE do_create_bucket(char *bucket_name,
         if (first_free == -1 && all_buckets[ii].state == BUCKET_STATE_NONE) {
             first_free = ii;
         }
-        if (strcmp(bucket_name, all_buckets[ii].name) == 0) {
+        if (bucket_name == all_buckets[ii].name) {
             found = true;
         }
         cb_mutex_exit(&all_buckets[ii].mutex);
@@ -7716,7 +7748,7 @@ static ENGINE_ERROR_CODE do_create_bucket(char *bucket_name,
         cb_mutex_enter(&all_buckets[ii].mutex);
         all_buckets[ii].state = BUCKET_STATE_CREATING;
         all_buckets[ii].type = engine;
-        strcpy(all_buckets[ii].name, bucket_name);
+        strcpy(all_buckets[ii].name, bucket_name.c_str());
         cb_mutex_exit(&all_buckets[ii].mutex);
     }
     cb_mutex_exit(&buckets_lock);
@@ -7730,7 +7762,8 @@ static ENGINE_ERROR_CODE do_create_bucket(char *bucket_name,
             all_buckets[ii].state = BUCKET_STATE_INITIALIZING;
             cb_mutex_exit(&all_buckets[ii].mutex);
 
-            ret = all_buckets[ii].engine->initialize((void*)all_buckets[ii].engine, config);
+            ret = all_buckets[ii].engine->initialize
+                    (v1_handle_2_handle(all_buckets[ii].engine), config);
             if (ret == ENGINE_SUCCESS) {
                 cb_mutex_enter(&all_buckets[ii].mutex);
                 all_buckets[ii].state = BUCKET_STATE_READY;
@@ -7739,7 +7772,8 @@ static ENGINE_ERROR_CODE do_create_bucket(char *bucket_name,
                 cb_mutex_enter(&all_buckets[ii].mutex);
                 all_buckets[ii].state = BUCKET_STATE_DESTROYING;
                 cb_mutex_exit(&all_buckets[ii].mutex);
-                all_buckets[ii].engine->destroy((void*)all_buckets[ii].engine, false);
+                all_buckets[ii].engine->destroy
+                    (v1_handle_2_handle(all_buckets[ii].engine), false);
 
                 cb_mutex_enter(&all_buckets[ii].mutex);
                 all_buckets[ii].state = BUCKET_STATE_NONE;
@@ -7762,45 +7796,40 @@ static ENGINE_ERROR_CODE do_create_bucket(char *bucket_name,
 
 void create_bucket_main(void *arg)
 {
-    conn *c = arg;
+    conn *c = reinterpret_cast<conn*>(arg);
     ENGINE_ERROR_CODE ret;
     char *packet = (c->read.curr - (c->binary_header.request.bodylen +
                                     sizeof(c->binary_header)));
-    protocol_binary_request_create_bucket *req = (void*)packet;
+    auto* req = reinterpret_cast<protocol_binary_request_create_bucket*>(packet);
     /* decode packet */
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
     blen -= klen;
 
-    char *key = malloc(klen + 1);
-    char *value = malloc(blen + 1);
+    try {
+        std::string key((char*)(req + 1), klen);
+        std::string value((char*)(req + 1) + klen, blen);
 
-    if (key == NULL || value == NULL) {
-        ret = ENGINE_ENOMEM;
-    } else {
         char *config = NULL;
-        bucket_type_t engine;
 
-        memcpy(key, req + 1, klen);
-        key[klen] = '\0';
-        memcpy(value, (char*)(req + 1) + klen, blen);
-        value[blen] = '\0';
-
-        if (strlen(value) != blen) {
-            config = value + strlen(value) + 1;
+        // Check if (optional) config was included after the value.
+        auto marker = value.find('\0');
+        if (marker != std::string::npos) {
+            config = &value[marker + 1];
         }
 
-        engine = module_to_bucket_type(value);
+        bucket_type_t engine = module_to_bucket_type(value.c_str());
         if (engine == BUCKET_TYPE_UNKNOWN) {
             /* We should have other error codes as well :-) */
             ret = ENGINE_NOT_STORED;
         } else {
             ret = do_create_bucket(key, config, engine);
         }
+
+    } catch (const std::bad_alloc&) {
+        ret = ENGINE_ENOMEM;
     }
 
-    free(key);
-    free(value);
     notify_io_complete(c, ret);
 }
 
@@ -7821,7 +7850,9 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
 /**
  * @todo this should be run as its own thread!!! look at cbsasl refresh..
  */
-static ENGINE_ERROR_CODE do_delete_bucket(conn *c, char *bucket_name, bool force)
+static ENGINE_ERROR_CODE do_delete_bucket(conn *c,
+                                          const std::string& bucket_name,
+                                          bool force)
 {
     ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
     /*
@@ -7833,7 +7864,7 @@ static ENGINE_ERROR_CODE do_delete_bucket(conn *c, char *bucket_name, bool force
     int ii;
     for (ii = 0; ii < settings.max_buckets; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
-        if (strcmp(bucket_name, all_buckets[ii].name) == 0) {
+        if (bucket_name == all_buckets[ii].name) {
             idx = ii;
             if (all_buckets[ii].state == BUCKET_STATE_READY) {
                 ret = ENGINE_SUCCESS;
@@ -7881,7 +7912,8 @@ static ENGINE_ERROR_CODE do_delete_bucket(conn *c, char *bucket_name, bool force
     /* assert that all associations are gone. */
     assert_no_associations(idx);
 
-    all_buckets[idx].engine->destroy((void*)all_buckets[idx].engine, force);
+    all_buckets[idx].engine->destroy
+            (v1_handle_2_handle(all_buckets[idx].engine), force);
 
     /* Clean up the stats... */
     struct thread_stats *ts = all_buckets[idx].stats;
@@ -7908,52 +7940,46 @@ static ENGINE_ERROR_CODE do_delete_bucket(conn *c, char *bucket_name, bool force
 
 static void delete_bucket_main(void *arg)
 {
-    conn *c = arg;
+    conn *c = reinterpret_cast<conn*>(arg);
     ENGINE_ERROR_CODE ret;
     char *packet = (c->read.curr - (c->binary_header.request.bodylen +
                                     sizeof(c->binary_header)));
 
-    protocol_binary_request_delete_bucket *req = (void*)packet;
+    auto* req = reinterpret_cast<protocol_binary_request_delete_bucket*>(packet);
     /* decode packet */
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
     blen -= klen;
 
-    char *key = malloc(klen + 1);
-    char *config = malloc(blen + 1);
 
-    if (key == NULL || config == NULL) {
-        ret = ENGINE_ENOMEM;
-    } else {
+    try {
+        std::string key((char*)(req + 1), klen);
+        std::string config((char*)(req + 1) + klen, blen);
+
         bool force = false;
         struct config_item items[2];
-
-        memcpy(key, req + 1, klen);
-        key[klen] = '\0';
-        memcpy(config, (char*)(req + 1) + klen, blen);
-        config[blen] = '\0';
-
         memset(&items, 0, sizeof(items));
         items[0].key = "force";
         items[0].datatype = DT_BOOL;
         items[0].value.dt_bool = &force;
         items[1].key = NULL;
 
-        if (parse_config(config, items, stderr) == 0) {
+        if (parse_config(config.c_str(), items, stderr) == 0) {
             ret = do_delete_bucket(c, key, force);
         } else {
             ret = ENGINE_EINVAL;
         }
+    } catch (const std::bad_alloc&) {
+        ret = ENGINE_ENOMEM;
     }
-    free(key);
-    free(config);
 
     notify_io_complete(c, ret);
 }
 
 static void initialize_buckets(void) {
     cb_mutex_initialize(&buckets_lock);
-    all_buckets = calloc(settings.max_buckets, sizeof(*all_buckets));
+    all_buckets = reinterpret_cast<bucket_t*>
+        (calloc(settings.max_buckets, sizeof(*all_buckets)));
 
     for (int ii = 0; ii < settings.max_buckets; ++ii) {
         cb_mutex_initialize(&all_buckets[ii].mutex);
@@ -7962,8 +7988,8 @@ static void initialize_buckets(void) {
 
         // setup the stats
         int numthread = settings.num_threads + 1;
-        struct thread_stats *ts = calloc(numthread,
-                                         sizeof(struct thread_stats));
+        struct thread_stats *ts = reinterpret_cast<struct thread_stats*>
+            (calloc(numthread, sizeof(struct thread_stats)));
         for (int jj = 0; jj < numthread; jj++) {
             cb_mutex_initialize(&ts[jj].mutex);
         }
@@ -8008,8 +8034,8 @@ static void cleanup_buckets(void) {
         } while (waiting);
 
         if (all_buckets[ii].state == BUCKET_STATE_READY) {
-            all_buckets[ii].engine->destroy((void*)all_buckets[ii].engine,
-                                            false);
+            all_buckets[ii].engine->destroy
+                (v1_handle_2_handle(all_buckets[ii].engine), false);
         }
 
 
@@ -8238,7 +8264,7 @@ static void set_max_filehandles(void) {
 
 #else
 static void parent_monitor_thread(void *arg) {
-    pid_t pid = atoi(arg);
+    pid_t pid = atoi(reinterpret_cast<char*>(arg));
     while (true) {
         sleep(1);
         if (kill(pid, 0) == -1 && errno == ESRCH) {
@@ -8268,7 +8294,7 @@ static void set_max_filehandles(void) {
                 "failed to getrlimit number of files\n");
         exit(EX_OSERR);
     } else {
-        int maxfiles = settings.maxconns + (3 * (settings.num_threads + 2));
+        const rlim_t maxfiles = settings.maxconns + (3 * (settings.num_threads + 2));
         int syslimit = rlim.rlim_cur;
         if (rlim.rlim_cur < maxfiles) {
             rlim.rlim_cur = maxfiles;
@@ -8328,7 +8354,8 @@ static void initialize_openssl(void) {
     ERR_load_BIO_strings();
     OpenSSL_add_all_algorithms();
 
-    openssl_lock_cs = calloc(CRYPTO_num_locks(), sizeof(cb_mutex_t));
+    openssl_lock_cs = reinterpret_cast<cb_mutex_t*>
+        (calloc(CRYPTO_num_locks(), sizeof(cb_mutex_t)));
     for (ii = 0; ii < CRYPTO_num_locks(); ii++) {
         cb_mutex_initialize(&(openssl_lock_cs[ii]));
     }

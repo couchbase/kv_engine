@@ -129,9 +129,9 @@ struct thread_stats {
     /* # of write buffers which could be loaned (and hence didn't need to be allocated). */
     uint64_t          wbufs_loaned;
     /* Highest value iovsize has got to */
-    uint64_t          iovused_high_watermark;
+    int               iovused_high_watermark;
     /* High value conn->msgused has got to */
-    uint64_t          msgused_high_watermark;
+    int               msgused_high_watermark;
     struct slab_stats slab_stats[MAX_NUMBER_OF_SLAB_CLASSES];
 };
 
@@ -155,6 +155,7 @@ struct stats {
     unsigned int  conn_structs;
     time_t        started;          /* when the process was started */
     uint64_t      rejected_conns; /* number of times I reject a client */
+    // TODO[C++]: convert listening_ports to std::vector.
     struct listening_port *listening_ports;
 };
 
@@ -388,7 +389,7 @@ struct conn {
         BIO *network;
     } ssl;
 
-    auth_context_t *auth_context;
+    auth_context_t auth_context;
     struct {
         int idx; /* The internal index for the connected bucket */
         ENGINE_HANDLE_V1 *engine;
@@ -453,7 +454,7 @@ void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct threa
 void slab_stats_aggregate(struct thread_stats *stats, struct slab_stats *out);
 
 /* Stat processing functions */
-void append_stat(const char *name, ADD_STAT add_stats, conn *c,
+void append_stat(const char *name, ADD_STAT add_stats, void *c,
                  const char *fmt, ...);
 
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status);

@@ -97,7 +97,7 @@ extern "C" {
         /**
          * Statistics array
          */
-        void *stats;
+        struct thread_stats *stats;
 
         /**
          * Topkeys
