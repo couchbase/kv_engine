@@ -59,6 +59,13 @@
 #include <numa.h>
 #endif
 
+/* Forward declaration */
+bool binary_response_handler(const void *key, uint16_t keylen,
+                             const void *ext, uint8_t extlen,
+                             const void *body, uint32_t bodylen,
+                             uint8_t datatype, uint16_t status,
+                             uint64_t cas, const void *cookie);
+
 /**
  * All of the buckets in couchbase is stored in this array.
  * @todo we should make this array into a list and make it
@@ -679,6 +686,29 @@ const char *state_text(STATE_FUNC state) {
     }
 }
 
+static bucket_id_t get_bucket_id(const void *cookie) {
+    /* @todo fix this. Currently we're using the index as the id,
+     * but this should be changed to be a uniqe ID that won't be
+     * reused.
+     */
+    return ((conn*)(cookie))->bucket.idx;
+}
+
+void collect_timings(const conn *c) {
+    hrtime_t now = gethrtime();
+    // aggregated timing for all buckets
+    all_buckets[0].timings.collect(c->cmd, now - c->start);
+    // timing for current bucket
+    bucket_id_t bucketid = get_bucket_id(c);
+    /* bucketid will be zero initially before you run sasl auth
+     * (unless there is a default bucket), or if someone tries
+     * to delete the bucket you're associated with and your're idle.
+     */
+    if (bucketid != 0) {
+        all_buckets[bucketid].timings.collect(c->cmd, now - c->start);
+    }
+}
+
 /*
  * Sets a connection's current state in the state machine. Any special
  * processing that needs to happen on certain state transitions can
@@ -711,7 +741,7 @@ void conn_set_state(conn *c, STATE_FUNC state) {
 
         if (state == conn_write || state == conn_mwrite) {
             if (c->start != 0) {
-                collect_timing(c->cmd, gethrtime() - c->start);
+                collect_timings(c);
                 c->start = 0;
             }
             MEMCACHED_PROCESS_COMMAND_END(c->sfd, c->write.buf, c->write.bytes);
@@ -1044,7 +1074,7 @@ static void write_bin_response(conn *c, const void *d, int extlen, int keylen,
         c->write_and_go = conn_new_cmd;
     } else {
         if (c->start != 0) {
-            collect_timing(c->cmd, gethrtime() - c->start);
+            collect_timings(c);
             c->start = 0;
         }
         conn_set_state(c, conn_new_cmd);
@@ -1317,14 +1347,6 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
         data->username = NULL;
         data->config = NULL;
     }
-}
-
-static bucket_id_t get_bucket_id(const void *cookie) {
-    /* @todo fix this. Currently we're using the index as the id,
-     * but this should be changed to be a uniqe ID that won't be
-     * reused.
-     */
-    return ((conn*)(cookie))->bucket.idx;
 }
 
 static bool authenticated(conn *c) {
@@ -4531,10 +4553,59 @@ static void arithmetic_executor(conn *c, void *packet)
 
 static void get_cmd_timer_executor(conn *c, void *packet)
 {
+    std::string str;
     auto* req = reinterpret_cast<protocol_binary_request_get_cmd_timer*>(packet);
+    const char* key = (const char*)(req->bytes + sizeof(req->bytes));
+    size_t keylen = ntohs(req->message.header.request.keylen);
+    int index = c->bucket.idx;
+    std::string bucket(key, keylen);
 
-    generate_timings(req->message.body.opcode, c);
-    write_and_free(c, &c->dynamic_buffer);
+    if (bucket == "/all/") {
+        index = 0;
+        keylen = 0;
+    }
+
+    if (keylen == 0) {
+        if (index == 0 && !cookie_is_admin(c)) {
+            // We're not connected to a bucket, and we didn't
+            // authenticate to a bucket.. Don't leak the
+            // global stats...
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+            return;
+        }
+        str = all_buckets[index].timings.generate(req->message.body.opcode);
+        binary_response_handler(NULL, 0, NULL, 0, str.data(),
+                                uint32_t(str.length()),
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                0, c);
+        write_and_free(c, &c->dynamic_buffer);
+    } else if (cookie_is_admin(c)) {
+        bool found = false;
+        for (int ii = 1; ii < settings.max_buckets && !found; ++ii) {
+            // Need the lock to get the bucket state and name
+            cb_mutex_enter(&all_buckets[ii].mutex);
+            if ((all_buckets[ii].state == BucketState::Ready) &&
+                (bucket == all_buckets[ii].name)) {
+                str = all_buckets[ii].timings.generate(req->message.body.opcode);
+                found = true;
+            }
+            cb_mutex_exit(&all_buckets[ii].mutex);
+        }
+        if (found) {
+            binary_response_handler(NULL, 0, NULL, 0, str.data(),
+                                    uint32_t(str.length()),
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                    0, c);
+            write_and_free(c, &c->dynamic_buffer);
+        } else {
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+        }
+    } else {
+        // non-privileged connections can't specify bucket
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+    }
 }
 
 static void set_ctrl_token_executor(conn *c, void *packet)
@@ -5354,12 +5425,13 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("cmd_get", "%" PRIu64, thread_stats.cmd_get);
     APPEND_STAT("cmd_set", "%" PRIu64, slab_stats.cmd_set);
     APPEND_STAT("cmd_flush", "%" PRIu64, thread_stats.cmd_flush);
-    APPEND_STAT("cmd_total_sets", "%" PRIu64,
-                get_aggregated_cmd_stats(CMD_TOTAL_MUTATION));
-    APPEND_STAT("cmd_total_gets", "%" PRIu64,
-                get_aggregated_cmd_stats(CMD_TOTAL_RETRIVAL));
-    APPEND_STAT("cmd_total_ops", "%" PRIu64,
-                get_aggregated_cmd_stats(CMD_TOTAL));
+    // index 0 contains the aggregated timings for all buckets
+    uint64_t total_mutations = all_buckets[0].timings.get_aggregated_cmd_stats(CMD_TOTAL_MUTATION);
+    uint64_t total_retrivals = all_buckets[0].timings.get_aggregated_cmd_stats(CMD_TOTAL_RETRIVAL);
+    uint64_t total_ops = all_buckets[0].timings.get_aggregated_cmd_stats(CMD_TOTAL);
+    APPEND_STAT("cmd_total_sets", "%" PRIu64, total_mutations);
+    APPEND_STAT("cmd_total_gets", "%" PRIu64, total_retrivals);
+    APPEND_STAT("cmd_total_ops", "%" PRIu64, total_ops);
     APPEND_STAT("auth_cmds", "%" PRIu64, thread_stats.auth_cmds);
     APPEND_STAT("auth_errors", "%" PRIu64, thread_stats.auth_errors);
     APPEND_STAT("get_hits", "%" PRIu64, slab_stats.get_hits);
@@ -7747,7 +7819,7 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
         ret = ENGINE_SUCCESS;
         ii = first_free;
         /*
-         * split the creation of fhe bucket in two... so
+         * split the creation of the bucket in two... so
          * we can release the global lock..
          */
         cb_mutex_enter(&all_buckets[ii].mutex);
@@ -7939,6 +8011,8 @@ static ENGINE_ERROR_CODE do_delete_bucket(conn *c,
     all_buckets[idx].engine = NULL;
     all_buckets[idx].name[0] = '\0';
     cb_mutex_exit(&all_buckets[idx].mutex);
+    // don't need lock because all timing data uses atomics
+    all_buckets[idx].timings.reset();
 
     return ret;
 }
@@ -8413,8 +8487,6 @@ int main (int argc, char **argv) {
 #endif
 
     initialize_openssl();
-
-    initialize_timings();
 
     /* Initialize global variables */
     cb_mutex_initialize(&listen_state.mutex);

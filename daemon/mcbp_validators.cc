@@ -537,7 +537,7 @@ static int get_cmd_timer_validator(void *packet)
     uint8_t extlen = req->message.header.request.extlen;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        extlen != 1 || klen != 0 || (klen + extlen) != blen ||
+        extlen != 1 || (klen + extlen) != blen ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return -1;

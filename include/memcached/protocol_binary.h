@@ -1380,6 +1380,19 @@ extern "C"
     typedef protocol_binary_request_no_extras protocol_binary_request_ssl_refresh;
     typedef protocol_binary_response_no_extras protocol_binary_response_ssl_refresh;
 
+    /**
+     * Request command timings for a bucket from memcached. Privileged
+     * connections may specify the name of the bucket in the "key" field,
+     * or the aggregated timings for the entire server by using the
+     * special name <code>/all/</code>.
+     *
+     * The returned payload is a json document of the following format:
+     *    { "us" : [ x, x, x, x, ... ],
+     *      "ms" : [ y, y, y, ...],
+     *      "500ms" : [ z, z, z, ...],
+     *      "wayout" : nnn
+     *    }
+     */
     typedef union {
         struct {
             protocol_binary_request_header header;

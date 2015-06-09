@@ -171,7 +171,7 @@ static int json2internal(cJSON *r)
     return 0;
 }
 
-static void request_timings(BIO *bio, uint8_t opcode, int verbose, int skip)
+static void request_timings(BIO *bio, const char *bucket, uint8_t opcode, int verbose, int skip)
 {
     uint32_t buffsize;
     char *buffer;
@@ -179,14 +179,17 @@ static void request_timings(BIO *bio, uint8_t opcode, int verbose, int skip)
     protocol_binary_response_no_extras response;
     cJSON *json, *obj;
 
+    uint16_t keylen = (bucket == NULL) ? 0 : strlen(bucket);
     memset(&request, 0, sizeof(request));
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
     request.message.header.request.opcode = PROTOCOL_BINARY_CMD_GET_CMD_TIMER;
+    request.message.header.request.keylen = htons(keylen);
     request.message.header.request.extlen = 1;
-    request.message.header.request.bodylen = htonl(1);
+    request.message.header.request.bodylen = htonl((uint32_t)(keylen + 1));
     request.message.body.opcode = opcode;
 
     ensure_send(bio, &request, sizeof(request.bytes));
+    ensure_send(bio, bucket, keylen);
 
     ensure_recv(bio, &response, sizeof(response.bytes));
     buffsize = ntohl(response.message.header.response.bodylen);
@@ -198,8 +201,17 @@ static void request_timings(BIO *bio, uint8_t opcode, int verbose, int skip)
 
     ensure_recv(bio, buffer, buffsize);
     if (response.message.header.response.status != 0) {
-        fprintf(stderr, "Command failed: %u\n",
-                ntohs(response.message.header.response.status));
+        switch (ntohs(response.message.header.response.status)) {
+        case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
+            fprintf(stderr, "Cannot find bucket: %s\n", bucket);
+            break;
+        case PROTOCOL_BINARY_RESPONSE_EACCESS:
+            fprintf(stderr, "Not authorized to access timings data\n");
+            break;
+        default:
+            fprintf(stderr, "Command failed: %u\n",
+                    ntohs(response.message.header.response.status));
+        }
         exit(1);
     }
 
@@ -255,6 +267,7 @@ int main(int argc, char** argv) {
     const char *host = "localhost";
     const char *user = NULL;
     const char *pass = NULL;
+    const char *bucket = NULL;
     int verbose = 0;
     int secure = 0;
     char *ptr;
@@ -264,7 +277,7 @@ int main(int argc, char** argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    while ((cmd = getopt(argc, argv, "h:p:u:P:sv")) != EOF) {
+    while ((cmd = getopt(argc, argv, "h:p:u:P:b:sv")) != EOF) {
         switch (cmd) {
         case 'h' :
             host = optarg;
@@ -283,6 +296,9 @@ int main(int argc, char** argv) {
         case 'P':
             pass = optarg;
             break;
+        case 'b':
+            bucket = optarg;
+            break;
         case 's':
             secure = 1;
             break;
@@ -291,7 +307,7 @@ int main(int argc, char** argv) {
             break;
         default:
             fprintf(stderr,
-                    "Usage mctimings [-h host[:port]] [-p port] [-u user] [-P pass] [-s] -v [opcode]*\n");
+                    "Usage mctimings [-h host[:port]] [-p port] [-u user] [-P pass] [-b bucket] [-s] -v [opcode]*\n");
             return 1;
         }
     }
@@ -302,11 +318,11 @@ int main(int argc, char** argv) {
 
     if (optind == argc) {
         for (int ii = 0; ii < 256; ++ii) {
-            request_timings(bio, (uint8_t)ii, verbose, 1);
+            request_timings(bio, bucket, (uint8_t)ii, verbose, 1);
         }
     } else {
         for (; optind < argc; ++optind) {
-            request_timings(bio, memcached_text_2_opcode(argv[optind]),
+            request_timings(bio, bucket, memcached_text_2_opcode(argv[optind]),
                             verbose, 0);
         }
     }

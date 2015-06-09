@@ -17,6 +17,7 @@
 #pragma once
 
 #include <memcached/engine.h>
+#include "timings.h"
 
 enum class BucketState : uint8_t {
     /** This bucket entry is not used */
@@ -94,6 +95,11 @@ typedef struct {
      * Statistics array
      */
     struct thread_stats *stats;
+
+    /**
+     * Timing data
+     */
+    Timings timings;
 
     /**
      * Topkeys

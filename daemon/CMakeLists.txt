@@ -37,6 +37,8 @@ ADD_EXECUTABLE(memcached
                ${MEMORY_TRACKING_SRCS}
                cmdline.cc
                cmdline.h
+               command_timings.cc
+               command_timings.h
                config_util.c
                config_util.h
                config_parse.cc

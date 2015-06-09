@@ -16,27 +16,32 @@
  */
 #pragma once
 
-#include "command_timings.h"
 #include <platform/platform.h>
 #include <array>
+#include <atomic>
 #include <string>
 
-#define MAX_NUM_OPCODES 0x100
-
-typedef enum {
-    CMD_TOTAL_MUTATION,
-    CMD_TOTAL_RETRIVAL,
-    CMD_TOTAL
-} cmd_stat_t;
-
-class Timings {
+class CommandTimings {
 public:
-    Timings(void);
+    CommandTimings(void);
     void reset(void);
-    void collect(const uint8_t opcode, const hrtime_t nsec);
-    std::string generate(const uint8_t opcode);
-    uint64_t get_aggregated_cmd_stats(const cmd_stat_t type);
+    void collect(const hrtime_t nsec);
+    std::string to_string(void);
+    uint32_t get_ns();
+    uint32_t get_usec(const uint8_t index);
+    uint32_t get_msec(const uint8_t index);
+    uint32_t get_halfsec(const uint8_t index);
+    uint32_t get_wayout();
+    uint32_t get_total();
 
 private:
-    std::array<CommandTimings, MAX_NUM_OPCODES> timings;
+    /* We collect timings for <=1 us */
+    std::atomic<uint32_t> ns;
+    /* We collect timings per 10usec */
+    std::array<std::atomic<uint32_t>, 100> usec;
+    /* we collect timings from 0-49 ms (entry 0 is never used!) */
+    std::array<std::atomic<uint32_t>, 50> msec;
+    std::array<std::atomic<uint32_t>, 10> halfsec;
+    std::atomic<uint32_t> wayout;
+    std::atomic<uint64_t> total;
 };
