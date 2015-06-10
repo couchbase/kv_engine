@@ -604,7 +604,7 @@ static void test_dynamic_require_init(struct test_ctx *ctx) {
 
 static void test_dynamic_reqs_per_event(struct test_ctx *ctx) {
     /* CAN change reqs_per_event */
-    cJSON_ReplaceItemInObject(ctx->dynamic, "reqs_per_event", cJSON_CreateNumber(2));
+    cJSON_ReplaceItemInObject(ctx->dynamic, "default_reqs_per_event", cJSON_CreateNumber(2));
     cb_assert(validate_dynamic_JSON_changes(ctx));
 }
 
@@ -653,7 +653,8 @@ static void test_invalid_root(struct test_ctx *ctx) {
 
 static void teardown_invalid_root(struct test_ctx *ctx) {
     free(error_msg);
-    free(ctx->config);
+    cJSON_Delete(ctx->config);
+    free((void*)settings.config);
 }
 
 static void setup_max_packet_size(struct test_ctx *ctx) {
@@ -670,6 +671,7 @@ static void test_max_packet_size(struct test_ctx *ctx) {
 
 static void teardown_max_packet_size(struct test_ctx *ctx) {
     cJSON_Delete(ctx->config);
+    free((void*)settings.config);
 }
 
 static void test_dynamic_ssl_cipher_list_1(struct test_ctx *ctx) {

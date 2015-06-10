@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <cassert>
 
+static char env[80];
 
 int main(void)
 {
@@ -34,7 +35,8 @@ int main(void)
     timezone.assign("TZ=PST8PDT");
 #endif
 
-    putenv(strdup(timezone.c_str()));
+    strcpy(env, timezone.c_str());
+    putenv(env);
 
     tzset();
 
@@ -45,5 +47,6 @@ int main(void)
                   << "  got      [" << timestamp << "]" << std::endl;
         return EXIT_FAILURE;
     }
+
     return EXIT_SUCCESS;
 }

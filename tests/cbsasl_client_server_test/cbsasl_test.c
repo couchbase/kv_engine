@@ -101,6 +101,9 @@ static void test_auth(const char *mech)
                               (unsigned char**)&serverdata, &serverlen);
     if (err == CBSASL_OK) {
         fprintf(stdout, "Authenticated\n");
+        free(context.secret);
+        cbsasl_dispose(&client);
+        cbsasl_dispose(&server);
         return;
     }
 
@@ -130,17 +133,16 @@ static void test_auth(const char *mech)
         }
     }
 
+    free(context.secret);
+    cbsasl_dispose(&client);
+    cbsasl_dispose(&server);
+
     if (err == CBSASL_OK) {
         fprintf(stdout, "Authenticated\n");
-        return;
     } else {
         fprintf(stderr, "cbsasl_server_step() failed: %d\n", err);
         exit(EXIT_FAILURE);
     }
-
-    free(context.secret);
-    cbsasl_dispose(&client);
-    cbsasl_dispose(&server);
 }
 
 int main(void)

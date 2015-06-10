@@ -1610,4 +1610,5 @@ void free_settings(struct settings* s) {
     free((char*)s->config);
     free((char*)s->root);
     free((char*)s->breakpad.minidump_dir);
+    free((char*)s->ssl_cipher_list);
 }

@@ -32,5 +32,6 @@ cbsasl_error_t load_user_db(void);
 
 void free_user_ht(void);
 void pwfile_init(void);
+void pwfile_term(void);
 
 #endif /*  SRC_PWFILE_H_ */

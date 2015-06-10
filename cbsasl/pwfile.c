@@ -30,6 +30,12 @@ void pwfile_init(void)
     cb_mutex_initialize(&uhash_lock);
 }
 
+void pwfile_term(void)
+{
+    free_user_ht();
+    cb_mutex_destroy(&uhash_lock);
+}
+
 static void kill_whitey(char *s)
 {
     for (size_t i = strlen(s) - 1; i > 0 && isspace(s[i]); i--) {
