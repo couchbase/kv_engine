@@ -15,7 +15,7 @@ ADD_TEST(NAME memcached-auditfile-test
 ADD_EXECUTABLE(memcached_auditconfig_test auditconfig_test.cc
                ${auditd_SOURCE_DIR}/src/auditconfig.h
                ${auditd_SOURCE_DIR}/src/auditconfig.cc)
-TARGET_LINK_LIBRARIES(memcached_auditconfig_test dirutils cJSON)
+TARGET_LINK_LIBRARIES(memcached_auditconfig_test dirutils cJSON platform gtest gtest_main)
 ADD_TEST(NAME memcached-auditconfig-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_auditconfig_test)
