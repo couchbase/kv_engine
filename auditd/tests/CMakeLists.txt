@@ -7,7 +7,7 @@ ADD_EXECUTABLE(memcached_auditfile_test auditfile_test.cc
                ${Memcached_SOURCE_DIR}/include/memcached/isotime.h)
 SET_TARGET_PROPERTIES(memcached_auditfile_test
                       PROPERTIES COMPILE_FLAGS -DUNITTEST_AUDITFILE=1)
-TARGET_LINK_LIBRARIES(memcached_auditfile_test mcd_time dirutils cJSON platform)
+TARGET_LINK_LIBRARIES(memcached_auditfile_test mcd_time dirutils cJSON platform gtest gtest_main)
 ADD_TEST(NAME memcached-auditfile-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_auditfile_test)

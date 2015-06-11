@@ -22,7 +22,10 @@
 #include <atomic>
 #include <cstring>
 #include <time.h>
+#include <gtest/gtest.h>
+#include <platform/platform.h>
 
+// Implement test related functions used by AuditFile
 static std::atomic<time_t> auditd_test_timetravel_offset;
 
 time_t auditd_time(time_t *tloc) {
@@ -41,325 +44,227 @@ void audit_test_timetravel(time_t offset) {
     auditd_test_timetravel_offset += offset;
 }
 
+using CouchbaseDirectoryUtilities::findFilesWithPrefix;
 
-cJSON *create_audit_event() {
-    cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "timestamp", "2015-03-13T02:36:00.000-07:00");
-    cJSON_AddStringToObject(root, "peername", "127.0.0.1:666");
-    cJSON_AddStringToObject(root, "sockname", "127.0.0.1:555");
-    cJSON *source = cJSON_CreateObject();
-    cJSON_AddStringToObject(source, "source", "memcached");
-    cJSON_AddStringToObject(source, "user", "myuser");
-    cJSON_AddItemToObject(root, "real_userid", source);
-    return root;
+class AuditFileTest : public ::testing::Test {
+protected:
+    static void SetUpTestCase() {
+    }
+
+    AuditConfig config;
+    std::string testdir;
+    cJSON *event;
+
+    virtual void SetUp() {
+        testdir = std::string("auditfile-test-") + std::to_string(cb_getpid());
+        config.set_log_directory(testdir);
+        event = create_audit_event();
+    }
+
+    virtual void TearDown() {
+        CouchbaseDirectoryUtilities::rmrf(testdir);
+        cJSON_Delete(event);
+    }
+
+    cJSON *create_audit_event() {
+        cJSON *root = cJSON_CreateObject();
+        cJSON_AddStringToObject(root, "timestamp",
+                                "2015-03-13T02:36:00.000-07:00");
+        cJSON_AddStringToObject(root, "peername", "127.0.0.1:666");
+        cJSON_AddStringToObject(root, "sockname", "127.0.0.1:555");
+        cJSON *source = cJSON_CreateObject();
+        cJSON_AddStringToObject(source, "source", "memcached");
+        cJSON_AddStringToObject(source, "user", "myuser");
+        cJSON_AddItemToObject(root, "real_userid", source);
+        return root;
+    }
+};
+
+/**
+ * Test that we can create the file and stash a number of events
+ * in it.
+ */
+TEST_F(AuditFileTest, TestFileCreation) {
+    AuditFile auditfile;
+    auditfile.reconfigure(config);
+
+    cJSON_AddStringToObject(event, "log_path", "fooo");
+
+    for (int ii = 0; ii < 10; ++ii) {
+        auditfile.ensure_open();
+        auditfile.write_event_to_disk(event);
+    }
+
+    auditfile.close();
+
+    auto files = findFilesWithPrefix(testdir + "/testing");
+    EXPECT_EQ(1, files.size());
 }
 
-static bool time_rotate_test(void) {
-    AuditConfig config;
-    config.set_rotate_interval(60);
+/**
+ * Test that we can create a file, and as time flies by we rotate
+ * to use the next file
+ */
+TEST_F(AuditFileTest, TestTimeRotate) {
+    config.set_rotate_interval(AuditConfig::min_file_rotation_time);
     config.set_rotate_size(1024*1024);
-    config.set_log_directory("time-rotate-test");
-
-    CouchbaseDirectoryUtilities::rmrf("time-rotate-test");
 
     AuditFile auditfile;
     auditfile.reconfigure(config);
 
-    cJSON *obj = create_audit_event();
-    cJSON_AddStringToObject(obj, "log_path", "fooo");
+    cJSON_AddStringToObject(event, "log_path", "fooo");
 
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
-        auditfile.write_event_to_disk(obj);
+        auditfile.write_event_to_disk(event);
+        audit_test_timetravel(AuditConfig::min_file_rotation_time + 1);
     }
+
     auditfile.close();
 
-    {
-        using namespace CouchbaseDirectoryUtilities;
-        auto files = findFilesWithPrefix("time-rotate-test/testing");
-        if (files.size() != 1) {
-            std::cerr << "Expected a single file.. found: " << files.size()
-                      << std::endl;
-            return false;
-        }
-    }
+    auto files = findFilesWithPrefix(testdir + "/testing");
+    EXPECT_EQ(10, files.size());
+}
+
+/**
+ * Test that the we'll rotate to the next file as the content
+ * of the file gets bigger.
+ */
+TEST_F(AuditFileTest, TestSizeRotate) {
+    config.set_rotate_interval(AuditConfig::max_file_rotation_time);
+    config.set_rotate_size(100);
+
+    AuditFile auditfile;
+    auditfile.reconfigure(config);
+
+    cJSON_AddStringToObject(event, "log_path", "fooo");
 
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
-        audit_test_timetravel(61);
-        auditfile.write_event_to_disk(obj);
+        auditfile.write_event_to_disk(event);
     }
 
-    cJSON_Delete(obj);
     auditfile.close();
 
-    {
-        using namespace CouchbaseDirectoryUtilities;
-        auto files = findFilesWithPrefix("time-rotate-test/testing");
-        if (files.size() != 11) {
-            std::cerr << "Expected 10 files files... found: " << files.size()
-                      << std::endl;
-            return false;
-        }
-    }
-
-    CouchbaseDirectoryUtilities::rmrf("time-rotate-test");
-    return true;
+    auto files = findFilesWithPrefix(testdir + "/testing");
+    EXPECT_EQ(10, files.size());
 }
 
-static bool size_rotate_test(void) {
-    AuditConfig config;
-    config.set_rotate_interval(3600);
+/**
+ * Test that the time rollover starts from the time the file was
+ * opened, and not from the instance was configured
+ */
+TEST_F(AuditFileTest, TestRollover) {
+    config.set_rotate_interval(AuditConfig::min_file_rotation_time);
     config.set_rotate_size(100);
-    config.set_log_directory("size-rotate-test");
-
-    CouchbaseDirectoryUtilities::rmrf("size-rotate-test");
-
-    AuditFile auditfile;
-    auditfile.reconfigure(config);
-
-    cJSON *obj = create_audit_event();
-    cJSON_AddStringToObject(obj, "log_path", "fooo");
-
-    for (int ii = 0; ii < 10; ++ii) {
-        auditfile.ensure_open();
-        auditfile.write_event_to_disk(obj);
-    }
-
-    cJSON_Delete(obj);
-    auditfile.close();
-
-    {
-        using namespace CouchbaseDirectoryUtilities;
-        auto files = findFilesWithPrefix("size-rotate-test/testing");
-        if (files.size() != 10) {
-            std::cerr << "Expected 10 files files... found: " << files.size()
-                      << std::endl;
-            return false;
-        }
-    }
-
-    CouchbaseDirectoryUtilities::rmrf("size-rotate-test");
-    return true;
-}
-
-static bool successful_crash_recover_test(void) {
-    CouchbaseDirectoryUtilities::mkdirp("crash-recovery-test");
-    FILE *fp = fopen("crash-recovery-test/audit.log", "w");
-    if (fp == NULL) {
-        std::cerr << "Failed to create audit.log" << std::endl;
-        return false;
-    }
-    cJSON *root = create_audit_event();
-    char *content = cJSON_PrintUnformatted(root);
-    fprintf(fp, "%s", content);
-    fclose(fp);
-    cJSON_Delete(root);
-    cJSON_Free(content);
-
-    AuditConfig config;
-    config.set_rotate_interval(3600);
-    config.set_rotate_size(100);
-    config.set_log_directory("crash-recovery-test");
-
-    AuditFile auditfile;
-    auditfile.reconfigure(config);
-
-    try {
-        auditfile.cleanup_old_logfile("crash-recovery-test");
-    } catch (std::string &msg) {
-        std::cerr << "Exception thrown: " << msg << std::endl;;
-        return false;
-    }
-
-    {
-        using namespace CouchbaseDirectoryUtilities;
-        auto files = findFilesWithPrefix("crash-recovery-test/testing-2015-03-13T02-36-00");
-        if (files.size() != 1) {
-            std::cerr << "Expected 1 files files... found: " << files.size()
-                      << std::endl;
-            return false;
-        }
-    }
-
-    CouchbaseDirectoryUtilities::rmrf("crash-recovery-test");
-    return true;
-}
-
-static bool failed_crash_recover_test(void) {
-    CouchbaseDirectoryUtilities::mkdirp("failed-crash-recovery");
-    AuditConfig config;
-    config.set_rotate_interval(3600);
-    config.set_rotate_size(100);
-    config.set_log_directory("failed-crash-recovery");
-
-    AuditFile auditfile;
-    auditfile.reconfigure(config);
-
-    FILE *fp = fopen("failed-crash-recovery/audit.log", "w");
-    if (fp == NULL) {
-        std::cerr << "Failed to create audit.log" << std::endl;
-        return false;
-    }
-    fclose(fp);
-
-    try {
-        auditfile.cleanup_old_logfile("failed-crash-recovery");
-        {
-            using namespace CouchbaseDirectoryUtilities;
-            auto files = findFilesWithPrefix("failed-crash-recovery/testing");
-            if (files.size() != 0) {
-                std::cerr << "Expected 0 files... found: " << files.size()
-                          << std::endl;
-                return false;
-            }
-        }
-        {
-            using namespace CouchbaseDirectoryUtilities;
-            auto files = findFilesWithPrefix("failed-crash-recovery/audit");
-            if (files.size() != 0) {
-                std::cerr << "Expected 0 files... found: " << files.size()
-                          << std::endl;
-                return false;
-            }
-        }
-    } catch (std::string &msg) {
-        std::cerr << "ERROR: should not get an exception: " << msg << std::endl;
-        return false;
-
-    }
-
-
-    fp = fopen("failed-crash-recovery/audit.log", "w");
-    if (fp == NULL) {
-        std::cerr << "Failed to create audit.log" << std::endl;
-        return false;
-    }
-    fprintf(fp, "{}");
-    fclose(fp);
-
-    try {
-        auditfile.cleanup_old_logfile("failed-crash-recovery");
-        std::cerr << "Exception exception to be thrown for clean file without"
-                  << " timestamp" << std::endl;
-        return false;
-    } catch (std::string &) {
-    }
-
-    if ((fp = fopen("failed-crash-recovery/audit.log", "w")) == NULL) {
-        std::cerr << "Failed to create audit.log" << std::endl;
-        return false;
-    }
-
-    cJSON *root = create_audit_event();
-    char *content = cJSON_PrintUnformatted(root);
-    char *ptr = strstr(content, "2015");
-    *ptr = '\0';
-    fprintf(fp, "%s", content);
-    fclose(fp);
-    cJSON_Delete(root);
-    cJSON_Free(content);
-
-    try {
-        auditfile.cleanup_old_logfile("failed-crash-recovery");
-        std::cerr << "Exception exception to be thrown for clean file with"
-                  << " garbled timestamp" << std::endl;
-        return false;
-    } catch (std::string &) {
-    }
-
-    {
-        using namespace CouchbaseDirectoryUtilities;
-        auto files = findFilesWithPrefix("failed-crash-recovery/testing");
-        if (files.size() != 0) {
-            std::cerr << "Expected 0 files... found: " << files.size()
-                      << std::endl;
-            return false;
-        }
-    }
-
-    {
-        using namespace CouchbaseDirectoryUtilities;
-        auto files = findFilesWithPrefix("failed-crash-recovery/audit.log");
-        if (files.size() != 1) {
-            std::cerr << "Expected 1 file... found: " << files.size()
-                      << std::endl;
-            return false;
-        }
-    }
-
-    CouchbaseDirectoryUtilities::rmrf("failed-crash-recovery");
-    return true;
-}
-
-static bool get_rollover_time_test(void) {
-    CouchbaseDirectoryUtilities::mkdirp("rollover-time-test");
-    AuditConfig config;
-    config.set_rotate_interval(60);
-    config.set_rotate_size(100);
-    config.set_log_directory("rollover-time-test");
     AuditFile auditfile;
     auditfile.reconfigure(config);
 
     uint32_t secs = auditfile.get_seconds_to_rotation();
+    EXPECT_EQ(AuditConfig::min_file_rotation_time, secs);
+
     audit_test_timetravel(10);
-    if (secs != auditfile.get_seconds_to_rotation() || secs != 60) {
-        std::cerr << "secs to rotation should be rotation interval "
-                  << "when the file is closed" << std::endl;
-        return false;
-    }
+    EXPECT_EQ(secs, auditfile.get_seconds_to_rotation())
+        << "Secs to rotation should not change while file is closed";
 
     auditfile.ensure_open();
 
     secs = auditfile.get_seconds_to_rotation();
-    if (!(secs == 60 || secs == 59)) {
-        std::cerr << "Expected number of secs to be 60/59, is "
-                  << secs << std::endl;
-        return false;
-    }
+    EXPECT_TRUE(secs == AuditConfig::min_file_rotation_time ||
+                secs == (AuditConfig::min_file_rotation_time - 1));
 
     audit_test_timetravel(10);
     secs = auditfile.get_seconds_to_rotation();
-
-    if (!(secs == 50 || secs == 49)) {
-        std::cerr << "Expected number of secs to be 50/49, is "
-                  << secs << std::endl;
-        return false;
-    }
-
-
-    CouchbaseDirectoryUtilities::rmrf("rollover-time-test");
-    return true;
+    EXPECT_TRUE(secs == AuditConfig::min_file_rotation_time - 10 ||
+                secs == (AuditConfig::min_file_rotation_time - 11));
 }
 
+TEST_F(AuditFileTest, TestSuccessfulCrashRecovery) {
+    FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
+    EXPECT_TRUE(fp != nullptr);
 
-int main(void) {
-   typedef bool (*testfunc)(void);
-    std::map<std::string, testfunc> tests;
-    int failed(0);
+    char *content = cJSON_PrintUnformatted(event);
+    fprintf(fp, "%s", content);
+    fclose(fp);
+    cJSON_Free(content);
 
-    AuditConfig::min_file_rotation_time = 10;
+    config.set_rotate_interval(3600);
+    config.set_rotate_size(100);
 
-    tests["time rotate"] = time_rotate_test;
-    tests["size rotate"] = size_rotate_test;
-    tests["successful crash recover"] = successful_crash_recover_test;
-    tests["failed crash recover"] = failed_crash_recover_test;
-    tests["get rollover time "] = get_rollover_time_test;
+    AuditFile auditfile;
+    auditfile.reconfigure(config);
 
-    for (auto iter = tests.begin(); iter != tests.end(); ++iter) {
-        std::cout << iter->first << "... ";
-        std::cout.flush();
-        if (iter->second()) {
-            std::cout << "ok" << std::endl;
-        } else {
-            ++failed;
-            // error should already be printed
-        }
+    EXPECT_NO_THROW(auditfile.cleanup_old_logfile(testdir));
+
+    auto files = findFilesWithPrefix(testdir + "/testing-2015-03-13T02-36-00");
+    EXPECT_EQ(1, files.size());
+}
+
+TEST_F(AuditFileTest, TestCrashRecoveryEmptyFile) {
+    config.set_rotate_interval(3600);
+    config.set_rotate_size(100);
+
+    AuditFile auditfile;
+    auditfile.reconfigure(config);
+
+    FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
+    EXPECT_TRUE(fp != nullptr);
+    fclose(fp);
+
+    EXPECT_NO_THROW(auditfile.cleanup_old_logfile(testdir));
+    {
+        // It should not have created any new files
+        auto files = findFilesWithPrefix(testdir + "/testing");
+        EXPECT_EQ(0, files.size());
     }
+    {
+        // File was empty and should just have been deleted
+        auto files = findFilesWithPrefix(testdir + "/audit");
+        EXPECT_EQ(0, files.size());
+    }
+}
 
-    if (failed) {
-        return EXIT_FAILURE;
-    } else {
-        return EXIT_SUCCESS;
+TEST_F(AuditFileTest, TestCrashRecoveryNoTimestamp) {
+    config.set_rotate_interval(3600);
+    config.set_rotate_size(100);
+
+    AuditFile auditfile;
+    auditfile.reconfigure(config);
+
+
+    FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
+    EXPECT_TRUE(fp != nullptr);
+    fprintf(fp, "{}");
+    fclose(fp);
+
+    EXPECT_THROW(auditfile.cleanup_old_logfile(testdir), std::string);
+}
+
+TEST_F(AuditFileTest, TestCrashRecoveryGarbeledDate) {
+    config.set_rotate_interval(3600);
+    config.set_rotate_size(100);
+
+    AuditFile auditfile;
+    auditfile.reconfigure(config);
+
+    FILE *fp = fopen((testdir + "/audit.log").c_str(), "w");
+    EXPECT_TRUE(fp != nullptr);
+
+    char *content = cJSON_PrintUnformatted(event);
+    char *ptr = strstr(content, "2015");
+    *ptr = '\0';
+    fprintf(fp, "%s", content);
+    fclose(fp);
+    cJSON_Free(content);
+
+    EXPECT_THROW(auditfile.cleanup_old_logfile(testdir), std::string);
+    {
+        auto files = findFilesWithPrefix(testdir + "/testing");
+        EXPECT_EQ(0, files.size());
+    }
+    // audit.log should still be present
+    {
+        auto files = findFilesWithPrefix(testdir + "/audit.log");
+        EXPECT_EQ(1, files.size());
     }
 }
