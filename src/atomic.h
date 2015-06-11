@@ -81,8 +81,7 @@ public:
 
     void store(const T &newValue, memory_order sync = memory_order_acq_rel) {
         (void) sync;
-        value = newValue;
-        ep_sync_synchronize();
+        ep_sync_lock_test_and_set(&value, newValue);
     }
 
 
