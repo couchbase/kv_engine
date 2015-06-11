@@ -76,7 +76,7 @@ public:
 
     T load(memory_order sync = memory_order_acq_rel) const {
         (void) sync;
-        return value;
+        return ep_sync_fetch_and_add(const_cast<T*>(&value), T(0));
     }
 
     void store(const T &newValue, memory_order sync = memory_order_acq_rel) {
@@ -161,6 +161,40 @@ public:
 private:
 
     volatile T value;
+};
+
+template <>
+class CouchbaseAtomic<double> {
+    typedef union doubleIntStore {
+        double d;
+        uint64_t i;
+    } DoubleIntStore;
+
+public:
+    CouchbaseAtomic(const double& initial = 0) {
+        store(initial);
+    }
+
+    double load(memory_order sync = memory_order_acq_rel) const {
+        (void) sync;
+        DoubleIntStore rv;
+        rv.i = ep_sync_fetch_and_add((uint64_t*)&value.i, 0);
+        return rv.d;
+    }
+
+    void store(const double& newValue, memory_order sync = memory_order_acq_rel) {
+        (void) sync;
+        DoubleIntStore input;
+        input.d = newValue;
+        (void)ep_sync_lock_test_and_set(&value.i, input.i);
+    }
+
+    operator double() const {
+        return load();
+    }
+
+private:
+    volatile DoubleIntStore value;
 };
 
 #endif
