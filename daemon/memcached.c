@@ -834,6 +834,9 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                         return NULL;
                     }
 
+                    set_ssl_ctx_cipher_list(c->ssl.ctx,
+                                            settings.extensions.logger);
+
                     c->ssl.enabled = true;
                     c->ssl.error = false;
                     c->ssl.client = NULL;

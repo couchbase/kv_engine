@@ -13,6 +13,7 @@
 #include <ctype.h>
 
 #include "config_util.h"
+#include "runtime.h"
 
 #ifdef WIN32
 static int isDrive(const char *file) {
@@ -159,6 +160,11 @@ static void get_admin(cJSON *o) {
     } else {
         settings.admin = strdup(ptr);
     }
+}
+
+static bool get_ssl_cipher_list(cJSON *o) {
+    const char *ptr = get_string_value(o, o->string);
+    set_ssl_cipher_list(ptr);
 }
 
 static void get_threads(cJSON *o) {
@@ -471,6 +477,7 @@ void read_config_file(const char *file)
     } handlers[] = {
         { "admin", get_admin },
         { "threads", get_threads },
+        { "ssl_cipher_list", get_ssl_cipher_list },
         { "interfaces", get_interfaces },
         { "extensions", get_extensions },
         { "engine", get_engine },

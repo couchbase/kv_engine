@@ -135,6 +135,8 @@ ADD_EXECUTABLE(memcached
                daemon/hash.c
                daemon/memcached.c
                daemon/privileges.c
+               daemon/runtime.cc
+               daemon/runtime.h
                daemon/stats.c
                daemon/thread.c
                daemon/timings.cc

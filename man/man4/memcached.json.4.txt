@@ -20,6 +20,20 @@ Specify the username used for administrive operations (like bucket
 management). To disable the use of an administrative role you should
 set this to an empty string.
 
+=== ssl_cipher_list
+
+Specify the list of ciphers to use. The format of the string is
+described in ciphers ( https://www.openssl.org/docs/apps/ciphers.html
+). By default no value is specified causing whatever openssl defaults
+to to be enabled. Some values may be:
+
+    HIGH          Only enable "high" encrypthion ciphers (keys > 128
+                  bits)
+
+    MEDIUM        In addition to the high encryption ciphers, also
+                  allow 128 bit encryption
+
+
 === threads
 
 The *threads* attribute specify the number of threads used to serve
