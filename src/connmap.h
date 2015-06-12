@@ -472,6 +472,17 @@ public:
         return maxActiveSnoozingBackfills;
     }
 
+    size_t getAggrDcpConsumerBufferSize () const {
+        return aggrDcpConsumerBufferSize.load();
+    }
+
+    void incAggrDcpConsumerBufferSize (size_t bufSize) {
+        aggrDcpConsumerBufferSize.fetch_add(bufSize);
+    }
+
+    void decAggrDcpConsumerBufferSize (size_t bufSize) {
+        aggrDcpConsumerBufferSize.fetch_sub(bufSize);
+    }
 private:
 
     void disconnect_UNLOCKED(const void *cookie);
@@ -489,6 +500,8 @@ private:
     static const uint16_t numBackfillsThreshold;
     /* Max percentage of memory we want backfills to occupy */
     static const uint8_t numBackfillsMemThreshold;
+    /* Total memory used by all DCP consumer buffers */
+    AtomicValue<size_t> aggrDcpConsumerBufferSize;
 };
 
 

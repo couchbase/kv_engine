@@ -461,6 +461,42 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "dcp_enable_dynamic_conn_buffer_size": {
+            "default": "true",
+            "descr": "Whether or not the buffer size in dcp flow control be decided dynamically",
+            "dynamic": false,
+            "type": "bool"
+        },
+        "dcp_conn_buffer_size_max": {
+            "default": "52428800",
+            "descr": "Max size in bytes of an dcp consumer connection buffer",
+            "dynamic": false,
+            "type": "size_t"
+        },
+        "dcp_conn_buffer_size_perc": {
+            "default": "1",
+            "descr": "Percentage of memQuota for a dcp consumer connection buffer",
+            "type": "size_t",
+            "dynamic": false,
+            "validator": {
+                "range": {
+                    "max": 10,
+                    "min": 1
+                }
+            }
+        },
+        "dcp_conn_buffer_size_aggr_mem_threshold": {
+            "default": "10",
+            "descr": "Aggr mem usage by all dcp conns (as percentage of memQuota) after which only dcp_conn_buffer_size is allocated",
+            "type": "size_t",
+            "dynamic": false,
+            "validator": {
+                "range": {
+                    "max": 20,
+                    "min": 1
+                }
+            }
+        },
         "dcp_enable_flow_control": {
             "default": "true",
             "descr": "Whether or not dcp connections should use flow control",

@@ -79,7 +79,54 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     setReserved(true);
 
     flowControl.enabled = config.isDcpEnableFlowControl();
-    flowControl.bufferSize = config.getDcpConnBufferSize();
+
+    if (flowControl.enabled && config.isDcpEnableDynamicConnBufferSize()) {
+        double dcpConnBufferSizePerc = static_cast<double>
+                                       (config.getDcpConnBufferSizePerc())/100;
+        size_t bufferSize = dcpConnBufferSizePerc *
+                            engine.getEpStats().getMaxDataSize();
+
+        /* Make sure that the flow control buffer size is within a max and min
+           range */
+        if (bufferSize < config.getDcpConnBufferSize()) {
+            bufferSize = config.getDcpConnBufferSize();
+            LOG(EXTENSION_LOG_WARNING, "%s Conn flow control buffer is set to"
+                "minimum, as calculated sz is (%f) * (%zu)", logHeader(),
+                dcpConnBufferSizePerc, engine.getEpStats().getMaxDataSize());
+        } else if (bufferSize > config.getDcpConnBufferSizeMax()) {
+            bufferSize = config.getDcpConnBufferSizeMax();
+            LOG(EXTENSION_LOG_WARNING, "%s Conn flow control buffer is set to"
+                "maximum, as calculated sz is (%f) * (%zu)", logHeader(),
+                dcpConnBufferSizePerc, engine.getEpStats().getMaxDataSize());
+        }
+
+        /* If aggr memory used for flow control buffers across all consumers
+           exceeds the threshold, then we limit it to min size */
+        double dcpConnBufferSizeThreshold = static_cast<double>
+                            (config.getDcpConnBufferSizeAggrMemThreshold())/100;
+        if ((engine.getDcpConnMap().getAggrDcpConsumerBufferSize() + bufferSize)
+            > dcpConnBufferSizeThreshold * engine.getEpStats().getMaxDataSize())
+        {
+            /* Setting to default minimum size */
+            bufferSize = config.getDcpConnBufferSize();
+            LOG(EXTENSION_LOG_WARNING, "%s Conn flow control buffer is set to"
+                "minimum, as aggr memory used for flow control buffers across"
+                "all consumers is %zu and is above the threshold (%f) * (%zu)",
+                logHeader(),
+                engine.getDcpConnMap().getAggrDcpConsumerBufferSize(),
+                dcpConnBufferSizeThreshold,
+                engine.getEpStats().getMaxDataSize());
+        }
+        flowControl.bufferSize = bufferSize;
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "%s Not using dynamic flow control",
+            logHeader());
+        flowControl.bufferSize = config.getDcpConnBufferSize();
+    }
+    engine.getDcpConnMap().incAggrDcpConsumerBufferSize(flowControl.bufferSize);
+    LOG(EXTENSION_LOG_WARNING, "%s Conn flow control buffer is %u", logHeader(),
+      flowControl.bufferSize);
+
     flowControl.maxUnackedBytes = config.getDcpMaxUnackedBytes();
 
     noopInterval = config.getDcpNoopInterval();
@@ -96,6 +143,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
 DcpConsumer::~DcpConsumer() {
     closeAllStreams();
     delete[] streams;
+    engine_.getDcpConnMap().decAggrDcpConsumerBufferSize
+                                (flowControl.bufferSize);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
@@ -585,6 +634,7 @@ void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("total_backoffs", backoffs, add_stat, c);
     if (flowControl.enabled) {
         addStat("total_acked_bytes", flowControl.ackedBytes, add_stat, c);
+        addStat("max_buffer_bytes", flowControl.bufferSize, add_stat, c);
     }
 }
 
