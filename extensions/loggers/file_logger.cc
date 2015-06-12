@@ -16,8 +16,6 @@
 
 #ifdef WIN32
 #include <io.h>
-#include <process.h>
-#define getpid() _getpid()
 #endif
 
 #include <platform/platform.h>
@@ -586,7 +584,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         return EXTENSION_FATAL;
     }
 
-    pid = (pid_t)getpid();
+    pid = (pid_t)cb_getpid();
 
     if (gethostname(hostname, sizeof(hostname))) {
         fprintf(stderr,"Could not get the hostname");
