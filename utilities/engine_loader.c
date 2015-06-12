@@ -222,9 +222,8 @@ void log_engine_details(ENGINE_HANDLE * engine,
                 offset += nw;
             }
         }
-        logger->log(EXTENSION_LOG_INFO, NULL, "%s\n", message);
+        logger->log(EXTENSION_LOG_NOTICE, NULL, "%s", message);
     } else {
-        logger->log(EXTENSION_LOG_INFO, NULL,
-                                        "Loaded engine: Unknown\n");
+        logger->log(EXTENSION_LOG_NOTICE, NULL, "Loaded engine: Unknown");
     }
 }

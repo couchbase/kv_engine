@@ -40,10 +40,10 @@ static SERVER_HANDLE_V1 *sapi;
  * with a finer log level than this. We've registered a listener to update
  * the log level when the user change it
  */
-static EXTENSION_LOG_LEVEL current_log_level = EXTENSION_LOG_WARNING;
+static EXTENSION_LOG_LEVEL current_log_level = EXTENSION_LOG_NOTICE;
 
 /* All messages above the current level shall be sent to stderr immediately */
-static EXTENSION_LOG_LEVEL output_level = EXTENSION_LOG_WARNING;
+static EXTENSION_LOG_LEVEL output_level = EXTENSION_LOG_NOTICE;
 
 /* To avoid the logfile to grow forever, we'll start logging to another
  * file when we've added a certain amount of data to the logfile. You may
@@ -220,6 +220,8 @@ static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
     switch (sev) {
     case EXTENSION_LOG_WARNING:
         return "WARNING";
+    case EXTENSION_LOG_NOTICE:
+        return "NOTICE";
     case EXTENSION_LOG_INFO:
         return "INFO";
     case EXTENSION_LOG_DEBUG:
@@ -241,13 +243,13 @@ static void syslog_event_receiver(SyslogEvent *event) {
         severity = EXTENSION_LOG_WARNING;
         break;
     case SYSLOG_NOTICE:
-        severity = EXTENSION_LOG_INFO;
+        severity = EXTENSION_LOG_NOTICE;
         break;
     case SYSLOG_INFORMATIONAL:
-        severity = EXTENSION_LOG_DEBUG;
+        severity = EXTENSION_LOG_INFO;
         break;
     case SYSLOG_DEBUG:
-        severity = EXTENSION_LOG_DETAIL;
+        severity = EXTENSION_LOG_DEBUG;
         break;
     default:
         fprintf(stderr, "ERROR: Unknown syslog_severity\n");
@@ -339,12 +341,13 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
     case EXTENSION_LOG_WARNING:
         syslog_severity = SYSLOG_WARNING;
         break;
-    case EXTENSION_LOG_INFO:
+    case EXTENSION_LOG_NOTICE:
         syslog_severity = SYSLOG_NOTICE;
         break;
-    case EXTENSION_LOG_DEBUG:
+    case EXTENSION_LOG_INFO:
         syslog_severity = SYSLOG_INFORMATIONAL;
         break;
+    case EXTENSION_LOG_DEBUG:
     case EXTENSION_LOG_DETAIL:
         syslog_severity = SYSLOG_DEBUG;
         break;
@@ -636,7 +639,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
         if (loglevel != NULL) {
             if (strcasecmp("warning", loglevel) == 0) {
-                output_level = EXTENSION_LOG_WARNING;
+                output_level = EXTENSION_LOG_NOTICE;
             } else if (strcasecmp("info", loglevel) == 0) {
                 output_level = EXTENSION_LOG_INFO;
             } else if (strcasecmp("debug", loglevel) == 0) {

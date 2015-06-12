@@ -328,11 +328,9 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
                            item->event_flags, item->read_buffer_size,
                            me->base);
         if (c == NULL) {
-            if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                                                "Can't listen for events on fd %d\n",
-                                                item->sfd);
-            }
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "Can't listen for events on fd %d",
+                                            item->sfd);
             closesocket(item->sfd);
         } else {
             cb_assert(c->thread == NULL);

@@ -944,11 +944,9 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     protocol_binary_response_header header;
     size_t needed = mapsize+ sizeof(protocol_binary_response_header);
     if (!grow_dynamic_buffer(c, needed)) {
-        if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                    "<%d ERROR: Failed to allocate memory for response\n",
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                    "<%d ERROR: Failed to allocate memory for response",
                     c->sfd);
-        }
         return ENGINE_ENOMEM;
     }
 
@@ -1253,11 +1251,9 @@ static void bin_read_chunk(conn *c,
             }
             newm = realloc(c->read.buf, nsize);
             if (newm == NULL) {
-                if (settings.verbose) {
-                    settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                            "%d: Failed to grow buffer.. closing connection\n",
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                            "%d: Failed to grow buffer.. closing connection",
                             c->sfd);
-                }
                 conn_set_state(c, conn_closing);
                 return;
             }
@@ -1286,11 +1282,9 @@ static void bin_read_chunk(conn *c,
 /* Just write an error message and disconnect the client */
 static void handle_binary_protocol_error(conn *c) {
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-    if (settings.verbose) {
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                "%d: Protocol error (opcode %02x), close connection\n",
-                c->sfd, c->binary_header.request.opcode);
-    }
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                         "%d: Protocol error (opcode %02x), close connection",
+                                    c->sfd, c->binary_header.request.opcode);
     c->write_and_go = conn_closing;
 }
 
@@ -1383,11 +1377,9 @@ bool binary_response_handler(const void *key, uint16_t keylen,
     }
 
     if (!grow_dynamic_buffer(c, needed)) {
-        if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                    "<%d ERROR: Failed to allocate memory for response",
-                    c->sfd);
-        }
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                          "<%d ERROR: Failed to allocate memory for response",
+                          c->sfd);
         return false;
     }
 
@@ -1424,8 +1416,8 @@ bool binary_response_handler(const void *key, uint16_t keylen,
     if (bodylen > 0) {
         if (need_inflate) {
             if (snappy_uncompress(body, bodylen, buf, &inflated_length) != SNAPPY_OK) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                        "<%d ERROR: Failed to inflate item", c->sfd);
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                        "<%d Failed to inflate item", c->sfd);
                 return false;
             }
         } else {
@@ -1625,8 +1617,8 @@ static void ship_tap_log(conn *c) {
                                                    &inflated_length) == SNAPPY_OK) {
                         bodylen += (uint32_t)inflated_length;
                     } else {
-                        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                        "<%d ERROR: Failed to determine inflated size. Sending as compressed",
+                        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                        "<%d Failed to determine inflated size. Sending as compressed",
                                                         c->sfd);
                         inflate = false;
                         bodylen += info.info.nbytes;
@@ -3682,7 +3674,7 @@ static void process_hello_packet_executor(conn *c, void *packet) {
         log_buffer[offset] = '\0';
         --offset;
     }
-    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
                                     "%d: %s", c->sfd, log_buffer);
 }
 
@@ -3770,11 +3762,9 @@ static void sasl_auth_executor(conn *c, void *packet)
             auth_data_t data;
             get_auth_data(c, &data);
 
-            if (settings.verbose) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "%d: sasl authenticated as %s",
-                                                c->sfd, data.username);
-            }
+            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                                            "%d: sasl authenticated as %s",
+                                            c->sfd, data.username);
 
             write_bin_response(c, NULL, 0, 0, 0);
 
@@ -5216,8 +5206,8 @@ static void complete_nread(conn *c) {
             if (handler) {
                 handler(c);
             } else {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                       "%d: ERROR: Unsupported response packet received: %u\n",
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                       "%d: Unsupported response packet received: %u",
                         c->sfd, (unsigned int)c->binary_header.request.opcode);
                 conn_set_state(c, conn_closing);
             }
@@ -5675,18 +5665,16 @@ static int try_read_command(conn *c) {
         if (c->binary_header.request.magic != PROTOCOL_BINARY_REQ &&
             !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&
               response_handlers[c->binary_header.request.opcode])) {
-            if (settings.verbose) {
-                if (c->binary_header.request.magic != PROTOCOL_BINARY_RES) {
-                    settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                    "%d: Invalid magic:  %x\n",
-                                                    c->sfd,
-                                                    c->binary_header.request.magic);
-                } else {
-                    settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                    "%d: ERROR: Unsupported response packet received: %u\n",
-                                                    c->sfd, (unsigned int)c->binary_header.request.opcode);
+            if (c->binary_header.request.magic != PROTOCOL_BINARY_RES) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d: Invalid magic: %x, closing connection",
+                                                c->sfd,
+                                                c->binary_header.request.magic);
+            } else {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d: Unsupported response packet received: %u, closing connection",
+                                                c->sfd, (unsigned int)c->binary_header.request.opcode);
 
-                }
             }
             conn_set_state(c, conn_closing);
             return -1;
@@ -6054,10 +6042,8 @@ static enum try_read_result try_read_network(conn *c) {
             ++num_allocs;
             new_rbuf = realloc(c->read.buf, c->read.size * 2);
             if (!new_rbuf) {
-                if (settings.verbose > 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                    "Couldn't realloc input buffer\n");
-                }
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "Couldn't realloc input buffer");
                 c->read.bytes = 0; /* ignore what we read */
                 conn_set_state(c, conn_closing);
                 return READ_MEMORY_ERROR;
@@ -6624,10 +6610,8 @@ bool conn_write(conn *c) {
      */
     if (c->iovused == 0) {
         if (add_iov(c, c->write.curr, c->write.bytes) != 0) {
-            if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "Couldn't build response\n");
-            }
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "Couldn't build response, closing connection");
             conn_set_state(c, conn_closing);
             return true;
         }
@@ -6661,10 +6645,9 @@ bool conn_mwrite(conn *c) {
             }
             conn_set_state(c, c->write_and_go);
         } else {
-            if (settings.verbose > 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                                "Unexpected state %d\n", c->state);
-            }
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Unexpected state %d, closing",
+                                            c->sfd, c->state);
             conn_set_state(c, conn_closing);
         }
         break;
@@ -7517,7 +7500,7 @@ static EXTENSION_LOG_LEVEL get_log_level(void)
 {
     EXTENSION_LOG_LEVEL ret;
     switch (settings.verbose) {
-    case 0: ret = EXTENSION_LOG_WARNING; break;
+    case 0: ret = EXTENSION_LOG_NOTICE; break;
     case 1: ret = EXTENSION_LOG_INFO; break;
     case 2: ret = EXTENSION_LOG_DEBUG; break;
     default:
@@ -7529,7 +7512,10 @@ static EXTENSION_LOG_LEVEL get_log_level(void)
 static void set_log_level(EXTENSION_LOG_LEVEL severity)
 {
     switch (severity) {
-    case EXTENSION_LOG_WARNING: settings.verbose = 0; break;
+    case EXTENSION_LOG_WARNING:
+    case EXTENSION_LOG_NOTICE:
+        settings.verbose = 0;
+        break;
     case EXTENSION_LOG_INFO: settings.verbose = 1; break;
     case EXTENSION_LOG_DEBUG: settings.verbose = 2; break;
     default:
@@ -8551,8 +8537,8 @@ int main (int argc, char **argv) {
     }
 
     if (settings.verbose) {
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                                        "Initiating shutdown\n");
+        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                        "Initiating shutdown");
     }
 
     /* Close down the audit daemon cleanly */
