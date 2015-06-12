@@ -15,7 +15,13 @@ def cmd(f):
 
     def g(*args, **kwargs):
         mc = args[0]
-        vbucket = int(args[1])
+
+        try:
+            vbucket = int(args[1])
+        except IndexError:
+            print "Must specify a vbucket id after the compact argument"
+            sys.exit(1)
+
         n = f.func_code.co_argcount
         if len(args) > n:
             print "Too many args, given %s, but expected a maximum of %s"\
@@ -44,7 +50,9 @@ def compact(mc, vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes):
         return mc.compact_db(vbucket, purgeBeforeTs, purgeBeforeSeq,
                              dropDeletes)
      except:
-         print "Unable to compact '%d %d %d %d' in requested engine."\
+         print "Unable to compact vbucket %d with the following parameters "\
+               "(purge before time: %d, purge before seqno: %d, drop deletes: "\
+               "%d) in requested engine."\
              % (vbucket, purgeBeforeTs, purgeBeforeSeq, dropDeletes)
 
 def main():

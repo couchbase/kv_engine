@@ -5870,17 +5870,21 @@ public:
     }
 
     bool run() {
-        shared_ptr<Callback<uint16_t&, char*&> > cb(new AllKeysCallback());
-        ENGINE_ERROR_CODE err =
-              engine->getEpStore()->getROUnderlying(vbid)->getAllKeys(vbid,
-                                                              start_key, count,
-                                                              cb);
-        if (err == ENGINE_SUCCESS) {
-            err =  sendResponse(response, NULL, 0, NULL, 0,
-                                ((AllKeysCallback*)cb.get())->getAllKeysPtr(),
-                                ((AllKeysCallback*)cb.get())->getAllKeysLen(),
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+        ENGINE_ERROR_CODE err;
+        if (engine->getEpStore()->getVBuckets().isBucketCreation(vbid)) {
+            err = ENGINE_TMPFAIL;
+        } else {
+            shared_ptr<Callback<uint16_t&, char*&> > cb(new AllKeysCallback());
+            err = engine->getEpStore()->getROUnderlying(vbid)->getAllKeys(
+                                                    vbid, start_key, count, cb);
+            if (err == ENGINE_SUCCESS) {
+                err =  sendResponse(response, NULL, 0, NULL, 0,
+                                    ((AllKeysCallback*)cb.get())->getAllKeysPtr(),
+                                    ((AllKeysCallback*)cb.get())->getAllKeysLen(),
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                                    cookie);
+            }
         }
         engine->addLookupAllKeys(cookie, err);
         engine->notifyIOComplete(cookie, err);

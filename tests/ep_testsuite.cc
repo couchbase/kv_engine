@@ -8231,6 +8231,34 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+static enum test_result test_all_keys_api_during_bucket_creation(
+                                ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    uint8_t extlen = 4;
+    uint32_t count = htonl(5);
+    char *ext = new char[extlen];
+    memcpy(ext, (char*)&count, sizeof(count));
+    uint16_t keylen = 6;
+
+    protocol_binary_request_header *pkt1 =
+        createPacket(CMD_GET_KEYS, 1, 0, ext, extlen,
+                     "key_10", keylen, NULL, 0, 0x00);
+    delete[] ext;
+
+    stop_persistence(h, h1);
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed set vbucket 1 state.");
+
+    ENGINE_ERROR_CODE err = h1->unknown_command(h, NULL, pkt1,
+                                                add_response);
+    start_persistence(h, h1);
+
+    check(err == ENGINE_TMPFAIL,
+          "Unexpected return code from all_keys_api");
+
+    return SUCCESS;
+}
+
 static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -13224,6 +13252,10 @@ BaseTestCase testsuite_testcases[] = {
                  NULL, prepare, cleanup),
         TestCase("test ALL_KEYS api",
                  test_all_keys_api,
+                 test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("test ALL_KEYS api during bucket creation",
+                 test_all_keys_api_during_bucket_creation,
                  test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("ep worker stats", test_worker_stats,
