@@ -341,6 +341,7 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
     case ON_CONNECT:
     case ON_DISCONNECT:
         cb_assert(connection);
+        cb_assert(connection->bucket.idx != -1);
         h = all_buckets[connection->bucket.idx].engine_event_handlers[type];
         break;
     case ON_LOG_LEVEL:

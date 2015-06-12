@@ -405,16 +405,18 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->ewouldblock = false;
     c->refcount = 1;
 
-    if (init_state != conn_listening) {
-        associate_initial_bucket(c);
-    } else {
+    if (init_state == conn_listening) {
         c->bucket.engine = NULL;
         c->bucket.idx = -1;
+    } else {
+        associate_initial_bucket(c);
     }
 
     MEMCACHED_CONN_ALLOCATE(c->sfd);
 
-    perform_callbacks(ON_CONNECT, NULL, c);
+    if (init_state != conn_listening) {
+        perform_callbacks(ON_CONNECT, NULL, c);
+    }
 
     return c;
 }
