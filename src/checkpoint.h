@@ -657,7 +657,7 @@ private:
     bool                     isCollapsedCheckpoint;
     uint64_t                 lastClosedCheckpointId;
     uint64_t                 pCursorPreCheckpointId;
-    cursor_index             tapCursors;
+    cursor_index             connCursors;
 
     shared_ptr<Callback<uint16_t> > flusherCB;
 };

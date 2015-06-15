@@ -922,7 +922,7 @@ each stat name.
 | cursor_name:cursor_seqno         | The seqno at which the cursor             |
 |                                  | 'cursor_name' is pointing now             |
 | open_checkpoint_id               | ID of the current open checkpoint         |
-| num_tap_cursors                  | Number of referencing TAP cursors         |
+| num_conn_cursors                 | Number of referencing dcp/tap cursors     |
 | num_checkpoint_items             | Number of total items in a checkpoint     |
 |                                  | datastructure                             |
 | num_open_checkpoint_items        | Number of items in the open checkpoint    |
