@@ -8346,8 +8346,10 @@ static enum test_result test_all_keys_api_during_bucket_creation(
                                                 add_response);
     start_persistence(h, h1);
 
-    check(err == ENGINE_TMPFAIL,
+    check(err == ENGINE_SUCCESS,
           "Unexpected return code from all_keys_api");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Unexpected response status");
 
     return SUCCESS;
 }
