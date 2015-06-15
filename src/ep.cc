@@ -3308,13 +3308,13 @@ void EventuallyPersistentStore::warmupCompleted() {
             LockHolder lh(accessScanner.mutex);
             accessScanner.enabled = true;
             lh.unlock();
-            LOG(EXTENSION_LOG_WARNING, "Access Scanner task enabled");
+            LOG(EXTENSION_LOG_NOTICE, "Access Scanner task enabled");
             size_t smin = engine.getConfiguration().getAlogSleepTime();
             setAccessScannerSleeptime(smin);
         } else {
             LockHolder lh(accessScanner.mutex);
             accessScanner.enabled = false;
-            LOG(EXTENSION_LOG_WARNING, "Access Scanner task disabled");
+            LOG(EXTENSION_LOG_NOTICE, "Access Scanner task disabled");
         }
 
         Configuration &config = engine.getConfiguration();
@@ -3341,11 +3341,11 @@ bool EventuallyPersistentStore::maybeEnableTraffic()
     double maxSize = static_cast<double>(stats.getMaxDataSize());
 
     if (memoryUsed  >= stats.mem_low_wat) {
-        LOG(EXTENSION_LOG_WARNING,
+        LOG(EXTENSION_LOG_NOTICE,
             "Total memory use reached to the low water mark, stop warmup");
         return true;
     } else if (memoryUsed > (maxSize * stats.warmupMemUsedCap)) {
-        LOG(EXTENSION_LOG_WARNING,
+        LOG(EXTENSION_LOG_NOTICE,
                 "Enough MB of data loaded to enable traffic");
         return true;
     } else if (eviction_policy == VALUE_ONLY &&
@@ -3353,7 +3353,7 @@ bool EventuallyPersistentStore::maybeEnableTraffic()
                                (stats.warmedUpKeys * stats.warmupNumReadCap)) {
         // Let ep-engine think we're done with the warmup phase
         // (we should refactor this into "enableTraffic")
-        LOG(EXTENSION_LOG_WARNING,
+        LOG(EXTENSION_LOG_NOTICE,
             "Enough number of items loaded to enable traffic");
         return true;
     } else if (eviction_policy == FULL_EVICTION &&
@@ -3363,7 +3363,7 @@ bool EventuallyPersistentStore::maybeEnableTraffic()
         // In case of FULL EVICTION, warmed up keys always matches the number
         // of warmed up values, therefore for honoring the min_item threshold
         // in this scenario, we can consider warmup's estimated item count.
-        LOG(EXTENSION_LOG_WARNING,
+        LOG(EXTENSION_LOG_NOTICE,
             "Enough number of items loaded to enable traffic");
         return true;
     }
@@ -3429,8 +3429,8 @@ void EventuallyPersistentStore::enableAccessScannerTask() {
             advance_tv(tv, accessScanner.sleeptime);
             stats.alogTime.store(tv.tv_sec);
         } else {
-            LOG(EXTENSION_LOG_WARNING, "Did not enable access scanner task, "
-                                       "as alog_sleep_time is set to zero!");
+            LOG(EXTENSION_LOG_NOTICE, "Did not enable access scanner task, "
+                                      "as alog_sleep_time is set to zero!");
         }
     } else {
         LOG(EXTENSION_LOG_DEBUG, "Access scanner already enabled!");

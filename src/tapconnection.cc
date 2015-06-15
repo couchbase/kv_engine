@@ -567,7 +567,7 @@ void TapProducer::clearQueues_UNLOCKED() {
 
 void TapProducer::rollback() {
     LockHolder lh(queueLock);
-    LOG(EXTENSION_LOG_WARNING,
+    LOG(EXTENSION_LOG_NOTICE,
         "%s Connection is re-established. Rollback unacked messages...",
         logHeader());
 
@@ -700,14 +700,14 @@ void TapProducer::suspendedConnection_UNLOCKED(bool value)
             ExTask resTapTask = new ResumeCallback(engine_, this,
                                     config.getBackoffSleepTime());
             ExecutorPool::get()->schedule(resTapTask, NONIO_TASK_IDX);
-            LOG(EXTENSION_LOG_WARNING, "%s Suspend for %.2f secs\n",
+            LOG(EXTENSION_LOG_NOTICE, "%s Suspend for %.2f secs",
                 logHeader(), config.getBackoffSleepTime());
         } else {
             // backoff disabled, or already in a suspended state
             return;
         }
     } else {
-        LOG(EXTENSION_LOG_INFO, "%s Unlocked from the suspended state\n",
+        LOG(EXTENSION_LOG_NOTICE, "%s Unlocked from the suspended state",
             logHeader());
     }
     setSuspended(value);
@@ -856,7 +856,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
                 ss << "TAP takeover is completed. ";
             }
             ss << "Disconnecting tap stream <" << getName() << ">";
-            LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
+            LOG(EXTENSION_LOG_NOTICE, "%s", ss.str().c_str());
 
             setDisconnect(true);
             setExpiryTime(0);
@@ -917,7 +917,7 @@ bool TapProducer::checkBackfillCompletion_UNLOCKED() {
             addVBucketHighPriority_UNLOCKED(backfillEnd);
         }
         backfillVBuckets.clear();
-        LOG(EXTENSION_LOG_WARNING, "%s %s\n", logHeader(), ss.str().c_str());
+        LOG(EXTENSION_LOG_NOTICE, "%s %s", logHeader(), ss.str().c_str());
 
         rv = true;
     }
@@ -1383,7 +1383,7 @@ void TapProducer::scheduleBackfill_UNLOCKED(const std::vector<uint16_t> &vblist)
         VBucketEvent hi(TAP_OPAQUE, *it,
                         (vbucket_state_t)htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM));
         addVBucketHighPriority_UNLOCKED(hi);
-        LOG(EXTENSION_LOG_WARNING, "%s Schedule the backfill for vbucket %d",
+        LOG(EXTENSION_LOG_NOTICE, "%s Schedule the backfill for vbucket %d",
             logHeader(), *it);
     }
 
@@ -1409,7 +1409,7 @@ VBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
                 ackLog_.size() < MAX_TAKEOVER_TAP_LOG_SIZE) {
                 // Set vbucket state to dead if the number of items waiting for
                 // implicit acks is less than the threshold.
-                LOG(EXTENSION_LOG_WARNING, "%s VBucket <%d> is going dead to "
+                LOG(EXTENSION_LOG_NOTICE, "%s VBucket <%d> is going dead to "
                     "complete vbucket takeover", logHeader(), ev.vbucket);
                 engine_.getEpStore()->setVBucketState(ev.vbucket, vbucket_state_dead, false);
                 setTakeOverCompletionPhase(true);
@@ -1532,7 +1532,7 @@ size_t TapProducer::getQueueSize_UNLOCKED() {
 void TapProducer::flush() {
     LockHolder lh(queueLock);
 
-    LOG(EXTENSION_LOG_WARNING, "%s Clear tap queues as part of flush operation",
+    LOG(EXTENSION_LOG_NOTICE, "%s Clear tap queues as part of flush operation",
         logHeader());
 
     pendingFlush = true;
@@ -1812,7 +1812,7 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
         itm = nextBgFetchedItem_UNLOCKED();
         *vbucket = itm->getVBucketId();
         if (!vbucketFilter(*vbucket)) {
-            LOG(EXTENSION_LOG_WARNING,
+            LOG(EXTENSION_LOG_NOTICE,
                 "%s Drop a backfill item because vbucket %d is no longer valid"
                 " against vbucket filter.\n", logHeader(), *vbucket);
             // We were going to use the item that we received from

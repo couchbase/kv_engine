@@ -320,7 +320,7 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             toNotify[entry->cookie] = ENGINE_SUCCESS;
             stats.chkPersistenceHisto.add(wall_time / 1000);
             adjustCheckpointFlushTimeout(wall_time / 1000000000);
-            LOG(EXTENSION_LOG_WARNING, "Notified the completion of checkpoint "
+            LOG(EXTENSION_LOG_NOTICE, "Notified the completion of checkpoint "
                 "persistence for vbucket %d, id %llu, cookie %p", id, idNum,
                 entry->cookie);
             entry = hpChks.erase(entry);

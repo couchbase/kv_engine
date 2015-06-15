@@ -751,7 +751,7 @@ bool TapConnMap::mapped(connection_t &tc) {
 }
 
 void TapConnMap::shutdownAllConnections() {
-    LOG(EXTENSION_LOG_WARNING, "Shutting down tap connections!");
+    LOG(EXTENSION_LOG_NOTICE, "Shutting down tap connections!");
 
     connNotifier_->stop();
 
@@ -992,7 +992,7 @@ DcpProducer *DcpConnMap::newProducer(const void* cookie,
 }
 
 void DcpConnMap::shutdownAllConnections() {
-    LOG(EXTENSION_LOG_WARNING, "Shutting down dcp connections!");
+    LOG(EXTENSION_LOG_NOTICE, "Shutting down dcp connections!");
 
     connNotifier_->stop();
 

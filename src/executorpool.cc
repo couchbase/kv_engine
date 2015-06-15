@@ -409,14 +409,14 @@ void ExecutorPool::_registerBucket(EventuallyPersistentEngine *engine) {
         taskQ = &lpTaskQ;
         whichQset = &isLowPrioQset;
         queueName = "LowPrioQ_";
-        LOG(EXTENSION_LOG_WARNING, "Bucket %s registered with low priority",
+        LOG(EXTENSION_LOG_NOTICE, "Bucket %s registered with low priority",
             engine->getName());
     } else {
         engine->setWorkloadPriority(HIGH_BUCKET_PRIORITY);
         taskQ = &hpTaskQ;
         whichQset = &isHiPrioQset;
         queueName = "HiPrioQ_";
-        LOG(EXTENSION_LOG_WARNING, "Bucket %s registered with high priority",
+        LOG(EXTENSION_LOG_NOTICE, "Bucket %s registered with high priority",
             engine->getName());
     }
 
@@ -455,7 +455,7 @@ bool ExecutorPool::_startWorkers(void) {
     std::stringstream ss;
     ss << "Spawning " << numReaders << " readers, " << numWriters <<
     " writers, " << numAuxIO << " auxIO, " << numNonIO << " nonIO threads";
-    LOG(EXTENSION_LOG_WARNING, ss.str().c_str());
+    LOG(EXTENSION_LOG_NOTICE, ss.str().c_str());
 
     for (size_t tidx = 0; tidx < numReaders; ++tidx) {
         std::stringstream ss;
@@ -546,7 +546,7 @@ bool ExecutorPool::stopTaskGroup(EventuallyPersistentEngine *e,
 
 void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
 
-    LOG(EXTENSION_LOG_WARNING, "Unregistering %s bucket %s",
+    LOG(EXTENSION_LOG_NOTICE, "Unregistering %s bucket %s",
             (numBuckets == 1)? "last" : "", engine->getName());
 
     _stopTaskGroup(engine, NO_TASK_TYPE);

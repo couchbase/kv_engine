@@ -537,7 +537,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
             memcpy(&rollbackSeqno, body, sizeof(uint64_t));
             rollbackSeqno = ntohll(rollbackSeqno);
 
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Received rollback request "
+            LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Received rollback request "
                 "to rollback seq no. %llu", logHeader(), vbid, rollbackSeqno);
 
             ExTask task = new RollbackTask(&engine_, opaque, vbid,

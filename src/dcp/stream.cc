@@ -119,7 +119,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
     bufferedBackfill.bytes = 0;
     bufferedBackfill.items = 0;
 
-    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) %sstream created with start seqno "
+    LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) %sstream created with start seqno "
         "%llu and end seqno %llu", producer->logHeader(), vb, type, st_seqno,
         en_seqno);
 }
@@ -182,7 +182,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     startSeqno = std::min(snap_start_seqno_, startSeqno);
     firstMarkerSent = true;
 
-    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Sending disk snapshot with start "
+    LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Sending disk snapshot with start "
         "seqno %llu and end seqno %llu", producer->logHeader(), vb_, startSeqno,
         endSeqno);
     readyQ.push(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
@@ -246,7 +246,7 @@ void ActiveStream::completeBackfill() {
 
     if (state_ == STREAM_BACKFILLING) {
         isBackfillTaskRunning = false;
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill complete, %d items read"
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Backfill complete, %d items read"
             " from disk %d from memory, last seqno read: %ld",
             producer->logHeader(), vb_, backfillItems.disk.load(),
             backfillItems.memory.load(), lastReadSeqno);
@@ -574,7 +574,7 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             readyQ.push(new StreamEndResponse(opaque_, reason, vb_));
         }
         transitionState(STREAM_DEAD);
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream closing, %llu items sent"
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Stream closing, %llu items sent"
             " from backfill phase, %llu items sent from memory phase, %llu was "
             "last seqno sent", producer->logHeader(), vb_, backfillItems.sent.load(),
             itemsFromMemoryPhase, lastSentSeqno);
@@ -738,7 +738,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, DcpProducer* p,
 
     type_ = STREAM_NOTIFIER;
 
-    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) stream created with start seqno "
+    LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) stream created with start seqno "
         "%llu and end seqno %llu", producer->logHeader(), vb, st_seqno,
         en_seqno);
 }
@@ -824,7 +824,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
     type_ = STREAM_PASSIVE;
 
     const char* type = (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) ? "takeover" : "";
-    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Attempting to add %s stream with "
+    LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Attempting to add %s stream with "
         "start seqno %llu, end seqno %llu, vbucket uuid %llu, snap start seqno "
         "%llu, and snap end seqno %llu", consumer->logHeader(), vb, type,
         st_seqno, en_seqno, vb_uuid, snap_start_seqno, snap_end_seqno);
@@ -876,7 +876,7 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
     start_seqno_ = info.start;
     snap_end_seqno_ = info.range.end;
 
-    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Attempting to reconnect stream "
+    LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Attempting to reconnect stream "
         "with opaque %ld, start seq no %llu, end seq no %llu, snap start seqno "
         "%llu, and snap end seqno %llu", consumer->logHeader(), vb_, new_opaque,
         start_seqno, end_seqno_, snap_start_seqno_, snap_end_seqno_);

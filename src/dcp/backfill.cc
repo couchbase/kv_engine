@@ -127,7 +127,7 @@ backfill_status_t DCPBackfill::create() {
         engine->getEpStore()->getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
-        LOG(EXTENSION_LOG_WARNING, "Rescheduling backfill for vbucket %d "
+        LOG(EXTENSION_LOG_NOTICE, "Rescheduling backfill for vbucket %d "
             "because backfill up to seqno %llu is needed but only up to "
             "%llu is persisted", vbid, endSeqno, lastPersistedSeqno);
         return backfill_snooze;
@@ -181,7 +181,7 @@ backfill_status_t DCPBackfill::complete(bool cancelled) {
     ActiveStream* as = static_cast<ActiveStream*>(stream.get());
     as->completeBackfill();
 
-    LOG(EXTENSION_LOG_WARNING, "Backfill task (%llu to %llu) %s for vb %d",
+    LOG(EXTENSION_LOG_NOTICE, "Backfill task (%llu to %llu) %s for vb %d",
         startSeqno, endSeqno, cancelled ? "cancelled" : "finished",
         stream->getVBucket());
 
@@ -215,4 +215,3 @@ void DCPBackfill::transitionState(backfill_state_t newState) {
     }
     state = newState;
 }
-

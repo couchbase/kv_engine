@@ -923,7 +923,7 @@ extern "C" {
         }
         switch (err) {
         case ENGINE_SUCCESS:
-            LOG(EXTENSION_LOG_WARNING,
+            LOG(EXTENSION_LOG_NOTICE,
                 "Deletion of vbucket %d was completed.", vbucket);
             break;
         case ENGINE_NOT_MY_VBUCKET:
@@ -938,7 +938,7 @@ extern "C" {
             res = PROTOCOL_BINARY_RESPONSE_EINVAL;
             break;
         case ENGINE_EWOULDBLOCK:
-            LOG(EXTENSION_LOG_WARNING, "Request for vbucket %d deletion is in"
+            LOG(EXTENSION_LOG_NOTICE, "Request for vbucket %d deletion is in"
                 " EWOULDBLOCK until the database file is removed from disk",
                 vbucket);
             e->storeEngineSpecific(cookie, req);
@@ -1043,7 +1043,7 @@ extern "C" {
 
         switch (err) {
             case ENGINE_SUCCESS:
-                LOG(EXTENSION_LOG_INFO,
+                LOG(EXTENSION_LOG_NOTICE,
                     "Compaction of vbucket %d completed.", vbucket);
                 break;
             case ENGINE_NOT_MY_VBUCKET:
@@ -2175,7 +2175,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::flush(const void *cookie,
 
     } else {
         storeEngineSpecific(cookie, NULL);
-        LOG(EXTENSION_LOG_WARNING, "Completed bucket flush operation");
+        LOG(EXTENSION_LOG_NOTICE, "Completed bucket flush operation");
         return ENGINE_SUCCESS;
     }
 }
@@ -2361,14 +2361,14 @@ inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
     if (ev.event != TAP_PAUSE) {
         switch (ev.event) {
         case TAP_VBUCKET_SET:
-            LOG(EXTENSION_LOG_WARNING,
+            LOG(EXTENSION_LOG_NOTICE,
                "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
                 connection->logHeader(), ev.vbucket,
                 VBucket::toString(ev.state));
             connection->encodeVBucketStateTransition(ev, es, nes, vbucket);
             break;
         case TAP_OPAQUE:
-            LOG(EXTENSION_LOG_WARNING,
+            LOG(EXTENSION_LOG_NOTICE,
                 "%s Sending TAP_OPAQUE with command \"%s\" and vbucket %d\n",
                 connection->logHeader(),
                 TapProducer::opaqueCmdToString(ntohl((uint32_t) ev.state)),
@@ -2434,7 +2434,7 @@ inline uint16_t EventuallyPersistentEngine::doWalkTapQueue(const void *cookie,
     if (ret == TAP_PAUSE && (connection->dumpQueue || connection->doTakeOver)){
         VBucketEvent vbev = connection->checkDumpOrTakeOverCompletion();
         if (vbev.event == TAP_VBUCKET_SET) {
-            LOG(EXTENSION_LOG_WARNING,
+            LOG(EXTENSION_LOG_NOTICE,
                "%s Sending TAP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
                 connection->logHeader(), vbev.vbucket,
                 VBucket::toString(vbev.state));
@@ -2667,7 +2667,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
         break;
     case TAP_FLUSH:
         ret = flush(cookie, 0);
-        LOG(EXTENSION_LOG_WARNING, "%s Received flush.\n",
+        LOG(EXTENSION_LOG_NOTICE, "%s Received flush.\n",
             connection->logHeader());
         break;
     case TAP_DELETION:
@@ -2793,7 +2793,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
                          "%s Failed to reset a vbucket %d. Force disconnect\n",
                             connection->logHeader(), vbucket);
                     } else {
-                        LOG(EXTENSION_LOG_WARNING,
+                        LOG(EXTENSION_LOG_NOTICE,
                          "%s Reset vbucket %d was completed succecssfully.\n",
                             connection->logHeader(), vbucket);
                     }

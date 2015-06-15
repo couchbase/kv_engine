@@ -48,7 +48,7 @@ void Flusher::wait(void) {
     }
     hrtime_t endt(gethrtime());
     if ((endt - startt) > 1000) {
-        LOG(EXTENSION_LOG_WARNING,  "Had to wait %s for shutdown\n",
+        LOG(EXTENSION_LOG_NOTICE,  "Had to wait %s for shutdown\n",
             hrtime2text(endt - startt).c_str());
     }
 }

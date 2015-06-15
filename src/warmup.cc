@@ -306,11 +306,11 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
         if (epstore->getWarmup()->setComplete()) {
             epstore->getWarmup()->setWarmupTime();
             epstore->warmupCompleted();
-            LOG(EXTENSION_LOG_WARNING, "Warmup completed in %s",
+            LOG(EXTENSION_LOG_NOTICE, "Warmup completed in %s",
                     hrtime2text(epstore->getWarmup()->getTime()).c_str());
 
         }
-        LOG(EXTENSION_LOG_WARNING,
+        LOG(EXTENSION_LOG_NOTICE,
             "Engine warmup is complete, request to stop "
             "loading remaining database");
         setStatus(ENGINE_ENOMEM);
@@ -624,7 +624,7 @@ void Warmup::scheduleCheckForAccessLog()
 void Warmup::checkForAccessLog()
 {
     metadata = gethrtime() - startTime;
-    LOG(EXTENSION_LOG_WARNING, "metadata loaded in %s",
+    LOG(EXTENSION_LOG_NOTICE, "metadata loaded in %s",
         hrtime2text(metadata).c_str());
 
     if (store->maybeEnableTraffic()) {
@@ -707,7 +707,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
 
     size_t numItems = store->getEPEngine().getEpStats().warmedUpValues;
     if (success && numItems) {
-        LOG(EXTENSION_LOG_WARNING,
+        LOG(EXTENSION_LOG_NOTICE,
             "%d items loaded from access log, completed in %s", numItems,
             hrtime2text((gethrtime() - stTime) / 1000).c_str());
     } else {
@@ -858,7 +858,7 @@ void Warmup::done()
     if (setComplete()) {
         setWarmupTime();
         store->warmupCompleted();
-        LOG(EXTENSION_LOG_WARNING, "warmup completed in %s",
+        LOG(EXTENSION_LOG_NOTICE, "warmup completed in %s",
                                    hrtime2text(warmup).c_str());
     }
 }
