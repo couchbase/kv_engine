@@ -5872,7 +5872,12 @@ public:
     bool run() {
         ENGINE_ERROR_CODE err;
         if (engine->getEpStore()->getVBuckets().isBucketCreation(vbid)) {
-            err = ENGINE_TMPFAIL;
+            // Returning an empty packet with a SUCCESS response as
+            // there aren't any keys during the vbucket file creation.
+            err = sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                               PROTOCOL_BINARY_RAW_BYTES,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                               cookie);
         } else {
             shared_ptr<Callback<uint16_t&, char*&> > cb(new AllKeysCallback());
             err = engine->getEpStore()->getROUnderlying(vbid)->getAllKeys(

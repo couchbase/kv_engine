@@ -3525,6 +3525,86 @@ static enum test_result test_dcp_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_dcp_consumer_flow_control_buf_sz(ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+    const void *cookie1 = testHarness.create_cookie();
+    uint32_t opaque = 0;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+    char stats_buffer[50];
+
+    snprintf(stats_buffer, sizeof(stats_buffer),
+             "eq_dcpq:%s:max_buffer_bytes", name);
+
+    /* Check the min limit */
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
+              "500000000");
+    check(get_int_stat(h, h1, "ep_max_size") == 500000000,
+          "Incorrect new size.");
+
+    check(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed dcp consumer open connection.");
+
+    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
+          == 10485760, "Flow Control Buffer Size not equal to min");
+    testHarness.destroy_cookie(cookie1);
+
+    /* Check the size as percentage of the bucket memory */
+    const void *cookie2 = testHarness.create_cookie();
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
+              "2000000000");
+    check(get_int_stat(h, h1, "ep_max_size") == 2000000000,
+          "Incorrect new size.");
+
+    check(h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed dcp consumer open connection.");
+
+    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
+          == 20000000, "Flow Control Buffer Size not equal to 1% of mem size");
+    testHarness.destroy_cookie(cookie2);
+
+    /* Check the case when mem used by flow control bufs hit the threshold */
+    /* Create around 10 more connections to use more than 10% of the total
+       memory */
+    for (int count = 0; count < 10; count++) {
+        const void *cookie = testHarness.create_cookie();
+        check(h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
+              == ENGINE_SUCCESS,
+              "Failed dcp consumer open connection.");
+        testHarness.destroy_cookie(cookie);
+    }
+    /* By now mem used by flow control bufs would have crossed the threshold */
+    const void *cookie3 = testHarness.create_cookie();
+    check(h1->dcp.open(h, cookie3, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed dcp consumer open connection.");
+
+    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp") == 10485760,
+          "Flow Control Buffer Size not equal to min after threshold is hit");
+    testHarness.destroy_cookie(cookie3);
+
+    /* Check the max limit */
+    const void *cookie4 = testHarness.create_cookie();
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
+              "7000000000");
+    check(get_ull_stat(h, h1, "ep_max_size") == 7000000000,
+          "Incorrect new size.");
+
+    check(h1->dcp.open(h, cookie4, opaque, seqno, flags, (void*)name, nname)
+          == ENGINE_SUCCESS,
+          "Failed dcp consumer open connection.");
+
+    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
+          == 52428800, "Flow Control Buffer Size beyond max");
+    testHarness.destroy_cookie(cookie4);
+
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = testHarness.create_cookie();
     uint32_t opaque = 0;
@@ -8253,8 +8333,10 @@ static enum test_result test_all_keys_api_during_bucket_creation(
                                                 add_response);
     start_persistence(h, h1);
 
-    check(err == ENGINE_TMPFAIL,
+    check(err == ENGINE_SUCCESS,
           "Unexpected return code from all_keys_api");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            "Unexpected response status");
 
     return SUCCESS;
 }
@@ -13645,6 +13727,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp notifier", test_dcp_notifier, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test open consumer", test_dcp_consumer_open,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test dcp consumer flow control buffer size",
+                 test_dcp_consumer_flow_control_buf_sz,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test open producer", test_dcp_producer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
