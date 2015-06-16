@@ -1,11 +1,15 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 
 /*
  * unit tests for config_parse.c
  */
 
-#include <daemon/config_parse.c>
+#include <daemon/config_parse.cc>
 #include <platform/platform.h>
+
+#include <vector>
+#include <string>
+#include <iostream>
 
 #if defined(WIN32)
 #include <io.h> /* for mktemp*/
@@ -27,25 +31,35 @@ struct test_ctx {
 /* Get the path to a temporary directory. Returns NULL if one could
  * not be found.
  */
-static const char* get_temp_dir(void) {
-    static const char* vars[] = { "TEMP", "TMP", "TMPDIR", "/tmp", "/var/tmp" };
-    int ii;
-    for (ii = 0; ii < sizeof(vars) / sizeof(vars[0]); ii++) {
-        if (vars[ii][0] == '/') {
-            if (access(vars[ii], F_OK) != -1) {
-                return vars[ii];
-            }
-        } else {
-            char* value = getenv(vars[ii]);
+static std::string get_temp_dir(void) {
+    static std::string location;
 
-            if (value != NULL) {
-                return value;
+    if (location.empty()) {
+        const std::vector<std::string> locations = { "TEMP", "TMP",
+                                                     "TMPDIR", "/tmp",
+                                                     "/var/tmp" };
+        for (auto& val : locations) {
+            if (val.at(0) == '/') {
+                if (access(val.c_str(), F_OK) != -1) {
+                    location.assign(val);
+                    break;
+                }
+            } else {
+                char* value = getenv(val.c_str());
+
+                if (value != NULL) {
+                    location.assign(value);
+                    break;
+                }
             }
+        }
+        if (location.empty()) {
+            std::cerr << "Failed to locate temporary directory" << std::endl;
+            exit(EXIT_FAILURE);
         }
     }
 
-    fprintf(stderr, "Failed to locate temporary directory\n");
-    return NULL;
+    return location;
 }
 
 /* Generates a temporary filename, and creates a file of that name.
@@ -53,28 +67,26 @@ static const char* get_temp_dir(void) {
  * after use.
  */
 static char* generate_temp_file(void) {
+    char templ[1024];
+    std::string tempdir = get_temp_dir();
+    if (tempdir.empty()) {
+        return NULL;
+    }
+    tempdir.append("/config_parse_test_XXXXXX");
 #ifdef WIN32
-    const char sep = '\\';
-#else
-    const char sep = '/';
+    // Make sure that the path is in windows format
+    std::replace(tempdir.begin(), tempdir.end(), '/', '\\');
 #endif
-    char template[1024];
-    const char *tempdir = get_temp_dir();
-    if (tempdir == NULL) {
-        return NULL;
-    }
-    if (snprintf(template, sizeof(template), "%s%cconfig_parse_test_XXXXXX",
-                 tempdir, sep) >= sizeof(template)) {
-        return NULL;
-    }
 
-    if (cb_mktemp(template) == NULL) {
+    strcpy(templ, tempdir.c_str());
+
+    if (cb_mktemp(templ) == NULL) {
         fprintf(stderr, "FATAL: failed to create temporary file: %s\n",
                 strerror(errno));
         return NULL;
     }
 
-    return strdup(template);
+    return strdup(templ);
 }
 
 /* helper to convert dynamic JSON config to char*, validate and then free it */
@@ -722,12 +734,13 @@ typedef void (*test_func)(struct test_ctx* ctx);
 
 int main(void)
 {
-    struct {
+    struct TestCase {
         const char* name;
         test_func setup;
         test_func run;
         test_func teardown;
-    } tests[] = {
+    };
+    std::vector<TestCase> tests = {
         { "admin_1", setup, test_admin_1, teardown },
         { "admin_2", setup, test_admin_2, teardown },
         { "admin_3", setup, test_admin_3, teardown },
@@ -780,20 +793,20 @@ int main(void)
         { "dynamic_privilege_debug", setup_dynamic, test_dynamic_privilege_debug, teardown_dynamic },
 
     };
-    int i;
 
     setbuf(stdout, NULL);
     /* run tests */
-    for (i = 0; i < sizeof(tests) / sizeof(tests[0]); i++)
+    int ii = 0;
+    for (auto& c : tests)
     {
         struct test_ctx ctx;
         printf("\r                                                         ");
-        printf("\rRunning test %02d - %s", i, tests[i].name);
-        tests[i].setup(&ctx);
-        tests[i].run(&ctx);
-        tests[i].teardown(&ctx);
+        printf("\rRunning test %02d - %s", ii++, c.name);
+        c.setup(&ctx);
+        c.run(&ctx);
+        c.teardown(&ctx);
     }
-    fprintf(stdout, "\n");
+    printf("\rAll tests passed                                         \n");
 
     return EXIT_SUCCESS;
 }

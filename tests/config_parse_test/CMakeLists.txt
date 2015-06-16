@@ -1,8 +1,8 @@
-ADD_EXECUTABLE(config_parse_test config_parse_test.c
+ADD_EXECUTABLE(config_parse_test config_parse_test.cc
   ${Memcached_SOURCE_DIR}/daemon/config_util.c
   ${Memcached_SOURCE_DIR}/daemon/config_util.h
   ${Memcached_SOURCE_DIR}/daemon/cmdline.h
-  ${Memcached_SOURCE_DIR}/daemon/cmdline.c
+  ${Memcached_SOURCE_DIR}/daemon/cmdline.cc
   ${Memcached_SOURCE_DIR}/utilities/util.c)
 TARGET_LINK_LIBRARIES(config_parse_test cJSON platform ${COUCHBASE_NETWORK_LIBS})
 ADD_TEST(NAME memcache-config-parse

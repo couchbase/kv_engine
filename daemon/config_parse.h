@@ -27,10 +27,6 @@
 #include "config.h"
 #include "memcached.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 void load_config_file(const char *filename, struct settings *settings);
 
 /* Given a new, proposed config, check if it can be applied to the running
@@ -48,9 +44,5 @@ void reload_config_file(void);
 
 /* Frees all dynamic memory associated with the given settings struct */
 void free_settings(struct settings* s);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* CONFIG_PARSE_H */

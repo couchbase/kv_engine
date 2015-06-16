@@ -19,11 +19,11 @@ ENDIF (BREAKPAD_FOUND AND UNIX)
 ADD_EXECUTABLE(memcached
                breakpad.cc
                ${MEMORY_TRACKING_SRCS}
-               cmdline.c
+               cmdline.cc
                cmdline.h
                config_util.c
                config_util.h
-               config_parse.c
+               config_parse.cc
                config_parse.h
                connections.cc
                connections.h
@@ -32,17 +32,18 @@ ADD_EXECUTABLE(memcached
                enginemap.h
                enginemap.cc
                hash.c
-               ioctl.c
-               mcaudit.c
+               ioctl.cc
+               mcaudit.cc
                mcaudit.h
                mcbp_validators.cc
                mcbp_validators.h
                memcached.cc
                privileges.c
+	       privileges.h
                subdocument.cc
-               thread.c
+               thread.cc
                timings.cc
-               mc_time.c
+               mc_time.cc
                rbac.cc
                rbac.h
                runtime.cc

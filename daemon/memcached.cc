@@ -131,7 +131,6 @@ static void shutdown_server(void);
 
 #define MAX_SASL_MECH_LEN 32
 
-extern "C" volatile sig_atomic_t memcached_shutdown;
 volatile sig_atomic_t memcached_shutdown;
 
 /* Lock for global stats */

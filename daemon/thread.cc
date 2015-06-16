@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  * Thread management for memcached.
  */
@@ -129,7 +129,7 @@ static CQ_ITEM *cqi_new(void) {
         int i;
 
         /* Allocate a bunch of items at once to reduce fragmentation */
-        item = malloc(sizeof(CQ_ITEM) * ITEMS_PER_ALLOC);
+        item = reinterpret_cast<CQ_ITEM*>(malloc(sizeof(CQ_ITEM) * ITEMS_PER_ALLOC));
         if (NULL == item)
             return NULL;
 
@@ -181,8 +181,15 @@ static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
 bool create_notification_pipe(LIBEVENT_THREAD *me)
 {
     int j;
+
+#ifdef WIN32
+#define DATATYPE intptr_t
+#else
+#define DATATYPE int
+#endif
+
     if (evutil_socketpair(SOCKETPAIR_AF, SOCK_STREAM, 0,
-                          (void*)me->notify) == SOCKET_ERROR) {
+                          reinterpret_cast< DATATYPE *>(me->notify)) == SOCKET_ERROR) {
         log_socket_error(EXTENSION_LOG_WARNING, NULL,
                          "Can't create notify pipe: %s");
         return false;
@@ -190,10 +197,15 @@ bool create_notification_pipe(LIBEVENT_THREAD *me)
 
     for (j = 0; j < 2; ++j) {
         int flags = 1;
+#if defined(WIN32)
+        char* flag_ptr = reinterpret_cast<char*>(&flags);
+#else
+        void* flag_ptr = reinterpret_cast<void*>(&flags);
+#endif
         setsockopt(me->notify[j], IPPROTO_TCP,
-                   TCP_NODELAY, (void *)&flags, sizeof(flags));
+                   TCP_NODELAY, flag_ptr, sizeof(flags));
         setsockopt(me->notify[j], SOL_SOCKET,
-                   SO_REUSEADDR, (void *)&flags, sizeof(flags));
+                   SO_REUSEADDR, flag_ptr, sizeof(flags));
 
 
         if (evutil_make_socket_nonblocking(me->notify[j]) == -1) {
@@ -251,7 +263,7 @@ static void setup_thread(LIBEVENT_THREAD *me) {
         exit(1);
     }
 
-    me->new_conn_queue = malloc(sizeof(struct conn_queue));
+    me->new_conn_queue = reinterpret_cast<struct conn_queue *>(malloc(sizeof(struct conn_queue)));
     if (me->new_conn_queue == NULL) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Failed to allocate memory for connection queue");
@@ -269,7 +281,7 @@ static void setup_thread(LIBEVENT_THREAD *me) {
  * Worker thread: main event loop
  */
 static void worker_libevent(void *arg) {
-    LIBEVENT_THREAD *me = arg;
+    LIBEVENT_THREAD *me = reinterpret_cast<LIBEVENT_THREAD *>(arg);
 
     /* Any per-thread setup can happen here; thread_init() will block until
      * all threads have finished initializing.
@@ -311,7 +323,7 @@ static void drain_notification_channel(evutil_socket_t fd)
  * input arrives on the libevent wakeup pipe.
  */
 static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) {
-    LIBEVENT_THREAD *me = arg;
+    LIBEVENT_THREAD *me = reinterpret_cast<LIBEVENT_THREAD*>(arg);
     CQ_ITEM *item;
     conn* pending;
 
@@ -618,14 +630,15 @@ void thread_init(int nthr, struct event_base *main_base,
     cb_mutex_initialize(&init_lock);
     cb_cond_initialize(&init_cond);
 
-    threads = calloc(nthreads, sizeof(LIBEVENT_THREAD));
+    threads = reinterpret_cast<LIBEVENT_THREAD*>(calloc(nthreads,
+                                                        sizeof(LIBEVENT_THREAD)));
     if (! threads) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Can't allocate thread descriptors: %s",
                                         strerror(errno));
         exit(1);
     }
-    thread_ids = calloc(nthreads, sizeof(cb_thread_t));
+    thread_ids = reinterpret_cast<cb_thread_t*>(calloc(nthreads, sizeof(cb_thread_t)));
     if (! thread_ids) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Can't allocate thread descriptors: %s",

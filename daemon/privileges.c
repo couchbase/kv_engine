@@ -1,7 +1,8 @@
 #include "config.h"
 #include <stdlib.h>
 #include <stdio.h>
-#include "memcached.h"
+
+#include "privileges.h"
 
 #ifdef __sun
 

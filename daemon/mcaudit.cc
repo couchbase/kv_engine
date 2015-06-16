@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015 Couchbase, Inc
  *
@@ -39,7 +39,7 @@ static const char *get_username(const conn *c)
                                         &username) != CBSASL_OK)) {
         username = unknown;
     }
-    return username;
+    return reinterpret_cast<const char*>(username);
 }
 
 /**
@@ -61,7 +61,7 @@ static const char *get_bucketname(const conn *c)
                                         &bucketname) != CBSASL_OK)) {
         bucketname = default_bucket;
     }
-    return bucketname;
+    return reinterpret_cast<const char*>(bucketname);
 }
 
 

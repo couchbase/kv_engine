@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include "memcached.h"
 
@@ -473,8 +473,8 @@ static bool get_extensions(cJSON *o, struct settings *settings,
     cJSON *e = o->child;
     int ii = 0;
 
-    settings->pending_extensions = calloc(settings->num_pending_extensions,
-                                          sizeof(struct extension_settings));
+    settings->pending_extensions = reinterpret_cast<struct extension_settings *>(calloc(settings->num_pending_extensions,
+        sizeof(struct extension_settings)));
 
     while (e != NULL) {
         if (!get_extension(e, &settings->pending_extensions[ii], error_msg)) {
@@ -712,7 +712,7 @@ static bool get_interfaces(cJSON *o, struct settings *settings,
     cJSON *c = o->child;
     int ii = 0;
 
-    settings->interfaces = calloc(total, sizeof(struct interface));
+    settings->interfaces = reinterpret_cast<struct interface*>(calloc(total, sizeof(struct interface)));
     settings->num_interfaces = total;
     while (c != NULL) {
         if (!handle_interface(ii, c, settings->interfaces, error_msg)) {
@@ -1223,9 +1223,13 @@ static void dyna_reconfig_iface_nodelay(const struct interface *new_if,
         for (c = listen_conn; c != NULL; c = c->next) {
             if (c->parent_port == cur_if->port) {
                 int nodelay_flag = cur_if->tcp_nodelay;
+#if defined(WIN32)
+                char* ptr = reinterpret_cast<char*>(&nodelay_flag);
+#else
+                void* ptr = reinterpret_cast<void*>(&nodelay_flag);
+#endif
                 int error = setsockopt(c->sfd, IPPROTO_TCP, TCP_NODELAY,
-                                       (void*) &nodelay_flag,
-                                       sizeof(nodelay_flag));
+                                       ptr, sizeof(nodelay_flag));
                 if (error != 0) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                          "Failed to set TCP_NODELAY for FD %d, interface %s:%hu to %d: %s",

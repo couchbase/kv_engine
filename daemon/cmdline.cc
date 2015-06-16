@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include "memcached.h"
 #include "cmdline.h"
@@ -30,7 +30,7 @@ struct Option *options = NULL;
 struct Option *tail = NULL;
 
 static void add_option(int cmd, char *optarg) {
-    struct Option *o = malloc(sizeof(*o));
+    struct Option *o = reinterpret_cast<struct Option*>(malloc(sizeof(*o)));
     if (o == NULL) {
         fprintf(stderr, "Failed to allocate memory\n");
         exit(EXIT_FAILURE);

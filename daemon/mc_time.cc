@@ -1,22 +1,27 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  * Time keeping for memcached.
  *
- * Orginally part of memcached.c this module encapsulates some time keeping functions that are
- * exposed via the engine API.
+ * Orginally part of memcached.c this module encapsulates some time
+ * keeping functions that are exposed via the engine API.
  *
- * This module implements a prviate and non-data path "tick" function which maintains a view of time.
+ * This module implements a prviate and non-data path "tick" function
+ * which maintains a view of time.
+ *
  *  - see mc_time_clock_tick
  *
- * This module provides public time methods that allow performant data-path code access to:
- *  1. A monotonic interval time (great for relative expiry and timed locks). - mc_time_get_current_time()
+ * This module provides public time methods that allow performant
+ * data-path code access to:
+ *
+ *  1. A monotonic interval time (great for relative expiry and timed
+ *     locks). - mc_time_get_current_time()
  *  2. approximation of system-clock. - mc_time_convert_to_abs_time()
- *    2.1 The following returns system clock time - mc_time_convert_to_abs_time(mc_time_get_current_time())
- *  3. A method for work with expiry timestamps as per the memcached protocol - mc_time_convert_to_real_time()
+ *    2.1 The following returns system clock time -
+ *        mc_time_convert_to_abs_time(mc_time_get_current_time())
+ *  3. A method for work with expiry timestamps as per the memcached
+ *     protocol - mc_time_convert_to_real_time()
  *
  */
-
-
 #include <signal.h>
 
 #include "config.h"
@@ -154,7 +159,8 @@ static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *a
 }
 
 /*
- * Update a number of time keeping variables and account for system clock changes.
+ * Update a number of time keeping variables and account for system
+ * clock changes.
  */
 static void mc_time_clock_tick(void) {
     static uint64_t check_system_time = 0;
@@ -165,7 +171,8 @@ static void mc_time_clock_tick(void) {
     memcached_uptime = (rel_time_t)(cb_get_monotonic_seconds() - memcached_monotonic_start);
 
     /*
-      every 'memcached_check_system_time' seconds, keep an eye on the system clock.
+      every 'memcached_check_system_time' seconds, keep an eye on the
+      system clock.
     */
     if (memcached_uptime >= check_system_time) {
         struct timeval timeofday;
@@ -185,11 +192,13 @@ static void mc_time_clock_tick(void) {
                     memcached_uptime, (timeofday.tv_sec - memcached_uptime),
                     check_system_time + memcached_check_system_time);
             }
-            /* adjust memcached_epoch to ensure correct timeofday can be calculated by clients*/
+            /* adjust memcached_epoch to ensure correct timeofday can
+               be calculated by clients*/
             memcached_epoch = timeofday.tv_sec - memcached_uptime;
         }
 
-        /* move our checksystem time marker to trigger the next check at the correct interval*/
+        /* move our checksystem time marker to trigger the next check
+           at the correct interval*/
         check_system_time += memcached_check_system_time;
 
         previous_time_valid = true;
