@@ -32,7 +32,7 @@ extern "C" {
      * @param handle where to store the newly created engine
      * @return ENGINE_SUCCESS on success
      */
-    bool new_engine_instance(bucket_type_t type,
+    bool new_engine_instance(BucketType type,
                              GET_SERVER_API get_server_api,
                              ENGINE_HANDLE **handle);
 
@@ -43,7 +43,7 @@ extern "C" {
      * @param return the constant representing the bucket or UNKNOWN for
      *               unknown shared objects
      */
-    bucket_type_t module_to_bucket_type(const char *module);
+    BucketType module_to_bucket_type(const char *module);
 
     /**
      * Initialize the engine map with the different types of supported

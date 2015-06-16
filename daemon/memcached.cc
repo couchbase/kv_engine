@@ -281,7 +281,7 @@ static void disassociate_bucket(conn *c) {
     c->bucket.idx = 0;
     c->bucket.engine = NULL;
 
-    if (b->clients == 0 && b->state == BUCKET_STATE_DESTROYING) {
+    if (b->clients == 0 && b->state == BucketState::Destroying) {
         cb_cond_signal(&b->cond);
     }
 
@@ -299,7 +299,7 @@ static bool associate_bucket(conn *c, const char *name) {
     for (int ii = 1; ii < settings.max_buckets && !found; ++ii) {
         bucket_t *b = &all_buckets[ii];
         cb_mutex_enter(&b->mutex);
-        if (b->state == BUCKET_STATE_READY && strcmp(b->name, name) == 0) {
+        if (b->state == BucketState::Ready && strcmp(b->name, name) == 0) {
             b->clients++;
             c->bucket.idx = ii;
             c->bucket.engine = b->engine;
@@ -4814,7 +4814,7 @@ static void list_bucket_executor(conn *c, void *packet)
         std::string blob;
         for (int ii = 0; ii < settings.max_buckets; ++ii) {
             cb_mutex_enter(&all_buckets[ii].mutex);
-            if (all_buckets[ii].state == BUCKET_STATE_READY) {
+            if (all_buckets[ii].state == BucketState::Ready) {
                 blob += all_buckets[ii].name + std::string(" ");
             }
             cb_mutex_exit(&all_buckets[ii].mutex);
@@ -5545,26 +5545,26 @@ static cJSON *get_bucket_details(int idx)
     memcpy(&copy, bucket, sizeof(copy));
     cb_mutex_exit(&bucket->mutex);
 
-    if (copy.state == BUCKET_STATE_NONE) {
+    if (copy.state == BucketState::None) {
         return NULL;
     }
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "index", idx);
     switch (copy.state) {
-    case BUCKET_STATE_CREATING:
+    case BucketState::Creating:
         cJSON_AddStringToObject(root, "state", "creating");
         break;
-    case BUCKET_STATE_INITIALIZING:
+    case BucketState::Initializing:
         cJSON_AddStringToObject(root, "state", "initializing");
         break;
-    case BUCKET_STATE_READY:
+    case BucketState::Ready:
         cJSON_AddStringToObject(root, "state", "ready");
         break;
-    case BUCKET_STATE_STOPPING:
+    case BucketState::Stopping:
         cJSON_AddStringToObject(root, "state", "stopping");
         break;
-    case BUCKET_STATE_DESTROYING:
+    case BucketState::Destroying:
         cJSON_AddStringToObject(root, "state", "destroying");
         break;
     default:
@@ -5575,16 +5575,16 @@ static cJSON *get_bucket_details(int idx)
     cJSON_AddStringToObject(root, "name", copy.name);
 
     switch (copy.type) {
-    case BUCKET_TYPE_NO_BUCKET:
+    case BucketType::NoBucket:
         cJSON_AddStringToObject(root, "type", "no bucket");
         break;
-    case BUCKET_TYPE_MEMCACHED:
+    case BucketType::Memcached:
         cJSON_AddStringToObject(root, "type", "memcached");
         break;
-    case BUCKET_TYPE_COUCHSTORE:
+    case BucketType::Couchstore:
         cJSON_AddStringToObject(root, "type", "couchstore");
         break;
-    case BUCKET_TYPE_EWOULDBLOCK:
+    case BucketType::EWouldBlock:
         cJSON_AddStringToObject(root, "type", "ewouldblock");
         break;
     default:
@@ -6422,7 +6422,7 @@ static bool is_bucket_dying(conn *c)
     bucket_t *b = &all_buckets[c->bucket.idx];
     cb_mutex_enter(&b->mutex);
 
-    if (b->state != BUCKET_STATE_READY) {
+    if (b->state != BucketState::Ready) {
         disconnect = true;
     }
     cb_mutex_exit(&b->mutex);
@@ -7710,7 +7710,7 @@ static void process_bin_dcp_response(conn *c) {
  */
 static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
                                           char *config,
-                                          bucket_type_t engine) {
+                                          BucketType engine) {
     int ii;
     int first_free = -1;
     bool found = false;
@@ -7725,7 +7725,7 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
 
     for (ii = 0; ii < settings.max_buckets && !found; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
-        if (first_free == -1 && all_buckets[ii].state == BUCKET_STATE_NONE) {
+        if (first_free == -1 && all_buckets[ii].state == BucketState::None) {
             first_free = ii;
         }
         if (bucket_name == all_buckets[ii].name) {
@@ -7746,7 +7746,7 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
          * we can release the global lock..
          */
         cb_mutex_enter(&all_buckets[ii].mutex);
-        all_buckets[ii].state = BUCKET_STATE_CREATING;
+        all_buckets[ii].state = BucketState::Creating;
         all_buckets[ii].type = engine;
         strcpy(all_buckets[ii].name, bucket_name.c_str());
         cb_mutex_exit(&all_buckets[ii].mutex);
@@ -7759,24 +7759,24 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
          */
         if (new_engine_instance(engine, get_server_api, (ENGINE_HANDLE**)&all_buckets[ii].engine)) {
             cb_mutex_enter(&all_buckets[ii].mutex);
-            all_buckets[ii].state = BUCKET_STATE_INITIALIZING;
+            all_buckets[ii].state = BucketState::Initializing;
             cb_mutex_exit(&all_buckets[ii].mutex);
 
             ret = all_buckets[ii].engine->initialize
                     (v1_handle_2_handle(all_buckets[ii].engine), config);
             if (ret == ENGINE_SUCCESS) {
                 cb_mutex_enter(&all_buckets[ii].mutex);
-                all_buckets[ii].state = BUCKET_STATE_READY;
+                all_buckets[ii].state = BucketState::Ready;
                 cb_mutex_exit(&all_buckets[ii].mutex);
             } else {
                 cb_mutex_enter(&all_buckets[ii].mutex);
-                all_buckets[ii].state = BUCKET_STATE_DESTROYING;
+                all_buckets[ii].state = BucketState::Destroying;
                 cb_mutex_exit(&all_buckets[ii].mutex);
                 all_buckets[ii].engine->destroy
                     (v1_handle_2_handle(all_buckets[ii].engine), false);
 
                 cb_mutex_enter(&all_buckets[ii].mutex);
-                all_buckets[ii].state = BUCKET_STATE_NONE;
+                all_buckets[ii].state = BucketState::None;
                 all_buckets[ii].name[0] = '\0';
                 cb_mutex_exit(&all_buckets[ii].mutex);
 
@@ -7784,7 +7784,7 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
             }
         } else {
             cb_mutex_enter(&all_buckets[ii].mutex);
-            all_buckets[ii].state = BUCKET_STATE_NONE;
+            all_buckets[ii].state = BucketState::None;
             all_buckets[ii].name[0] = '\0';
             cb_mutex_exit(&all_buckets[ii].mutex);
             /* @todo should I change the error code? */
@@ -7818,8 +7818,8 @@ void create_bucket_main(void *arg)
             config = &value[marker + 1];
         }
 
-        bucket_type_t engine = module_to_bucket_type(value.c_str());
-        if (engine == BUCKET_TYPE_UNKNOWN) {
+        BucketType engine = module_to_bucket_type(value.c_str());
+        if (engine == BucketType::Unknown) {
             /* We should have other error codes as well :-) */
             ret = ENGINE_NOT_STORED;
         } else {
@@ -7837,7 +7837,7 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
     for (int ii = 0; ii < settings.max_buckets; ++ii) {
         bool destroy = false;
         cb_mutex_enter(&all_buckets[ii].mutex);
-        if (all_buckets[ii].state == BUCKET_STATE_DESTROYING) {
+        if (all_buckets[ii].state == BucketState::Destroying) {
             destroy = true;
         }
         cb_mutex_exit(&all_buckets[ii].mutex);
@@ -7866,9 +7866,9 @@ static ENGINE_ERROR_CODE do_delete_bucket(conn *c,
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (bucket_name == all_buckets[ii].name) {
             idx = ii;
-            if (all_buckets[ii].state == BUCKET_STATE_READY) {
+            if (all_buckets[ii].state == BucketState::Ready) {
                 ret = ENGINE_SUCCESS;
-                all_buckets[ii].state = BUCKET_STATE_DESTROYING;
+                all_buckets[ii].state = BucketState::Destroying;
             } else {
                 ret = ENGINE_KEY_EEXISTS;
             }
@@ -7930,7 +7930,7 @@ static ENGINE_ERROR_CODE do_delete_bucket(conn *c,
            sizeof(all_buckets[idx].engine_event_handlers));
 
     cb_mutex_enter(&all_buckets[idx].mutex);
-    all_buckets[idx].state = BUCKET_STATE_NONE;
+    all_buckets[idx].state = BucketState::None;
     all_buckets[idx].engine = NULL;
     all_buckets[idx].name[0] = '\0';
     cb_mutex_exit(&all_buckets[idx].mutex);
@@ -7984,7 +7984,7 @@ static void initialize_buckets(void) {
     for (int ii = 0; ii < settings.max_buckets; ++ii) {
         cb_mutex_initialize(&all_buckets[ii].mutex);
         cb_cond_initialize(&all_buckets[ii].cond);
-        all_buckets[ii].state = BUCKET_STATE_NONE;
+        all_buckets[ii].state = BucketState::None;
 
         // setup the stats
         int numthread = settings.num_threads + 1;
@@ -7998,10 +7998,10 @@ static void initialize_buckets(void) {
 
     // To make the life easier for us in the code, index 0
     // in the array is "no bucket"
-    all_buckets[0].type = BUCKET_TYPE_NO_BUCKET;
-    all_buckets[0].state = BUCKET_STATE_READY;
+    all_buckets[0].type = BucketType::NoBucket;
+    all_buckets[0].state = BucketState::Ready;
     ENGINE_HANDLE *handle;
-    cb_assert(new_engine_instance(BUCKET_TYPE_NO_BUCKET,
+    cb_assert(new_engine_instance(BucketType::NoBucket,
                                   get_server_api,
                                   &handle));
 
@@ -8017,10 +8017,10 @@ static void cleanup_buckets(void) {
             waiting = false;
             cb_mutex_enter(&all_buckets[ii].mutex);
             switch (all_buckets[ii].state) {
-            case BUCKET_STATE_STOPPING:
-            case BUCKET_STATE_DESTROYING:
-            case BUCKET_STATE_CREATING:
-            case BUCKET_STATE_INITIALIZING:
+            case BucketState::Stopping:
+            case BucketState::Destroying:
+            case BucketState::Creating:
+            case BucketState::Initializing:
                 waiting = true;
                 break;
             default:
@@ -8033,7 +8033,7 @@ static void cleanup_buckets(void) {
             }
         } while (waiting);
 
-        if (all_buckets[ii].state == BUCKET_STATE_READY) {
+        if (all_buckets[ii].state == BucketState::Ready) {
             all_buckets[ii].engine->destroy
                 (v1_handle_2_handle(all_buckets[ii].engine), false);
         }

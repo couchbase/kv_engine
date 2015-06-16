@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015 Couchbase, Inc
  *
@@ -18,94 +18,86 @@
 
 #include <memcached/engine.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+enum class BucketState : uint8_t {
+    /** This bucket entry is not used */
+    None,
+    /** The bucket is currently being created (may not be used yet) */
+    Creating,
+    /** The bucket is currently initializing itself */
+    Initializing,
+    /** The bucket is ready for use */
+    Ready,
+    /**
+     * The bucket is currently being stopped. Awaiting clients to
+     * be disconnected.
+     */
+    Stopping,
+    /** The bucket is currently being destroyed. */
+    Destroying
+};
 
-    typedef enum {
-        /** This bucket entry is not used */
-        BUCKET_STATE_NONE,
-        /** The bucket is currently being created (may not be used yet) */
-        BUCKET_STATE_CREATING,
-        /** The bucket is currently initializing itself */
-        BUCKET_STATE_INITIALIZING,
-        /** The bucket is ready for use */
-        BUCKET_STATE_READY,
-        /**
-         * The bucket is currently being stopped. Awaiting clients to
-         * be disconnected.
-         */
-        BUCKET_STATE_STOPPING,
-        /** The bucket is currently being destroyed. */
-        BUCKET_STATE_DESTROYING
-    } bucket_state_t;
-
-    typedef enum {
-        BUCKET_TYPE_UNKNOWN,
-        BUCKET_TYPE_NO_BUCKET,
-        BUCKET_TYPE_MEMCACHED,
-        BUCKET_TYPE_COUCHSTORE,
-        BUCKET_TYPE_EWOULDBLOCK
-    } bucket_type_t;
+enum class BucketType : uint8_t {
+    Unknown,
+    NoBucket,
+    Memcached,
+    Couchstore,
+    EWouldBlock
+};
 
 #define MAX_BUCKET_NAME_LENGTH 100
 
-    struct engine_event_handler;
+struct engine_event_handler;
 
-    typedef struct {
-        /**
-         * Mutex protecting the state and refcount.
-         */
-        cb_mutex_t mutex;
-        cb_cond_t cond;
+typedef struct {
+    /**
+     * Mutex protecting the state and refcount.
+     */
+    cb_mutex_t mutex;
+    cb_cond_t cond;
 
-        /**
-         * The current state of the bucket.
-         */
-        bucket_state_t state;
+    /**
+     * The number of clients currently connected to the bucket (performed
+     * a SASL_AUTH to the bucket.
+     */
+    uint32_t clients;
 
-        /**
-         * The number of clients currently connected to the bucket (performed
-         * a SASL_AUTH to the bucket.
-         */
-        uint32_t clients;
+    /**
+     * The current state of the bucket.
+     */
+    BucketState state;
 
-        /**
-         * The name of the bucket (and space for the '\0')
-         */
-        char name[MAX_BUCKET_NAME_LENGTH + 1];
+    /**
+     * The type of bucket
+     */
+    BucketType type;
 
-        /**
-         * The type of bucket
-         */
-        bucket_type_t type;
+    /**
+     * The name of the bucket (and space for the '\0')
+     */
+    char name[MAX_BUCKET_NAME_LENGTH + 1];
 
-        /**
-         * The array of registered event handlers
-         */
-        struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
+    /**
+     * The array of registered event handlers
+     */
+    struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
 
-        /**
-         * @todo add properties!
-         */
+    /**
+     * @todo add properties!
+     */
 
-        /**
-         * Pointer to the actual engine serving the request
-         */
-        ENGINE_HANDLE_V1 *engine; /* Pointer to the bucket */
+    /**
+     * Pointer to the actual engine serving the request
+     */
+    ENGINE_HANDLE_V1 *engine; /* Pointer to the bucket */
 
-        /**
-         * Statistics array
-         */
-        struct thread_stats *stats;
+    /**
+     * Statistics array
+     */
+    struct thread_stats *stats;
 
-        /**
-         * Topkeys
-         */
-        void *topkeys;
+    /**
+     * Topkeys
+     */
+    void *topkeys;
 
-    } bucket_t;
-
-#ifdef __cplusplus
-}
-#endif
+} bucket_t;

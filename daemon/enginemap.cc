@@ -71,9 +71,9 @@ Engine *createEngine(const std::string &so,
     return new Engine(so, engine_ref, logger);
 }
 
-std::map<bucket_type_t, Engine *> map;
+std::map<BucketType, Engine *> map;
 
-bool new_engine_instance(bucket_type_t type,
+bool new_engine_instance(BucketType type,
                          GET_SERVER_API get_server_api,
                          ENGINE_HANDLE **handle)
 {
@@ -86,10 +86,10 @@ bool new_engine_instance(bucket_type_t type,
 bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
 {
     try {
-        map[BUCKET_TYPE_NO_BUCKET] = createEngine("nobucket.so",
-                                                  "create_no_bucket_instance",
-                                                  logger);
-        map[BUCKET_TYPE_MEMCACHED] = createEngine("default_engine.so",
+        map[BucketType::NoBucket] = createEngine("nobucket.so",
+                                                 "create_no_bucket_instance",
+                                                 logger);
+        map[BucketType::Memcached] = createEngine("default_engine.so",
                                                   "create_instance",
                                                   logger);
         if (getenv("MEMCACHED_UNIT_TESTS") != NULL) {
@@ -107,11 +107,11 @@ bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
                 }
                 reinterpret_cast<ENGINE_HANDLE_V1*>(h)->initialize(h, nullptr);
             }
-            map[BUCKET_TYPE_EWOULDBLOCK] = createEngine("ewouldblock_engine.so",
-                                                       "create_instance",
-                                                       logger);
+            map[BucketType::EWouldBlock] = createEngine("ewouldblock_engine.so",
+                                                        "create_instance",
+                                                        logger);
         } else {
-            map[BUCKET_TYPE_COUCHSTORE] = createEngine("ep.so",
+            map[BucketType::Couchstore] = createEngine("ep.so",
                                                        "create_instance",
                                                        logger);
         }
@@ -123,7 +123,7 @@ bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
     return true;
 }
 
-bucket_type_t module_to_bucket_type(const char *module)
+BucketType module_to_bucket_type(const char *module)
 {
     std::string nm = CouchbaseDirectoryUtilities::basename(module);
     for (auto entry : map) {
@@ -131,7 +131,7 @@ bucket_type_t module_to_bucket_type(const char *module)
             return entry.first;
         }
     }
-    return BUCKET_TYPE_UNKNOWN;
+    return BucketType::Unknown;
 }
 
 void shutdown_engine_map(void)
