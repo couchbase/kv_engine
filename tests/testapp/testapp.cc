@@ -127,7 +127,7 @@ void McdTestappTest::CreateTestBucket()
 
     size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
                               PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                              "mybucket", strlen("mybucket"),
+                              "default", strlen("default"),
                               cfg, sizeof(cfg));
 
 
@@ -176,7 +176,7 @@ void McdTestappTest::TearDownTestCase() {
 
         size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                                  "mybucket", strlen("mybucket"),
+                                  "default", strlen("default"),
                                   NULL, 0);
 
         safe_send(buffer.bytes, plen, false);
@@ -202,9 +202,6 @@ void McdTestappTest::SetUp() {
         sock_ssl = connect_to_server_ssl(ssl_port, false);
         ASSERT_NE(INVALID_SOCKET, sock_ssl);
     }
-
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("mybucket",
-                                                          "mybucketpassword"));
 
     // Set ewouldblock_engine test harness to default mode.
     ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_FIRST,
@@ -697,9 +694,6 @@ static void reconnect_to_server(bool nonblocking) {
         sock = connect_to_server_plain(port, nonblocking);
         ASSERT_NE(INVALID_SOCKET, sock);
     }
-
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, McdTestappTest::sasl_auth("mybucket",
-                                                                          "mybucketpassword"));
 }
 
 static char *isasl_file;
@@ -722,7 +716,6 @@ void McdTestappTest::start_memcached_server(cJSON* config) {
     FILE *fp = fopen(isasl_file, "w");
     ASSERT_NE(nullptr, fp);
     fprintf(fp, "_admin password \n");
-    fprintf(fp, "mybucket mybucketpassword \n");
     fclose(fp);
 
     snprintf(isasl_pwfile_env, sizeof(isasl_pwfile_env), "ISASL_PWFILE=%s",

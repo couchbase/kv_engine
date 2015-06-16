@@ -266,16 +266,6 @@ enum transmit_result {
 
 static enum transmit_result transmit(conn *c);
 
-void associate_initial_bucket(conn *c) {
-    bucket_t *b = &all_buckets[0];
-    cb_mutex_enter(&b->mutex);
-    b->clients++;
-    cb_mutex_exit(&b->mutex);
-
-    c->bucket.idx = 0;
-    c->bucket.engine = b->engine;
-}
-
 static void disassociate_bucket(conn *c) {
     bucket_t *b = &all_buckets[c->bucket.idx];
     cb_mutex_enter(&b->mutex);
@@ -322,6 +312,18 @@ static bool associate_bucket(conn *c, const char *name) {
     }
 
     return found;
+}
+
+void associate_initial_bucket(conn *c) {
+    bucket_t *b = &all_buckets[0];
+    cb_mutex_enter(&b->mutex);
+    b->clients++;
+    cb_mutex_exit(&b->mutex);
+
+    c->bucket.idx = 0;
+    c->bucket.engine = b->engine;
+
+    associate_bucket(c, "default");
 }
 
 /* Perform all callbacks of a given type for the given connection. */
