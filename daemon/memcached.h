@@ -373,6 +373,7 @@ struct conn {
     /* Clean up this at one point.. */
     struct {
         struct {
+            // TODO: Replace buffer/buffsz with std::vector.
             char *buffer;
             int buffsz;
             int total;

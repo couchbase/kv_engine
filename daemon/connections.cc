@@ -317,8 +317,10 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                     c->ssl.error = false;
                     c->ssl.client = NULL;
 
-                    c->ssl.in.buffer = malloc(settings.bio_drain_buffer_sz);
-                    c->ssl.out.buffer = malloc(settings.bio_drain_buffer_sz);
+                    c->ssl.in.buffer = reinterpret_cast<char*>
+                        (malloc(settings.bio_drain_buffer_sz));
+                    c->ssl.out.buffer = reinterpret_cast<char*>
+                        (malloc(settings.bio_drain_buffer_sz));
 
                     if (c->ssl.in.buffer == NULL || c->ssl.out.buffer == NULL) {
                         release_connection(c);
@@ -422,14 +424,15 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
 }
 
 void conn_cleanup_engine_allocations(conn* c) {
+    ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine);
     if (c->item) {
-        c->bucket.engine->release((void*)c->bucket.engine, c, c->item);
+        c->bucket.engine->release(handle, c, c->item);
         c->item = NULL;
     }
 
     if (c->ileft != 0) {
         for (; c->ileft > 0; c->ileft--,c->icurr++) {
-            c->bucket.engine->release((void*)c->bucket.engine, c, *(c->icurr));
+            c->bucket.engine->release(handle, c, *(c->icurr));
         }
     }
 }
@@ -508,14 +511,12 @@ void conn_shrink(conn *c) {
     cb_assert(c != NULL);
 
     if (c->read.size > READ_BUFFER_HIGHWAT && c->read.bytes < DATA_BUFFER_SIZE) {
-        void *newbuf;
-
         if (c->read.curr != c->read.buf) {
             /* Pack the buffer */
             memmove(c->read.buf, c->read.curr, (size_t)c->read.bytes);
         }
 
-        newbuf = realloc(c->read.buf, DATA_BUFFER_SIZE);
+        char* newbuf = reinterpret_cast<char*>(realloc(c->read.buf, DATA_BUFFER_SIZE));
 
         if (newbuf) {
             c->read.buf = newbuf;
@@ -529,8 +530,8 @@ void conn_shrink(conn *c) {
     }
 
     if (c->msgsize > MSG_LIST_HIGHWAT) {
-        void *newbuf = realloc(c->msglist,
-                               MSG_LIST_INITIAL * sizeof(c->msglist[0]));
+        auto *newbuf = reinterpret_cast<struct msghdr*>(realloc(c->msglist,
+                                                                MSG_LIST_INITIAL * sizeof(c->msglist[0])));
         if (newbuf) {
             c->msglist = newbuf;
             c->msgsize = MSG_LIST_INITIAL;
@@ -543,7 +544,8 @@ void conn_shrink(conn *c) {
     }
 
     if (c->iovsize > IOV_LIST_HIGHWAT) {
-        void *newbuf = realloc(c->iov, IOV_LIST_INITIAL * sizeof(c->iov[0]));
+        auto *newbuf = reinterpret_cast<struct iovec*>
+            (realloc(c->iov, IOV_LIST_INITIAL * sizeof(c->iov[0])));
         if (newbuf) {
             c->iov = newbuf;
             c->iovsize = IOV_LIST_INITIAL;
@@ -574,7 +576,7 @@ bool grow_dynamic_buffer(conn *c, size_t needed) {
     }
 
     if (nsize != c->dynamic_buffer.size) {
-        char *ptr = realloc(c->dynamic_buffer.buffer, nsize);
+        char *ptr = reinterpret_cast<char*>(realloc(c->dynamic_buffer.buffer, nsize));
         if (ptr) {
             c->dynamic_buffer.buffer = ptr;
             c->dynamic_buffer.size = nsize;
@@ -625,8 +627,13 @@ bool connection_set_nodelay(conn *c, bool enable)
         flags = 1;
     }
 
-    int error = setsockopt(c->sfd, IPPROTO_TCP, TCP_NODELAY,
-                           (void *)&flags, sizeof(flags));
+#if defined(WIN32)
+    char* flags_ptr = reinterpret_cast<char*>(&flags);
+#else
+    void* flags_ptr = reinterpret_cast<void*>(&flags);
+#endif
+    int error = setsockopt(c->sfd, IPPROTO_TCP, TCP_NODELAY, flags_ptr,
+                           sizeof(flags));
 
     if (error != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -724,7 +731,8 @@ static bool conn_reset_buffersize(conn *c) {
     c->isize = 0;
 
     if (c->temp_alloc_size != TEMP_ALLOC_LIST_INITIAL) {
-        void *ptr = malloc(sizeof(char *) * TEMP_ALLOC_LIST_INITIAL);
+        char **ptr = reinterpret_cast<char**>
+            (malloc(sizeof(char *) * TEMP_ALLOC_LIST_INITIAL));
         if (ptr != NULL) {
             free(c->temp_alloc_list);
             c->temp_alloc_list = ptr;
@@ -735,7 +743,8 @@ static bool conn_reset_buffersize(conn *c) {
     }
 
     if (c->iovsize != IOV_LIST_INITIAL) {
-        void *ptr = malloc(sizeof(struct iovec) * IOV_LIST_INITIAL);
+        auto *ptr = reinterpret_cast<struct iovec*>
+            (malloc(sizeof(struct iovec) * IOV_LIST_INITIAL));
         if (ptr != NULL) {
             free(c->iov);
             c->iov = ptr;
@@ -746,7 +755,8 @@ static bool conn_reset_buffersize(conn *c) {
     }
 
     if (c->msgsize != MSG_LIST_INITIAL) {
-        void *ptr = malloc(sizeof(struct msghdr) * MSG_LIST_INITIAL);
+        auto* ptr = reinterpret_cast<struct msghdr*>
+            (malloc(sizeof(struct msghdr) * MSG_LIST_INITIAL));
         if (ptr != NULL) {
             free(c->msglist);
             c->msglist = ptr;
@@ -818,7 +828,7 @@ static void conn_destructor(conn *c) {
  *  else NULL.
  */
 static conn *allocate_connection(void) {
-    conn *ret = malloc(sizeof(conn));
+    auto *ret = reinterpret_cast<conn*>(malloc(sizeof(conn)));
     if (ret == NULL) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Failed to allocate memory for connection");
@@ -879,7 +889,7 @@ static enum loan_res conn_loan_single_buffer(conn *c, struct net_buf *thread_buf
         return loan_loaned;
     } else {
         /* Need to allocate a new buffer. */
-        conn_buf->buf = malloc(DATA_BUFFER_SIZE);
+        conn_buf->buf = reinterpret_cast<char*>(malloc(DATA_BUFFER_SIZE));
         if (conn_buf->buf == NULL) {
             /* Unable to alloc a buffer for the thread. Not much we can do here
              * other than terminate the current connection.
@@ -939,7 +949,8 @@ static const char *substate_text(enum bin_substates state) {
 static void json_add_uintptr_to_object(cJSON *obj, const char *name,
                                        uintptr_t value) {
     char buffer[32];
-    if (snprintf(buffer, sizeof(buffer), "0x%"PRIxPTR, value) >= sizeof(buffer)) {
+    if (snprintf(buffer, sizeof(buffer),
+                 "0x%" PRIxPTR, value) >= int(sizeof(buffer))) {
         cJSON_AddStringToObject(obj, name, "<too long>");
     } else {
         cJSON_AddStringToObject(obj, name, buffer);
