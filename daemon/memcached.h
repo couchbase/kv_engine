@@ -414,7 +414,6 @@ extern conn *listen_conn;
  */
 #include "stats.h"
 #include "trace.h"
-#include "hash.h"
 #include <memcached/util.h>
 
 /*

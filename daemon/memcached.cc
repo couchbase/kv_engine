@@ -35,6 +35,7 @@
 #include "subdocument.h"
 #include "enginemap.h"
 #include "buckets.h"
+#include "hash.h"
 
 #include <signal.h>
 #include <fcntl.h>

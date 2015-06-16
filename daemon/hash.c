@@ -10,7 +10,7 @@
  *
  */
 #include "config.h"
-#include "memcached.h"
+#include "hash.h"
 
 /*
  * Since the hash function does bit manipulation, it needs to know
