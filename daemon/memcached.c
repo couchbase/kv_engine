@@ -48,6 +48,10 @@
 // MB-14649: log crashing on windows..
 #include <math.h>
 
+#if HAVE_LIBNUMA
+#include <numa.h>
+#endif
+
 static bool grow_dynamic_buffer(conn *c, size_t needed);
 static void cookie_set_admin(const void *cookie);
 static bool cookie_is_admin(const void *cookie);
@@ -8385,6 +8389,25 @@ int main (int argc, char **argv) {
     _set_FMA3_enable (0);
 #endif
 
+#ifdef HAVE_LIBNUMA
+    enum { NUMA_POLICY_NOT_AVAILABLE,
+           NUMA_POLICY_DISABLED,
+           NUMA_POLICY_INTERLEAVE
+    } numa_policy = NUMA_POLICY_NOT_AVAILABLE;
+    const char* mem_policy_env = NULL;
+
+    if (numa_available() == 0) {
+        // Set the default NUMA memory policy to interleaved.
+        mem_policy_env = getenv("MEMCACHED_NUMA_MEM_POLICY");
+        if (mem_policy_env != NULL && strcmp("disable", mem_policy_env) == 0) {
+            numa_policy = NUMA_POLICY_DISABLED;
+        } else {
+            numa_set_interleave_mask(numa_all_nodes_ptr);
+            numa_policy = NUMA_POLICY_INTERLEAVE;
+        }
+    }
+#endif
+
     initialize_openssl();
 
     initialize_timings();
@@ -8447,6 +8470,29 @@ int main (int argc, char **argv) {
 
     /* load extensions specified in the settings */
     load_extensions();
+
+#ifdef HAVE_LIBNUMA
+    // Now we have the logging subsystem and extensions up; log the NUMA policy selected.
+    switch (numa_policy) {
+    case NUMA_POLICY_NOT_AVAILABLE:
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "NUMA: Not available - not setting mem policy.");
+        break;
+
+    case NUMA_POLICY_DISABLED:
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "NUMA: NOT setting memory allocation policy - "
+                                        "disabled via MEMCACHED_NUMA_MEM_POLICY='%s'.",
+                                        mem_policy_env);
+        break;
+
+    case NUMA_POLICY_INTERLEAVE:
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "NUMA: Set memory allocation policy to 'interleave'.");
+        break;
+    }
+#endif
+
 
     /* Start the audit daemon */
     AUDIT_EXTENSION_DATA audit_extension_data;
