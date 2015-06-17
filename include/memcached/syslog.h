@@ -35,15 +35,8 @@ typedef struct {
     char app_name[49]; /* max 48 char */
     uint64_t procid;
     EventID msgid;
-    uint16_t date_fullyear; /* 0...9999 */
-    uint8_t date_month; /* 1...12 */
-    uint8_t date_mday; /* 1...31 */
-    uint8_t time_hour; /* 0...23 */
-    uint8_t time_minute; /* 0..59 */
-    uint8_t time_second; /* 0..59 */
+    time_t time;
     uint32_t time_secfrac; /* 0..999999 */
-    int8_t offset_hour; /* 0..59 */
-    int8_t offset_minute; /*0..59 */
     char msg[2048];
     char sd[2048];
 

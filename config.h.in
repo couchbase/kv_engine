@@ -6,6 +6,7 @@
 #include <event.h>
 
 #cmakedefine HAVE_MEMALIGN ${HAVE_MEMALIGN}
+#cmakedefine HAVE_LIBNUMA ${HAVE_LIBNUMA}
 
 #ifdef WIN32
 #include <winsock2.h>

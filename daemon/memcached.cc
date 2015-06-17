@@ -55,6 +55,10 @@
 // MB-14649: log crashing on windows..
 #include <math.h>
 
+#if HAVE_LIBNUMA
+#include <numa.h>
+#endif
+
 /**
  * All of the buckets in couchbase is stored in this array.
  * @todo we should make this array into a list and make it
@@ -8387,6 +8391,26 @@ int main (int argc, char **argv) {
     _set_FMA3_enable (0);
 #endif
 
+#ifdef HAVE_LIBNUMA
+    enum class NumaPolicy {
+        NOT_AVAILABLE,
+        DISABLED,
+        INTERLEAVE
+    } numa_policy = NumaPolicy::NOT_AVAILABLE;
+    const char* mem_policy_env = NULL;
+
+    if (numa_available() == 0) {
+        // Set the default NUMA memory policy to interleaved.
+        mem_policy_env = getenv("MEMCACHED_NUMA_MEM_POLICY");
+        if (mem_policy_env != NULL && strcmp("disable", mem_policy_env) == 0) {
+            numa_policy = NumaPolicy::DISABLED;
+        } else {
+            numa_set_interleave_mask(numa_all_nodes_ptr);
+            numa_policy = NumaPolicy::INTERLEAVE;
+        }
+    }
+#endif
+
     initialize_openssl();
 
     initialize_timings();
@@ -8421,6 +8445,24 @@ int main (int argc, char **argv) {
         return EX_OSERR;
     }
 
+    {
+        // MB-13642 Allow the user to specify the SSL cipher list
+        //    If someone wants to use SSL we should try to be "secure
+        //    by default", and only allow for using strong ciphers.
+        //    Users that may want to use a less secure cipher list
+        //    should be allowed to do so by setting an environment
+        //    variable (since there is no place in the UI to do
+        //    so currently). Whenever ns_server allows for specifying
+        //    the SSL cipher list in the UI, it will be stored
+        //    in memcached.json and override these settings.
+        const char *env = getenv("COUCHBASE_SSL_CIPHER_LIST");
+        if (env == NULL) {
+            set_ssl_cipher_list("HIGH");
+        } else {
+            set_ssl_cipher_list(env);
+        }
+    }
+
     /* Parse command line arguments */
     parse_arguments(argc, argv);
 
@@ -8433,6 +8475,29 @@ int main (int argc, char **argv) {
 
     /* load extensions specified in the settings */
     load_extensions();
+
+#ifdef HAVE_LIBNUMA
+    // Now we have the logging subsystem and extensions up; log the NUMA policy selected.
+    switch (numa_policy) {
+    case NumaPolicy::NOT_AVAILABLE:
+        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                        "NUMA: Not available - not setting mem policy.");
+        break;
+
+    case NumaPolicy::DISABLED:
+        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                        "NUMA: NOT setting memory allocation policy - "
+                                        "disabled via MEMCACHED_NUMA_MEM_POLICY='%s'.",
+                                        mem_policy_env);
+        break;
+
+    case NumaPolicy::INTERLEAVE:
+        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                        "NUMA: Set memory allocation policy to 'interleave'.");
+        break;
+    }
+#endif
+
 
     /* Start the audit daemon */
     AUDIT_EXTENSION_DATA audit_extension_data;
