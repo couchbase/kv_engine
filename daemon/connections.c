@@ -16,6 +16,7 @@
  */
 
 #include "connections.h"
+#include "runtime.h"
 
 #include <cJSON.h>
 
@@ -195,6 +196,17 @@ static void initialize_socket_names(const SOCKET sfd,
     }
 }
 
+static void dump_cipher_list(const SSL *ssl, SOCKET sfd) {
+    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
+                                    "%d: Using SSL ciphers:", sfd);
+    int ii = 0;
+    const char *cipher;
+    while ((cipher = SSL_get_cipher_list(ssl, ii++)) != NULL) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
+                                        "%d    %s", sfd, cipher);
+    }
+}
+
 conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                STATE_FUNC init_state, int event_flags,
                unsigned int read_buffer_size, struct event_base *base) {
@@ -234,6 +246,8 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                         return NULL;
                     }
 
+                    set_ssl_ctx_cipher_list(c->ssl.ctx);
+
                     c->ssl.enabled = true;
                     c->ssl.error = false;
                     c->ssl.client = NULL;
@@ -258,6 +272,9 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
                                 c->ssl.application,
                                 c->ssl.application);
 
+                    if (settings.verbose > 1) {
+                        dump_cipher_list(c->ssl.client, sfd);
+                    }
                 }
             }
         }

@@ -118,6 +118,10 @@ void initialize_breakpad(const breakpad_settings_t* settings) {
     /* do nothing */
 }
 
+void set_ssl_cipher_list(const char *list) {
+    /* do nothing */
+}
+
 /* settings, as used by config_parse.c */
 struct settings settings;
 struct conn *listen_conn = NULL;
@@ -137,6 +141,8 @@ static cJSON* get_baseline_settings(const char* temp_file)
 #else
     cJSON_AddStringToObject(baseline, "root", "/tmp");
 #endif
+
+    cJSON_AddStringToObject(baseline, "ssl_cipher_list", "HIGH");
 
     cJSON_AddStringToObject(baseline, "admin", "my_admin");
     cJSON_AddNumberToObject(baseline, "threads", 1);
@@ -281,6 +287,19 @@ static void test_admin_3(struct test_ctx *ctx) {
     cJSON_AddNumberToObject(ctx->config, "admin", 1.0);
     cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg) == false);
     cb_assert(error_msg != NULL);
+}
+
+static void test_ssl_list_cipher_1(struct test_ctx *ctx) {
+    cJSON_AddStringToObject(ctx->config, "ssl_cipher_list", "HIGH");
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg));
+    cb_assert(settings.ssl_cipher_list != NULL);
+    cb_assert(strcmp(settings.ssl_cipher_list, "HIGH") == 0);
+}
+
+static void test_ssl_list_cipher_2(struct test_ctx *ctx) {
+    cJSON_AddStringToObject(ctx->config, "ssl_cipher_list", "");
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg));
+    cb_assert(settings.ssl_cipher_list == NULL);
 }
 
 static void test_threads_1(struct test_ctx *ctx) {
@@ -599,7 +618,22 @@ static void test_invalid_root(struct test_ctx *ctx) {
 
 static void teardown_invalid_root(struct test_ctx *ctx) {
     free(error_msg);
-    free(ctx->config);
+    cJSON_Delete(ctx->config);
+    free((void*)settings.config);
+}
+
+static void test_dynamic_ssl_cipher_list_1(struct test_ctx *ctx) {
+    cJSON_ReplaceItemInObject(ctx->dynamic, "ssl_cipher_list",
+                              cJSON_CreateString("DEFAULT"));
+    cb_assert(validate_dynamic_JSON_changes(ctx));
+    cb_assert(cJSON_GetArraySize(ctx->errors) == 0);
+}
+
+static void test_dynamic_ssl_cipher_list_2(struct test_ctx *ctx) {
+    cJSON_ReplaceItemInObject(ctx->dynamic, "ssl_cipher_list",
+                              cJSON_CreateString(""));
+    cb_assert(validate_dynamic_JSON_changes(ctx));
+    cb_assert(cJSON_GetArraySize(ctx->errors) == 0);
 }
 
 static void test_dynamic_breakpad_1(struct test_ctx *ctx) {
@@ -645,6 +679,8 @@ int main(void)
         { "admin_1", setup, test_admin_1, teardown },
         { "admin_2", setup, test_admin_2, teardown },
         { "admin_3", setup, test_admin_3, teardown },
+        { "ssl_cipher_list_1", setup, test_ssl_list_cipher_1, teardown },
+        { "ssl_cipher_list_2", setup, test_ssl_list_cipher_2, teardown },
         { "threads_1", setup, test_threads_1, teardown },
         { "threads_2", setup, test_threads_2, teardown },
         { "threads_3", setup, test_threads_3, teardown },
@@ -680,6 +716,8 @@ int main(void)
         { "dynamic_bio_drain_buffer_sz", setup_dynamic, test_dynamic_bio_drain_buffer_sz, teardown_dynamic },
         { "dynamic_datatype", setup_dynamic, test_dynamic_datatype, teardown_dynamic },
         { "root", setup_dynamic, test_dynamic_root, teardown_dynamic },
+        { "dynamic_ssl_cipher_list_1", setup_dynamic, test_dynamic_ssl_cipher_list_1, teardown_dynamic },
+        { "dynamic_ssl_cipher_list_2", setup_dynamic, test_dynamic_ssl_cipher_list_2, teardown_dynamic },
         { "dynamic_breakpad_1", setup_dynamic, test_dynamic_breakpad_1, teardown_dynamic },
         { "dynamic_breakpad_2", setup_dynamic, test_dynamic_breakpad_2, teardown_dynamic },
         { "dynamic_privilege_debug", setup_dynamic, test_dynamic_privilege_debug, teardown_dynamic },

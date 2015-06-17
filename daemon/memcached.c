@@ -29,6 +29,7 @@
 #include "utilities/protocol2text.h"
 #include "breakpad.h"
 #include "mcaudit.h"
+#include "runtime.h"
 
 #include <signal.h>
 #include <fcntl.h>
@@ -8416,6 +8417,24 @@ int main (int argc, char **argv) {
 
     if (!sanitycheck()) {
         return EX_OSERR;
+    }
+
+    {
+        // MB-13642 Allow the user to specify the SSL cipher list
+        //    If someone wants to use SSL we should try to be "secure
+        //    by default", and only allow for using strong ciphers.
+        //    Users that may want to use a less secure cipher list
+        //    should be allowed to do so by setting an environment
+        //    variable (since there is no place in the UI to do
+        //    so currently). Whenever ns_server allows for specifying
+        //    the SSL cipher list in the UI, it will be stored
+        //    in memcached.json and override these settings.
+        const char *env = getenv("COUCHBASE_SSL_CIPHER_LIST");
+        if (env == NULL) {
+            set_ssl_cipher_list("HIGH");
+        } else {
+            set_ssl_cipher_list(env);
+        }
     }
 
     /* Parse command line arguments */
