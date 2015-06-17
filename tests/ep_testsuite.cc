@@ -13039,6 +13039,61 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+
+    const int num_vbuckets = 5;
+    const int per_vb_resp_size = 10;
+    const int high_seqno_offset = 2;
+
+    /* Create vbuckets */
+    for (int i = 0; i < num_vbuckets; i++) {
+        check(set_vbucket_state(h, h1, i, vbucket_state_active),
+              "Failed to set vbucket state.");
+        std::stringstream ss;
+        ss << "key" << i;
+        for (int j= 0; j < i; j++) {
+            std::stringstream ss;
+            ss << j;
+            check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "value",
+                        NULL, 0, i)
+                  == ENGINE_SUCCESS, "Failed to store an item.");
+        }
+    }
+    /* Create request */
+    protocol_binary_request_header pkt;
+    memset(&pkt, 0, sizeof(pkt));
+    pkt.request.opcode = PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS;
+
+    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
+          ENGINE_SUCCESS, "Error in getting all vb info");
+
+    /* Check if the response received is correct */
+    /* Check if the total response length is as expected. We expect 10 bytes
+       (2 for vb_id + 8 for seqno) */
+    check((num_vbuckets * per_vb_resp_size) == last_bodylen,
+          "Failed to get all vb info.");
+    /* Check if the contents are correct */
+    for (int i = 0; i < num_vbuckets; i++) {
+        /* Check for correct vb_id */
+        check(i == ntohs(*(reinterpret_cast<uint16_t*>(last_body +
+                                                       per_vb_resp_size*i))),
+              "vb_id mismatch");
+        /* Check for correct high_seqno */
+        std::stringstream vb_stat_seqno;
+        vb_stat_seqno << "vb_" << i << ":high_seqno";
+        uint64_t high_seqno_vb =
+                             get_ull_stat(h, h1, vb_stat_seqno.str().c_str(),
+                                          "vbucket-seqno");
+        check(high_seqno_vb == ntohll(*(reinterpret_cast<uint64_t*>(last_body +
+                                      per_vb_resp_size*i + high_seqno_offset))),
+              "high_seqno mismatch");
+    }
+
+    return SUCCESS;
+}
+
 static enum test_result prepare(engine_test_t *test) {
 #ifdef __sun
         // Some of the tests doesn't work on Solaris.. Don't know why yet..
@@ -14035,6 +14090,8 @@ engine_test_t* get_tests(void) {
 
         TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
+                 teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };
