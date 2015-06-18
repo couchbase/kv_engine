@@ -8,7 +8,11 @@
 extern "C" {
 #endif
 
-    void collect_timing(uint8_t cmd, hrtime_t delay);
+    void collect_timing(SOCKET sfd,
+                        const char *peername,
+                        const char *sockname,
+                        uint8_t cmd,
+                        hrtime_t delay);
     void initialize_timings(void);
     void generate_timings(uint8_t opcode, const void *cookie);
 

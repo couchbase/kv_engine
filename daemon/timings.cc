@@ -1,6 +1,8 @@
 /* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
 #include "timings.h"
+#include "settings.h"
+#include "utilities/protocol2text.h"
 #include <memcached/protocol_binary.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +14,9 @@
 #include <cstdatomic>
 #endif
 
+extern "C" {
+    extern struct settings settings;
+}
 
 
 typedef struct timings_st {
@@ -33,7 +38,11 @@ typedef struct timings_st {
 
 timings_t timings[0x100];
 
-void collect_timing(uint8_t cmd, hrtime_t nsec)
+void collect_timing(SOCKET sfd,
+                    const char *peername,
+                    const char *sockname,
+                    uint8_t cmd,
+                    hrtime_t nsec)
 {
     timings_t *t = &timings[cmd];
     hrtime_t usec = nsec / 1000;
@@ -53,6 +62,27 @@ void collect_timing(uint8_t cmd, hrtime_t nsec)
     }
 
     t->total++;
+
+    if (hsec > 1) {
+        const char *opcode = memcached_opcode_2_text(cmd);
+        char opcodetext[10];
+        if (opcode == NULL) {
+            snprintf(opcodetext, sizeof(opcodetext), "0x%0X", cmd);
+            opcode = opcodetext;
+        }
+        if (peername == NULL) {
+            peername = "unknown";
+        }
+        if (sockname == NULL) {
+            sockname = "unknown";
+        }
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "%u: Slow %s operation on connection (%s => %s): %lu ms",
+                                        (unsigned int)sfd,
+                                        opcode,
+                                        peername, sockname,
+                                        (unsigned long)msec);
+    }
 }
 
 void initialize_timings(void)

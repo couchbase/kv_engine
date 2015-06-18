@@ -503,7 +503,7 @@ void conn_set_state(conn *c, STATE_FUNC state) {
 
         if (state == conn_write || state == conn_mwrite) {
             if (c->start != 0) {
-                collect_timing(c->cmd, gethrtime() - c->start);
+                collect_timing(c->sfd, c->peername, c->sockname, c->cmd, gethrtime() - c->start);
                 c->start = 0;
             }
             MEMCACHED_PROCESS_COMMAND_END(c->sfd, c->write.buf, c->write.bytes);
@@ -908,7 +908,7 @@ static void write_bin_response(conn *c, const void *d, int extlen, int keylen,
         c->write_and_go = conn_new_cmd;
     } else {
         if (c->start != 0) {
-            collect_timing(c->cmd, gethrtime() - c->start);
+            collect_timing(c->sfd, c->peername, c->sockname, c->cmd, gethrtime() - c->start);
             c->start = 0;
         }
         conn_set_state(c, conn_new_cmd);
