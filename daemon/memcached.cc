@@ -3786,9 +3786,11 @@ static void sasl_auth_executor(conn *c, void *packet)
             auth_data_t data;
             get_auth_data(c, &data);
 
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                            "%d: sasl authenticated as %s",
-                                            c->sfd, data.username);
+            if (settings.verbose > 0) {
+                settings.extensions.logger->log
+                    (EXTENSION_LOG_INFO, c, "%d: Client %s authenticated as %s",
+                     c->sfd, get_peername(c), data.username);
+            }
 
             write_bin_response(c, NULL, 0, 0, 0);
 
