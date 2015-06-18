@@ -6160,10 +6160,12 @@ bool update_event(conn *c, const int new_flags) {
         return true;
     }
 
-    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                    "Updated event for %d to read=%s, write=%s\n",
-                                    c->sfd, (new_flags & EV_READ ? "yes" : "no"),
-                                    (new_flags & EV_WRITE ? "yes" : "no"));
+    if (settings.verbose > 1) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
+                                        "Updated event for %d to read=%s, write=%s\n",
+                                        c->sfd, (new_flags & EV_READ ? "yes" : "no"),
+                                        (new_flags & EV_WRITE ? "yes" : "no"));
+    }
 
     if (!unregister_event(c)) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
