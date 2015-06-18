@@ -8477,8 +8477,13 @@ int main (int argc, char **argv) {
     /* load extensions specified in the settings */
     load_extensions();
 
+    /* Logging available now extensions have been loaded. */
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                    "Couchbase version %s starting.",
+                                    get_server_version());
+
 #ifdef HAVE_LIBNUMA
-    // Now we have the logging subsystem and extensions up; log the NUMA policy selected.
+    // Log the NUMA policy selected.
     switch (numa_policy) {
     case NumaPolicy::NOT_AVAILABLE:
         settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
@@ -8630,13 +8635,13 @@ int main (int argc, char **argv) {
 
     if (!memcached_shutdown) {
         /* enter the event loop */
+        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                        "Initialization complete. Accepting clients.");
         event_base_loop(main_base, 0);
     }
 
-    if (settings.verbose) {
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                        "Initiating shutdown");
-    }
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                    "Initiating graceful shutdown.");
 
     /* Close down the audit daemon cleanly */
     shutdown_auditdaemon(settings.audit_file);
@@ -8661,6 +8666,9 @@ int main (int argc, char **argv) {
 
     cJSON_Free((char*)settings.config);
     free((void*)settings.ssl_cipher_list);
+
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                    "Shutdown complete.");
 
     return EXIT_SUCCESS;
 }
