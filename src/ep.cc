@@ -59,9 +59,9 @@ public:
             store.getEPEngine().getDcpConnMap(). \
                                      updateMaxActiveSnoozingBackfills(value);
             size_t low_wat = static_cast<size_t>
-                             (static_cast<double>(value) * 0.6);
+                             (static_cast<double>(value) * 0.75);
             size_t high_wat = static_cast<size_t>(
-                              static_cast<double>(value) * 0.75);
+                              static_cast<double>(value) * 0.85);
             stats.mem_low_wat.store(low_wat);
             stats.mem_high_wat.store(high_wat);
         } else if (key.compare("mem_low_wat") == 0) {
