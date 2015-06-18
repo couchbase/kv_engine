@@ -136,7 +136,7 @@ bool DCPBackfill::run() {
     uint16_t vbid = stream->getVBucket();
 
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
-        LOG(EXTENSION_LOG_INFO, "VBucket %d dcp backfill task temporarily "
+        LOG(EXTENSION_LOG_WARNING, "VBucket %d dcp backfill task temporarily "
                 "suspended  because the current memory usage is too high",
                 vbid);
         snooze(DCP_BACKFILL_SLEEP_TIME);
