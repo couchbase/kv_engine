@@ -1058,13 +1058,11 @@ static void process_bin_get(conn *c) {
     size_t nkey = c->binary_header.request.keylen;
     uint16_t keylen;
     uint32_t bodylen;
-    item_info_holder info;
     int ii;
     ENGINE_ERROR_CODE ret;
     uint8_t datatype;
     bool need_inflate = false;
 
-    memset(&info, 0, sizeof(info));
     if (settings.verbose > 1) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
@@ -1081,7 +1079,10 @@ static void process_bin_get(conn *c) {
                          c->binary_header.request.vbucket);
     }
 
+    item_info_holder info;
+    info.info.clsid = 0;
     info.info.nvalue = IOV_MAX;
+
     switch (ret) {
     case ENGINE_SUCCESS:
         STATS_HIT(c, get, key, nkey);
@@ -1540,7 +1541,6 @@ static void ship_tap_log(conn *c) {
             protocol_binary_request_noop noop;
         } msg;
         item_info_holder info;
-        memset(&info, 0, sizeof(info));
 
         if (ii++ == 10) {
             break;
@@ -2394,7 +2394,6 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
         return ENGINE_E2BIG;
     }
 
-    memset(&info, 0, sizeof(info));
     info.info.nvalue = IOV_MAX;
 
     if (!bucket_get_item_info(c, it, &info.info)) {
@@ -3927,7 +3926,7 @@ static void add_set_replace_executor(conn *c, void *packet,
     uint16_t nkey = ntohs(req->message.header.request.keylen);
     uint32_t vlen = ntohl(req->message.header.request.bodylen) - nkey - extlen;
     item_info_holder info;
-    memset(&info, 0, sizeof(info));
+    info.info.clsid = 0;
     info.info.nvalue = 1;
 
     if (req->message.header.request.cas != 0) {
@@ -3993,7 +3992,6 @@ static void add_set_replace_executor(conn *c, void *packet,
     case ENGINE_SUCCESS:
         /* Stored */
         if (c->supports_mutation_extras) {
-            memset(&info, 0, sizeof(info));
             info.info.nvalue = 1;
             if (!bucket_get_item_info(c, c->item, &info.info)) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
@@ -4106,7 +4104,7 @@ static void append_prepend_executor(conn *c,
     uint16_t nkey = ntohs(req->message.header.request.keylen);
     uint32_t vlen = ntohl(req->message.header.request.bodylen) - nkey;
     item_info_holder info;
-    memset(&info, 0, sizeof(info));
+    info.info.clsid = 0;
     info.info.nvalue = 1;
 
     if (c->item == NULL) {
@@ -4166,7 +4164,6 @@ static void append_prepend_executor(conn *c,
     case ENGINE_SUCCESS:
         /* Stored */
         if (c->supports_mutation_extras) {
-            memset(&info, 0, sizeof(info));
             info.info.nvalue = 1;
             if (!bucket_get_item_info(c, c->item, &info.info)) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
@@ -5139,10 +5136,6 @@ static void process_bin_delete(conn *c) {
     char* key = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
     uint64_t cas = ntohll(req->message.header.request.cas);
-    item_info_holder info;
-    memset(&info, 0, sizeof(info));
-
-    info.info.nvalue = 1;
 
     cb_assert(c != NULL);
 
@@ -5166,7 +5159,10 @@ static void process_bin_delete(conn *c) {
                                        &mut_info);
     }
 
-    /* For some reason the SLAB_INCR tries to access this... */
+    /* For some reason the SLAB_INCR calls below need to access this... */
+    item_info_holder info;
+    info.info.clsid = 0;
+
     switch (ret) {
     case ENGINE_SUCCESS:
         c->cas = cas;
