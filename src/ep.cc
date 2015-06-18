@@ -59,9 +59,9 @@ public:
             store.getEPEngine().getDcpConnMap(). \
                                      updateMaxActiveSnoozingBackfills(value);
             size_t low_wat = static_cast<size_t>
-                             (static_cast<double>(value) * 0.6);
+                             (static_cast<double>(value) * 0.75);
             size_t high_wat = static_cast<size_t>(
-                              static_cast<double>(value) * 0.75);
+                              static_cast<double>(value) * 0.85);
             stats.mem_low_wat.store(low_wat);
             stats.mem_high_wat.store(high_wat);
         } else if (key.compare("mem_low_wat") == 0) {
@@ -1901,11 +1901,19 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
     StoredValue *v = fetchValidValue(vb, key, bucket_num, true,
                                      trackReference);
     if (v) {
-        if (v->isDeleted() || v->isTempDeletedItem() ||
-            v->isTempNonExistentItem()) {
+        if (v->isDeleted()) {
             GetValue rv;
             return rv;
         }
+        if (v->isTempDeletedItem() || v->isTempNonExistentItem()) {
+            // Delete a temp non-existent item to ensure that
+            // if the get were issued over an item that doesn't
+            // exist, then we dont preserve a temp item.
+            vb->ht.unlocked_del(key, bucket_num);
+            GetValue rv;
+            return rv;
+        }
+
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
             if (queueBG) {
@@ -2598,6 +2606,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                     bgFetch(key, vbucket, cookie, true);
                     return ENGINE_EWOULDBLOCK;
                 } else { // Non-existent or deleted key.
+                    if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+                        // Delete a temp non-existent item to ensure that
+                        // if a delete were issued over an item that doesn't
+                        // exist, then we don't preserve a temp item.
+                        vb->ht.unlocked_del(key, bucket_num);
+                    }
                     return ENGINE_KEY_ENOENT;
                 }
             } else {
@@ -2621,6 +2635,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                 } else if (v->isTempInitialItem()) {
                     v->setStoredValueState(StoredValue::state_deleted_key);
                 } else { // Non-existent or deleted key.
+                    if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+                        // Delete a temp non-existent item to ensure that
+                        // if a delete were issued over an item that doesn't
+                        // exist, then we don't preserve a temp item.
+                        vb->ht.unlocked_del(key, bucket_num);
+                    }
                     return ENGINE_KEY_ENOENT;
                 }
             }

@@ -10258,7 +10258,7 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     check(!get_meta(h, h1, key), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected no temp_items");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -12597,6 +12597,18 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_non_existent_get_and_delete(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1) {
+
+    item *i = NULL;
+    check(h1->get(h, NULL, &i, "key1", 4, 0) == ENGINE_KEY_ENOENT,
+            "Unexpected return status");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Unexpected temp item");
+    check(del(h, h1, "key3", 0, 0) == ENGINE_KEY_ENOENT, "Unexpected return status");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Unexpected temp item");
+    return SUCCESS;
+}
+
 static enum test_result test_get_random_key(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
 
@@ -13019,6 +13031,61 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     snap_end_seq = start;
     dcp_stream_req(h, h1, 1, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_ROLLBACK);
+
+    return SUCCESS;
+}
+
+static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+
+    const int num_vbuckets = 5;
+    const int per_vb_resp_size = 10;
+    const int high_seqno_offset = 2;
+
+    /* Create vbuckets */
+    for (int i = 0; i < num_vbuckets; i++) {
+        check(set_vbucket_state(h, h1, i, vbucket_state_active),
+              "Failed to set vbucket state.");
+        std::stringstream ss;
+        ss << "key" << i;
+        for (int j= 0; j < i; j++) {
+            std::stringstream ss;
+            ss << j;
+            check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "value",
+                        NULL, 0, i)
+                  == ENGINE_SUCCESS, "Failed to store an item.");
+        }
+    }
+    /* Create request */
+    protocol_binary_request_header pkt;
+    memset(&pkt, 0, sizeof(pkt));
+    pkt.request.opcode = PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS;
+
+    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
+          ENGINE_SUCCESS, "Error in getting all vb info");
+
+    /* Check if the response received is correct */
+    /* Check if the total response length is as expected. We expect 10 bytes
+       (2 for vb_id + 8 for seqno) */
+    check((num_vbuckets * per_vb_resp_size) == last_bodylen,
+          "Failed to get all vb info.");
+    /* Check if the contents are correct */
+    for (int i = 0; i < num_vbuckets; i++) {
+        /* Check for correct vb_id */
+        check(i == ntohs(*(reinterpret_cast<uint16_t*>(last_body +
+                                                       per_vb_resp_size*i))),
+              "vb_id mismatch");
+        /* Check for correct high_seqno */
+        std::stringstream vb_stat_seqno;
+        vb_stat_seqno << "vb_" << i << ":high_seqno";
+        uint64_t high_seqno_vb =
+                             get_ull_stat(h, h1, vb_stat_seqno.str().c_str(),
+                                          "vbucket-seqno");
+        check(high_seqno_vb == ntohll(*(reinterpret_cast<uint64_t*>(last_body +
+                                      per_vb_resp_size*i + high_seqno_offset))),
+              "high_seqno mismatch");
+    }
 
     return SUCCESS;
 }
@@ -13912,6 +13979,9 @@ BaseTestCase testsuite_testcases[] = {
                  "item_eviction_policy=full_eviction;flushall_enabled=true", prepare, cleanup),
         TestCase("warmup stats", test_warmup_stats, test_setup,
                  teardown, "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test get & delete on non existent items",
+                 test_non_existent_get_and_delete, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
 
         TestCase("test get random key", test_get_random_key,
                  test_setup, teardown, NULL, prepare, cleanup),
@@ -13930,6 +14000,8 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
+                 teardown, NULL, prepare, cleanup),
 
         TestCaseV2("multi_bucket set/get ", test_multi_bucket_set_get, NULL,
                    teardown_v2, NULL, prepare, cleanup),
