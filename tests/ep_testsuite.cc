@@ -10273,7 +10273,7 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     check(!get_meta(h, h1, key), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected no temp_items");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -12613,6 +12613,18 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_non_existent_get_and_delete(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1) {
+
+    item *i = NULL;
+    check(h1->get(h, NULL, &i, "key1", 4, 0) == ENGINE_KEY_ENOENT,
+            "Unexpected return status");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Unexpected temp item");
+    check(del(h, h1, "key3", 0, 0) == ENGINE_KEY_ENOENT, "Unexpected return status");
+    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Unexpected temp item");
+    return SUCCESS;
+}
+
 static enum test_result test_get_random_key(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
 
@@ -14072,6 +14084,9 @@ engine_test_t* get_tests(void) {
                  "item_eviction_policy=full_eviction;flushall_enabled=true", prepare, cleanup),
         TestCase("warmup stats", test_warmup_stats, test_setup,
                  teardown, "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test get & delete on non existent items",
+                 test_non_existent_get_and_delete, test_setup, teardown,
+                 "item_eviction_policy=full_eviction", prepare, cleanup),
 
         TestCase("test get random key", test_get_random_key,
                  test_setup, teardown, NULL, prepare, cleanup),
