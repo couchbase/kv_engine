@@ -140,7 +140,8 @@ ADD_EXECUTABLE(memcached
                daemon/stats.c
                daemon/thread.c
                daemon/timings.cc
-               daemon/mc_time.c)
+               daemon/mc_time.c
+               utilities/protocol2text.c)
 
 IF (ENABLE_DTRACE)
    ADD_CUSTOM_TARGET(generate_memcached_dtrace_h

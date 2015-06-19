@@ -18,6 +18,7 @@
 #include "memcached/extension_loggers.h"
 #include "alloc_hooks.h"
 #include "utilities/engine_loader.h"
+#include "utilities/protocol2text.h"
 #include "timings.h"
 #include "cmdline.h"
 #include "mc_time.h"
@@ -237,7 +238,22 @@ enum transmit_result {
 
 static enum transmit_result transmit(conn *c);
 
-
+static void report_op(conn *c) {
+    hrtime_t msec = collect_timing(c->cmd, gethrtime() - c->start);
+    if ((msec / 500) > 1) {
+        const char *opcode = memcached_opcode_2_text(c->cmd);
+        char opcodetext[10];
+        if (opcode == NULL) {
+            snprintf(opcodetext, sizeof(opcodetext), "0x%0X", c->cmd);
+            opcode = opcodetext;
+        }
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "%u: Slow %s operation on connection: %lu ms",
+                                        (unsigned int)c->sfd,
+                                        opcode,
+                                        (unsigned long)msec);
+    }
+}
 
 /* Perform all callbacks of a given type for the given connection. */
 void perform_callbacks(ENGINE_EVENT_TYPE type,
@@ -1125,7 +1141,7 @@ void conn_set_state(conn *c, STATE_FUNC state) {
 
         if (state == conn_write || state == conn_mwrite) {
             if (c->start != 0) {
-                collect_timing(c->cmd, gethrtime() - c->start);
+                report_op(c);
                 c->start = 0;
             }
             MEMCACHED_PROCESS_COMMAND_END(c->sfd, c->wbuf, c->wbytes);
@@ -1514,7 +1530,7 @@ static void write_bin_response(conn *c, const void *d, int hlen, int keylen, int
         c->write_and_go = conn_new_cmd;
     } else {
         if (c->start != 0) {
-            collect_timing(c->cmd, gethrtime() - c->start);
+            report_op(c);
             c->start = 0;
         }
         conn_set_state(c, conn_new_cmd);

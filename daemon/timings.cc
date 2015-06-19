@@ -25,7 +25,7 @@ typedef struct timings_st {
 
 timings_t timings[0x100];
 
-void collect_timing(uint8_t cmd, hrtime_t nsec)
+hrtime_t collect_timing(uint8_t cmd, hrtime_t nsec)
 {
     timings_t *t = &timings[cmd];
     hrtime_t usec = nsec / 1000;
@@ -43,6 +43,8 @@ void collect_timing(uint8_t cmd, hrtime_t nsec)
     } else {
         t->wayout++;
     }
+
+    return msec;
 }
 
 void initialize_timings(void)
@@ -93,3 +95,14 @@ void generate_timings(uint8_t opcode, const void *cookie)
                             PROTOCOL_BINARY_RESPONSE_SUCCESS,
                             0, cookie);
 }
+
+#ifndef HAVE_ATOMIC
+hrtime_t collect_timing(uint8_t cmd, hrtime_t nsec)
+{
+    hrtime_t usec = nsec / 1000;
+    hrtime_t msec = usec / 1000;
+    hrtime_t hsec = msec / 500;
+
+    return msec;
+}
+#endif
