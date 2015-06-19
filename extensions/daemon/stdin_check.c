@@ -12,6 +12,46 @@ union c99hack {
     void (*exit_function)(void);
 };
 
+#ifdef WIN32
+#define fgets_unlocked(a, b, c) fgets(a, b, c)
+#elif !defined(HAVE_FGETS_UNLOCKED)
+/**
+ * We've seen deadlocks on linuxes in the "atexit" handlers where it
+ * tries to flush the IO buffers. For some obscure reason it seems
+ * to want to touch standard input, causing memcached to deadlock
+ * due the fact that we're trying to read from the same stream.
+ *
+ * ns_server use standard input for the channel to send commands
+ * to memcached and no one else is supposed to use the channel so
+ * we don't need to perform any locking in order to access the
+ * stream (if someone tries to use it bad things will happen
+ * anyway).
+ *
+ * For a description of the parameters, see man fgets()
+ */
+static char *fgets_unlocked(char *buffer, size_t buffsize, FILE *fp) {
+    size_t offset = 0;
+    int ch;
+
+    /* fgets always adds a \0 at the end of the buffer. Reserve room for it */
+    --buffsize;
+
+    while ((ch = getc_unlocked(fp)) != EOF) {
+        buffer[offset++] = (char)ch;
+        if (offset == buffsize) {
+            break;
+        }
+    }
+
+    if (offset == 0) {
+        return NULL;
+    }
+
+    buffer[offset] = '\0';
+    return buffer;
+}
+#endif
+
 /*
  * The stdin_term_handler allows you to shut down memcached from
  * another process by the use of a pipe. It operates in a line mode
@@ -35,7 +75,7 @@ static void check_stdin_thread(void* arg)
     union c99hack chack;
     chack.pointer = arg;
 
-    while (fgets(command, sizeof(command), stdin) != NULL) {
+    while (fgets_unlocked(command, sizeof(command), stdin) != NULL) {
         /* Handle the command */
         if (strcmp(command, "die!\n") == 0) {
             fprintf(stderr, "'die!' on stdin.  Exiting super-quickly\n");
