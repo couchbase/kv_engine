@@ -55,7 +55,7 @@ ADD_EXECUTABLE(memcached
                mcbp_validators.h
                memcached.cc
                privileges.c
-	       privileges.h
+               privileges.h
                subdocument.cc
                thread.cc
                timings.cc
@@ -86,7 +86,21 @@ IF (ENABLE_DTRACE)
    ENDIF (DTRACE_NEED_INSTUMENT)
 ENDIF (ENABLE_DTRACE)
 
-TARGET_LINK_LIBRARIES(memcached auditd mcd_util cbsasl platform cJSON JSON_checker subjson ${SNAPPY_LIBRARIES} ${MALLOC_LIBRARIES} ${LIBEVENT_LIBRARIES} ${OPENSSL_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${BREAKPAD_LIBRARIES} ${NUMA_LIBRARIES})
+TARGET_LINK_LIBRARIES(memcached
+                      auditd
+                      mcd_util
+                      cbsasl
+                      platform
+                      cJSON
+                      JSON_checker
+                      subjson
+                      ${SNAPPY_LIBRARIES}
+                      ${MALLOC_LIBRARIES}
+                      ${LIBEVENT_LIBRARIES}
+                      ${OPENSSL_LIBRARIES}
+                      ${COUCHBASE_NETWORK_LIBS}
+                      ${BREAKPAD_LIBRARIES}
+                      ${NUMA_LIBRARIES})
 APPEND_MALLOC_LINKER_FLAGS(memcached)
 
 INSTALL(TARGETS memcached
