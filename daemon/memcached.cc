@@ -501,6 +501,7 @@ static void settings_init(void) {
     settings.breakpad.content = CONTENT_DEFAULT;
     settings.require_init = false;
     settings.max_buckets = 200;
+    settings.admin = strdup("_admin");
 }
 
 static void settings_init_relocable_files(void)
