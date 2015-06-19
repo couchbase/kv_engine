@@ -28,6 +28,8 @@
 #include "memcached.h"
 #include "mc_time.h"
 
+#include <atomic>
+
 extern volatile sig_atomic_t memcached_shutdown;
 
 /*
@@ -48,7 +50,7 @@ const time_t memcached_check_system_time = 60;
  */
 const time_t memcached_maximum_relative_time = 60*60*24*30;
 
-static volatile rel_time_t memcached_uptime = 0;
+static std::atomic<rel_time_t> memcached_uptime(0);
 static volatile time_t memcached_epoch = 0;
 static volatile uint64_t memcached_monotonic_start = 0;
 static struct event_base* main_ev_base = NULL;
@@ -189,7 +191,7 @@ static void mc_time_clock_tick(void) {
                     "memcached_uptime = %u, new memcached_epoch = %lu, "
                     "next check %lu\n",
                     difference, memcached_epoch,
-                    memcached_uptime, (timeofday.tv_sec - memcached_uptime),
+                    memcached_uptime.load(), (timeofday.tv_sec - memcached_uptime),
                     check_system_time + memcached_check_system_time);
             }
             /* adjust memcached_epoch to ensure correct timeofday can
