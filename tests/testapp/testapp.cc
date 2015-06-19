@@ -64,7 +64,7 @@ in_port_t port = -1;
 static in_port_t ssl_port = -1;
 SOCKET sock;
 static SOCKET sock_ssl;
-static std::atomic_bool allow_closed_read;
+static std::atomic<bool> allow_closed_read;
 static time_t server_start_time = 0;
 static SSL_CTX *ssl_ctx = NULL;
 static SSL *ssl = NULL;
@@ -2118,7 +2118,7 @@ TEST_P(McdTestappTest, Roles) {
     test_noop();
 }
 
-std::atomic_bool hickup_thread_running;
+std::atomic<bool> hickup_thread_running;
 
 static void binary_hickup_recv_verification_thread(void *arg) {
     protocol_binary_response_no_extras *response =

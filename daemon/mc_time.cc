@@ -30,7 +30,7 @@
 
 #include <atomic>
 
-extern volatile sig_atomic_t memcached_shutdown;
+extern std::atomic<bool> memcached_shutdown;
 
 /*
  * This constant defines the seconds between libevent clock callbacks.

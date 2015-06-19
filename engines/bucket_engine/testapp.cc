@@ -91,7 +91,7 @@ struct connstruct {
     const char *uname;
     const char *config;
     void *engine_data;
-    std::atomic_bool connected;
+    std::atomic<bool> connected;
     bool admin;
     struct connstruct *next;
 };

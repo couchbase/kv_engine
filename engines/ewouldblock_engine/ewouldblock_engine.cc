@@ -66,7 +66,7 @@
 static std::mutex mutex;
 static std::condition_variable condvar;
 static std::queue<const void*> pending_io_ops;
-std::atomic_bool stop_notification_thread;
+std::atomic<bool> stop_notification_thread;
 
 
 /* Public API declaration ****************************************************/

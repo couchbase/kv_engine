@@ -145,7 +145,7 @@ static void shutdown_server(void);
 
 #define MAX_SASL_MECH_LEN 32
 
-volatile sig_atomic_t memcached_shutdown;
+std::atomic<bool> memcached_shutdown;
 
 /* Lock for global stats */
 static cb_mutex_t stats_lock;

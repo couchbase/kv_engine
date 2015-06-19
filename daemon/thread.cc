@@ -6,6 +6,7 @@
 #include "memcached.h"
 #include "connections.h"
 
+#include <atomic>
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -19,7 +20,7 @@
 #define ITEMS_PER_ALLOC 64
 
 static char devnull[8192];
-extern volatile sig_atomic_t memcached_shutdown;
+extern std::atomic<bool> memcached_shutdown;
 
 /* An item in the connection queue. */
 typedef struct conn_queue_item CQ_ITEM;
