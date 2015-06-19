@@ -4,6 +4,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef WIN32
+#include <sys/poll.h>
+#include <errno.h>
+#include <fcntl.h>
+#endif
+
 #include <platform/platform.h>
 #include "extensions/protocol_extension.h"
 
@@ -11,6 +17,55 @@ union c99hack {
     void *pointer;
     void (*exit_function)(void);
 };
+
+static char *get_command(char *buffer, size_t buffsize) {
+#ifdef WIN32
+    if (fgets(buffer, buffsize, stdin) == NULL) {
+        return NULL;
+    }
+    return buffer;
+
+#else
+    /**
+     * We've seen deadlocks on various versions of linux where calling exit()
+     * from one thread starts running the handlers registered by atexit() (as
+     * specified in the C standard), but the problem is that on some
+     * platforms it tries to flush the io buffers and as part of that it
+     * tries to acquire the mutex used to protect stdin.
+     *
+     * To work around that try to "poll" the standard input for read
+     * events wiht a 1 minute timeout to allow the atexit() handler to
+     * aqcuire the mutex.
+     *
+     * This would of course lead to "undefined" behavior if this thread
+     * tries to run again. We should _really_, _really_ refactor the code
+     * so that we use a better way to signal shutdown...
+     *
+     * This could cause memcached to hang "forever"
+     */
+    struct pollfd fds;
+    fds.fd = fileno(stdin);
+    fds.events = POLLIN;
+
+    while (true) {
+        switch (poll(&fds, 1, 60000)) {
+        case 1:
+            if (fgets(buffer, buffsize, stdin) == NULL) {
+                return NULL;
+            }
+            return buffer;
+        case 0:
+            break;
+        default:
+            fprintf(stderr,
+                    "ERROR: Failed to run poll() on standard input %s\n",
+                    strerror(errno));
+            /* sleep(6) to avoid busywait */
+            sleep(1);
+        }
+    }
+#endif
+}
 
 /*
  * The stdin_term_handler allows you to shut down memcached from
@@ -35,7 +90,7 @@ static void check_stdin_thread(void* arg)
     union c99hack chack;
     chack.pointer = arg;
 
-    while (fgets(command, sizeof(command), stdin) != NULL) {
+    while (get_command(command, sizeof(command)) != NULL) {
         /* Handle the command */
         if (strcmp(command, "die!\n") == 0) {
             fprintf(stderr, "'die!' on stdin.  Exiting super-quickly\n");
@@ -48,13 +103,13 @@ static void check_stdin_thread(void* arg)
                 chack.pointer = NULL;
             }
         } else {
-            fprintf(stderr, "Unknown command received on stdin.  Ignored\n");
+            fprintf(stderr, "Unknown command received on stdin. Ignored\n");
         }
     }
 
     /* The stream is closed.. do a nice shutdown */
     if (chack.pointer != NULL) {
-        fprintf(stderr, "EOF on stdin.  Initiating shutdown \n");
+        fprintf(stderr, "EOF on stdin. Initiating shutdown\n");
         chack.exit_function();
     }
 }
