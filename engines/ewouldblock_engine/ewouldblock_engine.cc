@@ -363,8 +363,11 @@ public:
                          PROTOCOL_BINARY_RESPONSE_EINVAL, /*cas*/0, cookie);
                 return ENGINE_FAILED;
             } else {
-                ewb->cookie_map.erase(cookie);
-                ewb->cookie_map[cookie] = new_mode;
+                {
+                    std::lock_guard<std::mutex> guard(ewb->cookie_map_mutex);
+                    ewb->cookie_map.erase(cookie);
+                    ewb->cookie_map[cookie] = new_mode;
+                }
                 response(nullptr, 0, nullptr, 0, nullptr, 0,
                          PROTOCOL_BINARY_RAW_BYTES,
                          PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
