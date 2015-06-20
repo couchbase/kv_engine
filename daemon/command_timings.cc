@@ -25,6 +25,40 @@ CommandTimings::CommandTimings() {
     reset();
 }
 
+CommandTimings::CommandTimings(const CommandTimings &other) {
+    *this = other;
+}
+
+/**
+ * This isn't completely accurate, but it's only called whenever we're
+ * grabbing the stats. We don't want to create a lock in order to make
+ * sure that "total" is in 100% sync with all of the samples.. We
+ * don't care <em>THAT</em> much for being accurate..
+ */
+CommandTimings& CommandTimings::operator=(const CommandTimings&other) {
+    ns.store(other.ns.load());
+    size_t idx;
+    size_t len = usec.size();
+    for (idx = 0; idx < len; ++idx) {
+        usec[idx].store(other.usec[idx].load());
+    }
+
+    len = msec.size();
+    for (idx = 0; idx < len; ++idx) {
+        msec[idx].store(other.msec[idx].load());
+    }
+
+    len = halfsec.size();
+    for (idx = 0; idx < len; ++idx) {
+        halfsec[idx].store(other.halfsec[idx].load());
+    }
+
+    wayout.store(other.wayout.load());
+    total.store(other.total.load());
+
+    return *this;
+}
+
 void CommandTimings::reset(void) {
     ns.store(0);
     for(auto& us: usec) {

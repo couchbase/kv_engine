@@ -8,6 +8,8 @@
 #cmakedefine HAVE_MEMALIGN ${HAVE_MEMALIGN}
 #cmakedefine HAVE_LIBNUMA ${HAVE_LIBNUMA}
 
+#define COUCHBASE_MAX_NUM_BUCKETS 100
+
 #ifdef WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>

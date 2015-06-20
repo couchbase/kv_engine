@@ -68,12 +68,9 @@ bool binary_response_handler(const void *key, uint16_t keylen,
 
 /**
  * All of the buckets in couchbase is stored in this array.
- * @todo we should make this array into a list and make it
- *       dynamic. The easiest would most likely be to move it into a
- *       c++ file and use STL...
  */
 static cb_mutex_t buckets_lock;
-bucket_t *all_buckets;
+std::vector<Bucket> all_buckets;
 
 static void cookie_set_admin(const void *cookie);
 static bool cookie_is_admin(const void *cookie);
@@ -285,18 +282,18 @@ enum transmit_result {
 static enum transmit_result transmit(conn *c);
 
 static void disassociate_bucket(conn *c) {
-    bucket_t *b = &all_buckets[c->bucket.idx];
-    cb_mutex_enter(&b->mutex);
-    b->clients--;
+    Bucket &b = all_buckets.at(c->bucket.idx);
+    cb_mutex_enter(&b.mutex);
+    b.clients--;
 
     c->bucket.idx = 0;
     c->bucket.engine = NULL;
 
-    if (b->clients == 0 && b->state == BucketState::Destroying) {
-        cb_cond_signal(&b->cond);
+    if (b.clients == 0 && b.state == BucketState::Destroying) {
+        cb_cond_signal(&b.cond);
     }
 
-    cb_mutex_exit(&b->mutex);
+    cb_mutex_exit(&b.mutex);
 }
 
 static bool associate_bucket(conn *c, const char *name) {
@@ -308,38 +305,38 @@ static bool associate_bucket(conn *c, const char *name) {
     /* Try to associate with the named bucket */
     /* @todo add auth checks!!! */
     for (int ii = 1; ii < settings.max_buckets && !found; ++ii) {
-        bucket_t *b = &all_buckets[ii];
-        cb_mutex_enter(&b->mutex);
-        if (b->state == BucketState::Ready && strcmp(b->name, name) == 0) {
-            b->clients++;
+        Bucket &b = all_buckets.at(ii);
+        cb_mutex_enter(&b.mutex);
+        if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
+            b.clients++;
             c->bucket.idx = ii;
-            c->bucket.engine = b->engine;
+            c->bucket.engine = b.engine;
             found = true;
         }
-        cb_mutex_exit(&b->mutex);
+        cb_mutex_exit(&b.mutex);
     }
 
     if (!found) {
         /* Bucket not found, connect to the "no-bucket" */
-        bucket_t *b = &all_buckets[0];
-        cb_mutex_enter(&b->mutex);
-        b->clients++;
-        cb_mutex_exit(&b->mutex);
+        Bucket &b = all_buckets.at(0);
+        cb_mutex_enter(&b.mutex);
+        b.clients++;
+        cb_mutex_exit(&b.mutex);
         c->bucket.idx = 0;
-        c->bucket.engine = b->engine;
+        c->bucket.engine = b.engine;
     }
 
     return found;
 }
 
 void associate_initial_bucket(conn *c) {
-    bucket_t *b = &all_buckets[0];
-    cb_mutex_enter(&b->mutex);
-    b->clients++;
-    cb_mutex_exit(&b->mutex);
+    Bucket &b = all_buckets.at(0);
+    cb_mutex_enter(&b.mutex);
+    b.clients++;
+    cb_mutex_exit(&b.mutex);
 
     c->bucket.idx = 0;
-    c->bucket.engine = b->engine;
+    c->bucket.engine = b.engine;
 
     associate_bucket(c, "default");
 }
@@ -507,7 +504,7 @@ static void settings_init(void) {
     settings.breakpad.minidump_dir = NULL;
     settings.breakpad.content = CONTENT_DEFAULT;
     settings.require_init = false;
-    settings.max_buckets = 200;
+    settings.max_buckets = COUCHBASE_MAX_NUM_BUCKETS;
     settings.admin = strdup("_admin");
 }
 
@@ -5612,13 +5609,13 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
 
 static cJSON *get_bucket_details(int idx)
 {
-    bucket_t *bucket = all_buckets + idx;
-    bucket_t copy;
+    Bucket &bucket = all_buckets.at(idx);
+    Bucket copy;
 
     /* make a copy so I don't have to do everything with the locks */
-    cb_mutex_enter(&bucket->mutex);
-    memcpy(&copy, bucket, sizeof(copy));
-    cb_mutex_exit(&bucket->mutex);
+    cb_mutex_enter(&bucket.mutex);
+    copy = bucket;
+    cb_mutex_exit(&bucket.mutex);
 
     if (copy.state == BucketState::None) {
         return NULL;
@@ -6496,13 +6493,13 @@ bool conn_ship_log(conn *c) {
 static bool is_bucket_dying(conn *c)
 {
     bool disconnect = false;
-    bucket_t *b = &all_buckets[c->bucket.idx];
-    cb_mutex_enter(&b->mutex);
+    Bucket &b = all_buckets.at(c->bucket.idx);
+    cb_mutex_enter(&b.mutex);
 
-    if (b->state != BucketState::Ready) {
+    if (b.state != BucketState::Ready) {
         disconnect = true;
     }
-    cb_mutex_exit(&b->mutex);
+    cb_mutex_exit(&b.mutex);
 
     if (disconnect) {
         conn_set_state(c, conn_closing);
@@ -8057,45 +8054,40 @@ static void delete_bucket_main(void *arg)
 
 static void initialize_buckets(void) {
     cb_mutex_initialize(&buckets_lock);
-    all_buckets = reinterpret_cast<bucket_t*>
-        (calloc(settings.max_buckets, sizeof(*all_buckets)));
+    all_buckets.resize(settings.max_buckets);
 
-    for (int ii = 0; ii < settings.max_buckets; ++ii) {
-        cb_mutex_initialize(&all_buckets[ii].mutex);
-        cb_cond_initialize(&all_buckets[ii].cond);
-        all_buckets[ii].state = BucketState::None;
-
-        // setup the stats
-        int numthread = settings.num_threads + 1;
+    int numthread = settings.num_threads + 1;
+    for (auto &b : all_buckets) {
         struct thread_stats *ts = reinterpret_cast<struct thread_stats*>
             (calloc(numthread, sizeof(struct thread_stats)));
         for (int jj = 0; jj < numthread; jj++) {
             cb_mutex_initialize(&ts[jj].mutex);
         }
-        all_buckets[ii].stats = ts;
+        b.stats = ts;
     }
 
     // To make the life easier for us in the code, index 0
     // in the array is "no bucket"
-    all_buckets[0].type = BucketType::NoBucket;
-    all_buckets[0].state = BucketState::Ready;
     ENGINE_HANDLE *handle;
     cb_assert(new_engine_instance(BucketType::NoBucket,
                                   get_server_api,
                                   &handle));
 
-    all_buckets[0].engine = (ENGINE_HANDLE_V1*)handle;
-    cb_assert(all_buckets[0].engine != NULL);
+    cb_assert(handle != nullptr);
+    auto &nobucket = all_buckets.at(0);
+    nobucket.type = BucketType::NoBucket;
+    nobucket.state = BucketState::Ready;
+    nobucket.engine = (ENGINE_HANDLE_V1*)handle;
 }
 
 static void cleanup_buckets(void) {
-    for (int ii = 0; ii < settings.max_buckets; ++ii) {
+    for (auto &bucket : all_buckets) {
         bool waiting;
 
         do {
             waiting = false;
-            cb_mutex_enter(&all_buckets[ii].mutex);
-            switch (all_buckets[ii].state) {
+            cb_mutex_enter(&bucket.mutex);
+            switch (bucket.state) {
             case BucketState::Stopping:
             case BucketState::Destroying:
             case BucketState::Creating:
@@ -8106,29 +8098,23 @@ static void cleanup_buckets(void) {
                 /* Empty */
                 ;
             }
-            cb_mutex_exit(&all_buckets[ii].mutex);
+            cb_mutex_exit(&bucket.mutex);
             if (waiting) {
                 usleep(250);
             }
         } while (waiting);
 
-        if (all_buckets[ii].state == BucketState::Ready) {
-            all_buckets[ii].engine->destroy
-                (v1_handle_2_handle(all_buckets[ii].engine), false);
+        if (bucket.state == BucketState::Ready) {
+            bucket.engine->destroy(v1_handle_2_handle(bucket.engine), false);
         }
 
-
-        struct thread_stats *ts = all_buckets[ii].stats;
+        struct thread_stats *ts = bucket.stats;
         int numthread = settings.num_threads + 1;
         for (int jj = 0; jj < numthread; jj++) {
             cb_mutex_destroy(&ts[jj].mutex);
         }
-        free(all_buckets[ii].stats);
-
-        cb_cond_destroy(&all_buckets[ii].cond);
-        cb_mutex_destroy(&all_buckets[ii].mutex);
+        free(bucket.stats);
     }
-    free(all_buckets);
 }
 
 static void initialize_binary_lookup_map(void) {

@@ -1,4 +1,5 @@
 ADD_EXECUTABLE(memcached_testapp
+               bucket_tests.cc
                testapp.cc testapp.h
                testapp_subdoc.cc
                ${Memcached_SOURCE_DIR}/programs/utilities.c)

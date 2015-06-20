@@ -24,6 +24,9 @@
 class CommandTimings {
 public:
     CommandTimings(void);
+    CommandTimings(const CommandTimings &other);
+    CommandTimings& operator=(const CommandTimings &other);
+
     void reset(void);
     void collect(const hrtime_t nsec);
     std::string to_string(void);

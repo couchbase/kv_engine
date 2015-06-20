@@ -17,6 +17,7 @@
 #pragma once
 
 #include <memcached/engine.h>
+#include <cstring>
 #include "timings.h"
 
 enum class BucketState : uint8_t {
@@ -49,9 +50,28 @@ enum class BucketType : uint8_t {
 
 struct engine_event_handler;
 
-typedef struct {
+class Bucket {
+public:
+    Bucket()
+        : clients(0),
+          state(BucketState::None),
+          type(BucketType::Unknown),
+          stats(nullptr),
+          topkeys(nullptr)
+    {
+        std::memset(name, 0, sizeof(name));
+        std::memset(engine_event_handlers, 0, sizeof(engine_event_handlers));
+        cb_mutex_initialize(&mutex);
+        cb_cond_initialize(&cond);
+    }
+
+    ~Bucket() {
+        cb_mutex_destroy(&mutex);
+        cb_cond_destroy(&cond);
+    }
+
     /**
-     * Mutex protecting the state and refcount.
+     * Mutex protecting the state and refcount. (@todo move to std::mutex)
      */
     cb_mutex_t mutex;
     cb_cond_t cond;
@@ -106,4 +126,4 @@ typedef struct {
      */
     void *topkeys;
 
-} bucket_t;
+};

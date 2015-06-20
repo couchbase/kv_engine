@@ -716,6 +716,9 @@ void McdTestappTest::start_memcached_server(cJSON* config) {
     FILE *fp = fopen(isasl_file, "w");
     ASSERT_NE(nullptr, fp);
     fprintf(fp, "_admin password \n");
+    for (int ii = 0; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
+        fprintf(fp, "mybucket_%03u mybucket_%03u \n", ii, ii);
+    }
     fclose(fp);
 
     snprintf(isasl_pwfile_env, sizeof(isasl_pwfile_env), "ISASL_PWFILE=%s",
@@ -916,18 +919,16 @@ bool safe_recv_packet(void *buf, size_t size) {
     return true;
 }
 
-/** Constructs a storage command using the give arguments into buf. Returns
- *  the number of bytes written.
- */
-static size_t storage_command(char*buf,
-                             size_t bufsz,
-                             uint8_t cmd,
-                             const void* key,
-                             size_t keylen,
-                             const void* dta,
-                             size_t dtalen,
-                             uint32_t flags,
-                             uint32_t exp) {
+size_t storage_command(char*buf,
+                       size_t bufsz,
+                       uint8_t cmd,
+                       const void* key,
+                       size_t keylen,
+                       const void* dta,
+                       size_t dtalen,
+                       uint32_t flags,
+                       uint32_t exp)
+{
     /* all of the storage commands use the same command layout */
     size_t key_offset;
     protocol_binary_request_set *request =
