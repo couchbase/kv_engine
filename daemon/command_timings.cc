@@ -29,6 +29,12 @@ CommandTimings::CommandTimings(const CommandTimings &other) {
     *this = other;
 }
 
+template <typename T>
+static void copy(T&dst, const T&src) {
+    dst.store(src.load(std::memory_order_relaxed),
+              std::memory_order_relaxed);
+}
+
 /**
  * This isn't completely accurate, but it's only called whenever we're
  * grabbing the stats. We don't want to create a lock in order to make
@@ -36,42 +42,43 @@ CommandTimings::CommandTimings(const CommandTimings &other) {
  * don't care <em>THAT</em> much for being accurate..
  */
 CommandTimings& CommandTimings::operator=(const CommandTimings&other) {
-    ns.store(other.ns.load());
+    copy(ns, other.ns);
+
     size_t idx;
     size_t len = usec.size();
     for (idx = 0; idx < len; ++idx) {
-        usec[idx].store(other.usec[idx].load());
+        copy(usec[idx], other.usec[idx]);
     }
 
     len = msec.size();
     for (idx = 0; idx < len; ++idx) {
-        msec[idx].store(other.msec[idx].load());
+        copy(msec[idx], other.msec[idx]);
     }
 
     len = halfsec.size();
     for (idx = 0; idx < len; ++idx) {
-        halfsec[idx].store(other.halfsec[idx].load());
+        copy(halfsec[idx], other.halfsec[idx]);
     }
 
-    wayout.store(other.wayout.load());
-    total.store(other.total.load());
+    copy(wayout, other.wayout);
+    copy(total, other.total);
 
     return *this;
 }
 
 void CommandTimings::reset(void) {
-    ns.store(0);
+    ns.store(0, std::memory_order_relaxed);
     for(auto& us: usec) {
-        us.store(0);
+        us.store(0, std::memory_order_relaxed);
     }
     for(auto& ms: msec) {
-        ms.store(0);
+        ms.store(0, std::memory_order_relaxed);
     }
     for(auto& hs: halfsec) {
-        hs.store(0);
+        hs.store(0, std::memory_order_relaxed);
     }
-    wayout.store(0);
-    total.store(0);
+    wayout.store(0, std::memory_order_relaxed);
+    total.store(0, std::memory_order_relaxed);
 }
 
 void CommandTimings::collect(const hrtime_t nsec) {
@@ -80,17 +87,17 @@ void CommandTimings::collect(const hrtime_t nsec) {
     hrtime_t hs = ms / 500;
 
     if (us == 0) {
-        ns++;
+        ns.fetch_add(1, std::memory_order_relaxed);
     } else if (us < 1000) {
-        usec[us / 10]++;
+        usec[us / 10].fetch_add(1, std::memory_order_relaxed);
     } else if (ms < 50) {
-        msec[ms]++;
+        msec[ms].fetch_add(1, std::memory_order_relaxed);
     } else if (hs < 10) {
-        halfsec[hs]++;
+        halfsec[hs].fetch_add(1, std::memory_order_relaxed);
     } else {
-        wayout++;
+        wayout.fetch_add(1, std::memory_order_relaxed);
     }
-    total++;
+    total.fetch_add(1, std::memory_order_relaxed);
 }
 
 std::string CommandTimings::to_string(void) {
