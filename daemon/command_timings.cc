@@ -20,6 +20,7 @@
 #include <atomic>
 #include <sstream>
 #include <string>
+#include <cJSON.h>
 
 CommandTimings::CommandTimings() {
     reset();
@@ -101,25 +102,37 @@ void CommandTimings::collect(const hrtime_t nsec) {
 }
 
 std::string CommandTimings::to_string(void) {
-    std::stringstream ss;
+    cJSON *root = cJSON_CreateObject();
+    cJSON_AddNumberToObject(root, "ns", get_ns());
 
-    ss << "{\"ns\":" << get_ns() << ",\"us\":[";
-    for (int ii = 0; ii < 99; ++ii) {
-        ss << get_usec(ii) << ",";
+    cJSON *array = cJSON_CreateArray();
+    for (auto &us : usec) {
+        cJSON *obj = cJSON_CreateNumber(us.load(std::memory_order_relaxed));
+        cJSON_AddItemToArray(array, obj);
     }
-    ss << get_usec(99) << "],\"ms\":[";
-    for (int ii = 1; ii < 49; ++ii) {
-        ss << get_msec(ii) << ",";
-    }
-    ss << get_msec(49) << "],\"500ms\":[";
-    for (int ii = 0; ii < 9; ++ii) {
-        ss << get_halfsec(ii) << ",";
-    }
-    ss << get_halfsec(9) << "],\"wayout\":"
-    << get_wayout() << "}";
-    std::string str = ss.str();
+    cJSON_AddItemToObject(root, "us", array);
 
-    return ss.str();
+    array = cJSON_CreateArray();
+    size_t len = msec.size();
+    // element 0 isn't used
+    for (size_t ii = 1; ii < len; ii++) {
+        cJSON *obj = cJSON_CreateNumber(get_msec(ii));
+        cJSON_AddItemToArray(array, obj);
+    }
+    cJSON_AddItemToObject(root, "ms", array);
+
+    array = cJSON_CreateArray();
+    for (auto &hs : halfsec) {
+        cJSON *obj = cJSON_CreateNumber(hs.load(std::memory_order_relaxed));
+        cJSON_AddItemToArray(array, obj);
+    }
+    cJSON_AddItemToObject(root, "500ms", array);
+    cJSON_AddNumberToObject(root, "wayout", get_wayout());
+    char *ptr = cJSON_PrintUnformatted(root);
+    std::string ret(ptr);
+    cJSON_Free(ptr);
+
+    return ret;
 }
 
 /* get functions of Timings class */
