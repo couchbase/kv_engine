@@ -1068,9 +1068,9 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     if (ret != ENGINE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "%s Got an error code %d while trying to "
             "process  mutation", consumer->logHeader(), ret);
+    } else {
+        handleSnapshotEnd(vb, mutation->getBySeqno());
     }
-
-    handleSnapshotEnd(vb, mutation->getBySeqno());
 
     if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
         delete mutation;
@@ -1120,9 +1120,9 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     if (ret != ENGINE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "%s Got an error code %d while trying to "
             "process  deletion", consumer->logHeader(), ret);
+    } else {
+        handleSnapshotEnd(vb, deletion->getBySeqno());
     }
-
-    handleSnapshotEnd(vb, deletion->getBySeqno());
 
     if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
         delete deletion;
