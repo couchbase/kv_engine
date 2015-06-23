@@ -249,6 +249,9 @@ extern "C"
         PROTOCOL_BINARY_CMD_AUDIT_PUT = 0x27,
         PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD = 0x28,
 
+        /* Shutdown the server */
+        PROTOCOL_BINARY_CMD_SHUTDOWN = 0x29,
+
         /* These commands are used for range operations and exist within
          * this header for use in other projects.  Range operations are
          * not expected to be implemented in the memcached server itself.
@@ -1765,6 +1768,16 @@ extern "C"
     } protocol_binary_request_audit_put;
 
     typedef protocol_binary_response_no_extras protocol_binary_response_audit_put;
+
+    /**
+     * The shutdown message is sent from ns_server to memcached to tell
+     * memcached to initiate a clean shutdown. This is a privileged
+     * command and carries no payload, but the CAS field needs to be
+     * set to the current session token (see GET/SET_CTRL_TOKEN)
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_shutdown;
+    typedef protocol_binary_response_no_extras protocol_binary_response_shutdown;
+
 
     /**
      * The PROTOCOL_BINARY_CMD_OBSERVE_SEQNO command is used by the

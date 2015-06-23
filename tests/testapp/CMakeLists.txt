@@ -1,6 +1,7 @@
 ADD_EXECUTABLE(memcached_testapp
                bucket_tests.cc
                testapp.cc testapp.h
+               testapp_shutdown.cc
                testapp_subdoc.cc
                testapp_subdoc_multipath.cc
                testapp_subdoc_perf.cc

@@ -1062,6 +1062,54 @@ namespace BinaryProtocolValidator {
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
+    // Test shutdown
+    class ShutdownValidatorTest : public ValidatorTest {
+        virtual void SetUp() override {
+            ValidatorTest::SetUp();
+            memset(&request, 0, sizeof(request));
+            request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+            request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+            request.message.header.request.cas = 1;
+        }
+
+    protected:
+        int validate() {
+            return ValidatorTest::validate(PROTOCOL_BINARY_CMD_SHUTDOWN,
+                                           static_cast<void*>(&request));
+        }
+        protocol_binary_request_no_extras request;
+    };
+
+    TEST_F(ShutdownValidatorTest, CorrectMessage) {
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    }
+    TEST_F(ShutdownValidatorTest, InvalidMagic) {
+        request.message.header.request.magic = 0;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    }
+    TEST_F(ShutdownValidatorTest, InvalidExtlen) {
+        request.message.header.request.extlen = 2;
+        request.message.header.request.bodylen = htonl(2);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    }
+    TEST_F(ShutdownValidatorTest, InvalidKey) {
+        request.message.header.request.keylen = 10;
+        request.message.header.request.bodylen = htonl(10);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    }
+    TEST_F(ShutdownValidatorTest, InvalidDatatype) {
+        request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    }
+    TEST_F(ShutdownValidatorTest, InvalidCas) {
+        request.message.header.request.cas = 0;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    }
+    TEST_F(ShutdownValidatorTest, InvalidBody) {
+        request.message.header.request.bodylen = htonl(4);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
+    }
+
     class DcpOpenValidatorTest : public ValidatorTest {
         virtual void SetUp() override {
             ValidatorTest::SetUp();

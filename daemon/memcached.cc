@@ -4800,6 +4800,24 @@ static void select_bucket_executor(Connection *c, void *packet) {
     }
 }
 
+static void shutdown_executor(Connection *c, void *packet)
+{
+    auto req = reinterpret_cast<protocol_binary_request_shutdown*>(packet);
+    uint64_t cas = ntohll(req->message.header.request.cas);
+    bool ok;
+
+    cb_mutex_enter(&(session_cas.mutex));
+    ok = session_cas.value == cas;
+    cb_mutex_exit(&(session_cas.mutex));
+
+    if (ok) {
+        shutdown_server();
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    } else {
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
+    }
+}
+
 typedef protocol_binary_response_status (*bin_package_validate)(void *packet);
 typedef void (*bin_package_execute)(Connection *c, void *packet);
 
@@ -4878,7 +4896,7 @@ static void setup_bin_packet_handlers(void) {
     executors[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_executor;
     executors[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_executor;
     executors[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] = audit_config_reload_executor;
-
+    executors[PROTOCOL_BINARY_CMD_SHUTDOWN] = shutdown_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_EXISTS] = subdoc_exists_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD] = subdoc_dict_add_executor;

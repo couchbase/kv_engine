@@ -1068,6 +1068,8 @@ off_t raw_command(char* buf,
         request->message.header.request.extlen = 4;
     } else if (cmd == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
         request->message.header.request.extlen = 12;
+    } else if (cmd == PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN) {
+        request->message.header.request.extlen = 8;
     }
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
     request->message.header.request.opcode = cmd;
