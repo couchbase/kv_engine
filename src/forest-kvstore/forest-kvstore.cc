@@ -629,16 +629,8 @@ void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     bool meta_only = true;
     vb_bgfetch_queue_t::iterator itr = itms.begin();
     for (; itr != itms.end(); ++itr) {
-        std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
-        std::list<VBucketBGFetchItem *>:: iterator fitr = fetches.begin();
-
-        /* Check if we need to just fetch meta data or the whole data */
-        for (; fitr != fetches.end(); ++fitr) {
-            if (!((*fitr)->metaDataOnly)) {
-                meta_only = false;
-                break;
-            }
-        }
+        vb_bgfetch_item_ctx_t &bg_itm_ctx = (*itr).second;
+        meta_only = bg_itm_ctx.isMetaOnly;
 
         RememberingCallback<GetValue> gcb;
         if (meta_only) {
@@ -652,6 +644,9 @@ void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
             LOG(EXTENSION_LOG_WARNING, "Failed to retrieve key: %s",
                 key.c_str());
         }
+
+        std::list<VBucketBGFetchItem *> &fetches = bg_itm_ctx.bgfetched_list;
+        std::list<VBucketBGFetchItem *>:: iterator fitr = fetches.begin();
 
         for (fitr = fetches.begin(); fitr != fetches.end(); ++fitr) {
             (*fitr)->value = gcb.val;

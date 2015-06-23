@@ -66,7 +66,8 @@ size_t BgFetcher::doFetch(uint16_t vbId) {
     std::vector<bgfetched_item_t> fetchedItems;
     vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
     for (; itr != items2fetch.end(); ++itr) {
-        std::list<VBucketBGFetchItem *> &requestedItems = (*itr).second;
+        vb_bgfetch_item_ctx_t &bg_item_ctx = (*itr).second;
+        std::list<VBucketBGFetchItem *> &requestedItems = bg_item_ctx.bgfetched_list;
         std::list<VBucketBGFetchItem *>::iterator itm = requestedItems.begin();
         for(; itm != requestedItems.end(); ++itm) {
             const std::string &key = (*itr).first;
@@ -91,7 +92,8 @@ void BgFetcher::clearItems(uint16_t vbId) {
     for(; itr != items2fetch.end(); ++itr) {
         // every fetched item belonging to the same key shares
         // a single data buffer, just delete it from the first fetched item
-        std::list<VBucketBGFetchItem *> &doneItems = (*itr).second;
+        vb_bgfetch_item_ctx_t& bg_item_ctx = (*itr).second;
+        std::list<VBucketBGFetchItem *> &doneItems = bg_item_ctx.bgfetched_list;
         VBucketBGFetchItem *firstItem = doneItems.front();
         firstItem->delValue();
 

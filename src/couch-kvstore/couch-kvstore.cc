@@ -483,7 +483,8 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
         st.numGetFailure.fetch_add(numItems);
         vb_bgfetch_queue_t::iterator itr = itms.begin();
         for (; itr != itms.end(); ++itr) {
-            std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
+            vb_bgfetch_item_ctx_t &bg_itm_ctx = (*itr).second;
+            std::list<VBucketBGFetchItem *> &fetches = bg_itm_ctx.bgfetched_list;
             std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
             for (; fitr != fetches.end(); ++fitr) {
                 (*fitr)->value.setStatus(ENGINE_NOT_MY_VBUCKET);
@@ -513,7 +514,8 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
                 vb, (*itr).first.c_str(),
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode).c_str());
-            std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
+            vb_bgfetch_item_ctx_t &bg_itm_ctx = (*itr).second;
+            std::list<VBucketBGFetchItem *> &fetches = bg_itm_ctx.bgfetched_list;
             std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
             for (; fitr != fetches.end(); ++fitr) {
                 (*fitr)->value.setStatus(couchErr2EngineErr(errCode));
@@ -2070,15 +2072,8 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
         return 0;
     }
 
-    bool meta_only = true;
-    std::list<VBucketBGFetchItem *> &fetches = (*qitr).second;
-    std::list<VBucketBGFetchItem *>::iterator itr = fetches.begin();
-    for (; itr != fetches.end(); ++itr) {
-        if (!((*itr)->metaDataOnly)) {
-            meta_only = false;
-            break;
-        }
-    }
+    vb_bgfetch_item_ctx_t& bg_itm_ctx = (*qitr).second;
+    bool meta_only = bg_itm_ctx.isMetaOnly;
 
     GetValue returnVal;
 
@@ -2093,6 +2088,10 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     }
 
     returnVal.setStatus(cbCtx->cks.couchErr2EngineErr(errCode));
+
+    std::list<VBucketBGFetchItem *> &fetches = bg_itm_ctx.bgfetched_list;
+    std::list<VBucketBGFetchItem *>::iterator itr = fetches.begin();
+
     for (itr = fetches.begin(); itr != fetches.end(); ++itr) {
         // populate return value for remaining fetch items with the
         // same seqid

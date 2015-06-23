@@ -71,14 +71,17 @@ static bool batchWarmupCallback(uint16_t vbId,
                 continue;
             }
             VBucketBGFetchItem *fit = new VBucketBGFetchItem(NULL, false);
-            items2fetch[(*itm).first].push_back(fit);
+            vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[(*itm).first];
+            bg_itm_ctx.isMetaOnly = false;
+            bg_itm_ctx.bgfetched_list.push_back(fit);
         }
 
         c->epstore->getROUnderlying(vbId)->getMulti(vbId, items2fetch);
 
         vb_bgfetch_queue_t::iterator items = items2fetch.begin();
         for (; items != items2fetch.end(); items++) {
-           VBucketBGFetchItem * fetchedItem = (*items).second.back();
+           vb_bgfetch_item_ctx_t& bg_itm_ctx = (*items).second;
+           VBucketBGFetchItem * fetchedItem = bg_itm_ctx.bgfetched_list.back();
            GetValue &val = fetchedItem->value;
            if (val.getStatus() == ENGINE_SUCCESS) {
                 c->loaded++;

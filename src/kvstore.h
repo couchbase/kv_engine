@@ -55,7 +55,12 @@ static const int MUTATION_FAILED = -1;
 static const int DOC_NOT_FOUND = 0;
 static const int MUTATION_SUCCESS = 1;
 
-typedef unordered_map<std::string, std::list<VBucketBGFetchItem *> > vb_bgfetch_queue_t;
+typedef struct {
+    std::list<VBucketBGFetchItem *> bgfetched_list;
+    bool isMetaOnly;
+} vb_bgfetch_item_ctx_t;
+
+typedef unordered_map<std::string, vb_bgfetch_item_ctx_t> vb_bgfetch_queue_t;
 typedef std::pair<std::string, VBucketBGFetchItem *> bgfetched_item_t;
 
 /**

@@ -128,7 +128,8 @@ VBucket::~VBucket() {
     size_t num_pending_fetches = 0;
     vb_bgfetch_queue_t::iterator itr = pendingBGFetches.begin();
     for (; itr != pendingBGFetches.end(); ++itr) {
-        std::list<VBucketBGFetchItem *> &bgitems = itr->second;
+        vb_bgfetch_item_ctx_t &bg_itm_ctx = itr->second;
+        std::list<VBucketBGFetchItem *> &bgitems = bg_itm_ctx.bgfetched_list;
         std::list<VBucketBGFetchItem *>::iterator vit = bgitems.begin();
         for (; vit != bgitems.end(); ++vit) {
             delete (*vit);
@@ -278,7 +279,17 @@ void VBucket::queueBGFetchItem(const std::string &key,
                                VBucketBGFetchItem *fetch,
                                BgFetcher *bgFetcher) {
     LockHolder lh(pendingBGFetchesLock);
-    pendingBGFetches[key].push_back(fetch);
+    vb_bgfetch_item_ctx_t& bgfetch_itm_ctx = pendingBGFetches[key];
+
+    if (bgfetch_itm_ctx.bgfetched_list.empty()) {
+        bgfetch_itm_ctx.isMetaOnly = true;
+    }
+
+    bgfetch_itm_ctx.bgfetched_list.push_back(fetch);
+
+    if (!fetch->metaDataOnly) {
+        bgfetch_itm_ctx.isMetaOnly = false;
+    }
     bgFetcher->addPendingVB(id);
     lh.unlock();
 }
