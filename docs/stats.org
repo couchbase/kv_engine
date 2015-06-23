@@ -16,8 +16,8 @@
 
 * Getting Started
 
-For introductory information on stats within membase, start with the
-[[http://wiki.membase.org/display/membase/Membase%2BStatistics][membase wiki stats page]].
+For introductory information on stats within Couchbase, start with the
+[[http://docs.couchbase.com/][Couchbase server documentations]].
 
 * Stats Definitions
 

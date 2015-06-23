@@ -1674,8 +1674,15 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
         if (isMeta) {
-            if (v && v->unlocked_restoreMeta(gcb.val.getValue(),
-                                             gcb.val.getStatus(), vb->ht)) {
+            if ((v && v->unlocked_restoreMeta(gcb.val.getValue(),
+                                             gcb.val.getStatus(), vb->ht))
+                || ENGINE_KEY_ENOENT == status) {
+                /* If ENGINE_KEY_ENOENT is the status from storage and the temp
+                 key is removed from hash table by the time bgfetch returns
+                 (in case multiple bgfetch is scheduled for a key), we still
+                 need to return ENGINE_SUCCESS to the memcached worker thread,
+                 so that the worker thread can visit the ep-engine and figure
+                 out the correct flow */
                 status = ENGINE_SUCCESS;
             }
         } else {
@@ -1772,7 +1779,14 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
         LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
         StoredValue *v = fetchValidValue(vb, key, bucket, true);
         if (bgitem->metaDataOnly) {
-            if (v && v->unlocked_restoreMeta(fetchedValue, status, vb->ht)) {
+            if ((v && v->unlocked_restoreMeta(fetchedValue, status, vb->ht))
+                || ENGINE_KEY_ENOENT == status) {
+                /* If ENGINE_KEY_ENOENT is the status from storage and the temp
+                 key is removed from hash table by the time bgfetch returns
+                 (in case multiple bgfetch is scheduled for a key), we still
+                 need to return ENGINE_SUCCESS to the memcached worker thread,
+                 so that the worker thread can visit the ep-engine and figure
+                 out the correct flow */
                 status = ENGINE_SUCCESS;
             }
         } else {
