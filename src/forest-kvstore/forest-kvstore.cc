@@ -356,8 +356,8 @@ void ForestKVStore::getWithHeader(void *dbHandle, const std::string &key,
     }
 
     rdoc.key = NULL;
-    free(rdoc.meta);
-    free(rdoc.body);
+    fdb_free_block(rdoc.meta);
+    fdb_free_block(rdoc.body);
 
     rv.setStatus(forestErr2EngineErr(status));
     cb.callback(rv);
