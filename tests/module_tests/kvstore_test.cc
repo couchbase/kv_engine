@@ -97,6 +97,6 @@ int main(int argc, char **argv) {
     putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
     std::string backend("couchdb");
     basic_kvstore_test(backend);
-    backend = "forestdb";
-    basic_kvstore_test(backend);
+    //backend = "forestdb";
+    //basic_kvstore_test(backend);
 }
