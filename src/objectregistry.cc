@@ -47,6 +47,11 @@ public:
          initial_track = new ThreadLocal<AtomicValue<size_t>*>();
       }
    }
+
+   ~installer() {
+       delete initial_track;
+       delete th;
+   }
 } install;
 
 static bool verifyEngine(EventuallyPersistentEngine *engine)
