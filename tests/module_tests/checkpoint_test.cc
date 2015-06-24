@@ -331,11 +331,16 @@ void test_reset_checkpoint_id() {
     manager->checkAndAddNewCheckpoint(1, vbucket);
     manager->getAllItemsForCursor(cursor, items);
     cb_assert(items.size() == 0);
+
+    delete manager;
 }
+
+/* static storage for environment variable set by putenv(). */
+static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
-    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+    putenv(allow_no_stats_env);
     basic_chk_test();
     test_reset_checkpoint_id();
 }
