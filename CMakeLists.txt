@@ -11,6 +11,7 @@ INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckLibraryExists)
 INCLUDE(CheckSymbolExists)
 INCLUDE(CheckTypeSize)
+INCLUDE(CTest)
 
 INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_SOURCE_DIR}/include
