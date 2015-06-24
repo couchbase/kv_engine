@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 
-// Usage: (to repeatedly run just a single test case)
-// make engine_tests IS_LOOP=-L EP_TEST_NUM=3
+// Usage: (to run just a single test case)
+// make engine_tests EP_TEST_NUM=3
 
 #include "config.h"
 
