@@ -5657,7 +5657,7 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
         }
     }
 
-    APPEND_STAT("verbosity", "%d", settings.verbose);
+    APPEND_STAT("verbosity", "%d", settings.verbose.load());
     APPEND_STAT("num_threads", "%d", settings.num_threads);
     APPEND_STAT("reqs_per_event_high_priority", "%d",
                 settings.reqs_per_event_high_priority);
@@ -7713,7 +7713,7 @@ static EXTENSION_LOGGER_DESCRIPTOR* get_logger(void)
 static EXTENSION_LOG_LEVEL get_log_level(void)
 {
     EXTENSION_LOG_LEVEL ret;
-    switch (settings.verbose) {
+    switch (settings.verbose.load()) {
     case 0: ret = EXTENSION_LOG_NOTICE; break;
     case 1: ret = EXTENSION_LOG_INFO; break;
     case 2: ret = EXTENSION_LOG_DEBUG; break;

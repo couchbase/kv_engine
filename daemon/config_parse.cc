@@ -92,6 +92,11 @@ static bool get_absolute_file(const char *file, const char **value,
 }
 
 
+/** Given a JSON element {i} with the name {key}, attempt to convert
+ *  it's value to an integer and store the result in {value}. Returns
+ *  true on success; else returns false and sets {error_msg} to point
+ *  to message describing the any error.
+ */
 static bool get_int_value(cJSON *i, const char *key, int* value,
                           char **error_msg) {
     switch (i->type) {
@@ -370,7 +375,9 @@ static bool get_max_packet_size(cJSON *o, struct settings *settings,
 
 static bool get_verbosity(cJSON *o, struct settings *settings,
                           char **error_msg) {
-    if (get_int_value(o, o->string, &settings->verbose, error_msg)) {
+    int verbosity;
+    if (get_int_value(o, o->string, &verbosity, error_msg)) {
+        settings->verbose.store(verbosity);
         settings->has.verbose = true;
         return true;
     } else {
@@ -1331,11 +1338,11 @@ static void dyna_reconfig_verbosity(const struct settings *new_settings) {
     if (new_settings->has.verbose &&
         new_settings->verbose != settings.verbose) {
         int old_verbose = settings.verbose;
-        settings.verbose = new_settings->verbose;
+        settings.verbose.store(new_settings->verbose);
         perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
         settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
             "Changed verbosity from %d to %d", old_verbose,
-            settings.verbose);
+            settings.verbose.load());
     }
 }
 

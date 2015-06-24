@@ -25,15 +25,12 @@
 #  else
 #    error Unsupported platform for breakpad, cannot compile.
 #  endif
+#include "settings.h"
 
 #include "memcached/extension_loggers.h"
 #include <platform/backtrace.h>
 
 #include <stdlib.h>
-
-extern "C" {
-    extern struct settings settings;
-}
 
 using namespace google_breakpad;
 

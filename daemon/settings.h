@@ -19,9 +19,7 @@
 
 #include <memcached/engine.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <atomic>
 
 /**
  * An enumeration with constants for the various protocols supported
@@ -94,7 +92,7 @@ struct settings {
     const char *rbac_file; /* The file containing RBAC information */
     bool rbac_privilege_debug; /* see manpage */
     bool require_sasl;      /* require SASL auth */
-    int verbose;            /* level of versosity to log at. */
+    std::atomic<int> verbose;            /* level of versosity to log at. */
     int bio_drain_buffer_sz; /* size of the SSL bio buffers */
     bool datatype;          /* is datatype support enabled? */
     const char *root; /* The root directory of the installation */
@@ -169,7 +167,3 @@ struct settings {
 };
 
 extern struct settings settings;
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
