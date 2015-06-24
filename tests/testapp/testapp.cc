@@ -742,10 +742,17 @@ static void stop_memcached_server(void) {
     if (server_pid != reinterpret_cast<pid_t>(-1)) {
 #ifdef WIN32
         TerminateProcess(server_pid, 0);
+        WaitForSingleObject(server_pid, INFINITE);
+        DWORD exit_code = NULL;
+        GetExitCodeProcess(server_pid, &exit_code);
+        EXPECT_EQ(0, exit_code);
 #else
         if (kill(server_pid, SIGTERM) == 0) {
             /* Wait for the process to be gone... */
-            waitpid(server_pid, NULL, 0);
+            int status;
+            waitpid(server_pid, &status, 0);
+            EXPECT_TRUE(WIFEXITED(status));
+            EXPECT_EQ(0, WEXITSTATUS(status));
         }
 #endif
     }
