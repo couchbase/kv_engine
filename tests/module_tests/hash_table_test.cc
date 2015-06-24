@@ -174,7 +174,7 @@ static void testHashSizeTwo() {
 }
 
 static void testReverseDeletions() {
-    alarm(10);
+    alarm(20);
     size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
     cb_assert(count(h) == 0);
@@ -197,7 +197,7 @@ static void testReverseDeletions() {
 }
 
 static void testForwardDeletions() {
-    alarm(10);
+    alarm(20);
     size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
     cb_assert(h.getSize() == 5);
@@ -599,8 +599,18 @@ static void testItemAge() {
     cb_assert(v->getValue()->getAge() == 1);
 }
 
+/* static storage for environment variable set by putenv().
+ *
+ * (This must be static as putenv() essentially 'takes ownership' of
+ * the provided array, so it is unsafe to use an automatic variable.
+ * However, if we use the result of malloc() (i.e. the heap) then
+ * memory leak checkers (e.g. Valgrind) will report the memory as
+ * leaked as it's impossible to free it).
+ */
+static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
+
 int main() {
-    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+    putenv(allow_no_stats_env);
     global_stats.setMaxDataSize(64*1024*1024);
     HashTable::setDefaultNumBuckets(3);
     alarm(60);
