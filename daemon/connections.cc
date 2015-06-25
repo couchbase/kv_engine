@@ -17,6 +17,7 @@
 
 #include "connections.h"
 #include "runtime.h"
+#include "utilities/protocol2text.h"
 
 #include <cJSON.h>
 
@@ -946,15 +947,19 @@ static const char *substate_text(enum bin_substates state) {
 /* cJSON uses double for all numbers, so only has 53 bits of precision.
  * Therefore encode 64bit integers as string.
  */
-static void json_add_uintptr_to_object(cJSON *obj, const char *name,
-                                       uintptr_t value) {
+static cJSON* json_create_uintptr(uintptr_t value) {
     char buffer[32];
     if (snprintf(buffer, sizeof(buffer),
                  "0x%" PRIxPTR, value) >= int(sizeof(buffer))) {
-        cJSON_AddStringToObject(obj, name, "<too long>");
+        return cJSON_CreateString("<too long>");
     } else {
-        cJSON_AddStringToObject(obj, name, buffer);
+        return cJSON_CreateString(buffer);
     }
+}
+
+static void json_add_uintptr_to_object(cJSON *obj, const char *name,
+                                       uintptr_t value) {
+    cJSON_AddItemToObject(obj, name, json_create_uintptr(value));
 }
 
 static void json_add_bool_to_object(cJSON *obj, const char *name, bool value) {
@@ -991,7 +996,10 @@ static cJSON* get_connection_stats(const conn *c) {
         if (c->sockname) {
             cJSON_AddStringToObject(obj, "sockname", c->sockname);
         }
+        cJSON_AddNumberToObject(obj, "max_reqs_per_event",
+                                c->max_reqs_per_event);
         cJSON_AddNumberToObject(obj, "nevents", c->nevents);
+        json_add_bool_to_object(obj, "admin", c->admin);
         if (c->sasl_conn != NULL) {
             json_add_uintptr_to_object(obj, "sasl_conn",
                                        (uintptr_t)c->sasl_conn);
@@ -1006,8 +1014,8 @@ static cJSON* get_connection_stats(const conn *c) {
         }
         json_add_bool_to_object(obj, "registered_in_libevent",
                                 c->registered_in_libevent);
-        cJSON_AddNumberToObject(obj, "ev_flags", c->ev_flags);
-        cJSON_AddNumberToObject(obj, "which", c->which);
+        json_add_uintptr_to_object(obj, "ev_flags", (uintptr_t)c->ev_flags);
+        json_add_uintptr_to_object(obj, "which", (uintptr_t)c->which);
         {
             cJSON *read = cJSON_CreateObject();
             json_add_uintptr_to_object(read, "buf", (uintptr_t)c->read.buf);
@@ -1076,6 +1084,15 @@ static cJSON* get_connection_stats(const conn *c) {
         json_add_bool_to_object(obj, "nodelay", c->nodelay);
         cJSON_AddNumberToObject(obj, "refcount", c->refcount);
         {
+            cJSON *features = cJSON_CreateObject();
+            json_add_bool_to_object(features, "datatype",
+                                    c->supports_datatype);
+            json_add_bool_to_object(features, "mutation_extras",
+                                    c->supports_mutation_extras);
+
+            cJSON_AddItemToObject(obj, "features", features);
+        }
+        {
             cJSON* dy_buf = cJSON_CreateObject();
             json_add_uintptr_to_object(dy_buf, "buffer",
                                        (uintptr_t)c->dynamic_buffer.buffer);
@@ -1088,7 +1105,17 @@ static cJSON* get_connection_stats(const conn *c) {
                                    (uintptr_t)c->engine_storage);
         /* @todo we should decode the binary header */
         json_add_uintptr_to_object(obj, "cas", c->cas);
-        cJSON_AddNumberToObject(obj, "cmd", c->cmd);
+        {
+            cJSON *cmd = cJSON_CreateArray();
+            cJSON_AddItemToArray(cmd, json_create_uintptr(c->cmd));
+            const char* cmd_name = memcached_opcode_2_text(c->cmd);
+            if (cmd_name == NULL) {
+                cmd_name = "";
+            }
+            cJSON_AddItemToArray(cmd, cJSON_CreateString(cmd_name));
+
+            cJSON_AddItemToObject(obj, "cmd", cmd);
+        }
         json_add_uintptr_to_object(obj, "opaque", c->opaque);
         cJSON_AddNumberToObject(obj, "keylen", c->keylen);
         cJSON_AddNumberToObject(obj, "list_state", c->list_state);
@@ -1098,6 +1125,18 @@ static cJSON* get_connection_stats(const conn *c) {
         json_add_bool_to_object(obj, "ewouldblock", c->ewouldblock);
         json_add_uintptr_to_object(obj, "tap_iterator",
                                    (uintptr_t)c->tap_iterator);
+        cJSON_AddNumberToObject(obj, "parent_port", c->parent_port);
+        json_add_bool_to_object(obj, "dcp", c->dcp);
+
+        {
+            cJSON* ssl = cJSON_CreateObject();
+            json_add_bool_to_object(ssl, "enabled", c->ssl.enabled);
+            if (c->ssl.enabled) {
+                json_add_bool_to_object(ssl, "connected", c->ssl.connected);
+            }
+
+            cJSON_AddItemToObject(obj, "ssl", ssl);
+        }
     }
     return obj;
 }

@@ -693,8 +693,10 @@ static bucket_id_t get_bucket_id(const void *cookie) {
 
 void collect_timings(const conn *c) {
     hrtime_t now = gethrtime();
+    const hrtime_t elapsed_ns = now - c->start;
     // aggregated timing for all buckets
-    all_buckets[0].timings.collect(c->cmd, now - c->start);
+    all_buckets[0].timings.collect(c->cmd, elapsed_ns);
+
     // timing for current bucket
     bucket_id_t bucketid = get_bucket_id(c);
     /* bucketid will be zero initially before you run sasl auth
@@ -702,7 +704,22 @@ void collect_timings(const conn *c) {
      * to delete the bucket you're associated with and your're idle.
      */
     if (bucketid != 0) {
-        all_buckets[bucketid].timings.collect(c->cmd, now - c->start);
+        all_buckets[bucketid].timings.collect(c->cmd, elapsed_ns);
+    }
+
+    // Log operations taking longer than 0.5s
+    const hrtime_t elapsed_ms = elapsed_ns / (1000 * 1000);
+    if (elapsed_ms > 500) {
+        const char *opcode = memcached_opcode_2_text(c->cmd);
+        char opcodetext[10];
+        if (opcode == NULL) {
+            snprintf(opcodetext, sizeof(opcodetext), "0x%0X", c->cmd);
+            opcode = opcodetext;
+        }
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "%u: Slow %s operation on connection: %lu ms",
+                                        (unsigned int)c->sfd, opcode,
+                                        (unsigned long)elapsed_ms);
     }
 }
 
