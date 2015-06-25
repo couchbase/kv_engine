@@ -951,6 +951,7 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
 
 static void destroy_bucket(ENGINE_HANDLE* handle, ENGINE_HANDLE_V1* handle_v1, bool force) {
     handle_v1->destroy(handle, force);
+    free(handle_v1);
 }
 
 //
@@ -1139,11 +1140,11 @@ int main(int argc, char **argv) {
     const char *test_case = NULL;
     engine_test_t *testcases = NULL;
     cb_dlhandle_t handle;
-    char *errmsg;
-    void *symbol;
+    char *errmsg = NULL;
+    void *symbol = NULL;
     struct test_harness harness;
     int test_case_id = -1;
-    char *cmdline;
+    char *cmdline = NULL;
 
     /* Hack to remove the warning from C99 */
     union {
@@ -1318,18 +1319,20 @@ int main(int argc, char **argv) {
     }
 
     if (test_case_id != -1) {
+        int exit_code = 0;
+
         if (test_case_id >= num_cases) {
             fprintf(stderr, "Invalid test case id specified\n");
-            exit(EXIT_FAILURE);
-        }
-
-        // check there's a test to run, some modules need cleaning up of dead tests
-        // if all modules are fixed, this if/else can be removed.
-        if (testcases[test_case_id].tfun || testcases[test_case_id].api_v2.tfun) {
-            exit(execute_test(testcases[test_case_id], engine, engine_args));
+            exit_code = EXIT_FAILURE;
+        } else if (testcases[test_case_id].tfun || testcases[test_case_id].api_v2.tfun) {
+            // check there's a test to run, some modules need cleaning up of dead tests
+            // if all modules are fixed, this else if can be removed.
+            exit_code = execute_test(testcases[test_case_id], engine, engine_args);
         } else {
-            exit(PENDING); // ignored tests would always return PENDING
+            exit_code = PENDING; // ignored tests would always return PENDING
         }
+        cb_dlclose(handle);
+        exit(exit_code);
     }
 
     cmdline = malloc(64*1024); /* should be enough */
@@ -1426,6 +1429,7 @@ int main(int argc, char **argv) {
 
     printf("# Passed %d of %d tests\n", num_cases - exitcode, num_cases);
     free(cmdline);
+    cb_dlclose(handle);
 
     return exitcode;
 }

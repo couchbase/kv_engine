@@ -187,6 +187,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
 
 void destroy_engine() {
     engine_manager_shutdown();
+    assoc_destroy();
 }
 
 static struct default_engine* get_handle(ENGINE_HANDLE* handle) {

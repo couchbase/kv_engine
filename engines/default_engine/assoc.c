@@ -57,6 +57,7 @@ void assoc_destroy() {
     }
     free(global_assoc->primary_hashtable);
     free(global_assoc);
+    global_assoc = NULL;
 }
 
 hash_item *assoc_find(struct default_engine *engine, uint32_t hash, const hash_key *key) {

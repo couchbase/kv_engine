@@ -1100,6 +1100,16 @@ static ENGINE_ERROR_CODE item_scrub(struct default_engine *engine,
         scrubber is used for generic bucket deletion and scrub_cmd
         all expired or orphaned items are unlinked
     */
+    if (engine->scrubber.force_delete && item->refcount > 0) {
+        // warn that someone isn't releasing items before deleting their bucket.
+        EXTENSION_LOGGER_DESCRIPTOR* logger;
+        logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Bucket (%d) deletion is removing an item with refcount %d",
+                     engine->bucket_id,
+                     item->refcount);
+    }
+
     if (engine->scrubber.force_delete || (item->refcount == 0 &&
        (item->exptime != 0 && item->exptime < current_time))) {
         do_item_unlink(engine, item);

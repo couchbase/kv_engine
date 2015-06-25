@@ -17,6 +17,11 @@
 #include <inttypes.h>
 #include <stdarg.h>
 
+#ifdef VALGRIND
+// switch to malloc if VALGRIND so we can get some useful insight.
+#define USE_SYSTEM_MALLOC (1)
+#endif
+
 #include "default_engine_internal.h"
 
 /*
@@ -227,7 +232,7 @@ static void *do_slabs_alloc(struct default_engine *engine, const size_t size, un
         return 0;
     }
     engine->slabs.mem_malloced += size;
-    ret = malloc(size);
+    ret = calloc(1, size);
     MEMCACHED_SLABS_ALLOCATE(size, id, 0, ret);
     return ret;
 #endif

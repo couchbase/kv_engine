@@ -844,11 +844,11 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_n_bucket_destroy(engine_test_t *test) {
     const int n_buckets = 20;
     const int n_keys = 256;
-    std::vector<std::pair<ENGINE_HANDLE*, ENGINE_HANDLE_V1*> > buckets(n_buckets);
+    std::vector<std::pair<ENGINE_HANDLE*, ENGINE_HANDLE_V1*> > buckets;
     for (int ii = 0; ii < n_buckets; ii++) {
         ENGINE_HANDLE_V1* handle = test_harness.create_bucket(true, test->cfg);
         if (handle) {
-            buckets[ii] = std::make_pair(reinterpret_cast<ENGINE_HANDLE*>(handle), handle);
+            buckets.push_back(std::make_pair(reinterpret_cast<ENGINE_HANDLE*>(handle), handle));
         } else {
             return FAIL;
         }
@@ -874,6 +874,35 @@ static enum test_result test_n_bucket_destroy(engine_test_t *test) {
     return SUCCESS;
 }
 
+/*
+ * create and delete buckets, the idea being that the background deletion
+ * is running whilst we're creating more buckets.
+ */
+static enum test_result test_bucket_destroy_interleaved(engine_test_t *test) {
+    const int n_keys = 20;
+    const int buckets = 5;
+
+    for (int b = 0; b < buckets; b++) {
+        ENGINE_HANDLE_V1* h1 = test_harness.create_bucket(true, test->cfg);
+        ENGINE_HANDLE* h = reinterpret_cast<ENGINE_HANDLE*>(h1);
+
+        for (int ii = 0; ii < n_keys; ii++) {
+            std::stringstream ss;
+            ss << "KEY" << ii;
+            item *test_item = NULL;
+            uint64_t cas = 0;
+            cb_assert(h1->allocate(h, NULL, &test_item, ss.str().c_str(),
+                                   ss.str().length(), 111256, 1, 1,
+                                   PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
+            cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
+            h1->release(h, NULL, test_item);
+        }
+
+        test_harness.destroy_bucket(h, h1, false);
+    }
+
+    return SUCCESS;
+}
 
 MEMCACHED_PUBLIC_API
 engine_test_t* get_tests(void) {
@@ -898,7 +927,10 @@ engine_test_t* get_tests(void) {
         TEST_CASE("flush test", flush_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("get item info test", get_item_info_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("set cas test", item_set_cas_test, NULL, NULL, NULL, NULL, NULL),
+#ifndef VALGRIND
+        // this test is disabled for VALGRIND because cache_size=48 and using malloc don't work.
         TEST_CASE("LRU test", lru_test, NULL, NULL, "cache_size=48", NULL, NULL),
+#endif
         TEST_CASE("get stats test", get_stats_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("reset stats test", reset_stats_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("get stats struct test", get_stats_struct_test, NULL, NULL, NULL, NULL, NULL),
@@ -908,6 +940,7 @@ engine_test_t* get_tests(void) {
         TEST_CASE("Get And Touch Quiet", gatq_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("Test datatype", test_datatype, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE_V2("Bucket destroy", test_n_bucket_destroy, NULL, NULL, NULL, NULL, NULL),
+        TEST_CASE_V2("Bucket destroy interleaved", test_bucket_destroy_interleaved, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE(NULL, NULL, NULL, NULL, NULL, NULL, NULL)
     };
     return tests;
