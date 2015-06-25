@@ -4784,7 +4784,7 @@ static void assume_role_executor(conn *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_assume_role*>(packet);
     size_t rlen = ntohs(req->message.header.request.keylen);
-    auth_error_t err;
+    AuthResult err;
 
     if (rlen > 0) {
         try {
@@ -4801,13 +4801,13 @@ static void assume_role_executor(conn *c, void *packet)
     }
 
     switch (err) {
-    case AUTH_FAIL:
+    case AuthResult::FAIL:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         break;
-    case AUTH_OK:
+    case AuthResult::OK:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
-    case AUTH_STALE:
+    case AuthResult::STALE:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
         break;
     default:
@@ -5091,7 +5091,7 @@ static void process_bin_packet(conn *c) {
     bin_package_execute executor = executors[opcode];
 
     switch (auth_check_access(c->auth_context, opcode)) {
-    case AUTH_FAIL:
+    case AuthResult::FAIL:
         /* @TODO Should go to audit */
         if (c->peername) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -5107,7 +5107,7 @@ static void process_bin_packet(conn *c) {
         }
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
         break;
-    case AUTH_OK:
+    case AuthResult::OK:
         if (validator != NULL && validator(packet) != 0) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Invalid format for specified for %s",
@@ -5120,7 +5120,7 @@ static void process_bin_packet(conn *c) {
             process_bin_unknown_packet(c);
         }
         break;
-    case AUTH_STALE:
+    case AuthResult::STALE:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
         break;
     default:

@@ -1,6 +1,24 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ *     Copyright 2015 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
 #pragma once
 
+/**
+ * This file contains the private internals of the RBAC module
+ */
 #include <cstring>
 #include <string>
 #include <list>
@@ -10,95 +28,33 @@
 #include <atomic>
 #include <ostream>
 
+// Include public interface
+#include "rbac.h"
+
 class UserEntry;
-class AuthContext;
 class Profile;
 
 typedef std::list<std::string> StringList;
 typedef std::map<std::string, UserEntry> UserEntryMap;
 typedef std::map<std::string, Profile> ProfileMap;
 
-#define MAX_COMMANDS 0x100
-
-/**
- * The Authentication Context class is used as a "holder class" for the
- * authentication information available used for a connection in memcached.
- * It is created when the client connects (and recreated if the client
- * performs a SASL authentication to acquire another user identity). It
- * contains the available commands the client may perform, and the current
- * role it is running as.
- *
- * Clients may "assume" another role causing the effective privilege set
- * to be changed gaining access to additional buckets, roles and commands.
- */
-class AuthContext {
-public:
-    AuthContext(uint32_t gen,
-                const std::string &nm,
-                const std::string &_connection) :
-        name(nm), generation(gen), connection(_connection)
-    {
-        commands.fill(0);
-    }
-
-    const std::string &getName(void) const {
-        return name;
-    }
-
-    void setRole(const std::string &_role) {
-        role.assign(_role);
-    }
-
-    const std::string &getRole(void) const {
-        return role;
-    }
-
-    uint32_t getGeneration(void) const {
-        return generation;
-    }
-
-    void mergeCommands(const std::array<uint8_t, MAX_COMMANDS> &cmd) {
-        for (int ii = 0; ii < MAX_COMMANDS; ++ii) {
-            commands[ii] |= cmd[ii];
-        }
-    }
-
-    void clearCommands(void) {
-        commands.fill(0);
-    }
-
-    bool checkAccess(uint8_t opcode) {
-        return commands[opcode] != 0;
-    }
-
-private:
-    std::string name;
-    std::string role; // if we've assumed a role, this is the current role
-    uint32_t generation;
-    std::string connection;
-    std::array<uint8_t, MAX_COMMANDS> commands;
-
-    friend std::ostream& operator<< (std::ostream& out,
-                                     const AuthContext &context);
-};
-
 class UserEntry {
 public:
     void initialize(cJSON *root, bool _role);
 
-    const std::string &getName(void) const {
+    const std::string &getName() const {
         return name;
     }
 
-    const StringList &getBuckets(void) const {
+    const StringList &getBuckets() const {
         return buckets;
     }
 
-    const StringList &getRoles(void) const {
+    const StringList &getRoles() const {
         return roles;
     }
 
-    const StringList &getProfiles(void) const {
+    const StringList &getProfiles() const {
         return profiles;
     }
 
@@ -125,11 +81,11 @@ public:
         cmd.fill(0);
     }
 
-    const std::string &getName(void) const {
+    const std::string &getName() const {
         return name;
     }
 
-    const std::array<uint8_t, MAX_COMMANDS> &getCommands(void) const {
+    const std::array<uint8_t, MAX_COMMANDS> &getCommands() const {
         return cmd;
     }
 
@@ -160,11 +116,11 @@ public:
 
     void initialize(cJSON *root);
 
-    uint32_t getGeneration(void) {
+    uint32_t getGeneration() {
         return generation.load();
     }
 
-    bool isPrivilegeDebugging(void) {
+    bool isPrivilegeDebugging() {
         return privilegeDebugging.load();
     }
 

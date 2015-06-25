@@ -1,7 +1,21 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-
+/*
+ *     Copyright 2015 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
 #include "config.h"
-#include "rbac.h"
+#include "rbac_impl.h"
 #include "config_util.h"
 #include "utilities/protocol2text.h"
 
@@ -36,7 +50,7 @@ void UserEntry::initialize(cJSON *root, bool _role) {
 void UserEntry::parseStringList(cJSON *root, const char *field, StringList &list) {
     cJSON *obj = cJSON_GetObjectItem(root, field);
 
-    if (obj == NULL) {
+    if (obj == nullptr) {
         // object not present. Not fatal
         return;
     }
@@ -71,7 +85,7 @@ void UserEntry::parseStringList(cJSON *root, const char *field, StringList &list
 
 std::string UserEntry::getStringField(cJSON *root, const char *field) {
     cJSON *obj = cJSON_GetObjectItem(root, field);
-    if (obj == NULL) {
+    if (obj == nullptr) {
         std::stringstream ss;
         ss << "FATAL: failed to locate " << field << " in object: ";
         char *ptr = cJSON_PrintUnformatted(root);
@@ -139,7 +153,7 @@ uint8_t Profile::decodeOpcode(cJSON *c, uint8_t mask) {
 
 void Profile::parseCommands(cJSON *c, uint8_t mask)
 {
-    if (c == NULL) {
+    if (c == nullptr) {
         return;
     }
 
@@ -164,19 +178,19 @@ void Profile::parseCommands(cJSON *c, uint8_t mask)
 
 void Profile::initialize(cJSON *root) {
     cJSON *c = cJSON_GetObjectItem(root, "name");
-    if (c == NULL) {
+    if (c == nullptr) {
         throw std::string("missing name");
     }
     name.assign(c->valuestring);
 
     c = cJSON_GetObjectItem(root, "description");
-    if (c == NULL) {
+    if (c == nullptr) {
         throw std::string("missing description");
     }
     descr.assign(c->valuestring);
 
     root = cJSON_GetObjectItem(root, "memcached");
-    if (root != NULL) {
+    if (root != nullptr) {
         parseCommands(cJSON_GetObjectItem(root, "allow"), 0xff);
         parseCommands(cJSON_GetObjectItem(root, "disallow"), 0x00);
     }
@@ -209,7 +223,7 @@ AuthContext *RBACManager::createAuthContext(const std::string name,
     cb_mutex_enter(&mutex);
     UserEntryMap::iterator iter = users.find(name);
     if (iter == users.end()) {
-        ret = NULL;
+        ret = nullptr;
     } else {
         ret = new AuthContext(generation, name, _conn);
         applyProfiles(ret, iter->second.getProfiles());
@@ -299,9 +313,9 @@ void RBACManager::initialize(cJSON *root) {
  *
  * @param root the root object of the JSON array
  * @param roles true if this is roles, false for users
-     */
+ */
 void RBACManager::initializeUserEntry(cJSON *root, bool role) {
-    if (root == NULL) {
+    if (root == nullptr) {
         return;
     }
 
@@ -349,7 +363,7 @@ void RBACManager::initializeUserEntry(cJSON *root, bool role) {
 }
 
 void RBACManager::initializeProfiles(cJSON *root) {
-    if (root == NULL) {
+    if (root == nullptr) {
         return ;
     }
     if (root->type != cJSON_Array && root->type != cJSON_Object) {
@@ -387,9 +401,9 @@ static RBACManager rbac;
 ** **                 public authentication api                        **
 ** **                                                                  **
 ** *********************************************************************/
-auth_context_t auth_create(const char* user,
-                           const char *peer,
-                           const char *local)
+AuthContext* auth_create(const char* user,
+                         const char *peer,
+                         const char *local)
 {
     AuthContext *ret;
     std::string connection;
@@ -399,82 +413,80 @@ auth_context_t auth_create(const char* user,
         connection.assign(ss.str());
     }
 
-    if (user == NULL) {
+    if (user == nullptr) {
         ret = rbac.createAuthContext("*", connection);
     } else {
         ret = rbac.createAuthContext(user, connection);
-        if (ret == NULL) {
+        if (ret == nullptr) {
             // No entry for the explicit user.. do we have a "wild card"
             // entry?
             ret = rbac.createAuthContext("*", connection);
         }
     }
 
-    return reinterpret_cast<auth_context_t>(ret);
+    return ret;
 }
 
-void auth_destroy(auth_context_t context)
+void auth_destroy(AuthContext* context)
 {
-    delete reinterpret_cast<AuthContext*>(context);
+    delete context;
 }
 
-auth_error_t auth_assume_role(auth_context_t ctx, const char *role)
+AuthResult auth_assume_role(AuthContext* ctx, const char *role)
 {
-    if (ctx == NULL) {
-        return AUTH_FAIL;
+    if (ctx == nullptr) {
+        return AuthResult::FAIL;
     }
 
-    auth_error_t ret;
+    AuthResult ret;
     try {
-        if (rbac.assumeRole(reinterpret_cast<AuthContext*>(ctx), role)) {
-            ret = AUTH_OK;
+        if (rbac.assumeRole(ctx, role)) {
+            ret = AuthResult::OK;
         } else {
-            ret = AUTH_FAIL;
+            ret = AuthResult::FAIL;
         }
     } catch (std::string) {
-        ret = AUTH_STALE;
+        ret = AuthResult::STALE;
     }
 
     return ret;
 }
 
-auth_error_t auth_drop_role(auth_context_t ctx)
+AuthResult auth_drop_role(AuthContext* ctx)
 {
-    if (ctx == NULL) {
-        return AUTH_FAIL;
+    if (ctx == nullptr) {
+        return AuthResult::FAIL;
     }
 
-    auth_error_t ret;
+    AuthResult ret;
     try {
-        rbac.dropRole(reinterpret_cast<AuthContext*>(ctx));
-        ret = AUTH_OK;
+        rbac.dropRole(ctx);
+        ret = AuthResult::OK;
     } catch (std::string) {
-        ret = AUTH_STALE;
+        ret = AuthResult::STALE;
     }
 
     return ret;
 }
 
-auth_error_t auth_check_access(auth_context_t ctx, uint8_t opcode)
+AuthResult auth_check_access(AuthContext* context, uint8_t opcode)
 {
-    if (ctx == NULL) {
-        return AUTH_FAIL;
+    if (context == nullptr) {
+        return AuthResult::FAIL;
     }
-
-    AuthContext *context = reinterpret_cast<AuthContext*>(ctx);
 
     // sloppy check to avoid lock contention
     if (rbac.getGeneration() != context->getGeneration()) {
-        return AUTH_STALE;
+        return AuthResult::STALE;
     } else if (context->checkAccess(opcode)) {
-        return AUTH_OK;
+        return AuthResult::OK;
     } else {
         if (rbac.isPrivilegeDebugging()) {
             std::cerr << "Missing privilege for " << *context << ". Need "
                       << memcached_opcode_2_text(opcode) << std::endl;
-            return AUTH_OK;
+            return AuthResult::OK;
         } else {
-            return AUTH_FAIL;
+            return AuthResult::FAIL;
         }
     }
 }
@@ -486,7 +498,7 @@ void auth_set_privilege_debug(bool enable) {
 int load_rbac_from_file(const char *file)
 {
     cJSON *root;
-    if (file == NULL) {
+    if (file == nullptr) {
         root = getDefaultRbacConfig();
     } else {
         config_error_t err = config_load_file(file, &root);

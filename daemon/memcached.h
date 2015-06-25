@@ -390,7 +390,7 @@ struct conn {
         BIO *network;
     } ssl;
 
-    auth_context_t auth_context;
+    AuthContext *auth_context;
     struct {
         int idx; /* The internal index for the connected bucket */
         ENGINE_HANDLE_V1 *engine;
