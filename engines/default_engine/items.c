@@ -243,7 +243,7 @@ static void item_free(struct default_engine *engine, hash_item *it) {
     cb_assert((it->iflag & ITEM_LINKED) == 0);
     cb_assert(it != engine->items.heads[it->slabs_clsid]);
     cb_assert(it != engine->items.tails[it->slabs_clsid]);
-    cb_assert(it->refcount == 0);
+    cb_assert(it->refcount == 0 || engine->scrubber.force_delete);
 
     /* so slab size changer can tell later if item is already free or not */
     clsid = it->slabs_clsid;
@@ -335,7 +335,7 @@ void do_item_unlink(struct default_engine *engine, hash_item *it) {
                                                        hash_key_get_key_len(key),
                                                        0), key);
         item_unlink_q(engine, it);
-        if (it->refcount == 0) {
+        if (it->refcount == 0 || engine->scrubber.force_delete) {
             item_free(engine, it);
         }
     }
@@ -1100,8 +1100,8 @@ static ENGINE_ERROR_CODE item_scrub(struct default_engine *engine,
         scrubber is used for generic bucket deletion and scrub_cmd
         all expired or orphaned items are unlinked
     */
-    if (item->refcount == 0 &&
-       (item->exptime != 0 && item->exptime < current_time)) {
+    if (engine->scrubber.force_delete || (item->refcount == 0 &&
+       (item->exptime != 0 && item->exptime < current_time))) {
         do_item_unlink(engine, item);
         engine->scrubber.cleaned++;
     }

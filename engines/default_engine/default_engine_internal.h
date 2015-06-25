@@ -82,6 +82,7 @@ struct engine_scrubber {
    time_t started;
    time_t stopped;
    bool running;
+   bool force_delete;
 };
 
 struct vbucket_info {
