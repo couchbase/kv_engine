@@ -8887,13 +8887,17 @@ static bool epsilon(int val, int target, int ep=5) {
     return abs(val - target) < ep;
 }
 
-static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
-                                               ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_max_size_and_water_marks_settings(
+                                        ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(get_int_stat(h, h1, "ep_max_size") == 1000, "Incorrect initial size.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750),
           "Incorrect initial low wat.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850),
           "Incorrect initial high wat.");
+    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.75),
+          "Incorrect initial low wat. percent");
+    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.85),
+          "Incorrect initial high wat. percent");
 
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "1000000");
 
@@ -8903,6 +8907,10 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
           "Incorrect larger low wat.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850000),
           "Incorrect larger high wat.");
+    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.75),
+          "Incorrect larger low wat. percent");
+    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.85),
+          "Incorrect larger high wat. percent");
 
     set_param(h, h1, protocol_binary_engine_param_flush, "mem_low_wat", "700000");
     set_param(h, h1, protocol_binary_engine_param_flush, "mem_high_wat", "800000");
@@ -8911,15 +8919,23 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
           "Incorrect even larger low wat.");
     check(get_int_stat(h, h1, "ep_mem_high_wat") == 800000,
           "Incorrect even larger high wat.");
+    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.7),
+          "Incorrect even larger low wat. percent");
+    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.8),
+          "Incorrect even larger high wat. percent");
 
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "100");
 
     check(get_int_stat(h, h1, "ep_max_size") == 100,
           "Incorrect smaller size.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 75),
+    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 70),
           "Incorrect smaller low wat.");
-    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 85),
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 80),
           "Incorrect smaller high wat.");
+    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.7),
+          "Incorrect smaller low wat. percent");
+    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.8),
+          "Incorrect smaller high wat. percent");
 
     set_param(h, h1, protocol_binary_engine_param_flush, "mem_low_wat", "50");
     set_param(h, h1, protocol_binary_engine_param_flush, "mem_high_wat", "70");
@@ -8928,6 +8944,27 @@ static enum test_result test_max_size_settings(ENGINE_HANDLE *h,
           "Incorrect even smaller low wat.");
     check(get_int_stat(h, h1, "ep_mem_high_wat") == 70,
           "Incorrect even smaller high wat.");
+    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.5),
+          "Incorrect even smaller low wat. percent");
+    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.7),
+          "Incorrect even smaller high wat. percent");
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, true);
+    wait_for_warmup_complete(h, h1);
+
+    check(get_int_stat(h, h1, "ep_max_size") == 1000,
+          "Incorrect initial size.");
+    check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750),
+          "Incorrect intial low wat.");
+    check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850),
+          "Incorrect initial high wat.");
+    check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.75),
+          "Incorrect initial low wat. percent");
+    check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.85),
+          "Incorrect initial high wat. percent");
 
     return SUCCESS;
 }
@@ -13147,7 +13184,8 @@ BaseTestCase testsuite_testcases[] = {
                  "max_size=2097152" // 2MB
                  ";ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60",
                  prepare, cleanup),
-        TestCase("test max_size changes", test_max_size_settings,
+        TestCase("test max_size - water_mark changes",
+                 test_max_size_and_water_marks_settings,
                  test_setup, teardown,
                  "max_size=1000;ht_locks=1;ht_size=3", prepare,
                  cleanup),

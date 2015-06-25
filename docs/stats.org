@@ -117,7 +117,9 @@ For introductory information on stats within Couchbase, start with the
 |                                    | queues, checkpoints, etc               |
 | ep_item_num                        | The number of item objects allocated   |
 | ep_mem_low_wat                     | Low water mark for auto-evictions      |
+| ep_mem_low_wat_percent             | Low water mark (as a percentage)       |
 | ep_mem_high_wat                    | High water mark for auto-evictions     |
+| ep_mem_high_wat_percent            | High water mark (as a percentage)      |
 | ep_total_cache_size                | The total byte size of all items, no   |
 |                                    | matter the vbucket's state, no matter  |
 |                                    | if an item's value is ejected          |
@@ -950,7 +952,9 @@ Note that tcmalloc stats are not available on some operating systems
 |                                     | queues, checkpoints, etc             |
 | ep_max_size                         | Max amount of data allowed in memory |
 | ep_mem_low_wat                      | Low water mark for auto-evictions    |
+| ep_mem_low_wat_percent              | Low water mark (as a percentage)       |
 | ep_mem_high_wat                     | High water mark for auto-evictions   |
+| ep_mem_high_wat_percent             | High water mark (as a percentage)      |
 | ep_oom_errors                       | Number of times unrecoverable OOMs   |
 |                                     | happened while processing operations |
 | ep_tmp_oom_errors                   | Number of times temporary OOMs       |

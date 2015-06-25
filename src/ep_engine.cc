@@ -413,8 +413,11 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMaxSize(vsize);
-                e->getConfiguration().setMemLowWat(percentOf(vsize, 0.75));
-                e->getConfiguration().setMemHighWat(percentOf(vsize, 0.85));
+                EPStats &st = e->getEpStats();
+                e->getConfiguration().setMemLowWat(percentOf(vsize,
+                                                   st.mem_low_wat_percent));
+                e->getConfiguration().setMemHighWat(percentOf(vsize,
+                                                   st.mem_high_wat_percent));
             } else if (strcmp(keyz, "mem_low_wat") == 0) {
                 char *ptr = NULL;
                 checkNumeric(valz);
@@ -422,6 +425,9 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemLowWat(vsize);
+                EPStats &st = e->getEpStats();
+                st.mem_low_wat_percent.store((double)(vsize) /
+                                                        st.getMaxDataSize());
             } else if (strcmp(keyz, "mem_high_wat") == 0) {
                 char *ptr = NULL;
                 checkNumeric(valz);
@@ -429,6 +435,9 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemHighWat(vsize);
+                EPStats &st = e->getEpStats();
+                st.mem_high_wat_percent.store((double)(vsize) /
+                                                        st.getMaxDataSize());
             } else if (strcmp(keyz, "backfill_mem_threshold") == 0) {
                 checkNumeric(valz);
                 validate(v, 0, 100);
@@ -2058,13 +2067,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     if (configuration.getMemLowWat() == std::numeric_limits<size_t>::max()) {
+        stats.mem_low_wat_percent.store(0.75);
         configuration.setMemLowWat(percentOf(
-                                            configuration.getMaxSize(), 0.75));
+                configuration.getMaxSize(), stats.mem_low_wat_percent.load()));
     }
 
     if (configuration.getMemHighWat() == std::numeric_limits<size_t>::max()) {
+        stats.mem_high_wat_percent.store(0.85);
         configuration.setMemHighWat(percentOf(
-                                            configuration.getMaxSize(), 0.85));
+                configuration.getMaxSize(), stats.mem_high_wat_percent.load()));
     }
 
     maxItemSize = configuration.getMaxItemSize();
@@ -3312,6 +3323,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     size_t memUsed =  stats.getTotalMemoryUsed();
     add_casted_stat("mem_used", memUsed, add_stat, cookie);
+    add_casted_stat("ep_mem_low_wat_percent", stats.mem_low_wat_percent,
+                    add_stat, cookie);
+    add_casted_stat("ep_mem_high_wat_percent", stats.mem_high_wat_percent,
+                    add_stat, cookie);
     add_casted_stat("bytes", memUsed, add_stat, cookie);
     add_casted_stat("ep_kv_size", stats.currentSize, add_stat, cookie);
     add_casted_stat("ep_blob_num", stats.numBlob, add_stat, cookie);
@@ -3517,7 +3532,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
     add_casted_stat("ep_overhead", stats.memOverhead, add_stat, cookie);
     add_casted_stat("ep_max_size", stats.getMaxDataSize(), add_stat, cookie);
     add_casted_stat("ep_mem_low_wat", stats.mem_low_wat, add_stat, cookie);
+    add_casted_stat("ep_mem_low_wat_percent", stats.mem_low_wat_percent,
+                    add_stat, cookie);
     add_casted_stat("ep_mem_high_wat", stats.mem_high_wat, add_stat, cookie);
+    add_casted_stat("ep_mem_high_wat_percent", stats.mem_high_wat_percent,
+                    add_stat, cookie);
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors,
                     add_stat, cookie);

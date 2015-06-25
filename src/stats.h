@@ -73,7 +73,9 @@ public:
         vbucketDeletions(0),
         vbucketDeletionFail(0),
         mem_low_wat(0),
+        mem_low_wat_percent(0),
         mem_high_wat(0),
+        mem_high_wat_percent(0),
         pagerRuns(0),
         expiryPagerRuns(0),
         itemsRemovedFromCheckpoints(0),
@@ -251,8 +253,10 @@ public:
     //! Beyond this point are config items
     //! Pager low water mark.
     AtomicValue<size_t> mem_low_wat;
+    AtomicValue<double> mem_low_wat_percent;
     //! Pager high water mark
     AtomicValue<size_t> mem_high_wat;
+    AtomicValue<double> mem_high_wat_percent;
 
     //! Number of times we needed to kick in the pager
     AtomicValue<size_t> pagerRuns;

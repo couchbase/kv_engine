@@ -59,15 +59,19 @@ public:
             store.getEPEngine().getDcpConnMap(). \
                                      updateMaxActiveSnoozingBackfills(value);
             size_t low_wat = static_cast<size_t>
-                             (static_cast<double>(value) * 0.75);
-            size_t high_wat = static_cast<size_t>(
-                              static_cast<double>(value) * 0.85);
+                    (static_cast<double>(value) * stats.mem_low_wat_percent);
+            size_t high_wat = static_cast<size_t>
+                    (static_cast<double>(value) * stats.mem_high_wat_percent);
             stats.mem_low_wat.store(low_wat);
             stats.mem_high_wat.store(high_wat);
         } else if (key.compare("mem_low_wat") == 0) {
             stats.mem_low_wat.store(value);
+            stats.mem_low_wat_percent.store(
+                                    (double)(value) / stats.getMaxDataSize());
         } else if (key.compare("mem_high_wat") == 0) {
             stats.mem_high_wat.store(value);
+            stats.mem_high_wat_percent.store(
+                                    (double)(value) / stats.getMaxDataSize());
         } else if (key.compare("replication_throttle_threshold") == 0) {
             stats.replicationThrottleThreshold.store(
                                           static_cast<double>(value) / 100.0);
@@ -301,15 +305,20 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     stats.setMaxDataSize(config.getMaxSize());
     config.addValueChangedListener("max_size",
                                    new StatsValueChangeListener(stats, *this));
-    getEPEngine().getDcpConnMap().updateMaxActiveSnoozingBackfills(config.getMaxSize());
+    getEPEngine().getDcpConnMap().updateMaxActiveSnoozingBackfills(
+                                                        config.getMaxSize());
 
     stats.mem_low_wat.store(config.getMemLowWat());
     config.addValueChangedListener("mem_low_wat",
                                    new StatsValueChangeListener(stats, *this));
+    stats.mem_low_wat_percent.store(
+                (double)(stats.mem_low_wat.load()) / stats.getMaxDataSize());
 
     stats.mem_high_wat.store(config.getMemHighWat());
     config.addValueChangedListener("mem_high_wat",
                                    new StatsValueChangeListener(stats, *this));
+    stats.mem_high_wat_percent.store(
+                (double)(stats.mem_high_wat.load()) / stats.getMaxDataSize());
 
     stats.replicationThrottleThreshold.store(static_cast<double>
                                     (config.getReplicationThrottleThreshold())
@@ -317,7 +326,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     config.addValueChangedListener("replication_throttle_threshold",
                                    new StatsValueChangeListener(stats, *this));
 
-    stats.replicationThrottleWriteQueueCap.store(config.getReplicationThrottleQueueCap());
+    stats.replicationThrottleWriteQueueCap.store(
+                                    config.getReplicationThrottleQueueCap());
     config.addValueChangedListener("replication_throttle_queue_cap",
                                    new EPStoreValueChangeListener(*this));
     config.addValueChangedListener("replication_throttle_cap_pcnt",
