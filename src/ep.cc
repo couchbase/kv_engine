@@ -1609,7 +1609,6 @@ extern "C" {
 void EventuallyPersistentStore::snapshotStats() {
     snapshot_stats_t snap;
     snap.engine = &engine;
-    std::map<std::string, std::string>  smap;
     bool rv = engine.getStats(&snap, NULL, 0, add_stat) == ENGINE_SUCCESS &&
               engine.getStats(&snap, "tap", 3, add_stat) == ENGINE_SUCCESS &&
               engine.getStats(&snap, "dcp", 3, add_stat) == ENGINE_SUCCESS;
