@@ -197,11 +197,9 @@ void Profile::initialize(cJSON *root) {
 }
 
 RBACManager::RBACManager() : privilegeDebugging(false), generation(0) {
-    cb_mutex_initialize(&mutex);
 }
 
 RBACManager::~RBACManager() {
-    cb_mutex_destroy(&mutex);
 }
 
 void RBACManager::applyProfiles(AuthContext *ctx, const StringList &pf) {
@@ -220,7 +218,7 @@ AuthContext *RBACManager::createAuthContext(const std::string name,
                                             const std::string &_conn) {
     AuthContext *ret;
 
-    cb_mutex_enter(&mutex);
+    std::lock_guard<std::mutex> lock(mutex);
     UserEntryMap::iterator iter = users.find(name);
     if (iter == users.end()) {
         ret = nullptr;
@@ -228,16 +226,14 @@ AuthContext *RBACManager::createAuthContext(const std::string name,
         ret = new AuthContext(generation, name, _conn);
         applyProfiles(ret, iter->second.getProfiles());
     }
-    cb_mutex_exit(&mutex);
 
     return ret;
 }
 
 bool RBACManager::assumeRole(AuthContext *ctx, const std::string &role) {
-    cb_mutex_enter(&mutex);
+    std::lock_guard<std::mutex> lock(mutex);
     if (ctx->getGeneration() != generation) {
         // this is an old generation of the config!
-        cb_mutex_exit(&mutex);
         // @todo add proper objects
         throw std::string("Stale configuration");
     }
@@ -276,16 +272,13 @@ bool RBACManager::assumeRole(AuthContext *ctx, const std::string &role) {
         applyProfiles(ctx, iter->second.getProfiles());
     }
 
-    cb_mutex_exit(&mutex);
-
     return found;
 }
 
 void RBACManager::dropRole(AuthContext *ctx) {
-    cb_mutex_enter(&mutex);
+    std::lock_guard<std::mutex> lock(mutex);
     if (ctx->getGeneration() != generation) {
         // this is an old generation of the config!
-        cb_mutex_exit(&mutex);
         // @todo add proper objects
         throw std::string("Stale configuration");
     }
@@ -294,8 +287,6 @@ void RBACManager::dropRole(AuthContext *ctx) {
     assert(iter != users.end());
     applyProfiles(ctx, iter->second.getProfiles());
     ctx->setRole("");
-
-    cb_mutex_exit(&mutex);
 }
 
 void RBACManager::initialize(cJSON *root) {

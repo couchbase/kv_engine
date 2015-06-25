@@ -27,6 +27,7 @@
 #include <cJSON.h>
 #include <atomic>
 #include <ostream>
+#include <mutex>
 
 // Include public interface
 #include "rbac.h"
@@ -136,7 +137,7 @@ private:
 
     std::atomic<bool> privilegeDebugging;
     std::atomic<uint32_t> generation;
-    cb_mutex_t mutex;
+    std::mutex mutex;
     UserEntryMap roles;
     UserEntryMap users;
     ProfileMap profiles;
