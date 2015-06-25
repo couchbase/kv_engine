@@ -618,6 +618,7 @@ another colon.  For example, if your client is named, =slave1=, the
 | end_seqno          | The seqno where this stream should end                |
 | flags              | The flags used to create this stream                  |
 | items_ready        | Whether the stream has messages ready to send         |
+| ready_queue_memory | Memory occupied by elements in the DCP readyQ         |
 | opaque             | The unique stream identifier                          |
 | snap_end_seqno     | The start seqno of the last snapshot received         |
 | snap_start_seqno   | The end seqno of the last snapshot received           |
@@ -655,6 +656,8 @@ another colon.  For example, if your client is named, =slave1=, the
 | flags              | The flags supplied in the stream request               |
 | items_ready        | Whether the stream has items ready to send             |
 | last_sent_seqno    | The last seqno sent by this stream                     |
+| last_read_seqno    | The last seqno read by this stream from disk or memory |
+| ready_queue_memory | Memory occupied by elements in the DCP readyQ          |
 | memory             | The amount of items sent from memory                   |
 | opaque             | The unique stream identifier                           |
 | snap_end_seqno     | The last snapshot end seqno (Used if a consumer is     |

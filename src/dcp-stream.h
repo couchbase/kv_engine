@@ -121,6 +121,14 @@ protected:
 
     void clear_UNLOCKED();
 
+    /* To be called after getting streamMutex lock */
+    void pushToReadyQ(DcpResponse* resp);
+
+    /* To be called after getting streamMutex lock */
+    void popFromReadyQ(void);
+
+    uint64_t getReadyQueueMemory(void);
+
     const std::string &name_;
     uint32_t flags_;
     uint32_t opaque_;
@@ -138,6 +146,10 @@ protected:
     std::queue<DcpResponse*> readyQ;
 
     const static uint64_t dcpMaxSeqno;
+
+private:
+    /* This tracks the memory occupied by elements in the readyQ */
+    uint64_t readyQueueMemory;
 };
 
 class ActiveStream : public Stream {
