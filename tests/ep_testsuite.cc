@@ -3550,10 +3550,10 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     }
 
     /* Check if the readyQ size goes to zero after all items are streamed */
-    char stats_ready_q_size[50];
-    snprintf(stats_ready_q_size, sizeof(stats_ready_q_size),
-             "eq_dcpq:%s:stream_0_ready_q_size", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_ready_q_size, "dcp")
+    char stats_ready_queue_memory[50];
+    snprintf(stats_ready_queue_memory, sizeof(stats_ready_queue_memory),
+             "eq_dcpq:%s:stream_0_ready_queue_memory", name);
+    check((uint64_t)get_ull_stat(h, h1, stats_ready_queue_memory, "dcp")
           == 0, "readyQ size did not go to zero");
 
     free(producers);
