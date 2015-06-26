@@ -13181,8 +13181,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("test total memory limit", test_memory_limit,
                  test_setup, teardown,
-                 "max_size=2097152" // 2MB
-                 ";ht_locks=1;ht_size=3;chk_remover_stime=1;chk_period=60",
+                 "max_size=2197152;ht_locks=1;ht_size=3;"
+                 "chk_remover_stime=1;chk_period=60",
                  prepare, cleanup),
         TestCase("test max_size - water_mark changes",
                  test_max_size_and_water_marks_settings,
