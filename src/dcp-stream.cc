@@ -45,15 +45,45 @@ Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
       start_seqno_(start_seqno), end_seqno_(end_seqno), vb_uuid_(vb_uuid),
       snap_start_seqno_(snap_start_seqno),
       snap_end_seqno_(snap_end_seqno),
-      state_(STREAM_PENDING), itemsReady(false) {
+      state_(STREAM_PENDING), itemsReady(false), readyQueueMemory(0) {
 }
 
 void Stream::clear_UNLOCKED() {
     while (!readyQ.empty()) {
         DcpResponse* resp = readyQ.front();
+        popFromReadyQ();
         delete resp;
-        readyQ.pop();
     }
+}
+
+void Stream::pushToReadyQ(DcpResponse* resp)
+{
+    if (resp) {
+        readyQ.push(resp);
+        readyQueueMemory += resp->getMessageSize();
+    }
+}
+
+void Stream::popFromReadyQ(void)
+{
+    if (!readyQ.empty()) {
+        uint32_t respSize = readyQ.front()->getMessageSize();
+        readyQ.pop();
+        /* Decrement the readyQ size */
+        if ((readyQueueMemory - respSize) <= readyQueueMemory) {
+            readyQueueMemory -= respSize;
+        } else {
+            LOG(EXTENSION_LOG_DEBUG, "readyQ size for stream %s (vb %d)"
+                "underflow, likely wrong stat calculation! curr size: %llu;"
+                "new size: %d", name_.c_str(), getVBucket(), readyQueueMemory,
+                respSize);
+            readyQueueMemory = 0;
+        }
+    }
+}
+
+uint64_t Stream::getReadyQueueMemory() {
+    return readyQueueMemory;
 }
 
 const char * Stream::stateName(stream_state_t st) const {
@@ -184,7 +214,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Sending disk snapshot with start "
         "seqno %llu and end seqno %llu", producer->logHeader(), vb_, startSeqno,
         endSeqno);
-    readyQ.push(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
+    pushToReadyQ(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
                                    MARKER_FLAG_DISK));
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
     if (!vb) {
@@ -217,7 +247,7 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
         bufferedBackfill.bytes.fetch_add(itm->size());
         bufferedBackfill.items++;
 
-        readyQ.push(new MutationResponse(itm, opaque_,
+        pushToReadyQ(new MutationResponse(itm, opaque_,
                           prepareExtendedMetaData(itm->getVBucketId(),
                                                   itm->getConflictResMode())));
         lastReadSeqno = itm->getBySeqno();
@@ -391,6 +421,10 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, itemsFromMemoryPhase, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_sent_seqno", name_.c_str(), vb_);
     add_casted_stat(buffer, lastSentSeqno, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_last_read_seqno", name_.c_str(), vb_);
+    add_casted_stat(buffer, lastReadSeqno, add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_ready_queue_memory", name_.c_str(), vb_);
+    add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
     add_casted_stat(buffer, itemsReady ? "true" : "false", add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_bytes", name_.c_str(), vb_);
@@ -454,8 +488,7 @@ DcpResponse* ActiveStream::nextQueuedItem() {
                 itemsFromMemoryPhase++;
             }
         }
-
-        readyQ.pop();
+        popFromReadyQ();
         return response;
     }
     return NULL;
@@ -537,9 +570,9 @@ void ActiveStream::snapshot(std::list<MutationResponse*>& items, bool mark) {
         firstMarkerSent = true;
     }
 
-    readyQ.push(new SnapshotMarker(opaque_, vb_, snapStart, snapEnd, flags));
+    pushToReadyQ(new SnapshotMarker(opaque_, vb_, snapStart, snapEnd, flags));
     while(!items.empty()) {
-        readyQ.push(items.front());
+        pushToReadyQ(items.front());
         items.pop_front();
     }
 }
@@ -570,7 +603,7 @@ void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
 void ActiveStream::endStream(end_stream_status_t reason) {
     if (state_ != STREAM_DEAD) {
         if (reason != END_STREAM_DISCONNECTED) {
-            readyQ.push(new StreamEndResponse(opaque_, reason, vb_));
+            pushToReadyQ(new StreamEndResponse(opaque_, reason, vb_));
         }
         transitionState(STREAM_DEAD);
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream closing, %llu items sent"
@@ -730,7 +763,7 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, DcpProducer* p,
     LockHolder lh(streamMutex);
     RCPtr<VBucket> vbucket = e->getVBucket(vb_);
     if (vbucket && static_cast<uint64_t>(vbucket->getHighSeqno()) > st_seqno) {
-        readyQ.push(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
+        pushToReadyQ(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
         transitionState(STREAM_DEAD);
         itemsReady = true;
     }
@@ -747,7 +780,7 @@ uint32_t NotifierStream::setDead(end_stream_status_t status) {
     if (state_ != STREAM_DEAD) {
         transitionState(STREAM_DEAD);
         if (status != END_STREAM_DISCONNECTED) {
-            readyQ.push(new StreamEndResponse(opaque_, status, vb_));
+            pushToReadyQ(new StreamEndResponse(opaque_, status, vb_));
             if (!itemsReady) {
                 itemsReady = true;
                 lh.unlock();
@@ -761,7 +794,7 @@ uint32_t NotifierStream::setDead(end_stream_status_t status) {
 void NotifierStream::notifySeqnoAvailable(uint64_t seqno) {
     LockHolder lh(streamMutex);
     if (state_ != STREAM_DEAD && start_seqno_ < seqno) {
-        readyQ.push(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
+        pushToReadyQ(new StreamEndResponse(opaque_, END_STREAM_OK, vb_));
         transitionState(STREAM_DEAD);
         if (!itemsReady) {
             itemsReady = true;
@@ -780,7 +813,7 @@ DcpResponse* NotifierStream::next() {
     }
 
     DcpResponse* response = readyQ.front();
-    readyQ.pop();
+    popFromReadyQ();
 
     return response;
 }
@@ -817,7 +850,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
       engine(e), consumer(c), last_seqno(st_seqno), cur_snapshot_start(0),
       cur_snapshot_end(0), cur_snapshot_type(none), cur_snapshot_ack(false) {
     LockHolder lh(streamMutex);
-    readyQ.push(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
+    pushToReadyQ(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,
                                   vb_uuid, snap_start_seqno, snap_end_seqno));
     itemsReady = true;
     type_ = STREAM_PASSIVE;
@@ -852,7 +885,7 @@ void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
         } else {
             transitionState(STREAM_DEAD);
         }
-        readyQ.push(new AddStreamResponse(add_opaque, opaque_, status));
+        pushToReadyQ(new AddStreamResponse(add_opaque, opaque_, status));
         if (!itemsReady) {
             itemsReady = true;
             lh.unlock();
@@ -882,7 +915,7 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
 
     LockHolder lh(streamMutex);
     last_seqno = start_seqno;
-    readyQ.push(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
+    pushToReadyQ(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
                                   end_seqno_, vb_uuid_, snap_start_seqno_,
                                   snap_end_seqno_));
     if (!itemsReady) {
@@ -1091,7 +1124,7 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     delete state;
 
     LockHolder lh (streamMutex);
-    readyQ.push(new SetVBucketStateResponse(opaque_, ENGINE_SUCCESS));
+    pushToReadyQ(new SetVBucketStateResponse(opaque_, ENGINE_SUCCESS));
     if (!itemsReady) {
         itemsReady = true;
         lh.unlock();
@@ -1110,7 +1143,7 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
 
         if (cur_snapshot_ack) {
             LockHolder lh(streamMutex);
-            readyQ.push(new SnapshotMarkerResponse(opaque_, ENGINE_SUCCESS));
+            pushToReadyQ(new SnapshotMarkerResponse(opaque_, ENGINE_SUCCESS));
             if (!itemsReady) {
                 itemsReady = true;
                 lh.unlock();
@@ -1135,6 +1168,8 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buf, itemsReady ? "true" : "false", add_stat, c);
     snprintf(buf, bsize, "%s:stream_%d_last_received_seqno", name_.c_str(), vb_);
     add_casted_stat(buf, last_seqno, add_stat, c);
+    snprintf(buf, bsize, "%s:stream_%d_ready_queue_memory", name_.c_str(), vb_);
+    add_casted_stat(buf, getReadyQueueMemory(), add_stat, c);
 
     snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_type", name_.c_str(), vb_);
     add_casted_stat(buf, snapshotTypeToString(cur_snapshot_type), add_stat, c);
@@ -1156,7 +1191,7 @@ DcpResponse* PassiveStream::next() {
     }
 
     DcpResponse* response = readyQ.front();
-    readyQ.pop();
+    popFromReadyQ();
     return response;
 }
 
