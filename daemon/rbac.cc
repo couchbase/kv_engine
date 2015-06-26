@@ -17,6 +17,7 @@
 #include "config.h"
 #include "rbac_impl.h"
 #include "config_util.h"
+#include "settings.h"
 #include "utilities/protocol2text.h"
 
 #include <strings.h>
@@ -473,8 +474,12 @@ AuthResult auth_check_access(AuthContext* context, uint8_t opcode)
         return AuthResult::OK;
     } else {
         if (rbac.isPrivilegeDebugging()) {
-            std::cerr << "Missing privilege for " << *context << ". Need "
-                      << memcached_opcode_2_text(opcode) << std::endl;
+            std::stringstream ss;
+            ss << "Missing privilege for " << *context << ". Need "
+               << memcached_opcode_2_text(opcode) << std::endl;
+            auto logger = settings.extensions.logger;
+            logger->log(EXTENSION_LOG_NOTICE, context,
+                        "%s", ss.str().c_str());
             return AuthResult::OK;
         } else {
             return AuthResult::FAIL;
