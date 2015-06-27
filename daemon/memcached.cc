@@ -7348,22 +7348,33 @@ static void sigterm_handler(evutil_socket_t fd, short what, void *arg) {
 }
 #endif
 
+#ifndef WIN32
+// SIGTERM and SIGINT event structures.
+static struct event *term_event;
+static struct event *int_event;
+#endif
+
 static int install_sigterm_handler(void) {
 #ifndef WIN32
-    struct event *term_event = evsignal_new(main_base, SIGTERM,
-                                            sigterm_handler, NULL);
+    term_event = evsignal_new(main_base, SIGTERM, sigterm_handler, NULL);
     if (term_event == NULL || event_add(term_event, NULL) < 0) {
         return -1;
     }
 
-    struct event *int_event = evsignal_new(main_base, SIGINT,
-                                           sigterm_handler, NULL);
+    int_event = evsignal_new(main_base, SIGINT, sigterm_handler, NULL);
     if (int_event == NULL || event_add(int_event, NULL) < 0) {
         return -1;
     }
 #endif
 
     return 0;
+}
+
+static void shutdown_sigterm_handler() {
+#ifndef WIN32
+    event_free(int_event);
+    event_free(term_event);
+#endif
 }
 
 const char* get_server_version(void) {
@@ -8781,6 +8792,7 @@ int main (int argc, char **argv) {
         free(stats.listening_ports);
     }
 
+    shutdown_sigterm_handler();
     event_base_free(main_base);
     destroy_connections();
 
