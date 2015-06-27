@@ -418,6 +418,30 @@ static void register_callback(ENGINE_HANDLE *eh,
     }
 }
 
+static void free_callbacks() {
+    // free per-bucket callbacks.
+    for (int idx = 0; idx < settings.max_buckets; ++idx) {
+        for (int type = 0; type < MAX_ENGINE_EVENT_TYPE; type++) {
+            engine_event_handler* h = all_buckets[idx].engine_event_handlers[type];
+            while (h != NULL) {
+                engine_event_handler* tmp = h;
+                h = h->next;
+                free(tmp);
+            }
+        }
+    }
+
+    // free global callbacks
+    for (int type = 0; type < MAX_ENGINE_EVENT_TYPE; type++) {
+        engine_event_handler* h = engine_event_handlers[type];
+        while (h != NULL) {
+            engine_event_handler* tmp = h;
+            h = h->next;
+            free(tmp);
+        }
+    }
+}
+
 static void stats_init(void) {
     set_stats_reset_time();
     stats.daemon_conns = 0;
@@ -8763,6 +8787,7 @@ int main (int argc, char **argv) {
     shutdown_engine_map();
     destroy_breakpad();
 
+    free_callbacks();
     cJSON_Free((char*)settings.config);
     free((void*)settings.ssl_cipher_list);
 
