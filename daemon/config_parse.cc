@@ -265,6 +265,7 @@ static bool get_admin(cJSON *o, struct settings *settings, char **error_msg) {
     if (!get_string_value(o, o->string, &ptr, error_msg)) {
         return false;
     }
+    free((char*)settings->admin);
     if (strlen(ptr) == 0) {
         settings->disable_admin = true;
         settings->admin = NULL;
@@ -1597,6 +1598,7 @@ void free_settings(struct settings* s) {
     free(s->pending_extensions);
     free((char*)s->engine_module);
     free((char*)s->engine_config);
+    free((char*)s->rbac_file);
     free((char*)s->config);
     free((char*)s->root);
     free((char*)s->breakpad.minidump_dir);
