@@ -811,6 +811,7 @@ static void conn_destructor(conn *c) {
     auth_destroy(c->auth_context);
     free(c->peername);
     free(c->sockname);
+    cbsasl_dispose(&c->sasl_conn);
     free(c->read.buf);
     free(c->write.buf);
     free(c->ilist);

@@ -8794,6 +8794,7 @@ int main (int argc, char **argv) {
 
     shutdown_sigterm_handler();
     event_base_free(main_base);
+    cbsasl_server_term();
     destroy_connections();
 
     shutdown_engine_map();
