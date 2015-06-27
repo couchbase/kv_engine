@@ -46,6 +46,8 @@
 #include <time.h>
 #include <limits.h>
 #include <ctype.h>
+#include <openssl/conf.h>
+#include <openssl/engine.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <snappy-c.h>
@@ -8446,6 +8448,28 @@ static void initialize_openssl(void) {
     CRYPTO_set_locking_callback(openssl_locking_callback);
 }
 
+static void shutdown_openssl() {
+    // Global OpenSSL cleanup:
+    FIPS_mode_set(0);
+    CRYPTO_set_locking_callback(NULL);
+    CRYPTO_set_id_callback(NULL);
+    ENGINE_cleanup();
+    CONF_modules_unload(1);
+    ERR_free_strings();
+    EVP_cleanup();
+    CRYPTO_cleanup_all_ex_data();
+
+    // per-thread cleanup:
+    ERR_remove_state(0);
+
+    // Newer versions of openssl (1.0.2a) have a the function
+    // SSL_COMP_free_compression_methods() to perform this;
+    // however we arn't that new...
+    sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
+
+    free(openssl_lock_cs);
+}
+
 void calculate_maxconns(void) {
     int ii;
     settings.maxconns = 0;
@@ -8741,6 +8765,8 @@ int main (int argc, char **argv) {
 
     cJSON_Free((char*)settings.config);
     free((void*)settings.ssl_cipher_list);
+
+    shutdown_openssl();
 
     settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
                                     "Shutdown complete.");

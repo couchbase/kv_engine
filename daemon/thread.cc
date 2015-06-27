@@ -256,6 +256,9 @@ static void worker_libevent(void *arg) {
     cb_mutex_exit(&init_lock);
 
     event_base_loop(me->base, 0);
+
+    // Event loop exited; cleanup before thread exits.
+    ERR_remove_thread_state(nullptr);
 }
 
 int number_of_pending(conn *c, conn *list) {
