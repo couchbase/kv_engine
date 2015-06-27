@@ -6,7 +6,7 @@ import math
 import itertools
 import mc_bin_client
 import re
-import json
+import simplejson as json
 
 MAGIC_CONVERT_RE=re.compile("(\d+)")
 
