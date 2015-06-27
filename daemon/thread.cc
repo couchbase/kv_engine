@@ -44,10 +44,6 @@ struct conn_queue {
 /* Connection lock around accepting new connections */
 cb_mutex_t conn_lock;
 
-/* Free list of CQ_ITEM structs */
-static CQ_ITEM *cqi_freelist;
-static cb_mutex_t cqi_freelist_lock;
-
 static LIBEVENT_THREAD dispatcher_thread;
 
 /*
@@ -117,48 +113,15 @@ static void cq_push(CQ *cq, CQ_ITEM *item) {
  * Returns a fresh connection queue item.
  */
 static CQ_ITEM *cqi_new(void) {
-    CQ_ITEM *item = NULL;
-    cb_mutex_enter(&cqi_freelist_lock);
-    if (cqi_freelist) {
-        item = cqi_freelist;
-        cqi_freelist = item->next;
-    }
-    cb_mutex_exit(&cqi_freelist_lock);
-
-    if (NULL == item) {
-        int i;
-
-        /* Allocate a bunch of items at once to reduce fragmentation */
-        item = reinterpret_cast<CQ_ITEM*>(malloc(sizeof(CQ_ITEM) * ITEMS_PER_ALLOC));
-        if (NULL == item)
-            return NULL;
-
-        /*
-         * Link together all the new items except the first one
-         * (which we'll return to the caller) for placement on
-         * the freelist.
-         */
-        for (i = 2; i < ITEMS_PER_ALLOC; i++)
-            item[i - 1].next = &item[i];
-
-        cb_mutex_enter(&cqi_freelist_lock);
-        item[ITEMS_PER_ALLOC - 1].next = cqi_freelist;
-        cqi_freelist = &item[1];
-        cb_mutex_exit(&cqi_freelist_lock);
-    }
-
-    return item;
+    return reinterpret_cast<CQ_ITEM*>(malloc(sizeof(CQ_ITEM)));
 }
 
 
 /*
- * Frees a connection queue item (adds it to the freelist.)
+ * Frees a connection queue item.
  */
 static void cqi_free(CQ_ITEM *item) {
-    cb_mutex_enter(&cqi_freelist_lock);
-    item->next = cqi_freelist;
-    cqi_freelist = item;
-    cb_mutex_exit(&cqi_freelist_lock);
+    free(item);
 }
 
 
@@ -623,10 +586,7 @@ void thread_init(int nthr, struct event_base *main_base,
     int i;
     nthreads = nthr + 1;
 
-    cqi_freelist = NULL;
-
     cb_mutex_initialize(&conn_lock);
-    cb_mutex_initialize(&cqi_freelist_lock);
     cb_mutex_initialize(&init_lock);
     cb_cond_initialize(&init_cond);
 
