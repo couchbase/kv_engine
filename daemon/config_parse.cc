@@ -1539,7 +1539,6 @@ bool validate_proposed_config_changes(const char* new_cfg, cJSON* errors) {
 void reload_config_file(void) {
     struct settings new_settings = {0};
     char* error_msg;
-    cJSON* errors = cJSON_CreateArray();
     int ii;
     bool valid = true;
 
@@ -1548,6 +1547,7 @@ void reload_config_file(void) {
 
     /* parse config into a new settings structure */
     if (!parse_config_file(get_config_file(), &new_settings, &error_msg)) {
+        free_settings(&new_settings);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
             "Failed to reload config file %s : %s\n", get_config_file(),
             error_msg);
@@ -1556,6 +1556,7 @@ void reload_config_file(void) {
     }
 
     /* Validate */
+    cJSON* errors = cJSON_CreateArray();
     for (ii = 0; handlers[ii].key != NULL; ii++) {
         valid &= handlers[ii].dynamic_validate(&new_settings, errors);
     }
@@ -1578,6 +1579,7 @@ void reload_config_file(void) {
             free(json);
         }
     }
+    free_settings(&new_settings);
     cJSON_Delete(errors);
 }
 

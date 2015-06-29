@@ -2562,6 +2562,34 @@ TEST_P(McdTestappTest, Config_Reload) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
+    /* Check that invalid (corrupted) file is rejected (and we don't
+       leak any memory in the process). */
+    {
+        cJSON *dynamic = generate_config();
+        char* dyn_string = cJSON_Print(dynamic);
+        cJSON_Delete(dynamic);
+        // Corrupt the JSON by replacing first opening brace '{' with
+        // a closing '}'.
+        char* ptr = strchr(dyn_string, '{');
+        ASSERT_NE(nullptr, ptr);
+        *ptr = '}';
+        if (write_config_to_file(dyn_string, config_file) == -1) {
+            cJSON_Free(dyn_string);
+            FAIL() << "Failed to write config to file";
+        }
+        cJSON_Free(dyn_string);
+
+        size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD, NULL, 0,
+                                 NULL, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        validate_response_header(&buffer.response,
+                                 PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
     /* Restore original configuration. */
     cJSON *dynamic = generate_config();
     char* dyn_string = cJSON_Print(dynamic);
