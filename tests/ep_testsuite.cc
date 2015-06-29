@@ -2811,22 +2811,13 @@ static enum test_result test_memory_tracking(ENGINE_HANDLE *h,
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     set_param(h, h1, protocol_binary_engine_param_flush, "mutation_mem_threshold", "95");
     wait_for_stat_change(h, h1,"ep_db_data_size", 0);
-    int used = get_int_stat(h, h1, "mem_used");
-    double mem_threshold =
-        static_cast<double>(get_int_stat(h, h1, "ep_mutation_mem_threshold")) / 100;
-    int max = static_cast<int>(get_int_stat(h, h1, "ep_max_size") * mem_threshold);
     check(get_int_stat(h, h1, "ep_oom_errors") == 0 &&
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 0, "Expected no OOM errors.");
-    cb_assert(used < max);
 
     char *data = new char[2 * 1024 * 1024];
     cb_assert(data);
-    memset(data, 'x', 2 * 1024 * 1024);
-
-    // Calculate the length of document to set - we want to ensure we can only
-    // store one document before TEMP_OOM is hit.
-    size_t vlen = (max - used) * 0.95;
-    data[vlen] = 0x00;
+    size_t vlen = 2 * 1024 * 1024;
+    memset(data, 'x', vlen);
 
     item *i = NULL;
     // So if we add an item,
@@ -2834,8 +2825,15 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
           "store failure");
     check_key_value(h, h1, "key", data, vlen);
     h1->release(h, NULL, i);
-    i = NULL;
 
+    // Set max_size equal to used memory, so that the next store operation
+    // would throw an ENOMEM/ETMPFAIL.
+    int new_max_size = get_int_stat(h, h1, "mem_used");
+    std::stringstream ss;
+    ss << new_max_size;
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", ss.str().c_str());
+
+    i = NULL;
     // There should be no room for another.
     ENGINE_ERROR_CODE second = store(h, h1, NULL, OPERATION_SET, "key2", data, &i);
     check(second == ENGINE_ENOMEM || second == ENGINE_TMPFAIL,
@@ -2864,6 +2862,8 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
+
+    wait_for_flusher_to_settle(h, h1);
 
     check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_SUCCESS,
           "should have succeded on the last set");
@@ -13188,7 +13188,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("test total memory limit", test_memory_limit,
                  test_setup, teardown,
-                 "max_size=2197152;ht_locks=1;ht_size=3;"
+                 "ht_locks=1;ht_size=3;"
                  "chk_remover_stime=1;chk_period=60",
                  prepare, cleanup),
         TestCase("test max_size - water_mark changes",
