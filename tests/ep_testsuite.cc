@@ -2248,6 +2248,40 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     return SUCCESS;
 }
 
+static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+    if (get_bool_stat(h, h1, "ep_exp_pager_enabled")) {
+        set_param(h, h1, protocol_binary_engine_param_flush,
+                  "exp_pager_enabled", "false");
+    }
+
+    for (int i = 0; i < 50; i++) {
+        item *itm = NULL;
+        std::stringstream ss;
+        ss << "key" << i;
+        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                    "somevalue", &itm, 0, 0, 10,
+                    PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS,
+                "Set failed.");
+        h1->release(h, NULL, itm);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    check(get_int_stat(h, h1, "curr_items") == 50,
+            "Unexpected number of items on database");
+
+    testHarness.time_travel(15);
+
+    // Compaction on VBucket
+    compact_db(h, h1, 0, 0, 0, 0);
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+
+    check(get_int_stat(h, h1, "ep_expired_compactor") == 50,
+            "Unexpected expirations by compactor");
+
+    return SUCCESS;
+}
+
 static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     const char *key = "KEY";
@@ -13321,6 +13355,9 @@ BaseTestCase testsuite_testcases[] = {
                  NULL, prepare, cleanup),
         TestCase("expiry_loader", test_expiry_loader, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("expiration on compaction", test_expiration_on_compaction,
+                 test_setup, teardown, "exp_pager_enabled=false",
+                 prepare, cleanup),
         TestCase("expiration on warmup", test_expiration_on_warmup,
                  test_setup, teardown, "exp_pager_stime=1", prepare, cleanup),
         TestCase("expiry_duplicate_warmup", test_bug3454, test_setup,

@@ -584,11 +584,12 @@ RCPtr<VBucket> EventuallyPersistentStore::getVBucket(uint16_t vbid,
 void
 EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                                              time_t startTime,
-                                             uint64_t revSeqno) {
+                                             uint64_t revSeqno,
+                                             exp_type_t source) {
     RCPtr<VBucket> vb = getVBucket(vbid);
     if (vb) {
         int bucket_num(0);
-        incExpirationStat(vb);
+        incExpirationStat(vb, source);
         LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
         StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, false);
         if (v) {
@@ -625,11 +626,12 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
 
 void
 EventuallyPersistentStore::deleteExpiredItems(std::list<std::pair<uint16_t,
-                                                        std::string> > &keys) {
+                                                        std::string> > &keys,
+                                              exp_type_t source) {
     std::list<std::pair<uint16_t, std::string> >::iterator it;
     time_t startTime = ep_real_time();
     for (it = keys.begin(); it != keys.end(); it++) {
-        deleteExpiredItem(it->first, it->second, startTime, 0);
+        deleteExpiredItem(it->first, it->second, startTime, 0, source);
     }
 }
 
@@ -648,7 +650,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
                 return wantDeleted ? v : NULL;
             }
             if (queueExpired) {
-                incExpirationStat(vb, false);
+                incExpirationStat(vb, EXP_BY_ACCESS);
                 vb->ht.unlocked_softDelete(v, 0, eviction_policy);
                 queueDirty(vb, v, NULL, NULL, false, true);
             }
@@ -1428,7 +1430,8 @@ class ExpiredItemsCallback : public Callback<std::string&, uint64_t&> {
 
         void callback(std::string& key, uint64_t& revSeqno) {
             if (epstore->compactionCanExpireItems()) {
-                epstore->deleteExpiredItem(vbucket, key, startTime, revSeqno);
+                epstore->deleteExpiredItem(vbucket, key, startTime, revSeqno,
+                                           EXP_BY_COMPACTOR);
             }
         }
 

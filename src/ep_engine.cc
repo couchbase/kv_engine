@@ -3078,6 +3078,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.beginFailed, add_stat, cookie);
     add_casted_stat("ep_expired_access", epstats.expired_access,
                     add_stat, cookie);
+    add_casted_stat("ep_expired_compactor", epstats.expired_compactor,
+                    add_stat, cookie);
     add_casted_stat("ep_expired_pager", epstats.expired_pager,
                     add_stat, cookie);
     add_casted_stat("ep_item_flush_expired",

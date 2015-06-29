@@ -64,6 +64,7 @@ public:
         flushFailed(0),
         flushExpired(0),
         expired_access(0),
+        expired_compactor(0),
         expired_pager(0),
         beginFailed(0),
         commitFailed(0),
@@ -233,6 +234,8 @@ public:
     AtomicValue<size_t> flushExpired;
     //! Number of times an object was expired on access.
     AtomicValue<size_t> expired_access;
+    //! Number of times an object was expired by compactor.
+    AtomicValue<size_t> expired_compactor;
     //! Number of times an object was expired by pager.
     AtomicValue<size_t> expired_pager;
     //! Number of times we failed to start a transaction

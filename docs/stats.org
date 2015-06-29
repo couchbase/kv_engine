@@ -53,6 +53,8 @@ For introductory information on stats within Couchbase, start with the
 |                                    | to start due to storage errors         |
 | ep_expired_access                  | Number of times an item was expired on |
 |                                    | application access.                    |
+| ep_expired_compactor               | Number of times an item was expired by |
+|                                    | the ep engine compactor                |
 | ep_expired_pager                   | Number of times an item was expired by |
 |                                    | ep engine item pager                   |
 | ep_item_flush_expired              | Number of times an item is not flushed |

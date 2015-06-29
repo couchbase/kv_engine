@@ -177,6 +177,16 @@ class KVShard;
 typedef std::pair<uint16_t, ExTask> CompTaskEntry;
 
 /**
+ * The following will be used to identify
+ * the source of an item's expiration.
+ */
+typedef enum {
+    EXP_BY_PAGER,
+    EXP_BY_COMPACTOR,
+    EXP_BY_ACCESS
+} exp_type_t;
+
+/**
  * Manager of all interaction with the persistence.
  */
 class EventuallyPersistentStore {
@@ -653,8 +663,10 @@ public:
         return vbMap.getShard(vbId)->getROUnderlying();
     }
 
-    void deleteExpiredItem(uint16_t, std::string &, time_t, uint64_t );
-    void deleteExpiredItems(std::list<std::pair<uint16_t, std::string> > &);
+    void deleteExpiredItem(uint16_t, std::string &, time_t, uint64_t,
+                           exp_type_t);
+    void deleteExpiredItems(std::list<std::pair<uint16_t, std::string> > &,
+                            exp_type_t);
 
 
     /**
@@ -736,10 +748,13 @@ public:
 
     bool isMetaDataResident(RCPtr<VBucket> &vb, const std::string &key);
 
-    void incExpirationStat(RCPtr<VBucket> &vb, bool byPager = true) {
-        if (byPager) {
+    void incExpirationStat(RCPtr<VBucket> &vb, exp_type_t source) {
+        if (source == EXP_BY_PAGER) {
             ++stats.expired_pager;
+        } else if (source == EXP_BY_COMPACTOR) {
+            ++stats.expired_compactor;
         } else {
+            cb_assert(source == EXP_BY_ACCESS);
             ++stats.expired_access;
         }
         ++vb->numExpiredItems;

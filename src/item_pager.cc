@@ -135,7 +135,7 @@ public:
     }
 
     void update() {
-        store.deleteExpiredItems(expired);
+        store.deleteExpiredItems(expired, EXP_BY_PAGER);
 
         if (numEjected() > 0) {
             LOG(EXTENSION_LOG_INFO, "Paged out %ld values", numEjected());
