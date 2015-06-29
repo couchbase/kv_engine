@@ -151,16 +151,15 @@ public:
             real_engine_config = config.substr(seperator);
         }
 
-        engine_reference* engine_ref = NULL;
-        if ((engine_ref = load_engine(real_engine_name.c_str(), NULL, NULL,
-                                      logger)) == NULL) {
+        if ((ewb->real_engine_ref = load_engine(real_engine_name.c_str(),
+                                                NULL, NULL, logger)) == NULL) {
             logger->log(EXTENSION_LOG_WARNING, NULL,
                         "ERROR: EWB_Engine::initialize(): Failed to load real "
                         "engine '%s'", real_engine_name.c_str());
             abort();
         }
 
-        if (!create_engine_instance(engine_ref, ewb->gsa, NULL,
+        if (!create_engine_instance(ewb->real_engine_ref, ewb->gsa, NULL,
                                     &ewb->real_handle)) {
             logger->log(EXTENSION_LOG_WARNING, NULL,
                         "ERROR: EWB_Engine::initialize(): Failed create "
@@ -413,6 +412,7 @@ public:
     // Actual engine we are proxying requests to.
     ENGINE_HANDLE* real_handle;
     ENGINE_HANDLE_V1* real_engine;
+    engine_reference* real_engine_ref;
 
 private:
 
@@ -579,6 +579,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 }
 
 EWB_Engine::~EWB_Engine() {
+    free(real_engine_ref);
     stop_notification_thread = true;
     condvar.notify_all();
     notification_thread.join();
