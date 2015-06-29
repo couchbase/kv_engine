@@ -933,6 +933,8 @@ each stat name.
 |                                  | contains data for                         |
 | last_closed_checkpoint_id        | The last closed checkpoint number         |
 | persisted_checkpoint_id          | The slast persisted checkpoint number     |
+| mem_usage                        | Total memory taken up by items in all     |
+|                                  | checkpoints under given manager           |
 
 ** Memory Stats
 

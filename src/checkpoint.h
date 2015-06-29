@@ -171,7 +171,8 @@ public:
                uint16_t vbid) :
         stats(st), checkpointId(id), snapStartSeqno(snapStart),
         snapEndSeqno(snapEnd), vbucketId(vbid), creationTime(ep_real_time()),
-        checkpointState(CHECKPOINT_OPEN), numItems(0), memOverhead(0) {
+        checkpointState(CHECKPOINT_OPEN), numItems(0), memOverhead(0),
+        effectiveMemUsage(0) {
         stats.memOverhead.fetch_add(memorySize());
         cb_assert(stats.memOverhead.load() < GIGANTOR);
     }
@@ -337,6 +338,23 @@ public:
      */
     uint64_t getMutationIdForKey(const std::string &key);
 
+    /**
+     * Invoked by the checkpoint manager whenever an item is queued
+     * into the given checkpoint.
+     * @param Amount of memory being added to current usage
+     */
+    void incrementMemConsumption(size_t by) {
+        effectiveMemUsage += by;
+    }
+
+    /**
+     * Returns the memory held by all the queued items which includes
+     * key, metadata and the blob.
+     */
+    size_t getMemConsumption() {
+        return effectiveMemUsage;
+    }
+
 private:
     EPStats                       &stats;
     uint64_t                       checkpointId;
@@ -351,6 +369,10 @@ private:
     std::list<queued_item>         toWrite;
     checkpoint_index               keyIndex;
     size_t                         memOverhead;
+
+    // The following stat is to contain the memory consumption of all
+    // the queued items in the given checkpoint.
+    size_t                         effectiveMemUsage;
 };
 
 typedef std::pair<uint64_t, bool> CursorRegResult;
@@ -526,6 +548,18 @@ public:
      * Update the checkpoint manager persistence cursor checkpoint offset
      */
     void itemsPersisted();
+
+    /**
+     * Return memory consumption of all the checkpoints managed
+     */
+    size_t getMemoryUsage_UNLOCKED();
+
+    size_t getMemoryUsage();
+
+    /**
+     * Return memory consumption of unreferenced checkpoints
+     */
+    size_t getMemoryUsageOfUnrefCheckpoints();
 
     /**
      * This method performs the following steps for creating a new checkpoint with a given ID i1:

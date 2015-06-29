@@ -196,6 +196,14 @@ public:
         return checkpointManager.getHighSeqno();
     }
 
+    size_t getChkMgrMemUsage() {
+        return checkpointManager.getMemoryUsage();
+    }
+
+    size_t getChkMgrMemUsageOfUnrefCheckpoints() {
+        return checkpointManager.getMemoryUsageOfUnrefCheckpoints();
+    }
+
     uint64_t getPurgeSeqno() {
         return purge_seqno;
     }

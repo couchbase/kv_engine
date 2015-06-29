@@ -214,6 +214,9 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
             newEntryMemOverhead += key.size() + sizeof(index_entry);
             ++numItems;
             ++numNewItems;
+
+            // Update new checkpoint's memory usage
+            incrementMemConsumption((*rit)->size());
         }
     }
     memOverhead += newEntryMemOverhead;
@@ -851,6 +854,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
               static_cast<uint64_t>(lastBySeqno) <= en);
 
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
+
     if (result == NEW_ITEM) {
         ++numItems;
     }
@@ -859,6 +863,9 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
         ++stats.totalEnqueued;
         ++stats.diskQueueSize;
         vb->doStatsForQueueing(*qi, qi->size());
+
+        // Update the checkpoint's memory usage
+        checkpointList.back()->incrementMemConsumption(qi->size());
     }
 
     return result != EXISTING_ITEM;
@@ -1430,6 +1437,43 @@ void CheckpointManager::itemsPersisted() {
     pCursorPreCheckpointId = ((*itr)->getId() > 0) ? (*itr)->getId() - 1 : 0;
 }
 
+size_t CheckpointManager::getMemoryUsage_UNLOCKED() {
+    if (checkpointList.empty()) {
+        return 0;
+    }
+
+    size_t memUsage = 0;
+    std::list<Checkpoint*>::const_iterator it = checkpointList.begin();
+    for (; it != checkpointList.end(); ++it) {
+        memUsage += (*it)->getMemConsumption();
+    }
+    return memUsage;
+}
+
+size_t CheckpointManager::getMemoryUsage() {
+    LockHolder lh(queueLock);
+    return getMemoryUsage_UNLOCKED();
+}
+
+size_t CheckpointManager::getMemoryUsageOfUnrefCheckpoints() {
+    LockHolder lh(queueLock);
+
+    if (checkpointList.empty()) {
+        return 0;
+    }
+
+    size_t memUsage = 0;
+    std::list<Checkpoint*>::const_iterator it = checkpointList.begin();
+    for (; it != checkpointList.end(); ++it) {
+        if ((*it)->getNumberOfCursors() == 0) {
+            memUsage += (*it)->getMemConsumption();
+        } else {
+            break;
+        }
+    }
+    return memUsage;
+}
+
 void CheckpointConfig::addConfigChangeListener(
                                          EventuallyPersistentEngine &engine) {
     Configuration &configuration = engine.getConfiguration();
@@ -1544,6 +1588,9 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
     snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence", vbucketId);
     add_casted_stat(buf, getNumItemsForCursor_UNLOCKED(pCursorName),
                     add_stat, cookie);
+
+    snprintf(buf, sizeof(buf), "vb_%d:mem_usage", vbucketId);
+    add_casted_stat(buf, getMemoryUsage_UNLOCKED(), add_stat, cookie);
 
     cursor_index::iterator cur_it = connCursors.begin();
     for (; cur_it != connCursors.end(); ++cur_it) {
