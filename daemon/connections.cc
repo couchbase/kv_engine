@@ -470,6 +470,7 @@ static void conn_cleanup(conn *c) {
     c->tap_iterator = NULL;
     c->dcp = 0;
     conn_return_buffers(c);
+    free(c->dynamic_buffer.buffer);
 
     c->engine_storage = NULL;
 
@@ -556,6 +557,14 @@ void conn_shrink(conn *c) {
                                             " bytes.", c->sfd,
                                             IOV_LIST_INITIAL * sizeof(c->iov[0]));
         }
+    }
+
+    // The dynamic_buffer is only occasionally used - free the whole thing
+    // if it's still allocated.
+    if (c->dynamic_buffer.buffer != nullptr) {
+        free(c->dynamic_buffer.buffer);
+        c->dynamic_buffer.buffer = nullptr;
+        c->dynamic_buffer.size = 0;
     }
 }
 
