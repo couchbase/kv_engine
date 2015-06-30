@@ -68,6 +68,7 @@ static std::atomic_bool allow_closed_read;
 static time_t server_start_time = 0;
 static SSL_CTX *ssl_ctx = NULL;
 static SSL *ssl = NULL;
+static BIO *bio = NULL;
 static BIO *ssl_bio_r = NULL;
 static BIO *ssl_bio_w = NULL;
 
@@ -187,7 +188,6 @@ void McdTestappTest::TearDownTestCase() {
                                  PROTOCOL_BINARY_CMD_DELETE_BUCKET,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
-    shutdown_openssl();
     stop_memcached_server();
 }
 
@@ -607,20 +607,11 @@ static SOCKET create_connect_plain_socket(const char *hostname, in_port_t port, 
 
 static SOCKET create_connect_ssl_socket(const char *hostname, in_port_t port, bool nonblocking) {
     char port_str[32];
-    int sfd = 0;
-    BIO* temp_bio = NULL;
-
     snprintf(port_str, 32, "%d", port);
-    EXPECT_EQ(0, create_ssl_connection(&ssl_ctx, &temp_bio, hostname, port_str, NULL, NULL, 1));
 
-    if (ssl_bio_r) {
-        BIO_free(ssl_bio_r);
-        ssl_bio_r = NULL;
-    }
-    if (ssl_bio_w) {
-        BIO_free(ssl_bio_w);
-        ssl_bio_w = NULL;
-    }
+    EXPECT_EQ(nullptr, ssl_ctx);
+    EXPECT_EQ(nullptr, bio);
+    EXPECT_EQ(0, create_ssl_connection(&ssl_ctx, &bio, hostname, port_str, NULL, NULL, 1));
 
     /* SSL "trickery". To ensure we have full control over send/receive of data.
        create_ssl_connection will have negotiated the SSL connection, now:
@@ -629,25 +620,29 @@ static SOCKET create_connect_ssl_socket(const char *hostname, in_port_t port, bo
 
        Now send/receive is done under our control. byte by byte, large chunks etc...
     */
-    sfd = BIO_get_fd(temp_bio, NULL);
-    BIO_get_ssl(temp_bio, &ssl);
+    int sfd = BIO_get_fd(bio, NULL);
+    BIO_get_ssl(bio, &ssl);
+
+    EXPECT_EQ(nullptr, ssl_bio_r);
     ssl_bio_r = BIO_new(BIO_s_mem());
+
+    EXPECT_EQ(nullptr, ssl_bio_w);
     ssl_bio_w = BIO_new(BIO_s_mem());
 
-    // Note: previous BIO (temp_bio) freed as a result of this call.
+    // Note: previous BIOs attached to 'bio' freed as a result of this call.
     SSL_set_bio(ssl, ssl_bio_r, ssl_bio_w);
 
     return sfd;
 }
 
 static void destroy_ssl_socket() {
-    BIO_free(ssl_bio_r);
-    ssl_bio_r = NULL;
-
-    BIO_free(ssl_bio_w);
-    ssl_bio_w = NULL;
+    BIO_free_all(bio);
+    bio = nullptr;
+    ssl_bio_r = nullptr;
+    ssl_bio_w = nullptr;
 
     SSL_CTX_free(ssl_ctx);
+    ssl_ctx = nullptr;
 }
 
 SOCKET connect_to_server_plain(in_port_t port, bool nonblocking) {
@@ -690,7 +685,7 @@ static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking) {
 static void reconnect_to_server(bool nonblocking) {
     if (current_phase == phase_ssl) {
         closesocket(sock_ssl);
-        SSL_CTX_free(ssl_ctx);
+        destroy_ssl_socket();
 
         sock_ssl = connect_to_server_ssl(ssl_port, nonblocking);
         ASSERT_NE(INVALID_SOCKET, sock_ssl);
@@ -4218,6 +4213,8 @@ public:
     virtual void TearDown() {
         // Cleanup RBAC config file.
         EXPECT_NE(-1, remove(rbac_file));
+
+        shutdown_openssl();
     }
 };
 
