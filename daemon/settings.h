@@ -116,6 +116,11 @@ struct settings {
 
     const char *ssl_cipher_list; /* The SSL cipher list to use */
 
+    /**
+     * The number of topkeys to track
+     */
+    int topkeys_size;
+
     /* flags for each of the above config options, indicating if they were
      * specified in a parsed config file.
      */
@@ -141,6 +146,7 @@ struct settings {
         bool max_packet_size;
         bool require_init;
         bool ssl_cipher_list;
+        bool topkeys_size;
     } has;
     /*************************************************************************
      * These settings are not exposed to the user, and are either derived from

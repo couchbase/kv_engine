@@ -536,6 +536,15 @@ static void settings_init(void) {
     settings.require_init = false;
     settings.max_buckets = COUCHBASE_MAX_NUM_BUCKETS;
     settings.admin = strdup("_admin");
+
+    char *tmp = getenv("MEMCACHED_TOP_KEYS");
+    settings.topkeys_size = 20;
+    if (tmp != NULL) {
+        int count;
+        if (safe_strtol(tmp, &count)) {
+            settings.topkeys_size = count;
+        }
+    }
 }
 
 static void settings_init_relocable_files(void)
@@ -1133,8 +1142,8 @@ void update_topkeys(const char *key, size_t nkey, conn *c) {
 
     if (topkey_commands[c->binary_header.request.opcode]) {
         cb_assert(all_buckets[c->bucket.idx].topkeys != nullptr);
-        topkeys_update(all_buckets[c->bucket.idx].topkeys, key, nkey,
-                       mc_time_get_current_time());
+        all_buckets[c->bucket.idx].topkeys->updateKey(key, nkey,
+                                                      mc_time_get_current_time());
     }
 }
 
@@ -4416,13 +4425,12 @@ static void stat_executor(conn *c, void *packet)
             }
             connection_stats(&append_stats, c, fd);
         } else if (strncmp(subcommand, "topkeys", nkey) == 0) {
-            ret = topkeys_stats(all_buckets[c->bucket.idx].topkeys, TK_SHARDS, c,
+            ret = all_buckets[c->bucket.idx].topkeys->stats(c,
                                 mc_time_get_current_time(), append_stats);
         } else if (strncmp(subcommand, "topkeys_json", nkey) == 0) {
             cJSON *topkeys_doc = cJSON_CreateObject();
 
-            ret = topkeys_json_stats(all_buckets[c->bucket.idx].topkeys,
-                                     topkeys_doc, TK_SHARDS,
+            ret = all_buckets[c->bucket.idx].topkeys->json_stats(topkeys_doc,
                                      mc_time_get_current_time());
 
             if (ret == ENGINE_SUCCESS) {
@@ -7894,11 +7902,6 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
     int first_free = -1;
     bool found = false;
     ENGINE_ERROR_CODE ret;
-    int topkey_count = 0;
-    char *tmp = getenv("MEMCACHED_TOP_KEYS");
-    if(tmp != NULL) {
-        topkey_count = (int)strtol(tmp, NULL, 10);
-    }
 
     /*
      * the number of buckets cannot change without a restart, but we don't want
@@ -7933,7 +7936,11 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
         all_buckets[ii].state = BucketState::Creating;
         all_buckets[ii].type = engine;
         strcpy(all_buckets[ii].name, bucket_name.c_str());
-        all_buckets[ii].topkeys = topkeys_init(topkey_count);
+        try {
+            all_buckets[ii].topkeys = new TopKeys(settings.topkeys_size);
+        } catch (const std::bad_alloc &) {
+            ret = ENGINE_ENOMEM;
+        }
         cb_mutex_exit(&all_buckets[ii].mutex);
     }
     cb_mutex_exit(&buckets_lock);
@@ -8118,7 +8125,7 @@ static ENGINE_ERROR_CODE do_delete_bucket(conn *c,
     all_buckets[idx].state = BucketState::None;
     all_buckets[idx].engine = NULL;
     all_buckets[idx].name[0] = '\0';
-    topkeys_free(all_buckets[idx].topkeys);
+    delete all_buckets[idx].topkeys;
     all_buckets[idx].topkeys = nullptr;
     cb_mutex_exit(&all_buckets[idx].mutex);
     // don't need lock because all timing data uses atomics

@@ -125,6 +125,6 @@ public:
     /**
      * Topkeys
      */
-    topkeys_t *topkeys;
+    TopKeys *topkeys;
 
 };
