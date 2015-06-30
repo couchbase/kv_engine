@@ -639,6 +639,51 @@ bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+bool get_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                       vbucket_state_t state, const void *cookie) {
+    protocol_binary_request_header *pkt;
+    if (state) {
+        char ext[sizeof(vbucket_state_t)];
+        encodeExt(ext, static_cast<uint32_t>(state));
+        pkt = createPacket(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS, 0, 0, ext,
+                           sizeof(vbucket_state_t));
+    } else {
+        pkt = createPacket(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS);
+    }
+
+    check(h1->unknown_command(h, cookie, pkt, add_response) ==
+          ENGINE_SUCCESS, "Error in getting all vb info");
+
+    free(pkt);
+    return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
+void verify_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                          int vb_start, int vb_end) {
+    const int per_vb_resp_size = 10;
+    const int high_seqno_offset = 2;
+
+    /* Check if the total response length is as expected. We expect 10 bytes
+     (2 for vb_id + 8 for seqno) */
+    check((uint32_t)((vb_end - vb_start) * per_vb_resp_size) == last_bodylen,
+          "Failed to get all vb info.");
+    /* Check if the contents are correct */
+    for (int i = 0; i < (vb_end - vb_start); i++) {
+        /* Check for correct vb_id */
+        check((vb_start + i) == ntohs(*(reinterpret_cast<uint16_t*>(last_body +
+                                                       per_vb_resp_size*i))),
+              "vb_id mismatch");
+        /* Check for correct high_seqno */
+        std::string vb_stat_seqno("vb_" + std::to_string(vb_start + i) +
+                                  ":high_seqno");
+        uint64_t high_seqno_vb =
+        get_ull_stat(h, h1, vb_stat_seqno.c_str(), "vbucket-seqno");
+        check(high_seqno_vb == ntohll(*(reinterpret_cast<uint64_t*>(last_body +
+                                    per_vb_resp_size*i + high_seqno_offset))),
+              "high_seqno mismatch");
+    }
+}
+
 void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,

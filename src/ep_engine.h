@@ -770,8 +770,10 @@ public:
      * @param add_response The method used to format the output buffer
      * @return ENGINE_SUCCESS upon success
      */
-    ENGINE_ERROR_CODE getAllVBucketSequenceNumbers(const void *cookie,
-                                                   ADD_RESPONSE response);
+    ENGINE_ERROR_CODE getAllVBucketSequenceNumbers(
+                                        const void *cookie,
+                                        protocol_binary_request_header *request,
+                                        ADD_RESPONSE response);
 
 protected:
     friend class EpEngineValueChangeListener;
