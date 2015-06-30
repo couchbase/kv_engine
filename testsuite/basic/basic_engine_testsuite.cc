@@ -5,10 +5,45 @@
 #include <unistd.h>
 #include <platform/platform.h>
 #include "basic_engine_testsuite.h"
+
+#include <iostream>
 #include <vector>
 #include <sstream>
 
 struct test_harness test_harness;
+
+
+// Checks that a and b are equal; if not then assert.
+#define assert_equal(a, b) assert_equal_impl((a), (b), #a, #b, __FILE__, __LINE__)
+
+// Checkt that a >= b; if not then assert.
+#define assert_ge(a, b) assert_ge_impl((a), (b), #a, #b, __FILE__, __LINE__)
+
+template<typename T>
+static void assert_equal_impl(const T& a_value, const T& b_value,
+                              const char* a_name, const char* b_name,
+                              const char* file, int line) {
+    if (a_value != b_value) {
+        std::stringstream ss;
+        ss << "Check '" << a_name << " == " << b_name << "' failed - '"
+           << a_value << " == " << b_value << "' at " << file << ":" << line;
+        std::cerr << ss.str() << std::endl;
+        abort();
+    }
+}
+
+template<typename T>
+static void assert_ge_impl(const T& a_value, const T& b_value,
+                           const char* a_name, const char* b_name,
+                           const char* file, int line) {
+    if (a_value < b_value) {
+        std::stringstream ss;
+        ss << "Check '" << a_name << " >= " << b_name << "' failed - '"
+           << a_value << " >= " << b_value << "' at " << file << ":" << line;
+        std::cerr << ss.str() << std::endl;
+        abort();
+    }
+}
 
 /*
  * Make sure that get_info returns something and that repeated calls to it
@@ -443,12 +478,15 @@ static enum test_result get_item_info_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     cb_assert(h1->store(h, NULL, test_item, &cas, OPERATION_SET,0) == ENGINE_SUCCESS);
     /* Had this been actual code, there'd be a connection here */
     cb_assert(h1->get_item_info(h, NULL, test_item, &ii) == true);
-    cb_assert(ii.cas == cas);
-    cb_assert(ii.flags == 0);
+    assert_equal(cas, ii.cas);
+    assert_equal(0u, ii.flags);
     cb_assert(strcmp(key,static_cast<const char*>(ii.key)) == 0);
-    cb_assert(ii.nkey == strlen(key));
-    cb_assert(ii.nbytes == 1);
-    cb_assert(ii.exptime == exp);
+    assert_equal(uint16_t(strlen(key)), ii.nkey);
+    assert_equal(1u, ii.nbytes);
+    // exptime is a rel_time_t; i.e. seconds since server started. Therefore can only
+    // check that the returned value is at least as large as the value
+    // we requested (i.e. not in the past).
+    assert_ge(ii.exptime, exp);
     h1->release(h, NULL, test_item);
     return SUCCESS;
 }
