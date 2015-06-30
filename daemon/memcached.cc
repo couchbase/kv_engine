@@ -8485,7 +8485,6 @@ static void initialize_openssl(void) {
 
 static void shutdown_openssl() {
     // Global OpenSSL cleanup:
-    FIPS_mode_set(0);
     CRYPTO_set_locking_callback(NULL);
     CRYPTO_set_id_callback(NULL);
     ENGINE_cleanup();
