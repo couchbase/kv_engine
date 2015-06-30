@@ -539,6 +539,12 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "dcp_takeover_max_time": {
+            "default": "60",
+            "descr": "Max amount of time for takeover send (in seconds) after which front end ops would return ETMPFAIL",
+            "dynamic": false,
+            "type": "size_t"
+        },
         "vb0": {
             "default": "false",
             "type": "bool"

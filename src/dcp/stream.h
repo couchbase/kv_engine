@@ -262,6 +262,9 @@ private:
         AtomicValue<uint32_t> bytes;
         AtomicValue<uint32_t> items;
     } bufferedBackfill;
+
+    rel_time_t takeoverStart;
+    size_t takeoverSendMaxTime;
 };
 
 class NotifierStream : public Stream {

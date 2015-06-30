@@ -175,6 +175,7 @@ public:
         max_cas(maxCas),
         drift_counter(driftCounter),
         time_sync_enabled(false),
+        takeover_backed_up(false),
         persisted_snapshot_start(lastSnapStart),
         persisted_snapshot_end(lastSnapEnd),
         numHpChks(0),
@@ -249,6 +250,15 @@ public:
                 drift_counter = (adjustedTime - wallTime);
             }
         }
+    }
+
+    bool isTakeoverBackedUp() {
+        return takeover_backed_up.load();
+    }
+
+    void setTakeoverBackedUpState(bool to) {
+        bool inverse = !to;
+        takeover_backed_up.compare_exchange_strong(inverse, to);
     }
 
     int getId(void) const { return id; }
@@ -483,6 +493,8 @@ private:
     AtomicValue<uint64_t>    max_cas;
     AtomicValue<int64_t>     drift_counter;
     AtomicValue<bool>        time_sync_enabled;
+
+    AtomicValue<bool>        takeover_backed_up;
 
     Mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;

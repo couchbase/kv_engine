@@ -149,6 +149,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
     bufferedBackfill.bytes = 0;
     bufferedBackfill.items = 0;
 
+    takeoverStart = 0;
+    takeoverSendMaxTime = engine->getConfiguration().getDcpTakeoverMaxTime();
+
     LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) %sstream created with start seqno "
         "%llu and end seqno %llu", producer->logHeader(), vb, type, st_seqno,
         en_seqno);
@@ -379,6 +382,14 @@ DcpResponse* ActiveStream::inMemoryPhase() {
 }
 
 DcpResponse* ActiveStream::takeoverSendPhase() {
+
+    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    if (vb && takeoverStart != 0 &&
+            !vb->isTakeoverBackedUp() &&
+            (ep_current_time() - takeoverStart) > takeoverSendMaxTime) {
+        vb->setTakeoverBackedUpState(true);
+    }
+
     if (!readyQ.empty()) {
         return nextQueuedItem();
     } else {
@@ -390,6 +401,11 @@ DcpResponse* ActiveStream::takeoverSendPhase() {
 
     if (waitForSnapshot != 0) {
         return NULL;
+    }
+
+    if (vb) {
+        vb->setTakeoverBackedUpState(false);
+        takeoverStart = 0;
     }
 
     DcpResponse* resp = new SetVBucketState(opaque_, vb_, takeoverState);
@@ -432,6 +448,11 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_items", name_.c_str(), vb_);
     add_casted_stat(buffer, bufferedBackfill.items, add_stat, c);
+
+    if ((state_ == STREAM_TAKEOVER_SEND) && takeoverStart != 0) {
+        snprintf(buffer, bsize, "%s:stream_%d_takeover_since", name_.c_str(), vb_);
+        add_casted_stat(buffer, ep_current_time() - takeoverStart, add_stat, c);
+    }
 }
 
 void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
@@ -705,6 +726,7 @@ void ActiveStream::transitionState(stream_state_t newState) {
     if (newState == STREAM_BACKFILLING) {
         scheduleBackfill();
     } else if (newState == STREAM_TAKEOVER_SEND) {
+        takeoverStart = ep_current_time();
         nextCheckpointItem();
     } else if (newState == STREAM_DEAD) {
         RCPtr<VBucket> vb = engine->getVBucket(vb_);
