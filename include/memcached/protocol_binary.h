@@ -1712,12 +1712,27 @@ extern "C"
     typedef protocol_binary_response_no_extras protocol_binary_response_observe_seqno;
 
     /**
-     * Definition of the payload in the PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
-     * request.
+     * Definition of the request packet for the command
+     * PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
      *
-     * This is a message with vbucketid, extras, key and value set to 0
+     * Header: Only opcode field is used.
+     *
+     * Body: Contains the vbucket state for which the vb sequence numbers are
+     *       requested.
+     *       Please note that this field is optional, header.request.extlen is
+     *       checked to see if it is present. If not present, it implies request
+     *       is for all vbucket states.
      */
-    typedef protocol_binary_request_no_extras protocol_binary_request_get_all_vb_seqnos;
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                vbucket_state_t state;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) +
+                      sizeof(vbucket_state_t)];
+    } protocol_binary_request_get_all_vb_seqnos;
 
     /**
      * Definition of the payload in the PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
