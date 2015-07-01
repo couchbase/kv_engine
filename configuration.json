@@ -1,10 +1,5 @@
 {
     "params": {
-        "allow_data_loss_during_shutdown": {
-            "default": "false",
-            "dynamic": false,
-            "type": "bool"
-        },
         "alog_block_size": {
             "default": "4096",
             "descr": "Logging block size.",
