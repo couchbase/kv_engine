@@ -790,6 +790,36 @@ static int select_bucket_validator(void *packet)
     return 0;
 }
 
+static int get_all_vb_seqnos_validator(void *packet)
+{
+    auto req = static_cast<protocol_binary_request_get_all_vb_seqnos*>(packet);
+    uint16_t klen = ntohs(req->message.header.request.keylen);
+    uint32_t blen = ntohl(req->message.header.request.bodylen);
+    uint8_t extlen = req->message.header.request.extlen;
+
+    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
+        klen != 0 || extlen != blen ||
+        req->message.header.request.cas != 0 ||
+        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+        return -1;
+    }
+
+    if (extlen != 0) {
+        // extlen is optional, and if non-zero it contains the vbucket
+        // state to report
+        if (extlen != sizeof(vbucket_state_t)) {
+            return -1;
+        }
+        vbucket_state_t state;
+        memcpy(&state, &req->message.body.state, sizeof(vbucket_state_t));
+        state = static_cast<vbucket_state_t>(ntohl(state));
+        if (!is_valid_vbucket_state_t(state)) {
+            return -1;
+        }
+    }
+
+    return 0;
+}
 
 static int null_validator(void *) {
     return 0;
@@ -880,4 +910,5 @@ static void initialize() {
     validators[PROTOCOL_BINARY_CMD_LIST_BUCKETS] = list_bucket_validator;
     validators[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = delete_bucket_validator;
     validators[PROTOCOL_BINARY_CMD_SELECT_BUCKET] = select_bucket_validator;
+    validators[PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS] = get_all_vb_seqnos_validator;
 }

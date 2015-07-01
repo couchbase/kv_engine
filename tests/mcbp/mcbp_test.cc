@@ -2195,4 +2195,75 @@ namespace BinaryProtocolValidator {
         request.message.header.request.bodylen = htonl(4);
         EXPECT_EQ(-1, validate());
     }
+
+    // PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
+    class GetAllVbSeqnoValidatorTest : public ValidatorTest {
+        virtual void SetUp() override {
+            ValidatorTest::SetUp();
+            memset(&request, 0, sizeof(request));
+            request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+            request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        }
+
+    protected:
+        int validate() {
+            return ValidatorTest::validate(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS,
+                                           static_cast<void*>(&request));
+        }
+        protocol_binary_request_get_all_vb_seqnos request;
+    };
+
+    TEST_F(GetAllVbSeqnoValidatorTest, CorrectMessageNoState) {
+        EXPECT_EQ(0, validate());
+    }
+    TEST_F(GetAllVbSeqnoValidatorTest, CorrectMessageWithState) {
+        EXPECT_EQ(4, sizeof(vbucket_state_t));
+        request.message.header.request.extlen = 4;
+        request.message.header.request.bodylen = htonl(4);
+        request.message.body.state = static_cast<vbucket_state_t>(htonl(vbucket_state_active));
+        EXPECT_EQ(0, validate());
+    }
+    TEST_F(GetAllVbSeqnoValidatorTest, InvalidMagic) {
+        request.message.header.request.magic = 0;
+        EXPECT_EQ(-1, validate());
+    }
+    TEST_F(GetAllVbSeqnoValidatorTest, InvalidExtlen) {
+        request.message.header.request.extlen = 2;
+        request.message.header.request.bodylen = htonl(2);
+        EXPECT_EQ(-1, validate());
+    }
+    TEST_F(GetAllVbSeqnoValidatorTest, InvalidKey) {
+        request.message.header.request.keylen = 10;
+        request.message.header.request.bodylen = htonl(10);
+        EXPECT_EQ(-1, validate());
+    }
+    TEST_F(GetAllVbSeqnoValidatorTest, InvalidDatatype) {
+        request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+        EXPECT_EQ(-1, validate());
+    }
+    TEST_F(GetAllVbSeqnoValidatorTest, InvalidCas) {
+        request.message.header.request.cas = 1;
+        EXPECT_EQ(-1, validate());
+    }
+    TEST_F(GetAllVbSeqnoValidatorTest, InvalidBody) {
+        request.message.header.request.bodylen = htonl(4);
+        EXPECT_EQ(-1, validate());
+    }
+    TEST_F(GetAllVbSeqnoValidatorTest, InvalidBodylen) {
+        request.message.header.request.bodylen = htonl(1);
+        EXPECT_EQ(-1, validate());
+    }
+    TEST_F(GetAllVbSeqnoValidatorTest, InvalidVbucketState) {
+        request.message.header.request.extlen = 4;
+        request.message.header.request.bodylen = htonl(4);
+
+        for (int ii = 0; ii < 100; ++ii) {
+            request.message.body.state = static_cast<vbucket_state_t>(htonl(ii));
+            if (is_valid_vbucket_state_t(static_cast<vbucket_state_t>(ii))) {
+                EXPECT_EQ(0, validate());
+            } else {
+                EXPECT_EQ(-1, validate());
+            }
+        }
+    }
 }
