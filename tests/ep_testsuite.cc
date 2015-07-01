@@ -2860,12 +2860,16 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check_key_value(h, h1, "key", data, vlen);
     h1->release(h, NULL, i);
 
+    wait_for_flusher_to_settle(h, h1);
+
     // Set max_size equal to used memory, so that the next store operation
     // would throw an ENOMEM/ETMPFAIL.
     int new_max_size = get_int_stat(h, h1, "mem_used");
     std::stringstream ss;
     ss << new_max_size;
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size", ss.str().c_str());
+
+    int num_pager_runs = get_int_stat(h, h1, "ep_num_pager_runs");
 
     i = NULL;
     // There should be no room for another.
@@ -2879,15 +2883,29 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(get_int_stat(h, h1, "ep_oom_errors") == 1 ||
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 1, "Expected an OOM error.");
 
+    // Consider the number of ejects to estimate the outcome of the next
+    // store operation, as the previous one that failed because of ENOMEM
+    // would've woken up the item-pager.
     ENGINE_ERROR_CODE overwrite = store(h, h1, NULL, OPERATION_SET, "key", data, &i);
-    check(overwrite == ENGINE_ENOMEM || overwrite == ENGINE_TMPFAIL,
-          "should have failed second override");
+    if (get_int_stat(h, h1, "ep_num_pager_runs") > num_pager_runs) {
+        check(overwrite == ENGINE_ENOMEM || overwrite == ENGINE_TMPFAIL,
+              "should have failed second override");
+    } else {
+        check(overwrite == ENGINE_SUCCESS,
+                "Item pager cleared up memory but this op still failed");
+    }
+
     if (i) {
         h1->release(h, NULL, i);
         i = NULL;
     }
-    check(get_int_stat(h, h1, "ep_oom_errors") == 2 ||
-          get_int_stat(h, h1, "ep_tmp_oom_errors") == 2, "Expected another OOM error.");
+
+    if (overwrite != ENGINE_SUCCESS) {
+        check(get_int_stat(h, h1, "ep_oom_errors") == 2 ||
+              get_int_stat(h, h1, "ep_tmp_oom_errors") == 2,
+              "Expected another OOM error.");
+    }
+
     check_key_value(h, h1, "key", data, vlen);
     check(ENGINE_SUCCESS != verify_key(h, h1, "key2"), "Expected a failure in GET");
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
