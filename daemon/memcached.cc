@@ -5525,9 +5525,9 @@ static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
     APPEND_STAT("cmd_set", "%" PRIu64, slab_stats.cmd_set);
     APPEND_STAT("cmd_flush", "%" PRIu64, thread_stats.cmd_flush);
     // index 0 contains the aggregated timings for all buckets
-    uint64_t total_mutations = all_buckets[0].timings.get_aggregated_cmd_stats(CMD_TOTAL_MUTATION);
-    uint64_t total_retrivals = all_buckets[0].timings.get_aggregated_cmd_stats(CMD_TOTAL_RETRIVAL);
-    uint64_t total_ops = all_buckets[0].timings.get_aggregated_cmd_stats(CMD_TOTAL);
+    uint64_t total_mutations = all_buckets[0].timings.get_aggregated_cmd_stats(CmdStat::TOTAL_MUTATION);
+    uint64_t total_retrivals = all_buckets[0].timings.get_aggregated_cmd_stats(CmdStat::TOTAL_RETRIVAL);
+    uint64_t total_ops = all_buckets[0].timings.get_aggregated_cmd_stats(CmdStat::TOTAL);
     APPEND_STAT("cmd_total_sets", "%" PRIu64, total_mutations);
     APPEND_STAT("cmd_total_gets", "%" PRIu64, total_retrivals);
     APPEND_STAT("cmd_total_ops", "%" PRIu64, total_ops);

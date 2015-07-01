@@ -20,14 +20,15 @@
 #include <platform/platform.h>
 #include <array>
 #include <string>
+#include <cstdint>
 
 #define MAX_NUM_OPCODES 0x100
 
-typedef enum {
-    CMD_TOTAL_MUTATION,
-    CMD_TOTAL_RETRIVAL,
-    CMD_TOTAL
-} cmd_stat_t;
+enum class CmdStat : uint8_t {
+    TOTAL_MUTATION,
+    TOTAL_RETRIVAL,
+    TOTAL
+};
 
 class Timings {
 public:
@@ -35,7 +36,7 @@ public:
     void reset(void);
     void collect(const uint8_t opcode, const hrtime_t nsec);
     std::string generate(const uint8_t opcode);
-    uint64_t get_aggregated_cmd_stats(const cmd_stat_t type);
+    uint64_t get_aggregated_cmd_stats(const CmdStat type);
 
 private:
     std::array<CommandTimings, MAX_NUM_OPCODES> timings;

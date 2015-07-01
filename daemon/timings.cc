@@ -37,7 +37,7 @@ std::string Timings::generate(const uint8_t opcode) {
     return timings[opcode].to_string();
 }
 
-uint64_t Timings::get_aggregated_cmd_stats(const cmd_stat_t type) {
+uint64_t Timings::get_aggregated_cmd_stats(const CmdStat type) {
     uint64_t ret = 0;
     static uint8_t mutations[] = {
         PROTOCOL_BINARY_CMD_ADD,
@@ -103,18 +103,21 @@ uint64_t Timings::get_aggregated_cmd_stats(const cmd_stat_t type) {
     uint8_t *ids;
 
     switch (type) {
-    case CMD_TOTAL_MUTATION:
+    case CmdStat::TOTAL_MUTATION:
         ids = mutations;
         break;
-    case CMD_TOTAL_RETRIVAL:
+    case CmdStat::TOTAL_RETRIVAL:
         ids = retrival;
         break;
-    case CMD_TOTAL:
+    case CmdStat::TOTAL:
         ids = total;
         break;
-
     default:
-        abort();
+        // the compiler don't know that the assert will cause
+        // the program to crash, so it'll emit a warning that
+        // ids may be used without being initialized
+        ids = nullptr;
+        cb_assert(false);
     }
 
     while (*ids != PROTOCOL_BINARY_CMD_INVALID) {
