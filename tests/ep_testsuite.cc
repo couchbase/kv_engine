@@ -121,22 +121,22 @@ static void check_observe_seqno(bool failover, uint8_t format_type, uint16_t vb_
     uint64_t recv_failover_vbuuid;
     uint64_t recv_failover_seqno;
 
-    memcpy(&recv_format_type, last_body, sizeof(uint8_t));
+    memcpy(&recv_format_type, last_body.data(), sizeof(uint8_t));
     check(recv_format_type == format_type, "Wrong format type in result");
-    memcpy(&recv_vb_id, last_body + 1, sizeof(uint16_t));
+    memcpy(&recv_vb_id, last_body.data() + 1, sizeof(uint16_t));
     check(ntohs(recv_vb_id) == vb_id, "Wrong vbucket id in result");
-    memcpy(&recv_vb_uuid, last_body + 3, sizeof(uint64_t));
+    memcpy(&recv_vb_uuid, last_body.data() + 3, sizeof(uint64_t));
     check(ntohll(recv_vb_uuid) == vb_uuid, "Wrong vbucket uuid in result");
-    memcpy(&recv_last_persisted_seqno, last_body + 11, sizeof(uint64_t));
+    memcpy(&recv_last_persisted_seqno, last_body.data() + 11, sizeof(uint64_t));
     check(ntohll(recv_last_persisted_seqno) == last_persisted_seqno,
           "Wrong persisted seqno in result");
-    memcpy(&recv_current_seqno, last_body + 19, sizeof(uint64_t));
+    memcpy(&recv_current_seqno, last_body.data() + 19, sizeof(uint64_t));
     check(ntohll(recv_current_seqno) == current_seqno, "Wrong current seqno in result");
 
     if (failover) {
-        memcpy(&recv_failover_vbuuid, last_body + 27, sizeof(uint64_t));
+        memcpy(&recv_failover_vbuuid, last_body.data() + 27, sizeof(uint64_t));
         check(ntohll(recv_failover_vbuuid) == failover_vbuuid, "Wrong failover uuid in result");
-        memcpy(&recv_failover_seqno, last_body + 35, sizeof(uint64_t));
+        memcpy(&recv_failover_seqno, last_body.data() + 35, sizeof(uint64_t));
         check(ntohll(recv_failover_seqno) == failover_seqno, "Wrong failover seqno in result");
     }
 }
@@ -149,7 +149,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     getl(h, h1, key, vbucketId, expiration);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
           "expected the key to be missing...");
-    if (last_body != NULL && (strcmp(last_body, "NOT_FOUND") != 0)) {
+    if (!last_body.empty() && last_body != "NOT_FOUND") {
         fprintf(stderr, "Should have returned NOT_FOUND. Getl Failed");
         abort();
     }
@@ -164,7 +164,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     getl(h, h1, key, vbucketId, expiration);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected to be able to getl on first try");
-    check(strcmp("{\"lock\":\"data\"}", last_body) == 0, "Body was malformed.");
+    check(last_body == "{\"lock\":\"data\"}", "Body was malformed.");
     check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON,
             "Expected datatype to be JSON");
 
@@ -176,7 +176,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
           "Expected to fail getl on second try");
 
-    if (last_body != NULL && (strcmp(last_body, "LOCK_ERROR") != 0)) {
+    if (!last_body.empty() && last_body != "LOCK_ERROR") {
         fprintf(stderr, "Should have returned LOCK_ERROR. Getl Failed");
         abort();
     }
@@ -313,7 +313,7 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
           "Expected to fail getl on second try");
 
-    if (last_body != NULL && (strcmp(last_body, "UNLOCK_ERROR") != 0)) {
+    if (!last_body.empty() && last_body != "UNLOCK_ERROR") {
         fprintf(stderr, "Should have returned UNLOCK_ERROR. Unl Failed");
         abort();
     }
@@ -2494,8 +2494,8 @@ static enum test_result test_get_replica(ENGINE_HANDLE *h,
                               "Get Replica Failed");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Expected PROTOCOL_BINARY_RESPONSE_SUCCESS response.");
-    check(strcmp("replicadata", last_body) == 0,
-                 "Should have returned identical value");
+    check(last_body == "replicadata",
+          "Should have returned identical value");
 
     return SUCCESS;
 }
@@ -2671,7 +2671,8 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     gat(h, h1, "mykey", 0, 10);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
     check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Expected datatype to be JSON");
-    check(memcmp(last_body, "{\"some\":\"value\"}", sizeof("{\"some\":\"value\"}")) == 0,
+    check(last_body.compare(0, sizeof("{\"some\":\"value\"}"),
+                            "{\"some\":\"value\"}") == 0,
           "Invalid data returned");
 
     // time-travel 9 secs..
@@ -2727,7 +2728,8 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     gat(h, h1, "mykey", 0, 10, true);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
     check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Expected datatype to be JSON");
-    check(memcmp(last_body, "{\"some\":\"value\"}", sizeof("{\"some\":\"value\"}")) == 0,
+    check(last_body.compare(0, sizeof("{\"some\":\"value\"}"),
+                            "{\"some\":\"value\"}") == 0,
           "Invalid data returned");
 
     // time-travel 9 secs..
@@ -5726,9 +5728,9 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
     h1->unknown_command(h, NULL, request, add_response);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
-    check(last_bodylen == sizeof(int64_t),
+    check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
-    memcpy(&adjusted_time2, last_body, last_bodylen);
+    memcpy(&adjusted_time2, last_body.data(), last_body.size());
     adjusted_time2 = ntohll(adjusted_time2);
 
     /**
@@ -5868,9 +5870,9 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
     h1->unknown_command(h, NULL, request, add_response);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
-    check(last_bodylen == sizeof(int64_t),
+    check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
-    memcpy(&adjusted_time2, last_body, last_bodylen);
+    memcpy(&adjusted_time2, last_body.data(), last_body.size());
     adjusted_time2 = ntohll(adjusted_time2);
 
     /**
@@ -8279,7 +8281,8 @@ static enum test_result test_cluster_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
         createPacket(PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, NULL, 0);
     check(h1->unknown_command(h, NULL, pkt2, add_response) == ENGINE_SUCCESS,
             "Failed to get cluster configuration");
-    if (memcmp(last_body, &var, 8) != 0) {
+    if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
+                          sizeof(var)) != 0) {
         return FAIL;
     } else {
         return SUCCESS;
@@ -8302,7 +8305,8 @@ static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, pkt2,
                                                 add_response);
     check(ret == ENGINE_SUCCESS, "Should've received not_my_vbucket/cluster config");
-    if (memcmp(last_body, &var, 8) != 0) {
+    if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
+                          sizeof(var)) != 0) {
         return FAIL;
     } else {
         return SUCCESS;
@@ -8310,7 +8314,8 @@ static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h
     check(verify_key(h, h1, "key", 2) == ENGINE_NOT_MY_VBUCKET, "Expected miss");
     check(h1->get_engine_vb_map(h, NULL, vb_map_response) == ENGINE_SUCCESS,
             "Failed to recover cluster configuration");
-    if (memcmp(last_body, &var, 8) != 0) {
+    if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
+                          sizeof(var)) != 0) {
         return FAIL;
     } else {
         return SUCCESS;
@@ -8355,14 +8360,14 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     size_t offset = 0;
     for (size_t i = 0; i < 5; ++i) {
         uint16_t len;
-        memcpy(&len, last_body + offset, sizeof(uint16_t));
+        memcpy(&len, last_body.data() + offset, sizeof(uint16_t));
         len = ntohs(len);
         check(keylen == len,
               "Key length mismatch in all_docs response");
         std::stringstream ss;
         ss << "key_" << start_num++;
         offset += sizeof(uint16_t);
-        check(memcmp(last_body + offset, ss.str().c_str(), keylen)
+        check(last_body.compare(offset, keylen, ss.str().c_str())
               == 0, "Key mismatch in all_keys response");
         offset += keylen;
     }
@@ -10891,9 +10896,9 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     h1->unknown_command(h, NULL, request, add_response);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
-    check(last_bodylen == sizeof(int64_t),
+    check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
-    memcpy(&adjusted_time1, last_body, last_bodylen);
+    memcpy(&adjusted_time1, last_body.data(), last_body.size());
     adjusted_time1 = ntohll(adjusted_time1);
 
     set_drift_counter_state(h, h1, 1000000, 0x01);
@@ -10903,9 +10908,9 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     h1->unknown_command(h, NULL, request, add_response);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
-    check(last_bodylen == sizeof(int64_t),
+    check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
-    memcpy(&adjusted_time2, last_body, last_bodylen);
+    memcpy(&adjusted_time2, last_body.data(), last_body.size());
     adjusted_time2 = ntohll(adjusted_time2);
 
     // adjusted_time2 should be greater than adjusted_time1 marginally
@@ -10932,9 +10937,9 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     h1->unknown_command(h, NULL, request, add_response);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
-    check(last_bodylen == sizeof(int64_t),
+    check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
-    memcpy(&adjusted_time1, last_body, last_bodylen);
+    memcpy(&adjusted_time1, last_body.data(), last_body.size());
     adjusted_time1 = ntohll(adjusted_time1);
 
     // Check that adjusted_time1 should be marginally greater than
@@ -10957,9 +10962,9 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     h1->unknown_command(h, NULL, request, add_response);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
-    check(last_bodylen == sizeof(int64_t),
+    check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
-    memcpy(&adjusted_time2, last_body, last_bodylen);
+    memcpy(&adjusted_time2, last_body.data(), last_body.size());
     adjusted_time2 = ntohll(adjusted_time2);
 
     // Check that adjusted_time2 should be marginally greater than
@@ -11140,15 +11145,15 @@ static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_
     uint8_t persisted;
     uint64_t cas;
 
-    memcpy(&vb, last_body, sizeof(uint16_t));
+    memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     check(ntohs(keylen) == 3, "Wrong keylen in result");
-    memcpy(&key, last_body + 4, ntohs(keylen));
+    memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key", 3) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 7, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 7, sizeof(uint8_t));
     check(persisted == OBS_STATE_NOT_PERSISTED, "Expected persisted in result");
-    memcpy(&cas, last_body + 8, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 8, sizeof(uint64_t));
     check(ntohll(cas) == cas1, "Wrong cas in result");
 
     return SUCCESS;
@@ -11188,15 +11193,15 @@ static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     uint8_t persisted;
     uint64_t cas;
 
-    memcpy(&vb, last_body, sizeof(uint16_t));
+    memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     check(ntohs(keylen) == 3, "Wrong keylen in result");
-    memcpy(&key, last_body + 4, ntohs(keylen));
+    memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key", 3) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 7, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 7, sizeof(uint8_t));
     check(persisted == OBS_STATE_NOT_FOUND, "Expected NOT_FOUND in result");
-    memcpy(&cas, last_body + 8, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 8, sizeof(uint64_t));
     check(ntohll(cas) == 0, "Wrong cas in result");
 
     return SUCCESS;
@@ -11244,37 +11249,37 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     uint8_t persisted;
     uint64_t cas;
 
-    memcpy(&vb, last_body, sizeof(uint16_t));
+    memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 4, ntohs(keylen));
+    memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 8, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
-    memcpy(&cas, last_body + 9, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     check(ntohll(cas) == cas1, "Wrong cas in result");
 
-    memcpy(&vb, last_body + 17, sizeof(uint16_t));
+    memcpy(&vb, last_body.data() + 17, sizeof(uint16_t));
     check(ntohs(vb) == 1, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 19, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 21, ntohs(keylen));
+    memcpy(&key, last_body.data() + 21, ntohs(keylen));
     check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 25, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
     check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
-    memcpy(&cas, last_body + 26, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 26, sizeof(uint64_t));
     check(ntohll(cas) == cas2, "Wrong cas in result");
 
-    memcpy(&vb, last_body + 34, sizeof(uint16_t));
+    memcpy(&vb, last_body.data() + 34, sizeof(uint16_t));
     check(ntohs(vb) == 1, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 36, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 38, ntohs(keylen));
+    memcpy(&key, last_body.data() + 38, ntohs(keylen));
     check(strncmp(key, "key3", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 42, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
     check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
-    memcpy(&cas, last_body + 43, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
     check(ntohll(cas) == cas3, "Wrong cas in result");
 
     return SUCCESS;
@@ -11309,17 +11314,17 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     observe(h, h1, obskeys);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
-    memcpy(&vb, last_body, sizeof(uint16_t));
+    memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 4, ntohs(keylen));
+    memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 8, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
-    memcpy(&cas, last_body + 9, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     check(ntohll(cas) == cas1, "Wrong cas in result");
-    check(last_bodylen == 17, "Incorrect body length");
+    check(last_body.size() == 17, "Incorrect body length");
 
     // Do another observe
     obskeys.clear();
@@ -11327,17 +11332,17 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     observe(h, h1, obskeys);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
 
-    memcpy(&vb, last_body, sizeof(uint16_t));
+    memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 4, ntohs(keylen));
+    memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 8, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
-    memcpy(&cas, last_body + 9, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     check(ntohll(cas) == cas2, "Wrong cas in result");
-    check(last_bodylen == 17, "Incorrect body length");
+    check(last_body.size() == 17, "Incorrect body length");
 
     return SUCCESS;
 }
@@ -11379,33 +11384,33 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     uint8_t persisted;
     uint64_t cas;
 
-    memcpy(&vb, last_body, sizeof(uint16_t));
+    memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 4, ntohs(keylen));
+    memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 8, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
-    memcpy(&cas, last_body + 9, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     check(ntohll(cas) == cas1, "Wrong cas in result");
 
-    memcpy(&keylen, last_body + 19, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 21, ntohs(keylen));
+    memcpy(&key, last_body.data() + 21, ntohs(keylen));
     check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 25, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
     check(persisted == OBS_STATE_NOT_FOUND, "Expected key_not_found key status");
 
-    memcpy(&vb, last_body + 34, sizeof(uint16_t));
+    memcpy(&vb, last_body.data() + 34, sizeof(uint16_t));
     check(ntohs(vb) == 1, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 36, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 38, ntohs(keylen));
+    memcpy(&key, last_body.data() + 38, ntohs(keylen));
     check(strncmp(key, "key3", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 42, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
     check(persisted == OBS_STATE_LOGICAL_DEL, "Expected persisted in result");
-    memcpy(&cas, last_body + 43, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
     check(ntohll(cas) == cas3 + 1, "Wrong cas in result");
 
     return SUCCESS;
@@ -11714,7 +11719,7 @@ static enum test_result test_gat_locked(ENGINE_HANDLE *h,
 
     gat(h, h1, "key", 0, 10);
     check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "Expected tmp fail");
-    check(strncmp(last_body, "Lock Error", 10) == 0, "Wrong error message");
+    check(last_body == "Lock Error", "Wrong error message");
 
     testHarness.time_travel(16);
     gat(h, h1, "key", 0, 10);
@@ -11809,7 +11814,7 @@ static enum test_result test_touch_locked(ENGINE_HANDLE *h,
 
     touch(h, h1, "key", 0, 10);
     check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "Expected tmp fail");
-    check(strncmp(last_body, "Lock Error", 10) == 0, "Wrong error message");
+    check(last_body == "Lock Error", "Wrong error message");
 
     testHarness.time_travel(16);
     touch(h, h1, "key", 0, 10);
@@ -12470,8 +12475,7 @@ static enum test_result test_gat_with_item_eviction(ENGINE_HANDLE *h,
 
     gat(h, h1, "mykey", 0, 10); // 10 sec as expiration time
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
-    check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
-          "Invalid data returned");
+    check(last_body == "somevalue", "Invalid data returned");
 
     // time-travel 9 secs..
     testHarness.time_travel(9);
@@ -12616,37 +12620,37 @@ static enum test_result test_observe_with_item_eviction(ENGINE_HANDLE *h,
     uint8_t persisted;
     uint64_t cas;
 
-    memcpy(&vb, last_body, sizeof(uint16_t));
+    memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 2, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 2, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 4, ntohs(keylen));
+    memcpy(&key, last_body.data() + 4, ntohs(keylen));
     check(strncmp(key, "key1", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 8, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 8, sizeof(uint8_t));
     check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
-    memcpy(&cas, last_body + 9, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 9, sizeof(uint64_t));
     check(ntohll(cas) == cas1, "Wrong cas in result");
 
-    memcpy(&vb, last_body + 17, sizeof(uint16_t));
+    memcpy(&vb, last_body.data() + 17, sizeof(uint16_t));
     check(ntohs(vb) == 1, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 19, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 19, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 21, ntohs(keylen));
+    memcpy(&key, last_body.data() + 21, ntohs(keylen));
     check(strncmp(key, "key2", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 25, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 25, sizeof(uint8_t));
     check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
-    memcpy(&cas, last_body + 26, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 26, sizeof(uint64_t));
     check(ntohll(cas) == cas2, "Wrong cas in result");
 
-    memcpy(&vb, last_body + 34, sizeof(uint16_t));
+    memcpy(&vb, last_body.data() + 34, sizeof(uint16_t));
     check(ntohs(vb) == 1, "Wrong vbucket in result");
-    memcpy(&keylen, last_body + 36, sizeof(uint16_t));
+    memcpy(&keylen, last_body.data() + 36, sizeof(uint16_t));
     check(ntohs(keylen) == 4, "Wrong keylen in result");
-    memcpy(&key, last_body + 38, ntohs(keylen));
+    memcpy(&key, last_body.data() + 38, ntohs(keylen));
     check(strncmp(key, "key3", 4) == 0, "Wrong key in result");
-    memcpy(&persisted, last_body + 42, sizeof(uint8_t));
+    memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
     check(persisted == OBS_STATE_PERSISTED, "Expected persisted in result");
-    memcpy(&cas, last_body + 43, sizeof(uint64_t));
+    memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
     check(ntohll(cas) == cas3, "Wrong cas in result");
 
     return SUCCESS;
@@ -12661,8 +12665,7 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
     h1->release(h, NULL, itm);
     gat(h, h1, "mykey", 0, 10); // 10 sec as expiration time
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
-    check(memcmp(last_body, "somevalue", sizeof("somevalue")) == 0,
-          "Invalid data returned");
+    check(last_body == "somevalue", "Invalid data returned");
 
     // Store a dummy item since we do not purge the item with highest seqno
     check(ENGINE_SUCCESS ==
@@ -13018,9 +13021,9 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     h1->unknown_command(h, NULL, request, add_response);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
-    check(last_bodylen == sizeof(int64_t),
+    check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
-    memcpy(&adjusted_time, last_body, last_bodylen);
+    memcpy(&adjusted_time, last_body.data(), last_body.size());
     adjusted_time = ntohll(adjusted_time);
     check(adjusted_time < 0, "Adjusted time is supposed to negative");
 
