@@ -624,6 +624,14 @@ void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
 
 void ActiveStream::endStream(end_stream_status_t reason) {
     if (state_ != STREAM_DEAD) {
+        if (state_ == STREAM_BACKFILLING) {
+            // If Stream were in Backfilling state, clear out the
+            // backfilled items to clear up the backfill buffer.
+            clear_UNLOCKED();
+            producer->getBackfillManager()->bytesSent(bufferedBackfill.bytes);
+            bufferedBackfill.bytes = 0;
+            bufferedBackfill.items = 0;
+        }
         if (reason != END_STREAM_DISCONNECTED) {
             pushToReadyQ(new StreamEndResponse(opaque_, reason, vb_));
         }
