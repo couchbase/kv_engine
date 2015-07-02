@@ -1127,6 +1127,27 @@ static int safe_append(char *buffer, const char *txt) {
     return len;
 }
 
+static void teardown_testsuite(cb_dlhandle_t handle, const char* test_suite) {
+    /* Hack to remove the warning from C99 */
+    union {
+        TEARDOWN_SUITE teardown_suite;
+        void* voidptr;
+    } my_teardown_suite;
+
+    memset(&my_teardown_suite, 0, sizeof(my_teardown_suite));
+
+    char *errmsg = NULL;
+    void* symbol = cb_dlsym(handle, "teardown_suite", &errmsg);
+    if (symbol == NULL) {
+        free(errmsg);
+    } else {
+        my_teardown_suite.voidptr = symbol;
+        if (!(*my_teardown_suite.teardown_suite)()) {
+            fprintf(stderr, "Failed to teardown up test suite %s \n", test_suite);
+        }
+    }
+}
+
 int main(int argc, char **argv) {
     int c, exitcode = 0, num_cases = 0, timeout = 0, loop_count = 0;
     bool verbose = false;
@@ -1158,11 +1179,6 @@ int main(int argc, char **argv) {
         void* voidptr;
     } my_setup_suite;
 
-    /* Hack to remove the warning from C99 */
-    union {
-        TEARDOWN_SUITE teardown_suite;
-        void* voidptr;
-    } my_teardown_suite;
 
     cb_initialize_sockets();
 
@@ -1170,7 +1186,6 @@ int main(int argc, char **argv) {
 
     memset(&my_get_test, 0, sizeof(my_get_test));
     memset(&my_setup_suite, 0, sizeof(my_setup_suite));
-    memset(&my_teardown_suite, 0, sizeof(my_teardown_suite));
 
     logger_descriptor = get_null_logger();
     color_enabled = getenv("TESTAPP_ENABLE_COLOR") != NULL;
@@ -1331,6 +1346,7 @@ int main(int argc, char **argv) {
         } else {
             exit_code = PENDING; // ignored tests would always return PENDING
         }
+        teardown_testsuite(handle, test_suite);
         cb_dlclose(handle);
         exit(exit_code);
     }
@@ -1417,15 +1433,7 @@ int main(int argc, char **argv) {
     } while (loop && exitcode == 0);
 
     /* tear down the suite if needed */
-    symbol = cb_dlsym(handle, "teardown_suite", &errmsg);
-    if (symbol == NULL) {
-        free(errmsg);
-    } else {
-        my_teardown_suite.voidptr = symbol;
-        if (!(*my_teardown_suite.teardown_suite)()) {
-            fprintf(stderr, "Failed to teardown up test suite %s \n", test_suite);
-        }
-    }
+    teardown_testsuite(handle, test_suite);
 
     printf("# Passed %d of %d tests\n", num_cases - exitcode, num_cases);
     free(cmdline);
