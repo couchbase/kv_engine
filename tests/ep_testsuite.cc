@@ -13135,53 +13135,44 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
 
-    const int num_vbuckets = 5;
-    const int per_vb_resp_size = 10;
-    const int high_seqno_offset = 2;
+    const int num_vbuckets = 10;
 
     /* Create vbuckets */
     for (int i = 0; i < num_vbuckets; i++) {
-        check(set_vbucket_state(h, h1, i, vbucket_state_active),
-              "Failed to set vbucket state.");
-        std::stringstream ss;
-        ss << "key" << i;
-        for (int j= 0; j < i; j++) {
-            std::stringstream ss;
-            ss << j;
-            check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "value",
-                        NULL, 0, i)
-                  == ENGINE_SUCCESS, "Failed to store an item.");
+        if (i < num_vbuckets/2) {
+            /* Active vbuckets */
+            check(set_vbucket_state(h, h1, i, vbucket_state_active),
+                  "Failed to set vbucket state.");
+            for (int j= 0; j < i; j++) {
+                std::string key("key" + std::to_string(i));
+                check(store(h, h1, NULL, OPERATION_SET, key.c_str(),
+                            "value", NULL, 0, i)
+                      == ENGINE_SUCCESS, "Failed to store an item.");
+            }
+        } else {
+            /* Replica vbuckets */
+            check(set_vbucket_state(h, h1, i, vbucket_state_replica),
+                  "Failed to set vbucket state.");
         }
     }
-    /* Create request */
-    protocol_binary_request_header pkt;
-    memset(&pkt, 0, sizeof(pkt));
-    pkt.request.opcode = PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS;
 
-    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
-          ENGINE_SUCCESS, "Error in getting all vb info");
+    /* Create request to get vb seqno of all vbuckets */
+    get_all_vb_seqnos(h, h1, static_cast<vbucket_state_t>(0), cookie);
 
     /* Check if the response received is correct */
-    /* Check if the total response length is as expected. We expect 10 bytes
-       (2 for vb_id + 8 for seqno) */
-    check((num_vbuckets * per_vb_resp_size) == last_bodylen,
-          "Failed to get all vb info.");
-    /* Check if the contents are correct */
-    for (int i = 0; i < num_vbuckets; i++) {
-        /* Check for correct vb_id */
-        check(i == ntohs(*(reinterpret_cast<uint16_t*>(last_body +
-                                                       per_vb_resp_size*i))),
-              "vb_id mismatch");
-        /* Check for correct high_seqno */
-        std::stringstream vb_stat_seqno;
-        vb_stat_seqno << "vb_" << i << ":high_seqno";
-        uint64_t high_seqno_vb =
-                             get_ull_stat(h, h1, vb_stat_seqno.str().c_str(),
-                                          "vbucket-seqno");
-        check(high_seqno_vb == ntohll(*(reinterpret_cast<uint64_t*>(last_body +
-                                      per_vb_resp_size*i + high_seqno_offset))),
-              "high_seqno mismatch");
-    }
+    verify_all_vb_seqnos(h, h1, 0, num_vbuckets);
+
+    /* Create request to get vb seqno of active vbuckets */
+    get_all_vb_seqnos(h, h1, vbucket_state_active, cookie);
+
+    /* Check if the response received is correct */
+    verify_all_vb_seqnos(h, h1, 0, num_vbuckets/2);
+
+    /* Create request to get vb seqno of replica vbuckets */
+    get_all_vb_seqnos(h, h1, vbucket_state_replica, cookie);
+
+    /* Check if the response received is correct */
+    verify_all_vb_seqnos(h, h1, num_vbuckets/2, num_vbuckets);
 
     return SUCCESS;
 }

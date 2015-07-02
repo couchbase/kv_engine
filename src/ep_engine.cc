@@ -1145,7 +1145,7 @@ extern "C" {
 
         switch (request->request.opcode) {
         case PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS:
-            return h->getAllVBucketSequenceNumbers(cookie, response);
+            return h->getAllVBucketSequenceNumbers(cookie, request, response);
 
         case PROTOCOL_BINARY_CMD_GET_VBUCKET:
             {
@@ -6125,11 +6125,42 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
     }
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(const void *cookie,
-                                                                           ADD_RESPONSE response) {
+ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
+                                    const void *cookie,
+                                    protocol_binary_request_header *request,
+                                    ADD_RESPONSE response) {
+    protocol_binary_request_get_all_vb_seqnos *req =
+        reinterpret_cast<protocol_binary_request_get_all_vb_seqnos*>(request);
+
+    // if extlen is non-zero, it limits the result to only include the
+    // vbuckets in the specified vbucket state.
+    size_t bodylen = ntohl(req->message.header.request.bodylen);
+    uint8_t extlen = req->message.header.request.extlen;
+
+    if ((bodylen != extlen) ||
+        ((bodylen != 0) && (bodylen != sizeof(vbucket_state_t)))) {
+        const std::string msg("Incorrect packet format");
+        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                            msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL,
+                            0, cookie);
+    }
+
+    vbucket_state_t reqState = static_cast<vbucket_state_t>(0);;
+    if (bodylen != 0) {
+        memcpy(&reqState, &req->message.body.state, sizeof(reqState));
+        reqState = static_cast<vbucket_state_t>(ntohl(reqState));
+
+        if (!is_valid_vbucket_state_t(reqState)) {
+            const std::string msg("Invalid vbucket state");
+            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
+                                msg.length(), PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_EINVAL,
+                                0, cookie);
+        }
+    }
 
     std::vector<uint8_t> payload;
-
     std::vector<int> vbuckets = epstore->getVBuckets().getBuckets();
 
     /* Reserve a buffer that's big enough to hold all of them (we might
@@ -6149,9 +6180,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(const
         RCPtr<VBucket> vb = getVBucket(id);
         if (vb) {
             auto state = vb->getState();
-            if (state == vbucket_state_active ||
-                state == vbucket_state_replica ||
-                state == vbucket_state_pending) {
+            bool getSeqnoForThisVb = false;
+            if (reqState) {
+                getSeqnoForThisVb = (reqState == state);
+            } else {
+                getSeqnoForThisVb = (state == vbucket_state_active) ||
+                                    (state == vbucket_state_replica) ||
+                                    (state == vbucket_state_pending);
+            }
+            if (getSeqnoForThisVb) {
                 uint16_t vbid = htons(static_cast<uint16_t>(id));
                 uint64_t highSeqno;
                 if (vb->getState() == vbucket_state_active) {
