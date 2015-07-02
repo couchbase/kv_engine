@@ -62,11 +62,10 @@ ENGINE_ERROR_CODE vb_map_response(const void *cookie, const void *map,
 #endif
 
 extern protocol_binary_response_status last_status;
-extern char *last_key;
-extern char *last_body;
+extern std::string last_key;
+extern std::string last_body;
 extern bool dump_stats;
 extern std::map<std::string, std::string> vals;
-extern uint32_t last_bodylen;
 extern uint64_t last_cas;
 extern uint8_t last_datatype;
 extern bool last_deleted_flag;
