@@ -214,8 +214,6 @@ void cleanup(engine_test_t *test, enum test_result result) {
     std::string dbname = get_dbname(test->cfg);
     /* Remove only the db file this test created */
     rmdb(dbname.c_str());
-    free(const_cast<char*>(test->name));
-    free(const_cast<char*>(test->cfg));
 }
 
 // Array of testcases to return back to engine_testapp.
@@ -285,6 +283,10 @@ bool setup_suite(struct test_harness *th) {
 
 MEMCACHED_PUBLIC_API
 bool teardown_suite() {
+    for (int i = 0; testcases[i].name != nullptr; i++) {
+        free((char*)testcases[i].name);
+        free((char*)testcases[i].cfg);
+    }
     free(testcases);
     testcases = NULL;
     return true;

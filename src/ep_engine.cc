@@ -1828,6 +1828,7 @@ extern "C" {
         Global clean-up should be performed from this method.
     */
     void destroy_engine() {
+        ExecutorPool::shutdown();
         // A single MemoryTracker exists for *all* buckets
         // and must be destroyed before unloading the shared object.
         MemoryTracker::destroyInstance();

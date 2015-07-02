@@ -124,6 +124,8 @@ public:
 
     static ExecutorPool *get(void);
 
+    static void shutdown(void);
+
 private:
 
     ExecutorPool(size_t t, size_t nTaskSets, size_t r, size_t w, size_t a,

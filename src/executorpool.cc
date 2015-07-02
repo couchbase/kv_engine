@@ -144,6 +144,13 @@ ExecutorPool *ExecutorPool::get(void) {
     return instance;
 }
 
+void ExecutorPool::shutdown(void) {
+    if (instance) {
+        delete instance;
+        instance = nullptr;
+    }
+}
+
 ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
                            size_t maxReaders, size_t maxWriters,
                            size_t maxAuxIO,   size_t maxNonIO) :
@@ -170,7 +177,8 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
 
 ExecutorPool::~ExecutorPool(void) {
     delete [] curWorkers;
-    free(maxWorkers);
+    delete[] maxWorkers;
+    delete[] numReadyTasks;
     if (isHiPrioQset) {
         for (size_t i = 0; i < numTaskSets; i++) {
             delete hpTaskQ[i];

@@ -105,6 +105,7 @@ MemoryTracker::~MemoryTracker() {
         tracking = false;
         cb_join_thread(statsThreadId);
     }
+    free(stats.ext_stats);
     instance = NULL;
 }
 
