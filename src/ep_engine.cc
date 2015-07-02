@@ -6132,32 +6132,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     protocol_binary_request_get_all_vb_seqnos *req =
         reinterpret_cast<protocol_binary_request_get_all_vb_seqnos*>(request);
 
-    // if extlen is non-zero, it limits the result to only include the
-    // vbuckets in the specified vbucket state.
+    // if extlen (hence bodylen) is non-zero, it limits the result to only
+    // include the vbuckets in the specified vbucket state.
     size_t bodylen = ntohl(req->message.header.request.bodylen);
-    uint8_t extlen = req->message.header.request.extlen;
-
-    if ((bodylen != extlen) ||
-        ((bodylen != 0) && (bodylen != sizeof(vbucket_state_t)))) {
-        const std::string msg("Incorrect packet format");
-        return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                            msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL,
-                            0, cookie);
-    }
 
     vbucket_state_t reqState = static_cast<vbucket_state_t>(0);;
     if (bodylen != 0) {
         memcpy(&reqState, &req->message.body.state, sizeof(reqState));
         reqState = static_cast<vbucket_state_t>(ntohl(reqState));
-
-        if (!is_valid_vbucket_state_t(reqState)) {
-            const std::string msg("Invalid vbucket state");
-            return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
-                                msg.length(), PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_EINVAL,
-                                0, cookie);
-        }
     }
 
     std::vector<uint8_t> payload;
