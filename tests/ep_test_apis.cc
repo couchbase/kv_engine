@@ -583,9 +583,11 @@ bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_pa
                        strlen(param), val, strlen(val));
 
     if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
+        free(pkt);
         return false;
     }
 
+    free(pkt);
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 

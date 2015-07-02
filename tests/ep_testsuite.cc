@@ -2850,10 +2850,11 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(get_int_stat(h, h1, "ep_oom_errors") == 0 &&
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 0, "Expected no OOM errors.");
 
-    char *data = new char[2 * 1024 * 1024];
-    cb_assert(data);
     size_t vlen = 2 * 1024 * 1024;
+    char *data = new char[vlen + 1]; // +1 for terminating '\0' byte
+    cb_assert(data);
     memset(data, 'x', vlen);
+    data[vlen] = '\0';
 
     item *i = NULL;
     // So if we add an item,
