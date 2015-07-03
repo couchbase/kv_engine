@@ -1,18 +1,12 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #include "config.h"
-#include <errno.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <signal.h>
-#include <getopt.h>
-#include <time.h>
-#include <platform/platform.h>
-#include "utilities/engine_loader.h"
+
 #include <memcached/engine_testapp.h>
-#include <memcached/extension_loggers.h>
+
+#include <cstdlib>
+#include <getopt.h>
+
+#include "utilities/engine_loader.h"
 #include "mock_server.h"
 
 #include <daemon/alloc_hooks.h>
@@ -63,6 +57,13 @@ static void mock_destroy(ENGINE_HANDLE* handle, const bool force) {
     me->the_engine->destroy((ENGINE_HANDLE*)me->the_engine, force);
 }
 
+// Helper function to convert a cookie (externally represented as
+// void*) to the actual internal type.
+static struct mock_connstruct* to_mock_connstruct(const void* cookie) {
+    return const_cast<struct mock_connstruct*>
+        (reinterpret_cast<const struct mock_connstruct*>(cookie));
+}
+
 static ENGINE_ERROR_CODE mock_allocate(ENGINE_HANDLE* handle,
                                        const void* cookie,
                                        item **item,
@@ -73,11 +74,11 @@ static ENGINE_ERROR_CODE mock_allocate(ENGINE_HANDLE* handle,
                                        const rel_time_t exptime,
                                        uint8_t datatype) {
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -111,11 +112,11 @@ static ENGINE_ERROR_CODE mock_remove(ENGINE_HANDLE* handle,
                                      mutation_descr_t* mut_info)
 {
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -153,9 +154,9 @@ static ENGINE_ERROR_CODE mock_get(ENGINE_HANDLE* handle,
                                   uint16_t vbucket) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -186,9 +187,9 @@ static ENGINE_ERROR_CODE mock_get_stats(ENGINE_HANDLE* handle,
 {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -219,9 +220,9 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
                                     uint16_t vbucket) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -259,9 +260,9 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
                                          uint16_t vbucket) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -291,9 +292,9 @@ static ENGINE_ERROR_CODE mock_flush(ENGINE_HANDLE* handle,
                                     const void* cookie, time_t when) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -327,9 +328,9 @@ static ENGINE_ERROR_CODE mock_unknown_command(ENGINE_HANDLE* handle,
 {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -388,9 +389,9 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -454,11 +455,11 @@ static ENGINE_ERROR_CODE mock_dcp_add_stream(ENGINE_HANDLE* handle,
                                              uint32_t flags) {
 
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -564,10 +565,10 @@ static ENGINE_ERROR_CODE mock_dcp_mutation(ENGINE_HANDLE* handle,
                                            uint8_t nru) {
 
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -605,10 +606,10 @@ static ENGINE_ERROR_CODE mock_dcp_deletion(ENGINE_HANDLE* handle,
                                            uint16_t nmeta) {
 
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -645,10 +646,10 @@ static ENGINE_ERROR_CODE mock_dcp_expiration(ENGINE_HANDLE* handle,
                                              uint16_t nmeta) {
 
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -678,10 +679,10 @@ static ENGINE_ERROR_CODE mock_dcp_flush(ENGINE_HANDLE* handle,
                                         uint16_t vbucket) {
 
     struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = (void*)cookie;
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     if (c == NULL) {
-        c = (void*)create_mock_cookie();
+        c = to_mock_connstruct(create_mock_cookie());
     }
 
     c->nblocks = 0;
@@ -732,9 +733,9 @@ static ENGINE_ERROR_CODE mock_dcp_control(ENGINE_HANDLE* handle,
                                           uint32_t nvalue) {
 
     struct mock_engine *me = get_handle(handle);
-    return me->the_engine->dcp.control((void*)me->the_engine,
-                                       cookie, opaque, key,
-                                       nkey, value, nvalue);
+    ENGINE_HANDLE* h = reinterpret_cast<ENGINE_HANDLE*>(me->the_engine);
+    return me->the_engine->dcp.control(h, cookie, opaque, key, nkey, value,
+                                       nvalue);
 }
 
 static ENGINE_ERROR_CODE mock_dcp_buffer_acknowledgement(ENGINE_HANDLE* handle,
@@ -787,7 +788,7 @@ static void usage(void) {
 
 static int report_test(const char *name, time_t duration, enum test_result r, bool quiet, bool compact) {
     int rc = 0;
-    char *msg = NULL;
+    const char *msg = NULL;
     int color = 0;
     char color_str[8] = { 0 };
     const char *reset_color = color_enabled ? "\033[m" : "";
@@ -991,7 +992,8 @@ static size_t get_mapped_bytes(void) {
     allocator_stats stats = {0};
     ALLOCATOR_HOOKS_API* alloc_hooks = get_mock_server_api()->alloc_hooks;
     stats.ext_stats_size = alloc_hooks->get_extra_stats_size();
-    stats.ext_stats = calloc(stats.ext_stats_size, sizeof(allocator_ext_stat));
+    stats.ext_stats = reinterpret_cast<allocator_ext_stat*>
+        (calloc(stats.ext_stats_size, sizeof(allocator_ext_stat)));
 
     alloc_hooks->get_allocator_stats(&stats);
     mapped_bytes = stats.heap_size - stats.free_mapped_size
@@ -1351,7 +1353,7 @@ int main(int argc, char **argv) {
         exit(exit_code);
     }
 
-    cmdline = malloc(64*1024); /* should be enough */
+    cmdline = reinterpret_cast<char*>(malloc(64*1024)); /* should be enough */
     if (cmdline == NULL) {
         fprintf(stderr, "Failed to allocate memory");
         exit(EXIT_FAILURE);

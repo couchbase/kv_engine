@@ -1,4 +1,4 @@
-ADD_EXECUTABLE(engine_testapp engine_testapp.c
+ADD_EXECUTABLE(engine_testapp engine_testapp.cc
                               mock_server.c
                               mock_server.h
                               ${MEMORY_TRACKING_SRCS})
