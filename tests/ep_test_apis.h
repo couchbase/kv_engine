@@ -151,6 +151,16 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         const char *key, const char *value, item **outitem,
                         uint64_t casIn = 0, uint16_t vb = 0,
                         uint32_t exp = 3600, uint8_t datatype = 0x00);
+
+/* Stores the specified document; returning the new CAS value via
+ * {out_cas}.
+ */
+ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                              const void *cookie, const uint16_t vb,
+                              const std::string& key, const std::string& value,
+                              const protocol_binary_datatypes datatype,
+                              item*& out_item, uint64_t& out_cas);
+
 ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                const void *cookie, ENGINE_STORE_OPERATION op,
                                const char *key, const char *value, size_t vlen,

@@ -792,6 +792,25 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                         9258, outitem, casIn, vb, exp, datatype);
 }
 
+ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                              const void *cookie, const uint16_t vb,
+                              const std::string& key, const std::string& value,
+                              const protocol_binary_datatypes datatype,
+                              item*& out_item, uint64_t& out_cas) {
+    item *it = NULL;
+    check(h1->allocate(h, NULL, &it, key.c_str(), key.size(), value.size(), 0,
+                       0, datatype) == ENGINE_SUCCESS,
+          "Allocation failed.");
+    item_info info;
+    info.nvalue = 1;
+    check(h1->get_item_info(h, h1, it, &info), "Unable to get item_info");
+    check(info.nvalue == 1, "iovectors not supported");
+    memcpy(info.value[0].iov_base, value.data(), value.size());
+    ENGINE_ERROR_CODE res = h1->store(h, NULL, it, &out_cas, OPERATION_SET, vb);
+    h1->release(h, NULL, it);
+    return res;
+}
+
 ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                const void *cookie, ENGINE_STORE_OPERATION op,
                                const char *key, const char *value, size_t vlen,

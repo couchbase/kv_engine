@@ -7820,18 +7820,15 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.set_datatype_support(cookie, true);
 
     item *itm = NULL;
-    char key[15] = "{\"foo\":\"bar\"}";
-    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    const std::string key("{\"foo\":\"bar\"}");
+    const protocol_binary_datatypes datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     uint64_t cas = 0;
+    std::string value("x");
+    check(storeCasOut(h, h1, NULL, 0, key, value, datatype, itm, cas)
+          == ENGINE_SUCCESS,
+          "Expected set to succeed");
 
-    ENGINE_ERROR_CODE rv = h1->allocate(h, cookie, &itm, key,
-                                        strlen(key), 1, 0, 0,
-                                        datatype);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
-    rv = h1->store(h, cookie, itm, &cas, OPERATION_SET, 0);
-    h1->release(h, cookie, itm);
-
-    check(h1->get(h, cookie, &itm, key, strlen(key), 0) == ENGINE_SUCCESS,
+    check(h1->get(h, cookie, &itm, key.c_str(), key.size(), 0) == ENGINE_SUCCESS,
             "Unable to get stored item");
 
     item_info info;
@@ -11004,14 +11001,11 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
     for (int j = 0; j < num_items; ++j) {
         // Set an item
         item *it = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
         uint64_t cas1;
-        check(h1->allocate(h, NULL, &it, ss.str().c_str(), 4, 100, 0, 0,
-              PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-        check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 1)== ENGINE_SUCCESS,
+        std::string value('x', 100);
+        check(storeCasOut(h, h1, NULL, 1, "key" + std::to_string(j), value,
+                          PROTOCOL_BINARY_RAW_BYTES, it, cas1) == ENGINE_SUCCESS,
               "Expected set to succeed");
-        h1->release(h, NULL, it);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -11032,14 +11026,11 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
     for (int j = 10; j < num_items; ++j) {
         // Set an item
         item *it = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
         uint64_t cas1;
-        check(h1->allocate(h, NULL, &it, ss.str().c_str(), 5, 100, 0, 0,
-              PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-        check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 1)== ENGINE_SUCCESS,
+        std::string value('x', 100);
+        check(storeCasOut(h, h1, NULL, 1, "key" + std::to_string(j), value,
+                          PROTOCOL_BINARY_RAW_BYTES, it, cas1) == ENGINE_SUCCESS,
               "Expected set to succeed");
-        h1->release(h, NULL, it);
     }
 
     high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
@@ -11062,14 +11053,11 @@ static enum test_result test_observe_seqno_failover(ENGINE_HANDLE *h,
     for (int j = 0; j < num_items; ++j) {
         // Set an item
         item *it = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
         uint64_t cas1;
-        check(h1->allocate(h, NULL, &it, ss.str().c_str(), 4, 100, 0, 0,
-              PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-        check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
+        std::string value('x', 100);
+        check(storeCasOut(h, h1, NULL, 0, "key" + std::to_string(j), value,
+                          PROTOCOL_BINARY_RAW_BYTES, it, cas1) == ENGINE_SUCCESS,
               "Expected set to succeed");
-        h1->release(h, NULL, it);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -11125,13 +11113,12 @@ static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_
     stop_persistence(h, h1);
 
     // Set an item
+    std::string value('x', 100);
     item *it = NULL;
     uint64_t cas1;
-    check(h1->allocate(h, NULL, &it, "key", 3, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
-          "Set should work.");
-    h1->release(h, NULL, it);
+    check(storeCasOut(h, h1, NULL, /*vb*/0, "key", value,
+                      PROTOCOL_BINARY_RAW_BYTES, it, cas1) == ENGINE_SUCCESS,
+          "Set should work");
 
     // Do an observe
     std::map<std::string, uint16_t> obskeys;
@@ -11215,23 +11202,18 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Set some keys to observe
     item *it = NULL;
     uint64_t cas1, cas2, cas3;
-    check(h1->allocate(h, NULL, &it, "key1", 4, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
-          "Set should work.");
-    h1->release(h, NULL, it);
+    std::string value('x', 100);
+    check(storeCasOut(h, h1, NULL, 0, "key1", value, PROTOCOL_BINARY_RAW_BYTES,
+                      it, cas1) == ENGINE_SUCCESS,
+          "Set should work");
 
-    check(h1->allocate(h, NULL, &it, "key2", 4, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas2, OPERATION_SET, 1)== ENGINE_SUCCESS,
-          "Set should work.");
-    h1->release(h, NULL, it);
+    check(storeCasOut(h, h1, NULL, 1, "key2", value, PROTOCOL_BINARY_RAW_BYTES,
+                      it, cas2) == ENGINE_SUCCESS,
+          "Set should work");
 
-    check(h1->allocate(h, NULL, &it, "key3", 4, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas3, OPERATION_SET, 1)== ENGINE_SUCCESS,
-          "Set should work.");
-    h1->release(h, NULL, it);
+    check(storeCasOut(h, h1, NULL, 1, "key3", value, PROTOCOL_BINARY_RAW_BYTES,
+                      it, cas3) == ENGINE_SUCCESS,
+          "Set should work");
 
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
 
@@ -11297,16 +11279,15 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Set some keys
     item *it = NULL;
     uint64_t cas1, cas2;
-    check(h1->allocate(h, NULL, &it, "key1", 4, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
-          "Set should work.");
-    h1->release(h, NULL, it);
-    check(h1->allocate(h, NULL, &it, "key2", 4, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas2, OPERATION_SET, 0)== ENGINE_SUCCESS,
-          "Set should work.");
-    h1->release(h, NULL, it);
+    std::string value('x', 100);
+    check(storeCasOut(h, h1, NULL, 0, "key1", value, PROTOCOL_BINARY_RAW_BYTES,
+                      it, cas1) == ENGINE_SUCCESS,
+          "Set should work");
+
+    check(storeCasOut(h, h1, NULL, 0, "key2", value, PROTOCOL_BINARY_RAW_BYTES,
+                      it, cas2) == ENGINE_SUCCESS,
+          "Set should work");
+
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 2);
 
     // Do observe
@@ -11355,19 +11336,18 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     // Set some keys
     item *it = NULL;
     uint64_t cas1, cas3;
-    check(h1->allocate(h, NULL, &it, "key1", 4, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
-          "Set should work.");
-    h1->release(h, NULL, it);
+    std::string value('x', 100);
+    check(storeCasOut(h, h1, NULL, 0, "key1", value, PROTOCOL_BINARY_RAW_BYTES,
+                      it, cas1) == ENGINE_SUCCESS,
+          "Set should work");
+
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
     stop_persistence(h, h1);
 
-    check(h1->allocate(h, NULL, &it, "key3", 4, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas3, OPERATION_SET, 1)== ENGINE_SUCCESS,
-          "Set should work.");
-    h1->release(h, NULL, it);
+    check(storeCasOut(h, h1, NULL, 1, "key3", value, PROTOCOL_BINARY_RAW_BYTES,
+                      it, cas3) == ENGINE_SUCCESS,
+          "Set should work");
+
     check(del(h, h1, "key3", 0, 1) == ENGINE_SUCCESS, "Failed to remove a key");
 
     // Do observe
@@ -12583,23 +12563,17 @@ static enum test_result test_observe_with_item_eviction(ENGINE_HANDLE *h,
     // Set some keys to observe
     item *it = NULL;
     uint64_t cas1, cas2, cas3;
-    check(h1->allocate(h, NULL, &it, "key1", 4, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas1, OPERATION_SET, 0)== ENGINE_SUCCESS,
-          "Set should work.");
-    h1->release(h, NULL, it);
 
-    check(h1->allocate(h, NULL, &it, "key2", 4, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas2, OPERATION_SET, 1)== ENGINE_SUCCESS,
+    std::string value('x', 100);
+    check(storeCasOut(h, h1, NULL, 0, "key1", value, PROTOCOL_BINARY_RAW_BYTES,
+                      it, cas1) == ENGINE_SUCCESS,
           "Set should work.");
-    h1->release(h, NULL, it);
-
-    check(h1->allocate(h, NULL, &it, "key3", 4, 100, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES)== ENGINE_SUCCESS, "Allocation failed.");
-    check(h1->store(h, NULL, it, &cas3, OPERATION_SET, 1)== ENGINE_SUCCESS,
+    check(storeCasOut(h, h1, NULL, 1, "key2", value, PROTOCOL_BINARY_RAW_BYTES,
+                      it, cas2) == ENGINE_SUCCESS,
           "Set should work.");
-    h1->release(h, NULL, it);
+    check(storeCasOut(h, h1, NULL, 1, "key3", value, PROTOCOL_BINARY_RAW_BYTES,
+                      it, cas3) == ENGINE_SUCCESS,
+          "Set should work.");
 
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 3);
 
