@@ -476,14 +476,19 @@ void disconnect_mock_connection(struct mock_connstruct *c) {
     mock_perform_callbacks(ON_DISCONNECT, NULL, c);
 }
 
-void disconnect_all_mock_connections(struct mock_connstruct *c) {
+static void disconnect_all_mock_connections_inner(struct mock_connstruct *c) {
     if (c) {
         disconnect_mock_connection(c);
-        disconnect_all_mock_connections(c->next);
+        disconnect_all_mock_connections_inner(c->next);
         free((void*)c->uname);
         free((void*)c->config);
         free(c);
     }
+}
+
+void disconnect_all_mock_connections(void) {
+    disconnect_all_mock_connections_inner(connstructs);
+    connstructs = NULL;
 }
 
 void destroy_mock_event_callbacks_rec(struct mock_callbacks *h) {

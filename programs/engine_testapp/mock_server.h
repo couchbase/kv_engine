@@ -67,7 +67,7 @@ MEMCACHED_PUBLIC_API void mock_time_travel(int by);
 
 MEMCACHED_PUBLIC_API void disconnect_mock_connection(struct mock_connstruct *c);
 
-MEMCACHED_PUBLIC_API void disconnect_all_mock_connections(struct mock_connstruct *c);
+MEMCACHED_PUBLIC_API void disconnect_all_mock_connections(void);
 
 MEMCACHED_PUBLIC_API void destroy_mock_event_callbacks_rec(struct mock_callbacks *h);
 

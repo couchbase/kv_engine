@@ -56,6 +56,14 @@ void operator delete(void* ptr ) {
 }
 #endif // HAVE_JEMALLOC
 
+// The handles for the 'current' engine, as used by
+// execute_test. These are global as the testcase may call reload_engine() and that
+// needs to update the pointers the new engine, so when execute_test is
+// cleaning up it has the correct handles.
+static ENGINE_HANDLE_V1* handle_v1 = NULL;
+static ENGINE_HANDLE* handle = NULL;
+
+
 static struct mock_engine* get_handle(ENGINE_HANDLE* handle) {
     return (struct mock_engine*)handle;
 }
@@ -990,12 +998,15 @@ static void destroy_bucket(ENGINE_HANDLE* handle, ENGINE_HANDLE_V1* handle_v1, b
 static void reload_engine(ENGINE_HANDLE **h, ENGINE_HANDLE_V1 **h1,
                           const char* engine, const char *cfg, bool init, bool force) {
 
-
+    disconnect_all_mock_connections();
     destroy_bucket(*h, *h1, force);
+    destroy_mock_event_callbacks();
     stop_your_engine();
     start_your_engine(engine);
     *h1 = create_bucket(init, cfg);
     *h = (ENGINE_HANDLE*)(*h1);
+    handle_v1 = *h1;
+    handle = *h;
 }
 
 static void reload_bucket(ENGINE_HANDLE **h, ENGINE_HANDLE_V1 **h1,
@@ -1058,8 +1069,6 @@ static int execute_test(engine_test_t test,
             return FAIL;
         }
 
-        ENGINE_HANDLE_V1* handle_v1 = NULL;
-        ENGINE_HANDLE* handle = NULL;
         if (test_api_1) {
             // all test (API1) get 1 bucket and they are welcome to ask for more.
             handle_v1 = create_bucket(true, test.cfg ? test.cfg : default_cfg);
@@ -1089,12 +1098,13 @@ static int execute_test(engine_test_t test,
             }
         }
 
+
         if (handle) {
             destroy_bucket(handle, handle_v1, false);
         }
 
-        stop_your_engine();
         destroy_mock_event_callbacks();
+        stop_your_engine();
 
         if (test.cleanup) {
             test.cleanup(&test, ret);
@@ -1377,6 +1387,7 @@ int main(int argc, char **argv) {
         } else {
             exit_code = PENDING; // ignored tests would always return PENDING
         }
+        disconnect_all_mock_connections();
         teardown_testsuite(handle, test_suite);
         cb_dlclose(handle);
         exit(exit_code);
