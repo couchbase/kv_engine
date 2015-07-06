@@ -5,6 +5,8 @@
 
 #include <cstdlib>
 #include <getopt.h>
+#include <string>
+#include <vector>
 
 #include "utilities/engine_loader.h"
 #include "mock_server.h"
@@ -51,7 +53,13 @@ void* operator new(std::size_t count ) {
     return malloc(count);
 }
 
-void operator delete(void* ptr ) {
+void operator delete(void* ptr )
+// Need to match the forward declaration from gnu libstdc++ - include
+//  _GLIBCXX_USE_NOEXCEPT in the definition if defined.
+#if defined(_GLIBCXX_USE_NOEXCEPT)
+_GLIBCXX_USE_NOEXCEPT
+#endif
+{
   free(ptr);
 }
 #endif // HAVE_JEMALLOC
@@ -1139,33 +1147,71 @@ static void clear_test_timeout() {
 #endif
 }
 
-static int safe_append(char *buffer, const char *txt) {
-    int len = 0;
+/* Spawn a new process, wait for it to exit and return it's exit code.
+ * @param argc Number of elements in argv; must be at least 1 (argv[0]
+ *             specifies the name of the executable to run).
+ * @param argv NULL-terminated array of arguments to the process; with
+ *             the first element being the executable to run.
+ */
+static int spawn_and_wait(int argc, char* const argv[]) {
+#ifdef WIN32
+    STARTUPINFO sinfo;
+    PROCESS_INFORMATION pinfo;
+    memset(&sinfo, 0, sizeof(sinfo));
+    memset(&pinfo, 0, sizeof(pinfo));
+    sinfo.cb = sizeof(sinfo);
 
-    /*
-     * We should probably make this a bit safer (by
-     * checking if its already escaped etc, but I'll
-     * do that whenever it turns out to be a problem ;-)
-     */
-    while (*txt) {
-        switch (*txt) {
-#ifndef WIN32
-        case ' ':
-        case '\\':
-        case ';':
-        case '|':
-        case '&':
-            buffer[len++] = '\\';
-#endif
-        default:
-            buffer[len++] = *txt;
-        }
-        ++txt;
+    char commandline[1024];
+    cb_assert(argc > 0);
+    char* offset = commandline;
+    for (int i = 0; i < argc; i++) {
+        offset += sprintf(offset, "%s ", argv[i]);
     }
 
-    buffer[len++] = ' ';
+    if (!CreateProcess(argv[0], commandline, NULL, NULL, FALSE,
+                       CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
+                       NULL, NULL, &sinfo, &pinfo)) {
+        LPVOID error_msg;
+        DWORD err = GetLastError();
 
-    return len;
+        if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                          FORMAT_MESSAGE_FROM_SYSTEM |
+                          FORMAT_MESSAGE_IGNORE_INSERTS,
+                          NULL, err, 0,
+                          (LPTSTR)&error_msg, 0, NULL) != 0) {
+            fprintf(stderr, "Failed to start process: %s\n", error_msg);
+            LocalFree(error_msg);
+        } else {
+            fprintf(stderr, "Failed to start process: unknown error\n");
+        }
+        exit(EXIT_FAILURE);
+    }
+    WaitForSingleObject(pinfo.hProcess, INFINITE);
+
+    // Get exit code
+    DWORD exit_code;
+    GetExitCodeProcess(pinfo.hProcess, &exit_code);
+
+    // Close process and thread handles.
+    CloseHandle(pinfo.hProcess);
+    CloseHandle(pinfo.hThread);
+
+    return exit_code;
+#else
+    pid_t pid = fork();
+    cb_assert(pid != -1);
+
+    if (pid == 0) {
+        /* Child */
+        cb_assert(execvp(argv[0], argv) != -1);
+        // Not reachable, but keep the compiler happy
+        return -1;
+    } else {
+        int status;
+        waitpid(pid, &status, 0);
+        return status;
+    }
+#endif // !WIN32
 }
 
 static void teardown_testsuite(cb_dlhandle_t handle, const char* test_suite) {
@@ -1206,7 +1252,6 @@ int main(int argc, char **argv) {
     void *symbol = NULL;
     struct test_harness harness;
     int test_case_id = -1;
-    char *cmdline = NULL;
 
     /* Hack to remove the warning from C99 */
     union {
@@ -1393,11 +1438,14 @@ int main(int argc, char **argv) {
         exit(exit_code);
     }
 
-    cmdline = reinterpret_cast<char*>(malloc(64*1024)); /* should be enough */
-    if (cmdline == NULL) {
-        fprintf(stderr, "Failed to allocate memory");
-        exit(EXIT_FAILURE);
+    // Setup child argv; same as parent plus additional "-C" "X" arguments.
+    std::vector<std::string> child_args;
+    for (int ii = 0; ii < argc; ii++) {
+        child_args.push_back(argv[ii]);
     }
+    child_args.push_back("-C");
+    // Expand the child_args to contain space for the numeric argument to '-C'
+    child_args.push_back("X");
 
     do {
         int i;
@@ -1424,20 +1472,22 @@ int main(int argc, char **argv) {
             set_test_timeout(timeout);
 
             {
-                int ii;
-                int offset = 0;
                 enum test_result ecode;
                 time_t start;
                 time_t stop;
                 int rc;
-                for (ii = 0; ii < argc; ++ii) {
-                    offset += safe_append(cmdline + offset, argv[ii]);
+
+                // Setup args for this test instance.
+                child_args[argc + 1] = std::to_string(i);
+
+                // Need to convert to C-style argv. +1 for null terminator.
+                std::vector<char*> child_argv(child_args.size() + 1);
+                for (size_t i = 0; i < child_args.size(); i++) {
+                    child_argv[i] = &child_args[i][0];
                 }
 
-                sprintf(cmdline + offset, "-C %d", i);
-
                 start = time(NULL);
-                rc = system(cmdline);
+                rc = spawn_and_wait(argc + 2, child_argv.data());
                 stop = time(NULL);
 
 #ifdef WIN32
@@ -1478,7 +1528,6 @@ int main(int argc, char **argv) {
     teardown_testsuite(handle, test_suite);
 
     printf("# Passed %d of %d tests\n", num_cases - exitcode, num_cases);
-    free(cmdline);
     cb_dlclose(handle);
 
     return exitcode;
