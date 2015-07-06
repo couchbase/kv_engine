@@ -155,8 +155,7 @@ struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE> > {
   static const bool allow_empty_path = true;
   static const bool response_has_value = false;
   static const bool is_mutator = true;
-  static const protocol_binary_subdoc_flag valid_flags =
-          protocol_binary_subdoc_flag(0);
+  static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
 };
 
 template <>
