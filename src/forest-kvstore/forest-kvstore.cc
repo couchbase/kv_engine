@@ -434,6 +434,7 @@ ENGINE_ERROR_CODE ForestKVStore::updateVBState(uint16_t vbucketId,
                                             maxCas, driftCounter);
     char keybuf[20];
     fdb_doc statDoc;
+    memset(&statDoc, 0, sizeof(statDoc));
     sprintf(keybuf, "partition%d", vbucketId);
     statDoc.key = keybuf;
     statDoc.keylen = strlen(keybuf);
