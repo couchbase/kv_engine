@@ -4239,5 +4239,7 @@ int main(int argc, char **argv) {
     McdEnvironment* env = new McdEnvironment();
     ::testing::AddGlobalTestEnvironment(env);
 
+    cb_initialize_sockets();
+
     return RUN_ALL_TESTS();
 }
