@@ -33,7 +33,6 @@
 #include <deque>
 #include <mutex>
 #include <string>
-#include <thread>
 #include <unordered_set>
 
 /**
@@ -84,7 +83,7 @@ private:
     EngineManager* engineManager;
     std::mutex lock;
     std::condition_variable cvar;
-    std::thread taskThread;
+    cb_thread_t scrubberThread;
 };
 
 /**
@@ -132,10 +131,18 @@ private:
 
 static EngineManager engineManager;
 
+static void scrubber_task_main(void* arg) {
+    ScrubberTask* task = reinterpret_cast<ScrubberTask*>(arg);
+    task->run();
+}
+
 ScrubberTask::ScrubberTask(EngineManager* manager)
   : shuttingdown(false),
-    engineManager(manager),
-    taskThread(&ScrubberTask::run, this) {
+    engineManager(manager) {
+    if (cb_create_named_thread(&scrubberThread, &scrubber_task_main, this, 0,
+                               "mc:item scrub") != 0) {
+        throw std::runtime_error("Error creating 'mc:item scrub' thread");
+    }
 }
 
 void ScrubberTask::shutdown() {
@@ -146,9 +153,7 @@ void ScrubberTask::shutdown() {
 }
 
 void ScrubberTask::joinThread() {
-    if (taskThread.joinable()) {
-        taskThread.join();
-    }
+    cb_join_thread(scrubberThread);
 }
 
 void ScrubberTask::placeOnWorkQueue(struct default_engine* engine, bool destroy) {
@@ -161,8 +166,6 @@ void ScrubberTask::placeOnWorkQueue(struct default_engine* engine, bool destroy)
 }
 
 void ScrubberTask::run() {
-    cb_set_thread_name("mc:item scrub");
-
     while (true) {
         std::unique_lock<std::mutex> lck(lock);
         if (!workQueue.empty()) {

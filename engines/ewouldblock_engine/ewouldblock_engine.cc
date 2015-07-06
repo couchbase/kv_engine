@@ -56,7 +56,6 @@
 #include <queue>
 #include <random>
 #include <string>
-#include <thread>
 
 #include <memcached/engine.h>
 #include "utilities/engine_loader.h"
@@ -420,7 +419,7 @@ public:
 private:
 
     // Handle of the notification thread.
-    std::thread notification_thread;
+    cb_thread_t notification_thread;
 
     // Base class for all fault injection modes.
     struct FaultInjectMode {
@@ -531,7 +530,8 @@ private:
     std::mutex cookie_map_mutex;
 };
 
-void process_pending_queue(SERVER_HANDLE_V1* server) {
+void process_pending_queue(void* arg) {
+    SERVER_HANDLE_V1* server = reinterpret_cast<SERVER_HANDLE_V1*>(arg);
     std::unique_lock<std::mutex> lk(mutex);
     while (!stop_notification_thread) {
         condvar.wait(lk);
@@ -547,8 +547,7 @@ void process_pending_queue(SERVER_HANDLE_V1* server) {
 
 EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
   : gsa(gsa_),
-    real_engine(NULL),
-    notification_thread(process_pending_queue, gsa())
+    real_engine(NULL)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = get_info;
@@ -579,13 +578,18 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     info.eng_info.features[info.eng_info.num_features++].feature = ENGINE_FEATURE_DATATYPE;
 
     // Spin up a background thread to perform IO notifications.
+    if (cb_create_named_thread(&notification_thread, &process_pending_queue,
+                               gsa(), 0, "ewb:pendingQ") != 0)
+    {
+        throw std::runtime_error("Error creating 'ewb:pendingQ' thread");
+    }
 }
 
 EWB_Engine::~EWB_Engine() {
     free(real_engine_ref);
     stop_notification_thread = true;
     condvar.notify_all();
-    notification_thread.join();
+    cb_join_thread(notification_thread);
 
 }
 
