@@ -2162,6 +2162,37 @@ static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
+                                                   ENGINE_HANDLE_V1 *h1) {
+
+    cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
+    checkeq(3600, get_int_stat(h, h1, "ep_exp_pager_stime"),
+            "Expiry pager sleep time not expected");
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "exp_pager_stime", "1");
+    checkeq(1, get_int_stat(h, h1, "ep_exp_pager_stime"),
+            "Expiry pager sleep time not updated");
+    cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
+    sleep(1);
+    checkeq(0, get_int_stat(h, h1, "ep_num_expiry_pager_runs"),
+            "Expiry pager run count is not zero");
+
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "exp_pager_enabled", "true");
+    checkeq(1, get_int_stat(h, h1, "ep_exp_pager_stime"),
+            "Expiry pager sleep time not updated");
+    wait_for_stat_to_be_gte(h, h1, "ep_num_expiry_pager_runs", 1);
+
+    // Reload engine
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+    cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
+    return SUCCESS;
+}
+
 static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "test_expiry";
     const char *data = "some test data here.";
@@ -13338,6 +13369,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("flushall params", test_CBD_152, test_setup, teardown,
                  "flushall_enabled=true;max_vbuckets=16;"
                  "ht_size=7;ht_locks=3", prepare, cleanup),
+        TestCase("expiry pager settings", test_expiry_pager_settings,
+                 test_setup, teardown, "exp_pager_enabled=false",
+                 prepare, cleanup),
         TestCase("expiry", test_expiry, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("expiry_loader", test_expiry_loader, test_setup,

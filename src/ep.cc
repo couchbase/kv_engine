@@ -140,6 +140,12 @@ public:
             }
         } else if (key.compare("bfilter_enabled") == 0) {
             store.setAllBloomFilters(value);
+        } else if (key.compare("exp_pager_enabled") == 0) {
+            if (value) {
+                store.enableExpiryPager();
+            } else {
+                store.disableExpiryPager();
+            }
         }
     }
 
@@ -413,9 +419,12 @@ bool EventuallyPersistentStore::initialize() {
     itmpTask = new ItemPager(&engine, stats);
     ExecutorPool::get()->schedule(itmpTask, NONIO_TASK_IDX);
 
+    expiryPager.enabled = config.isExpPagerEnabled();
     size_t expiryPagerSleeptime = config.getExpPagerStime();
     setExpiryPagerSleeptime(expiryPagerSleeptime);
     config.addValueChangedListener("exp_pager_stime",
+                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener("exp_pager_enabled",
                                    new EPStoreValueChangeListener(*this));
 
     ExTask htrTask = new HashtableResizerTask(this, 10);
@@ -3488,9 +3497,40 @@ void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {
     ExecutorPool::get()->cancel(expiryPager.task);
 
     expiryPager.sleeptime = val;
-    ExTask expTask = new ExpiredItemPager(&engine, stats,
-                                          expiryPager.sleeptime);
-    expiryPager.task = ExecutorPool::get()->schedule(expTask, NONIO_TASK_IDX);
+    if (expiryPager.enabled) {
+        ExTask expTask = new ExpiredItemPager(&engine, stats,
+                                              expiryPager.sleeptime);
+        expiryPager.task = ExecutorPool::get()->schedule(expTask, NONIO_TASK_IDX);
+    } else {
+        LOG(EXTENSION_LOG_DEBUG, "Expiry pager disabled, "
+                                 "enabling it will make exp_pager_stime (%lu)"
+                                 "to go into effect!", val);
+    }
+}
+
+void EventuallyPersistentStore::enableExpiryPager() {
+    LockHolder lh(expiryPager.mutex);
+    if (!expiryPager.enabled) {
+        expiryPager.enabled = true;
+
+        ExecutorPool::get()->cancel(expiryPager.task);
+        ExTask expTask = new ExpiredItemPager(&engine, stats,
+                                              expiryPager.sleeptime);
+        expiryPager.task = ExecutorPool::get()->schedule(expTask,
+                                                         NONIO_TASK_IDX);
+    } else {
+        LOG(EXTENSION_LOG_DEBUG, "Expiry Pager already enabled!");
+    }
+}
+
+void EventuallyPersistentStore::disableExpiryPager() {
+    LockHolder lh(expiryPager.mutex);
+    if (expiryPager.enabled) {
+        ExecutorPool::get()->cancel(expiryPager.task);
+        expiryPager.enabled = false;
+    } else {
+        LOG(EXTENSION_LOG_DEBUG, "Expiry Pager already disabled!");
+    }
 }
 
 void EventuallyPersistentStore::enableAccessScannerTask() {

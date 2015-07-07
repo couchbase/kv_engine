@@ -726,6 +726,8 @@ public:
     void setBackfillMemoryThreshold(double threshold);
 
     void setExpiryPagerSleeptime(size_t val);
+    void enableExpiryPager();
+    void disableExpiryPager();
 
     void enableAccessScannerTask();
     void disableAccessScannerTask();
@@ -987,10 +989,11 @@ private:
     uint32_t bgFetchDelay;
     double backfillMemoryThreshold;
     struct ExpiryPagerDelta {
-        ExpiryPagerDelta() : sleeptime(0), task(0) {}
+        ExpiryPagerDelta() : sleeptime(0), task(0), enabled(true) {}
         Mutex mutex;
         size_t sleeptime;
         size_t task;
+        bool enabled;
     } expiryPager;
     struct ALogTask {
         ALogTask() : sleeptime(0), task(0), lastTaskRuntime(gethrtime()),

@@ -270,19 +270,17 @@ bool ItemPager::run(void) {
 }
 
 bool ExpiredItemPager::run(void) {
-    if (engine->getConfiguration().isExpPagerEnabled()) {
-        EventuallyPersistentStore *store = engine->getEpStore();
-        if (available) {
-            ++stats.expiryPagerRuns;
+    EventuallyPersistentStore *store = engine->getEpStore();
+    if (available) {
+        ++stats.expiryPagerRuns;
 
-            available = false;
-            shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, -1,
-                                                           &available,
-                                                           true, 1, NULL));
-            // track spawned tasks for shutdown..
-            store->visit(pv, "Expired item remover", NONIO_TASK_IDX,
-                    Priority::ItemPagerPriority, 10);
-        }
+        available = false;
+        shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, -1,
+                                                       &available,
+                                                       true, 1, NULL));
+        // track spawned tasks for shutdown..
+        store->visit(pv, "Expired item remover", NONIO_TASK_IDX,
+                     Priority::ItemPagerPriority, 10);
     }
     snooze(sleepTime);
     return true;
