@@ -263,6 +263,7 @@ void ForestKVStore::readVBState(uint16_t vbId) {
         }
 
         cJSON_Delete(jsonObj);
+        fdb_doc_free(statDoc);
     }
 
     cachedVBStates[vbId] = new vbucket_state(state, checkpointId,
@@ -600,6 +601,7 @@ void ForestKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
     setDoc.bodylen = itm.getNBytes();
     setDoc.deleted = false;
 
+    fdb_doc_set_seqnum(&setDoc, itm.getBySeqno());
     kvsHandle = getKvsHandle(req->getVBucketId());
     if (kvsHandle) {
         status = fdb_set(kvsHandle, &setDoc);
@@ -676,6 +678,7 @@ void ForestKVStore::del(const Item &itm, Callback<int> &cb) {
     delDoc.metalen = sizeof(meta);
     delDoc.deleted = true;
 
+    fdb_doc_set_seqnum(&delDoc, itm.getBySeqno());
     kvsHandle = getKvsHandle(req->getVBucketId());
     if (kvsHandle) {
         status = fdb_del(kvsHandle, &delDoc);
