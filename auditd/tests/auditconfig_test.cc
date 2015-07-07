@@ -20,6 +20,8 @@
 #include <platform/dirutils.h>
 #include <platform/platform.h>
 
+#include <cerrno>
+#include <cstring>
 #include "auditd.h"
 #include "auditconfig.h"
 
@@ -255,6 +257,18 @@ TEST_F(AuditConfigTest, TestGetSetSanitizeLogPath) {
     EXPECT_EQ(testdir, config.get_log_directory());
 }
 
+#ifdef WIN32
+TEST_F(AuditConfigTest, TestGetSetSanitizeLogPathMixedSeparators) {
+    // Trim of trailing paths
+    std::string path = testdir + std::string("/mydir\\baddir");
+    EXPECT_NO_THROW(config.set_log_directory(path));
+    EXPECT_EQ(testdir + "\\mydir\\baddir", config.get_log_directory());
+    EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(config.get_log_directory()))
+        << "Failed to remove: " << config.get_log_directory()
+        << ": " << strerror(errno) << std::endl;
+}
+#endif
+
 #ifndef WIN32
 TEST_F(AuditConfigTest, TestFailToCreateDirLogPath) {
     cJSON_ReplaceItemInObject(json, "log_path",
@@ -268,7 +282,9 @@ TEST_F(AuditConfigTest, TestCreateDirLogPath) {
     cJSON_ReplaceItemInObject(json, "log_path",
                               cJSON_CreateString(path.c_str()));
     EXPECT_NO_THROW(config.initialize_config(json));
-    EXPECT_EQ(0, std::remove(path.c_str()));
+    EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(config.get_log_directory()))
+        << "Failed to remove: " << config.get_log_directory()
+        << ": " << strerror(errno) << std::endl;
 }
 
 // descriptors_path
@@ -288,7 +304,9 @@ TEST_F(AuditConfigTest, TestSetMissingEventDescrFileDescriptorsPath) {
     CouchbaseDirectoryUtilities::mkdirp(path);
 
     EXPECT_THROW(config.set_descriptors_path(path), std::string);
-    EXPECT_EQ(0, std::remove(path.c_str()));
+    EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(path))
+        << "Failed to remove: " << path
+        << ": " << strerror(errno) << std::endl;
 }
 
 // Sync
