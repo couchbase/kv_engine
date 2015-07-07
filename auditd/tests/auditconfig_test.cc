@@ -32,10 +32,16 @@ protected:
     static void SetUpTestCase() {
         testdir = std::string("auditconfig-test-") +
             std::to_string(cb_getpid());
-        CouchbaseDirectoryUtilities::mkdirp(testdir);
+        ASSERT_TRUE(CouchbaseDirectoryUtilities::mkdirp(testdir));
         // Create the audit_events.json file needed by the configuration
         std::string fname = testdir + std::string("/audit_events.json");
-        fclose(fopen(fname.c_str(), "w"));
+        FILE* fd = fopen(fname.c_str(), "w");
+        ASSERT_NE(nullptr, fd)
+            << "Unable to open test file '" << fname << "' error: "
+            << strerror(errno);
+        ASSERT_EQ(0, fclose(fd))
+            << "Failed to close test file '" << fname << "' error: "
+            << strerror(errno);
     }
 
     static void TearDownTestCase() {
