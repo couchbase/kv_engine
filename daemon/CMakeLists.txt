@@ -34,6 +34,7 @@ ENDIF()
 
 ADD_EXECUTABLE(memcached
                breakpad.cc
+               buckets.h
                ${MEMORY_TRACKING_SRCS}
                cmdline.cc
                cmdline.h
@@ -68,8 +69,11 @@ ADD_EXECUTABLE(memcached
                mc_time.cc
                rbac.cc
                rbac.h
+               rbac_impl.h
                runtime.cc
                runtime.h
+               settings.h
+               stats.h
                ${Memcached_SOURCE_DIR}/utilities/protocol2text.c
                ${Memcached_BINARY_DIR}/default_rbac.cc)
 
