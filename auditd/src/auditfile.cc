@@ -22,6 +22,7 @@
 #include <cstring>
 #include <platform/dirutils.h>
 #include <memcached/isotime.h>
+#include <JSON_checker.h>
 #include <fstream>
 #include "auditd.h"
 #include "audit.h"
@@ -170,6 +171,16 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
         if (found != std::string::npos) {
             str.erase(found+1, std::string::npos);
         }
+
+        // check that it is valid json (cJSON doesn't validate
+        // and may run outside the buffers...)
+        if (!checkUTF8JSON(reinterpret_cast<const unsigned char*>(str.data()), str.size())) {
+            std::stringstream ss;
+            ss << "Audit: Failed to parse data in audit file (invalid JSON) \""
+            << filename << "\"";
+            throw ss.str();
+        }
+
         cJSON *json_ptr = cJSON_Parse(str.c_str());
         if (json_ptr == NULL) {
             std::stringstream ss;
@@ -181,6 +192,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
         // Find the timestamp
         cJSON *timestamp = cJSON_GetObjectItem(json_ptr, "timestamp");
         if (timestamp == NULL) {
+            cJSON_Delete(json_ptr);
             std::stringstream ss;
             ss << "Audit: Failed to locate \"timestamp\" in audit file \""
                << filename << "\": " << str;
@@ -188,6 +200,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
         }
 
         if (timestamp->type != cJSON_String) {
+            cJSON_Delete(json_ptr);
             std::stringstream ss;
             ss << "Audit: Incorrect format for \"timestamp\" in audit "
                << "file \"" << filename << "\" (expected string): "
@@ -197,6 +210,7 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
 
         std::string ts(timestamp->valuestring);
         if (!is_timestamp_format_correct(ts)) {
+            cJSON_Delete(json_ptr);
             std::stringstream ss;
             ss << "Audit: Incorrect format for \"timestamp\" in audit "
                << "file \"" << filename << "\": "
@@ -214,11 +228,13 @@ void AuditFile::cleanup_old_logfile(const std::string& log_path) {
         archive_file << log_path << DIRECTORY_SEPARATOR_CHARACTER
                      << archive_filename;
         if (rename(filename.c_str(), archive_file.str().c_str()) != 0) {
+            cJSON_Delete(json_ptr);
             std::stringstream ss;
             ss << "Audit: failed to rename \"" << filename << "\" to \""
                << archive_file.str() << "\": " << strerror(errno);
             throw ss.str();
         }
+        cJSON_Delete(json_ptr);
     }
 }
 

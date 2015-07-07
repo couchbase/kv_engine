@@ -26,6 +26,7 @@
 #include <cJSON.h>
 #include <fstream>
 #include <memcached/isotime.h>
+#include <iostream>
 
 #include "auditd.h"
 #include "audit.h"
@@ -162,8 +163,13 @@ void Audit::log_error(const ErrorCode return_code, const char *string) {
                     "Audit: error: unknown event %s", string);
         break;
     case CONFIG_INPUT_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error reading config");
+        if (string) {
+            logger->log(EXTENSION_LOG_WARNING, NULL,
+                        "Audit: error reading config: %s", string);
+        } else {
+            logger->log(EXTENSION_LOG_WARNING, NULL,
+                        "Audit: error reading config");
+        }
         break;
     case CONFIGURATION_ERROR:
         logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -389,6 +395,9 @@ bool Audit::configure(void) {
         failure = true;
     } catch (std::pair<ErrorCode, const char *>& exc) {
         log_error(exc.first, exc.second);
+        failure = true;
+    } catch (std::string &msg) {
+        log_error(CONFIG_INPUT_ERROR, msg.c_str());
         failure = true;
     } catch (...) {
         log_error(CONFIG_INPUT_ERROR, NULL);

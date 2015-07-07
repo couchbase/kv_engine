@@ -39,8 +39,13 @@
 
 class Configuration {
 public:
-    Configuration(const char *fname)
-            : filename(fname), rotationSize(200), rotationInterval(10), logPath("test"), enabled(true)
+    Configuration(const std::string &fname, const std::string &descr)
+            : filename(fname),
+              descriptor_path(descr),
+              rotationSize(200),
+              rotationInterval(10),
+              logPath("test"),
+              enabled(true)
     {
         writeFile();
     }
@@ -64,7 +69,8 @@ public:
                 exit(EXIT_FAILURE);
             }
         }
-        if (mkdir(logPath.c_str(), S_IREAD | S_IWRITE | S_IEXEC) != 0) {
+
+        if (!CouchbaseDirectoryUtilities::mkdirp(logPath)) {
             std::cerr << "error, unable to create directory" << std::endl;
             exit(EXIT_FAILURE);
         }
@@ -94,7 +100,7 @@ private:
         cJSON_AddNumberToObject(config_json, "rotate_size", (double)rotationSize);
         cJSON_AddNumberToObject(config_json, "rotate_interval", (double)rotationInterval);
         cJSON_AddStringToObject(config_json, "log_path", logPath.c_str());
-        cJSON_AddStringToObject(config_json, "descriptors_path", ".");
+        cJSON_AddStringToObject(config_json, "descriptors_path", descriptor_path.c_str());
         cJSON *disabled_arr = cJSON_CreateArray();
         cJSON_AddItemToObject(config_json, "disabled", disabled_arr);
         cJSON *sync_arr = cJSON_CreateArray();
@@ -108,6 +114,7 @@ private:
     }
 
     std::string filename;
+    std::string descriptor_path;
     size_t rotationSize;
     size_t rotationInterval;
     std::string logPath;
@@ -198,11 +205,23 @@ void assertMinNumberOfFiles(const std::string &dir, size_t num) {
 }
 
 
-int main(int argc, char *argv[]) {
-    /* create the test directory */
+int main(int argc, char **argv) {
+    if (argc == 1) {
+        std::cerr << "Usage: " << argv[0]
+                  << " <directory containing audit_event.json>"
+                  << std::endl;
+        exit(EXIT_FAILURE);
+    }
 
-    std::string testdir("test");
-    Configuration configuration("test_audit.json");
+    /* create the test directory */
+    std::vector<std::string> toremove;
+
+    auto testdir = std::string("auditd-test-") + std::to_string(cb_getpid());
+    toremove.push_back(testdir);
+    std::string cfgfile = "test_audit-" + std::to_string(cb_getpid()) + ".json";
+    toremove.push_back(cfgfile);
+    Configuration configuration(cfgfile, argv[1]);
+
     configuration.setLogPath(testdir);
 
     // Start the audit daemon
@@ -241,7 +260,8 @@ int main(int argc, char *argv[]) {
 
     // That should cause audit.log to appear
     assertNumberOfFiles(testdir, 1);
-    testdir.assign("time-rotation-test");
+    testdir.assign("auditd-time-rotation-test-" + std::to_string(cb_getpid()));
+    toremove.push_back(testdir);
     // rotate every 10 sec
     configuration.setRotationInterval(10);
     configuration.setLogPath(testdir);
@@ -263,7 +283,8 @@ int main(int argc, char *argv[]) {
 
     configuration.setRotationInterval(3600);
     configuration.setRotationSize(10);
-    testdir.assign("size-rotation-test");
+    testdir.assign("auditd-size-rotation-test" + std::to_string(cb_getpid()));
+    toremove.push_back(testdir);
     configuration.setLogPath(testdir);
 
     // I need to wait for processing the configure event to happen,
@@ -286,9 +307,10 @@ int main(int argc, char *argv[]) {
         return -1;
     }
 
-    CouchbaseDirectoryUtilities::rmrf("size-rotation-test");
-    CouchbaseDirectoryUtilities::rmrf("time-rotation-test");
-    CouchbaseDirectoryUtilities::rmrf("test");
+    for (auto name : toremove) {
+        CouchbaseDirectoryUtilities::rmrf(name);
+    }
 
+    std::cout << "All tests pass" << std::endl;
     return 0;
 }

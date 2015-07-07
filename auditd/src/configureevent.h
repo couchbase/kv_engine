@@ -28,7 +28,7 @@ public:
     ConfigureEvent(const void* c)
         : cookie(c) {}
 
-    virtual bool process(Audit& audit);
+    virtual bool process(Audit& audit) override;
 
     virtual ~ConfigureEvent() {}
 
