@@ -47,6 +47,8 @@ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* Data. */
 
 static malloc_zone_t zone;
+struct malloc_introspection_t zone_introspection;
+
 static malloc_zone_t* default_zone;
 
 static malloc_new_hook_t* new_hook = NULL;
@@ -152,6 +154,18 @@ zone_destroy(malloc_zone_t *zone)
     default_zone->destroy(default_zone);
 }
 
+static void
+zone_force_lock(malloc_zone_t *zone)
+{
+    // do nothing
+}
+
+static void
+zone_force_unlock(malloc_zone_t *zone)
+{
+    // do nothing
+}
+
 /* Actually register the wrapper zone */
 void register_wrapper_zone(malloc_new_hook_t* new_hook_,
                            malloc_delete_hook_t* delete_hook_) {
@@ -160,6 +174,14 @@ void register_wrapper_zone(malloc_new_hook_t* new_hook_,
     default_zone = malloc_default_zone();
     new_hook = new_hook_;
     delete_hook = delete_hook_;
+
+    // Populate the introspection struct for the wrapper zone. Note that
+    // we only forward selected members; if we directly forward
+    // force_{lock,unlock} methods then we can deadlock as Darwin will try to
+    // lock the 'real' default zone twice - once via our wrapper and once via it's own zone.
+    zone_introspection = *default_zone->introspect;
+    zone_introspection.force_lock = zone_force_unlock;
+    zone_introspection.force_unlock = zone_force_lock;
 
     // Populate our wrapper zone.
     zone.size = zone_size;
@@ -172,7 +194,7 @@ void register_wrapper_zone(malloc_new_hook_t* new_hook_,
     zone.zone_name = "CouchbaseWrapperZone";
     zone.batch_malloc = NULL;
     zone.batch_free = NULL;
-    zone.introspect = default_zone->introspect;
+    zone.introspect = &zone_introspection;
     zone.version = 8;
     zone.memalign = zone_memalign;
     zone.free_definite_size = zone_free_definite_size;
