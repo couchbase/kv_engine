@@ -7955,6 +7955,43 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
+                                                     ENGINE_HANDLE_V1 *h1) {
+
+    // Check access scanner is enabled and alog_task_time is at default
+    cb_assert(get_bool_stat(h, h1, "ep_access_scanner_enabled"));
+    cb_assert(get_int_stat(h, h1, "ep_alog_task_time") == 2);
+
+    // Ensure access_scanner_task_time is what its expected to be
+    std::string str = get_str_stat(h, h1, "ep_access_scanner_task_time");
+    std::string expected_time = "02:00:00";
+    checkeq(str.substr(11).compare(expected_time), 0, "Initial time incorrect");
+
+    // Update alog_task_time and ensure the update is successful
+    set_param(h, h1, protocol_binary_engine_param_flush, "alog_task_time", "5");
+    expected_time = "05:00:00";
+    str = get_str_stat(h, h1, "ep_access_scanner_task_time");
+    checkeq(str.substr(11).compare(expected_time), 0, "Updated time incorrect");
+
+    // Update alog_sleep_time and ensure the update is successful
+    time_t now = time(NULL);
+    set_param(h, h1, protocol_binary_engine_param_flush, "alog_sleep_time", "1");
+    struct tm curr = *(gmtime(&now));
+    curr.tm_min += 1;
+#ifdef _MSC_VER
+    _mkgmtime(&curr);
+#else
+    timegm(&curr);
+#endif
+    char timeStr[20];
+    strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
+    std::string targetTaskTime(timeStr);
+    str = get_str_stat(h, h1, "ep_access_scanner_task_time");
+    checkeq(targetTaskTime.compare(str), 0, "Unexpected task time");
+
+    return SUCCESS;
+}
+
 static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
     check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed to set VB0 state.");
@@ -13444,9 +13481,12 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test datatype", test_datatype, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test datatype with unknown command", test_datatype_with_unknown_command,
-                test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test session cas validation", test_session_cas_validation,
-                test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test access scanner settings", test_access_scanner_settings,
+                 test_setup, teardown, "alog_path=/tmp/epaccess.log",
+                 prepare, cleanup),
 
         // Stats tests
         TestCase("item stats", test_item_stats, test_setup, teardown, NULL,

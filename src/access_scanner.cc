@@ -141,6 +141,53 @@ private:
     AccessScanner *as;
 };
 
+AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
+                             const Priority &p, double sleeptime,
+                             bool useStartTime)
+    : GlobalTask(&_store.getEPEngine(), p, sleeptime),
+      completedCount(0),
+      store(_store),
+      stats(st),
+      sleepTime(sleeptime),
+      available(true) {
+
+    if (useStartTime) {
+        size_t startTime =
+            store.getEPEngine().getConfiguration().getAlogTaskTime();
+
+        /*
+         * Ensure startTime will always be within a range of (0, 23).
+         * A validator is already in place in the configuration file.
+         */
+        startTime = startTime % 24;
+
+        /*
+         * The following logic calculates the amount of time this task
+         * needs to sleep for initially so that it would wake up at the
+         * designated task time, note that this logic kicks in only when
+         * useStartTime argument in the constructor is set to TRUE.
+         * Otherwise this task will wake up periodically in a time
+         * specified by sleeptime.
+         */
+        double initialSleep = 0;
+        time_t now = ep_abs_time(ep_current_time());
+        struct tm timeNow, timeTarget;
+        timeNow = *(gmtime(&now));
+        timeTarget = timeNow;
+        if (timeNow.tm_hour >= (int)startTime) {
+            timeTarget.tm_mday += 1;
+        }
+        timeTarget.tm_hour = startTime;
+        timeTarget.tm_min = 0;
+        timeTarget.tm_sec = 0;
+
+        initialSleep = difftime(mktime(&timeTarget), mktime(&timeNow));
+        snooze(initialSleep);
+    }
+
+    stats.alogTime.store(waketime.tv_sec);
+}
+
 bool AccessScanner::run() {
     if (available) {
         available = false;
@@ -163,9 +210,4 @@ bool AccessScanner::run() {
 
 std::string AccessScanner::getDescription() {
     return std::string("Generating access log");
-}
-
-size_t AccessScanner::startTime() {
-    Configuration &cfg = store.getEPEngine().getConfiguration();
-    return cfg.getAlogTaskTime();
 }

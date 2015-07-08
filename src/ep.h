@@ -731,7 +731,7 @@ public:
 
     void enableAccessScannerTask();
     void disableAccessScannerTask();
-    void setAccessScannerSleeptime(size_t val);
+    void setAccessScannerSleeptime(size_t val, bool useStartTime);
     void resetAccessScannerStartTime();
 
     void resetAccessScannerTasktime() {

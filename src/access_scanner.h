@@ -34,14 +34,11 @@ class AccessScanner : public GlobalTask {
     friend class AccessScannerValueChangeListener;
 public:
     AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
-                  const Priority &p, double sleeptime = 0)
-        : GlobalTask(&_store.getEPEngine(), p, sleeptime),
-          completedCount(0), store(_store), stats(st), sleepTime(sleeptime),
-          available(true) { }
+                  const Priority &p, double sleeptime = 0,
+                  bool useStartTime = false);
 
     bool run();
     std::string getDescription();
-    size_t startTime();
     AtomicValue<size_t> completedCount;
 
 private:
