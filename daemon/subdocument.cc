@@ -451,6 +451,12 @@ void subdoc_executor(Connection *c, const void *packet) {
             return;
         }
 
+        // Update stats. Treat all mutations as 'cmd_set', all accesses as 'cmd_get'
+        if (cmd_traits<Cmd2Type<CMD>>::is_mutator) {
+            SLAB_INCR(c, cmd_set, key, keylen);
+        } else {
+            STATS_HIT(c, get, key, nkey);
+        }
         update_topkeys(key, keylen, c);
 
         // 4. Form a response and send it back to the client.
