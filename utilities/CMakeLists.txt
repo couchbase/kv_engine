@@ -2,7 +2,7 @@ ADD_LIBRARY(mcd_util SHARED
             config_parser.c
             engine_loader.c
             extension_loggers.c
-            protocol2text.c
+            protocol2text.cc
             util.c)
 TARGET_LINK_LIBRARIES(mcd_util platform)
 SET_TARGET_PROPERTIES(mcd_util PROPERTIES SOVERSION 1.0.0)

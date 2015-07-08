@@ -74,7 +74,7 @@ ADD_EXECUTABLE(memcached
                runtime.h
                settings.h
                stats.h
-               ${Memcached_SOURCE_DIR}/utilities/protocol2text.c
+               ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
                ${Memcached_BINARY_DIR}/default_rbac.cc)
 
 ADD_DEPENDENCIES(memcached generate_audit_descriptors)

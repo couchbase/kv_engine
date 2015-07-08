@@ -2,7 +2,7 @@
 #include <stdio.h>
 
 #include "daemon/memcached.h"
-#include "utilities/protocol2text.c"
+#include "utilities/protocol2text.h"
 
 static void display(const char *name, size_t size) {
     printf("%s\t%d\n", name, (int)size);
