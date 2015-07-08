@@ -21,6 +21,8 @@
 #include "utilities/protocol2text.h"
 #include "timings.h"
 #include "cmdline.h"
+#include "cJSON.h"
+#include "config_util.h"
 #include "mc_time.h"
 
 #include <signal.h>
@@ -8653,6 +8655,67 @@ static void calculate_maxconns(void) {
     }
 }
 
+static void initialize_ssl_ciphers(void) {
+    char *ssl_cipher_list = NULL;
+
+    // MB-13642 Allow the user to specify the SSL cipher list If
+    //    someone wants to use SSL we should try to be "secure by
+    //    default", and only allow for using strong ciphers.  Users
+    //    that may want to use a less secure cipher list should be
+    //    allowed to do so by setting an environment variable (since
+    //    there is no place in the UI to do so currently). Whenever
+    //    ns_server allows for specifying the SSL cipher list in the
+    //    UI, it will be stored in memcached.json and override these
+    //    settings.
+    //    Unfortunately envionment variables isn't that easy to get
+    //    working on Microsoft Windows (where do you set them for
+    //    a service, and how do we make sure they're inherited all
+    //    the way to the right process etc.
+    char *fname = locate_ssl_json();
+    if (fname != NULL) {
+        cJSON *rootobj = NULL;
+        config_error_t ret = config_load_file(fname, &rootobj);
+        switch (ret) {
+        case CONFIG_NO_SUCH_FILE: // FALLTHROUGH
+        case CONFIG_SUCCESS:
+            break;
+
+        case CONFIG_INVALID_ARGUMENTS:
+        case CONFIG_OPEN_FAILED:
+        case CONFIG_MALLOC_FAILED:
+        case CONFIG_IO_ERROR:
+        case CONFIG_PARSE_ERROR:
+            {
+                char *errmsg = config_strerror(fname, ret);
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "%s. Exiting", errmsg);
+                free(errmsg);
+                exit(EXIT_FAILURE);
+            }
+        }
+
+        if (rootobj != NULL) {
+            cJSON *item = cJSON_GetObjectItem(rootobj, "ssl_cipher_list");
+            if (item != NULL) {
+                ssl_cipher_list = strdup(item->valuestring);
+            }
+            cJSON_Delete(rootobj);
+        }
+        free(fname);
+    }
+
+    // if nothing is specified we should still use HIGH as the default
+    if (ssl_cipher_list == NULL) {
+        ssl_cipher_list = strdup("HIGH");
+    }
+
+    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                    "Setting ssl_cipher list to \"%s\"",
+                                    ssl_cipher_list);
+    set_ssl_cipher_list(ssl_cipher_list);
+    free(ssl_cipher_list);
+}
+
 int main (int argc, char **argv) {
     ENGINE_HANDLE *engine_handle = NULL;
 
@@ -8696,26 +8759,11 @@ int main (int argc, char **argv) {
         return EX_OSERR;
     }
 
-    {
-        // MB-13642 Allow the user to specify the SSL cipher list
-        //    If someone wants to use SSL we should try to be "secure
-        //    by default", and only allow for using strong ciphers.
-        //    Users that may want to use a less secure cipher list
-        //    should be allowed to do so by setting an environment
-        //    variable (since there is no place in the UI to do
-        //    so currently). Whenever ns_server allows for specifying
-        //    the SSL cipher list in the UI, it will be stored
-        //    in memcached.json and override these settings.
-        const char *env = getenv("COUCHBASE_SSL_CIPHER_LIST");
-        if (env == NULL) {
-            set_ssl_cipher_list("HIGH");
-        } else {
-            set_ssl_cipher_list(env);
-        }
-    }
-
     /* Parse command line arguments */
     parse_arguments(argc, argv);
+
+    initialize_ssl_ciphers();
+
 
     set_max_filehandles();
 

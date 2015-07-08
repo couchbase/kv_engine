@@ -32,6 +32,8 @@ extern "C" {
     void set_ssl_cipher_list(const char *new_list);
     void set_ssl_ctx_cipher_list(SSL_CTX *ctx, EXTENSION_LOGGER_DESCRIPTOR* logger);
 
+    char *locate_ssl_json(void);
+
 #ifdef __cplusplus
 }
 #endif
