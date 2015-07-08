@@ -153,8 +153,10 @@ TEST_F(AuditConfigTest, TestNoRotateInterval) {
 }
 
 TEST_F(AuditConfigTest, TestRotateIntervalSetGet) {
-    for (size_t ii = AuditConfig::min_file_rotation_time; ii < AuditConfig::min_file_rotation_time+10; ++ii) {
-        config.set_rotate_interval(ii);
+    for (size_t ii = AuditConfig::min_file_rotation_time;
+         ii < AuditConfig::min_file_rotation_time+10;
+         ++ii) {
+        config.set_rotate_interval(uint32_t(ii));
         EXPECT_EQ(ii, config.get_rotate_interval());
     }
 }
@@ -170,7 +172,7 @@ TEST_F(AuditConfigTest, TestRotateIntervalLegalValue) {
          ii < AuditConfig::max_file_rotation_time;
          ii += 1000) {
         cJSON_ReplaceItemInObject(json, "rotate_interval",
-                                  cJSON_CreateNumber(ii));
+                                  cJSON_CreateNumber(double(ii)));
         EXPECT_NO_THROW(config.initialize_config(json));
     }
 }
