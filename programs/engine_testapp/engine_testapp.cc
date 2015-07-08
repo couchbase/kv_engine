@@ -53,12 +53,7 @@ void* operator new(std::size_t count ) {
     return malloc(count);
 }
 
-void operator delete(void* ptr )
-// Need to match the forward declaration from gnu libstdc++ - include
-//  _GLIBCXX_USE_NOEXCEPT in the definition if defined.
-#if defined(_GLIBCXX_USE_NOEXCEPT)
-_GLIBCXX_USE_NOEXCEPT
-#endif
+void operator delete(void* ptr ) noexcept
 {
   free(ptr);
 }
