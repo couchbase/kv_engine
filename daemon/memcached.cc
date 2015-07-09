@@ -212,14 +212,18 @@ static void register_callback(ENGINE_HANDLE *eh,
 static SERVER_HANDLE_V1 *get_server_api(void);
 
 
-enum try_read_result {
-    READ_DATA_RECEIVED,
-    READ_NO_DATA_RECEIVED,
-    READ_ERROR,            /** an error occured (on the socket) (or client closed connection) */
-    READ_MEMORY_ERROR      /** failed to allocate more memory */
+enum class TryReadResult {
+    /** Data received on the socket and ready to parse */
+    DataReceived,
+    /** No data received on the socket */
+    NoDataReceived,
+    /** An error occurred on the socket (or the client closed the connection) */
+    SocketError,
+    /** Failed to allocate more memory for the input buffer */
+    MemoryError
 };
 
-static enum try_read_result try_read_network(conn *c);
+static TryReadResult try_read_network(conn *c);
 
 /* stats */
 static void stats_init(void);
@@ -6187,8 +6191,8 @@ static int do_data_sendmsg(conn *c, struct msghdr *m) {
  *
  * @return enum try_read_result
  */
-static enum try_read_result try_read_network(conn *c) {
-    enum try_read_result gotdata = READ_NO_DATA_RECEIVED;
+static TryReadResult try_read_network(conn *c) {
+    TryReadResult gotdata = TryReadResult::NoDataReceived;
     int res;
     int num_allocs = 0;
     cb_assert(c != NULL);
@@ -6219,7 +6223,7 @@ static enum try_read_result try_read_network(conn *c) {
                                                 "Couldn't realloc input buffer");
                 c->read.bytes = 0; /* ignore what we read */
                 conn_set_state(c, conn_closing);
-                return READ_MEMORY_ERROR;
+                return TryReadResult::MemoryError;
             }
             c->read.curr = c->read.buf = new_rbuf;
             c->read.size *= 2;
@@ -6229,7 +6233,7 @@ static enum try_read_result try_read_network(conn *c) {
         res = do_data_recv(c, c->read.buf + c->read.bytes, avail);
         if (res > 0) {
             STATS_ADD(c, bytes_read, res);
-            gotdata = READ_DATA_RECEIVED;
+            gotdata = TryReadResult::DataReceived;
             c->read.bytes += res;
             if (res == avail) {
                 continue;
@@ -6238,7 +6242,7 @@ static enum try_read_result try_read_network(conn *c) {
             }
         }
         if (res == 0) {
-            return READ_ERROR;
+            return TryReadResult::SocketError;
         }
         if (res == -1) {
 #ifdef WIN32
@@ -6255,7 +6259,7 @@ static enum try_read_result try_read_network(conn *c) {
                      c->sfd, get_peername(c), get_sockname(c));
             log_errcode_error(EXTENSION_LOG_WARNING, c, prefix, error);
 
-            return READ_ERROR;
+            return TryReadResult::SocketError;
         }
     }
     return gotdata;
@@ -6622,18 +6626,17 @@ bool conn_read(conn *c) {
         return true;
     }
 
-    int res = try_read_network(c);
-    switch (res) {
-    case READ_NO_DATA_RECEIVED:
+    switch (try_read_network(c)) {
+    case TryReadResult::NoDataReceived:
         conn_set_state(c, conn_waiting);
         break;
-    case READ_DATA_RECEIVED:
+    case TryReadResult::DataReceived:
         conn_set_state(c, conn_parse_cmd);
         break;
-    case READ_ERROR:
+    case TryReadResult::SocketError:
         conn_set_state(c, conn_closing);
         break;
-    case READ_MEMORY_ERROR: /* Failed to allocate more memory */
+    case TryReadResult::MemoryError: /* Failed to allocate more memory */
         /* State already set by try_read_network */
         break;
     }
