@@ -40,7 +40,6 @@ public:
     std::queue<Event*> *filleventqueue;
     std::queue<Event*> *processeventqueue;
     bool terminate_audit_daemon;
-    std::string auditfile_open_time_string;
     std::string configfile;
     cb_thread_t consumer_tid;
     cb_cond_t processeventqueue_empty;
@@ -72,7 +71,6 @@ public:
     bool process_module_data_structures(cJSON *module);
     bool process_module_descriptor(cJSON *module_descriptor);
     bool configure(void);
-    bool process_event(const Event* event);
     bool add_to_filleventqueue(const uint32_t event_id,
                                const char *payload,
                                const size_t length);

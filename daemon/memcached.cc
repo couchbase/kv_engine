@@ -92,10 +92,6 @@ void bucket_item_set_cas(conn *c, item *it, uint64_t cas) {
                                    c, it, cas);
 }
 
-void *bucket_get_stats_struct(conn *c) {
-    return all_buckets[c->bucket.idx].stats;
-}
-
 void bucket_reset_stats(conn *c) {
     c->bucket.engine->reset_stats(v1_handle_2_handle(c->bucket.engine), c);
 }
@@ -106,17 +102,17 @@ ENGINE_ERROR_CODE bucket_get_engine_vb_map(conn *c,
                                                c, callback);
 }
 
-bool bucket_get_item_info(conn *c, const item* item, item_info *item_info) {
+static bool bucket_get_item_info(conn *c, const item* item, item_info *item_info) {
     return c->bucket.engine->get_item_info(v1_handle_2_handle(c->bucket.engine),
                                            c, item, item_info);
 }
 
-bool bucket_set_item_info(conn *c, item* item, const item_info *item_info) {
+static bool bucket_set_item_info(conn *c, item* item, const item_info *item_info) {
     return c->bucket.engine->set_item_info(v1_handle_2_handle(c->bucket.engine),
                                            c, item, item_info);
 }
 
-ENGINE_ERROR_CODE bucket_store(conn *c,
+static ENGINE_ERROR_CODE bucket_store(conn *c,
                                item* item,
                                uint64_t *cas,
                                ENGINE_STORE_OPERATION operation,
@@ -125,7 +121,7 @@ ENGINE_ERROR_CODE bucket_store(conn *c,
                                    cas, operation, vbucket);
 }
 
-ENGINE_ERROR_CODE bucket_get(conn *c,
+static ENGINE_ERROR_CODE bucket_get(conn *c,
                              item** item,
                              const void* key,
                              const int nkey,
@@ -142,8 +138,6 @@ ENGINE_ERROR_CODE bucket_unknown_command(conn *c,
 }
 
 static void shutdown_server(void);
-
-#define MAX_SASL_MECH_LEN 32
 
 std::atomic<bool> memcached_shutdown;
 
@@ -229,7 +223,7 @@ static enum try_read_result try_read_network(conn *c);
 
 /* stats */
 static void stats_init(void);
-static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate);
+static void server_stats(ADD_STAT add_stats, conn *c);
 static void process_stat_settings(ADD_STAT add_stats, void *c);
 static void process_bucket_details(conn *c);
 
@@ -1910,14 +1904,13 @@ static void ship_tap_log(conn *c) {
     }
 }
 
-static ENGINE_ERROR_CODE default_unknown_command(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *descriptor,
-                                                 ENGINE_HANDLE* handle,
+static ENGINE_ERROR_CODE default_unknown_command(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR*,
+                                                 ENGINE_HANDLE*,
                                                  const void* cookie,
                                                  protocol_binary_request_header *request,
                                                  ADD_RESPONSE response)
 {
     conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
-    (void)descriptor;
 
     if (!c->supports_datatype && request->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
@@ -4389,7 +4382,7 @@ static void stat_executor(conn *c, void *packet)
             ret = c->bucket.engine->get_stats(v1_handle_2_handle(c->bucket.engine), c,
                                               NULL, 0, append_stats);
             if (ret == ENGINE_SUCCESS) {
-                server_stats(&append_stats, c, false);
+                server_stats(&append_stats, c);
             }
         } else if (strncmp(subcommand, "reset", 5) == 0) {
             stats_reset(c);
@@ -4409,7 +4402,7 @@ static void stat_executor(conn *c, void *packet)
         } else if (nkey == 14 && strncmp(subcommand, "bucket details", 14) == 0) {
             process_bucket_details(c);
         } else if (strncmp(subcommand, "aggregate", 9) == 0) {
-            server_stats(&append_stats, c, true);
+            server_stats(&append_stats, c);
         } else if (strncmp(subcommand, "connections", 11) == 0) {
             int64_t fd = -1; /* default to all connections */
             /* Check for specific connection number - allow up to 32 chars for FD */
@@ -4980,7 +4973,7 @@ static void create_bucket_executor(conn *c, void *packet)
 }
 
 
-static void list_bucket_executor(conn *c, void *packet)
+static void list_bucket_executor(conn *c, void *)
 {
     try {
         std::string blob;
@@ -5465,7 +5458,7 @@ void append_stat(const char *name, ADD_STAT add_stats, void *c,
 }
 
 /* return server specific stats only */
-static void server_stats(ADD_STAT add_stats, conn *c, bool aggregate) {
+static void server_stats(ADD_STAT add_stats, conn *c) {
 #ifdef WIN32
     long pid = GetCurrentProcessId();
 #else
@@ -7402,7 +7395,7 @@ static int sigignore(int sig) {
 }
 #endif /* !HAVE_SIGIGNORE */
 
-static void sigterm_handler(evutil_socket_t fd, short what, void *arg) {
+static void sigterm_handler(evutil_socket_t, short, void *) {
     shutdown_server();
 }
 #endif

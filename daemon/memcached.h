@@ -559,24 +559,10 @@ void update_topkeys(const char *key, size_t nkey, conn *c);
 protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE e);
 
 void bucket_item_set_cas(conn *c, item *it, uint64_t cas);
-void *bucket_get_stats_struct(conn *c);
 
 void bucket_reset_stats(conn *c);
 ENGINE_ERROR_CODE bucket_get_engine_vb_map(conn *c,
                                            engine_get_vb_map_cb callback);
-
-bool bucket_get_item_info(conn *c, const item* item, item_info *item_info);
-bool bucket_set_item_info(conn *c, item* item, const item_info *itm_info);
-ENGINE_ERROR_CODE bucket_store(conn *c,
-                               item* item,
-                               uint64_t *cas,
-                               ENGINE_STORE_OPERATION operation,
-                               uint16_t vbucket);
-ENGINE_ERROR_CODE bucket_get(conn *c,
-                             item** item,
-                             const void* key,
-                             const int nkey,
-                             uint16_t vbucket);
 
 ENGINE_ERROR_CODE bucket_unknown_command(conn *c,
                                          protocol_binary_request_header *request,
