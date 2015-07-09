@@ -400,9 +400,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
         return NULL;
     }
 
-    STATS_LOCK();
-    stats.total_conns++;
-    STATS_UNLOCK();
+    stats.total_conns.fetch_add(1, std::memory_order_relaxed);;
 
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -806,9 +804,7 @@ static int conn_constructor(conn *c) {
         return 1;
     }
 
-    STATS_LOCK();
-    stats.conn_structs++;
-    STATS_UNLOCK();
+    stats.conn_structs.fetch_add(1, std::memory_order_relaxed);
 
     return 0;
 }
@@ -829,9 +825,7 @@ static void conn_destructor(conn *c) {
     free(c->msglist);
     free(c);
 
-    STATS_LOCK();
-    stats.conn_structs--;
-    STATS_UNLOCK();
+    stats.conn_structs.fetch_sub(1, std::memory_order_relaxed);
 }
 
 /** Allocate a connection, creating memory and adding it to the conections

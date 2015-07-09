@@ -450,10 +450,13 @@ static void free_callbacks() {
 
 static void stats_init(void) {
     set_stats_reset_time();
-    stats.daemon_conns = 0;
-    stats.rejected_conns = 0;
-    stats.curr_conns = stats.total_conns = 0;
-    stats.listening_ports = reinterpret_cast<listening_port*>
+    stats.conn_structs.store(0, std::memory_order_relaxed);
+    stats.total_conns.store(0, std::memory_order_relaxed);
+    stats.daemon_conns.store(0, std::memory_order_relaxed);
+    stats.rejected_conns.store(0, std::memory_order_relaxed);
+    stats.curr_conns.store(0, std::memory_order_relaxed);
+
+    stats.listening_ports= reinterpret_cast<listening_port*>
         (calloc(settings.num_interfaces, sizeof(struct listening_port)));
 }
 
@@ -468,9 +471,9 @@ static void stats_reset(const void *cookie) {
     struct conn *conn = (struct conn*)cookie;
     STATS_LOCK();
     set_stats_reset_time();
-    stats.rejected_conns = 0;
-    stats.total_conns = 0;
     STATS_UNLOCK();
+    stats.total_conns.store(0, std::memory_order_relaxed);
+    stats.rejected_conns.store(0, std::memory_order_relaxed);
     threadlocal_stats_reset(all_buckets[conn->bucket.idx].stats);
     bucket_reset_stats(conn);
 }
@@ -666,10 +669,7 @@ void safe_close(SOCKET sfd) {
             log_socket_error(EXTENSION_LOG_WARNING, NULL,
                              msg);
         } else {
-            STATS_LOCK();
-            stats.curr_conns--;
-            STATS_UNLOCK();
-
+            stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
             if (is_listen_disabled()) {
                 notify_dispatcher();
             }
@@ -5510,8 +5510,10 @@ static void server_stats(ADD_STAT add_stats, conn *c) {
                 (long)usage.ru_stime.tv_usec);
 #endif
 
-    APPEND_STAT("daemon_connections", "%u", stats.daemon_conns);
-    APPEND_STAT("curr_connections", "%u", stats.curr_conns);
+    APPEND_STAT("daemon_connections", "%u",
+                stats.daemon_conns.load(std::memory_order_relaxed));
+    APPEND_STAT("curr_connections", "%u",
+                stats.curr_conns.load(std::memory_order_relaxed));
     for (int ii = 0; ii < settings.num_interfaces; ++ii) {
         sprintf(stat_key, "%s", "max_conns_on_port_");
         sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[ii].port);
@@ -5520,8 +5522,10 @@ static void server_stats(ADD_STAT add_stats, conn *c) {
         sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[ii].port);
         APPEND_STAT(stat_key, "%d", stats.listening_ports[ii].curr_conns);
     }
-    APPEND_STAT("total_connections", "%u", stats.total_conns);
-    APPEND_STAT("connection_structures", "%u", stats.conn_structs);
+    APPEND_STAT("total_connections", "%u",
+                stats.total_conns.load(std::memory_order_relaxed));
+    APPEND_STAT("connection_structures", "%u",
+                stats.conn_structs.load(std::memory_order_relaxed));
     APPEND_STAT("cmd_get", "%" PRIu64, thread_stats.cmd_get);
     APPEND_STAT("cmd_set", "%" PRIu64, slab_stats.cmd_set);
     APPEND_STAT("cmd_flush", "%" PRIu64, thread_stats.cmd_flush);
@@ -5549,7 +5553,8 @@ static void server_stats(ADD_STAT add_stats, conn *c) {
     APPEND_STAT("bytes_written", "%" PRIu64, thread_stats.bytes_written);
     APPEND_STAT("accepting_conns", "%u",  is_listen_disabled() ? 0 : 1);
     APPEND_STAT("listen_disabled_num", "%" PRIu64, get_listen_disabled_num());
-    APPEND_STAT("rejected_conns", "%" PRIu64, (uint64_t)stats.rejected_conns);
+    APPEND_STAT("rejected_conns", "%" PRIu64,
+                stats.rejected_conns.load(std::memory_order_relaxed));
     APPEND_STAT("threads", "%d", settings.num_threads);
     APPEND_STAT("conn_yields", "%" PRIu64, (uint64_t)thread_stats.conn_yields);
     APPEND_STAT("rbufs_allocated", "%" PRIu64, (uint64_t)thread_stats.rbufs_allocated);
@@ -6492,8 +6497,8 @@ bool conn_listening(conn *c)
         return false;
     }
 
+    curr_conns = stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     STATS_LOCK();
-    curr_conns = ++stats.curr_conns;
     port_instance = get_listening_port_instance(c->parent_port);
     cb_assert(port_instance);
     port_conns = ++port_instance->curr_conns;
@@ -6501,10 +6506,9 @@ bool conn_listening(conn *c)
 
     if (curr_conns >= settings.maxconns || port_conns >= port_instance->maxconns) {
         STATS_LOCK();
-        ++stats.rejected_conns;
         --port_instance->curr_conns;
         STATS_UNLOCK();
-
+        stats.rejected_conns.fetch_add(1, std::memory_order_relaxed);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
             "Too many open connections. Current/Limit for port %d: %d/%d; "
             "total: %d/%d", port_instance->port,
@@ -7359,9 +7363,10 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
         }
         listen_conn_add->next = listen_conn;
         listen_conn = listen_conn_add;
+
+        stats.daemon_conns.fetch_add(1, std::memory_order_relaxed);
+        stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
         STATS_LOCK();
-        ++stats.curr_conns;
-        ++stats.daemon_conns;
         port_instance = get_listening_port_instance(interf->port);
         cb_assert(port_instance);
         ++port_instance->curr_conns;

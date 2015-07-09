@@ -148,13 +148,21 @@ struct listening_port {
  * Global stats.
  */
 struct stats {
-    cb_mutex_t mutex;
-    unsigned int  daemon_conns; /* conns used by the server */
-    unsigned int  curr_conns;
-    unsigned int  total_conns;
-    unsigned int  conn_structs;
-    time_t        started;          /* when the process was started */
-    uint64_t      rejected_conns; /* number of times I reject a client */
+    /** Number of connections used by the server itself (listen ports etc). */
+    std::atomic<unsigned int> daemon_conns;
+
+    /** The current number of connections to the server */
+    std::atomic<unsigned int> curr_conns;
+
+    /** The total number of connections to the server since start (or reset) */
+    std::atomic<unsigned int> total_conns;
+
+    /** The current number of allocated connection objects */
+    std::atomic<unsigned int> conn_structs;
+
+    /** The number of times I reject a client */
+    std::atomic<uint64_t> rejected_conns;
+
     // TODO[C++]: convert listening_ports to std::vector.
     struct listening_port *listening_ports;
 };
