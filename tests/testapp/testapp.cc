@@ -526,15 +526,12 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
         cb_assert(execvp(argv[0], const_cast<char **>(argv)) != -1);
     }
 #endif // !WIN32
-
     /* Yeah just let us "busy-wait" for the file to be created ;-) */
-    while (access(filename, F_OK) == -1) {
+    while ((fp = fopen(filename, "r")) == nullptr)
+    {
         usleep(10);
         ASSERT_TRUE(isMemcachedAlive());
     }
-
-    fp = fopen(filename, "r");
-    ASSERT_NE(nullptr, fp);
 
     *port_out = (in_port_t)-1;
     *ssl_port_out = (in_port_t)-1;
