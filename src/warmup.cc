@@ -23,6 +23,8 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <array>
+#include <random>
 
 #include "ep_engine.h"
 #include "failover-table.h"
@@ -32,8 +34,6 @@
 #include "mutation_log.h"
 #include "connmap.h"
 #include "warmup.h"
-
-#include <platform/random.h>
 
 class NoLookupCallback : public Callback<CacheLookup> {
 public:
@@ -1010,23 +1010,42 @@ void Warmup::populateShardVbStates()
             }
         }
 
-        // Order the vbucket ids into the vector for each shard in such a
-        // way, that active vbuckets get 60% preference and replica vbuckets
-        // get 40% preference.
-
-        Couchbase::RandomGenerator provider(true);
-        std::vector<uint16_t>::iterator it1 = activeVBs.begin();
-        std::vector<uint16_t>::iterator it2 = replicaVBs.begin();
-        while (it1 != activeVBs.end() || it2 != replicaVBs.end()) {
-            uint64_t num = provider.next();
-            if ((num % 2 == 0 || num % 5 == 0) && it1 != activeVBs.end()) {
-                shardVbIds[i].push_back(*it1);
-                ++it1;
-            } else if (it2 != replicaVBs.end()) {
-                shardVbIds[i].push_back(*it2);
-                ++it2;
-            }
+        // Push one active VB to the front.
+        // When the ratio of RAM to VBucket is poor (big vbuckets) this will
+        // ensure we at least bring active data in before replicas eat RAM.
+        if (!activeVBs.empty()) {
+            shardVbIds[i].push_back(activeVBs.back());
+            activeVBs.pop_back();
         }
 
+        // Now the VB lottery can begin.
+        // Generate a psudeo random, weighted list of active/replica vbuckets.
+        // The random seed is the shard ID so that re-running warmup
+        // for the same shard and vbucket set always gives the same output and keeps
+        // nodes of the cluster more equal after a warmup.
+        const double activeWeight = 60.0;
+        const double replicaWeight = 40.0;
+        cb_assert(activeWeight + replicaWeight == 100);
+
+        std::mt19937 twister(i);
+        std::discrete_distribution<> distribute({activeWeight, replicaWeight});
+        std::array<std::vector<uint16_t>*, 2> activeReplicaSource = {{&activeVBs,
+                                                                      &replicaVBs}};
+
+        while (!activeVBs.empty() || !replicaVBs.empty()) {
+            int num = distribute(twister);
+            cb_assert(num == 0 || num == 1);
+            if (!activeReplicaSource[num]->empty()) {
+                shardVbIds[i].push_back(activeReplicaSource[num]->back());
+                activeReplicaSource[num]->pop_back();
+            } else {
+                // Once active or replica set is empty, just drain the other one.
+                num = num ^ 1;
+                while (!activeReplicaSource[num]->empty()) {
+                    shardVbIds[i].push_back(activeReplicaSource[num]->back());
+                    activeReplicaSource[num]->pop_back();
+                }
+            }
+        }
     }
 }
