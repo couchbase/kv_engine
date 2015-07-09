@@ -169,7 +169,7 @@ struct engine_event_handler {
 
 extern struct stats stats;
 
-enum thread_type {
+enum class ThreadType {
     GENERAL = 11,
     TAP = 13,
     DISPATCHER = 15
@@ -201,7 +201,7 @@ typedef struct {
     bool is_locked;
     struct conn *pending_io;    /* List of connection with pending async io ops */
     int index;                  /* index of this thread in the threads array */
-    enum thread_type type;      /* Type of IO this thread processes */
+    ThreadType type;      /* Type of IO this thread processes */
 
     rel_time_t last_checked;
 

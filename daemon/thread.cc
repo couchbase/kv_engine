@@ -185,7 +185,7 @@ static void setup_dispatcher(struct event_base *main_base,
                              void (*dispatcher_callback)(evutil_socket_t, short, void *))
 {
     memset(&dispatcher_thread, 0, sizeof(dispatcher_thread));
-    dispatcher_thread.type = DISPATCHER;
+    dispatcher_thread.type = ThreadType::DISPATCHER;
     dispatcher_thread.base = main_base;
 	dispatcher_thread.thread_id = cb_thread_self();
     if (!create_notification_pipe(&dispatcher_thread)) {
@@ -207,7 +207,7 @@ static void setup_dispatcher(struct event_base *main_base,
  * Set up a thread's information.
  */
 static void setup_thread(LIBEVENT_THREAD *me) {
-    me->type = GENERAL;
+    me->type = ThreadType::GENERAL;
     me->base = event_base_new();
     if (! me->base) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -294,7 +294,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     CQ_ITEM *item;
     conn* pending;
 
-    cb_assert(me->type == GENERAL);
+    cb_assert(me->type == ThreadType::GENERAL);
     drain_notification_channel(fd);
 
     if (memcached_shutdown) {
