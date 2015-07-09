@@ -410,7 +410,7 @@ struct conn {
     protocol_binary_request_header binary_header;
     uint64_t cas; /* the cas to return */
     uint8_t cmd; /* current command being processed */
-    int opaque;
+    uint32_t opaque;
     int keylen;
 
     int list_state; /* bitmask of list state data for this connection */
