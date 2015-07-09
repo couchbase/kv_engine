@@ -276,14 +276,18 @@ static void set_stats_reset_time(void)
     }
 }
 
-enum transmit_result {
-    TRANSMIT_COMPLETE,   /** All done writing. */
-    TRANSMIT_INCOMPLETE, /** More data remaining to write. */
-    TRANSMIT_SOFT_ERROR, /** Can't write any more right now. */
-    TRANSMIT_HARD_ERROR  /** Can't write (c->state is set to conn_closing) */
+enum class TransmitResult {
+    /** All done writing. */
+    Complete,
+    /** More data remaining to write. */
+    Incomplete,
+    /** Can't write any more right now. */
+    SoftError,
+    /** Can't write (c->state is set to conn_closing) */
+    HardError
 };
 
-static enum transmit_result transmit(conn *c);
+static TransmitResult transmit(conn *c);
 
 static void disassociate_bucket(conn *c) {
     Bucket &b = all_buckets.at(c->bucket.idx);
@@ -6359,12 +6363,12 @@ bool update_event(conn *c, const int new_flags) {
  * Transmit the next chunk of data from our list of msgbuf structures.
  *
  * Returns:
- *   TRANSMIT_COMPLETE   All done writing.
- *   TRANSMIT_INCOMPLETE More data remaining to write.
- *   TRANSMIT_SOFT_ERROR Can't write any more right now.
- *   TRANSMIT_HARD_ERROR Can't write (c->state is set to conn_closing)
+ *   Complete   All done writing.
+ *   Incomplete More data remaining to write.
+ *   SoftError Can't write any more right now.
+ *   HardError Can't write (c->state is set to conn_closing)
  */
-static enum transmit_result transmit(conn *c) {
+static TransmitResult transmit(conn *c) {
     cb_assert(c != NULL);
 
     while (c->msgcurr < c->msgused &&
@@ -6405,15 +6409,15 @@ static enum transmit_result transmit(conn *c) {
                 m->msg_iov->iov_base = (void*)((unsigned char*)m->msg_iov->iov_base + res);
                 m->msg_iov->iov_len -= res;
             }
-            return TRANSMIT_INCOMPLETE;
+            return TransmitResult::Incomplete;
         }
 
         if (res == -1 && is_blocking(error)) {
             if (!update_event(c, EV_WRITE | EV_PERSIST)) {
                 conn_set_state(c, conn_closing);
-                return TRANSMIT_HARD_ERROR;
+                return TransmitResult::HardError;
             }
-            return TRANSMIT_SOFT_ERROR;
+            return TransmitResult::SoftError;
         }
         /* if res == 0 or res == -1 and error is not EAGAIN or EWOULDBLOCK,
            we have a real error, on which we close the connection */
@@ -6435,20 +6439,20 @@ static enum transmit_result transmit(conn *c) {
         }
 
         conn_set_state(c, conn_closing);
-        return TRANSMIT_HARD_ERROR;
+        return TransmitResult::HardError;
     } else {
         if (c->ssl.enabled) {
             drain_bio_send_pipe(c);
             if (c->ssl.out.total) {
                 if (!update_event(c, EV_WRITE | EV_PERSIST)) {
                     conn_set_state(c, conn_closing);
-                    return TRANSMIT_HARD_ERROR;
+                    return TransmitResult::HardError;
                 }
-                return TRANSMIT_SOFT_ERROR;
+                return TransmitResult::SoftError;
             }
         }
 
-        return TRANSMIT_COMPLETE;
+        return TransmitResult::Complete;
     }
 }
 
@@ -6799,7 +6803,7 @@ bool conn_write(conn *c) {
 
 bool conn_mwrite(conn *c) {
     switch (transmit(c)) {
-    case TRANSMIT_COMPLETE:
+    case TransmitResult::Complete:
         if (c->state == conn_mwrite) {
             while (c->ileft > 0) {
                 item *it = *(c->icurr);
@@ -6829,11 +6833,11 @@ bool conn_mwrite(conn *c) {
         }
         break;
 
-    case TRANSMIT_INCOMPLETE:
-    case TRANSMIT_HARD_ERROR:
+    case TransmitResult::Incomplete:
+    case TransmitResult::HardError:
         break;                   /* Continue in state machine. */
 
-    case TRANSMIT_SOFT_ERROR:
+    case TransmitResult::SoftError:
         return false;
     }
 
