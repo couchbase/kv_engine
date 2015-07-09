@@ -3909,7 +3909,7 @@ static void sasl_auth_executor(conn *c, void *packet)
                 }
             }
             perform_callbacks(ON_AUTH, (const void*)&data, c);
-            STATS_NOKEY(c, auth_cmds);
+            get_thread_stats(c)->auth_cmds++;
 
             /* associate the connection with the appropriate bucket */
             /* @TODO Trond do we really want to do this? */
@@ -3937,7 +3937,11 @@ static void sasl_auth_executor(conn *c, void *packet)
                                         "%d: Bad sasl params: %d",
                                         c->sfd, result);
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-        STATS_NOKEY2(c, auth_cmds, auth_errors);
+        {
+             auto *ts = get_thread_stats(c);
+             ts->auth_cmds++;
+             ts->auth_errors++;
+        }
         break;
     default:
         if (!is_server_initialized()) {
@@ -3961,10 +3965,11 @@ static void sasl_auth_executor(conn *c, void *packet)
                                             c->sfd, result);
         }
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
-        STATS_NOKEY2(c, auth_cmds, auth_errors);
+
+        auto *ts = get_thread_stats(c);
+        ts->auth_cmds++;
+        ts->auth_errors++;
     }
-
-
 }
 
 static void noop_executor(conn *c, void *packet)
@@ -3996,7 +4001,7 @@ static void flush_executor(conn *c, void *packet)
     ret = c->bucket.engine->flush(v1_handle_2_handle(c->bucket.engine), c, exptime);
     switch (ret) {
     case ENGINE_SUCCESS:
-        STATS_NOKEY(c, cmd_flush);
+        get_thread_stats(c)->cmd_flush++;
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_EWOULDBLOCK:
@@ -4137,7 +4142,7 @@ static void add_set_replace_executor(conn *c, void *packet,
             SLAB_INCR(c, cas_badval, key, nkey);
             break;
         case ENGINE_KEY_ENOENT:
-            STATS_NOKEY(c, cas_misses);
+            get_thread_stats(c)->cas_misses++;
             break;
         default:
             ;
@@ -6241,7 +6246,7 @@ static TryReadResult try_read_network(conn *c) {
         avail = c->read.size - c->read.bytes;
         res = do_data_recv(c, c->read.buf + c->read.bytes, avail);
         if (res > 0) {
-            STATS_ADD(c, bytes_read, res);
+            get_thread_stats(c)->bytes_read += res;
             gotdata = TryReadResult::DataReceived;
             c->read.bytes += res;
             if (res == avail) {
@@ -6398,7 +6403,7 @@ static TransmitResult transmit(conn *c) {
         error = errno;
 #endif
         if (res > 0) {
-            STATS_ADD(c, bytes_written, res);
+            get_thread_stats(c)->bytes_written += res;
 
             /* We've written some of the data. Remove the completed
                iovec entries from the list of pending writes. */
@@ -6677,7 +6682,7 @@ bool conn_new_cmd(conn *c) {
     if (c->nevents >= 0) {
         reset_cmd_handler(c);
     } else {
-        STATS_NOKEY(c, conn_yields);
+        get_thread_stats(c)->conn_yields++;
 
         /*
          * If we've got data in the input buffer we might get "stuck"
@@ -6752,7 +6757,7 @@ bool conn_nread(conn *c) {
     error = errno;
 #endif
     if (res > 0) {
-        STATS_ADD(c, bytes_read, res);
+        get_thread_stats(c)->bytes_read += res;
         if (c->read.curr == c->ritem) {
             c->read.curr += res;
         }

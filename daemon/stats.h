@@ -47,25 +47,6 @@ struct thread_stats *get_thread_stats(conn *c);
 #define STATS_MISS(conn, op, key, nkey) \
     STATS_TWO(conn, op##_misses, cmd_##op, key, nkey)
 
-#define STATS_NOKEY(conn, op) { \
-    struct thread_stats *thread_stats = \
-        get_thread_stats(conn); \
-    thread_stats->op++; \
-}
-
-#define STATS_NOKEY2(conn, op1, op2) { \
-    struct thread_stats *thread_stats = \
-        get_thread_stats(conn); \
-    thread_stats->op1++; \
-    thread_stats->op2++; \
-}
-
-#define STATS_ADD(conn, op, amt) { \
-    struct thread_stats *thread_stats = \
-        get_thread_stats(conn); \
-    thread_stats->op += amt; \
-}
-
 /* Set the statistic to the maximum of the current value, and the specified
  * value.
  *

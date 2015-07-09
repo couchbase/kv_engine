@@ -672,20 +672,22 @@ bool connection_set_nodelay(conn *c, bool enable)
  * connection and the worker thread will allocate a new one.
  */
 static void conn_loan_buffers(conn *c) {
-    BufferLoan res = conn_loan_single_buffer(c, &c->thread->read, &c->read);
+
+    auto res = conn_loan_single_buffer(c, &c->thread->read, &c->read);
+    auto *ts = get_thread_stats(c);
     if (res == BufferLoan::Allocated) {
-        STATS_NOKEY(c, rbufs_allocated);
+        ts->rbufs_allocated++;
     } else if (res == BufferLoan::Loaned) {
-        STATS_NOKEY(c, rbufs_loaned);
+        ts->rbufs_loaned++;
     } else if (res == BufferLoan::Existing) {
-        STATS_NOKEY(c, rbufs_existing);
+        ts->rbufs_existing++;
     }
 
     res = conn_loan_single_buffer(c, &c->thread->write, &c->write);
     if (res == BufferLoan::Allocated) {
-        STATS_NOKEY(c, wbufs_allocated);
+        ts->wbufs_allocated++;
     } else if (res == BufferLoan::Loaned) {
-        STATS_NOKEY(c, wbufs_loaned);
+        ts->wbufs_loaned++;
     }
 }
 
