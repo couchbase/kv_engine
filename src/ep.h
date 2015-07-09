@@ -180,11 +180,11 @@ typedef std::pair<uint16_t, ExTask> CompTaskEntry;
  * The following will be used to identify
  * the source of an item's expiration.
  */
-typedef enum {
+enum exp_type_t {
     EXP_BY_PAGER,
     EXP_BY_COMPACTOR,
     EXP_BY_ACCESS
-} exp_type_t;
+};
 
 /**
  * Manager of all interaction with the persistence.

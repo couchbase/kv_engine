@@ -26,18 +26,18 @@
 class EventuallyPersistentEngine;
 class ScanContext;
 
-typedef enum {
+enum backfill_state_t {
     backfill_state_init,
     backfill_state_scanning,
     backfill_state_completing,
     backfill_state_done
-} backfill_state_t;
+};
 
-typedef enum {
+enum backfill_status_t {
     backfill_success,
     backfill_finished,
     backfill_snooze
-} backfill_status_t;
+};
 
 class CacheCallback : public Callback<CacheLookup> {
 public:

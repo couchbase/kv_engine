@@ -170,10 +170,10 @@ public:
     queued_item item_;
 };
 
-typedef enum {
+enum conn_type_t {
     TAP_CONN, //!< TAP connnection
     DCP_CONN  //!< DCP connection
-} conn_type_t;
+};
 
 class ConnHandler : public RCValue {
 public:
@@ -438,12 +438,12 @@ private:
     static AtomicValue<uint64_t> counter_;
 };
 
-typedef enum {
+enum proto_checkpoint_state {
     backfill,
     checkpoint_start,
     checkpoint_end,
     checkpoint_end_synced
-} proto_checkpoint_state;
+};
 
 
 /**

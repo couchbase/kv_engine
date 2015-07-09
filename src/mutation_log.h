@@ -181,9 +181,9 @@ private:
     size_t sleepTime;
 };
 
-typedef enum {
+enum mutation_log_type_t {
     ML_NEW, ML_DEL, ML_DEL_ALL, ML_COMMIT1, ML_COMMIT2
-} mutation_log_type_t;
+};
 
 #define MUTATION_LOG_TYPES 5
 

@@ -26,20 +26,20 @@
  * Version for extras-detail in setWithMeta/delWithMeta and
  * DCP mutation/expiration
  */
-typedef enum {
+enum cmd_meta_extras_version {
     /* Extras format: | type:1B | len:2B | field1 | type | len | field2 | ...
      */
     META_EXT_VERSION_ONE = 0x01
-} cmd_meta_extras_version;
+};
 
 /**
  * Definition of extras-types for setWithMeta, delWithMeta
  * commands and DCP mutation/expiration messages
  */
-typedef enum {
+enum cmd_meta_extras_type {
     CMD_META_ADJUSTED_TIME     = 0x01, /* adjusted time */
     CMD_META_CONFLICT_RES_MODE = 0x02  /* conflict resolution mode */
-} cmd_meta_extras_type;
+};
 
 /**
  * This class will be used to parse the extended meta data section

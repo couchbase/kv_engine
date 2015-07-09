@@ -23,7 +23,7 @@
 #include "ext_meta_parser.h"
 #include "item.h"
 
-typedef enum {
+enum dcp_event_t {
     DCP_MUTATION,
     DCP_DELETION,
     DCP_EXPIRATION,
@@ -33,15 +33,15 @@ typedef enum {
     DCP_STREAM_END,
     DCP_SNAPSHOT_MARKER,
     DCP_ADD_STREAM
-} dcp_event_t;
+};
 
 
-typedef enum {
+enum dcp_marker_flag_t {
     MARKER_FLAG_MEMORY = 0x01,
     MARKER_FLAG_DISK   = 0x02,
     MARKER_FLAG_CHK    = 0x04,
     MARKER_FLAG_ACK    = 0x08
-} dcp_marker_flag_t;
+};
 
 class DcpResponse {
 public:

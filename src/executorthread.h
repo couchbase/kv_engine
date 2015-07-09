@@ -43,13 +43,13 @@ class ExecutorThread;
 class TaskQueue;
 class WorkLoadPolicy;
 
-typedef enum {
+enum executor_state_t {
     EXECUTOR_RUNNING,
     EXECUTOR_WAITING,
     EXECUTOR_SLEEPING,
     EXECUTOR_SHUTDOWN,
     EXECUTOR_DEAD
-} executor_state_t;
+};
 
 
 class ExecutorThread {

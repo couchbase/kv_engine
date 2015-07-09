@@ -158,11 +158,11 @@ struct DBFileInfo {
     uint64_t spaceUsed;
 };
 
-typedef enum {
+enum scan_error_t {
     scan_success,
     scan_again,
     scan_failed
-} scan_error_t;
+};
 
 class ScanContext {
 public:

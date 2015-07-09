@@ -22,17 +22,17 @@
 #include <string>
 #include "common.h"
 
-typedef enum {
+enum bucket_priority_t {
     HIGH_BUCKET_PRIORITY=6,
     LOW_BUCKET_PRIORITY=2,
     NO_BUCKET_PRIORITY=0
-} bucket_priority_t;
+};
 
-typedef enum {
+enum workload_pattern_t {
     READ_HEAVY,
     WRITE_HEAVY,
     MIXED
-} workload_pattern_t;
+};
 
 /**
  * Workload optimization policy

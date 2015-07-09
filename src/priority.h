@@ -24,7 +24,7 @@
 
 #include "common.h"
 
-typedef enum {
+enum type_id_t {
     BGFETCHER_ID=0,
     BGFETCHER_GET_META_ID,
     TAP_BGFETCHER_ID,
@@ -54,7 +54,7 @@ typedef enum {
     DEFRAGMENTER_ID,
 
     MAX_TYPE_ID // Keep this as the last enum value
-} type_id_t;
+};
 
 /**
  * Task priority definition.

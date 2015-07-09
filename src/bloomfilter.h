@@ -21,12 +21,12 @@
 #include "config.h"
 #include "common.h"
 
-typedef enum {
+enum bfilter_status_t {
     BFILTER_DISABLED,
     BFILTER_PENDING,
     BFILTER_COMPACTING,
     BFILTER_ENABLED
-} bfilter_status_t;
+};
 
 /**
  * A bloom filter instance for a vbucket.

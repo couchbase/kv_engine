@@ -46,10 +46,10 @@
 /**
  * The state of a given checkpoint.
  */
-typedef enum {
+enum checkpoint_state {
     CHECKPOINT_OPEN, //!< The checkpoint is open.
     CHECKPOINT_CLOSED  //!< The checkpoint is not open.
-} checkpoint_state;
+};
 
 /**
  * A checkpoint index entry.
@@ -140,7 +140,7 @@ typedef std::map<const std::string, CheckpointCursor> cursor_index;
 /**
  * Result from invoking queueDirty in the current open checkpoint.
  */
-typedef enum {
+enum queue_dirty_t {
     /*
      * The item exists on the right hand side of the persistence cursor. The
      * item will be deduplicated and doesn't change the size of the checkpoint.
@@ -159,7 +159,7 @@ typedef enum {
      * increase the size of the checkpoint.
      */
     NEW_ITEM
-} queue_dirty_t;
+};
 
 /**
  * Representation of a checkpoint used in the unified queue for persistence and

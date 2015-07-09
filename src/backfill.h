@@ -34,10 +34,10 @@
 
 #define DEFAULT_BACKFILL_SNOOZE_TIME 1.0
 
-typedef enum {
+enum backfill_t {
     ALL_MUTATIONS = 1,
     DELETIONS_ONLY
-} backfill_t;
+};
 
 /**
  * Dispatcher callback responsible for bulk backfilling tap queues

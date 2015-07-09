@@ -109,10 +109,10 @@ public:
 /**
  * Connection notifier type.
  */
-typedef enum {
+enum conn_notifier_type {
     TAP_CONN_NOTIFIER, //!< TAP connection notifier
     DCP_CONN_NOTIFIER  //!< DCP connection notifier
-} conn_notifier_type;
+};
 
 /**
  * A collection of tap or dcp connections.

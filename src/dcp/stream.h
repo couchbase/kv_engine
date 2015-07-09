@@ -34,7 +34,7 @@ class DcpConsumer;
 class DcpProducer;
 class DcpResponse;
 
-typedef enum {
+enum stream_state_t {
     STREAM_PENDING,
     STREAM_BACKFILLING,
     STREAM_IN_MEMORY,
@@ -42,9 +42,9 @@ typedef enum {
     STREAM_TAKEOVER_WAIT,
     STREAM_READING,
     STREAM_DEAD
-} stream_state_t;
+};
 
-typedef enum {
+enum end_stream_status_t {
     //! The stream ended due to all items being streamed
     END_STREAM_OK,
     //! The stream closed early due to a close stream message
@@ -53,30 +53,30 @@ typedef enum {
     END_STREAM_STATE,
     //! The stream closed early because the connection was disconnected
     END_STREAM_DISCONNECTED
-} end_stream_status_t;
+};
 
-typedef enum {
+enum stream_type_t {
     STREAM_ACTIVE,
     STREAM_NOTIFIER,
     STREAM_PASSIVE
-} stream_type_t;
+};
 
-typedef enum {
+enum snapshot_type_t {
     none,
     disk,
     memory
-} snapshot_type_t;
+};
 
-typedef enum {
+enum process_items_error_t {
     all_processed,
     more_to_process,
     cannot_process
-} process_items_error_t;
+};
 
-typedef enum {
+enum backfill_source_t {
     BACKFILL_FROM_MEMORY,
     BACKFILL_FROM_DISK
-} backfill_source_t;
+};
 
 class Stream : public RCValue {
 public:

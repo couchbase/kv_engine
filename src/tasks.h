@@ -28,11 +28,11 @@
 #include "priority.h"
 #include "kvstore.h"
 
-typedef enum {
+enum task_state_t {
     TASK_RUNNING,
     TASK_SNOOZED,
     TASK_DEAD
-} task_state_t;
+};
 
 class BgFetcher;
 class CompareTasksByDueDate;

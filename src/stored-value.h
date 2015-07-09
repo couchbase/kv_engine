@@ -557,7 +557,7 @@ private:
 /**
  * Mutation types as returned by store commands.
  */
-typedef enum {
+enum mutation_type_t {
     /**
      * Storage was attempted on a vbucket not managed by this node.
      */
@@ -569,19 +569,19 @@ typedef enum {
     IS_LOCKED,                  //!< The item is locked and can't be updated.
     NOMEM,                      //!< Insufficient memory to store this item.
     NEED_BG_FETCH               //!< Require a bg fetch to process SET op
-} mutation_type_t;
+};
 
 /**
  * Result from add operation.
  */
-typedef enum {
+enum add_type_t {
     ADD_SUCCESS,                //!< Add was successful.
     ADD_NOMEM,                  //!< No memory for operation
     ADD_EXISTS,                 //!< Did not update -- item exists with this key
     ADD_UNDEL,                  //!< Undeletes an existing dirty item
     ADD_TMP_AND_BG_FETCH,       //!< Create a tmp item and schedule a bg metadata fetch
     ADD_BG_FETCH                //!< Schedule a bg metadata fetch to process ADD op
-} add_type_t;
+};
 
 /**
  * Base class for visiting a hash table.
