@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 #ifndef MEMCACHED_H
 #define MEMCACHED_H
 
@@ -19,10 +19,6 @@
 
 #include "rbac.h"
 #include "settings.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
@@ -485,7 +481,7 @@ bool load_extension(const char *soname, const char *config);
 
 int add_conn_to_pending_io_list(conn *c);
 
-extern void drop_privileges(void);
+extern "C" void drop_privileges(void);
 
 /* connection state machine */
 bool conn_listening(conn *c);
@@ -581,9 +577,5 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me);
 void threads_notify_bucket_deletion(void);
 void threads_complete_bucket_deletion(void);
 void threads_initiate_bucket_deletion(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif
