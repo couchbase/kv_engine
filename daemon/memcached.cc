@@ -1546,18 +1546,17 @@ bool binary_response_handler(const void *key, uint16_t keylen,
  * to be in the threadlocal struct right now...
  */
 struct tap_cmd_stats {
-    uint64_t connect;
-    uint64_t mutation;
-    uint64_t checkpoint_start;
-    uint64_t checkpoint_end;
-    uint64_t del;
-    uint64_t flush;
-    uint64_t opaque;
-    uint64_t vbucket_set;
+    StatsCounter<uint64_t> connect;
+    StatsCounter<uint64_t> mutation;
+    StatsCounter<uint64_t> checkpoint_start;
+    StatsCounter<uint64_t> checkpoint_end;
+    StatsCounter<uint64_t> del;
+    StatsCounter<uint64_t> flush;
+    StatsCounter<uint64_t> opaque;
+    StatsCounter<uint64_t> vbucket_set;
 };
 
 struct tap_stats {
-    cb_mutex_t mutex;
     struct tap_cmd_stats sent;
     struct tap_cmd_stats received;
 } tap_stats;
@@ -1679,20 +1678,14 @@ static void ship_tap_log(conn *c) {
             if (event == TAP_CHECKPOINT_START) {
                 msg.mutation.message.header.request.opcode =
                     PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START;
-                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.checkpoint_start++;
-                cb_mutex_exit(&tap_stats.mutex);
             } else if (event == TAP_CHECKPOINT_END) {
                 msg.mutation.message.header.request.opcode =
                     PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END;
-                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.checkpoint_end++;
-                cb_mutex_exit(&tap_stats.mutex);
             } else if (event == TAP_MUTATION) {
                 msg.mutation.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_MUTATION;
-                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.mutation++;
-                cb_mutex_exit(&tap_stats.mutex);
             }
 
             msg.mutation.message.header.request.cas = htonll(info.info.cas);
@@ -1839,9 +1832,7 @@ static void ship_tap_log(conn *c) {
                 }
             }
 
-            cb_mutex_enter(&tap_stats.mutex);
             tap_stats.sent.del++;
-            cb_mutex_exit(&tap_stats.mutex);
             break;
 
         case TAP_DISCONNECT:
@@ -1855,21 +1846,14 @@ static void ship_tap_log(conn *c) {
 
             if (event == TAP_OPAQUE) {
                 msg.flush.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_OPAQUE;
-                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.opaque++;
-                cb_mutex_exit(&tap_stats.mutex);
-
             } else if (event == TAP_FLUSH) {
                 msg.flush.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_FLUSH;
-                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.flush++;
-                cb_mutex_exit(&tap_stats.mutex);
             } else if (event == TAP_VBUCKET_SET) {
                 msg.flush.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET;
                 msg.flush.message.body.tap.flags = htons(tap_flags);
-                cb_mutex_enter(&tap_stats.mutex);
                 tap_stats.sent.vbucket_set++;
-                cb_mutex_exit(&tap_stats.mutex);
             }
 
             msg.flush.message.header.request.bodylen = htonl(8 + nengine);
@@ -2863,9 +2847,7 @@ static void tap_connect_executor(conn *c, void *packet)
     if (c->bucket.engine->get_tap_iterator == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.connect++;
-        cb_mutex_exit(&tap_stats.mutex);
         conn_set_state(c, conn_setup_tap_stream);
     }
 }
@@ -2876,9 +2858,7 @@ static void tap_mutation_executor(conn *c, void *packet)
     if (c->bucket.engine->tap_notify == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.mutation++;
-        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_MUTATION, c);
     }
 }
@@ -2889,9 +2869,7 @@ static void tap_delete_executor(conn *c, void *packet)
     if (c->bucket.engine->tap_notify == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.del++;
-        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_DELETION, c);
     }
 }
@@ -2902,9 +2880,7 @@ static void tap_flush_executor(conn *c, void *packet)
     if (c->bucket.engine->tap_notify == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.flush++;
-        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_FLUSH, c);
     }
 }
@@ -2915,9 +2891,7 @@ static void tap_opaque_executor(conn *c, void *packet)
     if (c->bucket.engine->tap_notify == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.opaque++;
-        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_OPAQUE, c);
     }
 }
@@ -2928,9 +2902,7 @@ static void tap_vbucket_set_executor(conn *c, void *packet)
     if (c->bucket.engine->tap_notify == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.vbucket_set++;
-        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_VBUCKET_SET, c);
     }
 }
@@ -2941,9 +2913,7 @@ static void tap_checkpoint_start_executor(conn *c, void *packet)
     if (c->bucket.engine->tap_notify == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.checkpoint_start++;
-        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_CHECKPOINT_START, c);
     }
 }
@@ -2954,9 +2924,7 @@ static void tap_checkpoint_end_executor(conn *c, void *packet)
     if (c->bucket.engine->tap_notify == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        cb_mutex_enter(&tap_stats.mutex);
         tap_stats.received.checkpoint_end++;
-        cb_mutex_exit(&tap_stats.mutex);
         process_bin_tap_packet(TAP_CHECKPOINT_END, c);
     }
 }
@@ -5488,7 +5456,6 @@ static void server_stats(ADD_STAT add_stat_callback, conn *c) {
     long pid = (long)getpid();
 #endif
     struct slab_stats slab_stats;
-    struct tap_stats ts;
     rel_time_t now = mc_time_get_current_time();
 
     struct thread_stats thread_stats;
@@ -5572,59 +5539,55 @@ static void server_stats(ADD_STAT add_stat_callback, conn *c) {
     /*
      * Add tap stats (only if non-zero)
      */
-    cb_mutex_enter(&tap_stats.mutex);
-    ts = tap_stats;
-    cb_mutex_exit(&tap_stats.mutex);
-
-    if (ts.sent.connect) {
-        add_stat(c, add_stat_callback, "tap_connect_sent", ts.sent.connect);
+    if (tap_stats.sent.connect) {
+        add_stat(c, add_stat_callback, "tap_connect_sent", tap_stats.sent.connect);
     }
-    if (ts.sent.mutation) {
-        add_stat(c, add_stat_callback, "tap_mutation_sent", ts.sent.mutation);
+    if (tap_stats.sent.mutation) {
+        add_stat(c, add_stat_callback, "tap_mutation_sent", tap_stats.sent.mutation);
     }
-    if (ts.sent.checkpoint_start) {
-        add_stat(c, add_stat_callback, "tap_checkpoint_start_sent", ts.sent.checkpoint_start);
+    if (tap_stats.sent.checkpoint_start) {
+        add_stat(c, add_stat_callback, "tap_checkpoint_start_sent", tap_stats.sent.checkpoint_start);
     }
-    if (ts.sent.checkpoint_end) {
-        add_stat(c, add_stat_callback, "tap_checkpoint_end_sent", ts.sent.checkpoint_end);
+    if (tap_stats.sent.checkpoint_end) {
+        add_stat(c, add_stat_callback, "tap_checkpoint_end_sent", tap_stats.sent.checkpoint_end);
     }
-    if (ts.sent.del) {
-        add_stat(c, add_stat_callback, "tap_delete_sent", ts.sent.del);
+    if (tap_stats.sent.del) {
+        add_stat(c, add_stat_callback, "tap_delete_sent", tap_stats.sent.del);
     }
-    if (ts.sent.flush) {
-        add_stat(c, add_stat_callback, "tap_flush_sent", ts.sent.flush);
+    if (tap_stats.sent.flush) {
+        add_stat(c, add_stat_callback, "tap_flush_sent", tap_stats.sent.flush);
     }
-    if (ts.sent.opaque) {
-        add_stat(c, add_stat_callback, "tap_opaque_sent", ts.sent.opaque);
+    if (tap_stats.sent.opaque) {
+        add_stat(c, add_stat_callback, "tap_opaque_sent", tap_stats.sent.opaque);
     }
-    if (ts.sent.vbucket_set) {
+    if (tap_stats.sent.vbucket_set) {
         add_stat(c, add_stat_callback, "tap_vbucket_set_sent",
-                    ts.sent.vbucket_set);
+                 tap_stats.sent.vbucket_set);
     }
-    if (ts.received.connect) {
-        add_stat(c, add_stat_callback, "tap_connect_received", ts.received.connect);
+    if (tap_stats.received.connect) {
+        add_stat(c, add_stat_callback, "tap_connect_received", tap_stats.received.connect);
     }
-    if (ts.received.mutation) {
-        add_stat(c, add_stat_callback, "tap_mutation_received", ts.received.mutation);
+    if (tap_stats.received.mutation) {
+        add_stat(c, add_stat_callback, "tap_mutation_received", tap_stats.received.mutation);
     }
-    if (ts.received.checkpoint_start) {
-        add_stat(c, add_stat_callback, "tap_checkpoint_start_received", ts.received.checkpoint_start);
+    if (tap_stats.received.checkpoint_start) {
+        add_stat(c, add_stat_callback, "tap_checkpoint_start_received", tap_stats.received.checkpoint_start);
     }
-    if (ts.received.checkpoint_end) {
-        add_stat(c, add_stat_callback, "tap_checkpoint_end_received", ts.received.checkpoint_end);
+    if (tap_stats.received.checkpoint_end) {
+        add_stat(c, add_stat_callback, "tap_checkpoint_end_received", tap_stats.received.checkpoint_end);
     }
-    if (ts.received.del) {
-        add_stat(c, add_stat_callback, "tap_delete_received", ts.received.del);
+    if (tap_stats.received.del) {
+        add_stat(c, add_stat_callback, "tap_delete_received", tap_stats.received.del);
     }
-    if (ts.received.flush) {
-        add_stat(c, add_stat_callback, "tap_flush_received", ts.received.flush);
+    if (tap_stats.received.flush) {
+        add_stat(c, add_stat_callback, "tap_flush_received", tap_stats.received.flush);
     }
-    if (ts.received.opaque) {
-        add_stat(c, add_stat_callback, "tap_opaque_received", ts.received.opaque);
+    if (tap_stats.received.opaque) {
+        add_stat(c, add_stat_callback, "tap_opaque_received", tap_stats.received.opaque);
     }
-    if (ts.received.vbucket_set) {
+    if (tap_stats.received.vbucket_set) {
         add_stat(c, add_stat_callback, "tap_vbucket_set_received",
-                    ts.received.vbucket_set);
+                 tap_stats.received.vbucket_set);
     }
 }
 
@@ -8603,7 +8566,6 @@ int main (int argc, char **argv) {
 
     /* Initialize global variables */
     cb_mutex_initialize(&listen_state.mutex);
-    cb_mutex_initialize(&tap_stats.mutex);
     cb_mutex_initialize(&stats_lock);
     cb_mutex_initialize(&session_cas.mutex);
 
