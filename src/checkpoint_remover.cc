@@ -33,7 +33,7 @@ public:
      * Construct a CheckpointVisitor.
      */
     CheckpointVisitor(EventuallyPersistentStore *s, EPStats &st, bool *sfin)
-        : store(s), stats(st), removed(0),
+        : store(s), stats(st), removed(0), taskStart(gethrtime()),
           wasHighMemoryUsage(s->isMemoryUsageTooHigh()), stateFinalizer(sfin) {}
 
     bool visitBucket(RCPtr<VBucket> &vb) {
@@ -69,6 +69,8 @@ public:
             *stateFinalizer = true;
         }
 
+        stats.checkpointRemoverHisto.add((gethrtime() - taskStart) / 1000);
+
         // Wake up any sleeping backfill tasks if the memory usage is lowered
         // below the high watermark as a result of checkpoint removal.
         if (wasHighMemoryUsage && !store->isMemoryUsageTooHigh()) {
@@ -80,6 +82,7 @@ private:
     EventuallyPersistentStore *store;
     EPStats                   &stats;
     size_t                     removed;
+    hrtime_t                   taskStart;
     bool                       wasHighMemoryUsage;
     bool                      *stateFinalizer;
 };

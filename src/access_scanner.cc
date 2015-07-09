@@ -28,7 +28,7 @@ public:
     ItemAccessVisitor(EventuallyPersistentStore &_store, EPStats &_stats,
                       uint16_t sh, bool *sfin, AccessScanner *aS) :
         store(_store), stats(_stats), startTime(ep_real_time()),
-        shardID(sh), stateFinalizer(sfin), as(aS)
+        taskStart(gethrtime()), shardID(sh), stateFinalizer(sfin), as(aS)
     {
         Configuration &conf = store.getEPEngine().getConfiguration();
         name = conf.getAlogPath();
@@ -98,6 +98,7 @@ public:
             ++stats.alogRuns;
             stats.alogRuntime.store(ep_real_time() - startTime);
             stats.alogNumItems.store(num_items);
+            stats.accessScannerHisto.add((gethrtime() - taskStart) / 1000);
 
             if (num_items == 0) {
                 LOG(EXTENSION_LOG_INFO, "The new access log is empty. "
@@ -129,6 +130,7 @@ private:
     EventuallyPersistentStore &store;
     EPStats &stats;
     rel_time_t startTime;
+    hrtime_t taskStart;
     std::string prev;
     std::string next;
     std::string name;

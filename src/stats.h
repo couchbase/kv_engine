@@ -361,6 +361,15 @@ public:
     //! Histogram of setWithMeta latencies.
     Histogram<hrtime_t> setWithMetaHisto;
 
+    //! Histogram of access scanner run times
+    Histogram<hrtime_t> accessScannerHisto;
+    //! Historgram of checkpoint remover run times
+    Histogram<hrtime_t> checkpointRemoverHisto;
+    //! Histogram of item pager run times
+    Histogram<hrtime_t> itemPagerHisto;
+    //! Histogram of expiry pager run times
+    Histogram<hrtime_t> expiryPagerHisto;
+
     /* TAP related stats */
     //! The total number of tap events sent (not including noops)
     AtomicValue<size_t> numTapFetched;
@@ -578,6 +587,10 @@ public:
         bgWaitHisto.reset();
         bgLoadHisto.reset();
         setWithMetaHisto.reset();
+        accessScannerHisto.reset();
+        checkpointRemoverHisto.reset();
+        itemPagerHisto.reset();
+        expiryPagerHisto.reset();
         tapBgWaitHisto.reset();
         tapBgLoadHisto.reset();
         getVbucketCmdHisto.reset();

@@ -4173,6 +4173,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("bg_tap_load", stats.tapBgLoadHisto, add_stat, cookie);
     add_casted_stat("pending_ops", stats.pendingOpsHisto, add_stat, cookie);
 
+    // Vbucket visitors
+    add_casted_stat("access_scanner", stats.accessScannerHisto, add_stat, cookie);
+    add_casted_stat("checkpoint_remover", stats.checkpointRemoverHisto, add_stat, cookie);
+    add_casted_stat("item_pager", stats.itemPagerHisto, add_stat, cookie);
+    add_casted_stat("expiry_pager", stats.expiryPagerHisto, add_stat, cookie);
+
     add_casted_stat("storage_age", stats.dirtyAgeHisto, add_stat, cookie);
 
     // Regular commands

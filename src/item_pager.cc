@@ -32,6 +32,11 @@
 
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
+enum pager_type_t {
+    ITEM_PAGER,
+    EXPIRY_PAGER
+};
+
 /**
  * As part of the ItemPager, visit all of the objects in memory and
  * eject some within a constrained probability
@@ -53,13 +58,14 @@ public:
      * @param phase pointer to an item_pager_phase to be set
      */
     PagingVisitor(EventuallyPersistentStore &s, EPStats &st, double pcnt,
-                  bool *sfin, bool pause = false,
+                  bool *sfin, pager_type_t caller, bool pause = false,
                   double bias = 1, item_pager_phase *phase = NULL)
       : store(s), stats(st), percent(pcnt),
         activeBias(bias), ejected(0),
-        startTime(ep_real_time()), stateFinalizer(sfin), canPause(pause),
-        completePhase(true), wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
-        pager_phase(phase) {}
+        startTime(ep_real_time()), stateFinalizer(sfin), owner(caller),
+        canPause(pause), completePhase(true),
+        wasHighMemoryUsage(s.isMemoryUsageTooHigh()),
+        taskStart(gethrtime()), pager_phase(phase) {}
 
     void visit(StoredValue *v) {
         // Delete expired items for an active vbucket.
@@ -157,6 +163,14 @@ public:
 
     void complete() {
         update();
+
+        hrtime_t elapsed_time = (gethrtime() - taskStart) / 1000;
+        if (owner == ITEM_PAGER) {
+            stats.itemPagerHisto.add(elapsed_time);
+        } else if (owner == EXPIRY_PAGER) {
+            stats.expiryPagerHisto.add(elapsed_time);
+        }
+
         if (stateFinalizer) {
             *stateFinalizer = true;
         }
@@ -221,9 +235,11 @@ private:
     size_t ejected;
     time_t startTime;
     bool *stateFinalizer;
+    pager_type_t owner;
     bool canPause;
     bool completePhase;
     bool wasHighMemoryUsage;
+    hrtime_t taskStart;
     item_pager_phase *pager_phase;
 };
 
@@ -259,7 +275,7 @@ bool ItemPager::run(void) {
 
         available = false;
         shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, toKill,
-                                                       &available,
+                                                       &available, ITEM_PAGER,
                                                        false, bias, &phase));
         store->visit(pv, "Item pager", NONIO_TASK_IDX,
                     Priority::ItemPagerPriority);
@@ -276,7 +292,7 @@ bool ExpiredItemPager::run(void) {
 
         available = false;
         shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, -1,
-                                                       &available,
+                                                       &available, EXPIRY_PAGER,
                                                        true, 1, NULL));
         // track spawned tasks for shutdown..
         store->visit(pv, "Expired item remover", NONIO_TASK_IDX,

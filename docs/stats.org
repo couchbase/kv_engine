@@ -782,6 +782,10 @@ form to describe when time was spent doing various things:
 | bg_wait               | bg fetches waiting in the dispatcher queue     |
 | bg_load               | bg fetches waiting for disk                    |
 | set_with_meta         | set_with_meta latencies                        |
+| access_scanner        | access scanner run times                       |
+| checkpoint_remover    | checkpoint remover run times                   |
+| item_pager            | item pager run times                           |
+| expiry_pager          | expiry pager run times                         |
 | bg_tap_wait           | tap bg fetches waiting in the dispatcher queue |
 | bg_tap_load           | tap bg fetches waiting for disk                |
 | pending_ops           | client connections blocked for operations      |
