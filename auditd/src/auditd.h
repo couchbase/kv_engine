@@ -17,7 +17,7 @@
 #ifndef AUDITD_H
 #define AUDITD_H
 
-typedef enum {
+enum class AuditErrorCode {
     AUDIT_EXTENSION_DATA_ERROR,
     FILE_OPEN_ERROR,
     FILE_RENAME_ERROR,
@@ -49,7 +49,7 @@ typedef enum {
     MISSING_AUDIT_EVENTS_FILE_ERROR,
     ROTATE_INTERVAL_SIZE_TOO_BIG,
     AUDIT_DIRECTORY_DONT_EXIST
-} ErrorCode;
+};
 
 extern time_t auditd_time(time_t *tloc);
 

@@ -99,7 +99,7 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
     Audit::notify_io_complete = extension_data->notify_io_complete;
 
     if (extension_data->version != 1) {
-        Audit::log_error(AUDIT_EXTENSION_DATA_ERROR, NULL);
+        Audit::log_error(AuditErrorCode::AUDIT_EXTENSION_DATA_ERROR, NULL);
         return AUDIT_FAILED;
     }
     AuditConfig::min_file_rotation_time = extension_data->min_file_rotation_time;
@@ -107,7 +107,7 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
 
     if (cb_create_named_thread(&audit.consumer_tid, consume_events, NULL, 0,
                                "mc:auditd") != 0) {
-        Audit::log_error(CB_CREATE_THREAD_ERROR, NULL);
+        Audit::log_error(AuditErrorCode::CB_CREATE_THREAD_ERROR, NULL);
         return AUDIT_FAILED;
     }
     return AUDIT_SUCCESS;

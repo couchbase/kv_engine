@@ -31,7 +31,7 @@ bool Event::process(Audit& audit) {
     // convert the event.payload into JSON
     cJSON *json_payload = cJSON_Parse(payload.c_str());
     if (json_payload == NULL) {
-        Audit::log_error(JSON_PARSING_ERROR, payload.c_str());
+        Audit::log_error(AuditErrorCode::JSON_PARSING_ERROR, payload.c_str());
         return false;
     }
     cJSON *timestamp_ptr = cJSON_GetObjectItem(json_payload, "timestamp");
@@ -45,7 +45,7 @@ bool Event::process(Audit& audit) {
         // it is an unknown event
         std::ostringstream convert;
         convert << id;
-        Audit::log_error(UNKNOWN_EVENT_ERROR, convert.str().c_str());
+        Audit::log_error(AuditErrorCode::UNKNOWN_EVENT_ERROR, convert.str().c_str());
         cJSON_Delete(json_payload);
         return false;
     }
@@ -55,7 +55,7 @@ bool Event::process(Audit& audit) {
         return true;
     }
     if (!audit.auditfile.ensure_open()) {
-        Audit::log_error(OPEN_AUDITFILE_ERROR, NULL);
+        Audit::log_error(AuditErrorCode::OPEN_AUDITFILE_ERROR, NULL);
         cJSON_Delete(json_payload);
         return false;
     }
@@ -71,7 +71,7 @@ bool Event::process(Audit& audit) {
     if (success) {
         return true;
     } else {
-        Audit::log_error(WRITE_EVENT_TO_DISK_ERROR, NULL);
+        Audit::log_error(AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR, NULL);
         return false;
     }
 }

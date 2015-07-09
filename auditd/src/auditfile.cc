@@ -91,7 +91,7 @@ bool AuditFile::open(void) {
     open_file_name = ss.str();
     file = fopen(open_file_name.c_str(), "wb");
     if (file == NULL) {
-        log_error(FILE_OPEN_ERROR, open_file_name.c_str());
+        log_error(AuditErrorCode::FILE_OPEN_ERROR, open_file_name.c_str());
         return false;
     }
     current_size = 0;
@@ -134,7 +134,7 @@ void AuditFile::close_and_rotate_log(void) {
     } while (file_exists(fname));
 
     if (rename(open_file_name.c_str(), fname.c_str()) != 0) {
-        log_error(FILE_RENAME_ERROR, open_file_name.c_str());
+        log_error(AuditErrorCode::FILE_RENAME_ERROR, open_file_name.c_str());
     }
     open_time = 0;
 }
@@ -245,7 +245,7 @@ bool AuditFile::write_event_to_disk(cJSON *output) {
     if (content) {
         current_size += fprintf(file, "%s\n", content);
         if (ferror(file)) {
-            log_error(WRITING_TO_DISK_ERROR, strerror(errno));
+            log_error(AuditErrorCode::WRITING_TO_DISK_ERROR, strerror(errno));
             ret = false;
             close_and_rotate_log();
         } else if (!buffered) {
@@ -253,7 +253,8 @@ bool AuditFile::write_event_to_disk(cJSON *output) {
         }
         cJSON_Free(content);
     } else {
-        log_error(MEMORY_ALLOCATION_ERROR, "failed to convert audit event");
+        log_error(AuditErrorCode::MEMORY_ALLOCATION_ERROR,
+                  "failed to convert audit event");
     }
 
     return ret;
@@ -276,7 +277,8 @@ void AuditFile::set_log_directory(const std::string &new_directory) {
         // The directory does not exist and we failed to create
         // it. This is not a fatal error, but it does mean that the
         // node won't be able to do any auditing
-        log_error(AUDIT_DIRECTORY_DONT_EXIST, log_directory.c_str());
+        log_error(AuditErrorCode::AUDIT_DIRECTORY_DONT_EXIST,
+                  log_directory.c_str());
     }
 }
 
@@ -290,7 +292,8 @@ void AuditFile::reconfigure(const AuditConfig &config) {
 bool AuditFile::flush(void) {
     if (is_open()) {
         if (fflush(file) != 0) {
-            log_error(WRITING_TO_DISK_ERROR, strerror(errno));
+            log_error(AuditErrorCode::WRITING_TO_DISK_ERROR,
+                      strerror(errno));
             close_and_rotate_log();
             return false;
         }
