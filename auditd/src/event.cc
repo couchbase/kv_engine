@@ -35,11 +35,10 @@ bool Event::process(Audit& audit) {
         return false;
     }
     cJSON *timestamp_ptr = cJSON_GetObjectItem(json_payload, "timestamp");
-    std::string timestamp;
     if (timestamp_ptr == NULL) {
+        std::string timestamp;
         timestamp = ISOTime::generatetimestamp();
-    } else {
-        timestamp = std::string(timestamp_ptr->valuestring);
+        cJSON_AddStringToObject(json_payload, "timestamp", timestamp.c_str());
     }
     auto evt = audit.events.find(id);
     if (evt == audit.events.end()) {
