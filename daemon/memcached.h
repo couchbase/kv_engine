@@ -67,21 +67,6 @@
 #define IOCTL_KEY_LENGTH 128
 #define IOCTL_VAL_LENGTH 128
 
-/** Append a simple stat with a stat name, value format and value */
-#define APPEND_STAT(name, fmt, val) \
-    append_stat(name, add_stats, c, fmt, val);
-
-/** Append an indexed stat with a stat name (with format), value format
-    and value */
-#define APPEND_NUM_FMT_STAT(name_fmt, num, name, fmt, val)          \
-    klen = snprintf(key_str, STAT_KEY_LEN, name_fmt, num, name);    \
-    vlen = snprintf(val_str, STAT_VAL_LEN, fmt, val);               \
-    add_stats(key_str, klen, val_str, vlen, c);
-
-/** Common APPEND_NUM_FMT_STAT format. */
-#define APPEND_NUM_STAT(num, name, fmt, val) \
-    APPEND_NUM_FMT_STAT("%d:%s", num, name, fmt, val)
-
 enum bin_substates {
     bin_no_state,
     bin_reading_packet
@@ -98,7 +83,11 @@ public:
                     std::memory_order_relaxed);
     }
 
-    uint64_t load() const {
+    operator T() const {
+        return value.load(std::memory_order_relaxed);
+    }
+
+    T load() const {
         return value.load(std::memory_order_relaxed);
     }
 

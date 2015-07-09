@@ -5470,8 +5470,36 @@ void append_stat(const char *name, ADD_STAT add_stats, void *c,
     add_stats(name, (uint16_t)strlen(name), val_str, vlen, c);
 }
 
+template <typename T>
+void add_stat(const void *cookie, ADD_STAT add_stat_callback,
+              const std::string &name, const T &val) {
+    std::string value = std::to_string(val);
+    add_stat_callback(name.c_str(), uint16_t(name.length()),
+                      value.c_str(), uint32_t(value.length()), cookie);
+}
+
+void add_stat(const void *cookie, ADD_STAT add_stat_callback,
+              const std::string &name, const std::string &value) {
+    add_stat_callback(name.c_str(), uint16_t(name.length()),
+                      value.c_str(), uint32_t(value.length()), cookie);
+}
+
+void add_stat(const void *cookie, ADD_STAT add_stat_callback,
+              const std::string &name, const char *value) {
+    add_stat(cookie, add_stat_callback, name, std::string(value));
+}
+
+void add_stat(const void *cookie, ADD_STAT add_stat_callback,
+              const std::string &name, const bool value) {
+    if (value) {
+        add_stat(cookie, add_stat_callback, name, "true");
+    } else {
+        add_stat(cookie, add_stat_callback, name, "false");
+    }
+}
+
 /* return server specific stats only */
-static void server_stats(ADD_STAT add_stats, conn *c) {
+static void server_stats(ADD_STAT add_stat_callback, conn *c) {
 #ifdef WIN32
     long pid = GetCurrentProcessId();
 #else
@@ -5479,7 +5507,6 @@ static void server_stats(ADD_STAT add_stats, conn *c) {
     long pid = (long)getpid();
 #endif
     struct slab_stats slab_stats;
-    char stat_key[1024];
     struct tap_stats ts;
     rel_time_t now = mc_time_get_current_time();
 
@@ -5497,78 +5524,81 @@ static void server_stats(ADD_STAT add_stats, conn *c) {
 
     STATS_LOCK();
 
-    APPEND_STAT("pid", "%lu", pid);
-    APPEND_STAT("uptime", "%u", now);
-    APPEND_STAT("stat_reset", "%s", reset_stats_time);
-    APPEND_STAT("time", "%ld", mc_time_convert_to_abs_time(now));
-    APPEND_STAT("version", "%s", get_server_version());
-    APPEND_STAT("memcached_version", "%s", MEMCACHED_VERSION);
-    APPEND_STAT("libevent", "%s", event_get_version());
-    APPEND_STAT("pointer_size", "%d", (int)(8 * sizeof(void *)));
+    add_stat(c, add_stat_callback, "pid", pid);
+    add_stat(c, add_stat_callback, "uptime", now);
+    add_stat(c, add_stat_callback, "stat_reset", (const char*)reset_stats_time);
+    add_stat(c, add_stat_callback, "time", mc_time_convert_to_abs_time(now));
+    add_stat(c, add_stat_callback, "version", get_server_version());
+    add_stat(c, add_stat_callback, "memcached_version", MEMCACHED_VERSION);
+    add_stat(c, add_stat_callback, "libevent", event_get_version());
+    add_stat(c, add_stat_callback, "pointer_size", (8 * sizeof(void *)));
 
 #ifndef WIN32
-    append_stat("rusage_user", add_stats, c, "%ld.%06ld",
+    append_stat("rusage_user", add_stat_callback, c, "%ld.%06ld",
                 (long)usage.ru_utime.tv_sec,
                 (long)usage.ru_utime.tv_usec);
-    append_stat("rusage_system", add_stats, c, "%ld.%06ld",
+    append_stat("rusage_system", add_stat_callback, c, "%ld.%06ld",
                 (long)usage.ru_stime.tv_sec,
                 (long)usage.ru_stime.tv_usec);
 #endif
 
-    APPEND_STAT("daemon_connections", "%u",
+    add_stat(c, add_stat_callback, "daemon_connections",
                 stats.daemon_conns.load(std::memory_order_relaxed));
-    APPEND_STAT("curr_connections", "%u",
+    add_stat(c, add_stat_callback, "curr_connections",
                 stats.curr_conns.load(std::memory_order_relaxed));
     for (int ii = 0; ii < settings.num_interfaces; ++ii) {
-        sprintf(stat_key, "%s", "max_conns_on_port_");
-        sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[ii].port);
-        APPEND_STAT(stat_key, "%d", stats.listening_ports[ii].maxconns);
-        sprintf(stat_key, "%s", "curr_conns_on_port_");
-        sprintf(stat_key + strlen(stat_key), "%d", stats.listening_ports[ii].port);
-        APPEND_STAT(stat_key, "%d", stats.listening_ports[ii].curr_conns);
+        std::string key = "max_conns_on_port_" +
+                std::to_string(stats.listening_ports[ii].port);
+        add_stat(c, add_stat_callback, key,
+                 stats.listening_ports[ii].maxconns);
+        key = "curr_conns_on_port_" +
+                std::to_string(stats.listening_ports[ii].port);
+        add_stat(c, add_stat_callback, key,
+                 stats.listening_ports[ii].curr_conns);
     }
-    APPEND_STAT("total_connections", "%u",
+    add_stat(c, add_stat_callback, "total_connections",
                 stats.total_conns.load(std::memory_order_relaxed));
-    APPEND_STAT("connection_structures", "%u",
+    add_stat(c, add_stat_callback, "connection_structures",
                 stats.conn_structs.load(std::memory_order_relaxed));
-    APPEND_STAT("cmd_get", "%" PRIu64, thread_stats.cmd_get.load());
-    APPEND_STAT("cmd_set", "%" PRIu64, slab_stats.cmd_set.load());
-    APPEND_STAT("cmd_flush", "%" PRIu64, thread_stats.cmd_flush.load());
+    add_stat(c, add_stat_callback, "cmd_get", thread_stats.cmd_get);
+    add_stat(c, add_stat_callback, "cmd_set", slab_stats.cmd_set);
+    add_stat(c, add_stat_callback, "cmd_flush", thread_stats.cmd_flush);
     // index 0 contains the aggregated timings for all buckets
-    uint64_t total_mutations = all_buckets[0].timings.get_aggregated_cmd_stats(CmdStat::TOTAL_MUTATION);
-    uint64_t total_retrivals = all_buckets[0].timings.get_aggregated_cmd_stats(CmdStat::TOTAL_RETRIVAL);
+    auto &timings = all_buckets[0].timings;
+    uint64_t total_mutations = timings.get_aggregated_cmd_stats(CmdStat::TOTAL_MUTATION);
+    uint64_t total_retrivals = timings.get_aggregated_cmd_stats(CmdStat::TOTAL_RETRIVAL);
     uint64_t total_ops = all_buckets[0].timings.get_aggregated_cmd_stats(CmdStat::TOTAL);
-    APPEND_STAT("cmd_total_sets", "%" PRIu64, total_mutations);
-    APPEND_STAT("cmd_total_gets", "%" PRIu64, total_retrivals);
-    APPEND_STAT("cmd_total_ops", "%" PRIu64, total_ops);
-    APPEND_STAT("auth_cmds", "%" PRIu64, thread_stats.auth_cmds.load());
-    APPEND_STAT("auth_errors", "%" PRIu64, thread_stats.auth_errors.load());
-    APPEND_STAT("get_hits", "%" PRIu64, slab_stats.get_hits.load());
-    APPEND_STAT("get_misses", "%" PRIu64, thread_stats.get_misses.load());
-    APPEND_STAT("delete_misses", "%" PRIu64, thread_stats.delete_misses.load());
-    APPEND_STAT("delete_hits", "%" PRIu64, slab_stats.delete_hits.load());
-    APPEND_STAT("incr_misses", "%" PRIu64, thread_stats.incr_misses.load());
-    APPEND_STAT("incr_hits", "%" PRIu64, thread_stats.incr_hits.load());
-    APPEND_STAT("decr_misses", "%" PRIu64, thread_stats.decr_misses.load());
-    APPEND_STAT("decr_hits", "%" PRIu64, thread_stats.decr_hits.load());
-    APPEND_STAT("cas_misses", "%" PRIu64, thread_stats.cas_misses.load());
-    APPEND_STAT("cas_hits", "%" PRIu64, slab_stats.cas_hits.load());
-    APPEND_STAT("cas_badval", "%" PRIu64, slab_stats.cas_badval.load());
-    APPEND_STAT("bytes_read", "%" PRIu64, thread_stats.bytes_read.load());
-    APPEND_STAT("bytes_written", "%" PRIu64, thread_stats.bytes_written.load());
-    APPEND_STAT("accepting_conns", "%u",  is_listen_disabled() ? 0 : 1);
-    APPEND_STAT("listen_disabled_num", "%" PRIu64, get_listen_disabled_num());
-    APPEND_STAT("rejected_conns", "%" PRIu64,
+    add_stat(c, add_stat_callback, "cmd_total_sets", total_mutations);
+    add_stat(c, add_stat_callback, "cmd_total_gets", total_retrivals);
+    add_stat(c, add_stat_callback, "cmd_total_ops", total_ops);
+    add_stat(c, add_stat_callback, "auth_cmds", thread_stats.auth_cmds);
+    add_stat(c, add_stat_callback, "auth_errors", thread_stats.auth_errors);
+    add_stat(c, add_stat_callback, "get_hits", slab_stats.get_hits);
+    add_stat(c, add_stat_callback, "get_misses", thread_stats.get_misses);
+    add_stat(c, add_stat_callback, "delete_misses", thread_stats.delete_misses);
+    add_stat(c, add_stat_callback, "delete_hits", slab_stats.delete_hits);
+    add_stat(c, add_stat_callback, "incr_misses", thread_stats.incr_misses);
+    add_stat(c, add_stat_callback, "incr_hits", thread_stats.incr_hits);
+    add_stat(c, add_stat_callback, "decr_misses", thread_stats.decr_misses);
+    add_stat(c, add_stat_callback, "decr_hits", thread_stats.decr_hits);
+    add_stat(c, add_stat_callback, "cas_misses", thread_stats.cas_misses);
+    add_stat(c, add_stat_callback, "cas_hits", slab_stats.cas_hits);
+    add_stat(c, add_stat_callback, "cas_badval", slab_stats.cas_badval);
+    add_stat(c, add_stat_callback, "bytes_read", thread_stats.bytes_read);
+    add_stat(c, add_stat_callback, "bytes_written", thread_stats.bytes_written);
+    add_stat(c, add_stat_callback, "accepting_conns", is_listen_disabled() ? 0 : 1);
+    add_stat(c, add_stat_callback, "listen_disabled_num", get_listen_disabled_num());
+    add_stat(c, add_stat_callback, "rejected_conns",
                 stats.rejected_conns.load(std::memory_order_relaxed));
-    APPEND_STAT("threads", "%d", settings.num_threads);
-    APPEND_STAT("conn_yields", "%" PRIu64, (uint64_t)thread_stats.conn_yields.load());
-    APPEND_STAT("rbufs_allocated", "%" PRIu64, thread_stats.rbufs_allocated.load());
-    APPEND_STAT("rbufs_loaned", "%" PRIu64, thread_stats.rbufs_loaned.load());
-    APPEND_STAT("rbufs_existing", "%" PRIu64, thread_stats.rbufs_existing.load());
-    APPEND_STAT("wbufs_allocated", "%" PRIu64, thread_stats.wbufs_allocated.load());
-    APPEND_STAT("wbufs_loaned", "%" PRIu64, thread_stats.wbufs_loaned.load());
-    APPEND_STAT("iovused_high_watermark", "%" PRIu64, (uint64_t)thread_stats.iovused_high_watermark);
-    APPEND_STAT("msgused_high_watermark", "%" PRIu64, (uint64_t)thread_stats.msgused_high_watermark);
+    add_stat(c, add_stat_callback, "threads", settings.num_threads);
+    add_stat(c, add_stat_callback, "conn_yields", thread_stats.conn_yields);
+    add_stat(c, add_stat_callback, "rbufs_allocated", thread_stats.rbufs_allocated);
+    add_stat(c, add_stat_callback, "rbufs_loaned", thread_stats.rbufs_loaned);
+    add_stat(c, add_stat_callback, "rbufs_existing", thread_stats.rbufs_existing);
+    add_stat(c, add_stat_callback, "wbufs_allocated", thread_stats.wbufs_allocated);
+    add_stat(c, add_stat_callback, "wbufs_loaned", thread_stats.wbufs_loaned);
+    add_stat(c, add_stat_callback, "iovused_high_watermark", thread_stats.iovused_high_watermark);
+    add_stat(c, add_stat_callback, "msgused_high_watermark", thread_stats.msgused_high_watermark);
     STATS_UNLOCK();
 
     /*
@@ -5579,61 +5609,61 @@ static void server_stats(ADD_STAT add_stats, conn *c) {
     cb_mutex_exit(&tap_stats.mutex);
 
     if (ts.sent.connect) {
-        APPEND_STAT("tap_connect_sent", "%" PRIu64, ts.sent.connect);
+        add_stat(c, add_stat_callback, "tap_connect_sent", ts.sent.connect);
     }
     if (ts.sent.mutation) {
-        APPEND_STAT("tap_mutation_sent", "%" PRIu64, ts.sent.mutation);
+        add_stat(c, add_stat_callback, "tap_mutation_sent", ts.sent.mutation);
     }
     if (ts.sent.checkpoint_start) {
-        APPEND_STAT("tap_checkpoint_start_sent", "%" PRIu64, ts.sent.checkpoint_start);
+        add_stat(c, add_stat_callback, "tap_checkpoint_start_sent", ts.sent.checkpoint_start);
     }
     if (ts.sent.checkpoint_end) {
-        APPEND_STAT("tap_checkpoint_end_sent", "%" PRIu64, ts.sent.checkpoint_end);
+        add_stat(c, add_stat_callback, "tap_checkpoint_end_sent", ts.sent.checkpoint_end);
     }
     if (ts.sent.del) {
-        APPEND_STAT("tap_delete_sent", "%" PRIu64, ts.sent.del);
+        add_stat(c, add_stat_callback, "tap_delete_sent", ts.sent.del);
     }
     if (ts.sent.flush) {
-        APPEND_STAT("tap_flush_sent", "%" PRIu64, ts.sent.flush);
+        add_stat(c, add_stat_callback, "tap_flush_sent", ts.sent.flush);
     }
     if (ts.sent.opaque) {
-        APPEND_STAT("tap_opaque_sent", "%" PRIu64, ts.sent.opaque);
+        add_stat(c, add_stat_callback, "tap_opaque_sent", ts.sent.opaque);
     }
     if (ts.sent.vbucket_set) {
-        APPEND_STAT("tap_vbucket_set_sent", "%" PRIu64,
+        add_stat(c, add_stat_callback, "tap_vbucket_set_sent",
                     ts.sent.vbucket_set);
     }
     if (ts.received.connect) {
-        APPEND_STAT("tap_connect_received", "%" PRIu64, ts.received.connect);
+        add_stat(c, add_stat_callback, "tap_connect_received", ts.received.connect);
     }
     if (ts.received.mutation) {
-        APPEND_STAT("tap_mutation_received", "%" PRIu64, ts.received.mutation);
+        add_stat(c, add_stat_callback, "tap_mutation_received", ts.received.mutation);
     }
     if (ts.received.checkpoint_start) {
-        APPEND_STAT("tap_checkpoint_start_received", "%" PRIu64, ts.received.checkpoint_start);
+        add_stat(c, add_stat_callback, "tap_checkpoint_start_received", ts.received.checkpoint_start);
     }
     if (ts.received.checkpoint_end) {
-        APPEND_STAT("tap_checkpoint_end_received", "%" PRIu64, ts.received.checkpoint_end);
+        add_stat(c, add_stat_callback, "tap_checkpoint_end_received", ts.received.checkpoint_end);
     }
     if (ts.received.del) {
-        APPEND_STAT("tap_delete_received", "%" PRIu64, ts.received.del);
+        add_stat(c, add_stat_callback, "tap_delete_received", ts.received.del);
     }
     if (ts.received.flush) {
-        APPEND_STAT("tap_flush_received", "%" PRIu64, ts.received.flush);
+        add_stat(c, add_stat_callback, "tap_flush_received", ts.received.flush);
     }
     if (ts.received.opaque) {
-        APPEND_STAT("tap_opaque_received", "%" PRIu64, ts.received.opaque);
+        add_stat(c, add_stat_callback, "tap_opaque_received", ts.received.opaque);
     }
     if (ts.received.vbucket_set) {
-        APPEND_STAT("tap_vbucket_set_received", "%" PRIu64,
+        add_stat(c, add_stat_callback, "tap_vbucket_set_received",
                     ts.received.vbucket_set);
     }
 }
 
-static void process_stat_settings(ADD_STAT add_stats, void *c) {
+static void process_stat_settings(ADD_STAT add_stat_callback, void *c) {
     int ii;
-    cb_assert(add_stats);
-    APPEND_STAT("maxconns", "%d", settings.maxconns);
+    cb_assert(add_stat_callback);
+    add_stat(c, add_stat_callback, "maxconns", settings.maxconns);
 
     for (ii = 0; ii < settings.num_interfaces; ++ii) {
         char interface[1024];
@@ -5647,76 +5677,70 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
         }
 
         snprintf(interface + offset, sizeof(interface) - offset, "-maxconn");
-        APPEND_STAT(interface, "%u", settings.interfaces[ii].maxconn);
+        add_stat(c, add_stat_callback, interface, settings.interfaces[ii].maxconn);
         snprintf(interface + offset, sizeof(interface) - offset, "-backlog");
-        APPEND_STAT(interface, "%u", settings.interfaces[ii].backlog);
+        add_stat(c, add_stat_callback, interface, settings.interfaces[ii].backlog);
         snprintf(interface + offset, sizeof(interface) - offset, "-ipv4");
-        APPEND_STAT(interface, "%s", settings.interfaces[ii].ipv4 ?
-                    "true" : "false");
+        add_stat(c, add_stat_callback, interface, settings.interfaces[ii].ipv4);
         snprintf(interface + offset, sizeof(interface) - offset, "-ipv6");
-        APPEND_STAT(interface, "%s", settings.interfaces[ii].ipv6 ?
-                    "true" : "false");
+        add_stat(c, add_stat_callback, interface, settings.interfaces[ii].ipv6);
 
         snprintf(interface + offset, sizeof(interface) - offset,
                  "-tcp_nodelay");
-        APPEND_STAT(interface, "%s", settings.interfaces[ii].tcp_nodelay ?
-                    "true" : "false");
+        add_stat(c, add_stat_callback, interface, settings.interfaces[ii].tcp_nodelay);
 
         if (settings.interfaces[ii].ssl.key) {
             snprintf(interface + offset, sizeof(interface) - offset,
                      "-ssl-pkey");
-            APPEND_STAT(interface, "%s", settings.interfaces[ii].ssl.key);
+            add_stat(c, add_stat_callback, interface, settings.interfaces[ii].ssl.key);
             snprintf(interface + offset, sizeof(interface) - offset,
                      "-ssl-cert");
-            APPEND_STAT(interface, "%s", settings.interfaces[ii].ssl.cert);
+            add_stat(c, add_stat_callback, interface, settings.interfaces[ii].ssl.cert);
         } else {
             snprintf(interface + offset, sizeof(interface) - offset,
                      "-ssl");
-            APPEND_STAT(interface, "%s", "false");
+            add_stat(c, add_stat_callback, interface, "false");
         }
     }
 
-    APPEND_STAT("verbosity", "%d", settings.verbose.load());
-    APPEND_STAT("num_threads", "%d", settings.num_threads);
-    APPEND_STAT("reqs_per_event_high_priority", "%d",
+    add_stat(c, add_stat_callback, "verbosity", settings.verbose.load());
+    add_stat(c, add_stat_callback, "num_threads", settings.num_threads);
+    add_stat(c, add_stat_callback, "reqs_per_event_high_priority",
                 settings.reqs_per_event_high_priority);
-    APPEND_STAT("reqs_per_event_med_priority", "%d",
+    add_stat(c, add_stat_callback, "reqs_per_event_med_priority",
                 settings.reqs_per_event_med_priority);
-    APPEND_STAT("reqs_per_event_low_priority", "%d",
+    add_stat(c, add_stat_callback, "reqs_per_event_low_priority",
                 settings.reqs_per_event_low_priority);
-    APPEND_STAT("reqs_per_event_def_priority", "%d",
+    add_stat(c, add_stat_callback, "reqs_per_event_def_priority",
                 settings.default_reqs_per_event);
-    APPEND_STAT("auth_enabled_sasl", "%s", "yes");
-    APPEND_STAT("auth_sasl_engine", "%s", "cbsasl");
-    APPEND_STAT("auth_required_sasl", "%s", settings.require_sasl ? "yes" : "no");
+    add_stat(c, add_stat_callback, "auth_enabled_sasl", "yes");
+    add_stat(c, add_stat_callback, "auth_sasl_engine", "cbsasl");
+    add_stat(c, add_stat_callback, "auth_required_sasl", settings.require_sasl);
     {
         EXTENSION_DAEMON_DESCRIPTOR *ptr;
         for (ptr = settings.extensions.daemons; ptr != NULL; ptr = ptr->next) {
-            APPEND_STAT("extension", "%s", ptr->get_name());
+            add_stat(c, add_stat_callback, "extension", ptr->get_name());
         }
     }
 
-    APPEND_STAT("logger", "%s", settings.extensions.logger->get_name());
+    add_stat(c, add_stat_callback, "logger", settings.extensions.logger->get_name());
     {
         EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *ptr;
         for (ptr = settings.extensions.binary; ptr != NULL; ptr = ptr->next) {
-            APPEND_STAT("binary_extension", "%s", ptr->get_name());
+            add_stat(c, add_stat_callback, "binary_extension", ptr->get_name());
         }
     }
 
     if (settings.config) {
-        add_stats("config", (uint16_t)strlen("config"),
-                  settings.config, (uint32_t)strlen(settings.config), c);
+        add_stat(c, add_stat_callback, "config", settings.config);
     }
 
     if (settings.rbac_file) {
-        add_stats("rbac", (uint16_t)strlen("rbac"),
-                  settings.rbac_file, (uint32_t)strlen(settings.rbac_file), c);
+        add_stat(c, add_stat_callback, "rbac", settings.rbac_file);
     }
 
     if (settings.audit_file) {
-        add_stats("audit", (uint16_t)strlen("audit"),
-                  settings.audit_file, (uint32_t)strlen(settings.audit_file), c);
+        add_stat(c, add_stat_callback, "audit", settings.audit_file);
     }
 }
 
