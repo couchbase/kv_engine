@@ -26,9 +26,7 @@ struct thread_stats *get_thread_stats(conn *c);
 
 #define STATS_INCR1(GUTS, conn, slab_op, thread_op, key, nkey) { \
     struct thread_stats *thread_stats = get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
     GUTS(conn, thread_stats, slab_op, thread_op); \
-    cb_mutex_exit(&thread_stats->mutex); \
 }
 
 #define STATS_INCR(conn, op, key, nkey) \
@@ -52,37 +50,34 @@ struct thread_stats *get_thread_stats(conn *c);
 #define STATS_NOKEY(conn, op) { \
     struct thread_stats *thread_stats = \
         get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
     thread_stats->op++; \
-    cb_mutex_exit(&thread_stats->mutex); \
 }
 
 #define STATS_NOKEY2(conn, op1, op2) { \
     struct thread_stats *thread_stats = \
         get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
     thread_stats->op1++; \
     thread_stats->op2++; \
-    cb_mutex_exit(&thread_stats->mutex); \
 }
 
 #define STATS_ADD(conn, op, amt) { \
     struct thread_stats *thread_stats = \
         get_thread_stats(conn); \
-    cb_mutex_enter(&thread_stats->mutex); \
     thread_stats->op += amt; \
-    cb_mutex_exit(&thread_stats->mutex); \
 }
 
 /* Set the statistic to the maximum of the current value, and the specified
  * value.
+ *
+ * @todo make this lockfree (or better, ditch it ;-)
  */
 #define STATS_MAX(conn, op, value) { \
     struct thread_stats *thread_stats = get_thread_stats(conn); \
     if (value > thread_stats->op) { \
-        cb_mutex_enter(&thread_stats->mutex); \
-        thread_stats->op = value; \
-        cb_mutex_exit(&thread_stats->mutex); \
+        std::lock_guard<std::mutex> lock(thread_stats->mutex); \
+        if (value > thread_stats->op) { \
+            thread_stats->op = value; \
+        } \
     } \
 }
 

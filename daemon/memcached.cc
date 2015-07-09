@@ -5526,9 +5526,9 @@ static void server_stats(ADD_STAT add_stats, conn *c) {
                 stats.total_conns.load(std::memory_order_relaxed));
     APPEND_STAT("connection_structures", "%u",
                 stats.conn_structs.load(std::memory_order_relaxed));
-    APPEND_STAT("cmd_get", "%" PRIu64, thread_stats.cmd_get);
-    APPEND_STAT("cmd_set", "%" PRIu64, slab_stats.cmd_set);
-    APPEND_STAT("cmd_flush", "%" PRIu64, thread_stats.cmd_flush);
+    APPEND_STAT("cmd_get", "%" PRIu64, thread_stats.cmd_get.load());
+    APPEND_STAT("cmd_set", "%" PRIu64, slab_stats.cmd_set.load());
+    APPEND_STAT("cmd_flush", "%" PRIu64, thread_stats.cmd_flush.load());
     // index 0 contains the aggregated timings for all buckets
     uint64_t total_mutations = all_buckets[0].timings.get_aggregated_cmd_stats(CmdStat::TOTAL_MUTATION);
     uint64_t total_retrivals = all_buckets[0].timings.get_aggregated_cmd_stats(CmdStat::TOTAL_RETRIVAL);
@@ -5536,32 +5536,32 @@ static void server_stats(ADD_STAT add_stats, conn *c) {
     APPEND_STAT("cmd_total_sets", "%" PRIu64, total_mutations);
     APPEND_STAT("cmd_total_gets", "%" PRIu64, total_retrivals);
     APPEND_STAT("cmd_total_ops", "%" PRIu64, total_ops);
-    APPEND_STAT("auth_cmds", "%" PRIu64, thread_stats.auth_cmds);
-    APPEND_STAT("auth_errors", "%" PRIu64, thread_stats.auth_errors);
-    APPEND_STAT("get_hits", "%" PRIu64, slab_stats.get_hits);
-    APPEND_STAT("get_misses", "%" PRIu64, thread_stats.get_misses);
-    APPEND_STAT("delete_misses", "%" PRIu64, thread_stats.delete_misses);
-    APPEND_STAT("delete_hits", "%" PRIu64, slab_stats.delete_hits);
-    APPEND_STAT("incr_misses", "%" PRIu64, thread_stats.incr_misses);
-    APPEND_STAT("incr_hits", "%" PRIu64, thread_stats.incr_hits);
-    APPEND_STAT("decr_misses", "%" PRIu64, thread_stats.decr_misses);
-    APPEND_STAT("decr_hits", "%" PRIu64, thread_stats.decr_hits);
-    APPEND_STAT("cas_misses", "%" PRIu64, thread_stats.cas_misses);
-    APPEND_STAT("cas_hits", "%" PRIu64, slab_stats.cas_hits);
-    APPEND_STAT("cas_badval", "%" PRIu64, slab_stats.cas_badval);
-    APPEND_STAT("bytes_read", "%" PRIu64, thread_stats.bytes_read);
-    APPEND_STAT("bytes_written", "%" PRIu64, thread_stats.bytes_written);
+    APPEND_STAT("auth_cmds", "%" PRIu64, thread_stats.auth_cmds.load());
+    APPEND_STAT("auth_errors", "%" PRIu64, thread_stats.auth_errors.load());
+    APPEND_STAT("get_hits", "%" PRIu64, slab_stats.get_hits.load());
+    APPEND_STAT("get_misses", "%" PRIu64, thread_stats.get_misses.load());
+    APPEND_STAT("delete_misses", "%" PRIu64, thread_stats.delete_misses.load());
+    APPEND_STAT("delete_hits", "%" PRIu64, slab_stats.delete_hits.load());
+    APPEND_STAT("incr_misses", "%" PRIu64, thread_stats.incr_misses.load());
+    APPEND_STAT("incr_hits", "%" PRIu64, thread_stats.incr_hits.load());
+    APPEND_STAT("decr_misses", "%" PRIu64, thread_stats.decr_misses.load());
+    APPEND_STAT("decr_hits", "%" PRIu64, thread_stats.decr_hits.load());
+    APPEND_STAT("cas_misses", "%" PRIu64, thread_stats.cas_misses.load());
+    APPEND_STAT("cas_hits", "%" PRIu64, slab_stats.cas_hits.load());
+    APPEND_STAT("cas_badval", "%" PRIu64, slab_stats.cas_badval.load());
+    APPEND_STAT("bytes_read", "%" PRIu64, thread_stats.bytes_read.load());
+    APPEND_STAT("bytes_written", "%" PRIu64, thread_stats.bytes_written.load());
     APPEND_STAT("accepting_conns", "%u",  is_listen_disabled() ? 0 : 1);
     APPEND_STAT("listen_disabled_num", "%" PRIu64, get_listen_disabled_num());
     APPEND_STAT("rejected_conns", "%" PRIu64,
                 stats.rejected_conns.load(std::memory_order_relaxed));
     APPEND_STAT("threads", "%d", settings.num_threads);
-    APPEND_STAT("conn_yields", "%" PRIu64, (uint64_t)thread_stats.conn_yields);
-    APPEND_STAT("rbufs_allocated", "%" PRIu64, (uint64_t)thread_stats.rbufs_allocated);
-    APPEND_STAT("rbufs_loaned", "%" PRIu64, (uint64_t)thread_stats.rbufs_loaned);
-    APPEND_STAT("rbufs_existing", "%" PRIu64, (uint64_t)thread_stats.rbufs_existing);
-    APPEND_STAT("wbufs_allocated", "%" PRIu64, (uint64_t)thread_stats.wbufs_allocated);
-    APPEND_STAT("wbufs_loaned", "%" PRIu64, (uint64_t)thread_stats.wbufs_loaned);
+    APPEND_STAT("conn_yields", "%" PRIu64, (uint64_t)thread_stats.conn_yields.load());
+    APPEND_STAT("rbufs_allocated", "%" PRIu64, thread_stats.rbufs_allocated.load());
+    APPEND_STAT("rbufs_loaned", "%" PRIu64, thread_stats.rbufs_loaned.load());
+    APPEND_STAT("rbufs_existing", "%" PRIu64, thread_stats.rbufs_existing.load());
+    APPEND_STAT("wbufs_allocated", "%" PRIu64, thread_stats.wbufs_allocated.load());
+    APPEND_STAT("wbufs_loaned", "%" PRIu64, thread_stats.wbufs_loaned.load());
     APPEND_STAT("iovused_high_watermark", "%" PRIu64, (uint64_t)thread_stats.iovused_high_watermark);
     APPEND_STAT("msgused_high_watermark", "%" PRIu64, (uint64_t)thread_stats.msgused_high_watermark);
     STATS_UNLOCK();
@@ -8113,15 +8113,9 @@ static ENGINE_ERROR_CODE do_delete_bucket(conn *c,
             (v1_handle_2_handle(all_buckets[idx].engine), force);
 
     /* Clean up the stats... */
-    struct thread_stats *ts = all_buckets[idx].stats;
+    delete []all_buckets[idx].stats;
     int numthread = settings.num_threads + 1;
-    for (ii = 0; ii < numthread; ii++) {
-        cb_mutex_destroy(&ts[ii].mutex);
-    }
-    memset(ts, 0, numthread * sizeof(struct thread_stats));
-    for (ii = 0; ii < numthread; ii++) {
-        cb_mutex_initialize(&ts[ii].mutex);
-    }
+    all_buckets[idx].stats = new thread_stats[numthread];
 
     memset(&all_buckets[idx].engine_event_handlers, 0,
            sizeof(all_buckets[idx].engine_event_handlers));
@@ -8183,12 +8177,7 @@ static void initialize_buckets(void) {
 
     int numthread = settings.num_threads + 1;
     for (auto &b : all_buckets) {
-        struct thread_stats *ts = reinterpret_cast<struct thread_stats*>
-            (calloc(numthread, sizeof(struct thread_stats)));
-        for (int jj = 0; jj < numthread; jj++) {
-            cb_mutex_initialize(&ts[jj].mutex);
-        }
-        b.stats = ts;
+        b.stats = new thread_stats[numthread];
     }
 
     // To make the life easier for us in the code, index 0
@@ -8233,12 +8222,7 @@ static void cleanup_buckets(void) {
             bucket.engine->destroy(v1_handle_2_handle(bucket.engine), false);
         }
 
-        struct thread_stats *ts = bucket.stats;
-        int numthread = settings.num_threads + 1;
-        for (int jj = 0; jj < numthread; jj++) {
-            cb_mutex_destroy(&ts[jj].mutex);
-        }
-        free(bucket.stats);
+        delete []bucket.stats;
     }
 }
 

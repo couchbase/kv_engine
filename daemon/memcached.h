@@ -2,6 +2,8 @@
 #ifndef MEMCACHED_H
 #define MEMCACHED_H
 
+#include <mutex>
+
 /** \file
  * The main memcached header holding commonly used data
  * structures and function prototypes.
@@ -85,50 +87,126 @@ enum bin_substates {
     bin_reading_packet
 };
 
+template <typename T>
+class StatsCounter {
+public:
+    StatsCounter() {
+        value.store(0, std::memory_order_relaxed);
+    }
+    StatsCounter(const StatsCounter &other) {
+        value.store(other.value.load(std::memory_order_relaxed),
+                    std::memory_order_relaxed);
+    }
+
+    uint64_t load() const {
+        return value.load(std::memory_order_relaxed);
+    }
+
+    StatsCounter & operator += (const T rhs) {
+        value.fetch_add(rhs, std::memory_order_relaxed);
+        return *this;
+    }
+
+    StatsCounter & operator += (const StatsCounter &rhs) {
+        value.fetch_add(rhs.value.load(std::memory_order_relaxed),
+                        std::memory_order_relaxed);
+        return *this;
+    }
+
+    // prefix ++ operator
+    T operator++() {
+        return value.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    // postfix ++ operator
+    T operator++(int) {
+        auto ret = value.load(std::memory_order_relaxed);
+        value.fetch_add(1, std::memory_order_relaxed);
+        return ret;
+    }
+
+    StatsCounter & operator = (T val) {
+        value.store(val, std::memory_order_relaxed);
+        return *this;
+    }
+
+    void reset() {
+        value.store(0, std::memory_order_relaxed);
+    }
+
+private:
+    std::atomic<T> value;
+};
+
 /** Stats stored per slab (and per thread). */
 struct slab_stats {
-    uint64_t  cmd_set;
-    uint64_t  get_hits;
-    uint64_t  delete_hits;
-    uint64_t  cas_hits;
-    uint64_t  cas_badval;
+    void add(const slab_stats &other) {
+        cmd_set += other.cmd_set;
+        get_hits += other.get_hits;
+        delete_hits += other.delete_hits;
+        cas_hits += other.cas_hits;
+        cas_badval += other.cas_badval;
+    }
+
+    void reset() {
+        cmd_set.reset();
+        get_hits.reset();
+        delete_hits.reset();
+        cas_hits.reset();
+        cas_badval.reset();
+    }
+
+    StatsCounter<uint64_t> cmd_set;
+    StatsCounter<uint64_t> get_hits;
+    StatsCounter<uint64_t> delete_hits;
+    StatsCounter<uint64_t> cas_hits;
+    StatsCounter<uint64_t> cas_badval;
 };
 
 /**
  * Stats stored per-thread.
  */
 struct thread_stats {
-    cb_mutex_t   mutex;
-    uint64_t          cmd_get;
-    uint64_t          get_misses;
-    uint64_t          delete_misses;
-    uint64_t          incr_misses;
-    uint64_t          decr_misses;
-    uint64_t          incr_hits;
-    uint64_t          decr_hits;
-    uint64_t          cas_misses;
-    uint64_t          bytes_read;
-    uint64_t          bytes_written;
-    uint64_t          cmd_flush;
-    uint64_t          conn_yields; /* # of yields for connections (-R option)*/
-    uint64_t          auth_cmds;
-    uint64_t          auth_errors;
+    thread_stats()
+            : iovused_high_watermark(0),
+              msgused_high_watermark(0)
+    {}
+
+    StatsCounter<uint64_t> cmd_get;
+    StatsCounter<uint64_t> get_misses;
+    StatsCounter<uint64_t> delete_misses;
+    StatsCounter<uint64_t> incr_misses;
+    StatsCounter<uint64_t> decr_misses;
+    StatsCounter<uint64_t> incr_hits;
+    StatsCounter<uint64_t> decr_hits;
+    StatsCounter<uint64_t> cas_misses;
+    StatsCounter<uint64_t> bytes_read;
+    StatsCounter<uint64_t> bytes_written;
+    StatsCounter<uint64_t> cmd_flush;
+    StatsCounter<uint64_t> conn_yields; /* # of yields for connections (-R option)*/
+    StatsCounter<uint64_t> auth_cmds;
+    StatsCounter<uint64_t> auth_errors;
     /* # of read buffers allocated. */
-    uint64_t          rbufs_allocated;
+    StatsCounter<uint64_t> rbufs_allocated;
     /* # of read buffers which could be loaned (and hence didn't need to be allocated). */
-    uint64_t          rbufs_loaned;
+    StatsCounter<uint64_t> rbufs_loaned;
     /* # of read buffers which already existed (with partial data) on the connection
        (and hence didn't need to be allocated). */
-    uint64_t          rbufs_existing;
+    StatsCounter<uint64_t> rbufs_existing;
     /* # of write buffers allocated. */
-    uint64_t          wbufs_allocated;
+    StatsCounter<uint64_t> wbufs_allocated;
     /* # of write buffers which could be loaned (and hence didn't need to be allocated). */
-    uint64_t          wbufs_loaned;
+    StatsCounter<uint64_t> wbufs_loaned;
+
+    // Right now we're protecting both the "high watermark" variables
+    // between the same mutex
+    std::mutex mutex;
+
     /* Highest value iovsize has got to */
-    int               iovused_high_watermark;
+    int iovused_high_watermark;
     /* High value conn->msgused has got to */
-    int               msgused_high_watermark;
-    struct slab_stats slab_stats[MAX_NUMBER_OF_SLAB_CLASSES];
+    int msgused_high_watermark;
+    std::array<struct slab_stats, MAX_NUMBER_OF_SLAB_CLASSES> slab_stats;
 };
 
 /**
