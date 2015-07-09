@@ -56,10 +56,6 @@
 #define DONT_PREALLOC_SLABS
 #define MAX_NUMBER_OF_SLAB_CLASSES (POWER_LARGEST + 1)
 
-
-#define STAT_KEY_LEN 128
-#define STAT_VAL_LEN 128
-
 /* Maximum length of config which can be validated */
 #define CONFIG_VALIDATE_MAX_LENGTH (64 * 1024)
 

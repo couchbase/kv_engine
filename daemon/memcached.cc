@@ -5452,24 +5452,6 @@ void write_and_free(conn *c, struct dynamic_buffer* buf) {
     }
 }
 
-void append_stat(const char *name, ADD_STAT add_stats, void *c,
-                 const char *fmt, ...) {
-    char val_str[STAT_VAL_LEN];
-    int vlen;
-    va_list ap;
-
-    cb_assert(name);
-    cb_assert(add_stats);
-    cb_assert(c);
-    cb_assert(fmt);
-
-    va_start(ap, fmt);
-    vlen = vsnprintf(val_str, sizeof(val_str) - 1, fmt, ap);
-    va_end(ap);
-
-    add_stats(name, (uint16_t)strlen(name), val_str, vlen, c);
-}
-
 template <typename T>
 void add_stat(const void *cookie, ADD_STAT add_stat_callback,
               const std::string &name, const T &val) {
@@ -5503,7 +5485,6 @@ static void server_stats(ADD_STAT add_stat_callback, conn *c) {
 #ifdef WIN32
     long pid = GetCurrentProcessId();
 #else
-    struct rusage usage;
     long pid = (long)getpid();
 #endif
     struct slab_stats slab_stats;
@@ -5518,10 +5499,6 @@ static void server_stats(ADD_STAT add_stat_callback, conn *c) {
 
     slab_stats_aggregate(&thread_stats, &slab_stats);
 
-#ifndef WIN32
-    getrusage(RUSAGE_SELF, &usage);
-#endif
-
     STATS_LOCK();
 
     add_stat(c, add_stat_callback, "pid", pid);
@@ -5532,15 +5509,6 @@ static void server_stats(ADD_STAT add_stat_callback, conn *c) {
     add_stat(c, add_stat_callback, "memcached_version", MEMCACHED_VERSION);
     add_stat(c, add_stat_callback, "libevent", event_get_version());
     add_stat(c, add_stat_callback, "pointer_size", (8 * sizeof(void *)));
-
-#ifndef WIN32
-    append_stat("rusage_user", add_stat_callback, c, "%ld.%06ld",
-                (long)usage.ru_utime.tv_sec,
-                (long)usage.ru_utime.tv_usec);
-    append_stat("rusage_system", add_stat_callback, c, "%ld.%06ld",
-                (long)usage.ru_stime.tv_sec,
-                (long)usage.ru_stime.tv_usec);
-#endif
 
     add_stat(c, add_stat_callback, "daemon_connections",
                 stats.daemon_conns.load(std::memory_order_relaxed));
