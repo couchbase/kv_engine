@@ -33,10 +33,10 @@ struct connections {
 /** Types ********************************************************************/
 
 /** Result of a buffer loan attempt */
-enum loan_res {
-    loan_existing,
-    loan_loaned,
-    loan_allocated,
+enum class BufferLoan {
+    Existing,
+    Loaned,
+    Allocated,
 };
 
 /** Function prototypes ******************************************************/
@@ -44,7 +44,7 @@ enum loan_res {
 static void conn_loan_buffers(conn *c);
 static void conn_return_buffers(conn *c);
 static bool conn_reset_buffersize(conn *c);
-static enum loan_res conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
+static BufferLoan conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
                                              struct net_buf *conn_buf);
 static void conn_return_single_buffer(conn *c, struct net_buf *thread_buf,
                                       struct net_buf *conn_buf);
@@ -672,20 +672,19 @@ bool connection_set_nodelay(conn *c, bool enable)
  * connection and the worker thread will allocate a new one.
  */
 static void conn_loan_buffers(conn *c) {
-    enum loan_res res;
-    res = conn_loan_single_buffer(c, &c->thread->read, &c->read);
-    if (res == loan_allocated) {
+    BufferLoan res = conn_loan_single_buffer(c, &c->thread->read, &c->read);
+    if (res == BufferLoan::Allocated) {
         STATS_NOKEY(c, rbufs_allocated);
-    } else if (res == loan_loaned) {
+    } else if (res == BufferLoan::Loaned) {
         STATS_NOKEY(c, rbufs_loaned);
-    } else if (res == loan_existing) {
+    } else if (res == BufferLoan::Existing) {
         STATS_NOKEY(c, rbufs_existing);
     }
 
     res = conn_loan_single_buffer(c, &c->thread->write, &c->write);
-    if (res == loan_allocated) {
+    if (res == BufferLoan::Allocated) {
         STATS_NOKEY(c, wbufs_allocated);
-    } else if (res == loan_loaned) {
+    } else if (res == BufferLoan::Loaned) {
         STATS_NOKEY(c, wbufs_loaned);
     }
 }
@@ -877,12 +876,12 @@ static void release_connection(conn *c) {
  * it does by either loaning out the threads, or allocating a new one if
  * necessary.
  */
-static enum loan_res conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
+static BufferLoan conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
                                     struct net_buf *conn_buf)
 {
     /* Already have a (partial) buffer - nothing to do. */
     if (conn_buf->buf != NULL) {
-        return loan_existing;
+        return BufferLoan::Existing;
     }
 
     if (thread_buf->buf != NULL) {
@@ -891,7 +890,7 @@ static enum loan_res conn_loan_single_buffer(conn *c, struct net_buf *thread_buf
 
         thread_buf->buf = NULL;
         thread_buf->size = 0;
-        return loan_loaned;
+        return BufferLoan::Loaned;
     } else {
         /* Need to allocate a new buffer. */
         conn_buf->buf = reinterpret_cast<char*>(malloc(DATA_BUFFER_SIZE));
@@ -905,12 +904,12 @@ static enum loan_res conn_loan_single_buffer(conn *c, struct net_buf *thread_buf
                     c->sfd);
             }
             conn_set_state(c, conn_closing);
-            return loan_existing;
+            return BufferLoan::Existing;
         }
         conn_buf->size = DATA_BUFFER_SIZE;
         conn_buf->curr = conn_buf->buf;
         conn_buf->bytes = 0;
-        return loan_allocated;
+        return BufferLoan::Allocated;
     }
 }
 
