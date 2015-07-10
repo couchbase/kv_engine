@@ -80,6 +80,7 @@ typedef long long int64_t;
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <sys/resource.h>
 #include <sys/uio.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
