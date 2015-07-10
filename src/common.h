@@ -34,6 +34,7 @@
 
 #ifdef HAVE_CXX11_SUPPORT
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 using std::unordered_map;
 using std::shared_ptr;
