@@ -384,57 +384,6 @@ int do_item_replace(struct default_engine *engine,
     return do_item_link(engine, new_it);
 }
 
-/*@null@*/
-static char *do_item_cachedump(const unsigned int slabs_clsid,
-                               const unsigned int limit,
-                               unsigned int *bytes) {
-#ifdef FUTURE
-    unsigned int memlimit = 2 * 1024 * 1024;   /* 2MB max response size */
-    char *buffer;
-    unsigned int bufcurr;
-    hash_item *it;
-    unsigned int len;
-    unsigned int shown = 0;
-    char key_temp[KEY_MAX_LENGTH + 1];
-    char temp[512];
-
-    it = engine->items.heads[slabs_clsid];
-
-    buffer = malloc((size_t)memlimit);
-    if (buffer == 0) return NULL;
-    bufcurr = 0;
-
-
-    while (it != NULL && (limit == 0 || shown < limit)) {
-        cb_assert(it->nkey <= KEY_MAX_LENGTH);
-        /* Copy the key since it may not be null-terminated in the struct */
-        hash_key* key = item_get_key(it);
-        strncpy(key_temp, hash_key_get_client_key(key), hash_key_get_client_key_len(key));
-        key_temp[it->nkey] = 0x00; /* terminate */
-        len = snprintf(temp, sizeof(temp), "ITEM %d %s [%d b; %lu s]\r\n",
-                       hash_key_get_bucket_index(key), key_temp, it->nbytes,
-                       (unsigned long)it->exptime + process_started);
-        if (bufcurr + len + 6 > memlimit)  /* 6 is END\r\n\0 */
-            break;
-        memcpy(buffer + bufcurr, temp, len);
-        bufcurr += len;
-        shown++;
-        it = it->next;
-    }
-
-
-    memcpy(buffer + bufcurr, "END\r\n", 6);
-    bufcurr += 5;
-
-    *bytes = bufcurr;
-    return buffer;
-#endif
-    (void)slabs_clsid;
-    (void)limit;
-    (void)bytes;
-    return NULL;
-}
-
 static void do_item_stats(struct default_engine *engine,
                           ADD_STAT add_stats, const void *c) {
     int i;
@@ -996,21 +945,6 @@ void item_flush_expired(struct default_engine *engine, time_t when) {
         }
     }
     cb_mutex_exit(&engine->items.lock);
-}
-
-/*
- * Dumps part of the cache
- */
-char *item_cachedump(struct default_engine *engine,
-                     const unsigned int slabs_clsid,
-                     const unsigned int limit,
-                     unsigned int *bytes) {
-    char *ret;
-
-    cb_mutex_enter(&engine->items.lock);
-    ret = do_item_cachedump(slabs_clsid, limit, bytes);
-    cb_mutex_exit(&engine->items.lock);
-    return ret;
 }
 
 void item_stats(struct default_engine *engine,

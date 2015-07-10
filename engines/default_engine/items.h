@@ -184,21 +184,6 @@ void item_stats_sizes(struct default_engine *engine,
                       ADD_STAT add_stat, const void *cookie);
 
 /**
- * Dump items from the cache
- * @param engine handle to the storage engine
- * @param slabs_clsid the slab class to get items from
- * @param limit the maximum number of items to receive
- * @param bytes the number of bytes in the return message (OUT)
- * @return pointer to a string containint the data
- *
- * @todo we need to rewrite this to use callbacks!!!! currently disabled
- */
-char *item_cachedump(struct default_engine *engine,
-                     const unsigned int slabs_clsid,
-                     const unsigned int limit,
-                     unsigned int *bytes);
-
-/**
  * Flush expired items from the cache
  * @param engine handle to the storage engine
  * @param when when the items should be flushed
