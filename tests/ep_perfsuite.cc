@@ -25,6 +25,8 @@
  *
  *     make test ARGS="--verbose"
  *
+ * Note this is designed as a relatively quick micro-benchmark suite; tests
+ * are tuned to complete in <2 seconds to maintain the quick turnaround.
 **/
 
 #include "config.h"
@@ -196,7 +198,7 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
                                      ENGINE_HANDLE_V1 *h1,
                                      const char* title) {
 
-    const unsigned int num_docs = 500000;
+    const unsigned int num_docs = 100000;
 
     // Only timing front-end performance, not considering persistence.
     stop_persistence(h, h1);
@@ -364,11 +366,11 @@ static enum test_result perf_latency_baseline_multi_bucket(engine_test_t* test,
 }
 
 static enum test_result perf_latency_baseline_multi_bucket_2(engine_test_t* test) {
-    return perf_latency_baseline_multi_bucket(test, 2, 150000);
+    return perf_latency_baseline_multi_bucket(test, 2, 10000);
 }
 
 static enum test_result perf_latency_baseline_multi_bucket_4(engine_test_t* test) {
-    return perf_latency_baseline_multi_bucket(test, 4, 150000);
+    return perf_latency_baseline_multi_bucket(test, 4, 10000);
 }
 
 /*****************************************************************************
