@@ -5454,9 +5454,7 @@ static void server_stats(ADD_STAT add_stat_callback, conn *c) {
     rel_time_t now = mc_time_get_current_time();
 
     struct thread_stats thread_stats;
-
-    threadlocal_stats_aggregate(all_buckets[c->bucket.idx].stats,
-                                &thread_stats);
+    thread_stats.aggregate(all_buckets[c->bucket.idx].stats, settings.num_threads);
 
     STATS_LOCK();
 

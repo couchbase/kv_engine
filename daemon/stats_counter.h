@@ -41,6 +41,11 @@ public:
         return value.load(std::memory_order_relaxed);
     }
 
+    StatsCounter & operator = (const StatsCounter &rhs) {
+        value.store(rhs.load(), std::memory_order_relaxed);
+        return *this;
+    }
+
     StatsCounter & operator += (const T rhs) {
         value.fetch_add(rhs, std::memory_order_relaxed);
         return *this;

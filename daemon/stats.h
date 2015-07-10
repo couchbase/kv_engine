@@ -58,6 +58,50 @@ struct thread_stats {
         msgused_high_watermark = 0;
     }
 
+    thread_stats & operator += (const thread_stats &other) {
+        cmd_get += other.cmd_get;
+        get_misses += other.get_misses;
+        cmd_set += other.cmd_set;
+        get_hits += other.get_hits;
+        delete_hits += other.delete_hits;
+        cas_hits += other.cas_hits;
+        cas_badval += other.cas_badval;
+        delete_misses += other.delete_misses;
+        decr_misses += other.decr_misses;
+        incr_misses += other.incr_misses;
+        decr_hits += other.decr_hits;
+        incr_hits += other.incr_hits;
+        cas_misses += other.cas_misses;
+        bytes_read += other.bytes_read;
+        bytes_written += other.bytes_written;
+        cmd_flush += other.cmd_flush;
+        conn_yields += other.conn_yields;
+        auth_cmds += other.auth_cmds;
+        auth_errors += other.auth_errors;
+        rbufs_allocated += other.rbufs_allocated;
+        rbufs_loaned += other.rbufs_loaned;
+        rbufs_existing += other.rbufs_existing;
+        wbufs_allocated += other.wbufs_allocated;
+        wbufs_loaned += other.wbufs_loaned;
+
+        if (other.iovused_high_watermark >
+            iovused_high_watermark) {
+            iovused_high_watermark = other.iovused_high_watermark;
+        }
+        if (other.msgused_high_watermark >
+            msgused_high_watermark) {
+            msgused_high_watermark = other.msgused_high_watermark;
+        }
+
+        return *this;
+    }
+
+    void aggregate(struct thread_stats *thread_stats, int num) {
+        for (int ii = 0; ii < num; ++ii) {
+            *this += thread_stats[ii];
+        }
+    }
+
     StatsCounter<uint64_t> cmd_get;
     StatsCounter<uint64_t> get_hits;
     StatsCounter<uint64_t> get_misses;
@@ -94,9 +138,9 @@ struct thread_stats {
     std::mutex mutex;
 
     /* Highest value iovsize has got to */
-    int iovused_high_watermark;
+    StatsCounter<int> iovused_high_watermark;
     /* High value conn->msgused has got to */
-    int msgused_high_watermark;
+    StatsCounter<int> msgused_high_watermark;
 };
 
 /**

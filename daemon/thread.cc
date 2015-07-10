@@ -482,48 +482,6 @@ void threadlocal_stats_reset(struct thread_stats *thread_stats) {
     }
 }
 
-void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct thread_stats *stats) {
-    for (int ii = 0; ii < settings.num_threads; ++ii) {
-        stats->cmd_get += thread_stats[ii].cmd_get;
-        stats->get_misses += thread_stats[ii].get_misses;
-        stats->cmd_set += thread_stats[ii].cmd_set;
-        stats->get_hits += thread_stats[ii].get_hits;
-        stats->delete_hits += thread_stats[ii].delete_hits;
-        stats->cas_hits += thread_stats[ii].cas_hits;
-        stats->cas_badval += thread_stats[ii].cas_badval;
-        stats->delete_misses += thread_stats[ii].delete_misses;
-        stats->decr_misses += thread_stats[ii].decr_misses;
-        stats->incr_misses += thread_stats[ii].incr_misses;
-        stats->decr_hits += thread_stats[ii].decr_hits;
-        stats->incr_hits += thread_stats[ii].incr_hits;
-        stats->cas_misses += thread_stats[ii].cas_misses;
-        stats->bytes_read += thread_stats[ii].bytes_read;
-        stats->bytes_written += thread_stats[ii].bytes_written;
-        stats->cmd_flush += thread_stats[ii].cmd_flush;
-        stats->conn_yields += thread_stats[ii].conn_yields;
-        stats->auth_cmds += thread_stats[ii].auth_cmds;
-        stats->auth_errors += thread_stats[ii].auth_errors;
-        stats->rbufs_allocated += thread_stats[ii].rbufs_allocated;
-        stats->rbufs_loaned += thread_stats[ii].rbufs_loaned;
-        stats->rbufs_existing += thread_stats[ii].rbufs_existing;
-        stats->wbufs_allocated += thread_stats[ii].wbufs_allocated;
-        stats->wbufs_loaned += thread_stats[ii].wbufs_loaned;
-
-        {
-            std::lock_guard<std::mutex> lock(thread_stats[ii].mutex);
-
-            if (thread_stats[ii].iovused_high_watermark >
-                stats->iovused_high_watermark) {
-                stats->iovused_high_watermark = thread_stats[ii].iovused_high_watermark;
-            }
-            if (thread_stats[ii].msgused_high_watermark >
-                stats->msgused_high_watermark) {
-                stats->msgused_high_watermark = thread_stats[ii].msgused_high_watermark;
-            }
-        }
-    }
-}
-
 /*
  * Initializes the thread subsystem, creating various worker threads.
  *
