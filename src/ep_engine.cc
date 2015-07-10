@@ -557,7 +557,7 @@ extern "C" {
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
         } catch(std::runtime_error& ex) {
-            *msg = strdup(ex.what());
+            *msg = "Value out of range.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
