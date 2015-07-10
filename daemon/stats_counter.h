@@ -74,6 +74,23 @@ public:
         value.store(0, std::memory_order_relaxed);
     }
 
+    void setIfGreater(const T &val) {
+        do {
+            T currval = value.load(std::memory_order_relaxed);
+            if (val > currval) {
+                if (value.compare_exchange_weak(currval, val, std::memory_order_relaxed)) {
+                    break;
+                }
+            } else {
+                break;
+            }
+        } while (true);
+    }
+
+    void setIfGreater(const StatsCounter &val) {
+        setIfGreater(val.load());
+    }
+
 private:
     std::atomic<T> value;
 };

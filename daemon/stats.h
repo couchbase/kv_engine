@@ -84,14 +84,8 @@ struct thread_stats {
         wbufs_allocated += other.wbufs_allocated;
         wbufs_loaned += other.wbufs_loaned;
 
-        if (other.iovused_high_watermark >
-            iovused_high_watermark) {
-            iovused_high_watermark = other.iovused_high_watermark;
-        }
-        if (other.msgused_high_watermark >
-            msgused_high_watermark) {
-            msgused_high_watermark = other.msgused_high_watermark;
-        }
+        iovused_high_watermark.setIfGreater(other.iovused_high_watermark);
+        msgused_high_watermark.setIfGreater(other.msgused_high_watermark);
 
         return *this;
     }
@@ -221,17 +215,8 @@ struct thread_stats *get_thread_stats(conn *c);
 #define STATS_MISS(conn, op, key, nkey) \
     STATS_TWO(conn, op##_misses, cmd_##op, key, nkey)
 
-/* Set the statistic to the maximum of the current value, and the specified
+/*
+ * Set the statistic to the maximum of the current value, and the specified
  * value.
- *
- * @todo make this lockfree (or better, ditch it ;-)
  */
-#define STATS_MAX(conn, op, value) { \
-    struct thread_stats *thread_stats = get_thread_stats(conn); \
-    if (value > thread_stats->op) { \
-        std::lock_guard<std::mutex> lock(thread_stats->mutex); \
-        if (value > thread_stats->op) { \
-            thread_stats->op = value; \
-        } \
-    } \
-}
+#define STATS_MAX(conn, op, value) get_thread_stats(conn)->op.setIfGreater(value);
