@@ -234,6 +234,7 @@ void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     h1->unknown_command(h, NULL, request, add_response);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected success for CMD_SET_DRIFT_COUNTER_STATE");
+    free(request);
     delete[] ext;
 }
 
@@ -277,6 +278,7 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     }
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
+    free(pkt);
     delete[] ext;
 }
 
@@ -357,6 +359,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     }
     check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
           "Expected to be able to delete with meta");
+    free(pkt);
     delete[] ext;
 }
 
@@ -371,6 +374,7 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to evict key.");
 
+    free(pkt);
     if (expectError) {
         check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
               "Expected exists when evicting key.");
@@ -503,6 +507,7 @@ bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, req,
                                                 add_response_get_meta);
     check(ret == ENGINE_SUCCESS, "Expected get_meta call to be successful");
+    free(req);
     if (last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return true;
     }
@@ -696,6 +701,7 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 
     check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
+    free(pkt);
     delete[] ext;
 }
 
@@ -891,6 +897,7 @@ void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                      NULL, 0);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request compact vbucket");
+    free(pkt);
 }
 
 void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
@@ -901,6 +908,7 @@ void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
                      args, argslen);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
+    free(pkt);
 }
 
 ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -940,6 +948,7 @@ bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, vb, 0);
 
     ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
+    free(pkt);
     if (errcode != ENGINE_SUCCESS) {
         if (!mute) {
             fprintf(stderr, "Error code when getting vbucket %d\n", errcode);
@@ -1209,6 +1218,7 @@ void set_degraded_mode(ENGINE_HANDLE *h,
     }
 
     ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
+    free(pkt);
     if (errcode != ENGINE_SUCCESS) {
         std::cerr << "Failed to set degraded mode to " << enable
                   << ". api call return engine code: " << errcode << std::endl;

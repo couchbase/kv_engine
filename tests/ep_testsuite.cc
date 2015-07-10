@@ -2489,6 +2489,7 @@ static enum test_result test_get_replica_active_state(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
           "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
 
+    free(pkt);
     return SUCCESS;
 }
 
@@ -2502,6 +2503,7 @@ static enum test_result test_get_replica_pending_state(ENGINE_HANDLE *h,
     check(h1->unknown_command(h, cookie, pkt, add_response) ==
           ENGINE_EWOULDBLOCK, "Should have returned error for pending state");
     testHarness.destroy_cookie(cookie);
+    free(pkt);
     return SUCCESS;
 }
 
@@ -2514,6 +2516,7 @@ static enum test_result test_get_replica_dead_state(ENGINE_HANDLE *h,
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
           "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
 
+    free(pkt);
     return SUCCESS;
 }
 
@@ -2528,6 +2531,7 @@ static enum test_result test_get_replica(ENGINE_HANDLE *h,
     check(last_body == "replicadata",
           "Should have returned identical value");
 
+    free(pkt);
     return SUCCESS;
 }
 
@@ -2560,6 +2564,7 @@ static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
           ENGINE_SUCCESS, "Get Replica Failed");
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
           "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
+    free(pkt);
     return SUCCESS;
 }
 
@@ -6172,8 +6177,10 @@ static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "_total:count", "tapagg _") == 5,
           "Incorrect total count on tap agg");
 
-    std::for_each(cookies.begin(), cookies.end(),
-                  std::ptr_fun((UNLOCK_COOKIE_T)testHarness.unlock_cookie));
+    for (auto& cookie : cookies) {
+        testHarness.unlock_cookie(cookie);
+        testHarness.destroy_cookie(cookie);
+    }
 
     return SUCCESS;
 }
@@ -6646,6 +6653,7 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             break;
         case TAP_CHECKPOINT_START:
         case TAP_CHECKPOINT_END:
+            h1->release(h, cookie, it);
             break;
 
         case TAP_MUTATION:
@@ -6679,6 +6687,7 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     } while (!done);
 
     testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
 
     cb_assert(filter_change_done);
     check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:qlen", "tap") == 0,
@@ -6884,6 +6893,7 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     }
 
     testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -7025,6 +7035,7 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
         }
     } while (!done);
     testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
     check(mutations == 11, "Expected 11 mutations to be returned");
     return SUCCESS;
 }
@@ -8198,9 +8209,11 @@ static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(h1->get_stats(h, testHarness.create_cookie(), "workload",
+    const void* cookie = testHarness.create_cookie();
+    check(h1->get_stats(h, cookie, "workload",
                         strlen("workload"), add_stats) == ENGINE_SUCCESS,
                         "Falied to get workload stats");
+    testHarness.destroy_cookie(cookie);
     int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers",
                                                "workload");
     int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers",
@@ -8233,9 +8246,11 @@ static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 }
 
 static enum test_result test_max_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(h1->get_stats(h, testHarness.create_cookie(), "workload",
+    const void* cookie = testHarness.create_cookie();
+    check(h1->get_stats(h, cookie, "workload",
                         strlen("workload"), add_stats) == ENGINE_SUCCESS,
                         "Falied to get workload stats");
+    testHarness.destroy_cookie(cookie);
     int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers",
                                                "workload");
     int num_write_threads = get_int_stat(h, h1, "ep_workload:num_writers",
@@ -10952,6 +10967,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
+    free(request);
     check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
             "Expected Not Supported, as Time sync hasn't been enabled yet");
 
@@ -10960,6 +10976,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
+    free(request);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
@@ -10972,6 +10989,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
+    free(request);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
@@ -11001,6 +11019,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
             NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
+    free(request);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
@@ -11026,6 +11045,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
             NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
+    free(request);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
@@ -11171,6 +11191,7 @@ static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
                            invalid_data.str().length());
     h1->unknown_command(h, NULL, request, add_response);
 
+    free(request);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
           "Expected vb uuid not found");
 
@@ -12009,6 +12030,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
                        "tap") == 10, "Incorrect number of items sent");
     testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -12072,6 +12094,7 @@ static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store ret meta");
+    free(pkt);
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected set returing meta to succeed");
 
@@ -12154,6 +12177,7 @@ static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to add ret meta");
+    free(pkt);
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected add returing meta to succeed");
 
@@ -12270,6 +12294,7 @@ static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
     pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0, "key", 3);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to del ret meta");
+    free(pkt);
     check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
           "Expected add returing meta to succeed");
 
@@ -13062,6 +13087,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
+    free(request);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
@@ -13220,6 +13246,7 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
     /* Check if the response received is correct */
     verify_all_vb_seqnos(h, h1, num_vbuckets/2, num_vbuckets);
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
