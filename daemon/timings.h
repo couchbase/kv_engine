@@ -26,8 +26,7 @@
 
 enum class CmdStat : uint8_t {
     TOTAL_MUTATION,
-    TOTAL_RETRIVAL,
-    TOTAL
+    TOTAL_RETRIVAL
 };
 
 class Timings {

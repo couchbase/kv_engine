@@ -71,34 +71,6 @@ uint64_t Timings::get_aggregated_cmd_stats(const CmdStat type) {
         PROTOCOL_BINARY_CMD_GET_RANDOM_KEY,
         PROTOCOL_BINARY_CMD_GET_REPLICA,
         PROTOCOL_BINARY_CMD_INVALID };
-    static uint8_t total[] = {
-        PROTOCOL_BINARY_CMD_ADD,
-        PROTOCOL_BINARY_CMD_ADDQ,
-        PROTOCOL_BINARY_CMD_APPEND,
-        PROTOCOL_BINARY_CMD_APPENDQ,
-        PROTOCOL_BINARY_CMD_DECREMENT,
-        PROTOCOL_BINARY_CMD_DECREMENTQ,
-        PROTOCOL_BINARY_CMD_DELETE,
-        PROTOCOL_BINARY_CMD_DELETEQ,
-        PROTOCOL_BINARY_CMD_GAT,
-        PROTOCOL_BINARY_CMD_GATQ,
-        PROTOCOL_BINARY_CMD_GET,
-        PROTOCOL_BINARY_CMD_GETK,
-        PROTOCOL_BINARY_CMD_GETKQ,
-        PROTOCOL_BINARY_CMD_GETQ,
-        PROTOCOL_BINARY_CMD_GET_LOCKED,
-        PROTOCOL_BINARY_CMD_GET_RANDOM_KEY,
-        PROTOCOL_BINARY_CMD_GET_REPLICA,
-        PROTOCOL_BINARY_CMD_INCREMENT,
-        PROTOCOL_BINARY_CMD_INCREMENTQ,
-        PROTOCOL_BINARY_CMD_PREPEND,
-        PROTOCOL_BINARY_CMD_PREPENDQ,
-        PROTOCOL_BINARY_CMD_REPLACE,
-        PROTOCOL_BINARY_CMD_REPLACEQ,
-        PROTOCOL_BINARY_CMD_SET,
-        PROTOCOL_BINARY_CMD_SETQ,
-        PROTOCOL_BINARY_CMD_TOUCH,
-        PROTOCOL_BINARY_CMD_INVALID };
 
     uint8_t *ids;
 
@@ -108,9 +80,6 @@ uint64_t Timings::get_aggregated_cmd_stats(const CmdStat type) {
         break;
     case CmdStat::TOTAL_RETRIVAL:
         ids = retrival;
-        break;
-    case CmdStat::TOTAL:
-        ids = total;
         break;
     default:
         // the compiler don't know that the assert will cause

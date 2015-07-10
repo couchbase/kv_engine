@@ -5492,7 +5492,7 @@ static void server_stats(ADD_STAT add_stat_callback, conn *c) {
     auto &timings = all_buckets[0].timings;
     uint64_t total_mutations = timings.get_aggregated_cmd_stats(CmdStat::TOTAL_MUTATION);
     uint64_t total_retrivals = timings.get_aggregated_cmd_stats(CmdStat::TOTAL_RETRIVAL);
-    uint64_t total_ops = all_buckets[0].timings.get_aggregated_cmd_stats(CmdStat::TOTAL);
+    uint64_t total_ops = total_retrivals + total_mutations;
     add_stat(c, add_stat_callback, "cmd_total_sets", total_mutations);
     add_stat(c, add_stat_callback, "cmd_total_gets", total_retrivals);
     add_stat(c, add_stat_callback, "cmd_total_ops", total_ops);
