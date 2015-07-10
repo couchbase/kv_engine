@@ -27,9 +27,6 @@
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
 
-/** Size of an incr buf. */
-#define INCR_MAX_STORAGE_LEN 24
-
 #define DATA_BUFFER_SIZE 2048
 #define UDP_MAX_PAYLOAD_SIZE 1400
 #define MAX_SENDBUF_SIZE (256 * 1024 * 1024)
@@ -50,13 +47,6 @@
 #define READ_BUFFER_HIGHWAT 8192
 #define IOV_LIST_HIGHWAT 50
 #define MSG_LIST_HIGHWAT 20
-
-/* Slab sizing definitions. */
-#define POWER_SMALLEST 1
-#define POWER_LARGEST  200
-#define CHUNK_ALIGN_BYTES 8
-#define DONT_PREALLOC_SLABS
-#define MAX_NUMBER_OF_SLAB_CLASSES (POWER_LARGEST + 1)
 
 /* Maximum length of config which can be validated */
 #define CONFIG_VALIDATE_MAX_LENGTH (64 * 1024)
@@ -352,20 +342,12 @@ void dispatch_conn_new(SOCKET sfd, int parent_port,
                        int read_buffer_size);
 
 /* Lock wrappers for cache functions that are called from main loop. */
-void accept_new_conns(const bool do_accept);
-conn *conn_from_freelist(void);
-bool  conn_add_to_freelist(conn *c);
-int   is_listen_thread(void);
+int is_listen_thread(void);
 
 void STATS_LOCK(void);
 void STATS_UNLOCK(void);
 void threadlocal_stats_reset(struct thread_stats *thread_stats);
 void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct thread_stats *stats);
-void slab_stats_aggregate(struct thread_stats *stats, struct slab_stats *out);
-
-/* Stat processing functions */
-void append_stat(const char *name, ADD_STAT add_stats, void *c,
-                 const char *fmt, ...);
 
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status);
 void conn_set_state(conn *c, STATE_FUNC state);
@@ -374,11 +356,8 @@ void safe_close(SOCKET sfd);
 
 
 /* Number of times this connection is in the given pending list */
-int number_of_pending(conn *c, conn *pending);
-bool has_cycle(conn *c);
 bool list_contains(conn *h, conn *n);
 conn *list_remove(conn *h, conn *n);
-void enlist_conn(conn *c, conn **list);
 
 /* Aggregate the maximum number of connections */
 void calculate_maxconns(void);

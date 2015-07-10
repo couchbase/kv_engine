@@ -262,7 +262,7 @@ static void worker_libevent(void *arg) {
     ERR_remove_state(0);
 }
 
-int number_of_pending(conn *c, conn *list) {
+static int number_of_pending(conn *c, conn *list) {
     int rv = 0;
     for (; list; list = list->next) {
         if (list == c) {
@@ -352,7 +352,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
 extern volatile rel_time_t current_time;
 
-bool has_cycle(conn *c) {
+static bool has_cycle(conn *c) {
     conn *slowNode, *fastNode1, *fastNode2;
 
     if (!c) {
@@ -394,7 +394,7 @@ conn* list_remove(conn *haystack, conn *needle) {
     return haystack;
 }
 
-void enlist_conn(conn *c, conn **list) {
+static void enlist_conn(conn *c, conn **list) {
     LIBEVENT_THREAD *thr = c->thread;
     cb_assert(list == &thr->pending_io);
     if ((c->list_state & LIST_STATE_PROCESSING) == 0) {
