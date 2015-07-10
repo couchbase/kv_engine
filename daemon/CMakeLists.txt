@@ -74,6 +74,7 @@ ADD_EXECUTABLE(memcached
                runtime.h
                settings.h
                stats.h
+               stats_counter.h
                ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
                ${Memcached_BINARY_DIR}/default_rbac.cc)
 
