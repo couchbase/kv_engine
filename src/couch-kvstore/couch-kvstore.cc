@@ -908,6 +908,7 @@ vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {
 bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
                                    Callback<kvstats_ctx> *cb) {
     cb_assert(!isReadOnly());
+    hrtime_t start = gethrtime();
 
     vbucket_state *state = cachedVBStates[vbucketId];
     if (state) {
@@ -931,6 +932,9 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
                 VBucket::toString(vbstate.state), vbucketId);
         return false;
     }
+
+    st.snapshotHisto.add((gethrtime() - start) / 1000);
+
     return true;
 }
 
@@ -1133,6 +1137,7 @@ void CouchKVStore::addTimingStats(const std::string &prefix,
     const char *prefix_str = prefix.c_str();
     addStat(prefix_str, "commit",      st.commitHisto,      add_stat, c);
     addStat(prefix_str, "compact",     st.compactHisto,     add_stat, c);
+    addStat(prefix_str, "snapshot",    st.snapshotHisto,    add_stat, c);
     addStat(prefix_str, "delete",      st.delTimeHisto,     add_stat, c);
     addStat(prefix_str, "save_documents", st.saveDocsHisto, add_stat, c);
     addStat(prefix_str, "writeTime",   st.writeTimeHisto,   add_stat, c);

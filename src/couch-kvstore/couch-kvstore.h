@@ -70,6 +70,7 @@ public:
         writeSizeHisto.reset();
         delTimeHisto.reset();
         compactHisto.reset();
+        snapshotHisto.reset();
         commitHisto.reset();
         saveDocsHisto.reset();
         batchSize.reset();
@@ -122,6 +123,8 @@ public:
     Histogram<hrtime_t> saveDocsHisto;
     // Batch size of saveDocs calls
     Histogram<size_t> batchSize;
+    //Time spent in vbucket snapshot
+    Histogram<hrtime_t> snapshotHisto;
 
     // Stats from the underlying OS file operations done by couchstore.
     CouchstoreStats fsStats;
