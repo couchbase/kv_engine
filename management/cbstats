@@ -7,18 +7,13 @@ import itertools
 import mc_bin_client
 import re
 
-import_stmts = (
-    'import simplejson as json',
-    'import json',
-)
-for status, stmt in enumerate(import_stmts):
+try:
+    import simplejson as json
+except ImportError:
     try:
-        exec stmt
-        break
+        import json
     except ImportError:
-        status = None
-if status is None:
-    sys.exit("Error: could not import json module")
+        sys.exit("Error: could not import json module")
 
 MAGIC_CONVERT_RE=re.compile("(\d+)")
 
