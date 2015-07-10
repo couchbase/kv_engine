@@ -11,7 +11,7 @@ struct thread_stats *get_thread_stats(conn *c);
 
 /* The item must always be called "it" */
 #define SLAB_GUTS(conn, thread_stats, slab_op, thread_op) \
-    thread_stats->slab_stats[info.info.clsid].slab_op++;
+    thread_stats->slab_op++;
 
 #define THREAD_GUTS(conn, thread_stats, slab_op, thread_op) \
     thread_stats->thread_op++;

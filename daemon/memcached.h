@@ -123,42 +123,52 @@ private:
     std::atomic<T> value;
 };
 
-/** Stats stored per slab (and per thread). */
-struct slab_stats {
-    void add(const slab_stats &other) {
-        cmd_set += other.cmd_set;
-        get_hits += other.get_hits;
-        delete_hits += other.delete_hits;
-        cas_hits += other.cas_hits;
-        cas_badval += other.cas_badval;
-    }
-
-    void reset() {
-        cmd_set.reset();
-        get_hits.reset();
-        delete_hits.reset();
-        cas_hits.reset();
-        cas_badval.reset();
-    }
-
-    StatsCounter<uint64_t> cmd_set;
-    StatsCounter<uint64_t> get_hits;
-    StatsCounter<uint64_t> delete_hits;
-    StatsCounter<uint64_t> cas_hits;
-    StatsCounter<uint64_t> cas_badval;
-};
-
 /**
  * Stats stored per-thread.
  */
 struct thread_stats {
-    thread_stats()
-            : iovused_high_watermark(0),
-              msgused_high_watermark(0)
-    {}
+    thread_stats() {
+        reset();
+    }
+
+    void reset() {
+        cmd_get = 0;
+        get_hits = 0;
+        get_misses = 0;
+        cmd_set = 0;
+        delete_hits = 0;
+        cas_hits = 0;
+        cas_badval = 0;
+        delete_misses = 0;
+        incr_misses = 0;
+        decr_misses = 0;
+        incr_hits = 0;
+        decr_hits = 0;
+        cas_misses = 0;
+        bytes_written = 0;
+        bytes_read = 0;
+        cmd_flush = 0;
+        conn_yields = 0;
+        auth_cmds = 0;
+        auth_errors = 0;
+
+        rbufs_allocated = 0;
+        rbufs_loaned = 0;
+        rbufs_existing = 0;
+        wbufs_allocated = 0;
+        wbufs_loaned = 0;
+
+        iovused_high_watermark = 0;
+        msgused_high_watermark = 0;
+    }
 
     StatsCounter<uint64_t> cmd_get;
+    StatsCounter<uint64_t> get_hits;
     StatsCounter<uint64_t> get_misses;
+    StatsCounter<uint64_t> cmd_set;
+    StatsCounter<uint64_t> delete_hits;
+    StatsCounter<uint64_t> cas_hits;
+    StatsCounter<uint64_t> cas_badval;
     StatsCounter<uint64_t> delete_misses;
     StatsCounter<uint64_t> incr_misses;
     StatsCounter<uint64_t> decr_misses;
@@ -191,7 +201,6 @@ struct thread_stats {
     int iovused_high_watermark;
     /* High value conn->msgused has got to */
     int msgused_high_watermark;
-    std::array<struct slab_stats, MAX_NUMBER_OF_SLAB_CLASSES> slab_stats;
 };
 
 /**
@@ -515,7 +524,6 @@ int   is_listen_thread(void);
 
 void STATS_LOCK(void);
 void STATS_UNLOCK(void);
-void threadlocal_stats_clear(struct thread_stats *stats);
 void threadlocal_stats_reset(struct thread_stats *thread_stats);
 void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct thread_stats *stats);
 void slab_stats_aggregate(struct thread_stats *stats, struct slab_stats *out);

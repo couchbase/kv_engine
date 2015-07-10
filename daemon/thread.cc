@@ -476,46 +476,21 @@ void notify_dispatcher(void) {
 
 /******************************* GLOBAL STATS ******************************/
 
-void threadlocal_stats_clear(struct thread_stats *stats) {
-    stats->cmd_get = 0;
-    stats->get_misses = 0;
-    stats->delete_misses = 0;
-    stats->incr_misses = 0;
-    stats->decr_misses = 0;
-    stats->incr_hits = 0;
-    stats->decr_hits = 0;
-    stats->cas_misses = 0;
-    stats->bytes_written = 0;
-    stats->bytes_read = 0;
-    stats->cmd_flush = 0;
-    stats->conn_yields = 0;
-    stats->auth_cmds = 0;
-    stats->auth_errors = 0;
-    stats->rbufs_allocated = 0;
-    stats->rbufs_loaned = 0;
-    stats->rbufs_existing = 0;
-    stats->wbufs_allocated = 0;
-    stats->wbufs_loaned = 0;
-    stats->iovused_high_watermark = 0;
-    stats->msgused_high_watermark = 0;
-
-    for (auto &ss : stats->slab_stats) {
-        ss.reset();
-    }
-}
-
 void threadlocal_stats_reset(struct thread_stats *thread_stats) {
     for (int ii = 0; ii < settings.num_threads; ++ii) {
-        threadlocal_stats_clear(&thread_stats[ii]);
+        thread_stats[ii].reset();
     }
 }
 
 void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct thread_stats *stats) {
-    int ii, sid;
-    for (ii = 0; ii < settings.num_threads; ++ii) {
-
+    for (int ii = 0; ii < settings.num_threads; ++ii) {
         stats->cmd_get += thread_stats[ii].cmd_get;
         stats->get_misses += thread_stats[ii].get_misses;
+        stats->cmd_set += thread_stats[ii].cmd_set;
+        stats->get_hits += thread_stats[ii].get_hits;
+        stats->delete_hits += thread_stats[ii].delete_hits;
+        stats->cas_hits += thread_stats[ii].cas_hits;
+        stats->cas_badval += thread_stats[ii].cas_badval;
         stats->delete_misses += thread_stats[ii].delete_misses;
         stats->decr_misses += thread_stats[ii].decr_misses;
         stats->incr_misses += thread_stats[ii].incr_misses;
@@ -546,26 +521,6 @@ void threadlocal_stats_aggregate(struct thread_stats *thread_stats, struct threa
                 stats->msgused_high_watermark = thread_stats[ii].msgused_high_watermark;
             }
         }
-
-        for (sid = 0; sid < MAX_NUMBER_OF_SLAB_CLASSES; sid++) {
-            stats->slab_stats[sid].cmd_set +=
-                thread_stats[ii].slab_stats[sid].cmd_set;
-            stats->slab_stats[sid].get_hits +=
-                thread_stats[ii].slab_stats[sid].get_hits;
-            stats->slab_stats[sid].delete_hits +=
-                thread_stats[ii].slab_stats[sid].delete_hits;
-            stats->slab_stats[sid].cas_hits +=
-                thread_stats[ii].slab_stats[sid].cas_hits;
-            stats->slab_stats[sid].cas_badval +=
-                thread_stats[ii].slab_stats[sid].cas_badval;
-        }
-
-    }
-}
-
-void slab_stats_aggregate(struct thread_stats *stats, struct slab_stats *out) {
-    for (int sid = 0; sid < MAX_NUMBER_OF_SLAB_CLASSES; sid++) {
-        out->add(stats->slab_stats[sid]);
     }
 }
 

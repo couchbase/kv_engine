@@ -325,15 +325,9 @@ void add_statistics(const void *cookie, ADD_STAT add_stats,
 
 /*@null@*/
 static void do_slabs_stats(struct default_engine *engine, ADD_STAT add_stats, const void *cookie) {
-    unsigned int i, total;
-    /* Get the per-thread stats which contain some interesting aggregates */
-#ifdef FUTURE
-    struct conn *conn = (struct conn*)cookie;
-    struct thread_stats thread_stats;
-    threadlocal_stats_aggregate(c, &thread_stats);
-#endif
+    unsigned int i;
+    unsigned int total = 0;
 
-    total = 0;
     for(i = POWER_SMALLEST; i <= engine->slabs.power_largest; i++) {
         slabclass_t *p = &engine->slabs.slabclass[i];
         if (p->slabs != 0) {
@@ -357,18 +351,6 @@ static void do_slabs_stats(struct default_engine *engine, ADD_STAT add_stats, co
                            p->end_page_free);
             add_statistics(cookie, add_stats, NULL, i, "mem_requested", "%"PRIu64,
                            (uint64_t)p->requested);
-#ifdef FUTURE
-            add_statistics(cookie, add_stats, NULL, i, "get_hits", "%"PRIu64,
-                           thread_stats.slab_stats[i].get_hits);
-            add_statistics(cookie, add_stats, NULL, i, "cmd_set", "%"PRIu64,
-                           thread_stats.slab_stats[i].set_cmds);
-            add_statistics(cookie, add_stats, NULL, i, "delete_hits", "%"PRIu64,
-                           thread_stats.slab_stats[i].delete_hits);
-            add_statistics(cookie, add_stats, NULL, i, "cas_hits", "%"PRIu64,
-                           thread_stats.slab_stats[i].cas_hits);
-            add_statistics(cookie, add_stats, NULL, i, "cas_badval", "%"PRIu64,
-                           thread_stats.slab_stats[i].cas_badval);
-#endif
             total++;
         }
     }

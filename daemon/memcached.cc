@@ -5302,10 +5302,6 @@ static void process_bin_delete(conn *c) {
                                        &mut_info);
     }
 
-    /* For some reason the SLAB_INCR calls below need to access this... */
-    item_info_holder info;
-    info.info.clsid = 0;
-
     switch (ret) {
     case ENGINE_SUCCESS:
         c->cas = cas;
@@ -5455,16 +5451,12 @@ static void server_stats(ADD_STAT add_stat_callback, conn *c) {
 #else
     long pid = (long)getpid();
 #endif
-    struct slab_stats slab_stats;
     rel_time_t now = mc_time_get_current_time();
 
     struct thread_stats thread_stats;
-    threadlocal_stats_clear(&thread_stats);
 
     threadlocal_stats_aggregate(all_buckets[c->bucket.idx].stats,
                                 &thread_stats);
-
-    slab_stats_aggregate(&thread_stats, &slab_stats);
 
     STATS_LOCK();
 
@@ -5496,7 +5488,7 @@ static void server_stats(ADD_STAT add_stat_callback, conn *c) {
     add_stat(c, add_stat_callback, "connection_structures",
                 stats.conn_structs.load(std::memory_order_relaxed));
     add_stat(c, add_stat_callback, "cmd_get", thread_stats.cmd_get);
-    add_stat(c, add_stat_callback, "cmd_set", slab_stats.cmd_set);
+    add_stat(c, add_stat_callback, "cmd_set", thread_stats.cmd_set);
     add_stat(c, add_stat_callback, "cmd_flush", thread_stats.cmd_flush);
     // index 0 contains the aggregated timings for all buckets
     auto &timings = all_buckets[0].timings;
@@ -5508,17 +5500,17 @@ static void server_stats(ADD_STAT add_stat_callback, conn *c) {
     add_stat(c, add_stat_callback, "cmd_total_ops", total_ops);
     add_stat(c, add_stat_callback, "auth_cmds", thread_stats.auth_cmds);
     add_stat(c, add_stat_callback, "auth_errors", thread_stats.auth_errors);
-    add_stat(c, add_stat_callback, "get_hits", slab_stats.get_hits);
+    add_stat(c, add_stat_callback, "get_hits", thread_stats.get_hits);
     add_stat(c, add_stat_callback, "get_misses", thread_stats.get_misses);
     add_stat(c, add_stat_callback, "delete_misses", thread_stats.delete_misses);
-    add_stat(c, add_stat_callback, "delete_hits", slab_stats.delete_hits);
+    add_stat(c, add_stat_callback, "delete_hits", thread_stats.delete_hits);
     add_stat(c, add_stat_callback, "incr_misses", thread_stats.incr_misses);
     add_stat(c, add_stat_callback, "incr_hits", thread_stats.incr_hits);
     add_stat(c, add_stat_callback, "decr_misses", thread_stats.decr_misses);
     add_stat(c, add_stat_callback, "decr_hits", thread_stats.decr_hits);
     add_stat(c, add_stat_callback, "cas_misses", thread_stats.cas_misses);
-    add_stat(c, add_stat_callback, "cas_hits", slab_stats.cas_hits);
-    add_stat(c, add_stat_callback, "cas_badval", slab_stats.cas_badval);
+    add_stat(c, add_stat_callback, "cas_hits", thread_stats.cas_hits);
+    add_stat(c, add_stat_callback, "cas_badval", thread_stats.cas_badval);
     add_stat(c, add_stat_callback, "bytes_read", thread_stats.bytes_read);
     add_stat(c, add_stat_callback, "bytes_written", thread_stats.bytes_written);
     add_stat(c, add_stat_callback, "accepting_conns", is_listen_disabled() ? 0 : 1);
