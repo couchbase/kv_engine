@@ -4445,7 +4445,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
                                                        ADD_STAT add_stat) {
     BlockTimer timer(&stats.getStatsCmdHisto);
     if (stat_key != NULL) {
-        LOG(EXTENSION_LOG_DEBUG, "stats %s %d", stat_key, nkey);
+        LOG(EXTENSION_LOG_DEBUG, "stats %.*s", nkey, stat_key);
     } else {
         LOG(EXTENSION_LOG_DEBUG, "stats engine");
     }
