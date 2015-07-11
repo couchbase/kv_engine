@@ -1090,6 +1090,7 @@ rw_<Shard number>: indicating the times spent doing various things:
 
 | commit                | time spent in commit operations                |
 | compact               | time spent in file compaction operations       |
+| snapshot              | time spent in VB state snapshot operations     |
 | delete                | time spent in delete operations                |
 | save_documents        | time spent in persisting documents in storage  |
 | writeTime             | time spent in writing to storage subsystem     |
