@@ -34,10 +34,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_data_age                        | Seconds since most recently            |
 |                                    | stored object was modified             |
 | ep_data_age_highwat                | ep_data_age high water mark            |
-| ep_too_young                       | Number of times an object was          |
-|                                    | not stored due to being too young      |
-| ep_too_old                         | Number of times an object was          |
-|                                    | stored after being dirty too long      |
 | ep_num_workers                     | Global number of shared worker threads |
 | ep_bucket_priority                 | Priority assigned to the bucket        |
 | ep_total_enqueued                  | Total number of items queued for       |
@@ -243,8 +239,6 @@ For introductory information on stats within Couchbase, start with the
 | ep_exp_pager_enabled               | True if the expiry pager is enabled    |
 | ep_exp_pager_stime                 | The time interval for purging expired  |
 |                                    | items from memory                      |
-| ep_failpartialwarmup               | True if we want kill the bucket if     |
-|                                    | warmup fails                           |
 | ep_flushall_enabled                | True if this bucket allows the use of  |
 |                                    | the flush_all command                  |
 | ep_getl_default_timeout            | The default getl lock duration         |
@@ -1193,8 +1187,6 @@ Reset Stats:
 | ep_pending_ops_total              |
 | ep_storage_age                    |
 | ep_storage_age_highwat            |
-| ep_too_old                        |
-| ep_too_young                      |
 | ep_tap_bg_load_avg                |
 | ep_tap_bg_max_load                |
 | ep_tap_bg_max_wait                |
