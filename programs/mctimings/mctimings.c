@@ -70,11 +70,12 @@ static void dump_histogram(void)
         callback("ms", ii, ii, timings.ms[ii]);
     }
 
-    for (ii = 0; ii < 10; ++ii) {
+    callback("ms", 50, 499, timings.halfsec[0]);
+    for (ii = 1; ii < 10; ++ii) {
         callback("ms", ii * 500, ((ii + 1) * 500) - 1, timings.halfsec[ii]);
     }
 
-    callback("ms", (9 * 500), 0, timings.wayout);
+    callback("ms", (10 * 500), 0, timings.wayout);
 
 }
 
