@@ -192,6 +192,8 @@ static void perf_latency_core(ENGINE_HANDLE *h,
         const hrtime_t end = gethrtime();
         delete_timings.push_back(end - start);
     }
+
+    testHarness.destroy_cookie(cookie);
 }
 
 static enum test_result perf_latency(ENGINE_HANDLE *h,
