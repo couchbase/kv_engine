@@ -21,6 +21,8 @@
 #include "libforestdb/forestdb.h"
 #include "kvstore.h"
 
+class Mutex; //forward declaration
+
 // Additional 3 Bytes for flex meta, datatype and conflict resolution mode
 const size_t FORESTDB_METADATA_SIZE  ((3 * sizeof(uint32_t) + 2 * sizeof(uint64_t)) +
                                       FLEX_DATA_OFFSET + EXT_META_LEN +
@@ -279,6 +281,9 @@ private:
     fdb_config fileConfig;
     fdb_kvs_config kvsConfig;
     std::vector<ForestRequest *> pendingReqsQ;
+
+    static Mutex initLock;
+    static int numGlobalFiles;
 
 private:
     void close();

@@ -21,8 +21,12 @@
 #include <vbucket.h>
 #include <cJSON.h>
 #include <JSON_checker.h>
+#include <locks.h>
 
 using namespace CouchbaseDirectoryUtilities;
+
+Mutex ForestKVStore::initLock;
+int ForestKVStore::numGlobalFiles = 0;
 
 ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     KVStore(config), intransaction(false),
@@ -68,6 +72,10 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
 
     fileConfig = fdb_get_default_config();
     kvsConfig = fdb_get_default_kvs_config();
+
+   LockHolder lh(initLock);
+   ++numGlobalFiles;
+   lh.unlock();
 
     status = fdb_open(&dbFileHandle, dbFile.str().c_str(), &fileConfig);
     if (status != FDB_RESULT_SUCCESS) {
@@ -116,6 +124,8 @@ ForestKVStore::ForestKVStore(const ForestKVStore &copyFrom) :
 
     /* create the data directory */
     createDataDir(dbname);
+    LockHolder lh(initLock);
+    ++numGlobalFiles;
 }
 
 ForestKVStore::~ForestKVStore() {
@@ -152,6 +162,10 @@ ForestKVStore::~ForestKVStore() {
 
    /* Close the database file instance */
    fdb_close(dbFileHandle);
+   LockHolder lh(initLock);
+   if (--numGlobalFiles == 0) {
+       fdb_shutdown();
+   }
 }
 
 ForestRequest::ForestRequest(const Item &it, MutationRequestCallback &cb ,bool del)
@@ -263,7 +277,6 @@ void ForestKVStore::readVBState(uint16_t vbId) {
         }
 
         cJSON_Delete(jsonObj);
-        fdb_doc_free(statDoc);
     }
 
     cachedVBStates[vbId] = new vbucket_state(state, checkpointId,
@@ -271,6 +284,7 @@ void ForestKVStore::readVBState(uint16_t vbId) {
                                              lastSnapStart, lastSnapEnd,
                                              maxCas, driftCounter,
                                              failovers);
+    fdb_doc_free(statDoc);
 }
 
 void ForestKVStore::delVBucket(uint16_t vbucket) {
