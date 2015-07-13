@@ -39,7 +39,7 @@ struct mock_stats {
 
 MEMCACHED_PUBLIC_API SERVER_HANDLE_V1 *get_mock_server_api(void);
 
-MEMCACHED_PUBLIC_API void init_mock_server(void);
+MEMCACHED_PUBLIC_API void init_mock_server(bool log_to_stderr);
 
 MEMCACHED_PUBLIC_API
 struct mock_connstruct *mk_mock_connection(const char *user,
