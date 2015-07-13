@@ -24,6 +24,7 @@ struct mock_engine {
 };
 
 static bool color_enabled;
+static bool log_to_stderr = false;
 
 #ifndef WIN32
 static sig_atomic_t alarmed;
@@ -1051,6 +1052,12 @@ static int execute_test(engine_test_t test,
         }
 
         if (ret == PENDING) {
+            init_mock_server(log_to_stderr);
+            if (memcached_initialize_stderr_logger(get_mock_server_api) != EXTENSION_SUCCESS) {
+                fprintf(stderr, "Failed to initialize log system\n");
+                return 1;
+            }
+
             /* Start the engines and go */
             start_your_engines(engine, test.cfg ? test.cfg : default_cfg, true);
             if (test.test_setup != NULL) {
@@ -1181,7 +1188,6 @@ int main(int argc, char **argv) {
     memset(&my_setup_suite, 0, sizeof(my_setup_suite));
     memset(&my_teardown_suite, 0, sizeof(my_teardown_suite));
 
-    logger_descriptor = get_null_logger();
     color_enabled = getenv("TESTAPP_ENABLE_COLOR") != NULL;
 
     /* Allow 'attempts' to also be set via env variable - this allows
@@ -1264,7 +1270,7 @@ int main(int argc, char **argv) {
             terminate_on_error = true;
             break;
         case 'X':
-            logger_descriptor = get_stderr_logger();
+            log_to_stderr = true;
             break;
         default:
             fprintf(stderr, "Illegal argument \"%c\"\n", c);
@@ -1320,6 +1326,15 @@ int main(int argc, char **argv) {
     harness.get_current_testcase = get_current_testcase;
     harness.get_mapped_bytes = get_mapped_bytes;
     harness.release_free_memory = release_free_memory;
+
+    /* Initialize logging. */
+    if (log_to_stderr) {
+        logger_descriptor = get_stderr_logger();
+    } else {
+        logger_descriptor = get_null_logger();
+    }
+    get_mock_server_api()->extension->register_extension(EXTENSION_LOGGER,
+                                                         logger_descriptor);
 
     for (num_cases = 0; testcases[num_cases].name; num_cases++) {
         /* Just counting */

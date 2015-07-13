@@ -41,7 +41,7 @@ MEMCACHED_PUBLIC_API void mock_init_alloc_hooks(void);
 
 MEMCACHED_PUBLIC_API SERVER_HANDLE_V1 *get_mock_server_api(void);
 
-MEMCACHED_PUBLIC_API void init_mock_server(ENGINE_HANDLE *server_engine);
+MEMCACHED_PUBLIC_API void init_mock_server(bool log_to_stderr);
 
 MEMCACHED_PUBLIC_API
 struct mock_connstruct *mk_mock_connection(const char *user,

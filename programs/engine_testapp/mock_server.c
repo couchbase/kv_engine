@@ -26,7 +26,7 @@ struct mock_connstruct *connstructs;
 struct mock_extensions extensions;
 EXTENSION_LOGGER_DESCRIPTOR *null_logger = NULL;
 EXTENSION_LOGGER_DESCRIPTOR *stderr_logger = NULL;
-ENGINE_HANDLE *engine = NULL;
+EXTENSION_LOG_LEVEL log_level = EXTENSION_LOG_INFO;
 
 /**
  * Session cas elements
@@ -333,6 +333,21 @@ void mock_init_alloc_hooks(void) {
     init_alloc_hooks();
 }
 
+/**
+ * LOG API FUNCTIONS
+ **/
+static EXTENSION_LOGGER_DESCRIPTOR* mock_get_logger(void) {
+    return extensions.logger;
+}
+
+static EXTENSION_LOG_LEVEL mock_get_log_level(void) {
+    return log_level;
+}
+
+static void mock_set_log_level(EXTENSION_LOG_LEVEL severity) {
+    log_level = severity;
+}
+
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
    static SERVER_CORE_API core_api;
@@ -340,6 +355,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
    static SERVER_STAT_API server_stat_api;
    static SERVER_EXTENSION_API extension_api;
    static SERVER_CALLBACK_API callback_api;
+   static SERVER_LOG_API log_api;
    static ALLOCATOR_HOOKS_API hooks_api;
    static SERVER_HANDLE_V1 rv;
    static int init;
@@ -377,6 +393,9 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       callback_api.register_callback = mock_register_callback;
       callback_api.perform_callbacks = mock_perform_callbacks;
 
+      log_api.get_logger = mock_get_logger;
+      log_api.get_level = mock_get_log_level;
+      log_api.set_level = mock_set_log_level;
 
       hooks_api.add_new_hook = mc_add_new_hook;
       hooks_api.remove_new_hook = mc_remove_new_hook;
@@ -394,6 +413,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       rv.stat = &server_stat_api;
       rv.extension = &extension_api;
       rv.callback = &callback_api;
+      rv.log = &log_api;
       rv.cookie = &server_cookie_api;
       rv.alloc_hooks = &hooks_api;
    }
@@ -401,12 +421,11 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
    return &rv;
 }
 
-void init_mock_server(ENGINE_HANDLE *server_engine) {
+void init_mock_server(bool log_to_stderr) {
     process_started = time(0);
     null_logger = get_null_logger();
     stderr_logger = get_stderr_logger();
-    engine = server_engine;
-    extensions.logger = null_logger;
+    extensions.logger = log_to_stderr ? stderr_logger : null_logger;
     session_cas = 0x0102030405060708;
     session_ctr = 0;
     cb_mutex_initialize(&session_mutex);
