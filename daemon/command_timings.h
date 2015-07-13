@@ -34,8 +34,10 @@ public:
     uint32_t get_usec(const uint8_t index);
     uint32_t get_msec(const uint8_t index);
     uint32_t get_halfsec(const uint8_t index);
-    uint32_t get_wayout();
+    uint32_t get_wayout(const uint8_t index);
     uint32_t get_total();
+
+    uint32_t aggregate_wayout();
 
 private:
     /* We collect timings for <=1 us */
@@ -45,6 +47,8 @@ private:
     /* we collect timings from 0-49 ms (entry 0 is never used!) */
     std::array<std::atomic<uint32_t>, 50> msec;
     std::array<std::atomic<uint32_t>, 10> halfsec;
-    std::atomic<uint32_t> wayout;
+    // wayout use the following buckets:
+    // [5-9], [10-19], [20-39], [40-79], [80-inf].
+    std::array<std::atomic<uint32_t>, 5> wayout;
     std::atomic<uint64_t> total;
 };

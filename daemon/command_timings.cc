@@ -61,7 +61,11 @@ CommandTimings& CommandTimings::operator=(const CommandTimings&other) {
         copy(halfsec[idx], other.halfsec[idx]);
     }
 
-    copy(wayout, other.wayout);
+    len = wayout.size();
+    for (idx = 0; idx < len; ++idx) {
+        copy(wayout[idx], other.wayout[idx]);
+    }
+
     copy(total, other.total);
 
     return *this;
@@ -78,7 +82,9 @@ void CommandTimings::reset(void) {
     for(auto& hs: halfsec) {
         hs.store(0, std::memory_order_relaxed);
     }
-    wayout.store(0, std::memory_order_relaxed);
+    for (auto& wo: wayout) {
+        wo.store(0, std::memory_order_relaxed);
+    }
     total.store(0, std::memory_order_relaxed);
 }
 
@@ -96,7 +102,19 @@ void CommandTimings::collect(const hrtime_t nsec) {
     } else if (hs < 10) {
         halfsec[hs].fetch_add(1, std::memory_order_relaxed);
     } else {
-        wayout.fetch_add(1, std::memory_order_relaxed);
+        // [5-9], [10-19], [20-39], [40-79], [80-inf].
+        hrtime_t sec = hs / 2;
+        if (sec < 10) {
+            wayout[0].fetch_add(1, std::memory_order_relaxed);
+        } else if (sec < 20) {
+            wayout[1].fetch_add(1, std::memory_order_relaxed);
+        } else if (sec < 40) {
+            wayout[2].fetch_add(1, std::memory_order_relaxed);
+        } else if (sec < 80) {
+            wayout[3].fetch_add(1, std::memory_order_relaxed);
+        } else {
+            wayout[4].fetch_add(1, std::memory_order_relaxed);
+        }
     }
     total.fetch_add(1, std::memory_order_relaxed);
 }
@@ -127,7 +145,15 @@ std::string CommandTimings::to_string(void) {
         cJSON_AddItemToArray(array, obj);
     }
     cJSON_AddItemToObject(root, "500ms", array);
-    cJSON_AddNumberToObject(root, "wayout", get_wayout());
+
+    cJSON_AddNumberToObject(root, "5s-9s", get_wayout(0));
+    cJSON_AddNumberToObject(root, "10s-19s", get_wayout(1));
+    cJSON_AddNumberToObject(root, "20s-39s", get_wayout(2));
+    cJSON_AddNumberToObject(root, "40s-79s", get_wayout(3));
+    cJSON_AddNumberToObject(root, "80s-inf", get_wayout(4));
+
+    // for backwards compatibility, add the old wayouts
+    cJSON_AddNumberToObject(root, "wayout", aggregate_wayout());
     char *ptr = cJSON_PrintUnformatted(root);
     std::string ret(ptr);
     cJSON_Free(ptr);
@@ -153,8 +179,16 @@ uint32_t CommandTimings::get_halfsec(const uint8_t index) {
     return halfsec[index].load(std::memory_order_relaxed);
 }
 
-uint32_t CommandTimings::get_wayout() {
-    return wayout.load(std::memory_order_relaxed);
+uint32_t CommandTimings::get_wayout(const uint8_t index) {
+    return wayout[index].load(std::memory_order_relaxed);
+}
+
+uint32_t CommandTimings::aggregate_wayout() {
+    uint32_t ret = 0;
+    for (auto &wo : wayout) {
+        ret += wo.load(std::memory_order_relaxed);
+    }
+    return ret;
 }
 
 uint32_t CommandTimings::get_total() {
