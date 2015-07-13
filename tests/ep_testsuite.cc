@@ -88,6 +88,9 @@ public:
 
 
 static const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                 const char *name) CB_MUST_USE_RESULT;
+
+static const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                  const char *name) {
     const void *cookie = testHarness.create_cookie();
     testHarness.lock_cookie(cookie);
@@ -1903,19 +1906,21 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_restart_session_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    createTapConn(h, h1, "tap_client_thread");
+    const void* cookie = createTapConn(h, h1, "tap_client_thread");
+    testHarness.destroy_cookie(cookie);
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
     wait_for_warmup_complete(h, h1);
-    createTapConn(h, h1, "tap_client_thread");
+    cookie = createTapConn(h, h1, "tap_client_thread");
 
     check(h1->get_stats(h, NULL, "tap", 3, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     std::string val = vals["eq_tapq:tap_client_thread:backfill_completed"];
     check(strcmp(val.c_str(), "true") == 0, "Don't expect the backfill upon restart");
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 

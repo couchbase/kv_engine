@@ -106,7 +106,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
                                              uint32_t vallen = 0,
                                              uint8_t datatype = 0x00,
                                              const char *meta = NULL,
-                                             uint16_t nmeta = 0);
+                                             uint16_t nmeta = 0) CB_MUST_USE_RESULT;
 
 // Basic Operations
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
@@ -132,10 +132,11 @@ void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
              std::map<std::string, uint16_t> obskeys);
 void observe_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb_id ,
                    uint64_t uuid);
-protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
-                                                    ENGINE_HANDLE_V1 *h1,
-                                                    vbucket_state_t state,
-                                                    bool makeinvalidkey = false);
+
+protocol_binary_request_header*
+prepare_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                    vbucket_state_t state, bool makeinvalidkey = false) CB_MUST_USE_RESULT;
+
 bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_param_t paramtype,
                const char *param, const char *val);
 bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
