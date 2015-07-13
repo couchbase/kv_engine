@@ -22,6 +22,7 @@ struct mock_engine {
 };
 
 static bool color_enabled;
+static bool log_to_stderr = false;
 
 #ifndef WIN32
 static sig_atomic_t alarmed;
@@ -1036,6 +1037,12 @@ static int execute_test(engine_test_t test,
         }
 
         if (ret == PENDING) {
+            init_mock_server(log_to_stderr);
+            if (memcached_initialize_stderr_logger(get_mock_server_api) != EXTENSION_SUCCESS) {
+                fprintf(stderr, "Failed to initialize log system\n");
+                return 1;
+            }
+
             /* Start the engines and go */
             start_your_engines(engine, test.cfg ? test.cfg : default_cfg, true);
             if (test.test_setup != NULL) {
@@ -1245,6 +1252,9 @@ int main(int argc, char **argv) {
         case 'Z' :
             terminate_on_error = true;
             break;
+        case 'X':
+            log_to_stderr = true;
+            break;
         default:
             fprintf(stderr, "Illegal argument \"%c\"\n", c);
             return 1;
@@ -1295,6 +1305,11 @@ int main(int argc, char **argv) {
     harness.waitfor_cookie = waitfor_mock_cookie;
     harness.time_travel = mock_time_travel;
     harness.get_current_testcase = get_current_testcase;
+
+    /* Initialize logging. */
+    get_mock_server_api()->extension->register_extension
+            (EXTENSION_LOGGER, log_to_stderr ? get_stderr_logger()
+                                             : get_null_logger());
 
     for (num_cases = 0; testcases[num_cases].name; num_cases++) {
         /* Just counting */
