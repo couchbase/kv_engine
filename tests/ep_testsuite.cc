@@ -3028,6 +3028,7 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     check(ENGINE_SUCCESS ==
             store(h, h1, NULL, OPERATION_SET, "dummykey", "dummyvalue", &itm,
                 0, 0, 0), "Error setting.");
+    h1->release(h, NULL, itm);
 
     wait_for_flusher_to_settle(h, h1);
 
@@ -4740,6 +4741,7 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS, snap_start,
                             snap_end);
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -5619,6 +5621,7 @@ static enum test_result test_dcp_consumer_end_stream(ENGINE_HANDLE *h,
     wait_for_str_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_state", "dead",
                             "dcp");
 
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -5763,6 +5766,7 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
+    free(request);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
@@ -5905,6 +5909,7 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
+    free(request);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
@@ -6269,6 +6274,7 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     }
 
     testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
     check(get_int_stat(h, h1, "ep_tap_total_fetched", "tap") != 0,
           "http://bugs.northscale.com/show_bug.cgi?id=1695");
     h1->reset_stats(h, NULL);
@@ -6350,6 +6356,7 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(num_deletes == (num_keys - 2), "Incorrect number of deletes");
 
     testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -6419,6 +6426,7 @@ static enum test_result test_sent_from_vb(ENGINE_HANDLE *h,
                        "tap") == 0, "Incorrect number of items sent");
 
     testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }
@@ -6539,6 +6547,7 @@ static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     }
 
     testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
     check(get_int_stat(h, h1, "ep_tap_total_fetched", "tap") != 0,
           "http://bugs.northscale.com/show_bug.cgi?id=1695");
     h1->reset_stats(h, NULL);
@@ -7371,6 +7380,7 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     check(h1->get(h, NULL, &itm, "k1", 2, 0) == ENGINE_SUCCESS, "Missing key");
     checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
+    h1->release(h, NULL, itm);
 
     // store new key with some random metadata
     const size_t keylen = strlen("k3");
@@ -8349,19 +8359,18 @@ static enum test_result test_cluster_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 1 state.");
     check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
                     "VBucket state not active");
-    protocol_binary_request_set_cluster_config req1;
-    memset(&req1, 0, sizeof(req1));
     uint64_t var = 1234;
     protocol_binary_request_header *pkt1 =
         createPacket(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
     check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
             "Failed to set cluster configuration");
-    protocol_binary_request_get_cluster_config req2;
-    memset(&req2, 0, sizeof(req2));
+    free(pkt1);
+
     protocol_binary_request_header *pkt2 =
         createPacket(PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, NULL, 0);
     check(h1->unknown_command(h, NULL, pkt2, add_response) == ENGINE_SUCCESS,
             "Failed to get cluster configuration");
+    free(pkt2);
     if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
                           sizeof(var)) != 0) {
         return FAIL;
@@ -8372,20 +8381,19 @@ static enum test_result test_cluster_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h,
                                                                 ENGINE_HANDLE_V1 *h1) {
-    protocol_binary_request_set_cluster_config req1;
-    memset(&req1, 0, sizeof(req1));
     uint64_t var = 4321;
     protocol_binary_request_header *pkt1 =
         createPacket(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
     check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
             "Failed to set cluster configuration");
-    protocol_binary_request_get_cluster_config req2;
-    memset(&req2, 0, sizeof(req2));
+    free(pkt1);
+
     protocol_binary_request_header *pkt2 =
         createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, 1, 0, NULL, 0, NULL, 0, NULL, 0);
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, pkt2,
                                                 add_response);
     check(ret == ENGINE_SUCCESS, "Should've received not_my_vbucket/cluster config");
+    free(pkt2);
     if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
                           sizeof(var)) != 0) {
         return FAIL;
@@ -8422,19 +8430,17 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(get_int_stat(h, h1, "curr_items") == 100,
             "Item count should've been 100");
 
-    uint8_t extlen = 4;
+    const char key[] = "key_10";
+    const uint16_t keylen = strlen(key);
     uint32_t count = htonl(5);
-    char *ext = new char[extlen];
-    memcpy(ext, (char*)&count, sizeof(count));
-    uint16_t keylen = 6;
 
     protocol_binary_request_header *pkt1 =
-        createPacket(CMD_GET_KEYS, 0, 0, ext, extlen,
-                     "key_10", keylen, NULL, 0, 0x00);
-    delete[] ext;
+        createPacket(CMD_GET_KEYS, 0, 0, reinterpret_cast<char*>(&count),
+                     sizeof(count), key, keylen, NULL, 0, 0x00);
 
     check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
             "Failed to get all_keys, sort: ascending");
+    free(pkt1);
 
     //Check the keys.
     size_t start_num = 10;
@@ -8443,8 +8449,7 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
         uint16_t len;
         memcpy(&len, last_body.data() + offset, sizeof(uint16_t));
         len = ntohs(len);
-        check(keylen == len,
-              "Key length mismatch in all_docs response");
+        checkeq(keylen, len, "Key length mismatch in all_docs response");
         std::stringstream ss;
         ss << "key_" << start_num++;
         offset += sizeof(uint16_t);
@@ -8459,16 +8464,12 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 static enum test_result test_all_keys_api_during_bucket_creation(
                                 ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
-    uint8_t extlen = 4;
     uint32_t count = htonl(5);
-    char *ext = new char[extlen];
-    memcpy(ext, (char*)&count, sizeof(count));
-    uint16_t keylen = 6;
+    const char key[] = "key_10";
 
     protocol_binary_request_header *pkt1 =
-        createPacket(CMD_GET_KEYS, 1, 0, ext, extlen,
-                     "key_10", keylen, NULL, 0, 0x00);
-    delete[] ext;
+        createPacket(CMD_GET_KEYS, 1, 0, reinterpret_cast<char*>(&count),
+                     sizeof(count), key, strlen(key), NULL, 0, 0x00);
 
     stop_persistence(h, h1);
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
@@ -8476,6 +8477,7 @@ static enum test_result test_all_keys_api_during_bucket_creation(
 
     ENGINE_ERROR_CODE err = h1->unknown_command(h, NULL, pkt1,
                                                 add_response);
+    free(pkt1);
     start_persistence(h, h1);
 
     check(err == ENGINE_SUCCESS,
@@ -9847,12 +9849,15 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     item *i = NULL;
     check(store(h, h1, NULL, OPERATION_SET, key1,
                 "somevalue", &i) == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
 
     check(store(h, h1, NULL, OPERATION_SET, key2,
                 "somevalue2", &i) == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
 
     check(store(h, h1, NULL, OPERATION_SET, key3,
                 "somevalue3", &i) == ENGINE_SUCCESS, "Failed set.");
+    h1->release(h, NULL, i);
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
@@ -9886,8 +9891,6 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-
-    h1->release(h, NULL, i);
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
