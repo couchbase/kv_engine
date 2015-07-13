@@ -145,16 +145,13 @@ bool ConnNotifier::notifyConnections() {
 class ConnManager : public GlobalTask {
 public:
     ConnManager(EventuallyPersistentEngine *e, ConnMap *cmap)
-        : GlobalTask(e, Priority::TapConnMgrPriority, MIN_SLEEP_TIME, false),
+        : GlobalTask(e, Priority::TapConnMgrPriority, MIN_SLEEP_TIME, true),
           engine(e), connmap(cmap) { }
 
     bool run(void) {
-        if (engine->getEpStats().isShutdown) {
-            return false;
-        }
         connmap->manageConnections();
         snooze(MIN_SLEEP_TIME);
-        return true;
+        return !engine->getEpStats().isShutdown;
     }
 
     std::string getDescription() {
