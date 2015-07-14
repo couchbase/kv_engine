@@ -178,6 +178,9 @@ void ExecutorThread::run() {
             }
         }
     }
+    // Thread is about to terminate - disassociate it from any engine.
+    ObjectRegistry::onSwitchThread(nullptr);
+
     state = EXECUTOR_DEAD;
 }
 
