@@ -11609,6 +11609,7 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         }
         docs_stored++;
     }
+    wait_for_flusher_to_settle(h, h1);
 
     // We should have stored at least a reasonable number of docs so we can
     // then have NRU act on 50% of them.
@@ -11628,6 +11629,19 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
                   "Failed to get value.");
             h1->release(h, NULL, i);
         }
+    }
+
+    // If the item pager hasn't run already, set mem_high_wat
+    // to a value less than mem_used which would force the
+    // item pager to run at least once.
+    if (get_int_stat(h, h1, "ep_num_non_resident") == 0) {
+        int mem_used = get_int_stat(h, h1, "mem_used");
+        int new_low_wat = mem_used * 0.75;
+        set_param(h, h1, protocol_binary_engine_param_flush,
+                  "mem_low_wat", std::to_string(new_low_wat).c_str());
+        int new_high_wat = mem_used * 0.85;
+        set_param(h, h1, protocol_binary_engine_param_flush,
+                  "mem_high_wat", std::to_string(new_high_wat).c_str());
     }
 
     testHarness.time_travel(5);
@@ -13493,7 +13507,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test observe seqno error", test_observe_seqno_error,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test item pager", test_item_pager, test_setup,
-                 teardown, "max_size=2048000", prepare, cleanup),
+                 teardown, "max_size=4096000", prepare, cleanup),
         TestCase("warmup conf", test_warmup_conf, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("bloomfilter conf", test_bloomfilter_conf, test_setup,
