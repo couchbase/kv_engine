@@ -331,7 +331,6 @@ static void request_timings(BIO *bio, const char *bucket, uint8_t opcode, int ve
         } else {
             std::cout << cmd << " " << timings.getTotal() << " operations"
                       << std::endl;
-            std::cout << buffer.data() << std::endl;
         }
     }
 
