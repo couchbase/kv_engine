@@ -121,28 +121,50 @@ SET(CONFIG_SOURCE src/configuration.cc
   ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.cc)
 
 ADD_LIBRARY(ep SHARED
-            src/access_scanner.cc src/atomic.cc src/backfill.cc
-            src/bgfetcher.cc src/bloomfilter.cc src/checkpoint.cc
-            src/checkpoint_remover.cc src/conflict_resolution.cc
-            src/dcp/backfill-manager.cc src/dcp/backfill.cc
-            src/dcp/consumer.cc src/dcp/producer.cc
-            src/dcp/stream.cc src/dcp/response.cc
+            src/access_scanner.cc
+            src/atomic.cc
+            src/backfill.cc
+            src/bgfetcher.cc
+            src/bloomfilter.cc
+            src/checkpoint.cc
+            src/checkpoint_remover.cc
+            src/conflict_resolution.cc
+            src/connmap.cc
+            src/dcp/backfill-manager.cc
+            src/dcp/backfill.cc
+            src/dcp/consumer.cc
+            src/dcp/producer.cc
+            src/dcp/response.cc
+            src/dcp/stream.cc
             src/defragmenter.cc
             src/defragmenter_visitor.cc
-            src/ep.cc src/ep_engine.cc src/ep_time.c
-            src/executorpool.cc src/ext_meta_parser.cc
-            src/failover-table.cc src/flusher.cc src/htresizer.cc
-            src/item.cc src/item_pager.cc src/kvshard.cc
-            src/memory_tracker.cc src/murmurhash3.cc
-            src/mutation_log.cc
-            src/mutex.cc src/priority.cc
+            src/ep.cc
+            src/ep_engine.cc
+            src/ep_time.c
+            src/executorpool.cc
             src/executorthread.cc
+            src/ext_meta_parser.cc
+            src/failover-table.cc
+            src/flusher.cc
+            src/htresizer.cc
+            src/item.cc
+            src/item_pager.cc
+            src/kvshard.cc
+            src/memory_tracker.cc
+            src/murmurhash3.cc
+            src/mutation_log.cc
+            src/mutex.cc
+            src/priority.cc
+            src/replicationthrottle.cc
             src/sizes.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
-            src/stored-value.cc src/tapconnection.cc src/connmap.cc
-            src/replicationthrottle.cc src/tasks.cc
-            src/taskqueue.cc src/vbucket.cc
-            src/vbucketmap.cc src/warmup.cc
+            src/stored-value.cc
+            src/tapconnection.cc
+            src/tasks.cc
+            src/taskqueue.cc
+            src/vbucket.cc
+            src/vbucketmap.cc
+            src/warmup.cc
             ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
             ${FOREST_KVSTORE_SOURCE} ${OBJECTREGISTRY_SOURCE}
             ${CONFIG_SOURCE})
@@ -166,12 +188,17 @@ TARGET_LINK_LIBRARIES(ep-engine_atomic_test platform)
 
 ADD_EXECUTABLE(ep-engine_checkpoint_test
   tests/module_tests/checkpoint_test.cc
-  src/bloomfilter.cc src/murmurhash3.cc
-  src/checkpoint.cc src/failover-table.cc
-  src/testlogger.cc src/stored-value.cc
-  src/atomic.cc src/mutex.cc
+  src/atomic.cc
+  src/bloomfilter.cc
+  src/checkpoint.cc
+  src/failover-table.cc
+  src/item.cc
+  src/mutex.cc
+  src/murmurhash3.cc
+  src/stored-value.cc
+  src/testlogger.cc
+  src/vbucket.cc
   tests/module_tests/test_memory_tracker.cc
-  src/item.cc src/vbucket.cc
   ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_checkpoint_test ${SNAPPY_LIBRARIES} cJSON platform)
 
@@ -180,9 +207,12 @@ ADD_EXECUTABLE(ep-engine_chunk_creation_test
 TARGET_LINK_LIBRARIES(ep-engine_chunk_creation_test platform)
 
 ADD_EXECUTABLE(ep-engine_hash_table_test
-  tests/module_tests/hash_table_test.cc src/item.cc
+  tests/module_tests/hash_table_test.cc
+  src/atomic.cc
+  src/item.cc
+  src/mutex.cc
   src/stored-value.cc
-  src/testlogger.cc src/atomic.cc src/mutex.cc
+  src/testlogger.cc
   tests/module_tests/test_memory_tracker.cc
   ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_hash_table_test ${SNAPPY_LIBRARIES} platform)
@@ -213,7 +243,9 @@ TARGET_LINK_LIBRARIES(ep-engine_failover_table_test cJSON platform)
 ADD_EXECUTABLE(ep-engine_kvstore_test
   tests/module_tests/kvstore_test.cc
   ${OBJECTREGISTRY_SOURCE} ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
-  ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE} src/mutex.cc src/testlogger.cc)
+  ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE}
+  src/mutex.cc
+  src/testlogger.cc)
 TARGET_LINK_LIBRARIES(ep-engine_kvstore_test cJSON JSON_checker couchstore
   forestdb dirutils platform)
 
@@ -259,12 +291,17 @@ TARGET_LINK_LIBRARIES(ep-engine_defragmenter_test cJSON platform ${SNAPPY_LIBRAR
 
 ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
+   src/atomic.cc
+   src/ep_time.c
+   src/ext_meta_parser.cc
+   src/item.cc
+   src/mutex.cc
+   src/testlogger.cc
    tests/ep_testsuite_common.cc
-   src/atomic.cc src/mutex.cc
-   src/item.cc src/testlogger.cc
-   src/ep_time.c src/ext_meta_parser.cc
+   tests/ep_test_apis.cc
    tests/mock/mock_dcp.cc
-   tests/ep_test_apis.cc ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
+   ${OBJECTREGISTRY_SOURCE}
+   ${CONFIG_SOURCE})
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 
