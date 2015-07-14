@@ -26,7 +26,7 @@
 #endif
 
 #define NUM_THREADS 50
-#define NUM_TIMES 100000
+#define NUM_TIMES 10000
 
 class Doodad : public RCValue {
 public:
