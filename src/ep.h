@@ -812,8 +812,10 @@ public:
 
     ENGINE_ERROR_CODE rollback(uint16_t vbid, uint64_t rollbackSeqno);
 
-    ExTask &fetchItemPagerTask() {
-        return itmpTask;
+    void wakeUpItemPager() {
+        if (itmpTask->getState() == TASK_SNOOZED) {
+            ExecutorPool::get()->wake(itmpTask->getId());
+        }
     }
 
     void wakeUpCheckpointRemover() {
