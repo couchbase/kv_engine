@@ -132,7 +132,7 @@ void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
 
     managerTask.reset(new BackfillManagerTask(engine, this,
                                               Priority::BackfillTaskPriority));
-    ExecutorPool::get()->schedule(managerTask, NONIO_TASK_IDX);
+    ExecutorPool::get()->schedule(managerTask, AUXIO_TASK_IDX);
 }
 
 bool BackfillManager::bytesRead(uint32_t bytes) {
