@@ -616,8 +616,9 @@ void ActiveStream::endStream(end_stream_status_t reason) {
         transitionState(STREAM_DEAD);
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream closing, %llu items sent"
             " from backfill phase, %llu items sent from memory phase, %llu was "
-            "last seqno sent", producer->logHeader(), vb_, backfillItems.sent.load(),
-            itemsFromMemoryPhase, lastSentSeqno);
+            "last seqno sent, reason: %s", producer->logHeader(), vb_,
+            backfillItems.sent.load(), itemsFromMemoryPhase, lastSentSeqno,
+            getEndStreamStatusStr(reason));
     }
 }
 
@@ -672,6 +673,27 @@ void ActiveStream::scheduleBackfill() {
             itemsReady = true;
         }
     }
+}
+
+const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
+{
+    switch (status) {
+    case END_STREAM_OK:
+        return "The stream ended due to all items being streamed";
+        break;
+    case END_STREAM_CLOSED:
+        return "The stream closed early due to a close stream message";
+        break;
+    case END_STREAM_STATE:
+        return "The stream closed early because the vbucket state changed";
+        break;
+    case END_STREAM_DISCONNECTED:
+        return "The stream closed early because the conn was disconnected";
+        break;
+    default:
+        break;
+    }
+    return "Status unknown; this should not happen";
 }
 
 void ActiveStream::transitionState(stream_state_t newState) {
@@ -757,6 +779,11 @@ ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId,
         }
     }
     return emd;
+}
+
+const char* ActiveStream::logHeader()
+{
+    return producer->logHeader();
 }
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e, DcpProducer* p,

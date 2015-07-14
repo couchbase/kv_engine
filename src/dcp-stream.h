@@ -204,6 +204,8 @@ public:
 
     size_t getItemsRemaining();
 
+    const char* logHeader();
+
 private:
 
     void transitionState(stream_state_t newState);
@@ -227,6 +229,8 @@ private:
     void endStream(end_stream_status_t reason);
 
     void scheduleBackfill();
+
+    const char* getEndStreamStatusStr(end_stream_status_t status);
 
     ExtendedMetaData* prepareExtendedMetaData(uint16_t vBucketId,
                                               uint8_t conflictResMode);
