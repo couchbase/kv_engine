@@ -105,8 +105,12 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     }
 
     cachedVBStates.reserve(config.getMaxVBuckets());
-    for (uint16_t i = shardId; i < maxVbuckets; i += maxShards) {
-        readVBState(i);
+    for (uint16_t i = 0; i < maxVbuckets; ++i) {
+        cachedVBStates.push_back((vbucket_state *)NULL);
+        if (i == shardId) {
+            readVBState(i);
+            shardId += maxShards; // jump to next vbucket in shard
+        }
     }
 }
 
@@ -194,7 +198,7 @@ void ForestKVStore::readVBState(uint16_t vbId) {
     vbucket_state_t state = vbucket_state_dead;
     uint64_t checkpointId = 0;
     uint64_t maxDeletedSeqno = 0;
-    std::string failovers("[{\"id\":0,\"seq\":0}]");
+    std::string failovers;
     uint64_t lastSnapStart = 0;
     uint64_t lastSnapEnd = 0;
     uint64_t maxCas = 0;
@@ -279,6 +283,11 @@ void ForestKVStore::readVBState(uint16_t vbId) {
         cJSON_Delete(jsonObj);
     }
 
+    if (failovers.empty()) {
+        failovers.assign("[{\"id\":0,\"seq\":0}]");
+    }
+
+    delete cachedVBStates[vbId];
     cachedVBStates[vbId] = new vbucket_state(state, checkpointId,
                                              maxDeletedSeqno, 0, 0,
                                              lastSnapStart, lastSnapEnd,

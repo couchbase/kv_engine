@@ -61,6 +61,7 @@ public:
 
     void callback(GetValue &result) {
         cb_assert(strncmp("value", result.getValue()->getData(), 5) == 0);
+        delete result.getValue();
     }
 
 };
