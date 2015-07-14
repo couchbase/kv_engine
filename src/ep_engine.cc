@@ -425,9 +425,6 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemLowWat(vsize);
-                EPStats &st = e->getEpStats();
-                st.mem_low_wat_percent.store((double)(vsize) /
-                                                        st.getMaxDataSize());
             } else if (strcmp(keyz, "mem_high_wat") == 0) {
                 char *ptr = NULL;
                 checkNumeric(valz);
@@ -435,9 +432,6 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setMemHighWat(vsize);
-                EPStats &st = e->getEpStats();
-                st.mem_high_wat_percent.store((double)(vsize) /
-                                                        st.getMaxDataSize());
             } else if (strcmp(keyz, "backfill_mem_threshold") == 0) {
                 checkNumeric(valz);
                 validate(v, 0, 100);
