@@ -903,9 +903,27 @@ PassiveStream::~PassiveStream() {
 uint32_t PassiveStream::setDead(end_stream_status_t status) {
     LockHolder lh(streamMutex);
     transitionState(STREAM_DEAD);
-    uint32_t unackedBytes = buffer.bytes;
-    clearBuffer();
-    return unackedBytes;
+
+    /**
+     * Clear out buffered items in case of force shutdown,
+     * otherwise attempt processing them.
+     */
+    uint32_t totalBytes = 0;
+    process_items_error_t process_ret = cannot_process;
+    if (!engine->getEpStats().forceShutdown) {
+        uint32_t bytes_processed;
+        do {
+            bytes_processed = 0;
+            process_ret = processBufferedMessages(bytes_processed);
+            totalBytes += bytes_processed;
+        } while (bytes_processed > 0 && process_ret != cannot_process);
+    }
+    if (process_ret == cannot_process) {
+        totalBytes += buffer.bytes;
+        clearBuffer();
+    }
+
+    return totalBytes;
 }
 
 void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
