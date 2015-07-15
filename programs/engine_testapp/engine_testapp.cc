@@ -1274,7 +1274,6 @@ int main(int argc, char **argv) {
     memset(&my_get_test, 0, sizeof(my_get_test));
     memset(&my_setup_suite, 0, sizeof(my_setup_suite));
 
-    logger_descriptor = get_null_logger();
     color_enabled = getenv("TESTAPP_ENABLE_COLOR") != NULL;
 
     /* Use unbuffered stdio */
@@ -1405,9 +1404,14 @@ int main(int argc, char **argv) {
     harness.reload_bucket = reload_bucket;
 
     /* Initialize logging. */
-    get_mock_server_api()->extension->register_extension
-            (EXTENSION_LOGGER, log_to_stderr ? get_stderr_logger()
-                                             : get_null_logger());
+    if (log_to_stderr) {
+        logger_descriptor = get_stderr_logger();
+    } else {
+        logger_descriptor = get_null_logger();
+    }
+    get_mock_server_api()->extension->register_extension(EXTENSION_LOGGER,
+                                                         logger_descriptor);
+
     for (num_cases = 0; testcases[num_cases].name; num_cases++) {
         /* Just counting */
     }
