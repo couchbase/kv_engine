@@ -28,7 +28,6 @@
 #include "mcbp_validators.h"
 #include "ioctl.h"
 #include "mc_time.h"
-#include "cJSON.h"
 #include "utilities/protocol2text.h"
 #include "breakpad.h"
 #include "runtime.h"
@@ -55,6 +54,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <snappy-c.h>
+#include <cJSON.h>
 #include <JSON_checker.h>
 #include <engines/default_engine.h>
 #include <vector>
