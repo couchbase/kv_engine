@@ -39,6 +39,8 @@
 #include "hash.h"
 #include "topkeys.h"
 
+#include <platform/strerror.h>
+
 #include <signal.h>
 #include <fcntl.h>
 #include <errno.h>
@@ -162,6 +164,8 @@ void STATS_UNLOCK() {
 }
 
 #ifdef WIN32
+#define GetLastNetworkError() WSAGetLastError()
+
 static int is_blocking(DWORD dw) {
     return (dw == WSAEWOULDBLOCK);
 }
@@ -181,6 +185,9 @@ static void set_econnreset(void) {
     WSASetLastError(WSAECONNRESET);
 }
 #else
+#define GetLastNetworkError() errno
+#define GetLastError() errno
+
 static int is_blocking(int dw) {
     return (dw == EAGAIN || dw == EWOULDBLOCK);
 }
@@ -5843,11 +5850,6 @@ static void drain_bio_send_pipe(conn *c) {
 
     do {
         if (c->ssl.out.current < c->ssl.out.total) {
-#ifdef WIN32
-            DWORD error;
-#else
-            int error;
-#endif
             n = send(c->sfd, c->ssl.out.buffer + c->ssl.out.current,
                      c->ssl.out.total - c->ssl.out.current, 0);
             if (n > 0) {
@@ -5857,11 +5859,7 @@ static void drain_bio_send_pipe(conn *c) {
                 }
             } else {
                 if (n == -1) {
-#ifdef WIN32
-                    error = WSAGetLastError();
-#else
-                    error = errno;
-#endif
+                    auto error = GetLastNetworkError();
                     if (!is_blocking(error)) {
                         c->ssl.error = true;
                     }
@@ -5903,11 +5901,6 @@ static void drain_bio_recv_pipe(conn *c) {
         }
 
         if (c->ssl.in.total < c->ssl.in.buffsz) {
-#ifdef WIN32
-            DWORD error;
-#else
-            int error;
-#endif
             n = recv(c->sfd, c->ssl.in.buffer + c->ssl.in.total,
                      c->ssl.in.buffsz - c->ssl.in.total, 0);
             if (n > 0) {
@@ -5917,11 +5910,7 @@ static void drain_bio_recv_pipe(conn *c) {
                 if (n == 0) {
                     c->ssl.error = true; /* read end shutdown */
                 } else {
-#ifdef WIN32
-                    error = WSAGetLastError();
-#else
-                    error = errno;
-#endif
+                    auto error = GetLastNetworkError();
                     if (!is_blocking(error)) {
                         c->ssl.error = true;
                     }
@@ -6164,12 +6153,6 @@ static TryReadResult try_read_network(conn *c) {
 
     while (1) {
         int avail;
-#ifdef WIN32
-        DWORD error;
-#else
-        int error;
-#endif
-
         if (c->read.bytes >= c->read.size) {
             if (num_allocs == 4) {
                 return gotdata;
@@ -6204,11 +6187,8 @@ static TryReadResult try_read_network(conn *c) {
             return TryReadResult::SocketError;
         }
         if (res == -1) {
-#ifdef WIN32
-            error = WSAGetLastError();
-#else
-            error = errno;
-#endif
+            auto error = GetLastNetworkError();
+
             if (is_blocking(error)) {
                 break;
             }
@@ -6333,20 +6313,11 @@ static TransmitResult transmit(conn *c) {
     }
 
     if (c->msgcurr < c->msgused) {
-#ifdef WIN32
-        DWORD error;
-#else
-        int error;
-#endif
         ssize_t res;
         struct msghdr *m = &c->msglist[c->msgcurr];
 
         res = do_data_sendmsg(c, m);
-#ifdef WIN32
-        error = WSAGetLastError();
-#else
-        error = errno;
-#endif
+        auto error = GetLastNetworkError();
         if (res > 0) {
             get_thread_stats(c)->bytes_written += res;
 
@@ -6421,12 +6392,7 @@ bool conn_listening(conn *c)
     struct listening_port *port_instance;
 
     if ((sfd = accept(c->sfd, (struct sockaddr *)&addr, &addrlen)) == -1) {
-#ifdef WIN32
-        DWORD error = WSAGetLastError();
-#else
-        int error = errno;
-#endif
-
+        auto error = GetLastNetworkError();
         if (is_emfile(error)) {
 #if defined(WIN32)
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -6664,11 +6630,6 @@ bool conn_new_cmd(conn *c) {
 
 bool conn_nread(conn *c) {
     ssize_t res;
-#ifdef WIN32
-    DWORD error;
-#else
-    int error;
-#endif
 
     if (c->rlbytes == 0) {
         bool block = c->ewouldblock = false;
@@ -6696,11 +6657,7 @@ bool conn_nread(conn *c) {
 
     /*  now try reading from the socket */
     res = do_data_recv(c, c->ritem, c->rlbytes);
-#ifdef WIN32
-    error = WSAGetLastError();
-#else
-    error = errno;
-#endif
+    auto error = GetLastNetworkError();
     if (res > 0) {
         get_thread_stats(c)->bytes_read += res;
         if (c->read.curr == c->ritem) {
@@ -7260,11 +7217,7 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
         }
 
         if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) == SOCKET_ERROR) {
-#ifdef WIN32
-            DWORD error = WSAGetLastError();
-#else
-            int error = errno;
-#endif
+            auto error = GetLastNetworkError();
             if (!is_addrinuse(error)) {
                 log_errcode_error(EXTENSION_LOG_WARNING, NULL,
                                   "bind(): %s", error);
@@ -8302,12 +8255,7 @@ void log_socket_error(EXTENSION_LOG_LEVEL severity,
                       const void* cookie,
                       const char* prefix)
 {
-#ifdef WIN32
-    log_errcode_error(severity, cookie, prefix,
-                      WSAGetLastError());
-#else
-    log_errcode_error(severity, cookie, prefix, errno);
-#endif
+    log_errcode_error(severity, cookie, prefix, GetLastNetworkError());
 }
 
 /**
@@ -8322,45 +8270,17 @@ void log_system_error(EXTENSION_LOG_LEVEL severity,
                       const void* cookie,
                       const char* prefix)
 {
-#ifdef WIN32
-    log_errcode_error(severity, cookie, prefix,
-                      GetLastError());
-#else
-    log_errcode_error(severity, cookie, prefix, errno);
-#endif
+    log_errcode_error(severity, cookie, prefix, GetLastError());
 }
 
-#ifdef WIN32
 void log_errcode_error(EXTENSION_LOG_LEVEL severity,
                        const void* cookie,
-                       const char* prefix, DWORD err) {
-    LPVOID error_msg;
-
-    if (FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                      FORMAT_MESSAGE_FROM_SYSTEM |
-                      FORMAT_MESSAGE_IGNORE_INSERTS,
-                      NULL, err, 0,
-                      (LPTSTR)&error_msg, 0, NULL) != 0) {
-        settings.extensions.logger->log(severity, cookie,
-                                        prefix, error_msg);
-        LocalFree(error_msg);
-    } else {
-        char msg[80];
-        snprintf(msg, sizeof(msg), "unknown error (%d)", err);
-        settings.extensions.logger->log(severity, cookie,
-                                        prefix, msg);
-    }
+                       const char* prefix,
+                       cb_os_error_t err)
+{
+    std::string errmsg = cb_strerror(err);
+    settings.extensions.logger->log(severity, cookie, prefix, errmsg.c_str());
 }
-#else
-void log_errcode_error(EXTENSION_LOG_LEVEL severity,
-                       const void* cookie,
-                       const char* prefix, int err) {
-    settings.extensions.logger->log(severity,
-                                    cookie,
-                                    prefix,
-                                    strerror(err));
-}
-#endif
 
 #ifdef WIN32
 static void parent_monitor_thread(void *arg) {
