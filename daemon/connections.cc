@@ -824,7 +824,7 @@ static void conn_destructor(conn *c) {
     free(c->temp_alloc_list);
     free(c->iov);
     free(c->msglist);
-    free(c);
+    delete c;
 
     stats.conn_structs.fetch_sub(1, std::memory_order_relaxed);
 }
@@ -834,15 +834,18 @@ static void conn_destructor(conn *c) {
  *  else NULL.
  */
 static conn *allocate_connection(void) {
-    auto *ret = reinterpret_cast<conn*>(malloc(sizeof(conn)));
-    if (ret == NULL) {
+    conn *ret;
+
+    try {
+        ret = new conn;
+    } catch (std::bad_alloc) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Failed to allocate memory for connection");
         return NULL;
     }
 
     if (conn_constructor(ret) != 0) {
-        free(ret);
+        delete ret;
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Failed to allocate memory for connection");
         return NULL;
