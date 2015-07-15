@@ -117,8 +117,11 @@ private:
 
     EventuallyPersistentStore   *store;
     AtomicValue<enum flusher_state> _state;
+
+    // Used for serializaling attempts to start the flusher from
+    // different threads.
     Mutex                        taskMutex;
-    size_t                       taskId;
+    AtomicValue<size_t>      taskId;
 
     double                   minSleepTime;
     uint16_t                 initCommitInterval;
