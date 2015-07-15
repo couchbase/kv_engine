@@ -25,7 +25,7 @@
  * Free list management for connections.
  */
 struct connections {
-    conn sentinal; /* Sentinal conn object used as the base of the linked-list
+    Connection sentinal; /* Sentinal Connection object used as the base of the linked-list
                       of connections. */
     cb_mutex_t mutex;
 } connections;
@@ -41,25 +41,25 @@ enum class BufferLoan {
 
 /** Function prototypes ******************************************************/
 
-static void conn_loan_buffers(conn *c);
-static void conn_return_buffers(conn *c);
-static bool conn_reset_buffersize(conn *c);
-static BufferLoan conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
+static void conn_loan_buffers(Connection *c);
+static void conn_return_buffers(Connection *c);
+static bool conn_reset_buffersize(Connection *c);
+static BufferLoan conn_loan_single_buffer(Connection *c, struct net_buf *thread_buf,
                                              struct net_buf *conn_buf);
-static void conn_return_single_buffer(conn *c, struct net_buf *thread_buf,
+static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
                                       struct net_buf *conn_buf);
-static int conn_constructor(conn *c);
-static void conn_destructor(conn *c);
-static conn *allocate_connection(void);
-static void release_connection(conn *c);
+static int conn_constructor(Connection *c);
+static void conn_destructor(Connection *c);
+static Connection *allocate_connection(void);
+static void release_connection(Connection *c);
 
-static cJSON* get_connection_stats(const conn *c);
+static cJSON* get_connection_stats(const Connection *c);
 
 
 /** External functions *******************************************************/
 static const char unknown[] = "unknown";
 
-const char *get_sockname(const conn *c)
+const char *get_sockname(const Connection *c)
 {
     if (c->sockname) {
         return c->sockname;
@@ -67,7 +67,7 @@ const char *get_sockname(const conn *c)
         return unknown;
     }
 }
-const char *get_peername(const conn *c)
+const char *get_peername(const Connection *c)
 {
     if (c->peername) {
         return c->peername;
@@ -80,7 +80,7 @@ const char *get_peername(const conn *c)
 void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
 {
     cb_mutex_enter(&connections.mutex);
-    conn *c = connections.sentinal.all_next;
+    Connection *c = connections.sentinal.all_next;
     while (c != &connections.sentinal) {
         if (c->thread == me && c->bucket.idx == bucket_idx) {
             if (c->state == conn_read || c->state == conn_waiting) {
@@ -100,7 +100,7 @@ void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
 void assert_no_associations(int bucket_idx)
 {
     cb_mutex_enter(&connections.mutex);
-    conn *c = connections.sentinal.all_next;
+    Connection *c = connections.sentinal.all_next;
     while (c != &connections.sentinal) {
         cb_assert(c->bucket.idx != bucket_idx);
         c = c->all_next;
@@ -119,9 +119,9 @@ void initialize_connections(void)
 void destroy_connections(void)
 {
     /* traverse the list of connections. */
-    conn *c = connections.sentinal.all_next;
+    Connection *c = connections.sentinal.all_next;
     while (c != &connections.sentinal) {
-        conn *next = c->all_next;
+        Connection *next = c->all_next;
         conn_destructor(c);
         c = next;
     }
@@ -132,9 +132,9 @@ void destroy_connections(void)
 void close_all_connections(void)
 {
     /* traverse the list of connections. */
-    conn *c = connections.sentinal.all_next;
+    Connection *c = connections.sentinal.all_next;
     while (c != &connections.sentinal) {
-        conn *next = c->all_next;
+        Connection *next = c->all_next;
 
         if (c->sfd != INVALID_SOCKET) {
             safe_close(c->sfd);
@@ -153,7 +153,7 @@ void close_all_connections(void)
      */
     c = connections.sentinal.all_next;
     while (c != &connections.sentinal) {
-        conn *next = c->all_next;
+        Connection *next = c->all_next;
         while (c->refcount > 1) {
             usleep(500);
         }
@@ -161,7 +161,7 @@ void close_all_connections(void)
     }
 }
 
-void run_event_loop(conn* c) {
+void run_event_loop(Connection * c) {
 
     if (!is_listen_thread()) {
         conn_loan_buffers(c);
@@ -272,10 +272,10 @@ static void dump_cipher_list(const SSL *ssl, SOCKET sfd) {
     }
 }
 
-conn *conn_new(const SOCKET sfd, in_port_t parent_port,
+Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
                STATE_FUNC init_state, int event_flags,
                unsigned int read_buffer_size, struct event_base *base) {
-    conn *c = allocate_connection();
+    Connection *c = allocate_connection();
     if (c == NULL) {
         return NULL;
     }
@@ -422,7 +422,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     return c;
 }
 
-void conn_cleanup_engine_allocations(conn* c) {
+void conn_cleanup_engine_allocations(Connection * c) {
     ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine);
     if (c->item) {
         c->bucket.engine->release(handle, c, c->item);
@@ -436,7 +436,7 @@ void conn_cleanup_engine_allocations(conn* c) {
     }
 }
 
-static void conn_cleanup(conn *c) {
+static void conn_cleanup(Connection *c) {
     cb_assert(c != NULL);
     c->admin = false;
 
@@ -488,7 +488,7 @@ static void conn_cleanup(conn *c) {
     }
 }
 
-void conn_close(conn *c) {
+void conn_close(Connection *c) {
     cb_assert(c != NULL);
     cb_assert(c->sfd == INVALID_SOCKET);
     cb_assert(c->state == conn_immediate_close);
@@ -507,7 +507,7 @@ void conn_close(conn *c) {
     c->state = conn_destroyed;
 }
 
-void conn_shrink(conn *c) {
+void conn_shrink(Connection *c) {
     cb_assert(c != NULL);
 
     if (c->read.size > READ_BUFFER_HIGHWAT && c->read.bytes < DATA_BUFFER_SIZE) {
@@ -566,7 +566,7 @@ void conn_shrink(conn *c) {
     }
 }
 
-bool grow_dynamic_buffer(conn *c, size_t needed) {
+bool grow_dynamic_buffer(Connection *c, size_t needed) {
     size_t nsize = c->dynamic_buffer.size;
     size_t available = nsize - c->dynamic_buffer.offset;
     bool rv = true;
@@ -608,8 +608,8 @@ struct listening_port *get_listening_port_instance(const in_port_t port) {
 
 }
 
-void connection_stats(ADD_STAT add_stats, conn *cookie, const int64_t fd) {
-    const conn *iter = NULL;
+void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) {
+    const Connection *iter = NULL;
     cb_mutex_enter(&connections.mutex);
     for (iter = connections.sentinal.all_next;
          iter != &connections.sentinal;
@@ -628,7 +628,7 @@ void connection_stats(ADD_STAT add_stats, conn *cookie, const int64_t fd) {
     cb_mutex_exit(&connections.mutex);
 }
 
-bool connection_set_nodelay(conn *c, bool enable)
+bool connection_set_nodelay(Connection *c, bool enable)
 {
     int flags = 0;
     if (enable) {
@@ -671,7 +671,7 @@ bool connection_set_nodelay(conn *c, bool enable)
  * If there is a partial read/write, then the buffer is left loaned to that
  * connection and the worker thread will allocate a new one.
  */
-static void conn_loan_buffers(conn *c) {
+static void conn_loan_buffers(Connection *c) {
 
     auto res = conn_loan_single_buffer(c, &c->thread->read, &c->read);
     auto *ts = get_thread_stats(c);
@@ -698,7 +698,7 @@ static void conn_loan_buffers(conn *c) {
  * (have no partial data) then return the buffer back to the worker thread.
  * If there is partial data, then keep the buffer with the connection.
  */
-static void conn_return_buffers(conn *c) {
+static void conn_return_buffers(Connection *c) {
     if (c->thread == NULL) {
         // Connection already cleaned up - nothing to do.
         cb_assert(c->read.buf == NULL);
@@ -729,7 +729,7 @@ static void conn_return_buffers(conn *c) {
  * @return true if all allocations succeeded, false if one or more of the
  *         allocations failed.
  */
-static bool conn_reset_buffersize(conn *c) {
+static bool conn_reset_buffersize(Connection *c) {
     bool ret = true;
 
     /* itemlist only needed for TAP / DCP connections, so we just free when the
@@ -785,7 +785,7 @@ static bool conn_reset_buffersize(conn *c) {
  * @param buffer The memory allocated by the object cache
  * @return 0 on success, 1 if we failed to allocate memory
  */
-static int conn_constructor(conn *c) {
+static int conn_constructor(Connection *c) {
     memset(c, 0, sizeof(*c));
     MEMCACHED_CONN_CREATE(c);
 
@@ -813,7 +813,7 @@ static int conn_constructor(conn *c) {
 /**
  * Destructor for all connection objects. Release all allocated resources.
  */
-static void conn_destructor(conn *c) {
+static void conn_destructor(Connection *c) {
     auth_destroy(c->auth_context);
     free(c->peername);
     free(c->sockname);
@@ -833,11 +833,11 @@ static void conn_destructor(conn *c) {
  *  list. Returns a pointer to the newly-allocated connection if successful,
  *  else NULL.
  */
-static conn *allocate_connection(void) {
-    conn *ret;
+static Connection *allocate_connection(void) {
+    Connection *ret;
 
     try {
-        ret = new conn;
+        ret = new Connection;
     } catch (std::bad_alloc) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Failed to allocate memory for connection");
@@ -864,9 +864,9 @@ static conn *allocate_connection(void) {
 }
 
 /** Release a connection; removing it from the connection list management
- *  and freeing the conn object.
+ *  and freeing the Connection object.
  */
-static void release_connection(conn *c) {
+static void release_connection(Connection *c) {
     cb_mutex_enter(&connections.mutex);
     c->all_next->all_prev = c->all_prev;
     c->all_prev->all_next = c->all_next;
@@ -881,7 +881,7 @@ static void release_connection(conn *c) {
  * it does by either loaning out the threads, or allocating a new one if
  * necessary.
  */
-static BufferLoan conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
+static BufferLoan conn_loan_single_buffer(Connection *c, struct net_buf *thread_buf,
                                     struct net_buf *conn_buf)
 {
     /* Already have a (partial) buffer - nothing to do. */
@@ -921,7 +921,7 @@ static BufferLoan conn_loan_single_buffer(conn *c, struct net_buf *thread_buf,
 /**
  * Return an empty read buffer back to the owning worker thread.
  */
-static void conn_return_single_buffer(conn *c, struct net_buf *thread_buf,
+static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
                                       struct net_buf *conn_buf) {
     if (conn_buf->buf == NULL) {
         /* No buffer - nothing to do. */
@@ -981,9 +981,9 @@ static void json_add_bool_to_object(cJSON *obj, const char *name, bool value) {
 /* Returns a JSON object with stat for the given connection.
  * Caller is responsible for freeing the result with cJSON_Delete().
  */
-static cJSON* get_connection_stats(const conn *c) {
+static cJSON* get_connection_stats(const Connection *c) {
     cJSON *obj = cJSON_CreateObject();
-    json_add_uintptr_to_object(obj, "conn", (uintptr_t)c);
+    json_add_uintptr_to_object(obj, "connection", (uintptr_t)c);
     if (c->sfd == INVALID_SOCKET) {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
     } else {

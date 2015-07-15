@@ -30,7 +30,7 @@ static const char unknown[] = "unknown";
  * @param c the connection object
  * @return the username associated with the given connection or "unknown"
  */
-static const char *get_username(const conn *c)
+static const char *get_username(const Connection *c)
 {
     const void *username = unknown;
 
@@ -51,7 +51,7 @@ static const char *get_username(const conn *c)
  * @param c the connection object
  * @return the name of the bucket currently connected to
  */
-static const char *get_bucketname(const conn *c)
+static const char *get_bucketname(const Connection *c)
 {
     static const char default_bucket[] = "default";
     const void *bucketname = default_bucket;
@@ -73,7 +73,7 @@ static const char *get_bucketname(const conn *c)
  * @param c the connection object
  * @return the cJSON object containing the basic information
  */
-static cJSON *create_memcached_audit_object(const conn *c)
+static cJSON *create_memcached_audit_object(const Connection *c)
 {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "peername",
@@ -97,7 +97,7 @@ static cJSON *create_memcached_audit_object(const conn *c)
  * @param event the payload of the audit description
  * @param warn what to log if we're failing to put the audit event
  */
-static void do_audit(const conn *c, uint32_t id, cJSON *event, const char *warn) {
+static void do_audit(const Connection *c, uint32_t id, cJSON *event, const char *warn) {
     if (put_json_audit_event(id, event) != AUDIT_SUCCESS) {
         char *text = cJSON_PrintUnformatted(event);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c, "%s: %s",
@@ -107,7 +107,7 @@ static void do_audit(const conn *c, uint32_t id, cJSON *event, const char *warn)
     cJSON_Delete(event);
 }
 
-void audit_auth_failure(const conn *c, const char *reason)
+void audit_auth_failure(const Connection *c, const char *reason)
 {
     cJSON *root = create_memcached_audit_object(c);
     cJSON_AddStringToObject(root, "reason", reason);
@@ -116,7 +116,7 @@ void audit_auth_failure(const conn *c, const char *reason)
              "Failed to send AUTH FAILED audit event");
 }
 
-void audit_dcp_open(const conn *c)
+void audit_dcp_open(const Connection *c)
 {
     if (c->admin) {
         settings.extensions.logger->log(EXTENSION_LOG_INFO, c,

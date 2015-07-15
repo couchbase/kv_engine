@@ -1223,7 +1223,7 @@ static void dyna_reconfig_iface_backlog(const struct interface *new_if,
 static void dyna_reconfig_iface_nodelay(const struct interface *new_if,
                                        struct interface *cur_if) {
     if (new_if->tcp_nodelay != cur_if->tcp_nodelay) {
-        conn* c = NULL;
+        Connection * c = NULL;
         bool old_tcp_nodelay = cur_if->tcp_nodelay;
         cur_if->tcp_nodelay = new_if->tcp_nodelay;
 

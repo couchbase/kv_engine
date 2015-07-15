@@ -262,7 +262,7 @@ static void worker_libevent(void *arg) {
     ERR_remove_state(0);
 }
 
-static int number_of_pending(conn *c, conn *list) {
+static int number_of_pending(Connection *c, Connection *list) {
     int rv = 0;
     for (; list; list = list->next) {
         if (list == c) {
@@ -292,7 +292,7 @@ static void drain_notification_channel(evutil_socket_t fd)
 static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) {
     LIBEVENT_THREAD *me = reinterpret_cast<LIBEVENT_THREAD*>(arg);
     CQ_ITEM *item;
-    conn* pending;
+    Connection * pending;
 
     cb_assert(me->type == ThreadType::GENERAL);
     drain_notification_channel(fd);
@@ -303,7 +303,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     }
 
     while ((item = cq_pop(me->new_conn_queue)) != NULL) {
-        conn *c = conn_new(item->sfd, item->parent_port, item->init_state,
+        Connection *c = conn_new(item->sfd, item->parent_port, item->init_state,
                            item->event_flags, item->read_buffer_size,
                            me->base);
         if (c == NULL) {
@@ -322,7 +322,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     pending = me->pending_io;
     me->pending_io = NULL;
     while (pending != NULL) {
-        conn *c = pending;
+        Connection *c = pending;
         cb_assert(me == c->thread);
         pending = pending->next;
         c->next = NULL;
@@ -352,8 +352,8 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
 extern volatile rel_time_t current_time;
 
-static bool has_cycle(conn *c) {
-    conn *slowNode, *fastNode1, *fastNode2;
+static bool has_cycle(Connection *c) {
+    Connection *slowNode, *fastNode1, *fastNode2;
 
     if (!c) {
         return false;
@@ -369,7 +369,7 @@ static bool has_cycle(conn *c) {
     return false;
 }
 
-bool list_contains(conn *haystack, conn *needle) {
+bool list_contains(Connection *haystack, Connection *needle) {
     for (; haystack; haystack = haystack -> next) {
         if (needle == haystack) {
             return true;
@@ -378,13 +378,13 @@ bool list_contains(conn *haystack, conn *needle) {
     return false;
 }
 
-conn* list_remove(conn *haystack, conn *needle) {
+Connection * list_remove(Connection *haystack, Connection *needle) {
     if (!haystack) {
         return NULL;
     }
 
     if (haystack == needle) {
-        conn *rv = needle->next;
+        Connection *rv = needle->next;
         needle->next = NULL;
         return rv;
     }
@@ -394,7 +394,7 @@ conn* list_remove(conn *haystack, conn *needle) {
     return haystack;
 }
 
-static void enlist_conn(conn *c, conn **list) {
+static void enlist_conn(Connection *c, Connection **list) {
     LIBEVENT_THREAD *thr = c->thread;
     cb_assert(list == &thr->pending_io);
     if ((c->list_state & LIST_STATE_PROCESSING) == 0) {
@@ -411,7 +411,7 @@ static void enlist_conn(conn *c, conn **list) {
 
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
 {
-    struct conn *conn = (struct conn *)cookie;
+    struct Connection *conn = (struct Connection *)cookie;
     LIBEVENT_THREAD *thr;
     int notify;
 
@@ -607,7 +607,7 @@ void notify_thread(LIBEVENT_THREAD *thread) {
     }
 }
 
-int add_conn_to_pending_io_list(conn *c) {
+int add_conn_to_pending_io_list(Connection *c) {
     int notify = 0;
     if (number_of_pending(c, c->thread->pending_io) == 0) {
         if (c->thread->pending_io == NULL) {

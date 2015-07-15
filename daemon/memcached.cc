@@ -89,32 +89,32 @@ static ENGINE_HANDLE* v1_handle_2_handle(ENGINE_HANDLE_V1* v1) {
 
 /* Wrap the engine interface ! */
 
-void bucket_item_set_cas(conn *c, item *it, uint64_t cas) {
+void bucket_item_set_cas(Connection *c, item *it, uint64_t cas) {
     c->bucket.engine->item_set_cas(v1_handle_2_handle(c->bucket.engine),
                                    c, it, cas);
 }
 
-void bucket_reset_stats(conn *c) {
+void bucket_reset_stats(Connection *c) {
     c->bucket.engine->reset_stats(v1_handle_2_handle(c->bucket.engine), c);
 }
 
-ENGINE_ERROR_CODE bucket_get_engine_vb_map(conn *c,
+ENGINE_ERROR_CODE bucket_get_engine_vb_map(Connection *c,
                                            engine_get_vb_map_cb callback) {
     return c->bucket.engine->get_engine_vb_map(v1_handle_2_handle(c->bucket.engine),
                                                c, callback);
 }
 
-static bool bucket_get_item_info(conn *c, const item* item, item_info *item_info) {
+static bool bucket_get_item_info(Connection *c, const item* item, item_info *item_info) {
     return c->bucket.engine->get_item_info(v1_handle_2_handle(c->bucket.engine),
                                            c, item, item_info);
 }
 
-static bool bucket_set_item_info(conn *c, item* item, const item_info *item_info) {
+static bool bucket_set_item_info(Connection *c, item* item, const item_info *item_info) {
     return c->bucket.engine->set_item_info(v1_handle_2_handle(c->bucket.engine),
                                            c, item, item_info);
 }
 
-static ENGINE_ERROR_CODE bucket_store(conn *c,
+static ENGINE_ERROR_CODE bucket_store(Connection *c,
                                item* item,
                                uint64_t *cas,
                                ENGINE_STORE_OPERATION operation,
@@ -123,7 +123,7 @@ static ENGINE_ERROR_CODE bucket_store(conn *c,
                                    cas, operation, vbucket);
 }
 
-static ENGINE_ERROR_CODE bucket_get(conn *c,
+static ENGINE_ERROR_CODE bucket_get(Connection *c,
                              item** item,
                              const void* key,
                              const int nkey,
@@ -132,7 +132,7 @@ static ENGINE_ERROR_CODE bucket_get(conn *c,
                                  key, nkey, vbucket);
 }
 
-ENGINE_ERROR_CODE bucket_unknown_command(conn *c,
+ENGINE_ERROR_CODE bucket_unknown_command(Connection *c,
                                          protocol_binary_request_header *request,
                                          ADD_RESPONSE response) {
     return c->bucket.engine->unknown_command(v1_handle_2_handle(c->bucket.engine), c,
@@ -212,7 +212,7 @@ static void set_econnreset(void) {
  * forward declarations
  */
 static SOCKET new_socket(struct addrinfo *ai);
-static int try_read_command(conn *c);
+static int try_read_command(Connection *c);
 static void register_callback(ENGINE_HANDLE *eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb, const void *cb_data);
@@ -230,28 +230,28 @@ enum class TryReadResult {
     MemoryError
 };
 
-static TryReadResult try_read_network(conn *c);
+static TryReadResult try_read_network(Connection *c);
 
 /* stats */
 static void stats_init(void);
-static void server_stats(ADD_STAT add_stats, conn *c);
+static void server_stats(ADD_STAT add_stats, Connection *c);
 static void process_stat_settings(ADD_STAT add_stats, void *c);
-static void process_bucket_details(conn *c);
+static void process_bucket_details(Connection *c);
 
 /* defaults */
 static void settings_init(void);
 
 /* event handling, network IO */
-static void complete_nread(conn *c);
-static int ensure_iov_space(conn *c);
-static int add_msghdr(conn *c);
+static void complete_nread(Connection *c);
+static int ensure_iov_space(Connection *c);
+static int add_msghdr(Connection *c);
 
 /** exported globals **/
 struct stats stats;
 struct settings settings;
 
 /** file scope variables **/
-conn *listen_conn = NULL;
+Connection *listen_conn = NULL;
 static struct event_base *main_base;
 
 static struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
@@ -294,9 +294,9 @@ enum class TransmitResult {
     HardError
 };
 
-static TransmitResult transmit(conn *c);
+static TransmitResult transmit(Connection *c);
 
-static void disassociate_bucket(conn *c) {
+static void disassociate_bucket(Connection *c) {
     Bucket &b = all_buckets.at(c->bucket.idx);
     cb_mutex_enter(&b.mutex);
     b.clients--;
@@ -311,7 +311,7 @@ static void disassociate_bucket(conn *c) {
     cb_mutex_exit(&b.mutex);
 }
 
-static bool associate_bucket(conn *c, const char *name) {
+static bool associate_bucket(Connection *c, const char *name) {
     bool found = false;
 
     /* leave the current bucket */
@@ -344,7 +344,7 @@ static bool associate_bucket(conn *c, const char *name) {
     return found;
 }
 
-void associate_initial_bucket(conn *c) {
+void associate_initial_bucket(Connection *c) {
     Bucket &b = all_buckets.at(0);
     cb_mutex_enter(&b.mutex);
     b.clients++;
@@ -361,7 +361,7 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
                        const void *cookie)
 {
-    const conn* connection = reinterpret_cast<const conn*>(cookie); /* May not be true, but... */
+    const Connection * connection = reinterpret_cast<const Connection *>(cookie); /* May not be true, but... */
     struct engine_event_handler *h = NULL;
 
     switch (type) {
@@ -467,7 +467,7 @@ static void stats_init(void) {
         (calloc(settings.num_interfaces, sizeof(struct listening_port)));
 }
 
-struct thread_stats *get_thread_stats(conn *c) {
+struct thread_stats *get_thread_stats(Connection *c) {
     struct thread_stats *independent_stats;
     cb_assert(c->thread->index < (settings.num_threads + 1));
     independent_stats = all_buckets[c->bucket.idx].stats;
@@ -475,7 +475,7 @@ struct thread_stats *get_thread_stats(conn *c) {
 }
 
 static void stats_reset(const void *cookie) {
-    struct conn *conn = (struct conn*)cookie;
+    struct Connection *conn = (struct Connection *)cookie;
     STATS_LOCK();
     set_stats_reset_time();
     STATS_UNLOCK();
@@ -586,7 +586,7 @@ static void settings_init_relocable_files(void)
  *
  * Returns 0 on success, -1 on out-of-memory.
  */
-static int add_msghdr(conn *c)
+static int add_msghdr(Connection *c)
 {
     struct msghdr *msg;
 
@@ -646,7 +646,7 @@ static uint64_t get_listen_disabled_num(void) {
 }
 
 static void disable_listen(void) {
-    conn *next;
+    Connection *next;
     cb_mutex_enter(&listen_state.mutex);
     listen_state.disabled = true;
     listen_state.count = 10;
@@ -736,10 +736,10 @@ static bucket_id_t get_bucket_id(const void *cookie) {
      * but this should be changed to be a uniqe ID that won't be
      * reused.
      */
-    return ((conn*)(cookie))->bucket.idx;
+    return ((Connection *)(cookie))->bucket.idx;
 }
 
-void collect_timings(const conn *c) {
+void collect_timings(const Connection *c) {
     hrtime_t now = gethrtime();
     const hrtime_t elapsed_ns = now - c->start;
     // aggregated timing for all buckets
@@ -776,7 +776,7 @@ void collect_timings(const conn *c) {
  * processing that needs to happen on certain state transitions can
  * happen here.
  */
-void conn_set_state(conn *c, STATE_FUNC state) {
+void conn_set_state(Connection *c, STATE_FUNC state) {
     cb_assert(c != NULL);
 
     if (state != c->state) {
@@ -819,7 +819,7 @@ void conn_set_state(conn *c, STATE_FUNC state) {
  *
  * Returns 0 on success, -1 on out-of-memory.
  */
-static int ensure_iov_space(conn *c) {
+static int ensure_iov_space(Connection *c) {
     cb_assert(c != NULL);
 
     if (c->iovused >= c->iovsize) {
@@ -842,7 +842,7 @@ static int ensure_iov_space(conn *c) {
 }
 
 
-int add_iov(conn *c, const void *buf, size_t len) {
+int add_iov(Connection *c, const void *buf, size_t len) {
     struct msghdr *m;
     size_t leftover;
     bool limit_to_mtu;
@@ -900,7 +900,7 @@ int add_iov(conn *c, const void *buf, size_t len) {
 /**
  * get a pointer to the start of the request struct for the current command
  */
-static void* binary_get_request(conn *c) {
+static void* binary_get_request(Connection *c) {
     char *ret = c->read.curr;
     ret -= (sizeof(c->binary_header) + c->binary_header.request.keylen +
             c->binary_header.request.extlen);
@@ -912,7 +912,7 @@ static void* binary_get_request(conn *c) {
 /**
  * get a pointer to the key in this request
  */
-static char* binary_get_key(conn *c) {
+static char* binary_get_key(Connection *c) {
     return c->read.curr - (c->binary_header.request.keylen);
 }
 
@@ -964,7 +964,7 @@ static ssize_t bytes_to_output_string(char *dest, size_t destsz,
     return offset + nw;
 }
 
-int add_bin_header(conn *c, uint16_t err, uint8_t ext_len, uint16_t key_len,
+int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_len,
                    uint32_t body_len, uint8_t datatype) {
     protocol_binary_response_header* header;
 
@@ -1049,7 +1049,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
                                        size_t mapsize)
 {
     char *buf;
-    conn *c = (conn*)cookie;
+    Connection *c = (Connection *)cookie;
     protocol_binary_response_header header;
     size_t needed = mapsize+ sizeof(protocol_binary_response_header);
     if (!grow_dynamic_buffer(c, needed)) {
@@ -1076,7 +1076,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     return ENGINE_SUCCESS;
 }
 
-void write_bin_packet(conn *c, protocol_binary_response_status err) {
+void write_bin_packet(Connection *c, protocol_binary_response_status err) {
     if (err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
         ENGINE_ERROR_CODE ret;
 
@@ -1123,7 +1123,7 @@ void write_bin_packet(conn *c, protocol_binary_response_status err) {
  *       added to an iovec), and thus must be live until transmit() is later
  *       called - (aka don't use stack for `d`).
  */
-static void write_bin_response(conn *c, const void *d, int extlen, int keylen,
+static void write_bin_response(Connection *c, const void *d, int extlen, int keylen,
                                int dlen) {
     if (!c->noreply || c->cmd == PROTOCOL_BINARY_CMD_GET ||
         c->cmd == PROTOCOL_BINARY_CMD_GETK) {
@@ -1147,7 +1147,7 @@ static void write_bin_response(conn *c, const void *d, int extlen, int keylen,
  * Triggers topkeys_update (i.e., increments topkeys stats) if called by a
  * valid operation.
  */
-void update_topkeys(const char *key, size_t nkey, conn *c) {
+void update_topkeys(const char *key, size_t nkey, Connection *c) {
 
     if (topkey_commands[c->binary_header.request.opcode]) {
         cb_assert(all_buckets[c->bucket.idx].topkeys != nullptr);
@@ -1156,7 +1156,7 @@ void update_topkeys(const char *key, size_t nkey, conn *c) {
     }
 }
 
-static void process_bin_get(conn *c) {
+static void process_bin_get(Connection *c) {
     item *it;
     protocol_binary_response_get* rsp = (protocol_binary_response_get*)c->write.buf;
     char* key = binary_get_key(c);
@@ -1299,7 +1299,7 @@ static void process_bin_get(conn *c) {
 
 static void append_bin_stats(const char *key, const uint16_t klen,
                              const char *val, const uint32_t vlen,
-                             conn *c) {
+                             Connection *c) {
     char *buf = c->dynamic_buffer.buffer + c->dynamic_buffer.offset;
     uint32_t bodylen = klen + vlen;
     protocol_binary_response_header header;
@@ -1334,7 +1334,7 @@ static void append_stats(const char *key, const uint16_t klen,
                          const void *cookie)
 {
     size_t needed;
-    conn *c = (conn*)cookie;
+    Connection *c = (Connection *)cookie;
     /* value without a key is invalid */
     if (klen == 0 && vlen > 0) {
         return ;
@@ -1348,7 +1348,7 @@ static void append_stats(const char *key, const uint16_t klen,
     cb_assert(c->dynamic_buffer.offset <= c->dynamic_buffer.size);
 }
 
-static void bin_read_chunk(conn *c,
+static void bin_read_chunk(Connection *c,
                            enum bin_substates next_substate,
                            uint32_t chunk) {
     ptrdiff_t offset;
@@ -1404,7 +1404,7 @@ static void bin_read_chunk(conn *c,
 }
 
 /* Just write an error message and disconnect the client */
-static void handle_binary_protocol_error(conn *c) {
+static void handle_binary_protocol_error(Connection *c) {
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
     settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
                          "%d: Protocol error (opcode %02x), close connection",
@@ -1413,7 +1413,7 @@ static void handle_binary_protocol_error(conn *c) {
 }
 
 static void get_auth_data(const void *cookie, auth_data_t *data) {
-    conn *c = (conn*)cookie;
+    Connection *c = (Connection *)cookie;
     if (c->sasl_conn) {
         cbsasl_getprop(c->sasl_conn, CBSASL_USERNAME,
                        reinterpret_cast<const void**>(&data->username));
@@ -1425,7 +1425,7 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
     }
 }
 
-static bool authenticated(conn *c) {
+static bool authenticated(Connection *c) {
     bool rv = false;
 
     switch (c->cmd) {
@@ -1461,7 +1461,7 @@ bool binary_response_handler(const void *key, uint16_t keylen,
 {
     protocol_binary_response_header header;
     char *buf;
-    conn *c = (conn*)cookie;
+    Connection *c = (Connection *)cookie;
     /* Look at append_bin_stats */
     size_t needed;
     bool need_inflate = false;
@@ -1572,7 +1572,7 @@ struct tap_stats {
  *  to the start of the list. Returns true if itemlist could be setup, else
  *  false (and itemlist should be assumed to not be usable).
  */
-static bool conn_setup_itemlist(conn *c) {
+static bool conn_setup_itemlist(Connection *c) {
     if (c->ilist == NULL) {
         void *ptr = malloc(sizeof(item *) * ITEM_LIST_INITIAL);
         if (ptr != NULL) {
@@ -1586,7 +1586,7 @@ static bool conn_setup_itemlist(conn *c) {
     return true;
 }
 
-static void ship_tap_log(conn *c) {
+static void ship_tap_log(Connection *c) {
     bool more_data = true;
     bool send_data = false;
     bool disconnect = false;
@@ -1909,7 +1909,7 @@ static ENGINE_ERROR_CODE default_unknown_command(EXTENSION_BINARY_PROTOCOL_DESCR
                                                  protocol_binary_request_header *request,
                                                  ADD_RESPONSE response)
 {
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (!c->supports_datatype && request->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
@@ -1930,7 +1930,7 @@ struct request_lookup {
 
 static struct request_lookup request_handlers[0x100];
 
-typedef void (*RESPONSE_HANDLER)(conn*);
+typedef void (*RESPONSE_HANDLER)(Connection *);
 /**
  * A map between the response packets op-code and the function to handle
  * the response message.
@@ -1944,7 +1944,7 @@ static void setup_binary_lookup_cmd(EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *descri
     request_handlers[cmd].callback = new_handler;
 }
 
-static void process_bin_unknown_packet(conn *c) {
+static void process_bin_unknown_packet(Connection *c) {
     char* packet = c->read.curr -
                    (c->binary_header.request.bodylen + sizeof(c->binary_header));
 
@@ -2001,7 +2001,7 @@ static void cbsasl_refresh_main(void *c)
     }
 }
 
-static ENGINE_ERROR_CODE refresh_cbsasl(conn *c)
+static ENGINE_ERROR_CODE refresh_cbsasl(Connection *c)
 {
     cb_thread_t tid;
     int err;
@@ -2027,7 +2027,7 @@ static void ssl_certs_refresh_main(void *c)
     notify_io_complete(c, ENGINE_SUCCESS);
 }
 #endif
-static ENGINE_ERROR_CODE refresh_ssl_certs(conn *c)
+static ENGINE_ERROR_CODE refresh_ssl_certs(Connection *c)
 {
     (void)c;
 #if 0
@@ -2048,7 +2048,7 @@ static ENGINE_ERROR_CODE refresh_ssl_certs(conn *c)
     return ENGINE_SUCCESS;
 }
 
-static void process_bin_tap_connect(conn *c) {
+static void process_bin_tap_connect(Connection *c) {
     TAP_ITERATOR iterator;
     char *packet = (c->read.curr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
@@ -2111,7 +2111,7 @@ static void process_bin_tap_connect(conn *c) {
     }
 }
 
-static void process_bin_tap_packet(tap_event_t event, conn *c) {
+static void process_bin_tap_packet(tap_event_t event, Connection *c) {
     char *packet;
     uint16_t nengine;
     uint16_t tap_flags;
@@ -2204,7 +2204,7 @@ static void process_bin_tap_packet(tap_event_t event, conn *c) {
     }
 }
 
-static void process_bin_tap_ack(conn *c) {
+static void process_bin_tap_ack(Connection *c) {
     char *packet;
     uint32_t seqno;
     uint16_t status;
@@ -2237,7 +2237,7 @@ static void process_bin_tap_ack(conn *c) {
 /**
  * We received a noop response.. just ignore it
  */
-static void process_bin_noop_response(conn *c) {
+static void process_bin_noop_response(Connection *c) {
     cb_assert(c != NULL);
     conn_set_state(c, conn_new_cmd);
 }
@@ -2250,7 +2250,7 @@ static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void *cookie,
                                                       uint16_t vbucket)
 {
     protocol_binary_request_dcp_get_failover_log packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2282,7 +2282,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(const void *cookie,
                                                 uint64_t snap_end_seqno)
 {
     protocol_binary_request_dcp_stream_req packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2318,7 +2318,7 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void *cookie,
                                                          uint8_t status)
 {
     protocol_binary_response_dcp_add_stream packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2347,7 +2347,7 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(const void *cookie,
                                                      uint8_t status)
 {
     protocol_binary_response_dcp_snapshot_marker packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2375,7 +2375,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(const void *cook
                                                                 uint8_t status)
 {
     protocol_binary_response_dcp_set_vbucket_state packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2404,7 +2404,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(const void *cookie,
                                                 uint32_t flags)
 {
     protocol_binary_request_dcp_stream_end packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2436,7 +2436,7 @@ static ENGINE_ERROR_CODE dcp_message_marker(const void *cookie,
                                             uint32_t flags)
 {
     protocol_binary_request_dcp_snapshot_marker packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2473,7 +2473,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
                                               uint16_t nmeta,
                                               uint8_t nru)
 {
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
     item_info_holder info;
     protocol_binary_request_dcp_mutation packet;
     int xx;
@@ -2540,7 +2540,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion(const void* cookie,
                                               const void *meta,
                                               uint16_t nmeta)
 {
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
     protocol_binary_request_dcp_deletion packet;
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
         return ENGINE_E2BIG;
@@ -2584,7 +2584,7 @@ static ENGINE_ERROR_CODE dcp_message_expiration(const void* cookie,
                                                 const void *meta,
                                                 uint16_t nmeta)
 {
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
     protocol_binary_request_dcp_deletion packet;
 
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
@@ -2623,7 +2623,7 @@ static ENGINE_ERROR_CODE dcp_message_flush(const void* cookie,
                                            uint16_t vbucket)
 {
     protocol_binary_request_dcp_flush packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2650,7 +2650,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
                                                        vbucket_state_t state)
 {
     protocol_binary_request_dcp_set_vbucket_state packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2694,7 +2694,7 @@ static ENGINE_ERROR_CODE dcp_message_noop(const void* cookie,
                                           uint32_t opaque)
 {
     protocol_binary_request_dcp_noop packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2720,7 +2720,7 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* cookie,
                                                             uint32_t buffer_bytes)
 {
     protocol_binary_request_dcp_buffer_acknowledgement packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2752,7 +2752,7 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* cookie,
                                              uint32_t nvalue)
 {
     protocol_binary_request_dcp_control packet;
-    conn *c = const_cast<conn*>(reinterpret_cast<const conn*>(cookie));
+    Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nvalue >= c->write.size) {
         /* We don't have room in the buffer */
@@ -2782,7 +2782,7 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static void ship_dcp_log(conn *c) {
+static void ship_dcp_log(Connection *c) {
     static struct dcp_message_producers producers = {
         dcp_message_get_failover_log,
         dcp_message_stream_req,
@@ -2848,7 +2848,7 @@ static void ship_dcp_log(conn *c) {
 /******************************************************************************
  *                        TAP packet executors                                *
  ******************************************************************************/
-static void tap_connect_executor(conn *c, void *packet)
+static void tap_connect_executor(Connection *c, void *packet)
 {
     (void)packet;
     if (c->bucket.engine->get_tap_iterator == NULL) {
@@ -2859,7 +2859,7 @@ static void tap_connect_executor(conn *c, void *packet)
     }
 }
 
-static void tap_mutation_executor(conn *c, void *packet)
+static void tap_mutation_executor(Connection *c, void *packet)
 {
     (void)packet;
     if (c->bucket.engine->tap_notify == NULL) {
@@ -2870,7 +2870,7 @@ static void tap_mutation_executor(conn *c, void *packet)
     }
 }
 
-static void tap_delete_executor(conn *c, void *packet)
+static void tap_delete_executor(Connection *c, void *packet)
 {
     (void)packet;
     if (c->bucket.engine->tap_notify == NULL) {
@@ -2881,7 +2881,7 @@ static void tap_delete_executor(conn *c, void *packet)
     }
 }
 
-static void tap_flush_executor(conn *c, void *packet)
+static void tap_flush_executor(Connection *c, void *packet)
 {
     (void)packet;
     if (c->bucket.engine->tap_notify == NULL) {
@@ -2892,7 +2892,7 @@ static void tap_flush_executor(conn *c, void *packet)
     }
 }
 
-static void tap_opaque_executor(conn *c, void *packet)
+static void tap_opaque_executor(Connection *c, void *packet)
 {
     (void)packet;
     if (c->bucket.engine->tap_notify == NULL) {
@@ -2903,7 +2903,7 @@ static void tap_opaque_executor(conn *c, void *packet)
     }
 }
 
-static void tap_vbucket_set_executor(conn *c, void *packet)
+static void tap_vbucket_set_executor(Connection *c, void *packet)
 {
     (void)packet;
     if (c->bucket.engine->tap_notify == NULL) {
@@ -2914,7 +2914,7 @@ static void tap_vbucket_set_executor(conn *c, void *packet)
     }
 }
 
-static void tap_checkpoint_start_executor(conn *c, void *packet)
+static void tap_checkpoint_start_executor(Connection *c, void *packet)
 {
     (void)packet;
     if (c->bucket.engine->tap_notify == NULL) {
@@ -2925,7 +2925,7 @@ static void tap_checkpoint_start_executor(conn *c, void *packet)
     }
 }
 
-static void tap_checkpoint_end_executor(conn *c, void *packet)
+static void tap_checkpoint_end_executor(Connection *c, void *packet)
 {
     (void)packet;
     if (c->bucket.engine->tap_notify == NULL) {
@@ -2939,7 +2939,7 @@ static void tap_checkpoint_end_executor(conn *c, void *packet)
 /*******************************************************************************
  *                         DCP packet executors                                *
  ******************************************************************************/
-static void dcp_open_executor(conn *c, void *packet)
+static void dcp_open_executor(Connection *c, void *packet)
 {
     auto *req = reinterpret_cast<protocol_binary_request_dcp_open*>(packet);
 
@@ -2980,7 +2980,7 @@ static void dcp_open_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_add_stream_executor(conn *c, void *packet)
+static void dcp_add_stream_executor(Connection *c, void *packet)
 {
     auto *req = reinterpret_cast<protocol_binary_request_dcp_add_stream*>(packet);
 
@@ -3017,7 +3017,7 @@ static void dcp_add_stream_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_close_stream_executor(conn *c, void *packet)
+static void dcp_close_stream_executor(Connection *c, void *packet)
 {
     auto *req = reinterpret_cast<protocol_binary_request_dcp_close_stream*>(packet);
 
@@ -3083,7 +3083,7 @@ static ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t*entries,
     return ret;
 }
 
-static void dcp_get_failover_log_executor(conn *c, void *packet) {
+static void dcp_get_failover_log_executor(Connection *c, void *packet) {
     auto *req = reinterpret_cast<protocol_binary_request_dcp_get_failover_log*>(packet);
 
     if (c->bucket.engine->dcp.get_failover_log == NULL) {
@@ -3123,7 +3123,7 @@ static void dcp_get_failover_log_executor(conn *c, void *packet) {
     }
 }
 
-static void dcp_stream_req_executor(conn *c, void *packet)
+static void dcp_stream_req_executor(Connection *c, void *packet)
 {
     auto *req = reinterpret_cast<protocol_binary_request_dcp_stream_req*>(packet);
 
@@ -3194,7 +3194,7 @@ static void dcp_stream_req_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_stream_end_executor(conn *c, void *packet)
+static void dcp_stream_end_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_stream_end*>(packet);
 
@@ -3231,7 +3231,7 @@ static void dcp_stream_end_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_snapshot_marker_executor(conn *c, void *packet)
+static void dcp_snapshot_marker_executor(Connection *c, void *packet)
 {
     auto *req = reinterpret_cast<protocol_binary_request_dcp_snapshot_marker*>(packet);
 
@@ -3274,7 +3274,7 @@ static void dcp_snapshot_marker_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_mutation_executor(conn *c, void *packet)
+static void dcp_mutation_executor(Connection *c, void *packet)
 {
     auto *req = reinterpret_cast<protocol_binary_request_dcp_mutation*>(packet);
 
@@ -3329,7 +3329,7 @@ static void dcp_mutation_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_deletion_executor(conn *c, void *packet)
+static void dcp_deletion_executor(Connection *c, void *packet)
 {
     auto *req = reinterpret_cast<protocol_binary_request_dcp_deletion*>(packet);
 
@@ -3374,7 +3374,7 @@ static void dcp_deletion_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_expiration_executor(conn *c, void *packet)
+static void dcp_expiration_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_expiration*>(packet);
 
@@ -3419,7 +3419,7 @@ static void dcp_expiration_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_flush_executor(conn *c, void *packet)
+static void dcp_flush_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_flush*>(packet);
 
@@ -3455,7 +3455,7 @@ static void dcp_flush_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_set_vbucket_state_executor(conn *c, void *packet)
+static void dcp_set_vbucket_state_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_set_vbucket_state*>(packet);
 
@@ -3493,7 +3493,7 @@ static void dcp_set_vbucket_state_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_noop_executor(conn *c, void *packet)
+static void dcp_noop_executor(Connection *c, void *packet)
 {
     (void)packet;
 
@@ -3528,7 +3528,7 @@ static void dcp_noop_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
+static void dcp_buffer_acknowledgement_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_buffer_acknowledgement*>(packet);
 
@@ -3567,7 +3567,7 @@ static void dcp_buffer_acknowledgement_executor(conn *c, void *packet)
     }
 }
 
-static void dcp_control_executor(conn *c, void *packet)
+static void dcp_control_executor(Connection *c, void *packet)
 {
     if (c->bucket.engine->dcp.control == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -3606,7 +3606,7 @@ static void dcp_control_executor(conn *c, void *packet)
     }
 }
 
-static void isasl_refresh_executor(conn *c, void *packet)
+static void isasl_refresh_executor(Connection *c, void *packet)
 {
     ENGINE_ERROR_CODE ret = c->aiostat;
     (void)packet;
@@ -3634,7 +3634,7 @@ static void isasl_refresh_executor(conn *c, void *packet)
     }
 }
 
-static void ssl_certs_refresh_executor(conn *c, void *packet)
+static void ssl_certs_refresh_executor(Connection *c, void *packet)
 {
     ENGINE_ERROR_CODE ret = c->aiostat;
     (void)packet;
@@ -3662,7 +3662,7 @@ static void ssl_certs_refresh_executor(conn *c, void *packet)
     }
 }
 
-static void verbosity_executor(conn *c, void *packet)
+static void verbosity_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_verbosity*>(packet);
     uint32_t level = (uint32_t)ntohl(req->message.body.level);
@@ -3674,7 +3674,7 @@ static void verbosity_executor(conn *c, void *packet)
     write_bin_response(c, NULL, 0, 0, 0);
 }
 
-static void process_hello_packet_executor(conn *c, void *packet) {
+static void process_hello_packet_executor(Connection *c, void *packet) {
     auto* req = reinterpret_cast<protocol_binary_request_hello*>(packet);
     char log_buffer[512];
     int offset = snprintf(log_buffer, sizeof(log_buffer), "HELO ");
@@ -3773,27 +3773,27 @@ static void process_hello_packet_executor(conn *c, void *packet) {
                                     "%d: %s", c->sfd, log_buffer);
 }
 
-static void version_executor(conn *c, void *packet)
+static void version_executor(Connection *c, void *packet)
 {
     (void)packet;
     write_bin_response(c, get_server_version(), 0, 0,
                        (uint32_t)strlen(get_server_version()));
 }
 
-static void quit_executor(conn *c, void *packet)
+static void quit_executor(Connection *c, void *packet)
 {
     (void)packet;
     write_bin_response(c, NULL, 0, 0, 0);
     c->write_and_go = conn_closing;
 }
 
-static void quitq_executor(conn *c, void *packet)
+static void quitq_executor(Connection *c, void *packet)
 {
     (void)packet;
     conn_set_state(c, conn_closing);
 }
 
-static void sasl_list_mech_executor(conn *c, void *packet)
+static void sasl_list_mech_executor(Connection *c, void *packet)
 {
     const char *result_string = NULL;
     unsigned int string_length = 0;
@@ -3810,7 +3810,7 @@ static void sasl_list_mech_executor(conn *c, void *packet)
     write_bin_response(c, (char*)result_string, 0, 0, string_length);
 }
 
-static void sasl_auth_executor(conn *c, void *packet)
+static void sasl_auth_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
     char mech[1024];
@@ -3947,13 +3947,13 @@ static void sasl_auth_executor(conn *c, void *packet)
     }
 }
 
-static void noop_executor(conn *c, void *packet)
+static void noop_executor(Connection *c, void *packet)
 {
     (void)packet;
     write_bin_response(c, NULL, 0, 0, 0);
 }
 
-static void flush_executor(conn *c, void *packet)
+static void flush_executor(Connection *c, void *packet)
 {
     ENGINE_ERROR_CODE ret;
     time_t exptime = 0;
@@ -3991,7 +3991,7 @@ static void flush_executor(conn *c, void *packet)
     }
 }
 
-static void add_set_replace_executor(conn *c, void *packet,
+static void add_set_replace_executor(Connection *c, void *packet,
                                      ENGINE_STORE_OPERATION store_op)
 {
     auto* req = reinterpret_cast<protocol_binary_request_add*>(packet);
@@ -4134,43 +4134,43 @@ static void add_set_replace_executor(conn *c, void *packet,
 }
 
 
-static void add_executor(conn *c, void *packet)
+static void add_executor(Connection *c, void *packet)
 {
     c->noreply = false;
     add_set_replace_executor(c, packet, OPERATION_ADD);
 }
 
-static void addq_executor(conn *c, void *packet)
+static void addq_executor(Connection *c, void *packet)
 {
     c->noreply = true;
     add_set_replace_executor(c, packet, OPERATION_ADD);
 }
 
-static void set_executor(conn *c, void *packet)
+static void set_executor(Connection *c, void *packet)
 {
     c->noreply = false;
     add_set_replace_executor(c, packet, OPERATION_SET);
 }
 
-static void setq_executor(conn *c, void *packet)
+static void setq_executor(Connection *c, void *packet)
 {
     c->noreply = true;
     add_set_replace_executor(c, packet, OPERATION_SET);
 }
 
-static void replace_executor(conn *c, void *packet)
+static void replace_executor(Connection *c, void *packet)
 {
     c->noreply = false;
     add_set_replace_executor(c, packet, OPERATION_REPLACE);
 }
 
-static void replaceq_executor(conn *c, void *packet)
+static void replaceq_executor(Connection *c, void *packet)
 {
     c->noreply = true;
     add_set_replace_executor(c, packet, OPERATION_REPLACE);
 }
 
-static void append_prepend_executor(conn *c,
+static void append_prepend_executor(Connection *c,
                                     void *packet,
                                     ENGINE_STORE_OPERATION store_op)
 {
@@ -4282,32 +4282,32 @@ static void append_prepend_executor(conn *c,
     }
 }
 
-static void append_executor(conn *c, void *packet)
+static void append_executor(Connection *c, void *packet)
 {
     c->noreply = false;
     append_prepend_executor(c, packet, OPERATION_APPEND);
 }
 
-static void appendq_executor(conn *c, void *packet)
+static void appendq_executor(Connection *c, void *packet)
 {
     c->noreply = true;
     append_prepend_executor(c, packet, OPERATION_APPEND);
 }
 
-static void prepend_executor(conn *c, void *packet)
+static void prepend_executor(Connection *c, void *packet)
 {
     c->noreply = false;
     append_prepend_executor(c, packet, OPERATION_PREPEND);
 }
 
-static void prependq_executor(conn *c, void *packet)
+static void prependq_executor(Connection *c, void *packet)
 {
     c->noreply = true;
     append_prepend_executor(c, packet, OPERATION_PREPEND);
 }
 
 
-static void get_executor(conn *c, void *packet)
+static void get_executor(Connection *c, void *packet)
 {
     (void)packet;
 
@@ -4331,8 +4331,8 @@ static void get_executor(conn *c, void *packet)
     process_bin_get(c);
 }
 
-static void process_bin_delete(conn *c);
-static void delete_executor(conn *c, void *packet)
+static void process_bin_delete(Connection *c);
+static void delete_executor(Connection *c, void *packet)
 {
     (void)packet;
 
@@ -4343,7 +4343,7 @@ static void delete_executor(conn *c, void *packet)
     process_bin_delete(c);
 }
 
-static void stat_executor(conn *c, void *packet)
+static void stat_executor(Connection *c, void *packet)
 {
     char *subcommand = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
@@ -4461,7 +4461,7 @@ static void stat_executor(conn *c, void *packet)
     }
 }
 
-static void arithmetic_executor(conn *c, void *packet)
+static void arithmetic_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_incr*>(binary_get_request(c));
     ENGINE_ERROR_CODE ret;
@@ -4629,7 +4629,7 @@ static void arithmetic_executor(conn *c, void *packet)
     }
 }
 
-static void get_cmd_timer_executor(conn *c, void *packet)
+static void get_cmd_timer_executor(Connection *c, void *packet)
 {
     std::string str;
     auto* req = reinterpret_cast<protocol_binary_request_get_cmd_timer*>(packet);
@@ -4686,7 +4686,7 @@ static void get_cmd_timer_executor(conn *c, void *packet)
     }
 }
 
-static void set_ctrl_token_executor(conn *c, void *packet)
+static void set_ctrl_token_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(packet);
     uint64_t old_cas = ntohll(req->message.header.request.cas);
@@ -4711,7 +4711,7 @@ static void set_ctrl_token_executor(conn *c, void *packet)
     write_and_free(c, &c->dynamic_buffer);
 }
 
-static void get_ctrl_token_executor(conn *c, void *packet)
+static void get_ctrl_token_executor(Connection *c, void *packet)
 {
     (void)packet;
     cb_mutex_enter(&(session_cas.mutex));
@@ -4723,7 +4723,7 @@ static void get_ctrl_token_executor(conn *c, void *packet)
     write_and_free(c, &c->dynamic_buffer);
 }
 
-static void init_complete_executor(conn *c, void *packet)
+static void init_complete_executor(Connection *c, void *packet)
 {
     auto* init = reinterpret_cast<protocol_binary_request_init_complete*>(packet);
     uint64_t cas = ntohll(init->message.header.request.cas);;
@@ -4741,7 +4741,7 @@ static void init_complete_executor(conn *c, void *packet)
     }
 }
 
-static void ioctl_get_executor(conn *c, void *packet)
+static void ioctl_get_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
@@ -4767,7 +4767,7 @@ static void ioctl_get_executor(conn *c, void *packet)
     }
 }
 
-static void ioctl_set_executor(conn *c, void *packet)
+static void ioctl_set_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
@@ -4781,7 +4781,7 @@ static void ioctl_set_executor(conn *c, void *packet)
     write_bin_packet(c, engine_error_2_protocol_error(status));
 }
 
-static void config_validate_executor(conn *c, void *packet) {
+static void config_validate_executor(Connection *c, void *packet) {
     const char* val_ptr = NULL;
     cJSON *errors = NULL;
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
@@ -4836,13 +4836,13 @@ static void config_validate_executor(conn *c, void *packet) {
 
 }
 
-static void config_reload_executor(conn *c, void *packet) {
+static void config_reload_executor(Connection *c, void *packet) {
     (void)packet;
     reload_config_file();
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
-static void audit_config_reload_executor(conn *c, void *packet) {
+static void audit_config_reload_executor(Connection *c, void *packet) {
     (void)packet;
     if (settings.audit_file) {
         if (configure_auditdaemon(settings.audit_file, c) == AUDIT_EWOULDBLOCK) {
@@ -4861,7 +4861,7 @@ static void audit_config_reload_executor(conn *c, void *packet) {
     }
 }
 
-static void assume_role_executor(conn *c, void *packet)
+static void assume_role_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_assume_role*>(packet);
     size_t rlen = ntohs(req->message.header.request.keylen);
@@ -4896,7 +4896,7 @@ static void assume_role_executor(conn *c, void *packet)
     }
 }
 
-static void audit_put_executor(conn *c, void *packet) {
+static void audit_put_executor(Connection *c, void *packet) {
 
     auto *req = reinterpret_cast<const protocol_binary_request_audit_put*>(packet);
     const void *payload = req->bytes + sizeof(req->message.header) +
@@ -4920,7 +4920,7 @@ static void create_bucket_main(void *c);
  *    key: bucket name
  *    body: module\nconfig
  */
-static void create_bucket_executor(conn *c, void *packet)
+static void create_bucket_executor(Connection *c, void *packet)
 {
     ENGINE_ERROR_CODE ret = c->aiostat;
     (void)packet;
@@ -4961,7 +4961,7 @@ static void create_bucket_executor(conn *c, void *packet)
 }
 
 
-static void list_bucket_executor(conn *c, void *)
+static void list_bucket_executor(Connection *c, void *)
 {
     try {
         std::string blob;
@@ -4992,7 +4992,7 @@ static void list_bucket_executor(conn *c, void *)
 
 static void delete_bucket_main(void *c);
 
-static void delete_bucket_executor(conn *c, void *packet)
+static void delete_bucket_executor(Connection *c, void *packet)
 {
     ENGINE_ERROR_CODE ret = c->aiostat;
     (void)packet;
@@ -5032,7 +5032,7 @@ static void delete_bucket_executor(conn *c, void *packet)
     }
 }
 
-static void select_bucket_executor(conn *c, void *packet) {
+static void select_bucket_executor(Connection *c, void *packet) {
     /* The validator ensured that we're not doing a buffer overflow */
     char bucketname[1024];
     auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
@@ -5048,7 +5048,7 @@ static void select_bucket_executor(conn *c, void *packet) {
 }
 
 typedef int (*bin_package_validate)(void *packet);
-typedef void (*bin_package_execute)(conn *c, void *packet);
+typedef void (*bin_package_execute)(Connection *c, void *packet);
 
 mcbp_package_validate *validators;
 bin_package_execute executors[0xff];
@@ -5145,7 +5145,7 @@ static void setup_bin_packet_handlers(void) {
 
 }
 
-static int invalid_datatype(conn *c) {
+static int invalid_datatype(Connection *c) {
     switch (c->binary_header.request.datatype) {
     case PROTOCOL_BINARY_RAW_BYTES:
         return 0;
@@ -5162,7 +5162,7 @@ static int invalid_datatype(conn *c) {
     }
 }
 
-static void process_bin_packet(conn *c) {
+static void process_bin_packet(Connection *c) {
 
     char *packet = (c->read.curr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
@@ -5210,7 +5210,7 @@ static void process_bin_packet(conn *c) {
     }
 }
 
-static CB_INLINE bool is_initialized(conn *c, uint8_t opcode)
+static CB_INLINE bool is_initialized(Connection *c, uint8_t opcode)
 {
     if (c->admin || is_server_initialized()) {
         return true;
@@ -5226,10 +5226,10 @@ static CB_INLINE bool is_initialized(conn *c, uint8_t opcode)
     }
 }
 
-static void dispatch_bin_command(conn *c) {
+static void dispatch_bin_command(Connection *c) {
     uint16_t keylen = c->binary_header.request.keylen;
 
-    /* @trond this should be in the conn-connect part.. */
+    /* @trond this should be in the Connection-connect part.. */
     /*        and in the select bucket */
     if (c->bucket.engine == NULL) {
         c->bucket.engine = all_buckets[c->bucket.idx].engine;
@@ -5279,7 +5279,7 @@ static void dispatch_bin_command(conn *c) {
     }
 }
 
-static void process_bin_delete(conn *c) {
+static void process_bin_delete(Connection *c) {
     ENGINE_ERROR_CODE ret;
     auto* req = reinterpret_cast<protocol_binary_request_delete*>
             (binary_get_request(c));
@@ -5347,7 +5347,7 @@ static void process_bin_delete(conn *c) {
     }
 }
 
-static void complete_nread(conn *c) {
+static void complete_nread(Connection *c) {
     cb_assert(c != NULL);
     cb_assert(c->cmd >= 0);
 
@@ -5375,7 +5375,7 @@ static void complete_nread(conn *c) {
     }
 }
 
-static void reset_cmd_handler(conn *c) {
+static void reset_cmd_handler(Connection *c) {
     c->sbytes = 0;
     c->cmd = -1;
     c->substate = bin_no_state;
@@ -5407,7 +5407,7 @@ static void reset_cmd_handler(conn *c) {
     }
 }
 
-void write_and_free(conn *c, struct dynamic_buffer* buf) {
+void write_and_free(Connection *c, struct dynamic_buffer* buf) {
     if (buf->buffer) {
         c->write_and_free = buf->buffer;
         c->write.curr = buf->buffer;
@@ -5452,7 +5452,7 @@ void add_stat(const void *cookie, ADD_STAT add_stat_callback,
 }
 
 /* return server specific stats only */
-static void server_stats(ADD_STAT add_stat_callback, conn *c) {
+static void server_stats(ADD_STAT add_stat_callback, Connection *c) {
 #ifdef WIN32
     long pid = GetCurrentProcessId();
 #else
@@ -5736,7 +5736,7 @@ static cJSON *get_bucket_details(int idx)
  *
  * @param c the connection to return the details for
  */
-static void process_bucket_details(conn *c)
+static void process_bucket_details(Connection *c)
 {
     cJSON *obj = cJSON_CreateObject();
 
@@ -5759,7 +5759,7 @@ static void process_bucket_details(conn *c)
 /*
  * if we have a complete line in the buffer, process it.
  */
-static int try_read_command(conn *c) {
+static int try_read_command(Connection *c) {
     cb_assert(c != NULL);
     cb_assert(c->read.curr <= (c->read.buf + c->read.size));
     cb_assert(c->read.bytes > 0);
@@ -5844,7 +5844,7 @@ static int try_read_command(conn *c) {
     return 1;
 }
 
-static void drain_bio_send_pipe(conn *c) {
+static void drain_bio_send_pipe(Connection *c) {
     int n;
     bool stop = false;
 
@@ -5879,7 +5879,7 @@ static void drain_bio_send_pipe(conn *c) {
     } while (!stop);
 }
 
-static void drain_bio_recv_pipe(conn *c) {
+static void drain_bio_recv_pipe(Connection *c) {
     int n;
     bool stop = false;
 
@@ -5920,7 +5920,7 @@ static void drain_bio_recv_pipe(conn *c) {
     } while (!stop);
 }
 
-static int do_ssl_pre_connection(conn *c) {
+static int do_ssl_pre_connection(Connection *c) {
     int r = SSL_accept(c->ssl.client);
     if (r == 1) {
         drain_bio_send_pipe(c);
@@ -5957,7 +5957,7 @@ static int do_ssl_pre_connection(conn *c) {
     return 0;
 }
 
-static int do_ssl_read(conn *c, char *dest, size_t nbytes) {
+static int do_ssl_read(Connection *c, char *dest, size_t nbytes) {
     int ret = 0;
 
     while (ret < int(nbytes)) {
@@ -6013,7 +6013,7 @@ static int do_ssl_read(conn *c, char *dest, size_t nbytes) {
     return ret;
 }
 
-static int do_data_recv(conn *c, char *dest, size_t nbytes) {
+static int do_data_recv(Connection *c, char *dest, size_t nbytes) {
     int res;
     if (c->ssl.enabled) {
         drain_bio_recv_pipe(c);
@@ -6045,7 +6045,7 @@ static int do_data_recv(conn *c, char *dest, size_t nbytes) {
     return res;
 }
 
-static int do_ssl_write(conn *c, char *dest, size_t nbytes) {
+static int do_ssl_write(Connection *c, char *dest, size_t nbytes) {
     int ret = 0;
 
     int chunksize = settings.bio_drain_buffer_sz;
@@ -6100,7 +6100,7 @@ static int do_ssl_write(conn *c, char *dest, size_t nbytes) {
 }
 
 
-static int do_data_sendmsg(conn *c, struct msghdr *m) {
+static int do_data_sendmsg(Connection *c, struct msghdr *m) {
     int res;
     if (c->ssl.enabled) {
         res = 0;
@@ -6139,7 +6139,7 @@ static int do_data_sendmsg(conn *c, struct msghdr *m) {
  *
  * @return enum try_read_result
  */
-static TryReadResult try_read_network(conn *c) {
+static TryReadResult try_read_network(Connection *c) {
     TryReadResult gotdata = TryReadResult::NoDataReceived;
     int res;
     int num_allocs = 0;
@@ -6204,7 +6204,7 @@ static TryReadResult try_read_network(conn *c) {
     return gotdata;
 }
 
-bool register_event(conn *c, struct timeval *timeout) {
+bool register_event(Connection *c, struct timeval *timeout) {
     cb_assert(!c->registered_in_libevent);
     cb_assert(c->sfd != INVALID_SOCKET);
 
@@ -6220,7 +6220,7 @@ bool register_event(conn *c, struct timeval *timeout) {
     return true;
 }
 
-bool unregister_event(conn *c) {
+bool unregister_event(Connection *c) {
     cb_assert(c->registered_in_libevent);
     cb_assert(c->sfd != INVALID_SOCKET);
 
@@ -6236,7 +6236,7 @@ bool unregister_event(conn *c) {
     return true;
 }
 
-bool update_event(conn *c, const int new_flags) {
+bool update_event(Connection *c, const int new_flags) {
     struct event_base *base;
 
     cb_assert(c != NULL);
@@ -6303,7 +6303,7 @@ bool update_event(conn *c, const int new_flags) {
  *   SoftError Can't write any more right now.
  *   HardError Can't write (c->state is set to conn_closing)
  */
-static TransmitResult transmit(conn *c) {
+static TransmitResult transmit(Connection *c) {
     cb_assert(c != NULL);
 
     while (c->msgcurr < c->msgused &&
@@ -6382,7 +6382,7 @@ static TransmitResult transmit(conn *c) {
     }
 }
 
-bool conn_listening(conn *c)
+bool conn_listening(Connection *c)
 {
     SOCKET sfd;
     struct sockaddr_storage addr;
@@ -6460,7 +6460,7 @@ bool conn_listening(conn *c)
  * @return true if we should continue to process work for this connection, false
  *              if we should start processing events for other connections.
  */
-bool conn_ship_log(conn *c) {
+bool conn_ship_log(Connection *c) {
     bool cont = false;
     short mask = EV_READ | EV_PERSIST | EV_WRITE;
 
@@ -6513,7 +6513,7 @@ bool conn_ship_log(conn *c) {
     return cont;
 }
 
-static bool is_bucket_dying(conn *c)
+static bool is_bucket_dying(Connection *c)
 {
     bool disconnect = false;
     Bucket &b = all_buckets.at(c->bucket.idx);
@@ -6532,7 +6532,7 @@ static bool is_bucket_dying(conn *c)
     return false;
 }
 
-bool conn_waiting(conn *c) {
+bool conn_waiting(Connection *c) {
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -6545,7 +6545,7 @@ bool conn_waiting(conn *c) {
     return false;
 }
 
-bool conn_read(conn *c) {
+bool conn_read(Connection *c) {
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -6568,7 +6568,7 @@ bool conn_read(conn *c) {
     return true;
 }
 
-bool conn_parse_cmd(conn *c) {
+bool conn_parse_cmd(Connection *c) {
     if (try_read_command(c) == 0) {
         /* wee need more data! */
         conn_set_state(c, conn_waiting);
@@ -6577,7 +6577,7 @@ bool conn_parse_cmd(conn *c) {
     return !c->ewouldblock;
 }
 
-bool conn_new_cmd(conn *c) {
+bool conn_new_cmd(Connection *c) {
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -6628,7 +6628,7 @@ bool conn_new_cmd(conn *c) {
     return true;
 }
 
-bool conn_nread(conn *c) {
+bool conn_nread(Connection *c) {
     ssize_t res;
 
     if (c->rlbytes == 0) {
@@ -6694,7 +6694,7 @@ bool conn_nread(conn *c) {
     return true;
 }
 
-bool conn_write(conn *c) {
+bool conn_write(Connection *c) {
     /*
      * We want to write out a simple response. If we haven't already,
      * assemble it into a msgbuf list (this will be a single-entry
@@ -6712,7 +6712,7 @@ bool conn_write(conn *c) {
     return conn_mwrite(c);
 }
 
-bool conn_mwrite(conn *c) {
+bool conn_mwrite(Connection *c) {
     switch (transmit(c)) {
     case TransmitResult::Complete:
         if (c->state == conn_mwrite) {
@@ -6755,7 +6755,7 @@ bool conn_mwrite(conn *c) {
     return true;
 }
 
-bool conn_pending_close(conn *c) {
+bool conn_pending_close(Connection *c) {
     cb_assert(c->sfd == INVALID_SOCKET);
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                     "Awaiting clients to release the cookie (pending close for %p)",
@@ -6774,7 +6774,7 @@ bool conn_pending_close(conn *c) {
     return true;
 }
 
-bool conn_immediate_close(conn *c) {
+bool conn_immediate_close(Connection *c) {
     struct listening_port *port_instance;
     cb_assert(c->sfd == INVALID_SOCKET);
     settings.extensions.logger->log(EXTENSION_LOG_DETAIL, c,
@@ -6794,7 +6794,7 @@ bool conn_immediate_close(conn *c) {
     return false;
 }
 
-bool conn_closing(conn *c) {
+bool conn_closing(Connection *c) {
     /* We don't want any network notifications anymore.. */
     unregister_event(c);
     safe_close(c->sfd);
@@ -6814,17 +6814,17 @@ bool conn_closing(conn *c) {
 /** sentinal state used to represent a 'destroyed' connection which will
  *  actually be freed at the end of the event loop. Always returns false.
  */
-bool conn_destroyed(conn* c) {
+bool conn_destroyed(Connection * c) {
     (void)c;
     return false;
 }
 
-bool conn_setup_tap_stream(conn *c) {
+bool conn_setup_tap_stream(Connection *c) {
     process_bin_tap_connect(c);
     return true;
 }
 
-bool conn_refresh_cbsasl(conn *c) {
+bool conn_refresh_cbsasl(Connection *c) {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -6845,7 +6845,7 @@ bool conn_refresh_cbsasl(conn *c) {
     return true;
 }
 
-bool conn_refresh_ssl_certs(conn *c) {
+bool conn_refresh_ssl_certs(Connection *c) {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -6877,7 +6877,7 @@ bool conn_refresh_ssl_certs(conn *c) {
  * @return true to ensure that we continue to process events for this
  *              connection.
  */
-bool conn_flush(conn *c) {
+bool conn_flush(Connection *c) {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -6896,7 +6896,7 @@ bool conn_flush(conn *c) {
     return true;
 }
 
-bool conn_audit_configuring(conn *c) {
+bool conn_audit_configuring(Connection *c) {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -6915,7 +6915,7 @@ bool conn_audit_configuring(conn *c) {
     return true;
 }
 
-bool conn_create_bucket(conn *c) {
+bool conn_create_bucket(Connection *c) {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -6936,7 +6936,7 @@ bool conn_create_bucket(conn *c) {
     return true;
 }
 
-bool conn_delete_bucket(conn *c) {
+bool conn_delete_bucket(Connection *c) {
     ENGINE_ERROR_CODE ret = c->aiostat;
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
@@ -6958,7 +6958,7 @@ bool conn_delete_bucket(conn *c) {
 }
 
 void event_handler(evutil_socket_t fd, short which, void *arg) {
-    conn *c = reinterpret_cast<conn*>(arg);
+    Connection *c = reinterpret_cast<Connection *>(arg);
     LIBEVENT_THREAD *thr;
 
     cb_assert(c != NULL);
@@ -7011,7 +7011,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
         }
         cb_mutex_exit(&listen_state.mutex);
         if (enable) {
-            conn *next;
+            Connection *next;
             for (next = listen_conn; next; next = next->next) {
                 int backlog = 1024;
                 int ii;
@@ -7168,7 +7168,7 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
 #endif
 
         struct listening_port *port_instance;
-        conn *listen_conn_add;
+        Connection *listen_conn_add;
         if ((sfd = new_socket(next)) == INVALID_SOCKET) {
             /* getaddrinfo can return "junk" addresses,
              * we make sure at least one works before erroring.
@@ -7354,27 +7354,27 @@ const char* get_server_version(void) {
 
 static void store_engine_specific(const void *cookie,
                                   void *engine_data) {
-    conn *c = (conn*)cookie;
+    Connection *c = (Connection *)cookie;
     c->engine_storage = engine_data;
 }
 
 static void *get_engine_specific(const void *cookie) {
-    conn *c = (conn*)cookie;
+    Connection *c = (Connection *)cookie;
     return c->engine_storage;
 }
 
 static bool is_datatype_supported(const void *cookie) {
-    conn *c = (conn*)cookie;
+    Connection *c = (Connection *)cookie;
     return c->supports_datatype;
 }
 
 static bool is_mutation_extras_supported(const void *cookie) {
-    conn *c = (conn*)cookie;
+    Connection *c = (Connection *)cookie;
     return c->supports_mutation_extras;
 }
 
 static uint8_t get_opcode_if_ewouldblock_set(const void *cookie) {
-    conn *c = (conn*)cookie;
+    Connection *c = (Connection *)cookie;
     uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
     if (c->ewouldblock) {
         opcode = c->binary_header.request.opcode;
@@ -7406,18 +7406,18 @@ static void decrement_session_ctr(void) {
 }
 
 static SOCKET get_socket_fd(const void *cookie) {
-    conn *c = (conn *)cookie;
+    Connection *c = (Connection *)cookie;
     return c->sfd;
 }
 
 static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {
-    conn *c = (conn *)cookie;
+    Connection *c = (Connection *)cookie;
     ++c->refcount;
     return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
-    conn *c = (conn *)cookie;
+    Connection *c = (Connection *)cookie;
     int notify;
     LIBEVENT_THREAD *thr;
 
@@ -7446,7 +7446,7 @@ static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
 
 static void cookie_set_admin(const void *cookie) {
     cb_assert(cookie);
-    ((conn *)cookie)->admin = true;
+    ((Connection *)cookie)->admin = true;
 }
 
 static bool cookie_is_admin(const void *cookie) {
@@ -7454,11 +7454,11 @@ static bool cookie_is_admin(const void *cookie) {
         return true;
     }
     cb_assert(cookie);
-    return ((conn *)cookie)->admin;
+    return ((Connection *)cookie)->admin;
 }
 
 static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {
-    conn* c = (conn*)cookie;
+    Connection * c = (Connection *)cookie;
     switch (priority) {
     case CONN_PRIORITY_HIGH:
         c->max_reqs_per_event = settings.reqs_per_event_high_priority;
@@ -7778,7 +7778,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
     return &rv;
 }
 
-static void process_bin_dcp_response(conn *c) {
+static void process_bin_dcp_response(Connection *c) {
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
     c->supports_datatype = true;
@@ -7896,7 +7896,7 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
 
 void create_bucket_main(void *arg)
 {
-    conn *c = reinterpret_cast<conn*>(arg);
+    Connection *c = reinterpret_cast<Connection *>(arg);
     ENGINE_ERROR_CODE ret;
     char *packet = (c->read.curr - (c->binary_header.request.bodylen +
                                     sizeof(c->binary_header)));
@@ -7950,7 +7950,7 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
 /**
  * @todo this should be run as its own thread!!! look at cbsasl refresh..
  */
-static ENGINE_ERROR_CODE do_delete_bucket(conn *c,
+static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
                                           const std::string& bucket_name,
                                           bool force)
 {
@@ -8038,7 +8038,7 @@ static ENGINE_ERROR_CODE do_delete_bucket(conn *c,
 
 static void delete_bucket_main(void *arg)
 {
-    conn *c = reinterpret_cast<conn*>(arg);
+    Connection *c = reinterpret_cast<Connection *>(arg);
     ENGINE_ERROR_CODE ret;
     char *packet = (c->read.curr - (c->binary_header.request.bodylen +
                                     sizeof(c->binary_header)));

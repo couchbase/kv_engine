@@ -33,11 +33,11 @@ extern "C" {
 /**
  * Get the name of the socket or "unknown"
  */
-const char *get_sockname(const conn *c);
+const char *get_sockname(const Connection *c);
 /**
  * Get the name of the peer or "unknown"
  */
-const char *get_peername(const conn *c);
+const char *get_peername(const Connection *c);
 
 /* Initialise connection management */
 void initialize_connections(void);
@@ -49,12 +49,12 @@ void destroy_connections(void);
 void close_all_connections(void);
 
 /* Run the connection event loop; until an event handler returns false. */
-void run_event_loop(conn* c);
+void run_event_loop(Connection * c);
 
 /* Creates a new connection. Returns a pointer to the allocated connection if
  * successful, else NULL.
  */
-conn *conn_new(const SOCKET sfd, in_port_t parent_port,
+Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
                STATE_FUNC init_state, int event_flags,
                unsigned int read_buffer_size, struct event_base *base);
 
@@ -63,7 +63,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
  * be used), but it's memory is still allocated. See conn_destructor() to
  * actually free it's resources.
  */
-void conn_close(conn *c);
+void conn_close(Connection *c);
 
 /*
  * Shrinks a connection's buffers if they're too big.  This prevents
@@ -73,13 +73,13 @@ void conn_close(conn *c);
  * This should only be called in between requests since it can wipe output
  * buffers!
  */
-void conn_shrink(conn *c);
+void conn_shrink(Connection *c);
 
 /* Attempt to grow the connections' dynamic buffer so there is at least
  * 'needed' bytes available.
  * Returns true if it could be grown, else false.
  */
-bool grow_dynamic_buffer(conn *c, size_t needed);
+bool grow_dynamic_buffer(Connection *c, size_t needed);
 
 /**
  * Return the TCP or domain socket listening_port structure that
@@ -91,14 +91,14 @@ struct listening_port *get_listening_port_instance(const in_port_t port);
  * if fd is -1.
  * Note: We hold the connections mutex for the duration of this function.
  */
-void connection_stats(ADD_STAT add_stats, conn *c, const int64_t fd);
+void connection_stats(ADD_STAT add_stats, Connection *c, const int64_t fd);
 
-bool connection_set_nodelay(conn *c, bool enable);
+bool connection_set_nodelay(Connection *c, bool enable);
 
 /*
  * Use engine::release to drop any data we may have allocated with engine::allocate
  */
-void conn_cleanup_engine_allocations(conn* c);
+void conn_cleanup_engine_allocations(Connection * c);
 
 /**
  * Signal (set writable) all idle clients bound to a given bucket.

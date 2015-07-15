@@ -9,7 +9,7 @@ static void display(const char *name, size_t size) {
 }
 
 static long calc_conn_size(void) {
-   long ret = sizeof(conn);
+   long ret = sizeof(Connection);
    ret += (sizeof(char *) * TEMP_ALLOC_LIST_INITIAL);
    ret += (sizeof(struct iovec) * IOV_LIST_INITIAL);
    ret += (sizeof(struct msghdr) * MSG_LIST_INITIAL);

@@ -280,7 +280,7 @@ int subdoc_counter_validator(void* packet) {
  */
 struct SubdocCmdContext {
 
-    SubdocCmdContext(conn* connection)
+    SubdocCmdContext(Connection * connection)
       : c(connection),
         in_doc({NULL, 0}),
         in_cas(0),
@@ -294,11 +294,11 @@ struct SubdocCmdContext {
     }
 
     // Static method passed back to memcached to destroy objects of this class.
-    static void dtor(conn* c, void* context);
+    static void dtor(Connection * c, void* context);
 
     // Cookie this command is associated with. Needed for the destructor
     // to release items.
-    conn* c;
+    Connection * c;
 
     // The expanded input JSON document. This may either refer to the raw engine
     // item iovec; or to the connections' dynamic_buffer if the JSON document
@@ -321,18 +321,18 @@ struct SubdocCmdContext {
  * Declarations
  */
 
-static bool subdoc_fetch(conn* c, ENGINE_ERROR_CODE ret, const char* key,
+static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket);
 template<protocol_binary_command CMD>
-static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
+static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
                            const char* value, size_t vallen,
                            protocol_binary_subdoc_flag flags, uint64_t in_cas);
 template<protocol_binary_command CMD>
-static ENGINE_ERROR_CODE subdoc_update(conn* c, ENGINE_ERROR_CODE ret,
+static ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret,
                                        const char* key, size_t keylen,
                                        uint16_t vbucket);
 template<protocol_binary_command CMD>
-static void subdoc_response(conn* c);
+static void subdoc_response(Connection * c);
 
 /*
  * Definitions
@@ -349,7 +349,7 @@ static void subdoc_response(conn* c);
  * @param packet request packet.
  */
 template<protocol_binary_command CMD>
-void subdoc_executor(conn *c, const void *packet) {
+void subdoc_executor(Connection *c, const void *packet) {
 
     // 0. Parse the request and log it if debug enabled.
     const protocol_binary_request_subdocument *req =
@@ -466,7 +466,7 @@ void subdoc_executor(conn *c, const void *packet) {
  * error code indicating why the document could not be obtained.
  */
 static protocol_binary_response_status
-get_document_for_searching(conn* c, const item* item,
+get_document_for_searching(Connection * c, const item* item,
                            sized_buffer& document, uint64_t in_cas,
                            uint64_t& cas) {
 
@@ -594,7 +594,7 @@ static void subdoc_context_dtor(void* context) {
 // Fetch the item to operate on from the engine.
 // Returns true if the command was successful (and execution should continue),
 // else false.
-static bool subdoc_fetch(conn* c, ENGINE_ERROR_CODE ret, const char* key,
+static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket) {
     auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine);
 
@@ -639,7 +639,7 @@ static bool subdoc_fetch(conn* c, ENGINE_ERROR_CODE ret, const char* key,
 // Returns true if the command was successful (and execution should continue),
 // else false.
 template<protocol_binary_command CMD>
-static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
+static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
                            const char* value, size_t vallen,
                            protocol_binary_subdoc_flag flags, uint64_t in_cas) {
     SubdocCmdContext* context =
@@ -743,7 +743,7 @@ static bool subdoc_operate(conn* c, const char* path, size_t pathlen,
 // Returns true if the updare was successful (and execution should continue),
 // else false.
 template<protocol_binary_command CMD>
-ENGINE_ERROR_CODE subdoc_update(conn* c, ENGINE_ERROR_CODE ret, const char* key,
+ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
                                 size_t keylen, uint16_t vbucket) {
     auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine);
     SubdocCmdContext* context =
@@ -848,7 +848,7 @@ ENGINE_ERROR_CODE subdoc_update(conn* c, ENGINE_ERROR_CODE ret, const char* key,
 
 // Respond back to the user as appropriate to the specific command.
 template<protocol_binary_command CMD>
-void subdoc_response(conn* c) {
+void subdoc_response(Connection * c) {
     SubdocCmdContext* context =
             reinterpret_cast<SubdocCmdContext*>(c->cmd_context);
     cb_assert(context != NULL);
@@ -877,46 +877,46 @@ void subdoc_response(conn* c) {
     conn_set_state(c, conn_mwrite);
 }
 
-void subdoc_get_executor(conn *c, void* packet) {
+void subdoc_get_executor(Connection *c, void* packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_GET>(c, packet);
 }
 
-void subdoc_exists_executor(conn *c, void* packet) {
+void subdoc_exists_executor(Connection *c, void* packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>(c, packet);
 }
 
-void subdoc_dict_add_executor(conn *c, void *packet) {
+void subdoc_dict_add_executor(Connection *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>(c, packet);
 }
 
-void subdoc_dict_upsert_executor(conn *c, void *packet) {
+void subdoc_dict_upsert_executor(Connection *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>(c, packet);
 }
 
-void subdoc_delete_executor(conn *c, void *packet) {
+void subdoc_delete_executor(Connection *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>(c, packet);
 }
 
-void subdoc_replace_executor(conn *c, void *packet) {
+void subdoc_replace_executor(Connection *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>(c, packet);
 }
 
-void subdoc_array_push_last_executor(conn *c, void *packet) {
+void subdoc_array_push_last_executor(Connection *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>(c, packet);
 }
 
-void subdoc_array_push_first_executor(conn *c, void *packet) {
+void subdoc_array_push_first_executor(Connection *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>(c, packet);
 }
 
-void subdoc_array_insert_executor(conn *c, void *packet) {
+void subdoc_array_insert_executor(Connection *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>(c, packet);
 }
 
-void subdoc_array_add_unique_executor(conn *c, void *packet) {
+void subdoc_array_add_unique_executor(Connection *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>(c, packet);
 }
 
-void subdoc_counter_executor(conn *c, void *packet) {
+void subdoc_counter_executor(Connection *c, void *packet) {
     return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>(c, packet);
 }

@@ -41,7 +41,7 @@ ENGINE_ERROR_CODE ioctl_get_property(const char* key, size_t keylen,
  * If the property could be written, return ENGINE_SUCCESS.
  * Otherwise returns a status code indicating why the write failed.
  */
-ENGINE_ERROR_CODE ioctl_set_property(conn* c, const char* key, size_t keylen,
+ENGINE_ERROR_CODE ioctl_set_property(Connection * c, const char* key, size_t keylen,
                                      const char* value, size_t vallen);
 #ifdef __cplusplus
 } /* extern "C" */

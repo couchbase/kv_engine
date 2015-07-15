@@ -43,7 +43,7 @@ ENGINE_ERROR_CODE ioctl_get_property(const char* key, size_t keylen,
     }
 }
 
-ENGINE_ERROR_CODE ioctl_set_property(conn* c, const char* key, size_t keylen,
+ENGINE_ERROR_CODE ioctl_set_property(Connection * c, const char* key, size_t keylen,
                                      const char* value, size_t vallen)
 {
     if (strncmp("release_free_memory", key, keylen) == 0 &&

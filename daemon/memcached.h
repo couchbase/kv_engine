@@ -100,7 +100,7 @@ typedef struct {
     struct conn_queue *new_conn_queue; /* queue of new connections to handle */
     cb_mutex_t mutex;      /* Mutex to lock protect access to the pending_io */
     bool is_locked;
-    struct conn *pending_io;    /* List of connection with pending async io ops */
+    struct Connection *pending_io;    /* List of connection with pending async io ops */
     int index;                  /* index of this thread in the threads array */
     ThreadType type;      /* Type of IO this thread processes */
 
@@ -138,8 +138,8 @@ extern void notify_thread(LIBEVENT_THREAD *thread);
 extern void notify_dispatcher(void);
 extern bool create_notification_pipe(LIBEVENT_THREAD *me);
 
-typedef struct conn conn;
-typedef bool (*STATE_FUNC)(conn *);
+typedef struct Connection conn;
+typedef bool (*STATE_FUNC)(Connection *);
 
 // Command context destructor function pointer.
 typedef void (*cmd_context_dtor_t)(void*);
@@ -147,9 +147,9 @@ typedef void (*cmd_context_dtor_t)(void*);
 /**
  * The structure representing a connection into memcached.
  */
-struct conn {
-    conn* all_next; /** Intrusive list to track all connections */
-    conn* all_prev;
+struct Connection {
+    Connection * all_next; /** Intrusive list to track all connections */
+    Connection * all_prev;
 
     SOCKET sfd;
     Protocol protocol; /* The protocol used by the connection */
@@ -248,7 +248,7 @@ struct conn {
     int keylen;
 
     int list_state; /* bitmask of list state data for this connection */
-    conn   *next;     /* Used for generating a list of conn structures */
+    Connection *next;     /* Used for generating a list of Connection structures */
     LIBEVENT_THREAD *thread; /* Pointer to the thread object serving this connection */
 
     ENGINE_ERROR_CODE aiostat;
@@ -304,7 +304,7 @@ typedef union {
 } item_info_holder;
 
 /* list of listening connections */
-extern conn *listen_conn;
+extern Connection *listen_conn;
 
 /* States for the connection list_state */
 #define LIST_STATE_PROCESSING 1
@@ -320,10 +320,10 @@ extern conn *listen_conn;
 /*
  * Functions to add / update the connection to libevent
  */
-bool register_event(conn *c, struct timeval *timeout);
-bool unregister_event(conn *c);
-bool update_event(conn *c, const int new_flags);
-void associate_initial_bucket(conn *c);
+bool register_event(Connection *c, struct timeval *timeout);
+bool unregister_event(Connection *c);
+bool update_event(Connection *c, const int new_flags);
+void associate_initial_bucket(Connection *c);
 
 /*
  * Functions such as the libevent-related calls that need to do cross-thread
@@ -349,45 +349,45 @@ void STATS_UNLOCK(void);
 void threadlocal_stats_reset(struct thread_stats *thread_stats);
 
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status);
-void conn_set_state(conn *c, STATE_FUNC state);
+void conn_set_state(Connection *c, STATE_FUNC state);
 const char *state_text(STATE_FUNC state);
 void safe_close(SOCKET sfd);
 
 
 /* Number of times this connection is in the given pending list */
-bool list_contains(conn *h, conn *n);
-conn *list_remove(conn *h, conn *n);
+bool list_contains(Connection *h, Connection *n);
+Connection *list_remove(Connection *h, Connection *n);
 
 /* Aggregate the maximum number of connections */
 void calculate_maxconns(void);
 
 bool load_extension(const char *soname, const char *config);
 
-int add_conn_to_pending_io_list(conn *c);
+int add_conn_to_pending_io_list(Connection *c);
 
 extern "C" void drop_privileges(void);
 
 /* connection state machine */
-bool conn_listening(conn *c);
-bool conn_new_cmd(conn *c);
-bool conn_waiting(conn *c);
-bool conn_read(conn *c);
-bool conn_parse_cmd(conn *c);
-bool conn_write(conn *c);
-bool conn_nread(conn *c);
-bool conn_pending_close(conn *c);
-bool conn_immediate_close(conn *c);
-bool conn_closing(conn *c);
-bool conn_destroyed(conn *c);
-bool conn_mwrite(conn *c);
-bool conn_ship_log(conn *c);
-bool conn_setup_tap_stream(conn *c);
-bool conn_refresh_cbsasl(conn *c);
-bool conn_refresh_ssl_certs(conn *c);
-bool conn_flush(conn *c);
-bool conn_audit_configuring(conn *c);
-bool conn_create_bucket(conn *c);
-bool conn_delete_bucket(conn *c);
+bool conn_listening(Connection *c);
+bool conn_new_cmd(Connection *c);
+bool conn_waiting(Connection *c);
+bool conn_read(Connection *c);
+bool conn_parse_cmd(Connection *c);
+bool conn_write(Connection *c);
+bool conn_nread(Connection *c);
+bool conn_pending_close(Connection *c);
+bool conn_immediate_close(Connection *c);
+bool conn_closing(Connection *c);
+bool conn_destroyed(Connection *c);
+bool conn_mwrite(Connection *c);
+bool conn_ship_log(Connection *c);
+bool conn_setup_tap_stream(Connection *c);
+bool conn_refresh_cbsasl(Connection *c);
+bool conn_refresh_ssl_certs(Connection *c);
+bool conn_flush(Connection *c);
+bool conn_audit_configuring(Connection *c);
+bool conn_create_bucket(Connection *c);
+bool conn_delete_bucket(Connection *c);
 
 void event_handler(evutil_socket_t fd, short which, void *arg);
 
@@ -425,18 +425,18 @@ const char* get_server_version(void);
  *
  * Returns 0 on success, -1 on out-of-memory.
  */
-int add_iov(conn *c, const void *buf, size_t len);
+int add_iov(Connection *c, const void *buf, size_t len);
 
-int add_bin_header(conn *c, uint16_t err, uint8_t ext_len, uint16_t key_len,
+int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_len,
                    uint32_t body_len, uint8_t datatype);
 
 /* set up a connection to write a dynamic_buffer then free it once sent. */
-void write_and_free(conn *c, struct dynamic_buffer* buf);
+void write_and_free(Connection *c, struct dynamic_buffer* buf);
 
-void write_bin_packet(conn *c, protocol_binary_response_status err);
+void write_bin_packet(Connection *c, protocol_binary_response_status err);
 
 /* Increments topkeys count for a key when called by a valid operation. */
-void update_topkeys(const char *key, size_t nkey, conn *c);
+void update_topkeys(const char *key, size_t nkey, Connection *c);
 
 /**
  * Convert an error code generated from the storage engine to the corresponding
@@ -446,13 +446,13 @@ void update_topkeys(const char *key, size_t nkey, conn *c);
  */
 protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE e);
 
-void bucket_item_set_cas(conn *c, item *it, uint64_t cas);
+void bucket_item_set_cas(Connection *c, item *it, uint64_t cas);
 
-void bucket_reset_stats(conn *c);
-ENGINE_ERROR_CODE bucket_get_engine_vb_map(conn *c,
+void bucket_reset_stats(Connection *c);
+ENGINE_ERROR_CODE bucket_get_engine_vb_map(Connection *c,
                                            engine_get_vb_map_cb callback);
 
-ENGINE_ERROR_CODE bucket_unknown_command(conn *c,
+ENGINE_ERROR_CODE bucket_unknown_command(Connection *c,
                                          protocol_binary_request_header *request,
                                          ADD_RESPONSE response);
 

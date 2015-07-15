@@ -133,7 +133,7 @@ struct thread_stats {
 
     /* Highest value iovsize has got to */
     StatsCounter<int> iovused_high_watermark;
-    /* High value conn->msgused has got to */
+    /* High value Connection->msgused has got to */
     StatsCounter<int> msgused_high_watermark;
 };
 
@@ -171,7 +171,7 @@ struct stats {
 
 
 
-struct thread_stats *get_thread_stats(conn *c);
+struct thread_stats *get_thread_stats(Connection *c);
 
 /*
  *  Macros for managing statistics inside memcached

@@ -46,17 +46,17 @@ int subdoc_array_add_unique_validator(void* packet);
 int subdoc_counter_validator(void* packet);
 
 /* Subdocument executor functions. */
-void subdoc_get_executor(conn *c, void *packet);
-void subdoc_exists_executor(conn *c, void *packet);
-void subdoc_dict_add_executor(conn *c, void *packet);
-void subdoc_dict_upsert_executor(conn *c, void *packet);
-void subdoc_delete_executor(conn *c, void *packet);
-void subdoc_replace_executor(conn *c, void *packet);
-void subdoc_array_push_last_executor(conn *c, void *packet);
-void subdoc_array_push_first_executor(conn *c, void *packet);
-void subdoc_array_insert_executor(conn* c, void* packet);
-void subdoc_array_add_unique_executor(conn* c, void* packet);
-void subdoc_counter_executor(conn *c, void *packet);
+void subdoc_get_executor(Connection *c, void *packet);
+void subdoc_exists_executor(Connection *c, void *packet);
+void subdoc_dict_add_executor(Connection *c, void *packet);
+void subdoc_dict_upsert_executor(Connection *c, void *packet);
+void subdoc_delete_executor(Connection *c, void *packet);
+void subdoc_replace_executor(Connection *c, void *packet);
+void subdoc_array_push_last_executor(Connection *c, void *packet);
+void subdoc_array_push_first_executor(Connection *c, void *packet);
+void subdoc_array_insert_executor(Connection * c, void* packet);
+void subdoc_array_add_unique_executor(Connection * c, void* packet);
+void subdoc_counter_executor(Connection *c, void *packet);
 
 #if defined(__cplusplus)
 } // extern "C"

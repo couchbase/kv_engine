@@ -26,14 +26,14 @@ extern "C" {
      * @param c the connection object performing the sasl auth
      * @param reason the textual description of why auth failed
      */
-    void audit_auth_failure(const conn *c, const char *reason);
+    void audit_auth_failure(const Connection *c, const char *reason);
 
     /**
      * Send an audit event for a DCP Open
      *
      * param c the connection object performing DCP Open
      */
-    void audit_dcp_open(const conn *c);
+    void audit_dcp_open(const Connection *c);
 
 #ifdef __cplusplus
 }
