@@ -64,7 +64,7 @@ Connection::Connection()
           tap_iterator(nullptr),
           parent_port(0),
           dcp(0),
-          cmd_context(nullptr), cmd_context_dtor(nullptr),
+          cmd_context(nullptr),
           auth_context(nullptr),
           peername("unknown"),
           sockname("unknown")

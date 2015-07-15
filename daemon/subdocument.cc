@@ -278,7 +278,7 @@ int subdoc_counter_validator(void* packet) {
  *  engine functions return EWOULDBLOCK and hence the executor needs to be
  *  retried.
  */
-struct SubdocCmdContext {
+struct SubdocCmdContext : public CommandContext {
 
     SubdocCmdContext(Connection * connection)
       : c(connection),
@@ -286,7 +286,7 @@ struct SubdocCmdContext {
         in_cas(0),
         out_doc(NULL) {}
 
-    ~SubdocCmdContext() {
+    virtual ~SubdocCmdContext() {
         if (out_doc != NULL) {
             c->bucket.engine->release(reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine),
                                       c, out_doc);
@@ -582,15 +582,6 @@ get_document_for_searching(Connection * c, const item* item,
     }
 }
 
-// Destructor function for SubdocCmdContext objects. Needed so we can cleanup
-// any resouces used while executing a subdocument command, by setting
-// c->cmd_context and c->cmd_context_dtor.
-static void subdoc_context_dtor(void* context) {
-    SubdocCmdContext* subdoc_context =
-            reinterpret_cast<SubdocCmdContext*>(context);
-    delete subdoc_context;
-}
-
 // Fetch the item to operate on from the engine.
 // Returns true if the command was successful (and execution should continue),
 // else false.
@@ -614,7 +605,6 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
             c->item = initial_item;
             cb_assert(c->cmd_context == NULL);
             c->cmd_context = new SubdocCmdContext(c);
-            c->cmd_context_dtor = subdoc_context_dtor;
             break;
 
         case ENGINE_EWOULDBLOCK:

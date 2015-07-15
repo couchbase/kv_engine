@@ -257,6 +257,20 @@ protected:
 };
 
 /**
+ *  A command may need to store command specific context during the duration
+ *  of a command (you might for instance want to keep state between multiple
+ *  calls that returns EWOULDBLOCK).
+ *
+ *  The implementation of such commands should subclass this class and
+ *  allocate an instance and store in the commands cmd_context member (which
+ *  will be deleted and set to nullptr between each command being processed)..
+ */
+class CommandContext {
+public:
+    virtual ~CommandContext() {};
+};
+
+/**
  * The structure representing a connection into memcached.
  */
 class Connection {
@@ -370,18 +384,15 @@ public:
 
     int dcp;
 
-    /** command-specific context - for use by command executors to maintain
+    /**
+     *  command-specific context - for use by command executors to maintain
      *  additional state while executing a command. For example
      *  a command may want to maintain some temporary state between retries
      *  due to engine returning EWOULDBLOCK.
-     *  Between each command this is reset to NULL. To allow for any cleanup
-     *  of resources before setting it to NULL a cmd_context destructor can be
-     *  assigned. If the dtor is non-NULL (and cmd_context is also non-NULL)
-     *  then cmd_context_dtor(cmd_context) is called before resetting them
-     *  both back to NULL.
+     *
+     *  Between each command this is deleted and reset to nullptr.
      */
-    void* cmd_context;
-    cmd_context_dtor_t cmd_context_dtor;
+    CommandContext* cmd_context;
 
     SslContext ssl;
 
