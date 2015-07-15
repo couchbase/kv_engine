@@ -93,9 +93,8 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
         readHandleMap.insert(std::make_pair(i, kvsHandle));
     }
 
-    /* Initialize the handle for the vbucket state information */
-    status = fdb_kvs_open(dbFileHandle, &vbStateHandle, "vbstate",
-                          &kvsConfig);
+    // Initialize the handle for the vbucket state information
+    status = fdb_kvs_open_default(dbFileHandle, &vbStateHandle, &kvsConfig);
 
     if (status != FDB_RESULT_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
