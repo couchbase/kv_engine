@@ -44,6 +44,7 @@ ADD_EXECUTABLE(memcached
                config_util.h
                config_parse.cc
                config_parse.h
+               connection.cc
                connections.cc
                connections.h
                debug_helpers.cc

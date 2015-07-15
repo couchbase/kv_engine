@@ -136,7 +136,7 @@ void set_ssl_cipher_list(const char *list) {
 
 /* settings, as used by config_parse.c */
 struct settings settings;
-struct Connection *listen_conn = NULL;
+Connection *listen_conn = NULL;
 /******************************************************************************
  *  setup / teardown functions
  */

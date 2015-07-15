@@ -92,6 +92,8 @@ struct dynamic_buffer {
      size_t offset;  /** How much of the buffer has been used so far. */
 };
 
+class Connection;
+
 typedef struct {
     cb_thread_t thread_id;      /* unique ID of this thread */
     struct event_base *base;    /* libevent handle this thread uses */
@@ -100,7 +102,7 @@ typedef struct {
     struct conn_queue *new_conn_queue; /* queue of new connections to handle */
     cb_mutex_t mutex;      /* Mutex to lock protect access to the pending_io */
     bool is_locked;
-    struct Connection *pending_io;    /* List of connection with pending async io ops */
+    Connection *pending_io;    /* List of connection with pending async io ops */
     int index;                  /* index of this thread in the threads array */
     ThreadType type;      /* Type of IO this thread processes */
 
@@ -138,7 +140,6 @@ extern void notify_thread(LIBEVENT_THREAD *thread);
 extern void notify_dispatcher(void);
 extern bool create_notification_pipe(LIBEVENT_THREAD *me);
 
-typedef struct Connection conn;
 typedef bool (*STATE_FUNC)(Connection *);
 
 // Command context destructor function pointer.
@@ -147,7 +148,13 @@ typedef void (*cmd_context_dtor_t)(void*);
 /**
  * The structure representing a connection into memcached.
  */
-struct Connection {
+class Connection {
+public:
+    Connection();
+    ~Connection();
+    Connection(const Connection&) = delete;
+
+
     Connection * all_next; /** Intrusive list to track all connections */
     Connection * all_prev;
 
@@ -296,6 +303,10 @@ struct Connection {
         int idx; /* The internal index for the connected bucket */
         ENGINE_HANDLE_V1 *engine;
     } bucket;
+
+private:
+    void resetBufferSize();
+
 };
 
 typedef union {

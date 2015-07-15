@@ -43,12 +43,10 @@ enum class BufferLoan {
 
 static void conn_loan_buffers(Connection *c);
 static void conn_return_buffers(Connection *c);
-static bool conn_reset_buffersize(Connection *c);
 static BufferLoan conn_loan_single_buffer(Connection *c, struct net_buf *thread_buf,
                                              struct net_buf *conn_buf);
 static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
                                       struct net_buf *conn_buf);
-static int conn_constructor(Connection *c);
 static void conn_destructor(Connection *c);
 static Connection *allocate_connection(void);
 static void release_connection(Connection *c);
@@ -279,19 +277,14 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
     if (c == NULL) {
         return NULL;
     }
-    c->admin = false;
-    cb_assert(c->thread == NULL);
 
-    memset(&c->ssl, 0, sizeof(c->ssl));
-    if (init_state != conn_listening) {
+    if (init_state == conn_listening) {
+        c->auth_context = auth_create(NULL, NULL, NULL);
+    } else {
         initialize_socket_names(sfd, &c->peername, &c->sockname);
-        if (c->auth_context) {
-            auth_destroy(c->auth_context);
-        }
         c->auth_context = auth_create(NULL, c->peername, c->sockname);;
 
-        int ii;
-        for (ii = 0; ii < settings.num_interfaces; ++ii) {
+        for (int ii = 0; ii < settings.num_interfaces; ++ii) {
             if (parent_port == settings.interfaces[ii].port) {
                 c->protocol = settings.interfaces[ii].protocol;
                 c->nodelay = settings.interfaces[ii].tcp_nodelay;
@@ -348,8 +341,6 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
         }
     }
 
-    c->request_addr_size = 0;
-
     if (settings.verbose > 1) {
         if (init_state == conn_listening) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
@@ -361,34 +352,9 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
     }
 
     c->sfd = sfd;
-    c->max_reqs_per_event = settings.default_reqs_per_event;
     c->parent_port = parent_port;
     c->state = init_state;
-    c->rlbytes = 0;
-    c->cmd = -1;
-    c->read.bytes = c->write.bytes = 0;
-    c->write.curr = c->write.buf = NULL;
-    c->read.curr = c->read.buf = NULL;
-    c->read.size = c->write.size = 0;
-    c->ritem = 0;
-    c->icurr = c->ilist = NULL;
-    c->temp_alloc_curr = c->temp_alloc_list;
-    c->ileft = 0;
-    c->temp_alloc_left = 0;
-    c->iovused = 0;
-    c->msgcurr = 0;
-    c->msgused = 0;
-    c->next = NULL;
-    c->list_state = 0;
-
     c->write_and_go = init_state;
-    c->write_and_free = 0;
-    c->item = 0;
-    c->supports_datatype = false;
-    c->supports_mutation_extras = false;
-    c->noreply = false;
-    c->cmd_context = NULL;
-    c->cmd_context_dtor = NULL;
 
     event_set(&c->event, sfd, event_flags, event_handler, (void *)c);
     event_base_set(base, &c->event);
@@ -402,8 +368,6 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
 
     stats.total_conns.fetch_add(1, std::memory_order_relaxed);;
 
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
     c->refcount = 1;
 
     if (init_state == conn_listening) {
@@ -717,115 +681,12 @@ static void conn_return_buffers(Connection *c) {
     conn_return_single_buffer(c, &c->thread->write, &c->write);
 }
 
-/**
- * Reset all of the dynamic buffers used by a connection back to their
- * default sizes. The strategy for resizing the buffers is to allocate a
- * new one of the correct size and free the old one if the allocation succeeds
- * instead of using realloc to change the buffer size (because realloc may
- * not shrink the buffers, and will also copy the memory). If the allocation
- * fails the buffer will be unchanged.
- *
- * @param c the connection to resize the buffers for
- * @return true if all allocations succeeded, false if one or more of the
- *         allocations failed.
- */
-static bool conn_reset_buffersize(Connection *c) {
-    bool ret = true;
-
-    /* itemlist only needed for TAP / DCP connections, so we just free when the
-     * connection is reset.
-     */
-    free(c->ilist);
-    c->ilist = NULL;
-    c->isize = 0;
-
-    if (c->temp_alloc_size != TEMP_ALLOC_LIST_INITIAL) {
-        char **ptr = reinterpret_cast<char**>
-            (malloc(sizeof(char *) * TEMP_ALLOC_LIST_INITIAL));
-        if (ptr != NULL) {
-            free(c->temp_alloc_list);
-            c->temp_alloc_list = ptr;
-            c->temp_alloc_size = TEMP_ALLOC_LIST_INITIAL;
-        } else {
-            ret = false;
-        }
-    }
-
-    if (c->iovsize != IOV_LIST_INITIAL) {
-        auto *ptr = reinterpret_cast<struct iovec*>
-            (malloc(sizeof(struct iovec) * IOV_LIST_INITIAL));
-        if (ptr != NULL) {
-            free(c->iov);
-            c->iov = ptr;
-            c->iovsize = IOV_LIST_INITIAL;
-        } else {
-            ret = false;
-        }
-    }
-
-    if (c->msgsize != MSG_LIST_INITIAL) {
-        auto* ptr = reinterpret_cast<struct msghdr*>
-            (malloc(sizeof(struct msghdr) * MSG_LIST_INITIAL));
-        if (ptr != NULL) {
-            free(c->msglist);
-            c->msglist = ptr;
-            c->msgsize = MSG_LIST_INITIAL;
-        } else {
-            ret = false;
-        }
-    }
-
-    return ret;
-}
-
-/**
- * Constructor for all memory allocations of connection objects. Initialize
- * all members and allocate the transfer buffers.
- *
- * @param buffer The memory allocated by the object cache
- * @return 0 on success, 1 if we failed to allocate memory
- */
-static int conn_constructor(Connection *c) {
-    memset(c, 0, sizeof(*c));
-    MEMCACHED_CONN_CREATE(c);
-
-    c->auth_context = auth_create(NULL, NULL, NULL);;
-    c->state = conn_immediate_close;
-    c->sfd = INVALID_SOCKET;
-    if (!conn_reset_buffersize(c)) {
-        free(c->read.buf);
-        free(c->write.buf);
-        free(c->ilist);
-        free(c->temp_alloc_list);
-        free(c->iov);
-        free(c->msglist);
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING,
-                                        NULL,
-                                        "Failed to allocate buffers for connection\n");
-        return 1;
-    }
-
-    stats.conn_structs.fetch_add(1, std::memory_order_relaxed);
-
-    return 0;
-}
 
 /**
  * Destructor for all connection objects. Release all allocated resources.
  */
 static void conn_destructor(Connection *c) {
-    auth_destroy(c->auth_context);
-    free(c->peername);
-    free(c->sockname);
-    cbsasl_dispose(&c->sasl_conn);
-    free(c->read.buf);
-    free(c->write.buf);
-    free(c->ilist);
-    free(c->temp_alloc_list);
-    free(c->iov);
-    free(c->msglist);
     delete c;
-
     stats.conn_structs.fetch_sub(1, std::memory_order_relaxed);
 }
 
@@ -843,13 +704,7 @@ static Connection *allocate_connection(void) {
                                         "Failed to allocate memory for connection");
         return NULL;
     }
-
-    if (conn_constructor(ret) != 0) {
-        delete ret;
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to allocate memory for connection");
-        return NULL;
-    }
+    stats.conn_structs.fetch_add(1, std::memory_order_relaxed);
 
     cb_mutex_enter(&connections.mutex);
     // First update the new nodes' links ...

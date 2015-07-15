@@ -475,7 +475,7 @@ struct thread_stats *get_thread_stats(Connection *c) {
 }
 
 static void stats_reset(const void *cookie) {
-    struct Connection *conn = (struct Connection *)cookie;
+    auto *conn = (Connection *)cookie;
     STATS_LOCK();
     set_stats_reset_time();
     STATS_UNLOCK();

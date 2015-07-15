@@ -411,7 +411,7 @@ static void enlist_conn(Connection *c, Connection **list) {
 
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
 {
-    struct Connection *conn = (struct Connection *)cookie;
+    auto *conn = (Connection *)cookie;
     LIBEVENT_THREAD *thr;
     int notify;
 
