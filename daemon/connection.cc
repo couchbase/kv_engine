@@ -23,8 +23,6 @@ Connection::Connection()
           all_prev(nullptr),
           sfd(INVALID_SOCKET),
           protocol(Protocol::Memcached),
-          peername(nullptr), // refactor to string
-          sockname(nullptr), // refactor to string
           max_reqs_per_event(settings.default_reqs_per_event),
           nevents(0),
           admin(false),
@@ -68,7 +66,9 @@ Connection::Connection()
           parent_port(0),
           dcp(0),
           cmd_context(nullptr), cmd_context_dtor(nullptr),
-          auth_context(nullptr)
+          auth_context(nullptr),
+          peername("unknown"),
+          sockname("unknown")
 {
     MEMCACHED_CONN_CREATE(this);
 
@@ -88,8 +88,6 @@ Connection::Connection()
 
 Connection::~Connection() {
     auth_destroy(auth_context);
-    free(peername);
-    free(sockname);
     cbsasl_dispose(&sasl_conn);
     free(read.buf);
     free(write.buf);
@@ -153,4 +151,57 @@ void Connection::resetBufferSize() {
         std::bad_alloc ex;
         throw ex;
     }
+}
+
+/**
+ * Convert a sockaddr_storage to a textual string (no name lookup).
+ *
+ * @param addr the sockaddr_storage received from getsockname or
+ *             getpeername
+ * @param addr_len the current length used by the sockaddr_storage
+ * @return a textual string representing the connection. or NULL
+ *         if an error occurs (caller takes ownership of the buffer and
+ *         must call free)
+ */
+static std::string sockaddr_to_string(const struct sockaddr_storage *addr,
+                                      socklen_t addr_len)
+{
+    char host[50];
+    char port[50];
+    int err = getnameinfo((struct sockaddr*)addr, addr_len, host, sizeof(host),
+                          port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV);
+    if (err != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "getnameinfo failed with error %d",
+                                        err);
+        return NULL;
+    }
+
+    return std::string(host) + ":" + port;
+}
+
+void Connection::resolveConnectionName() {
+    int err;
+    struct sockaddr_storage peer;
+    socklen_t peer_len = sizeof(peer);
+
+    if ((err = getpeername(sfd, (struct sockaddr*)&peer, &peer_len)) != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "getpeername for socket %d with error %d",
+                                        sfd, err);
+        return;
+    }
+
+    struct sockaddr_storage sock;
+    socklen_t sock_len = sizeof(sock);
+    if ((err = getsockname(sfd, (struct sockaddr*)&sock, &sock_len)) != 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "getsock for socket %d with error %d",
+                                        sfd, err);
+        return;
+    }
+
+    peername = sockaddr_to_string(&peer, peer_len);
+    sockname = sockaddr_to_string(&sock, sock_len);
+
 }

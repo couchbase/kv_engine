@@ -76,10 +76,8 @@ static const char *get_bucketname(const Connection *c)
 static cJSON *create_memcached_audit_object(const Connection *c)
 {
     cJSON *root = cJSON_CreateObject();
-    cJSON_AddStringToObject(root, "peername",
-                            c->peername ? c->peername : unknown);
-    cJSON_AddStringToObject(root, "sockname",
-                            c->sockname ? c->sockname : unknown);
+    cJSON_AddStringToObject(root, "peername", c->getPeername().c_str());
+    cJSON_AddStringToObject(root, "sockname", c->getSockname().c_str());
     cJSON *source = cJSON_CreateObject();
     cJSON_AddStringToObject(source, "source", "memcached");
     cJSON_AddStringToObject(source, "user", get_username(c));

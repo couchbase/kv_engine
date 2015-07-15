@@ -55,26 +55,6 @@ static cJSON* get_connection_stats(const Connection *c);
 
 
 /** External functions *******************************************************/
-static const char unknown[] = "unknown";
-
-const char *get_sockname(const Connection *c)
-{
-    if (c->sockname) {
-        return c->sockname;
-    } else {
-        return unknown;
-    }
-}
-const char *get_peername(const Connection *c)
-{
-    if (c->peername) {
-        return c->peername;
-    } else {
-        return unknown;
-    }
-}
-
-
 void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
 {
     cb_mutex_enter(&connections.mutex);
@@ -185,80 +165,6 @@ void run_event_loop(Connection * c) {
     }
 }
 
-/**
- * Convert a sockaddr_storage to a textual string (no name lookup).
- *
- * @param addr the sockaddr_storage received from getsockname or
- *             getpeername
- * @param addr_len the current length used by the sockaddr_storage
- * @return a textual string representing the connection. or NULL
- *         if an error occurs (caller takes ownership of the buffer and
- *         must call free)
- */
-static char *sockaddr_to_string(const struct sockaddr_storage *addr,
-                                socklen_t addr_len)
-{
-    char host[50];
-    char port[50];
-    int err = getnameinfo((struct sockaddr*)addr, addr_len, host, sizeof(host),
-                          port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV);
-    if (err != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "getnameinfo failed with error %d",
-                                        err);
-        return NULL;
-    }
-
-    char peer[128];
-    snprintf(peer, sizeof(peer), "%s:%s", host, port);
-
-    return strdup(peer);
-}
-
-/**
- * Try to initialize the name of the peer and the local endpoint.
- *
- * @param sfd the socket to initialize
- * @param peername where to store the name of the peer
- * @param sockname where to store the local name
- * @param parent_port the local port number
- */
-static void initialize_socket_names(const SOCKET sfd,
-                                    char **peername,
-                                    char **sockname)
-{
-    int err;
-    struct sockaddr_storage peer;
-    socklen_t peer_len = sizeof(peer);
-
-    if ((err = getpeername(sfd, (struct sockaddr*)&peer, &peer_len)) != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "getpeername for socket %d with error %d",
-                                        sfd, err);
-        *sockname = *peername = NULL;
-        return;
-    }
-
-    struct sockaddr_storage sock;
-    socklen_t sock_len = sizeof(sock);
-    if ((err = getsockname(sfd, (struct sockaddr*)&sock, &sock_len)) != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "getsock for socket %d with error %d",
-                                        sfd, err);
-        *sockname = *peername = NULL;
-        return;
-    }
-
-    *peername = sockaddr_to_string(&peer, peer_len);
-    *sockname = sockaddr_to_string(&sock, sock_len);
-
-    if (*sockname == NULL || *peername == NULL) {
-        free(*sockname);
-        free(*peername);
-        *sockname = *peername = NULL;
-    }
-}
-
 static void dump_cipher_list(const SSL *ssl, SOCKET sfd) {
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
                                     "%d: Using SSL ciphers:", sfd);
@@ -281,8 +187,9 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
     if (init_state == conn_listening) {
         c->auth_context = auth_create(NULL, NULL, NULL);
     } else {
-        initialize_socket_names(sfd, &c->peername, &c->sockname);
-        c->auth_context = auth_create(NULL, c->peername, c->sockname);;
+        c->resolveConnectionName();
+        c->auth_context = auth_create(NULL, c->getPeername().c_str(),
+                                      c->getSockname().c_str());
 
         for (int ii = 0; ii < settings.num_interfaces; ++ii) {
             if (parent_port == settings.interfaces[ii].port) {
@@ -853,12 +760,8 @@ static cJSON* get_connection_stats(const Connection *c) {
         default:
             cJSON_AddStringToObject(obj, "protocol", "unknown");
         }
-        if (c->peername) {
-            cJSON_AddStringToObject(obj, "peername", c->peername);
-        }
-        if (c->sockname) {
-            cJSON_AddStringToObject(obj, "sockname", c->sockname);
-        }
+        cJSON_AddStringToObject(obj, "peername", c->getPeername().c_str());
+        cJSON_AddStringToObject(obj, "sockname", c->getSockname().c_str());
         cJSON_AddNumberToObject(obj, "max_reqs_per_event",
                                 c->max_reqs_per_event);
         cJSON_AddNumberToObject(obj, "nevents", c->nevents);

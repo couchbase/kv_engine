@@ -160,8 +160,6 @@ public:
 
     SOCKET sfd;
     Protocol protocol; /* The protocol used by the connection */
-    char *peername; /* Name of the peer if known */
-    char *sockname; /* Name of the local socket if known */
     int max_reqs_per_event; /** The maximum requests we can process in a worker
                                 thread timeslice */
     int nevents; /** number of events this connection can process in a single
@@ -304,7 +302,25 @@ public:
         ENGINE_HANDLE_V1 *engine;
     } bucket;
 
+    /**
+     * Resolve the name of the local socket and the peer for the connected
+     * socket
+     */
+    void resolveConnectionName();
+
+    const std::string &getPeername() const {
+        return peername;
+    }
+
+    const std::string &getSockname() const {
+        return sockname;
+    }
 private:
+
+    std::string peername; /* Name of the peer if known */
+    std::string sockname; /* Name of the local socket if known */
+
+
     void resetBufferSize();
 
 };

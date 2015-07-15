@@ -30,15 +30,6 @@
 extern "C" {
 #endif
 
-/**
- * Get the name of the socket or "unknown"
- */
-const char *get_sockname(const Connection *c);
-/**
- * Get the name of the peer or "unknown"
- */
-const char *get_peername(const Connection *c);
-
 /* Initialise connection management */
 void initialize_connections(void);
 

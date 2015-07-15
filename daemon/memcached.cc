@@ -3861,7 +3861,7 @@ static void sasl_auth_executor(Connection *c, void *packet)
             if (settings.verbose > 0) {
                 settings.extensions.logger->log
                     (EXTENSION_LOG_INFO, c, "%d: Client %s authenticated as %s",
-                     c->sfd, get_peername(c), data.username);
+                     c->sfd, c->getPeername().c_str(), data.username);
             }
 
             write_bin_response(c, NULL, 0, 0, 0);
@@ -3872,8 +3872,8 @@ static void sasl_auth_executor(Connection *c, void *packet)
              */
             auth_destroy(c->auth_context);
             c->auth_context = auth_create(data.username,
-                                          c->peername,
-                                          c->sockname);
+                                          c->getPeername().c_str(),
+                                          c->getSockname().c_str());
 
             if (settings.disable_admin) {
                 /* "everyone is admins" */
@@ -5175,18 +5175,11 @@ static void process_bin_packet(Connection *c) {
     switch (auth_check_access(c->auth_context, opcode)) {
     case AuthResult::FAIL:
         /* @TODO Should go to audit */
-        if (c->peername) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d (%s => %s): no access to command %s",
-                                            c->sfd, c->peername,
-                                            c->sockname,
-                                            memcached_opcode_2_text(opcode));
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: no access to command %s",
-                                            c->sfd,
-                                            memcached_opcode_2_text(opcode));
-        }
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "%d (%s => %s): no access to command %s",
+                                        c->sfd, c->getPeername().c_str(),
+                                        c->getSockname().c_str(),
+                                        memcached_opcode_2_text(opcode));
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
         break;
     case AuthResult::OK:
@@ -6195,7 +6188,7 @@ static TryReadResult try_read_network(Connection *c) {
             char prefix[160];
             snprintf(prefix, sizeof(prefix),
                      "%d Closing connection [%s - %s] due to read error: %%s",
-                     c->sfd, get_peername(c), get_sockname(c));
+                     c->sfd, c->getPeername().c_str(), c->getSockname().c_str());
             log_errcode_error(EXTENSION_LOG_WARNING, c, prefix, error);
 
             return TryReadResult::SocketError;
@@ -6275,7 +6268,7 @@ bool update_event(Connection *c, const int new_flags) {
                                         "Failed to remove connection from "
                                         "event notification library. Shutting "
                                         "down connection [%s - %s]",
-                                        get_peername(c), get_sockname(c));
+                                        c->getPeername().c_str(), c->getSockname().c_str());
         return false;
     }
 
@@ -6288,7 +6281,7 @@ bool update_event(Connection *c, const int new_flags) {
                                         "Failed to add connection to the "
                                         "event notification library. Shutting "
                                         "down connection [%s - %s]",
-                                        get_peername(c), get_sockname(c));
+                                        c->getPeername().c_str(), c->getSockname().c_str());
         return false;
     }
     return true;
