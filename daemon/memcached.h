@@ -322,10 +322,7 @@ public:
     void   **icurr;
     int    ileft;
 
-    char   **temp_alloc_list;
-    int    temp_alloc_size;
-    char   **temp_alloc_curr;
-    int    temp_alloc_left;
+    std::vector<char*> temp_alloc;
 
     struct sockaddr_storage request_addr; /* Who sent the most recent request */
     socklen_t request_addr_size;

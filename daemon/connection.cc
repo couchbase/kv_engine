@@ -43,8 +43,6 @@ Connection::Connection()
           msglist(nullptr), msgsize(0), msgused(0), msgcurr(0), msgbytes(0),
           ilist(nullptr), isize(0), icurr(0),
           ileft(0), // refactor to std::vector
-          temp_alloc_list(nullptr), temp_alloc_size(0), temp_alloc_curr(0),
-          temp_alloc_left(0), // refactor to std::vector
           request_addr_size(0),
           hdrsize(0),
           noreply(false),
@@ -93,7 +91,6 @@ Connection::~Connection() {
     free(read.buf);
     free(write.buf);
     free(ilist);
-    free(temp_alloc_list);
     free(iov);
     free(msglist);
 }
@@ -108,17 +105,8 @@ void Connection::resetBufferSize() {
     ilist = NULL;
     isize = 0;
 
-    if (temp_alloc_size != TEMP_ALLOC_LIST_INITIAL) {
-        char **ptr = reinterpret_cast<char**>
-        (malloc(sizeof(char *) * TEMP_ALLOC_LIST_INITIAL));
-        if (ptr != NULL) {
-            free(temp_alloc_list);
-            temp_alloc_list = ptr;
-            temp_alloc_size = TEMP_ALLOC_LIST_INITIAL;
-            temp_alloc_curr = temp_alloc_list;
-        } else {
-            ret = false;
-        }
+    if (temp_alloc.capacity() < TEMP_ALLOC_LIST_INITIAL) {
+        temp_alloc.reserve(TEMP_ALLOC_LIST_INITIAL);
     }
 
     if (iovsize != IOV_LIST_INITIAL) {
@@ -148,7 +136,6 @@ void Connection::resetBufferSize() {
     if (!ret) {
         free(msglist);
         free(iov);
-        free(temp_alloc_list);
         std::bad_alloc ex;
         throw ex;
     }

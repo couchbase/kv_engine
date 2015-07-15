@@ -273,11 +273,10 @@ static void conn_cleanup(Connection *c) {
     cb_assert(c != NULL);
     c->admin = false;
 
-    if (c->temp_alloc_left != 0) {
-        for (; c->temp_alloc_left > 0; c->temp_alloc_left--, c->temp_alloc_curr++) {
-            free(*(c->temp_alloc_curr));
-        }
+    for (auto *ptr : c->temp_alloc) {
+        free(ptr);
     }
+    c->temp_alloc.resize(0);
 
     if (c->write_and_free) {
         free(c->write_and_free);
@@ -790,13 +789,7 @@ static cJSON* get_connection_stats(const Connection *c) {
         }
         {
             cJSON *talloc = cJSON_CreateObject();
-            json_add_uintptr_to_object(talloc, "list",
-                                       (uintptr_t)c->temp_alloc_list);
-            cJSON_AddNumberToObject(talloc, "size", c->temp_alloc_size);
-            json_add_uintptr_to_object(talloc, "curr",
-                                       (uintptr_t)c->temp_alloc_curr);
-            cJSON_AddNumberToObject(talloc, "left", c->temp_alloc_left);
-
+            cJSON_AddNumberToObject(talloc, "size", c->temp_alloc.size());
             cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
         }
         json_add_bool_to_object(obj, "noreply", c->noreply);

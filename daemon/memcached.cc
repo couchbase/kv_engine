@@ -1733,8 +1733,16 @@ static void ship_tap_log(Connection *c) {
                     size_t bodylen = info.info.value[0].iov_len;
                     if (snappy_uncompress(body, bodylen,
                                           buf, &inflated_length) == SNAPPY_OK) {
-                        c->temp_alloc_list[c->temp_alloc_left++] = buf;
-
+                        try {
+                            c->temp_alloc.push_back(buf);
+                        } catch (std::bad_alloc) {
+                            free(buf);
+                            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                            "%d: FATAL: failed to allocate space to keep temporary buffer",
+                                                            c->sfd);
+                            conn_set_state(c, conn_closing);
+                            return;
+                        }
                         add_iov(c, buf, inflated_length);
                     } else {
                         free(buf);
@@ -6594,12 +6602,19 @@ bool conn_mwrite(Connection *c) {
                 c->icurr++;
                 c->ileft--;
             }
-            while (c->temp_alloc_left > 0) {
-                char *temp_alloc_ = *(c->temp_alloc_curr);
-                free(temp_alloc_);
-                c->temp_alloc_curr++;
-                c->temp_alloc_left--;
+            for (auto *temp_alloc : c->temp_alloc) {
+                free(temp_alloc);
             }
+            c->temp_alloc.resize(0);
+            if (c->temp_alloc.capacity() > TEMP_ALLOC_LIST_INITIAL) {
+                c->temp_alloc.shrink_to_fit();
+                try {
+                    c->temp_alloc.reserve(TEMP_ALLOC_LIST_INITIAL);
+                } catch (std::bad_alloc) {
+                    // Ignore
+                }
+            }
+
             /* XXX:  I don't know why this wasn't the general case */
             conn_set_state(c, c->write_and_go);
         } else if (c->state == conn_write) {
