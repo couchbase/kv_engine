@@ -74,6 +74,7 @@ class CliTool(object):
     def usage(self, skipOptions=False):
         program=os.path.basename(sys.argv[0])
         print "Usage: %s host:dataport command [options]" % program
+        print "       Note that the default dataport is 11210"
         print "\nOptions:"
         for o in self.flags.keys():
             print >>sys.stderr," %s\t%s"%(o, self.flags[o])
