@@ -25,12 +25,12 @@
  * An enumeration with constants for the various protocols supported
  * on the server.
  */
-typedef enum {
+enum class Protocol : uint8_t {
     /** The memcached binary protocol used in Couchbase < 4.0 */
-    PROTOCOL_MEMCACHED,
+    Memcached,
     /** The (new and upcomming) Greenstack protocol */
-    PROTOCOL_GREENSTACK
-} protocol_t;
+    Greenstack
+};
 
 struct interface {
     const char *host;
@@ -44,7 +44,7 @@ struct interface {
     bool ipv6;
     bool ipv4;
     bool tcp_nodelay;
-    protocol_t protocol;
+    Protocol protocol;
 };
 
 /* pair of shared object name and config for an extension to be loaded. */

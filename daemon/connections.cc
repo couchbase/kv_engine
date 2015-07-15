@@ -986,10 +986,10 @@ static cJSON* get_connection_stats(const conn *c) {
     } else {
         cJSON_AddNumberToObject(obj, "socket", (double)c->sfd);
         switch (c->protocol) {
-        case PROTOCOL_MEMCACHED:
+        case Protocol::Memcached:
             cJSON_AddStringToObject(obj, "protocol", "memcached");
             break;
-        case PROTOCOL_GREENSTACK:
+         case Protocol::Greenstack:
             cJSON_AddStringToObject(obj, "protocol", "greenstack");
             break;
         default:

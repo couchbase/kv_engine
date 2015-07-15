@@ -203,7 +203,7 @@ static bool get_host_value(cJSON *i, const char *key, const char **value,
 }
 
 static bool get_protocol_value(cJSON *i, const char *key,
-                               protocol_t *protocol, char **error_msg) {
+                               Protocol *protocol, char **error_msg) {
     const char *string = NULL;
     if (!get_string_value(i, key, &string, error_msg)) {
         return false;
@@ -213,9 +213,9 @@ static bool get_protocol_value(cJSON *i, const char *key,
 
     bool ret = true;
     if (strcasecmp(string, "memcached") == 0) {
-        *protocol = PROTOCOL_MEMCACHED;
+        *protocol = Protocol::Memcached;
     } else if (strcasecmp(string, "greenstack") == 0) {
-        *protocol = PROTOCOL_GREENSTACK;
+        *protocol = Protocol::Greenstack;
     } else {
         char *json = cJSON_Print(i);
         do_asprintf(error_msg, "Invalid protocol specified for %s: %s\n", key,
