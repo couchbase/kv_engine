@@ -163,51 +163,6 @@ void STATS_UNLOCK() {
     cb_mutex_exit(&stats_lock);
 }
 
-#ifdef WIN32
-#define GetLastNetworkError() WSAGetLastError()
-
-static int is_blocking(DWORD dw) {
-    return (dw == WSAEWOULDBLOCK);
-}
-static int is_emfile(DWORD dw) {
-    return (dw == WSAEMFILE);
-}
-static int is_closed_conn(DWORD dw) {
-    return (dw == WSAENOTCONN || WSAECONNRESET);
-}
-static int is_addrinuse(DWORD dw) {
-    return (dw == WSAEADDRINUSE);
-}
-static void set_ewouldblock(void) {
-    WSASetLastError(WSAEWOULDBLOCK);
-}
-static void set_econnreset(void) {
-    WSASetLastError(WSAECONNRESET);
-}
-#else
-#define GetLastNetworkError() errno
-#define GetLastError() errno
-
-static int is_blocking(int dw) {
-    return (dw == EAGAIN || dw == EWOULDBLOCK);
-}
-static int is_emfile(int dw) {
-    return (dw == EMFILE);
-}
-static int is_closed_conn(int dw) {
-    return  (dw == ENOTCONN || dw != ECONNRESET);
-}
-static int is_addrinuse(int dw) {
-    return (dw == EADDRINUSE);
-}
-static void set_ewouldblock(void) {
-    errno = EWOULDBLOCK;
-}
-static void set_econnreset(void) {
-    errno = ECONNRESET;
-}
-#endif
-
 /*
  * forward declarations
  */
@@ -5837,90 +5792,14 @@ static int try_read_command(Connection *c) {
     return 1;
 }
 
-static void drain_bio_send_pipe(Connection *c) {
-    int n;
-    bool stop = false;
-
-    do {
-        if (c->ssl.out.current < c->ssl.out.total) {
-            n = send(c->sfd, c->ssl.out.buffer + c->ssl.out.current,
-                     c->ssl.out.total - c->ssl.out.current, 0);
-            if (n > 0) {
-                c->ssl.out.current += n;
-                if (c->ssl.out.current == c->ssl.out.total) {
-                    c->ssl.out.current = c->ssl.out.total = 0;
-                }
-            } else {
-                if (n == -1) {
-                    auto error = GetLastNetworkError();
-                    if (!is_blocking(error)) {
-                        c->ssl.error = true;
-                    }
-                }
-                return ;
-            }
-        }
-
-        if (c->ssl.out.total == 0) {
-            n = BIO_read(c->ssl.network, c->ssl.out.buffer, c->ssl.out.buffsz);
-            if (n > 0) {
-                c->ssl.out.total = n;
-            } else {
-                stop = true;
-            }
-        }
-    } while (!stop);
-}
-
-static void drain_bio_recv_pipe(Connection *c) {
-    int n;
-    bool stop = false;
-
-    do {
-        if (c->ssl.in.current < c->ssl.in.total) {
-            n = BIO_write(c->ssl.network, c->ssl.in.buffer + c->ssl.in.current,
-                          c->ssl.in.total - c->ssl.in.current);
-            if (n > 0) {
-                c->ssl.in.current += n;
-                if (c->ssl.in.current == c->ssl.in.total) {
-                    c->ssl.in.current = c->ssl.in.total = 0;
-                }
-            } else {
-                /* Our input BIO is full, no need to grab more data from
-                 * the network at this time..
-                 */
-                return ;
-            }
-        }
-
-        if (c->ssl.in.total < c->ssl.in.buffsz) {
-            n = recv(c->sfd, c->ssl.in.buffer + c->ssl.in.total,
-                     c->ssl.in.buffsz - c->ssl.in.total, 0);
-            if (n > 0) {
-                c->ssl.in.total += n;
-            } else {
-                stop = true;
-                if (n == 0) {
-                    c->ssl.error = true; /* read end shutdown */
-                } else {
-                    auto error = GetLastNetworkError();
-                    if (!is_blocking(error)) {
-                        c->ssl.error = true;
-                    }
-                }
-            }
-        }
-    } while (!stop);
-}
-
 static int do_ssl_pre_connection(Connection *c) {
     int r = SSL_accept(c->ssl.client);
     if (r == 1) {
-        drain_bio_send_pipe(c);
-        c->ssl.connected = true;
+        c->ssl.drainBioSendPipe(c->sfd);
+        c->ssl.setConnected();
     } else {
         if (SSL_get_error(c->ssl.client, r) == SSL_ERROR_WANT_READ) {
-            drain_bio_send_pipe(c);
+            c->ssl.drainBioSendPipe(c->sfd);
             set_ewouldblock();
             return -1;
         } else {
@@ -5955,8 +5834,8 @@ static int do_ssl_read(Connection *c, char *dest, size_t nbytes) {
 
     while (ret < int(nbytes)) {
         int n;
-        drain_bio_recv_pipe(c);
-        if (c->ssl.error) {
+        c->ssl.drainBioRecvPipe(c->sfd);
+        if (c->ssl.hasError()) {
             set_econnreset();
             return -1;
         }
@@ -5973,9 +5852,9 @@ static int do_ssl_read(Connection *c, char *dest, size_t nbytes) {
                  * Drain the buffers and retry if we've got data in
                  * our input buffers
                  */
-                if (c->ssl.in.current < c->ssl.in.total) {
+                if (c->ssl.moreInputAvailable()) {
                     /* our recv buf has data feed the BIO */
-                    drain_bio_recv_pipe(c);
+                    c->ssl.drainBioRecvPipe(c->sfd);
                 } else if (ret > 0) {
                     /* nothing in our recv buf, return what we have */
                     return ret;
@@ -6008,15 +5887,15 @@ static int do_ssl_read(Connection *c, char *dest, size_t nbytes) {
 
 static int do_data_recv(Connection *c, char *dest, size_t nbytes) {
     int res;
-    if (c->ssl.enabled) {
-        drain_bio_recv_pipe(c);
+    if (c->ssl.isEnabled()) {
+        c->ssl.drainBioRecvPipe(c->sfd);
 
-        if (c->ssl.error) {
+        if (c->ssl.hasError()) {
             set_econnreset();
             return -1;
         }
 
-        if (!c->ssl.connected) {
+        if (!c->ssl.isConnected()) {
             res = do_ssl_pre_connection(c);
             if (res == -1) {
                 return -1;
@@ -6024,7 +5903,7 @@ static int do_data_recv(Connection *c, char *dest, size_t nbytes) {
         }
 
         /* The SSL negotiation might be complete at this time */
-        if (c->ssl.connected) {
+        if (c->ssl.isConnected()) {
             res = do_ssl_read(c, dest, nbytes);
         }
     } else {
@@ -6047,8 +5926,8 @@ static int do_ssl_write(Connection *c, char *dest, size_t nbytes) {
         int n;
         int chunk;
 
-        drain_bio_send_pipe(c);
-        if (c->ssl.error) {
+        c->ssl.drainBioSendPipe(c->sfd);
+        if (c->ssl.hasError()) {
             set_econnreset();
             return -1;
         }
@@ -6095,7 +5974,7 @@ static int do_ssl_write(Connection *c, char *dest, size_t nbytes) {
 
 static int do_data_sendmsg(Connection *c, struct msghdr *m) {
     int res;
-    if (c->ssl.enabled) {
+    if (c->ssl.isEnabled()) {
         res = 0;
         for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
             int n = do_ssl_write(c,
@@ -6111,7 +5990,7 @@ static int do_data_sendmsg(Connection *c, struct msghdr *m) {
         /* @todo figure out how to drain the rest of the data if we
          * failed to send all of it...
          */
-        drain_bio_send_pipe(c);
+        c->ssl.drainBioSendPipe(c->sfd);
         return res;
     } else {
         res = sendmsg(c->sfd, m, 0);
@@ -6235,7 +6114,7 @@ bool update_event(Connection *c, const int new_flags) {
     cb_assert(c != NULL);
     base = c->event.ev_base;
 
-    if (c->ssl.enabled && c->ssl.connected && (new_flags & EV_READ)) {
+    if (c->ssl.isEnabled() && c->ssl.isConnected() && (new_flags & EV_READ)) {
         /*
          * If we want more data and we have SSL, that data might be inside
          * SSL's internal buffers rather than inside the socket buffer. In
@@ -6360,9 +6239,9 @@ static TransmitResult transmit(Connection *c) {
         conn_set_state(c, conn_closing);
         return TransmitResult::HardError;
     } else {
-        if (c->ssl.enabled) {
-            drain_bio_send_pipe(c);
-            if (c->ssl.out.total) {
+        if (c->ssl.isEnabled()) {
+            c->ssl.drainBioSendPipe(c->sfd);
+            if (c->ssl.morePendingOutput()) {
                 if (!update_event(c, EV_WRITE | EV_PERSIST)) {
                     conn_set_state(c, conn_closing);
                     return TransmitResult::HardError;
@@ -6598,7 +6477,7 @@ bool conn_new_cmd(Connection *c) {
          */
         int block = (c->read.bytes > 0);
 
-        if (c->ssl.enabled) {
+        if (c->ssl.isEnabled()) {
             char dummy;
             block |= SSL_peek(c->ssl.client, &dummy, 1);
         }

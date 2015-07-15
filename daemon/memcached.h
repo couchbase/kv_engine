@@ -3,6 +3,7 @@
 #define MEMCACHED_H
 
 #include <mutex>
+#include <vector>
 
 /** \file
  * The main memcached header holding commonly used data
@@ -146,6 +147,116 @@ typedef bool (*STATE_FUNC)(Connection *);
 typedef void (*cmd_context_dtor_t)(void*);
 
 /**
+ * The SslContext class is a holder class for all of the ssl-related
+ * information used by the connection object.
+ *
+ * @todo make the members private
+ */
+class SslContext {
+public:
+    SslContext()
+         : client(nullptr),
+           enabled(false),
+           connected(false),
+           error(false),
+           application(nullptr),
+           network(nullptr),
+           ctx(nullptr)
+    {
+        in.total = 0;
+        in.current = 0;
+        out.total = 0;
+        out.current = 0;
+    }
+
+    ~SslContext();
+
+    /**
+     * Is ssl enabled for this connection or not?
+     */
+    bool isEnabled() const {
+        return enabled;
+    }
+
+    /**
+     * Is the client fully connected over ssl or not?
+     */
+    bool isConnected() const {
+        return connected;
+    }
+
+    /**
+     * Set the status of the connected flag
+     */
+    void setConnected() {
+        connected = true;
+    }
+
+    /**
+     * Is there an error on the SSL stream?
+     */
+    bool hasError() const {
+        return error;
+    }
+
+    /**
+     * Enable SSL for this connection.
+     *
+     * @param cert the certificate file to use
+     * @param pkey the private key file to use
+     * @return true if success, false if we failed to enable SSL
+     */
+    bool enable(const std::string &cert, const std::string &pkey);
+
+    /**
+     * Disable SSL for this connection
+     */
+    void disable();
+
+    /**
+     * Try to fill the SSL stream with as much data from the network
+     * as possible.
+     *
+     * @param sfd the socket to read data from
+     */
+    void drainBioRecvPipe(SOCKET sfd);
+
+    /**
+     * Try to drain the SSL stream with as much data as possible and
+     * send it over the network.
+     *
+     * @param sfd the socket to write data to
+     */
+    void drainBioSendPipe(SOCKET sfd);
+
+    bool moreInputAvailable() const {
+        return (in.current < in.total);
+    }
+
+    bool morePendingOutput() const {
+        return (out.total > 0);
+    }
+
+    SSL *client;
+
+protected:
+    bool enabled;
+    bool connected;
+    bool error;
+    BIO *application;
+    BIO *network;
+    SSL_CTX *ctx;
+    struct {
+        // The data located in the buffer
+        std::vector<char> buffer;
+        // The number of bytes currently stored in the buffer
+        size_t total;
+        // The current offset of the buffer
+        size_t current;
+    } in, out;
+};
+
+/**
  * The structure representing a connection into memcached.
  */
 class Connection {
@@ -153,7 +264,6 @@ public:
     Connection();
     ~Connection();
     Connection(const Connection&) = delete;
-
 
     Connection * all_next; /** Intrusive list to track all connections */
     Connection * all_prev;
@@ -276,25 +386,7 @@ public:
     void* cmd_context;
     cmd_context_dtor_t cmd_context_dtor;
 
-    /* Clean up this at one point.. */
-    struct {
-        struct {
-            // TODO: Replace buffer/buffsz with std::vector.
-            char *buffer;
-            int buffsz;
-            int total;
-            int current;
-        } in, out;
-
-        bool enabled;
-        bool error;
-        SSL_CTX *ctx;
-        SSL *client;
-
-        bool connected;
-        BIO *application;
-        BIO *network;
-    } ssl;
+    SslContext ssl;
 
     AuthContext *auth_context;
     struct {
@@ -488,5 +580,53 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me);
 void threads_notify_bucket_deletion(void);
 void threads_complete_bucket_deletion(void);
 void threads_initiate_bucket_deletion(void);
+
+// This should probably go in a network-helper file..
+#ifdef WIN32
+#define GetLastNetworkError() WSAGetLastError()
+
+inline int is_blocking(DWORD dw) {
+    return (dw == WSAEWOULDBLOCK);
+}
+inline int is_emfile(DWORD dw) {
+    return (dw == WSAEMFILE);
+}
+inline int is_closed_conn(DWORD dw) {
+    return (dw == WSAENOTCONN || WSAECONNRESET);
+}
+inline int is_addrinuse(DWORD dw) {
+    return (dw == WSAEADDRINUSE);
+}
+inline void set_ewouldblock(void) {
+    WSASetLastError(WSAEWOULDBLOCK);
+}
+inline void set_econnreset(void) {
+    WSASetLastError(WSAECONNRESET);
+}
+#else
+#define GetLastNetworkError() errno
+#define GetLastError() errno
+
+inline int is_blocking(int dw) {
+    return (dw == EAGAIN || dw == EWOULDBLOCK);
+}
+inline int is_emfile(int dw) {
+    return (dw == EMFILE);
+}
+inline int is_closed_conn(int dw) {
+    return  (dw == ENOTCONN || dw != ECONNRESET);
+}
+inline int is_addrinuse(int dw) {
+    return (dw == EADDRINUSE);
+}
+inline void set_ewouldblock(void) {
+    errno = EWOULDBLOCK;
+}
+inline void set_econnreset(void) {
+    errno = ECONNRESET;
+}
+#endif
+
+
 
 #endif

@@ -196,49 +196,11 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
                 c->protocol = settings.interfaces[ii].protocol;
                 c->nodelay = settings.interfaces[ii].tcp_nodelay;
                 if (settings.interfaces[ii].ssl.cert != NULL) {
-                    const char *cert = settings.interfaces[ii].ssl.cert;
-                    const char *pkey = settings.interfaces[ii].ssl.key;
-
-                    c->ssl.ctx = SSL_CTX_new(SSLv23_server_method());
-
-                    /* MB-12359 - Disable SSLv2 & SSLv3 due to POODLE */
-                    SSL_CTX_set_options(c->ssl.ctx,
-                                        SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
-
-                    /* @todo don't read files, but use in-memory-copies */
-                    if (!SSL_CTX_use_certificate_chain_file(c->ssl.ctx, cert) ||
-                        !SSL_CTX_use_PrivateKey_file(c->ssl.ctx, pkey, SSL_FILETYPE_PEM)) {
+                    if (!c->ssl.enable(settings.interfaces[ii].ssl.cert,
+                                       settings.interfaces[ii].ssl.key)) {
                         release_connection(c);
                         return NULL;
                     }
-
-                    set_ssl_ctx_cipher_list(c->ssl.ctx);
-
-                    c->ssl.enabled = true;
-                    c->ssl.error = false;
-                    c->ssl.client = NULL;
-
-                    c->ssl.in.buffer = reinterpret_cast<char*>
-                        (malloc(settings.bio_drain_buffer_sz));
-                    c->ssl.out.buffer = reinterpret_cast<char*>
-                        (malloc(settings.bio_drain_buffer_sz));
-
-                    if (c->ssl.in.buffer == NULL || c->ssl.out.buffer == NULL) {
-                        release_connection(c);
-                        return NULL;
-                    }
-
-                    c->ssl.in.buffsz = settings.bio_drain_buffer_sz;
-                    c->ssl.out.buffsz = settings.bio_drain_buffer_sz;
-                    BIO_new_bio_pair(&c->ssl.application,
-                                     settings.bio_drain_buffer_sz,
-                                     &c->ssl.network,
-                                     settings.bio_drain_buffer_sz);
-
-                    c->ssl.client = SSL_new(c->ssl.ctx);
-                    SSL_set_bio(c->ssl.client,
-                                c->ssl.application,
-                                c->ssl.application);
 
                     if (settings.verbose > 1) {
                         dump_cipher_list(c->ssl.client, sfd);
@@ -347,16 +309,7 @@ static void conn_cleanup(Connection *c) {
     cb_assert(c->next == NULL);
     c->sfd = INVALID_SOCKET;
     c->start = 0;
-    if (c->ssl.enabled) {
-        BIO_free_all(c->ssl.network);
-        SSL_free(c->ssl.client);
-        c->ssl.enabled = false;
-        c->ssl.error = false;
-        free(c->ssl.in.buffer);
-        free(c->ssl.out.buffer);
-        SSL_CTX_free(c->ssl.ctx);
-        memset(&c->ssl, 0, sizeof(c->ssl));
-    }
+    c->ssl.disable();
 }
 
 void conn_close(Connection *c) {
@@ -896,9 +849,9 @@ static cJSON* get_connection_stats(const Connection *c) {
 
         {
             cJSON* ssl = cJSON_CreateObject();
-            json_add_bool_to_object(ssl, "enabled", c->ssl.enabled);
-            if (c->ssl.enabled) {
-                json_add_bool_to_object(ssl, "connected", c->ssl.connected);
+            json_add_bool_to_object(ssl, "enabled", c->ssl.isEnabled());
+            if (c->ssl.isEnabled()) {
+                json_add_bool_to_object(ssl, "connected", c->ssl.isConnected());
             }
 
             cJSON_AddItemToObject(obj, "ssl", ssl);

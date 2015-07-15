@@ -16,6 +16,7 @@
  */
 #include "config.h"
 #include "memcached.h"
+#include "runtime.h"
 #include <exception>
 
 Connection::Connection()
@@ -204,4 +205,134 @@ void Connection::resolveConnectionName() {
     peername = sockaddr_to_string(&peer, peer_len);
     sockname = sockaddr_to_string(&sock, sock_len);
 
+}
+
+SslContext::~SslContext() {
+    if (enabled) {
+        disable();
+    }
+}
+
+bool SslContext::enable(const std::string &cert, const std::string &pkey) {
+    ctx = SSL_CTX_new(SSLv23_server_method());
+
+    /* MB-12359 - Disable SSLv2 & SSLv3 due to POODLE */
+    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
+
+    /* @todo don't read files, but use in-memory-copies */
+    if (!SSL_CTX_use_certificate_chain_file(ctx, cert.c_str()) ||
+        !SSL_CTX_use_PrivateKey_file(ctx, pkey.c_str(), SSL_FILETYPE_PEM)) {
+        return false;
+    }
+
+    set_ssl_ctx_cipher_list(ctx);
+
+    enabled = true;
+    error = false;
+    client = NULL;
+
+    try {
+        in.buffer.resize(settings.bio_drain_buffer_sz);
+        out.buffer.resize(settings.bio_drain_buffer_sz);
+    } catch (std::bad_alloc) {
+        return false;
+    }
+
+    BIO_new_bio_pair(&application, in.buffer.size(),
+                     &network, out.buffer.size());
+
+    client = SSL_new(ctx);
+    SSL_set_bio(client, application, application);
+
+    return true;
+}
+
+void SslContext::disable() {
+    if (network != nullptr) {
+        BIO_free_all(network);
+    }
+    if (client != nullptr) {
+        SSL_free(client);
+    }
+    error = false;
+    if (ctx != nullptr) {
+        SSL_CTX_free(ctx);
+    }
+    enabled = false;
+}
+
+void SslContext::drainBioRecvPipe(SOCKET sfd) {
+    int n;
+    bool stop = false;
+
+    do {
+        if (in.current < in.total) {
+            n = BIO_write(network, in.buffer.data() + in.current,
+                          in.total - in.current);
+            if (n > 0) {
+                in.current += n;
+                if (in.current == in.total) {
+                    in.current = in.total = 0;
+                }
+            } else {
+                /* Our input BIO is full, no need to grab more data from
+                 * the network at this time..
+                 */
+                return ;
+            }
+        }
+
+        if (in.total < in.buffer.size()) {
+            n = recv(sfd, in.buffer.data() + in.total,
+                     in.buffer.size() - in.total, 0);
+            if (n > 0) {
+                in.total += n;
+            } else {
+                stop = true;
+                if (n == 0) {
+                    error = true; /* read end shutdown */
+                } else {
+                    auto error = GetLastNetworkError();
+                    if (!is_blocking(error)) {
+                        error = true;
+                    }
+                }
+            }
+        }
+    } while (!stop);
+}
+
+void SslContext::drainBioSendPipe(SOCKET sfd) {
+    int n;
+    bool stop = false;
+
+    do {
+        if (out.current < out.total) {
+            n = send(sfd, out.buffer.data() + out.current,
+                     out.total - out.current, 0);
+            if (n > 0) {
+                out.current += n;
+                if (out.current == out.total) {
+                    out.current = out.total = 0;
+                }
+            } else {
+                if (n == -1) {
+                    auto error = GetLastNetworkError();
+                    if (!is_blocking(error)) {
+                        error = true;
+                    }
+                }
+                return ;
+            }
+        }
+
+        if (out.total == 0) {
+            n = BIO_read(network, out.buffer.data(), out.buffer.size());
+            if (n > 0) {
+                out.total = n;
+            } else {
+                stop = true;
+            }
+        }
+    } while (!stop);
 }
