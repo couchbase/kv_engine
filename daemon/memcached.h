@@ -434,13 +434,10 @@ public:
         return sockname;
     }
 private:
-
     std::string peername; /* Name of the peer if known */
     std::string sockname; /* Name of the local socket if known */
 
-
     void resetBufferSize();
-
 };
 
 typedef union {
