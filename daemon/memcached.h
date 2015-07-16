@@ -143,9 +143,6 @@ extern bool create_notification_pipe(LIBEVENT_THREAD *me);
 
 typedef bool (*STATE_FUNC)(Connection *);
 
-// Command context destructor function pointer.
-typedef void (*cmd_context_dtor_t)(void*);
-
 /**
  * The SslContext class is a holder class for all of the ssl-related
  * information used by the connection object.
