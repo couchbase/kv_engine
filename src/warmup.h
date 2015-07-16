@@ -47,7 +47,7 @@ public:
     int getState(void) const { return state; }
 
 private:
-    int state;
+    AtomicValue<int> state;
     const char *getStateDescription(int val) const;
     bool legalTransition(int to) const;
     friend std::ostream& operator<< (std::ostream& out,
@@ -122,8 +122,6 @@ public:
     void start(void);
     void stop(void);
 
-    const WarmupState &getState(void) const { return state; }
-
     void setEstimatedWarmupCount(size_t num);
 
     size_t getEstimatedItemCount();
@@ -133,7 +131,7 @@ public:
     hrtime_t getTime(void) { return warmup; }
 
     void setWarmupTime(void) {
-        warmup = gethrtime() - startTime;
+        warmup.store(gethrtime() - startTime);
     }
 
     size_t doWarmup(MutationLog &lf, const std::map<uint16_t,
@@ -177,6 +175,7 @@ private:
     void transition(int to, bool force=false);
 
     WarmupState state;
+
     EventuallyPersistentStore *store;
 
     // Unordered set to hold the current executing tasks
@@ -184,8 +183,8 @@ private:
     std::unordered_set<size_t> taskSet;
 
     hrtime_t startTime;
-    hrtime_t metadata;
-    hrtime_t warmup;
+    AtomicValue<hrtime_t> metadata;
+    AtomicValue<hrtime_t> warmup;
 
     std::vector<vbucket_state *> allVbStates;
     std::map<uint16_t, vbucket_state> *shardVbStates;
@@ -198,7 +197,7 @@ private:
     bool cleanShutdown;
     bool corruptAccessLog;
     AtomicValue<bool> warmupComplete;
-    size_t estimatedWarmupCount;
+    AtomicValue<size_t> estimatedWarmupCount;
 
     DISALLOW_COPY_AND_ASSIGN(Warmup);
 };
