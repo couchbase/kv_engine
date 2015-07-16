@@ -132,7 +132,7 @@ const int WarmupState::LoadingData = 7;
 const int WarmupState::Done = 8;
 
 const char *WarmupState::toString(void) const {
-    return getStateDescription(state);
+    return getStateDescription(state.load());
 }
 
 const char *WarmupState::getStateDescription(int st) const {
@@ -164,10 +164,10 @@ void WarmupState::transition(int to, bool allowAnystate) {
     if (allowAnystate || legalTransition(to)) {
         std::stringstream ss;
         ss << "Warmup transition from state \""
-           << getStateDescription(state) << "\" to \""
+           << getStateDescription(state.load()) << "\" to \""
            << getStateDescription(to) << "\"";
         LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
-        state = to;
+        state.store(to);
     } else {
         // Throw an exception to make it possible to test the logic ;)
         std::stringstream ss;
@@ -177,7 +177,7 @@ void WarmupState::transition(int to, bool allowAnystate) {
 }
 
 bool WarmupState::legalTransition(int to) const {
-    switch (state) {
+    switch (state.load()) {
     case Initialize:
         return (to == CreateVBuckets);
     case CreateVBuckets:
@@ -384,12 +384,12 @@ Warmup::~Warmup() {
 
 void Warmup::setEstimatedWarmupCount(size_t to)
 {
-    estimatedWarmupCount = to;
+    estimatedWarmupCount.store(to);
 }
 
 size_t Warmup::getEstimatedItemCount()
 {
-    return estimatedItemCount;
+    return estimatedItemCount.load();
 }
 
 void Warmup::start(void)
@@ -587,9 +587,9 @@ void Warmup::scheduleCheckForAccessLog()
 
 void Warmup::checkForAccessLog()
 {
-    metadata = gethrtime() - startTime;
+    metadata.store(gethrtime() - startTime);
     LOG(EXTENSION_LOG_WARNING, "metadata loaded in %s",
-        hrtime2text(metadata).c_str());
+        hrtime2text(metadata.load()).c_str());
 
     if (store->maybeEnableTraffic()) {
         transition(WarmupState::Done);
@@ -629,7 +629,6 @@ void Warmup::scheduleLoadingAccessLog()
 
 void Warmup::loadingAccessLog(uint16_t shardId)
 {
-
     LoadStorageKVPairCallback *load_cb =
         new LoadStorageKVPairCallback(store, true, state.getState());
     bool success = false;
@@ -799,7 +798,7 @@ void Warmup::done()
         setWarmupTime();
         store->warmupCompleted();
         LOG(EXTENSION_LOG_WARNING, "warmup completed in %s",
-                                   hrtime2text(warmup).c_str());
+                                   hrtime2text(warmup.load()).c_str());
     }
 }
 
@@ -890,32 +889,36 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
         addStat("min_item_threshold",
                 stats.warmupNumReadCap * 100.0, add_stat, c);
 
-        if (metadata > 0) {
-            addStat("keys_time", metadata / 1000, add_stat, c);
+        hrtime_t md_time = metadata.load();
+        if (md_time > 0) {
+            addStat("keys_time", md_time / 1000, add_stat, c);
         }
 
-        if (warmup > 0) {
-            addStat("time", warmup / 1000, add_stat, c);
+        hrtime_t w_time = warmup.load();
+        if (w_time > 0) {
+            addStat("time", w_time / 1000, add_stat, c);
         }
 
-        if (estimatedItemCount == std::numeric_limits<size_t>::max()) {
+        size_t itemCount = estimatedItemCount.load();
+        if (itemCount == std::numeric_limits<size_t>::max()) {
             addStat("estimated_key_count", "unknown", add_stat, c);
         } else {
-            if (estimateTime != 0) {
-                addStat("estimate_time", estimateTime / 1000, add_stat, c);
+            hrtime_t e_time = estimateTime.load();
+            if (e_time != 0) {
+                addStat("estimate_time", e_time / 1000, add_stat, c);
             }
-            addStat("estimated_key_count", estimatedItemCount, add_stat, c);
+            addStat("estimated_key_count", itemCount, add_stat, c);
         }
 
         if (corruptAccessLog) {
             addStat("access_log", "corrupt", add_stat, c);
         }
 
-        if (estimatedWarmupCount ==  std::numeric_limits<size_t>::max()) {
+        size_t warmupCount = estimatedWarmupCount.load();
+        if (warmupCount ==  std::numeric_limits<size_t>::max()) {
             addStat("estimated_value_count", "unknown", add_stat, c);
         } else {
-            addStat("estimated_value_count", estimatedWarmupCount,
-            add_stat, c);
+            addStat("estimated_value_count", warmupCount, add_stat, c);
         }
    } else {
         addStat(NULL, "disabled", add_stat, c);
