@@ -5795,12 +5795,12 @@ static int try_read_command(Connection *c) {
 }
 
 static int do_ssl_pre_connection(Connection *c) {
-    int r = SSL_accept(c->ssl.client);
+    int r = c->ssl.accept();
     if (r == 1) {
         c->ssl.drainBioSendPipe(c->sfd);
         c->ssl.setConnected();
     } else {
-        if (SSL_get_error(c->ssl.client, r) == SSL_ERROR_WANT_READ) {
+        if (c->ssl.getError(r) == SSL_ERROR_WANT_READ) {
             c->ssl.drainBioSendPipe(c->sfd);
             set_ewouldblock();
             return -1;
@@ -5809,7 +5809,7 @@ static int do_ssl_pre_connection(Connection *c) {
                 std::string errmsg(
                         "SSL_accept() returned " + std::to_string(r) +
                         " with error " +
-                        std::to_string(SSL_get_error(c->ssl.client, r)));
+                        std::to_string(c->ssl.getError(r)));
 
                 std::vector<char> ssl_err(1024);
                 ERR_error_string_n(ERR_get_error(), ssl_err.data(),
@@ -5841,12 +5841,12 @@ static int do_ssl_read(Connection *c, char *dest, size_t nbytes) {
             set_econnreset();
             return -1;
         }
-        n = SSL_read(c->ssl.client, dest + ret, (int)(nbytes - ret));
+        n = c->ssl.read(dest + ret, (int)(nbytes - ret));
         if (n > 0) {
             ret += n;
         } else {
             /* n < 0 and n == 0 require a check of SSL error*/
-            int error = SSL_get_error(c->ssl.client, n);
+            int error = c->ssl.getError(n);
 
             switch (error) {
             case SSL_ERROR_WANT_READ:
@@ -5939,7 +5939,7 @@ static int do_ssl_write(Connection *c, char *dest, size_t nbytes) {
             chunk = chunksize;
         }
 
-        n = SSL_write(c->ssl.client, dest + ret, chunk);
+        n = c->ssl.write(dest + ret, chunk);
         if (n > 0) {
             ret += n;
         } else {
@@ -5949,7 +5949,7 @@ static int do_ssl_write(Connection *c, char *dest, size_t nbytes) {
             }
 
             if (n < 0) {
-                int error = SSL_get_error(c->ssl.client, n);
+                int error = c->ssl.getError(n);
                 switch (error) {
                 case SSL_ERROR_WANT_WRITE:
                     set_ewouldblock();
@@ -6125,7 +6125,7 @@ bool update_event(Connection *c, const int new_flags) {
          */
         char dummy;
         /* SSL_pending() will not work here despite the name */
-        int rv = SSL_peek(c->ssl.client, &dummy, 1);
+        int rv = c->ssl.peek(&dummy, 1);
         if (rv > 0) {
             /* signal a call to the handler */
             event_active(&c->event, EV_READ, 0);
@@ -6481,7 +6481,7 @@ bool conn_new_cmd(Connection *c) {
 
         if (c->ssl.isEnabled()) {
             char dummy;
-            block |= SSL_peek(c->ssl.client, &dummy, 1);
+            block |= c->ssl.peek(&dummy, 1);
         }
         /*
          * DCP and TAP connections is different from normal

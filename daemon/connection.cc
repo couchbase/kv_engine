@@ -323,3 +323,14 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
         }
     } while (!stop);
 }
+
+void SslContext::dumpCipherList(SOCKET sfd) {
+    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
+                                    "%d: Using SSL ciphers:", sfd);
+    int ii = 0;
+    const char *cipher;
+    while ((cipher = SSL_get_cipher_list(client, ii++)) != NULL) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
+                                        "%d    %s", sfd, cipher);
+    }
+}

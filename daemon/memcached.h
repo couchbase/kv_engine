@@ -149,19 +149,17 @@ typedef void (*cmd_context_dtor_t)(void*);
 /**
  * The SslContext class is a holder class for all of the ssl-related
  * information used by the connection object.
- *
- * @todo make the members private
  */
 class SslContext {
 public:
     SslContext()
-         : client(nullptr),
-           enabled(false),
+         : enabled(false),
            connected(false),
            error(false),
            application(nullptr),
            network(nullptr),
-           ctx(nullptr)
+           ctx(nullptr),
+           client(nullptr)
     {
         in.total = 0;
         in.current = 0;
@@ -237,7 +235,32 @@ public:
         return (out.total > 0);
     }
 
-    SSL *client;
+    /**
+     * Dump the list of available ciphers to the log
+     * @param sfd the socket bound to the connection. Its only used in the
+     *            log messages.
+     */
+    void dumpCipherList(SOCKET sfd);
+
+    int accept() {
+        return SSL_accept(client);
+    }
+
+    int getError(int errormask) {
+        return SSL_get_error(client, errormask);
+    }
+
+    int read(void *buf, int num) {
+        return SSL_read(client, buf, num);
+    }
+
+    int write(const void *buf, int num) {
+        return SSL_write(client, buf, num);
+    }
+
+    int peek(void *buf, int num) {
+        return SSL_peek(client, buf, num);
+    }
 
 protected:
     bool enabled;
@@ -246,6 +269,7 @@ protected:
     BIO *application;
     BIO *network;
     SSL_CTX *ctx;
+    SSL *client;
     struct {
         // The data located in the buffer
         std::vector<char> buffer;
