@@ -338,9 +338,6 @@ public:
      */
     void   *item;
 
-    /* data for the swallow state */
-    uint32_t sbytes;    /* how many bytes to swallow */
-
     /* data for the mwrite state */
     struct iovec *iov;
     int    iovsize;   /* number of elements allocated in iov[] */

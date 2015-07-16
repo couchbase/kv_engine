@@ -5318,7 +5318,6 @@ static void complete_nread(Connection *c) {
 }
 
 static void reset_cmd_handler(Connection *c) {
-    c->sbytes = 0;
     c->cmd = -1;
     c->substate = bin_no_state;
     if(c->item != NULL) {

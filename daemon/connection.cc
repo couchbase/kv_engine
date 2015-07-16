@@ -38,7 +38,6 @@ Connection::Connection()
       ritem(nullptr),
       rlbytes(0),
       item(nullptr),
-      sbytes(0),
       iov(nullptr), iovsize(0), iovused(0),
       msglist(nullptr), msgsize(0), msgused(0), msgcurr(0), msgbytes(0),
       request_addr_size(0),

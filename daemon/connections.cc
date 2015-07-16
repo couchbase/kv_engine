@@ -747,7 +747,6 @@ static cJSON* get_connection_stats(const Connection *c) {
         json_add_uintptr_to_object(obj, "ritem", (uintptr_t)c->ritem);
         cJSON_AddNumberToObject(obj, "rlbytes", c->rlbytes);
         json_add_uintptr_to_object(obj, "item", (uintptr_t)c->item);
-        cJSON_AddNumberToObject(obj, "sbytes", c->sbytes);
         {
             cJSON *iov = cJSON_CreateObject();
             json_add_uintptr_to_object(iov, "ptr", (uintptr_t)c->iov);
