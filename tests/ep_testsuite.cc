@@ -3843,7 +3843,8 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        bool time_sync_enabled = false,
                        uint8_t exp_conflict_res = 0,
                        bool skipEstimateCheck = false,
-                       uint64_t *total_bytes = NULL) {
+                       uint64_t *total_bytes = NULL,
+                       bool simulate_cursor_dropping = false) {
     uint32_t opaque = 1;
     uint16_t nname = strlen(name);
 
@@ -3931,8 +3932,26 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     if (total_bytes) {
         all_bytes = *total_bytes;
     }
+
+    bool delay_buffer_acking = false;
+    if (simulate_cursor_dropping) {
+        /**
+         * Simulates cursor dropping by slowing down the initial buffer
+         * acknowledgement from the consmer.
+         *
+         * Note that the cursor may not be dropped if the memory usage
+         * is not over the cursor_dropping_upper_threshold or if the
+         * checkpoint_remover sleep time is high.
+         */
+        delay_buffer_acking = true;
+    }
+
     do {
         if (bytes_read > 512) {
+            if (delay_buffer_acking) {
+                sleep(2);
+                delay_buffer_acking = false;
+            }
             h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
             bytes_read = 0;
         }
@@ -4036,16 +4055,24 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     break;
                     abort();
             }
-            dcp_last_op = 0;
-            dcp_last_nru = 0;
+            if (dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_END) {
+                dcp_last_op = 0;
+                dcp_last_nru = 0;
+            }
         }
     } while (!done);
 
     if (total_bytes) {
         *total_bytes = all_bytes;
     }
-    check(num_mutations == exp_mutations, "Invalid number of mutations");
-    check(num_deletions == exp_deletions, "Invalid number of deletes");
+
+    if (simulate_cursor_dropping) {
+        check(num_mutations <= exp_mutations, "Invalid number of mutations");
+        check(num_deletions <= exp_deletions, "Invalid number of deletes");
+    } else {
+        check(num_mutations == exp_mutations, "Invalid number of mutations");
+        check(num_deletions == exp_deletions, "Invalid number of deletes");
+    }
     check(num_snapshot_marker == exp_markers,
           "Didn't receive expected number of snapshot marker");
 
@@ -4425,6 +4452,47 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         testHarness.destroy_cookie(cookie[j]);
     }
 
+    return SUCCESS;
+}
+
+static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
+                                            ENGINE_HANDLE_V1 *h1) {
+    int i = 0;  // Item count
+    int maxSize = get_int_stat(h, h1, "ep_max_size", "memory");
+    stop_persistence(h, h1);
+    while(1) {
+        // Load items into server until 90% of the mem quota
+        // is used.
+        int memUsed = get_int_stat(h, h1, "mem_used", "memory");
+        if ((float)memUsed <= ((float)(maxSize) * 0.90)) {
+            item *itm = NULL;
+            std::stringstream ss;
+            ss << "key" << i;
+            ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
+                    ss.str().c_str(), "somevalue", &itm);
+            if (ret == ENGINE_SUCCESS) {
+                i++;
+            }
+            h1->release(h, NULL, itm);
+        } else {
+            break;
+        }
+    }
+
+    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    const void *cookie = testHarness.create_cookie();
+
+    start_persistence(h, h1);
+
+    dcp_stream(h, h1,"unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0, i,
+               0, 1, 0, false, false, 0, true, NULL, true);
+
+    check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
+          "Last DCP op wasn't a stream END");
+    check(dcp_last_flags & 4, "Last DCP flag not END_STREAM_SLOW");
+
+    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
@@ -14029,6 +14097,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp agg stats",
                  test_dcp_agg_stats, test_setup, teardown, "chk_max_items=100",
                  prepare, cleanup),
+        TestCase("test dcp cursor dropping",
+                 test_dcp_cursor_dropping, test_setup, teardown,
+                 "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
+                 "chk_remover_stime=1;max_size=26214400", prepare, cleanup),
         TestCase("test dcp stream takeover", test_dcp_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test dcp stream takeover no items", test_dcp_takeover_no_items,
