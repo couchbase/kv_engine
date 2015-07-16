@@ -7841,7 +7841,7 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
      * to lock the entire bucket array during checking for the existence
      * of the bucket and while we're locating the next entry.
      */
-    int idx;
+    int idx = 0;
     int ii;
     for (ii = 0; ii < settings.max_buckets; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
