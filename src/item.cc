@@ -17,45 +17,12 @@
 
 #include "config.h"
 
+#include "compress.h"
 #include "item.h"
 #include "cJSON.h"
-#include <snappy-c.h>
 
 AtomicValue<uint64_t> Item::casCounter(1);
 const uint32_t Item::metaDataSize(2*sizeof(uint32_t) + 2*sizeof(uint64_t) + 2);
-
-/**
- * Function to get length of uncompressed value, after un-compression
- */
-bool getUnCompressedLength(const char *val, size_t len, size_t *newLen) {
-    if (snappy_uncompressed_length(val, len, newLen) != SNAPPY_OK) {
-        LOG(EXTENSION_LOG_WARNING, "Failed to inflate item");
-        return false;
-    }
-    return true;
-}
-
-/**
- * Function to uncompress a compressed value
- */
-bool doUnCompress(const char *buf, size_t len, char *newBuf, size_t *newLen) {
-    if (snappy_uncompress(buf, len, newBuf, newLen) != SNAPPY_OK) {
-        LOG(EXTENSION_LOG_WARNING, "Failed to inflate item");
-        return false;
-    }
-    return true;
-}
-
-/**
- * Function to compress an uncompressed value
- */
-bool doCompress(const char *buf, size_t len, char *newBuf, size_t *newLen) {
-    if (snappy_compress(buf, len, newBuf, newLen) != SNAPPY_OK) {
-        LOG(EXTENSION_LOG_WARNING, "Failed to compress item");
-        return false;
-    }
-    return true;
-}
 
 /**
  * Append another item to this item
@@ -79,7 +46,9 @@ ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
                 {
                     size_t newSize = value->vlength() + i.getValue()->vlength();
                     Blob *newData = Blob::New(newSize, value->getExtLen());
-                    if (newData->length() > maxItemSize) {
+                    if (!newData) {
+                        return ENGINE_ENOMEM;
+                    } else if (newData->length() > maxItemSize) {
                         LOG(EXTENSION_LOG_WARNING,
                                 "New Item size is greater than permitted value "
                                 "size, aborting operation (Append)");
@@ -98,35 +67,32 @@ ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
                 // UNCOMPRESS NEW AND APPEND
                 {
-                    size_t inflated_length;
-                    if (!getUnCompressedLength(i.getValue()->getData(),
-                                               i.getValue()->vlength(),
-                                               &inflated_length)) {
+                    snap_buf output;
+                    snap_ret_t ret = doSnappyUncompress(i.getValue()->getData(),
+                                                        i.getValue()->vlength(),
+                                                        output);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Append) Snappy uncompression "
+                            "for append value of key: %s failed!",
+                            i.getKey().c_str());
                         return ENGINE_FAILED;
                     }
-                    char *buf = (char *) malloc(inflated_length);
-                    if (!doUnCompress(i.getValue()->getData(),
-                                      i.getValue()->vlength(),
-                                      buf, &inflated_length)) {
-                        free (buf);
-                        return ENGINE_FAILED;
-                    }
-                    size_t newSize = value->vlength() + inflated_length;
+                    size_t newSize = value->vlength() + output.len;
                     Blob *newData = Blob::New(newSize, value->getExtLen());
-                    if (newData->length() > maxItemSize) {
+                    if (!newData) {
+                        return ENGINE_ENOMEM;
+                    } else if (newData->length() > maxItemSize) {
                         LOG(EXTENSION_LOG_WARNING,
                                 "New Item size is greater than permitted value "
                                 "size, aborting operation (Append)");
-                        free (buf);
                         delete newData;
                         return ENGINE_E2BIG;
                     }
                     char *newValue = (char *) newData->getBlob();
                     std::memcpy(newValue, value->getBlob(), value->length());
-                    std::memcpy(newValue + value->length(), buf,
-                                inflated_length);
+                    std::memcpy(newValue + value->length(),
+                                output.buf.get(), output.len);
                     value.reset(newData);
-                    free (buf);
                     return ENGINE_SUCCESS;
                 }
             }
@@ -139,97 +105,41 @@ ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
             case PROTOCOL_BINARY_DATATYPE_JSON:
                 // UNCOMPRESS ORIGINAL AND APPEND NEW, COMPRESS EVERYTHING
                 {
-                    size_t inflated_length;
-                    if (!getUnCompressedLength(value->getData(),
-                                               value->vlength(),
-                                               &inflated_length)) {
+                    snap_buf output;
+                    snap_ret_t ret = doSnappyUncompress(value->getData(),
+                                                        value->vlength(),
+                                                        output);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Append) Snappy uncompression "
+                            "for original value of key: %s failed!",
+                            i.getKey().c_str());
                         return ENGINE_FAILED;
                     }
-                    char *buf = (char *) malloc(inflated_length +
-                                                i.getValue()->vlength());
-                    if(!doUnCompress(value->getData(), value->vlength(),
-                                     buf, &inflated_length)) {
-                        free (buf);
+                    size_t len = output.len + i.getValue()->vlength();
+                    std::unique_ptr<char[]> buf(new char[len]);
+                    if (!buf) {
+                        return ENGINE_ENOMEM;
+                    }
+                    std::memcpy(buf.get(), output.buf.get(), output.len);
+                    std::memcpy(buf.get() + output.len, i.getValue()->getData(),
+                                i.getValue()->vlength());
+
+                    snap_buf compOutput;
+                    ret = doSnappyCompress(buf.get(), len, compOutput);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Append) Snappy compression "
+                            "for new value of key: %s failed!",
+                            i.getKey().c_str());
                         return ENGINE_FAILED;
                     }
-                    std::memcpy(buf + inflated_length, i.getValue()->getData(),
-                            i.getValue()->vlength());
-                    size_t newBytes = snappy_max_compressed_length(
-                                    inflated_length + i.getValue()->vlength());
-                    char *newBuf = (char *) malloc(newBytes);
-                    if (!doCompress(buf,
-                                    inflated_length + i.getValue()->vlength(),
-                                    newBuf, &newBytes)) {
-                        free (buf);
-                        free (newBuf);
-                        return ENGINE_FAILED;
-                    }
-                    free (buf);
-                    Blob *newData = Blob::New(newBytes, value->getExtLen());
-                    if (newData->length() > maxItemSize) {
+                    Blob *newData = Blob::New(compOutput.len,
+                                              value->getExtLen());
+                    if (!newData) {
+                        return ENGINE_ENOMEM;
+                    } else if (newData->length() > maxItemSize) {
                         LOG(EXTENSION_LOG_WARNING,
                                 "New Item size is greater than permitted value "
                                 "size, aborting operation (Append)");
-                        free (newBuf);
-                        delete newData;
-                        return ENGINE_E2BIG;
-                    }
-                    char *newValue = (char *) newData->getBlob();
-                    std::memcpy(newValue, value->getBlob(),
-                            FLEX_DATA_OFFSET + value->getExtLen());
-                    std::memcpy(newValue + FLEX_DATA_OFFSET + value->getExtLen(),
-                            newBuf, newBytes);
-                    value.reset(newData);
-                    free (newBuf);
-                    return ENGINE_SUCCESS;
-                }
-            case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
-            case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
-                // UNCOMPRESS ORIGINAL AND UNCOMPRESS NEW,
-                // THEN APPEND AND COMPRESS EVERYTHING
-                {
-                    size_t inflated_length;
-                    if (!getUnCompressedLength(value->getData(),
-                                               value->vlength(),
-                                               &inflated_length)) {
-                        return ENGINE_FAILED;
-                    }
-                    size_t inflated_length2;
-                    if (!getUnCompressedLength(i.getValue()->getData(),
-                                               i.getValue()->vlength(),
-                                               &inflated_length2)) {
-                        return ENGINE_FAILED;
-                    }
-                    char *buf = (char *) malloc(inflated_length +
-                                                inflated_length2);
-                    if (!doUnCompress(value->getData(), value->vlength(),
-                                      buf, &inflated_length)) {
-                        free (buf);
-                        return ENGINE_FAILED;
-                    }
-                    if (!doUnCompress(i.getValue()->getData(),
-                                      i.getValue()->vlength(),
-                                      buf + inflated_length,
-                                      &inflated_length2)) {
-                        free (buf);
-                        return ENGINE_FAILED;
-                    }
-                    size_t newBytes = snappy_max_compressed_length(
-                                        inflated_length + inflated_length2);
-                    char *newBuf = (char *) malloc(newBytes);
-                    if(!doCompress(buf, inflated_length + inflated_length2,
-                                   newBuf, &newBytes)) {
-                        free (buf);
-                        free (newBuf);
-                        return ENGINE_FAILED;
-                    }
-                    free (buf);
-                    Blob *newData = Blob::New(newBytes, value->getExtLen());
-                    if (newData->length() > maxItemSize) {
-                        LOG(EXTENSION_LOG_WARNING,
-                                "New Item size is greater than permitted value "
-                                "size, aborting operation (Append)");
-                        free (newBuf);
                         delete newData;
                         return ENGINE_E2BIG;
                     }
@@ -237,9 +147,67 @@ ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
                     std::memcpy(newValue, value->getBlob(),
                                 FLEX_DATA_OFFSET + value->getExtLen());
                     std::memcpy(newValue + FLEX_DATA_OFFSET + value->getExtLen(),
-                                newBuf, newBytes);
+                                compOutput.buf.get(), compOutput.len);
                     value.reset(newData);
-                    free (newBuf);
+                    return ENGINE_SUCCESS;
+                }
+            case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
+            case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
+                // UNCOMPRESS ORIGINAL AND UNCOMPRESS NEW,
+                // THEN APPEND AND COMPRESS EVERYTHING
+                {
+                    snap_buf output1;
+                    snap_ret_t ret = doSnappyUncompress(value->getData(),
+                                                        value->vlength(),
+                                                        output1);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Append) Snappy uncompression "
+                            "for original value of key: %s failed!",
+                            i.getKey().c_str());
+                        return ENGINE_FAILED;
+                    }
+                    snap_buf output2;
+                    ret = doSnappyUncompress(i.getValue()->getData(),
+                                             i.getValue()->vlength(),
+                                             output2);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Append) Snappy uncompression "
+                            "for append value of key: %s failed!",
+                            i.getKey().c_str());
+                        return ENGINE_FAILED;
+                    }
+                    size_t len = output1.len + output2.len;
+                    std::unique_ptr<char[]> buf(new char[len]);
+                    if (!buf) {
+                        return ENGINE_ENOMEM;
+                    }
+                    std::memcpy(buf.get(), output1.buf.get(), output1.len);
+                    std::memcpy(buf.get() + output1.len, output2.buf.get(), output2.len);
+
+                    snap_buf compOutput;
+                    ret = doSnappyCompress(buf.get(), len, compOutput);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Append) Snappy compression "
+                            "for new value of key: %s failed!",
+                            i.getKey().c_str());
+                        return ENGINE_FAILED;
+                    }
+                    Blob *newData = Blob::New(compOutput.len, value->getExtLen());
+                    if (!newData) {
+                        return ENGINE_ENOMEM;
+                    } else if (newData->length() > maxItemSize) {
+                        LOG(EXTENSION_LOG_WARNING,
+                                "New Item size is greater than permitted value "
+                                "size, aborting operation (Append)");
+                        delete newData;
+                        return ENGINE_E2BIG;
+                    }
+                    char *newValue = (char *) newData->getBlob();
+                    std::memcpy(newValue, value->getBlob(),
+                                FLEX_DATA_OFFSET + value->getExtLen());
+                    std::memcpy(newValue + FLEX_DATA_OFFSET + value->getExtLen(),
+                                compOutput.buf.get(), compOutput.len);
+                    value.reset(newData);
                     return ENGINE_SUCCESS;
                 }
             }
@@ -273,7 +241,9 @@ ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
                 {
                     size_t newSize = value->vlength() + i.getValue()->vlength();
                     Blob *newData = Blob::New(newSize, value->getExtLen());
-                    if (newData->length() > maxItemSize) {
+                    if (!newData) {
+                        return ENGINE_ENOMEM;
+                    } else if (newData->length() > maxItemSize) {
                         LOG(EXTENSION_LOG_WARNING,
                                 "New Item size is greater than permitted value "
                                 "size, aborting operation (Prepend)");
@@ -297,26 +267,24 @@ ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
                 //UNCOMPRESS NEW AND PREPEND
                 {
-                    size_t inflated_length;
-                    if (!getUnCompressedLength(i.getValue()->getData(),
-                                               i.getValue()->vlength(),
-                                               &inflated_length)) {
+                    snap_buf output;
+                    snap_ret_t ret = doSnappyUncompress(i.getValue()->getData(),
+                                                        i.getValue()->vlength(),
+                                                        output);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Prepend) Snappy uncompression "
+                            "for prepend value of key: %s failed!",
+                            i.getKey().c_str());
                         return ENGINE_FAILED;
                     }
-                    char *buf = (char *) malloc(inflated_length);
-                    if (!doUnCompress(i.getValue()->getData(),
-                                      i.getValue()->vlength(), buf,
-                                      &inflated_length)) {
-                        free (buf);
-                        return ENGINE_FAILED;
-                    }
-                    size_t newSize = value->vlength() + inflated_length;
+                    size_t newSize = value->vlength() + output.len;
                     Blob *newData = Blob::New(newSize, value->getExtLen());
-                    if (newData->length() > maxItemSize) {
+                    if (!newData) {
+                        return ENGINE_ENOMEM;
+                    } else if (newData->length() > maxItemSize) {
                         LOG(EXTENSION_LOG_WARNING,
                                 "New Item size is greater than permitted value "
                                 "size, aborting operation (Prepend)");
-                        free (buf);
                         delete newData;
                         return ENGINE_E2BIG;
                     }
@@ -325,12 +293,11 @@ ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
                                 FLEX_DATA_OFFSET + value->getExtLen());
                     std::memcpy(newValue + FLEX_DATA_OFFSET +
                                         value->getExtLen(),
-                                buf, inflated_length);
+                                output.buf.get(), output.len);
                     std::memcpy(newValue + FLEX_DATA_OFFSET +
-                                        value->getExtLen() + inflated_length,
+                                        value->getExtLen() + output.len,
                                 value->getData(), value->vlength());
                     value.reset(newData);
-                    free (buf);
                     return ENGINE_SUCCESS;
                 }
             }
@@ -343,51 +310,50 @@ ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
             case PROTOCOL_BINARY_DATATYPE_JSON:
                 // UNCOMPRESS ORIGINAL AND PREPEND NEW, COMPRESS EVERYTHING
                 {
-                    size_t inflated_length;
-                    if (!getUnCompressedLength(value->getData(),
-                                               value->vlength(),
-                                               &inflated_length)) {
+                    snap_buf output;
+                    snap_ret_t ret = doSnappyUncompress(value->getData(),
+                                                        value->vlength(),
+                                                        output);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Prepend) Snappy uncompression "
+                            "for original value of key: %s failed!",
+                            i.getKey().c_str());
                         return ENGINE_FAILED;
                     }
-                    char *buf = (char *) malloc(inflated_length +
-                                                i.getValue()->vlength());
-                    std::memcpy(buf, i.getValue()->getData(),
+                    size_t len = output.len + i.getValue()->vlength();
+                    std::unique_ptr<char[]> buf(new char[len]);
+                    if (!buf) {
+                        return ENGINE_ENOMEM;
+                    }
+                    std::memcpy(buf.get(), i.getValue()->getData(),
                                 i.getValue()->vlength());
-                    if (!doUnCompress(value->getData(),
-                                      value->vlength(),
-                                      buf + i.getValue()->vlength(),
-                                      &inflated_length)) {
-                        free (buf);
+                    std::memcpy(buf.get() + i.getValue()->vlength(),
+                                output.buf.get(), output.len);
+
+                    snap_buf compOutput;
+                    ret = doSnappyCompress(buf.get(), len, compOutput);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Prepend) Snappy compression "
+                            "for new value of key: %s failed!",
+                            i.getKey().c_str());
                         return ENGINE_FAILED;
                     }
-                    size_t newBytes = snappy_max_compressed_length(
-                                                    inflated_length +
-                                                    i.getValue()->vlength());
-                    char *newBuf = (char *) malloc(newBytes);
-                    if (!doCompress(buf,
-                                    inflated_length + i.getValue()->vlength(),
-                                    newBuf, &newBytes)) {
-                        free (buf);
-                        free (newBuf);
-                        return ENGINE_FAILED;
-                    }
-                    free (buf);
-                    Blob *newData = Blob::New(newBytes, value->getExtLen());
-                    if (newData->length() > maxItemSize) {
+                    Blob *newData = Blob::New(compOutput.len, value->getExtLen());
+                    if (!newData) {
+                        return ENGINE_ENOMEM;
+                    } else if (newData->length() > maxItemSize) {
                         LOG(EXTENSION_LOG_WARNING,
                                 "New Item size is greater than permitted value "
                                 "size, aborting operation (Prepend)");
-                        free (newBuf);
                         delete newData;
                         return ENGINE_E2BIG;
                     }
                     char *newValue = (char *) newData->getBlob();
                     std::memcpy(newValue, value->getBlob(),
-                            FLEX_DATA_OFFSET + value->getExtLen());
+                                FLEX_DATA_OFFSET + value->getExtLen());
                     std::memcpy(newValue + FLEX_DATA_OFFSET + value->getExtLen(),
-                            newBuf, newBytes);
+                                compOutput.buf.get(), compOutput.len);
                     value.reset(newData);
-                    free (newBuf);
                     return ENGINE_SUCCESS;
                 }
             case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
@@ -395,49 +361,49 @@ ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
                 // UNCOMPRESS ORIGINAL AND UNCOMPRESS NEW,
                 // THEN PREPEND AND COMPRESS EVERYTHING
                 {
-                    size_t inflated_length;
-                    if (!getUnCompressedLength(value->getData(),
-                                               value->vlength(),
-                                               &inflated_length)) {
+                    snap_buf output1;
+                    snap_ret_t ret = doSnappyUncompress(value->getData(),
+                                                        value->vlength(),
+                                                        output1);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Prepend) Snappy uncompression "
+                            "for original value of key: %s failed!",
+                            i.getKey().c_str());
                         return ENGINE_FAILED;
                     }
-                    size_t inflated_length2;
-                    if (!getUnCompressedLength(i.getValue()->getData(),
-                                               i.getValue()->vlength(),
-                                               &inflated_length2)) {
+                    snap_buf output2;
+                    ret = doSnappyUncompress(i.getValue()->getData(),
+                                             i.getValue()->vlength(),
+                                             output2);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Prepend) Snappy uncompression "
+                            "for prepend value of key: %s failed!",
+                            i.getKey().c_str());
                         return ENGINE_FAILED;
                     }
-                    char *buf = (char *) malloc(inflated_length +
-                                                inflated_length2);
-                    if (!doUnCompress(i.getValue()->getData(),
-                                      i.getValue()->vlength(),
-                                      buf, &inflated_length2)) {
-                        free (buf);
+                    size_t len = output1.len + output2.len;
+                    std::unique_ptr<char[]> buf(new char[len]);
+                    if (!buf) {
+                        return ENGINE_ENOMEM;
+                    }
+                    std::memcpy(buf.get(), output2.buf.get(), output2.len);
+                    std::memcpy(buf.get() + output2.len, output1.buf.get(), output1.len);
+
+                    snap_buf compOutput;
+                    ret = doSnappyCompress(buf.get(), len, compOutput);
+                    if (ret == SNAP_FAILURE) {
+                        LOG(EXTENSION_LOG_WARNING, "(Prepend) Snappy compression "
+                            "for new value of key: %s failed!",
+                            i.getKey().c_str());
                         return ENGINE_FAILED;
                     }
-                    if (!doUnCompress(value->getData(),
-                                      value->vlength(),
-                                      buf + inflated_length2,
-                                      &inflated_length)) {
-                        free (buf);
-                        return ENGINE_FAILED;
-                    }
-                    size_t newBytes = snappy_max_compressed_length(
-                                    inflated_length + inflated_length2);
-                    char *newBuf = (char *) malloc(newBytes);
-                    if (!doCompress(buf, inflated_length + inflated_length2,
-                                    newBuf, &newBytes)) {
-                        free (buf);
-                        free (newBuf);
-                        return ENGINE_FAILED;
-                    }
-                    free (buf);
-                    Blob *newData = Blob::New(newBytes, value->getExtLen());
-                    if (newData->length() > maxItemSize) {
+                    Blob *newData = Blob::New(compOutput.len, value->getExtLen());
+                    if (!newData) {
+                        return ENGINE_ENOMEM;
+                    } else if (newData->length() > maxItemSize) {
                         LOG(EXTENSION_LOG_WARNING,
                                 "New Item size is greater than permitted value "
                                 "size, aborting operation (Prepend)");
-                        free (newBuf);
                         delete newData;
                         return ENGINE_E2BIG;
                     }
@@ -446,9 +412,8 @@ ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
                                 FLEX_DATA_OFFSET + value->getExtLen());
                     std::memcpy(newValue + FLEX_DATA_OFFSET +
                                                 value->getExtLen(),
-                                newBuf, newBytes);
+                                compOutput.buf.get(), compOutput.len);
                     value.reset(newData);
-                    free (newBuf);
                     return ENGINE_SUCCESS;
                 }
             }

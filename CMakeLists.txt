@@ -128,6 +128,7 @@ ADD_LIBRARY(ep SHARED
             src/bloomfilter.cc
             src/checkpoint.cc
             src/checkpoint_remover.cc
+            src/compress.cc
             src/conflict_resolution.cc
             src/connmap.cc
             src/dcp/backfill-manager.cc
@@ -191,6 +192,7 @@ ADD_EXECUTABLE(ep-engine_checkpoint_test
   src/atomic.cc
   src/bloomfilter.cc
   src/checkpoint.cc
+  src/compress.cc
   src/failover-table.cc
   src/item.cc
   src/mutex.cc
@@ -209,6 +211,7 @@ TARGET_LINK_LIBRARIES(ep-engine_chunk_creation_test platform)
 ADD_EXECUTABLE(ep-engine_hash_table_test
   tests/module_tests/hash_table_test.cc
   src/atomic.cc
+  src/compress.cc
   src/item.cc
   src/mutex.cc
   src/stored-value.cc
@@ -275,6 +278,7 @@ ADD_EXECUTABLE(ep-engine_defragmenter_test
                tests/module_tests/defragmenter_test.cc
                src/bloomfilter.cc
                src/checkpoint.cc
+               src/compress.cc
                src/configuration.cc
                src/defragmenter_visitor.cc
                src/ep_time.c
@@ -292,6 +296,7 @@ TARGET_LINK_LIBRARIES(ep-engine_defragmenter_test cJSON platform ${SNAPPY_LIBRAR
 ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
    src/atomic.cc
+   src/compress.cc
    src/ep_time.c
    src/ext_meta_parser.cc
    src/item.cc
