@@ -412,10 +412,10 @@ static void free_callbacks() {
 
 static void stats_init(void) {
     set_stats_reset_time();
-    stats.conn_structs.store(0, std::memory_order_relaxed);
-    stats.total_conns.store(0, std::memory_order_relaxed);
-    stats.daemon_conns.store(0, std::memory_order_relaxed);
-    stats.rejected_conns.store(0, std::memory_order_relaxed);
+    stats.conn_structs.reset();
+    stats.total_conns.reset();
+    stats.daemon_conns.reset();
+    stats.rejected_conns.reset();
     stats.curr_conns.store(0, std::memory_order_relaxed);
 
     stats.listening_ports= reinterpret_cast<listening_port*>
@@ -434,8 +434,8 @@ static void stats_reset(const void *cookie) {
     STATS_LOCK();
     set_stats_reset_time();
     STATS_UNLOCK();
-    stats.total_conns.store(0, std::memory_order_relaxed);
-    stats.rejected_conns.store(0, std::memory_order_relaxed);
+    stats.total_conns.reset();
+    stats.rejected_conns.reset();
     threadlocal_stats_reset(all_buckets[conn->bucket.idx].stats);
     bucket_reset_stats(conn);
 }
@@ -5427,8 +5427,7 @@ static void server_stats(ADD_STAT add_stat_callback, Connection *c) {
     add_stat(c, add_stat_callback, "libevent", event_get_version());
     add_stat(c, add_stat_callback, "pointer_size", (8 * sizeof(void *)));
 
-    add_stat(c, add_stat_callback, "daemon_connections",
-                stats.daemon_conns.load(std::memory_order_relaxed));
+    add_stat(c, add_stat_callback, "daemon_connections", stats.daemon_conns);
     add_stat(c, add_stat_callback, "curr_connections",
                 stats.curr_conns.load(std::memory_order_relaxed));
     for (int ii = 0; ii < settings.num_interfaces; ++ii) {
@@ -5441,10 +5440,9 @@ static void server_stats(ADD_STAT add_stat_callback, Connection *c) {
         add_stat(c, add_stat_callback, key,
                  stats.listening_ports[ii].curr_conns);
     }
-    add_stat(c, add_stat_callback, "total_connections",
-                stats.total_conns.load(std::memory_order_relaxed));
+    add_stat(c, add_stat_callback, "total_connections", stats.total_conns);
     add_stat(c, add_stat_callback, "connection_structures",
-                stats.conn_structs.load(std::memory_order_relaxed));
+                stats.conn_structs);
     add_stat(c, add_stat_callback, "cmd_get", thread_stats.cmd_get);
     add_stat(c, add_stat_callback, "cmd_set", thread_stats.cmd_set);
     add_stat(c, add_stat_callback, "cmd_flush", thread_stats.cmd_flush);
@@ -5473,8 +5471,7 @@ static void server_stats(ADD_STAT add_stat_callback, Connection *c) {
     add_stat(c, add_stat_callback, "bytes_written", thread_stats.bytes_written);
     add_stat(c, add_stat_callback, "accepting_conns", is_listen_disabled() ? 0 : 1);
     add_stat(c, add_stat_callback, "listen_disabled_num", get_listen_disabled_num());
-    add_stat(c, add_stat_callback, "rejected_conns",
-                stats.rejected_conns.load(std::memory_order_relaxed));
+    add_stat(c, add_stat_callback, "rejected_conns", stats.rejected_conns);
     add_stat(c, add_stat_callback, "threads", settings.num_threads);
     add_stat(c, add_stat_callback, "conn_yields", thread_stats.conn_yields);
     add_stat(c, add_stat_callback, "rbufs_allocated", thread_stats.rbufs_allocated);
@@ -6301,7 +6298,7 @@ bool conn_listening(Connection *c)
         STATS_LOCK();
         --port_instance->curr_conns;
         STATS_UNLOCK();
-        stats.rejected_conns.fetch_add(1, std::memory_order_relaxed);
+        stats.rejected_conns++;
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
             "Too many open connections. Current/Limit for port %d: %d/%d; "
             "total: %d/%d", port_instance->port,
@@ -7151,7 +7148,7 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
         listen_conn_add->next = listen_conn;
         listen_conn = listen_conn_add;
 
-        stats.daemon_conns.fetch_add(1, std::memory_order_relaxed);
+        stats.daemon_conns++;
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
         STATS_LOCK();
         port_instance = get_listening_port_instance(interf->port);

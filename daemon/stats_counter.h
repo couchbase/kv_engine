@@ -57,12 +57,31 @@ public:
         return *this;
     }
 
+    StatsCounter & operator -= (const T rhs) {
+        value.fetch_sub(rhs, std::memory_order_relaxed);
+        return *this;
+    }
+
+    StatsCounter & operator -= (const StatsCounter &rhs) {
+        value.fetch_sub(rhs.value.load(std::memory_order_relaxed),
+                        std::memory_order_relaxed);
+        return *this;
+    }
+
     void operator++() {
         value.fetch_add(1, std::memory_order_relaxed);
     }
 
     void operator++(int) {
         value.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void operator--() {
+        value.fetch_sub(1, std::memory_order_relaxed);
+    }
+
+    void operator--(int) {
+        value.fetch_sub(1, std::memory_order_relaxed);
     }
 
     StatsCounter & operator = (T val) {

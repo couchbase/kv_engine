@@ -235,7 +235,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
         return NULL;
     }
 
-    stats.total_conns.fetch_add(1, std::memory_order_relaxed);;
+    stats.total_conns++;
 
     c->refcount = 1;
 
@@ -546,7 +546,7 @@ static void conn_return_buffers(Connection *c) {
  */
 static void conn_destructor(Connection *c) {
     delete c;
-    stats.conn_structs.fetch_sub(1, std::memory_order_relaxed);
+    stats.conn_structs--;
 }
 
 /** Allocate a connection, creating memory and adding it to the conections
@@ -563,7 +563,7 @@ static Connection *allocate_connection(void) {
                                         "Failed to allocate memory for connection");
         return NULL;
     }
-    stats.conn_structs.fetch_add(1, std::memory_order_relaxed);
+    stats.conn_structs++;
 
     cb_mutex_enter(&connections.mutex);
     // First update the new nodes' links ...

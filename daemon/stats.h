@@ -151,19 +151,19 @@ struct listening_port {
  */
 struct stats {
     /** Number of connections used by the server itself (listen ports etc). */
-    std::atomic<unsigned int> daemon_conns;
+    StatsCounter<unsigned int> daemon_conns;
 
     /** The current number of connections to the server */
     std::atomic<unsigned int> curr_conns;
 
     /** The total number of connections to the server since start (or reset) */
-    std::atomic<unsigned int> total_conns;
+    StatsCounter<unsigned int> total_conns;
 
     /** The current number of allocated connection objects */
-    std::atomic<unsigned int> conn_structs;
+    StatsCounter<unsigned int> conn_structs;
 
     /** The number of times I reject a client */
-    std::atomic<uint64_t> rejected_conns;
+    StatsCounter<uint64_t> rejected_conns;
 
     // TODO[C++]: convert listening_ports to std::vector.
     struct listening_port *listening_ports;
