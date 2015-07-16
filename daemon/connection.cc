@@ -93,6 +93,10 @@ Connection::~Connection() {
     free(ilist);
     free(iov);
     free(msglist);
+
+    for (auto *ptr : temp_alloc) {
+        free(ptr);
+    }
 }
 
 void Connection::resetBufferSize() {
@@ -104,10 +108,6 @@ void Connection::resetBufferSize() {
     free(ilist);
     ilist = NULL;
     isize = 0;
-
-    if (temp_alloc.capacity() < TEMP_ALLOC_LIST_INITIAL) {
-        temp_alloc.reserve(TEMP_ALLOC_LIST_INITIAL);
-    }
 
     if (iovsize != IOV_LIST_INITIAL) {
         auto *ptr = reinterpret_cast<struct iovec*>

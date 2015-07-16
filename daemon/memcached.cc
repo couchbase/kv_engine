@@ -6600,14 +6600,6 @@ bool conn_mwrite(Connection *c) {
                 free(temp_alloc);
             }
             c->temp_alloc.resize(0);
-            if (c->temp_alloc.capacity() > TEMP_ALLOC_LIST_INITIAL) {
-                c->temp_alloc.shrink_to_fit();
-                try {
-                    c->temp_alloc.reserve(TEMP_ALLOC_LIST_INITIAL);
-                } catch (std::bad_alloc) {
-                    // Ignore
-                }
-            }
 
             /* XXX:  I don't know why this wasn't the general case */
             conn_set_state(c, c->write_and_go);
