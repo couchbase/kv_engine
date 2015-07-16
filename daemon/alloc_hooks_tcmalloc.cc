@@ -28,7 +28,14 @@
 #include <gperftools/malloc_hook_c.h>
 
 void init_alloc_hooks() {
-    // Empty!
+    // TCMalloc's aggressive decommit setting has a significant performance
+    // impact on us; and from gperftools v2.4 it is enabled by default.
+    // Turn it off.
+    if (!MallocExtension_SetNumericProperty
+        ("tcmalloc.aggressive_memory_decommit", 0)) {
+        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to disable tcmalloc.aggressive_memory_decommit");
+    }
 }
 
 bool mc_add_new_hook(void (* hook)(const void* ptr, size_t size)) {
