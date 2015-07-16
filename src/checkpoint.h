@@ -339,6 +339,13 @@ public:
     uint64_t getMutationIdForKey(const std::string &key);
 
     /**
+     * Function invoked by the cursor-dropper which checks if the
+     * peristence cursor is currently in the given checkpoint, in
+     * which case returns false, otherwise true.
+     */
+    bool isEligibleToBeUnreferenced();
+
+    /**
      * Invoked by the checkpoint manager whenever an item is queued
      * into the given checkpoint.
      * @param Amount of memory being added to current usage
@@ -560,6 +567,12 @@ public:
      * Return memory consumption of unreferenced checkpoints
      */
     size_t getMemoryUsageOfUnrefCheckpoints();
+
+    /**
+     * Function returns a list of cursors to drop so as to unreference
+     * certain checkpoints within the manager, invoked by the cursor-dropper.
+     */
+    std::vector<std::string> getListOfCursorsToDrop();
 
     /**
      * This method performs the following steps for creating a new checkpoint with a given ID i1:

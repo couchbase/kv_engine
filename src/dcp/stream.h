@@ -52,7 +52,9 @@ enum end_stream_status_t {
     //! The stream closed early because the vbucket state changed
     END_STREAM_STATE,
     //! The stream closed early because the connection was disconnected
-    END_STREAM_DISCONNECTED
+    END_STREAM_DISCONNECTED,
+    //! The stream was closed early because it was too slow
+    END_STREAM_SLOW
 };
 
 enum stream_type_t {
@@ -114,6 +116,10 @@ public:
     virtual uint32_t setDead(end_stream_status_t status) = 0;
 
     virtual void notifySeqnoAvailable(uint64_t seqno) {}
+
+    const std::string& getName() {
+        return name_;
+    }
 
     bool isActive() {
         return state_ != STREAM_DEAD;

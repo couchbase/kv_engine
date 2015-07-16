@@ -608,6 +608,22 @@ void DcpProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
     }
 }
 
+bool DcpProducer::closeSlowStream(uint16_t vbid,
+                                  const std::string &name) {
+    LockHolder lh(queueLock);
+    std::map<uint16_t, stream_t>::iterator it = streams.find(vbid);
+    if (it != streams.end()) {
+        if (it->second->getName().compare(name) == 0) {
+            LOG(EXTENSION_LOG_NOTICE, "%s Producer is closing stream "
+                "for vbucket %d, stream name '%s' because it seems to be SLOW",
+                logHeader(), vbid, name.c_str());
+            it->second->setDead(END_STREAM_SLOW);
+            return true;
+        }
+    }
+    return false;
+}
+
 void DcpProducer::closeAllStreams() {
     LockHolder lh(queueLock);
     std::list<uint16_t> vblist;

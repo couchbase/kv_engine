@@ -454,6 +454,8 @@ public:
 
     void shutdownAllConnections();
 
+    void closeSlowStream(uint16_t vbid, const std::string &name);
+
     void disconnect(const void *cookie);
 
     void manageConnections();

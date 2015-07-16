@@ -44,6 +44,7 @@ public:
     size_t getSize() const;
     std::vector<int> getBuckets(void) const;
     std::vector<int> getBucketsSortedByState(void) const;
+    std::vector<std::pair<int, size_t> > getActiveVBucketsSortedByChkMgrMem(void) const;
     bool isBucketDeletion(uint16_t id) const;
     bool setBucketDeletion(uint16_t id, bool delBucket);
     bool isBucketCreation(uint16_t id) const;

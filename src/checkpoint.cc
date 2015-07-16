@@ -234,6 +234,18 @@ uint64_t Checkpoint::getMutationIdForKey(const std::string &key) {
     return mid;
 }
 
+bool Checkpoint::isEligibleToBeUnreferenced() {
+    const std::set<std::string> &cursors = getCursorNameList();
+    std::set<std::string>::const_iterator cit = cursors.begin();
+    for (; cit != cursors.end(); ++cit) {
+        if ((*cit).compare(CheckpointManager::pCursorName) == 0) {
+            // Persistence cursor is on current checkpoint
+            return false;
+        }
+    }
+    return true;
+}
+
 CheckpointManager::~CheckpointManager() {
     LockHolder lh(queueLock);
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
@@ -818,6 +830,36 @@ void CheckpointManager::collapseClosedCheckpoints(
         collapsedChks.splice(collapsedChks.end(), checkpointList,
                              checkpointList.begin(),  lastClosedChk);
     }
+}
+
+std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
+    LockHolder lh(queueLock);
+
+    // List of cursor names whose streams will be closed
+    std::vector<std::string> cursorsToDrop;
+
+    size_t num_checkpoints_to_unref;
+    if (checkpointList.size() == 1) {
+        num_checkpoints_to_unref = 0;
+    } else if (checkpointList.size() <=
+              (DEFAULT_MAX_CHECKPOINTS + MAX_CHECKPOINTS_UPPER_BOUND) / 2) {
+        num_checkpoints_to_unref = 1;
+    } else {
+        num_checkpoints_to_unref = 2;
+    }
+
+    std::list<Checkpoint*>::const_iterator it = checkpointList.begin();
+    while (num_checkpoints_to_unref != 0 && it != checkpointList.end()) {
+        if ((*it)->isEligibleToBeUnreferenced()) {
+            const std::set<std::string> &cursors = (*it)->getCursorNameList();
+            cursorsToDrop.insert(cursorsToDrop.end(), cursors.begin(), cursors.end());
+        } else {
+            break;
+        }
+        --num_checkpoints_to_unref;
+        ++it;
+    }
+    return cursorsToDrop;
 }
 
 bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,

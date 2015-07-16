@@ -112,6 +112,33 @@ std::vector<int> VBucketMap::getBucketsSortedByState(void) const {
     return rv;
 }
 
+std::vector<std::pair<int, size_t> >
+VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
+    std::vector<std::pair<int, size_t> > rv;
+    for (size_t i = 0; i < size; ++i) {
+        RCPtr<VBucket> b = getShard(i)->getBucket(i);
+        if (b && b->getState() == vbucket_state_active) {
+            rv.push_back(std::make_pair(b->getId(), b->getChkMgrMemUsage()));
+        }
+    }
+
+    struct SortCtx {
+        static bool compareSecond(std::pair<int, size_t> a,
+                                  std::pair<int, size_t> b) {
+            if (a.second <= b.second) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+    };
+
+    std::sort(rv.begin(), rv.end(), SortCtx::compareSecond);
+
+    return rv;
+}
+
+
 size_t VBucketMap::getSize(void) const {
     return size;
 }

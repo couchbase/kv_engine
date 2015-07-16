@@ -98,6 +98,8 @@ public:
 
     void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
 
+    bool closeSlowStream(uint16_t vbid, const std::string &name);
+
     void closeAllStreams();
 
     const char *getType() const;
