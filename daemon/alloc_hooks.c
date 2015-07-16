@@ -177,6 +177,14 @@ static void init_no_hooks(void) {
 void init_alloc_hooks() {
 #ifdef HAVE_TCMALLOC
     init_tcmalloc_hooks();
+    // TCMalloc's aggressive decommit setting has a significant performance
+    // impact on us; and from gperftools v2.4 it is enabled by default.
+    // Turn it off.
+    if (!MallocExtension_SetNumericProperty
+        ("tcmalloc.aggressive_memory_decommit", 0)) {
+        get_stderr_logger()->log(EXTENSION_LOG_WARNING, NULL,
+                                 "Failed to disable tcmalloc.aggressive_memory_decommit");
+    }
 #else
     init_no_hooks();
     get_stderr_logger()->log(EXTENSION_LOG_DEBUG, NULL,
@@ -225,11 +233,14 @@ void mc_get_allocator_stats(allocator_stats* stats) {
 
         strcpy(stats->ext_stats[0].key, "tcmalloc_max_thread_cache_bytes");
         strcpy(stats->ext_stats[1].key, "tcmalloc_current_thread_cache_bytes");
+        strcpy(stats->ext_stats[2].key, "tcmalloc.aggressive_memory_decommit");
 
         getStatsProp("tcmalloc.max_total_thread_cache_bytes",
                             &(stats->ext_stats[0].value));
         getStatsProp("tcmalloc.current_total_thread_cache_bytes",
                             &(stats->ext_stats[1].value));
+        getStatsProp("tcmalloc.aggressive_memory_decommit",
+                            &(stats->ext_stats[2].value));
     } else if (type == jemalloc) {
 #ifdef HAVE_JEMALLOC
         size_t epoch = 1;
