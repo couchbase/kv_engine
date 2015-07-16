@@ -22,7 +22,6 @@
 #include "connmap.h"
 #include "replicationthrottle.h"
 #include "dcp/consumer.h"
-#include "dcp/response.h"
 #include "dcp/stream.h"
 
 class Processer : public GlobalTask {
@@ -634,6 +633,30 @@ bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
     RCPtr<VBucket> vb = engine_.getVBucket(vbid);
     streams[vbid]->reconnectStream(vb, opaque, vb->getHighSeqno());
 
+    return false;
+}
+
+bool DcpConsumer::reconnectSlowStream(StreamEndResponse *resp) {
+    /**
+     * To be invoked only if END_STREAM was received, and the reconnection
+     * is initiated only if the reason states SLOW.
+     */
+    cb_assert(resp);
+    if (resp->getFlags() == END_STREAM_SLOW) {
+        uint16_t vbid = resp->getVbucket();
+        RCPtr<VBucket> vb = engine_.getVBucket(vbid);
+        if (vb) {
+            passive_stream_t stream = streams[vbid];
+            if (stream) {
+                LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Consumer is attempting "
+                        "to reconnect stream, as it received END_STREAM for "
+                        "the vbucket with reason as SLOW", logHeader(), vbid);
+                stream->reconnectStream(vb, resp->getOpaque(),
+                                        vb->getHighSeqno());
+                return true;
+            }
+        }
+    }
     return false;
 }
 

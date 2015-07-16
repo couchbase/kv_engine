@@ -1016,7 +1016,12 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
                 processSetVBucketState(static_cast<SetVBucketState*>(resp));
                 break;
             case DCP_STREAM_END:
-                transitionState(STREAM_DEAD);
+                // Check flags of this END_STREAM message. If reason was found
+                // to be END_STREAM_SLOW, initiate a reconnection.
+                if (!consumer->reconnectSlowStream(
+                                    static_cast<StreamEndResponse*>(resp))) {
+                    transitionState(STREAM_DEAD);
+                }
                 delete resp;
                 break;
             default:
@@ -1065,7 +1070,12 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
                 processSetVBucketState(static_cast<SetVBucketState*>(response));
                 break;
             case DCP_STREAM_END:
-                transitionState(STREAM_DEAD);
+                // Check flags of this END_STREAM message. If reason was found
+                // to be END_STREAM_SLOW, initiate a reconnection.
+                if (!consumer->reconnectSlowStream(
+                                  static_cast<StreamEndResponse*>(response))) {
+                    transitionState(STREAM_DEAD);
+                }
                 delete response;
                 break;
             default:

@@ -21,6 +21,7 @@
 #include "config.h"
 
 #include "tapconnection.h"
+#include "dcp/response.h"
 #include "dcp/stream.h"
 
 class PassiveStream;
@@ -79,6 +80,8 @@ public:
     ENGINE_ERROR_CODE handleResponse(protocol_binary_response_header *resp);
 
     bool doRollback(uint32_t opaque, uint16_t vbid, uint64_t rollbackSeqno);
+
+    bool reconnectSlowStream(StreamEndResponse *resp);
 
     void addStats(ADD_STAT add_stat, const void *c);
 
