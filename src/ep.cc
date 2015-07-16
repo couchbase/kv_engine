@@ -64,6 +64,7 @@ public:
                     (static_cast<double>(value) * stats.mem_high_wat_percent);
             stats.mem_low_wat.store(low_wat);
             stats.mem_high_wat.store(high_wat);
+            store.setCursorDroppingLowerUpperThresholds(value);
         } else if (key.compare("mem_low_wat") == 0) {
             stats.mem_low_wat.store(value);
             stats.mem_low_wat_percent.store(
@@ -325,6 +326,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(
                                    new StatsValueChangeListener(stats, *this));
     stats.mem_high_wat_percent.store(
                 (double)(stats.mem_high_wat.load()) / stats.getMaxDataSize());
+
+    setCursorDroppingLowerUpperThresholds(config.getMaxSize());
 
     stats.replicationThrottleThreshold.store(static_cast<double>
                                     (config.getReplicationThrottleThreshold())
@@ -3904,6 +3907,15 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
 
 void EventuallyPersistentStore::runDefragmenterTask() {
     defragmenterTask->run();
+}
+
+void EventuallyPersistentStore::setCursorDroppingLowerUpperThresholds(
+                                                            size_t maxSize) {
+    Configuration &config = engine.getConfiguration();
+    stats.cursorDroppingLThreshold.store(static_cast<size_t>(maxSize *
+                    ((double)(config.getCursorDroppingLowerMark()) / 100)));
+    stats.cursorDroppingUThreshold.store(static_cast<size_t>(maxSize *
+                    ((double)(config.getCursorDroppingUpperMark()) / 100)));
 }
 
 std::ostream& operator<<(std::ostream& os,

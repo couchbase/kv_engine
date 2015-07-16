@@ -46,6 +46,8 @@ public:
         GlobalTask(e, Priority::CheckpointRemoverPriority, interval, false),
         engine(e), stats(st), sleepTime(interval), available(true) {}
 
+    void cursorDroppingIfNeeded(void);
+
     bool run(void);
 
     std::string getDescription() {

@@ -321,6 +321,11 @@ For introductory information on stats within Couchbase, start with the
 | ep_defragmenter_num_visited        | Number of items visited (considered    |
 |                                    | for defragmentation) by the            |
 |                                    | defragmenter task.                     |
+| ep_cursor_dropping_lower_threshold | Memory threshold below which checkpoint|
+|                                    | remover will discontinue cursor        |
+|                                    | dropping.                              |
+| ep_cursor_dropping_upper_threshold | Memory threshold above which checkpoint|
+|                                    | remover will start cursor dropping     |
 
 
 ** vBucket total stats

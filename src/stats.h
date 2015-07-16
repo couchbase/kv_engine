@@ -77,6 +77,8 @@ public:
         mem_low_wat_percent(0),
         mem_high_wat(0),
         mem_high_wat_percent(0),
+        cursorDroppingLThreshold(0),
+        cursorDroppingUThreshold(0),
         pagerRuns(0),
         expiryPagerRuns(0),
         itemsRemovedFromCheckpoints(0),
@@ -260,6 +262,10 @@ public:
     //! Pager high water mark
     AtomicValue<size_t> mem_high_wat;
     AtomicValue<double> mem_high_wat_percent;
+
+    //! Cursor dropping thresholds used by checkpoint remover
+    AtomicValue<size_t> cursorDroppingLThreshold;
+    AtomicValue<size_t> cursorDroppingUThreshold;
 
     //! Number of times we needed to kick in the pager
     AtomicValue<size_t> pagerRuns;

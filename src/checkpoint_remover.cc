@@ -87,9 +87,57 @@ private:
     bool                      *stateFinalizer;
 };
 
+void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
+    /**
+     * Cursor dropping will commence only if the total memory used is
+     * greater than the upper threshold which is a percentage of the
+     * quota, specified by cursor_dropping_upper_mark. Once cursor
+     * dropping starts, it will continue until memory usage is projected
+     * to go under the lower threshold which is a percentage of the quota,
+     * specified by cursor_dropping_lower_mark.
+     */
+    if (stats.getTotalMemoryUsed() > stats.cursorDroppingUThreshold.load()) {
+        size_t amountOfMemoryToClear = stats.getTotalMemoryUsed() -
+                                          stats.cursorDroppingLThreshold.load();
+        size_t memoryCleared = 0;
+        EventuallyPersistentStore *store = engine->getEpStore();
+        // Get a list of active vbuckets sorted by memory usage
+        // of their respective checkpoint managers.
+        std::vector<std::pair<int, size_t> > vbs =
+                store->getVBuckets().getActiveVBucketsSortedByChkMgrMem();
+        std::vector<std::pair<int, size_t> >::iterator it = vbs.begin();
+        for (; it != vbs.end(); ++it) {
+            if (memoryCleared < amountOfMemoryToClear) {
+                uint16_t vbid = static_cast<uint16_t>(it->first);
+                RCPtr<VBucket> vb = store->getVBucket(vbid);
+                if (vb) {
+                    // Get a list of cursors that can be dropped from the
+                    // vbucket's checkpoint manager, so as to unreference
+                    // an estimated number of checkpoints.
+                    std::vector<std::string> cursors =
+                                vb->checkpointManager.getListOfCursorsToDrop();
+                    std::vector<std::string>::iterator itr = cursors.begin();
+                    for (; itr != cursors.end(); ++itr) {
+                        if (memoryCleared < amountOfMemoryToClear) {
+                            engine->getDcpConnMap().closeSlowStream(vbid, *itr);
+                            memoryCleared +=
+                                      vb->getChkMgrMemUsageOfUnrefCheckpoints();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            } else {    // memoryCleared >= amountOfMemoryToClear
+                break;
+            }
+        }
+    }
+}
+
 bool ClosedUnrefCheckpointRemoverTask::run(void) {
     if (available) {
         available = false;
+        cursorDroppingIfNeeded();
         EventuallyPersistentStore *store = engine->getEpStore();
         shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats,
                     &available));

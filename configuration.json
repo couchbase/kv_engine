@@ -139,6 +139,28 @@
             "dynamic": false,
             "type": "std::string"
         },
+        "cursor_dropping_lower_mark": {
+            "default": "80",
+            "descr": "Percentage of memQuota, below which checkpoint cursor dropping will not continue",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
+        "cursor_dropping_upper_mark": {
+            "default": "95",
+            "descr": "Percentage of memQuota, above which checkpoint cursor dropping will commence",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
         "data_traffic_enabled": {
             "default": "true",
             "descr": "True if we want to enable data traffic after warmup is complete",
