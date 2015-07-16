@@ -41,8 +41,6 @@ Connection::Connection()
           sbytes(0),
           iov(nullptr), iovsize(0), iovused(0),
           msglist(nullptr), msgsize(0), msgused(0), msgcurr(0), msgbytes(0),
-          ilist(nullptr), isize(0), icurr(0),
-          ileft(0), // refactor to std::vector
           request_addr_size(0),
           hdrsize(0),
           noreply(false),
@@ -90,10 +88,10 @@ Connection::~Connection() {
     cbsasl_dispose(&sasl_conn);
     free(read.buf);
     free(write.buf);
-    free(ilist);
     free(iov);
     free(msglist);
 
+    cb_assert(reservedItems.empty());
     for (auto *ptr : temp_alloc) {
         free(ptr);
     }
@@ -101,13 +99,6 @@ Connection::~Connection() {
 
 void Connection::resetBufferSize() {
     bool ret = true;
-
-    /* itemlist only needed for TAP / DCP connections, so we just free when the
-     * connection is reset.
-     */
-    free(ilist);
-    ilist = NULL;
-    isize = 0;
 
     if (iovsize != IOV_LIST_INITIAL) {
         auto *ptr = reinterpret_cast<struct iovec*>

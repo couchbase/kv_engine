@@ -251,11 +251,10 @@ void conn_cleanup_engine_allocations(Connection * c) {
         c->item = NULL;
     }
 
-    if (c->ileft != 0) {
-        for (; c->ileft > 0; c->ileft--,c->icurr++) {
-            c->bucket.engine->release(handle, c, *(c->icurr));
-        }
+    for (auto *it : c->reservedItems) {
+        c->bucket.engine->release(handle, c, it);
     }
+    c->reservedItems.clear();
 }
 
 static void conn_cleanup(Connection *c) {
@@ -769,11 +768,7 @@ static cJSON* get_connection_stats(const Connection *c) {
         }
         {
             cJSON *ilist = cJSON_CreateObject();
-            json_add_uintptr_to_object(ilist, "list", (uintptr_t)c->ilist);
-            cJSON_AddNumberToObject(ilist, "size", c->isize);
-            json_add_uintptr_to_object(ilist, "curr", (uintptr_t)c->icurr);
-            cJSON_AddNumberToObject(ilist, "left", c->ileft);
-
+            cJSON_AddNumberToObject(ilist, "size", c->reservedItems.size());
             cJSON_AddItemToObject(obj, "itemlist", ilist);
         }
         {

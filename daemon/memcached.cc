@@ -1523,24 +1523,6 @@ struct tap_stats {
     struct tap_cmd_stats received;
 } tap_stats;
 
-/** Sets up a clean itemlist in the connection, setting the current cursor (icurr)
- *  to the start of the list. Returns true if itemlist could be setup, else
- *  false (and itemlist should be assumed to not be usable).
- */
-static bool conn_setup_itemlist(Connection *c) {
-    if (c->ilist == NULL) {
-        void *ptr = malloc(sizeof(item *) * ITEM_LIST_INITIAL);
-        if (ptr != NULL) {
-            c->ilist = reinterpret_cast<void**>(ptr);
-            c->isize = ITEM_LIST_INITIAL;
-        } else {
-            return false;
-        }
-    }
-    c->icurr = c->ilist;
-    return true;
-}
-
 static void ship_tap_log(Connection *c) {
     bool more_data = true;
     bool send_data = false;
@@ -1563,15 +1545,6 @@ static void ship_tap_log(Connection *c) {
     /* @todo add check for buffer overflow of c->write.buf) */
     c->write.bytes = 0;
     c->write.curr = c->write.buf;
-
-    if (!conn_setup_itemlist(c)) {
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Failed to setup itemlist. Shutting down tap connection\n", c->sfd);
-        }
-        conn_set_state(c, conn_closing);
-        return;
-    }
 
     do {
         /* @todo fixme! */
@@ -1634,8 +1607,16 @@ static void ship_tap_log(Connection *c) {
                                                 "%d: Failed to get item info\n", c->sfd);
                 break;
             }
+            try {
+                c->reservedItems.push_back(it);
+            } catch (std::bad_alloc) {
+                c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d: Failed to grow item array",
+                                                c->sfd);
+                break;
+            }
             send_data = true;
-            c->ilist[c->ileft++] = it;
 
             if (event == TAP_CHECKPOINT_START) {
                 msg.mutation.message.header.request.opcode =
@@ -1769,8 +1750,16 @@ static void ship_tap_log(Connection *c) {
                                                 "%d: Failed to get item info\n", c->sfd);
                 break;
             }
+            try {
+                c->reservedItems.push_back(it);
+            } catch (std::bad_alloc) {
+                c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%d: Failed to grow item array",
+                                                c->sfd);
+                break;
+            }
             send_data = true;
-            c->ilist[c->ileft++] = it;
             msg.del.message.header.request.opcode = PROTOCOL_BINARY_CMD_TAP_DELETE;
             msg.del.message.header.request.cas = htonll(info.info.cas);
             msg.del.message.header.request.keylen = htons(info.info.nkey);
@@ -2455,6 +2444,16 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
         return ENGINE_FAILED;
     }
 
+    try {
+        c->reservedItems.push_back(it);
+    } catch (std::bad_alloc) {
+        c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "%d: Failed to grow item array",
+                                        c->sfd);
+        return ENGINE_FAILED;
+    }
+
     memset(packet.bytes, 0, sizeof(packet));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_MUTATION;
@@ -2472,8 +2471,6 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     packet.message.body.expiration = htonl(info.info.exptime);
     packet.message.body.nmeta = htons(nmeta);
     packet.message.body.nru = nru;
-
-    c->ilist[c->ileft++] = it;
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
     add_iov(c, c->write.curr, sizeof(packet.bytes));
@@ -2779,17 +2776,6 @@ static void ship_dcp_log(Connection *c) {
 
     c->write.bytes = 0;
     c->write.curr = c->write.buf;
-    if (!conn_setup_itemlist(c)) {
-        /* Failed to setup itemlist, cannot continue with this connection. */
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Failed to setup itemlist. Shutting down DCP connection\n", c->sfd);
-        }
-        conn_set_state(c, conn_closing);
-        return;
-    }
-    c->icurr = c->ilist;
-
     c->ewouldblock = false;
     ret = c->bucket.engine->dcp.step(v1_handle_2_handle(c->bucket.engine), c, &producers);
     if (ret == ENGINE_SUCCESS) {
@@ -6590,12 +6576,10 @@ bool conn_mwrite(Connection *c) {
     switch (transmit(c)) {
     case TransmitResult::Complete:
         if (c->state == conn_mwrite) {
-            while (c->ileft > 0) {
-                item *it = *(c->icurr);
+            for (auto *it : c->reservedItems) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
-                c->icurr++;
-                c->ileft--;
             }
+            c->reservedItems.clear();
             for (auto *temp_alloc : c->temp_alloc) {
                 free(temp_alloc);
             }

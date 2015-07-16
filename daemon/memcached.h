@@ -352,11 +352,8 @@ public:
     int    msgcurr;   /* element in msglist[] being transmitted now */
     int    msgbytes;  /* number of bytes in current msg */
 
-    void   **ilist;   /* list of items to write out */
-    int    isize;
-    void   **icurr;
-    int    ileft;
-
+    // List of items we've reserved during the command (should call item_release)
+    std::vector<void *> reservedItems;
     std::vector<char*> temp_alloc;
 
     struct sockaddr_storage request_addr; /* Who sent the most recent request */
