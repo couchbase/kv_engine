@@ -324,10 +324,10 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         pending = pending->next;
         c->next = NULL;
 
-        if (c->sfd != INVALID_SOCKET && !c->registered_in_libevent) {
+        if (c->sfd != INVALID_SOCKET && !c->isRegisteredInLibevent()) {
             /* The socket may have been shut down while we're looping */
             /* in delayed shutdown */
-            register_event(c, 0);
+            c->registerEvent();
         }
         /*
          * We don't want the thread to keep on serving all of the data

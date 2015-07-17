@@ -63,7 +63,7 @@ void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
         if (c->thread == me && c->bucket.idx == bucket_idx) {
             if (c->state == conn_read || c->state == conn_waiting) {
                 /* set write access to ensure it's handled */
-                if (!update_event(c, EV_READ | EV_WRITE | EV_PERSIST)) {
+                if (!c->updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
                     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                                     "Couldn't update event");
                 }
@@ -214,12 +214,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->state = init_state;
     c->write_and_go = init_state;
 
-    int event_flags = (EV_READ | EV_PERSIST);
-    event_set(&c->event, sfd, event_flags, event_handler, (void *)c);
-    event_base_set(base, &c->event);
-    c->ev_flags = event_flags;
-
-    if (!register_event(c, NULL)) {
+    if (!c->initializeEvent(base)) {
         cb_assert(c->thread == NULL);
         release_connection(c);
         return NULL;
@@ -720,9 +715,9 @@ static cJSON* get_connection_stats(const Connection *c) {
             cJSON_AddItemToObject(obj, "state", state);
         }
         json_add_bool_to_object(obj, "registered_in_libevent",
-                                c->registered_in_libevent);
-        json_add_uintptr_to_object(obj, "ev_flags", (uintptr_t)c->ev_flags);
-        json_add_uintptr_to_object(obj, "which", (uintptr_t)c->which);
+                                c->isRegisteredInLibevent());
+        json_add_uintptr_to_object(obj, "ev_flags", (uintptr_t)c->getEventFlags());
+        json_add_uintptr_to_object(obj, "which", (uintptr_t)c->getCurrentEvent());
         {
             cJSON *read = cJSON_CreateObject();
             json_add_uintptr_to_object(read, "buf", (uintptr_t)c->read.buf);

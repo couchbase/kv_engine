@@ -313,10 +313,20 @@ public:
     cbsasl_conn_t *sasl_conn;
     STATE_FUNC   state;
     enum bin_substates substate;
-    bool   registered_in_libevent;
+
+private:
+    // Members related to libevent
+
+    /** Is the connection currently registered in libevent? */
+    bool registered_in_libevent;
+    /** The libevent object */
     struct event event;
-    short  ev_flags;
-    short  which;   /** which events were just triggered */
+    /** The current flags we've registered in libevent */
+    short ev_flags;
+    /** which events were just triggered */
+    short currentEvent;
+
+public:
     struct net_buf read; /** Read buffer */
     struct net_buf write; /* Write buffer */
 
@@ -430,6 +440,69 @@ public:
     const std::string &getSockname() const {
         return sockname;
     }
+
+    /**
+     * Update the settings in libevent for this connection
+     *
+     * @param mask the new event mask to get notified about
+     */
+    bool updateEvent(const int new_flags);
+
+    /**
+     * Unregister the event structure from libevent
+     * @return true if success, false otherwise
+     */
+    bool unregisterEvent();
+    /**
+     * Register the event structure in libevent
+     * @return true if success, false otherwise
+     */
+    bool registerEvent();
+
+    bool isRegisteredInLibevent() const {
+        return registered_in_libevent;
+    }
+
+    short getEventFlags() const {
+        return ev_flags;
+    }
+
+    /**
+     * Initialize the event structure and add it to libevent
+     *
+     * @param base the event base to bind to
+     * @return true upon success, false otherwise
+     */
+    bool initializeEvent(struct event_base *base);
+
+    /**
+     * Terminate the eventloop for the current event base. This method doesn't
+     * really fit as a member for the class, but I don't want clients to access
+     * the libevent details from outside the class (so I didn't want to make
+     * a "getEventBase()" method.
+     */
+    void eventBaseLoopbreak() {
+        event_base_loopbreak(event.ev_base);
+    }
+
+    short getCurrentEvent() const {
+        return currentEvent;
+    }
+
+    void setCurrentEvent(short ev) {
+        currentEvent = ev;
+    }
+
+    /** Is the current event a readevent? */
+    bool isReadevent() const {
+        return currentEvent & EV_READ;
+    }
+
+    /** Is the current event a writeevent? */
+    bool isWriteevent() const {
+        return currentEvent & EV_READ;
+    }
+
 private:
     std::string peername; /* Name of the peer if known */
     std::string sockname; /* Name of the local socket if known */
@@ -459,9 +532,6 @@ extern Connection *listen_conn;
 /*
  * Functions to add / update the connection to libevent
  */
-bool register_event(Connection *c, struct timeval *timeout);
-bool unregister_event(Connection *c);
-bool update_event(Connection *c, const int new_flags);
 void associate_initial_bucket(Connection *c);
 
 /*

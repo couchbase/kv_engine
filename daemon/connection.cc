@@ -32,7 +32,7 @@ Connection::Connection()
       substate(bin_no_state),
       registered_in_libevent(false),
       ev_flags(0),
-      which(0),
+      currentEvent(0),
       write_and_go(nullptr),
       write_and_free(nullptr),
       ritem(nullptr),
@@ -183,6 +183,105 @@ void Connection::resolveConnectionName() {
     sockname = sockaddr_to_string(&sock, sock_len);
 
 }
+
+bool Connection::unregisterEvent() {
+    cb_assert(registered_in_libevent);
+    cb_assert(sfd != INVALID_SOCKET);
+
+    if (event_del(&event) == -1) {
+        log_system_error(EXTENSION_LOG_WARNING,
+                         NULL,
+                         "Failed to remove connection to libevent: %s");
+        return false;
+    }
+
+    registered_in_libevent = false;
+    return true;
+}
+
+bool Connection::registerEvent() {
+    cb_assert(!registered_in_libevent);
+    cb_assert(sfd != INVALID_SOCKET);
+
+    if (event_add(&event, NULL) == -1) {
+        log_system_error(EXTENSION_LOG_WARNING,
+                         NULL,
+                         "Failed to add connection to libevent: %s");
+        return false;
+    }
+
+    registered_in_libevent = true;
+
+    return true;
+}
+
+bool Connection::updateEvent(const int new_flags) {
+    struct event_base *base = event.ev_base;
+
+    if (ssl.isEnabled() && ssl.isConnected() && (new_flags & EV_READ)) {
+        /*
+         * If we want more data and we have SSL, that data might be inside
+         * SSL's internal buffers rather than inside the socket buffer. In
+         * that case signal an EV_READ event without actually polling the
+         * socket.
+         */
+        char dummy;
+        /* SSL_pending() will not work here despite the name */
+        int rv = ssl.peek(&dummy, 1);
+        if (rv > 0) {
+            /* signal a call to the handler */
+            event_active(&event, EV_READ, 0);
+            return true;
+        }
+    }
+
+    if (ev_flags == new_flags) {
+        // There is no change in the event flags!
+        return true;
+    }
+
+    if (settings.verbose > 1) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
+                                        "Updated event for %d to read=%s, write=%s\n",
+                                        sfd, (new_flags & EV_READ ? "yes" : "no"),
+                                        (new_flags & EV_WRITE ? "yes" : "no"));
+    }
+
+    if (!unregisterEvent()) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
+                                        "Failed to remove connection from "
+                                                "event notification library. Shutting "
+                                                "down connection [%s - %s]",
+                                        getPeername().c_str(), getSockname().c_str());
+        return false;
+    }
+
+    event_set(&event, sfd, new_flags, event_handler, reinterpret_cast<void*>(this));
+    event_base_set(base, &event);
+    ev_flags = new_flags;
+
+    if (!registerEvent()) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
+                                        "Failed to add connection to the "
+                                                "event notification library. Shutting "
+                                                "down connection [%s - %s]",
+                                        getPeername().c_str(), getSockname().c_str());
+        return false;
+    }
+
+    return true;
+}
+
+bool Connection::initializeEvent(struct event_base *base) {
+    int event_flags = (EV_READ | EV_PERSIST);
+    event_set(&event, sfd, event_flags, event_handler,
+              reinterpret_cast<void *>(this));
+    event_base_set(base, &event);
+    ev_flags = event_flags;
+
+    return registerEvent();
+}
+
 
 SslContext::~SslContext() {
     if (enabled) {

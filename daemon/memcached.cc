@@ -609,7 +609,7 @@ static void disable_listen(void) {
     cb_mutex_exit(&listen_state.mutex);
 
     for (next = listen_conn; next; next = next->next) {
-        update_event(next, 0);
+        next->updateEvent(0);
         if (listen(next->sfd, 1) != 0) {
             log_socket_error(EXTENSION_LOG_WARNING, NULL,
                              "listen() failed: %s");
@@ -743,7 +743,7 @@ void conn_set_state(Connection *c, STATE_FUNC state) {
          */
         if (c->tap_iterator != NULL || c->dcp) {
             if (state == conn_waiting) {
-                c->which = EV_WRITE;
+                c->setCurrentEvent(EV_WRITE);
                 state = conn_ship_log;
             }
         }
@@ -2058,7 +2058,7 @@ static void process_bin_tap_connect(Connection *c) {
         c->max_reqs_per_event = settings.reqs_per_event_high_priority;
         c->tap_iterator = iterator;
         c->max_reqs_per_event = settings.reqs_per_event_high_priority;
-        c->which = EV_WRITE;
+        c->setCurrentEvent(EV_WRITE);
         conn_set_state(c, conn_ship_log);
     }
 }
@@ -6063,96 +6063,6 @@ static TryReadResult try_read_network(Connection *c) {
     return gotdata;
 }
 
-bool register_event(Connection *c, struct timeval *timeout) {
-    cb_assert(!c->registered_in_libevent);
-    cb_assert(c->sfd != INVALID_SOCKET);
-
-    if (event_add(&c->event, timeout) == -1) {
-        log_system_error(EXTENSION_LOG_WARNING,
-                         NULL,
-                         "Failed to add connection to libevent: %s");
-        return false;
-    }
-
-    c->registered_in_libevent = true;
-
-    return true;
-}
-
-bool unregister_event(Connection *c) {
-    cb_assert(c->registered_in_libevent);
-    cb_assert(c->sfd != INVALID_SOCKET);
-
-    if (event_del(&c->event) == -1) {
-        log_system_error(EXTENSION_LOG_WARNING,
-                         NULL,
-                         "Failed to remove connection to libevent: %s");
-        return false;
-    }
-
-    c->registered_in_libevent = false;
-
-    return true;
-}
-
-bool update_event(Connection *c, const int new_flags) {
-    struct event_base *base;
-
-    cb_assert(c != NULL);
-    base = c->event.ev_base;
-
-    if (c->ssl.isEnabled() && c->ssl.isConnected() && (new_flags & EV_READ)) {
-        /*
-         * If we want more data and we have SSL, that data might be inside
-         * SSL's internal buffers rather than inside the socket buffer. In
-         * that case signal an EV_READ event without actually polling the
-         * socket.
-         */
-        char dummy;
-        /* SSL_pending() will not work here despite the name */
-        int rv = c->ssl.peek(&dummy, 1);
-        if (rv > 0) {
-            /* signal a call to the handler */
-            event_active(&c->event, EV_READ, 0);
-            return true;
-        }
-    }
-
-    if (c->ev_flags == new_flags) {
-        return true;
-    }
-
-    if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                        "Updated event for %d to read=%s, write=%s\n",
-                                        c->sfd, (new_flags & EV_READ ? "yes" : "no"),
-                                        (new_flags & EV_WRITE ? "yes" : "no"));
-    }
-
-    if (!unregister_event(c)) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "Failed to remove connection from "
-                                        "event notification library. Shutting "
-                                        "down connection [%s - %s]",
-                                        c->getPeername().c_str(), c->getSockname().c_str());
-        return false;
-    }
-
-    event_set(&c->event, c->sfd, new_flags, event_handler, (void *)c);
-    event_base_set(base, &c->event);
-    c->ev_flags = new_flags;
-
-    if (!register_event(c, NULL)) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "Failed to add connection to the "
-                                        "event notification library. Shutting "
-                                        "down connection [%s - %s]",
-                                        c->getPeername().c_str(), c->getSockname().c_str());
-        return false;
-    }
-    return true;
-}
-
 /*
  * Transmit the next chunk of data from our list of msgbuf structures.
  *
@@ -6198,7 +6108,7 @@ static TransmitResult transmit(Connection *c) {
         }
 
         if (res == -1 && is_blocking(error)) {
-            if (!update_event(c, EV_WRITE | EV_PERSIST)) {
+            if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {
                 conn_set_state(c, conn_closing);
                 return TransmitResult::HardError;
             }
@@ -6229,7 +6139,7 @@ static TransmitResult transmit(Connection *c) {
         if (c->ssl.isEnabled()) {
             c->ssl.drainBioSendPipe(c->sfd);
             if (c->ssl.morePendingOutput()) {
-                if (!update_event(c, EV_WRITE | EV_PERSIST)) {
+                if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {
                     conn_set_state(c, conn_closing);
                     return TransmitResult::HardError;
                 }
@@ -6326,7 +6236,7 @@ bool conn_ship_log(Connection *c) {
         return false;
     }
 
-    if (c->which & EV_READ || c->read.bytes > 0) {
+    if (c->isReadevent() || c->read.bytes > 0) {
         if (c->read.bytes > 0) {
             if (try_read_command(c) == 0) {
                 conn_set_state(c, conn_read);
@@ -6347,7 +6257,7 @@ bool conn_ship_log(Connection *c) {
         /* we'll only process a subset of messages in our input queue, */
         /* and it will slowly grow.. */
         c->nevents = c->max_reqs_per_event;
-    } else if (c->which & EV_WRITE) {
+    } else if (c->isWriteevent()) {
         --c->nevents;
         if (c->nevents >= 0) {
             c->ewouldblock = false;
@@ -6364,7 +6274,7 @@ bool conn_ship_log(Connection *c) {
         }
     }
 
-    if (!update_event(c, mask)) {
+    if (!c->updateEvent(mask)) {
         conn_set_state(c, conn_closing);
     }
 
@@ -6395,7 +6305,7 @@ bool conn_waiting(Connection *c) {
         return true;
     }
 
-    if (!update_event(c, EV_READ | EV_PERSIST)) {
+    if (!c->updateEvent(EV_READ | EV_PERSIST)) {
         conn_set_state(c, conn_closing);
         return true;
     }
@@ -6475,7 +6385,7 @@ bool conn_new_cmd(Connection *c) {
         block |= c->dcp || (c->tap_iterator != NULL);
 
         if (block) {
-            if (!update_event(c, EV_WRITE | EV_PERSIST)) {
+            if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {
                 conn_set_state(c, conn_closing);
                 return true;
             }
@@ -6493,7 +6403,7 @@ bool conn_nread(Connection *c) {
         bool block = c->ewouldblock = false;
         complete_nread(c);
         if (c->ewouldblock) {
-            unregister_event(c);
+            c->unregisterEvent();
             block = true;
         }
         return !block;
@@ -6531,7 +6441,7 @@ bool conn_nread(Connection *c) {
     }
 
     if (res == -1 && is_blocking(error)) {
-        if (!update_event(c, EV_READ | EV_PERSIST)) {
+        if (!c->updateEvent(EV_READ | EV_PERSIST)) {
             conn_set_state(c, conn_closing);
             return true;
         }
@@ -6651,7 +6561,7 @@ bool conn_immediate_close(Connection *c) {
 
 bool conn_closing(Connection *c) {
     /* We don't want any network notifications anymore.. */
-    unregister_event(c);
+    c->unregisterEvent();
     safe_close(c->sfd);
     c->sfd = INVALID_SOCKET;
 
@@ -6819,7 +6729,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     cb_assert(c != NULL);
 
     if (memcached_shutdown) {
-        event_base_loopbreak(c->event.ev_base);
+        c->eventBaseLoopbreak();
         return ;
     }
 
@@ -6835,7 +6745,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         c->thread->pending_io = list_remove(c->thread->pending_io, c);
     }
 
-    c->which = which;
+    c->setCurrentEvent(which);
 
     /* sanity */
     cb_assert(fd == c->sfd);
@@ -6870,7 +6780,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
             for (next = listen_conn; next; next = next->next) {
                 int backlog = 1024;
                 int ii;
-                update_event(next, EV_READ | EV_PERSIST);
+                next->updateEvent(EV_READ | EV_PERSIST);
                 for (ii = 0; ii < settings.num_interfaces; ++ii) {
                     if (next->parent_port == settings.interfaces[ii].port) {
                         backlog = settings.interfaces[ii].backlog;
