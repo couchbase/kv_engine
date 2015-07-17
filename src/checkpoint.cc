@@ -855,8 +855,14 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
     }
     uint64_t st = checkpointList.back()->getSnapshotStartSeqno();
     uint64_t en = checkpointList.back()->getSnapshotEndSeqno();
-    cb_assert(st <= static_cast<uint64_t>(lastBySeqno) &&
-              static_cast<uint64_t>(lastBySeqno) <= en);
+    if (!(st <= static_cast<uint64_t>(lastBySeqno) &&
+          static_cast<uint64_t>(lastBySeqno) <= en)) {
+        LOG(EXTENSION_LOG_WARNING, "lastBySeqno not in snapshot range "
+            "vb %d, vb state %d, snapshotstart %llu, lastBySeqno %llu, "
+            "snapshotend %llu genSeqno: %d", vb->getId(), vb->getState(),
+            st, lastBySeqno, en, genSeqno);
+        cb_assert(false);
+    }
 
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
     if (result == NEW_ITEM) {
