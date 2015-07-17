@@ -2242,21 +2242,33 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
         break;
 
     case OPERATION_APPEND:
-    case OPERATION_PREPEND:
+    case OPERATION_PREPEND: {
+        bool locked;
         do {
             if ((ret = get(cookie, &i, it->getKey().c_str(),
                            it->getNKey(), vbucket)) == ENGINE_SUCCESS) {
-                Item *old = reinterpret_cast<Item*>(i);
+                Item *old = reinterpret_cast<Item *>(i);
+                locked = old->getCas() == uint64_t(-1);
 
-                if (old->getCas() == (uint64_t) -1) {
-                    // item is locked against updates
-                    itemRelease(cookie, i);
-                    return ENGINE_TMPFAIL;
-                }
-
-                if (it->getCas() != 0 && old->getCas() != it->getCas()) {
-                    itemRelease(cookie, i);
-                    return ENGINE_KEY_EEXISTS;
+                if (it->getCas() == 0) {
+                    // not allowed on locked items
+                    if (locked) {
+                        itemRelease(cookie, i);
+                        return ENGINE_TMPFAIL;
+                    }
+                } else {
+                    if (locked) {
+                        // The value is locked in the cache, and it is the
+                        // "old" object we're trying to operate on. Just set
+                        // the old objects cas value to the "what the user
+                        // specified" and if it it was the right one it'll
+                        // automatically unlock the object, otherwise it'll
+                        // return KEY_EEXISTS
+                        old->setCas(it->getCas());
+                    } else if (old->getCas() != it->getCas()) {
+                        itemRelease(cookie, i);
+                        return ENGINE_KEY_EEXISTS;
+                    }
                 }
 
                 if (operation == OPERATION_APPEND) {
@@ -2292,13 +2304,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
                 it->setBySeqno(old->getBySeqno());
                 itemRelease(cookie, i);
             }
-        } while (ret == ENGINE_KEY_EEXISTS);
+        } while (ret == ENGINE_KEY_EEXISTS && !locked);
+
+        // We tried to append with the wrong cas for a locked item
+        if (locked && ret == ENGINE_KEY_EEXISTS) {
+            ret = ENGINE_TMPFAIL;
+        }
 
         // Map the error code back to what memcapable expects
         if (ret == ENGINE_KEY_ENOENT) {
             ret = ENGINE_NOT_STORED;
         }
-
+    }
         break;
 
     default:

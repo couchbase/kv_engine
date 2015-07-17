@@ -237,12 +237,28 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     getl(h, h1, key, vbucketId, expiration);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Aquire lock should have succeeded");
-
+    auto locked_cas = last_cas;
     /* append should fail */
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
                        binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
           == ENGINE_TMPFAIL,
           "Append should fail.");
+    h1->release(h, NULL, i);
+
+    // append should fail if we used invalid cas!
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
+                       binaryData2, sizeof(binaryData2) - 1, 82758, &i,
+                       locked_cas-1, 0)
+          == ENGINE_TMPFAIL,
+          "Append should fail for locked key with invalid cas.");
+    h1->release(h, NULL, i);
+
+    // append should succeed if we used correct cas!
+    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
+                       binaryData2, sizeof(binaryData2) - 1, 82758, &i,
+                       locked_cas, 0)
+          == ENGINE_SUCCESS,
+          "Append should Succeed for locked key with correct cas.");
     h1->release(h, NULL, i);
 
     /* bug MB 3252 & MB 3354.
