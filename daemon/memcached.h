@@ -304,7 +304,6 @@ public:
     Connection * all_prev;
 
     SOCKET sfd;
-    Protocol protocol; /* The protocol used by the connection */
     int max_reqs_per_event; /** The maximum requests we can process in a worker
                                 thread timeslice */
     int nevents; /** number of events this connection can process in a single
@@ -315,6 +314,9 @@ public:
     enum bin_substates substate;
 
 private:
+    /* The protocol used by the connection */
+    Protocol protocol;
+
     /** Is the connection set up with admin privileges */
     bool admin;
 
@@ -513,6 +515,15 @@ public:
 
     void setAdmin(bool admin) {
         Connection::admin = admin;
+    }
+
+
+    const Protocol &getProtocol() const {
+        return protocol;
+    }
+
+    void setProtocol(const Protocol &protocol) {
+        Connection::protocol = protocol;
     }
 
 private:

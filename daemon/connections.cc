@@ -182,7 +182,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
 
         for (int ii = 0; ii < settings.num_interfaces; ++ii) {
             if (parent_port == settings.interfaces[ii].port) {
-                c->protocol = settings.interfaces[ii].protocol;
+                c->setProtocol(settings.interfaces[ii].protocol);
                 c->nodelay = settings.interfaces[ii].tcp_nodelay;
                 if (settings.interfaces[ii].ssl.cert != NULL) {
                     if (!c->ssl.enable(settings.interfaces[ii].ssl.cert,
@@ -676,6 +676,16 @@ static void json_add_bool_to_object(cJSON *obj, const char *name, bool value) {
     }
 }
 
+const char *to_string(const Protocol &protocol) {
+    if (protocol == Protocol::Memcached) {
+        return "memcached";
+    } else if (protocol == Protocol::Greenstack) {
+        return "greenstack";
+    } else {
+        return "unknown";
+    }
+}
+
 /* Returns a JSON object with stat for the given connection.
  * Caller is responsible for freeing the result with cJSON_Delete().
  */
@@ -686,16 +696,7 @@ static cJSON* get_connection_stats(const Connection *c) {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
     } else {
         cJSON_AddNumberToObject(obj, "socket", (double)c->sfd);
-        switch (c->protocol) {
-        case Protocol::Memcached:
-            cJSON_AddStringToObject(obj, "protocol", "memcached");
-            break;
-         case Protocol::Greenstack:
-            cJSON_AddStringToObject(obj, "protocol", "greenstack");
-            break;
-        default:
-            cJSON_AddStringToObject(obj, "protocol", "unknown");
-        }
+        cJSON_AddStringToObject(obj, "protocol", to_string(c->getProtocol()));
         cJSON_AddStringToObject(obj, "peername", c->getPeername().c_str());
         cJSON_AddStringToObject(obj, "sockname", c->getSockname().c_str());
         cJSON_AddNumberToObject(obj, "max_reqs_per_event",
