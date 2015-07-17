@@ -4327,7 +4327,7 @@ static void stat_executor(Connection *c, void *packet)
         } else if (strncmp(subcommand, "settings", 8) == 0) {
             process_stat_settings(&append_stats, c);
         } else if (nkey == 5 && strncmp(subcommand, "audit", 5) == 0) {
-            if (c->admin) {
+            if (c->isAdmin()) {
                 process_auditd_stats(&append_stats, c);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
@@ -5154,7 +5154,7 @@ static void process_bin_packet(Connection *c) {
 
 static CB_INLINE bool is_initialized(Connection *c, uint8_t opcode)
 {
-    if (c->admin || is_server_initialized()) {
+    if (c->isAdmin() || is_server_initialized()) {
         return true;
     }
 
@@ -7210,7 +7210,8 @@ static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
 
 static void cookie_set_admin(const void *cookie) {
     cb_assert(cookie);
-    ((Connection *)cookie)->admin = true;
+    auto conn = const_cast<void*>(cookie);
+    reinterpret_cast<Connection *>(conn)->setAdmin(true);
 }
 
 static bool cookie_is_admin(const void *cookie) {
@@ -7218,7 +7219,7 @@ static bool cookie_is_admin(const void *cookie) {
         return true;
     }
     cb_assert(cookie);
-    return ((Connection *)cookie)->admin;
+    return reinterpret_cast<const Connection *>(cookie)->isAdmin();
 }
 
 static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {

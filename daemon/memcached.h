@@ -309,12 +309,15 @@ public:
                                 thread timeslice */
     int nevents; /** number of events this connection can process in a single
                      worker thread timeslice */
-    bool admin;
+
     cbsasl_conn_t *sasl_conn;
     STATE_FUNC   state;
     enum bin_substates substate;
 
 private:
+    /** Is the connection set up with admin privileges */
+    bool admin;
+
     // Members related to libevent
 
     /** Is the connection currently registered in libevent? */
@@ -501,6 +504,15 @@ public:
     /** Is the current event a writeevent? */
     bool isWriteevent() const {
         return currentEvent & EV_READ;
+    }
+
+    /** Is the connection authorized with admin privileges? */
+    bool isAdmin() const {
+        return admin;
+    }
+
+    void setAdmin(bool admin) {
+        Connection::admin = admin;
     }
 
 private:

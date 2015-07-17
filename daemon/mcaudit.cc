@@ -116,7 +116,7 @@ void audit_auth_failure(const Connection *c, const char *reason)
 
 void audit_dcp_open(const Connection *c)
 {
-    if (c->admin) {
+    if (c->isAdmin()) {
         settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
                                         "Open DCP stream with admin credentials");
     } else {

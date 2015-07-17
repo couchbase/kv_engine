@@ -255,7 +255,7 @@ void conn_cleanup_engine_allocations(Connection * c) {
 
 static void conn_cleanup(Connection *c) {
     cb_assert(c != NULL);
-    c->admin = false;
+    c->setAdmin(false);
 
     for (auto *ptr : c->temp_alloc) {
         free(ptr);
@@ -701,7 +701,7 @@ static cJSON* get_connection_stats(const Connection *c) {
         cJSON_AddNumberToObject(obj, "max_reqs_per_event",
                                 c->max_reqs_per_event);
         cJSON_AddNumberToObject(obj, "nevents", c->nevents);
-        json_add_bool_to_object(obj, "admin", c->admin);
+        json_add_bool_to_object(obj, "admin", c->isAdmin());
         if (c->sasl_conn != NULL) {
             json_add_uintptr_to_object(obj, "sasl_conn",
                                        (uintptr_t)c->sasl_conn);
