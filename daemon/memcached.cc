@@ -6302,8 +6302,7 @@ bool conn_listening(Connection *c)
         return false;
     }
 
-    dispatch_conn_new(sfd, c->parent_port, conn_new_cmd, EV_READ | EV_PERSIST,
-                      DATA_BUFFER_SIZE);
+    dispatch_conn_new(sfd, c->parent_port, conn_new_cmd, EV_READ | EV_PERSIST);
 
     return false;
 }
@@ -7114,7 +7113,7 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
         }
 
         if (!(listen_conn_add = conn_new(sfd, interf->port, conn_listening,
-                                         EV_READ | EV_PERSIST, 1,
+                                         EV_READ | EV_PERSIST,
                                          main_base))) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "failed to create listening connection\n");
