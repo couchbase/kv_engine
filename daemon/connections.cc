@@ -166,7 +166,7 @@ void run_event_loop(Connection * c) {
 }
 
 Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
-               STATE_FUNC init_state, int event_flags,
+               STATE_FUNC init_state,
                struct event_base *base) {
     Connection *c = allocate_connection();
     if (c == NULL) {
@@ -214,6 +214,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->state = init_state;
     c->write_and_go = init_state;
 
+    int event_flags = (EV_READ | EV_PERSIST);
     event_set(&c->event, sfd, event_flags, event_handler, (void *)c);
     event_base_set(base, &c->event);
     c->ev_flags = event_flags;

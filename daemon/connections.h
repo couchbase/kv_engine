@@ -46,8 +46,7 @@ void run_event_loop(Connection * c);
  * successful, else NULL.
  */
 Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
-               STATE_FUNC init_state, int event_flags,
-               struct event_base *base);
+               STATE_FUNC init_state, struct event_base *base);
 
 /*
  * Closes a connection. Afterwards the connection is invalid (can no longer

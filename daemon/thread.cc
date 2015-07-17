@@ -28,7 +28,6 @@ struct conn_queue_item {
     SOCKET            sfd;
     int               parent_port;
     STATE_FUNC        init_state;
-    int               event_flags;
     CQ_ITEM          *next;
 };
 
@@ -303,8 +302,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
 
     while ((item = cq_pop(me->new_conn_queue)) != NULL) {
         Connection *c = conn_new(item->sfd, item->parent_port, item->init_state,
-                           item->event_flags,
-                           me->base);
+                                 me->base);
         if (c == NULL) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "Can't listen for events on fd %d",
@@ -441,7 +439,7 @@ static int last_thread = -1;
  * from the main thread, or because of an incoming connection.
  */
 void dispatch_conn_new(SOCKET sfd, int parent_port,
-                       STATE_FUNC init_state, int event_flags) {
+                       STATE_FUNC init_state) {
     CQ_ITEM *item = cqi_new();
     int tid = (last_thread + 1) % settings.num_threads;
 
@@ -452,7 +450,6 @@ void dispatch_conn_new(SOCKET sfd, int parent_port,
     item->sfd = sfd;
     item->parent_port = parent_port;
     item->init_state = init_state;
-    item->event_flags = event_flags;
 
     cq_push(thread->new_conn_queue, item);
 
