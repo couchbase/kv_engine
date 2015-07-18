@@ -93,7 +93,7 @@ struct settings {
     bool rbac_privilege_debug; /* see manpage */
     bool require_sasl;      /* require SASL auth */
     std::atomic<int> verbose;            /* level of versosity to log at. */
-    int bio_drain_buffer_sz; /* size of the SSL bio buffers */
+    unsigned int bio_drain_buffer_sz; /* size of the SSL bio buffers */
     bool datatype;          /* is datatype support enabled? */
     const char *root; /* The root directory of the installation */
 
