@@ -451,7 +451,7 @@ public:
      *
      * @param mask the new event mask to get notified about
      */
-    bool updateEvent(const int new_flags);
+    bool updateEvent(const short new_flags);
 
     /**
      * Unregister the event structure from libevent

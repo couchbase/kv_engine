@@ -227,8 +227,8 @@ bool Connection::registerEvent() {
     return true;
 }
 
-bool Connection::updateEvent(const int new_flags) {
-    struct event_base *base = event.ev_base;
+bool Connection::updateEvent(const short new_flags) {
+    struct event_base* base = event.ev_base;
 
     if (ssl.isEnabled() && ssl.isConnected() && (new_flags & EV_READ)) {
         /*
@@ -255,39 +255,43 @@ bool Connection::updateEvent(const int new_flags) {
     if (settings.verbose > 1) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
                                         "Updated event for %d to read=%s, write=%s\n",
-                                        sfd, (new_flags & EV_READ ? "yes" : "no"),
+                                        sfd,
+                                        (new_flags & EV_READ ? "yes" : "no"),
                                         (new_flags & EV_WRITE ? "yes" : "no"));
     }
 
     if (!unregisterEvent()) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
                                         "Failed to remove connection from "
-                                                "event notification library. Shutting "
-                                                "down connection [%s - %s]",
-                                        getPeername().c_str(), getSockname().c_str());
+                                            "event notification library. Shutting "
+                                            "down connection [%s - %s]",
+                                        getPeername().c_str(),
+                                        getSockname().c_str());
         return false;
     }
 
-    event_set(&event, sfd, new_flags, event_handler, reinterpret_cast<void*>(this));
+    event_set(&event, sfd, new_flags, event_handler,
+              reinterpret_cast<void*>(this));
     event_base_set(base, &event);
     ev_flags = new_flags;
 
     if (!registerEvent()) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
                                         "Failed to add connection to the "
-                                                "event notification library. Shutting "
-                                                "down connection [%s - %s]",
-                                        getPeername().c_str(), getSockname().c_str());
+                                            "event notification library. Shutting "
+                                            "down connection [%s - %s]",
+                                        getPeername().c_str(),
+                                        getSockname().c_str());
         return false;
     }
 
     return true;
 }
 
-bool Connection::initializeEvent(struct event_base *base) {
-    int event_flags = (EV_READ | EV_PERSIST);
+bool Connection::initializeEvent(struct event_base* base) {
+    short event_flags = (EV_READ | EV_PERSIST);
     event_set(&event, sfd, event_flags, event_handler,
-              reinterpret_cast<void *>(this));
+              reinterpret_cast<void*>(this));
     event_base_set(base, &event);
     ev_flags = event_flags;
 
