@@ -18,6 +18,7 @@
 #include "memcached.h"
 #include "runtime.h"
 #include <exception>
+#include <utilities/protocol2text.h>
 
 Connection::Connection()
     : all_next(nullptr),
@@ -340,6 +341,198 @@ bool Connection::initializeEvent(struct event_base* base) {
     return registerEvent();
 }
 
+static const char *substate_text(enum bin_substates state) {
+    switch (state) {
+    case bin_no_state: return "bin_no_state";
+    case bin_reading_packet: return "bin_reading_packet";
+    default:
+        return "illegal";
+    }
+}
+
+/* cJSON uses double for all numbers, so only has 53 bits of precision.
+ * Therefore encode 64bit integers as string.
+ */
+static cJSON* json_create_uintptr(uintptr_t value) {
+    char buffer[32];
+    if (snprintf(buffer, sizeof(buffer),
+                 "0x%" PRIxPTR, value) >= int(sizeof(buffer))) {
+        return cJSON_CreateString("<too long>");
+    } else {
+        return cJSON_CreateString(buffer);
+    }
+}
+
+static void json_add_uintptr_to_object(cJSON* obj, const char* name,
+                                       uintptr_t value) {
+    cJSON_AddItemToObject(obj, name, json_create_uintptr(value));
+}
+
+static void json_add_bool_to_object(cJSON* obj, const char* name, bool value) {
+    if (value) {
+        cJSON_AddTrueToObject(obj, name);
+    } else {
+        cJSON_AddFalseToObject(obj, name);
+    }
+}
+
+const char* to_string(const Protocol& protocol) {
+    if (protocol == Protocol::Memcached) {
+        return "memcached";
+    } else if (protocol == Protocol::Greenstack) {
+        return "greenstack";
+    } else {
+        return "unknown";
+    }
+}
+
+cJSON* Connection::toJSON() const {
+    cJSON* obj = cJSON_CreateObject();
+    json_add_uintptr_to_object(obj, "connection", (uintptr_t) this);
+    if (sfd == INVALID_SOCKET) {
+        cJSON_AddStringToObject(obj, "socket", "disconnected");
+    } else {
+        cJSON_AddNumberToObject(obj, "socket", (double) sfd);
+        cJSON_AddStringToObject(obj, "protocol", to_string(getProtocol()));
+        cJSON_AddStringToObject(obj, "peername", getPeername().c_str());
+        cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
+        cJSON_AddNumberToObject(obj, "max_reqs_per_event",
+                                max_reqs_per_event);
+        cJSON_AddNumberToObject(obj, "nevents", nevents);
+        json_add_bool_to_object(obj, "admin", isAdmin());
+        if (sasl_conn != NULL) {
+            json_add_uintptr_to_object(obj, "sasl_conn",
+                                       (uintptr_t) sasl_conn);
+        }
+        {
+            cJSON* state = cJSON_CreateArray();
+            cJSON_AddItemToArray(state,
+                                 cJSON_CreateString(state_text(getState())));
+            cJSON_AddItemToArray(state,
+                                 cJSON_CreateString(substate_text(substate)));
+            cJSON_AddItemToObject(obj, "state", state);
+        }
+        json_add_bool_to_object(obj, "registered_in_libevent",
+                                isRegisteredInLibevent());
+        json_add_uintptr_to_object(obj, "ev_flags",
+                                   (uintptr_t) getEventFlags());
+        json_add_uintptr_to_object(obj, "which", (uintptr_t) getCurrentEvent());
+        {
+            cJSON* readobj = cJSON_CreateObject();
+            json_add_uintptr_to_object(readobj, "buf", (uintptr_t) read.buf);
+            json_add_uintptr_to_object(readobj, "curr", (uintptr_t) read.curr);
+            cJSON_AddNumberToObject(readobj, "size", read.size);
+            cJSON_AddNumberToObject(readobj, "bytes", read.bytes);
+
+            cJSON_AddItemToObject(obj, "read", readobj);
+        }
+        {
+            cJSON* writeobj = cJSON_CreateObject();
+            json_add_uintptr_to_object(writeobj, "buf", (uintptr_t) write.buf);
+            json_add_uintptr_to_object(writeobj, "curr",
+                                       (uintptr_t) write.curr);
+            cJSON_AddNumberToObject(writeobj, "size", write.size);
+            cJSON_AddNumberToObject(writeobj, "bytes", write.bytes);
+
+            cJSON_AddItemToObject(obj, "write", writeobj);
+        }
+        json_add_uintptr_to_object(obj, "write_and_go",
+                                   (uintptr_t) write_and_go);
+        json_add_uintptr_to_object(obj, "write_and_free",
+                                   (uintptr_t) write_and_free);
+        json_add_uintptr_to_object(obj, "ritem", (uintptr_t) ritem);
+        cJSON_AddNumberToObject(obj, "rlbytes", rlbytes);
+        json_add_uintptr_to_object(obj, "item", (uintptr_t) item);
+        {
+            cJSON* iov = cJSON_CreateObject();
+            json_add_uintptr_to_object(iov, "ptr", (uintptr_t) iov);
+            cJSON_AddNumberToObject(iov, "size", iovsize);
+            cJSON_AddNumberToObject(iov, "used", iovused);
+
+            cJSON_AddItemToObject(obj, "iov", iov);
+        }
+        {
+            cJSON* msg = cJSON_CreateObject();
+            json_add_uintptr_to_object(msg, "list", (uintptr_t) msglist);
+            cJSON_AddNumberToObject(msg, "size", msgsize);
+            cJSON_AddNumberToObject(msg, "used", msgused);
+            cJSON_AddNumberToObject(msg, "curr", msgcurr);
+            cJSON_AddNumberToObject(msg, "bytes", msgbytes);
+
+            cJSON_AddItemToObject(obj, "msglist", msg);
+        }
+        {
+            cJSON* ilist = cJSON_CreateObject();
+            cJSON_AddNumberToObject(ilist, "size", reservedItems.size());
+            cJSON_AddItemToObject(obj, "itemlist", ilist);
+        }
+        {
+            cJSON* talloc = cJSON_CreateObject();
+            cJSON_AddNumberToObject(talloc, "size", temp_alloc.size());
+            cJSON_AddItemToObject(obj, "temp_alloc_list", talloc);
+        }
+        json_add_bool_to_object(obj, "noreply", noreply);
+        json_add_bool_to_object(obj, "nodelay", nodelay);
+        cJSON_AddNumberToObject(obj, "refcount", refcount);
+        {
+            cJSON* features = cJSON_CreateObject();
+            json_add_bool_to_object(features, "datatype",
+                                    supports_datatype);
+            json_add_bool_to_object(features, "mutation_extras",
+                                    supports_mutation_extras);
+
+            cJSON_AddItemToObject(obj, "features", features);
+        }
+        {
+            cJSON* dy_buf = cJSON_CreateObject();
+            json_add_uintptr_to_object(dy_buf, "buffer",
+                                       (uintptr_t) dynamic_buffer.buffer);
+            cJSON_AddNumberToObject(dy_buf, "size",
+                                    (double) dynamic_buffer.size);
+            cJSON_AddNumberToObject(dy_buf, "offset",
+                                    (double) dynamic_buffer.offset);
+
+            cJSON_AddItemToObject(obj, "dynamic_buffer", dy_buf);
+        }
+        json_add_uintptr_to_object(obj, "engine_storage",
+                                   (uintptr_t) engine_storage);
+        /* @todo we should decode the binary header */
+        json_add_uintptr_to_object(obj, "cas", cas);
+        {
+            cJSON* cmdarr = cJSON_CreateArray();
+            cJSON_AddItemToArray(cmdarr, json_create_uintptr(cmd));
+            const char* cmd_name = memcached_opcode_2_text(cmd);
+            if (cmd_name == NULL) {
+                cmd_name = "";
+            }
+            cJSON_AddItemToArray(cmdarr, cJSON_CreateString(cmd_name));
+
+            cJSON_AddItemToObject(obj, "cmd", cmdarr);
+        }
+        json_add_uintptr_to_object(obj, "opaque", opaque);
+        cJSON_AddNumberToObject(obj, "keylen", keylen);
+        cJSON_AddNumberToObject(obj, "list_state", list_state);
+        json_add_uintptr_to_object(obj, "next", (uintptr_t) next);
+        json_add_uintptr_to_object(obj, "thread", (uintptr_t) thread);
+        cJSON_AddNumberToObject(obj, "aiostat", aiostat);
+        json_add_bool_to_object(obj, "ewouldblock", ewouldblock);
+        json_add_uintptr_to_object(obj, "tap_iterator",
+                                   (uintptr_t) tap_iterator);
+        cJSON_AddNumberToObject(obj, "parent_port", parent_port);
+        json_add_bool_to_object(obj, "dcp", dcp);
+
+        {
+            cJSON* sslobj = cJSON_CreateObject();
+            json_add_bool_to_object(sslobj, "enabled", ssl.isEnabled());
+            if (ssl.isEnabled()) {
+                json_add_bool_to_object(sslobj, "connected", ssl.isConnected());
+            }
+
+            cJSON_AddItemToObject(obj, "ssl", sslobj);
+        }
+    }
+    return obj;
+}
 
 SslContext::~SslContext() {
     if (enabled) {

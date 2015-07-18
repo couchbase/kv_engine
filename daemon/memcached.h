@@ -547,6 +547,12 @@ public:
         Connection::protocol = protocol;
     }
 
+    /**
+     * Create a cJSON representation of the members of the connection
+     * Caller is responsible for freeing the result with cJSON_Delete().
+     */
+    cJSON *toJSON() const;
+
 private:
     std::string peername; /* Name of the peer if known */
     std::string sockname; /* Name of the local socket if known */
