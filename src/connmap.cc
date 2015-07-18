@@ -1195,6 +1195,7 @@ void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
                          static_cast<double>(numBackfillsMemThreshold)/100;
     size_t max = maxDataSize * numBackfillsMemThresholdPercent / dbFileMem;
     /* We must have atleast one active/snoozing backfill */
+    SpinLockHolder lh(&numBackfillsLock);
     maxActiveSnoozingBackfills =
         std::max(static_cast<size_t>(1),
                  std::min(max, static_cast<size_t>(numBackfillsThreshold)));
