@@ -211,7 +211,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
 
     c->sfd = sfd;
     c->parent_port = parent_port;
-    c->state = init_state;
+    c->setState(init_state);
     c->write_and_go = init_state;
 
     if (!c->initializeEvent(base)) {
@@ -311,7 +311,7 @@ void conn_close(Connection *c) {
     conn_cleanup(c);
 
     cb_assert(c->thread == NULL);
-    c->state = conn_destroyed;
+    c->setState(conn_destroyed);
 }
 
 void conn_shrink(Connection *c) {
@@ -606,7 +606,7 @@ static BufferLoan conn_loan_single_buffer(Connection *c, struct net_buf *thread_
                     "%d: Failed to allocate new read buffer.. closing connection\n",
                     c->sfd);
             }
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return BufferLoan::Existing;
         }
         conn_buf->size = DATA_BUFFER_SIZE;

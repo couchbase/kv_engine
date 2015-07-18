@@ -433,6 +433,14 @@ public:
     } bucket;
 
     /**
+     * Set the connection state in the state machine. Any special
+     * processing that needs to happen on certain state transitions can
+     * happen here.
+     */
+    void setState(STATE_FUNC next_state);
+
+
+    /**
      * Resolve the name of the local socket and the peer for the connected
      * socket
      */
@@ -580,7 +588,6 @@ void STATS_UNLOCK(void);
 void threadlocal_stats_reset(struct thread_stats *thread_stats);
 
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status);
-void conn_set_state(Connection *c, STATE_FUNC state);
 const char *state_text(STATE_FUNC state);
 void safe_close(SOCKET sfd);
 
@@ -621,6 +628,7 @@ bool conn_create_bucket(Connection *c);
 bool conn_delete_bucket(Connection *c);
 
 void event_handler(evutil_socket_t fd, short which, void *arg);
+void collect_timings(const Connection *c);
 
 void log_socket_error(EXTENSION_LOG_LEVEL severity,
                       const void* client_cookie,

@@ -137,6 +137,41 @@ void Connection::resetBufferSize() {
     }
 }
 
+void Connection::setState(STATE_FUNC next_state) {
+    if (next_state != state) {
+        /*
+         * The connections in the "tap thread" behaves differently than
+         * normal connections because they operate in a full duplex mode.
+         * New messages may appear from both sides, so we can't block on
+         * read from the nework / engine
+         */
+        if (tap_iterator != NULL || dcp) {
+            if (state == conn_waiting) {
+                setCurrentEvent(EV_WRITE);
+                state = conn_ship_log;
+            }
+        }
+
+        if (settings.verbose > 2 || state == conn_closing
+            || state == conn_setup_tap_stream) {
+            settings.extensions.logger->log(EXTENSION_LOG_DETAIL, this,
+                                            "%d: going from %s to %s\n",
+                                            sfd, state_text(state),
+                                            state_text(next_state));
+        }
+
+        if (next_state == conn_write || next_state == conn_mwrite) {
+            if (start != 0) {
+                collect_timings(this);
+                start = 0;
+            }
+            MEMCACHED_PROCESS_COMMAND_END(sfd, write.buf, write.bytes);
+        }
+
+        state = next_state;
+    }
+}
+
 /**
  * Convert a sockaddr_storage to a textual string (no name lookup).
  *

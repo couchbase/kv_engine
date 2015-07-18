@@ -612,7 +612,7 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
             return false;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return false;
 
         default:
@@ -774,7 +774,7 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
             return ret;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return ret;
 
         default:
@@ -825,7 +825,7 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
         break;
 
     case ENGINE_DISCONNECT:
-        c->state = conn_closing;
+        c->setState(conn_closing);
         break;
 
     default:
@@ -856,7 +856,7 @@ void subdoc_response(Connection * c) {
 
     if (add_bin_header(c, 0, /*extlen*/0, /*keylen*/0, vallen,
                        PROTOCOL_BINARY_RAW_BYTES) == -1) {
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         return;
     }
     rsp->message.header.response.cas = htonll(c->cas);
@@ -864,7 +864,7 @@ void subdoc_response(Connection * c) {
     if (cmd_traits<Cmd2Type<CMD>>::response_has_value) {
         add_iov(c, value, vallen);
     }
-    conn_set_state(c, conn_mwrite);
+    c->setState(conn_mwrite);
 }
 
 void subdoc_get_executor(Connection *c, void* packet) {

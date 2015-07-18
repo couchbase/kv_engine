@@ -727,48 +727,6 @@ void collect_timings(const Connection *c) {
 }
 
 /*
- * Sets a connection's current state in the state machine. Any special
- * processing that needs to happen on certain state transitions can
- * happen here.
- */
-void conn_set_state(Connection *c, STATE_FUNC state) {
-    cb_assert(c != NULL);
-
-    if (state != c->state) {
-        /*
-         * The connections in the "tap thread" behaves differently than
-         * normal connections because they operate in a full duplex mode.
-         * New messages may appear from both sides, so we can't block on
-         * read from the nework / engine
-         */
-        if (c->tap_iterator != NULL || c->dcp) {
-            if (state == conn_waiting) {
-                c->setCurrentEvent(EV_WRITE);
-                state = conn_ship_log;
-            }
-        }
-
-        if (settings.verbose > 2 || c->state == conn_closing
-            || c->state == conn_setup_tap_stream) {
-            settings.extensions.logger->log(EXTENSION_LOG_DETAIL, c,
-                                            "%d: going from %s to %s\n",
-                                            c->sfd, state_text(c->state),
-                                            state_text(state));
-        }
-
-        if (state == conn_write || state == conn_mwrite) {
-            if (c->start != 0) {
-                collect_timings(c);
-                c->start = 0;
-            }
-            MEMCACHED_PROCESS_COMMAND_END(c->sfd, c->write.buf, c->write.bytes);
-        }
-
-        c->state = state;
-    }
-}
-
-/*
  * Ensures that there is room for another struct iovec in a connection's
  * iov list.
  *
@@ -1039,7 +997,7 @@ void write_bin_packet(Connection *c, protocol_binary_response_status err) {
         if (ret == ENGINE_SUCCESS) {
             write_and_free(c, &c->dynamic_buffer);
         } else {
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
         }
     } else {
         ssize_t len = 0;
@@ -1068,7 +1026,7 @@ void write_bin_packet(Connection *c, protocol_binary_response_status err) {
         if (errtext) {
             add_iov(c, errtext, len);
         }
-        conn_set_state(c, conn_mwrite);
+        c->setState(conn_mwrite);
         c->write_and_go = conn_new_cmd;
     }
 }
@@ -1083,18 +1041,18 @@ static void write_bin_response(Connection *c, const void *d, int extlen, int key
     if (!c->noreply || c->cmd == PROTOCOL_BINARY_CMD_GET ||
         c->cmd == PROTOCOL_BINARY_CMD_GETK) {
         if (add_bin_header(c, 0, extlen, keylen, dlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return;
         }
         add_iov(c, d, dlen);
-        conn_set_state(c, conn_mwrite);
+        c->setState(conn_mwrite);
         c->write_and_go = conn_new_cmd;
     } else {
         if (c->start != 0) {
             collect_timings(c);
             c->start = 0;
         }
-        conn_set_state(c, conn_new_cmd);
+        c->setState(conn_new_cmd);
     }
 }
 
@@ -1192,7 +1150,7 @@ static void process_bin_get(Connection *c) {
         } else {
             if (add_bin_header(c, 0, sizeof(rsp->message.body),
                                keylen, bodylen, datatype) == -1) {
-                conn_set_state(c, conn_closing);
+                c->setState(conn_closing);
                 return;
             }
             rsp->message.header.response.cas = htonll(info.info.cas);
@@ -1210,7 +1168,7 @@ static void process_bin_get(Connection *c) {
                 add_iov(c, info.info.value[ii].iov_base,
                         info.info.value[ii].iov_len);
             }
-            conn_set_state(c, conn_mwrite);
+            c->setState(conn_mwrite);
             /* Remember this item so we can garbage collect it later */
             c->item = it;
         }
@@ -1222,7 +1180,7 @@ static void process_bin_get(Connection *c) {
         MEMCACHED_COMMAND_GET(c->sfd, key, nkey, -1, 0);
 
         if (c->noreply) {
-            conn_set_state(c, conn_new_cmd);
+            c->setState(conn_new_cmd);
         } else {
             if ((c->cmd == PROTOCOL_BINARY_CMD_GETK) ||
                 (c->cmd == PROTOCOL_BINARY_CMD_GETKQ)) {
@@ -1230,12 +1188,12 @@ static void process_bin_get(Connection *c) {
                 if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
                                    0, (uint16_t)nkey,
                                    (uint32_t)nkey, PROTOCOL_BINARY_RAW_BYTES) == -1) {
-                    conn_set_state(c, conn_closing);
+                    c->setState(conn_closing);
                     return;
                 }
                 memcpy(ofs, key, nkey);
                 add_iov(c, ofs, nkey);
-                conn_set_state(c, conn_mwrite);
+                c->setState(conn_mwrite);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
             }
@@ -1245,7 +1203,7 @@ static void process_bin_get(Connection *c) {
         c->ewouldblock = true;
         break;
     case ENGINE_DISCONNECT:
-        c->state = conn_closing;
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -1333,7 +1291,7 @@ static void bin_read_chunk(Connection *c,
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                             "%d: Failed to grow buffer.. closing connection",
                             c->sfd);
-                conn_set_state(c, conn_closing);
+                c->setState(conn_closing);
                 return;
             }
 
@@ -1355,7 +1313,7 @@ static void bin_read_chunk(Connection *c,
 
     /* preserve the header in the buffer.. */
     c->ritem = c->read.curr + sizeof(protocol_binary_request_header);
-    conn_set_state(c, conn_nread);
+    c->setState(conn_nread);
 }
 
 /* Just write an error message and disconnect the client */
@@ -1539,7 +1497,7 @@ static void ship_tap_log(Connection *c) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Failed to create output headers. Shutting down tap connection\n", c->sfd);
         }
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         return ;
     }
     /* @todo add check for buffer overflow of c->write.buf) */
@@ -1707,7 +1665,7 @@ static void ship_tap_log(Connection *c) {
                                                         "%d: FATAL: failed to allocate buffer of size %" PRIu64
                                                         " to inflate object into. "
                                                         "Shutting down connection", c->sfd, inflated_length);
-                        conn_set_state(c, conn_closing);
+                        c->setState(conn_closing);
                         return;
                     }
                     const char *body = reinterpret_cast<const char*>(info.info.value[0].iov_base);
@@ -1721,7 +1679,7 @@ static void ship_tap_log(Connection *c) {
                             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                             "%d: FATAL: failed to allocate space to keep temporary buffer",
                                                             c->sfd);
-                            conn_set_state(c, conn_closing);
+                            c->setState(conn_closing);
                             return;
                         }
                         add_iov(c, buf, inflated_length);
@@ -1729,7 +1687,7 @@ static void ship_tap_log(Connection *c) {
                         free(buf);
                         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                         "%d: FATAL: failed to inflate object. shutting down connection", c->sfd);
-                        conn_set_state(c, conn_closing);
+                        c->setState(conn_closing);
                         return;
                     }
                 } else {
@@ -1834,7 +1792,7 @@ static void ship_tap_log(Connection *c) {
 
     c->ewouldblock = false;
     if (send_data) {
-        conn_set_state(c, conn_mwrite);
+        c->setState(conn_mwrite);
         if (disconnect) {
             c->write_and_go = conn_closing;
         } else {
@@ -1842,7 +1800,7 @@ static void ship_tap_log(Connection *c) {
         }
     } else {
         if (disconnect) {
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
         } else {
             /* No more items to ship to the slave at this time.. suspend.. */
             if (settings.verbose > 1) {
@@ -1920,7 +1878,7 @@ static void process_bin_unknown_packet(Connection *c) {
             if (c->dynamic_buffer.buffer != NULL) {
                 write_and_free(c, &c->dynamic_buffer);
             } else {
-                conn_set_state(c, conn_new_cmd);
+                c->setState(conn_new_cmd);
             }
             const char *key = packet +
                               sizeof(c->binary_header.request) +
@@ -1932,7 +1890,7 @@ static void process_bin_unknown_packet(Connection *c) {
         c->ewouldblock = true;
         break;
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     default:
         /* Release the dynamic buffer.. it may be partial.. */
@@ -2021,7 +1979,7 @@ static void process_bin_tap_connect(Connection *c) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%d: ERROR: Invalid tap connect message\n",
                                                 c->sfd);
-                conn_set_state(c, conn_closing);
+                c->setState(conn_closing);
                 return ;
             }
         }
@@ -2059,7 +2017,7 @@ static void process_bin_tap_connect(Connection *c) {
         c->tap_iterator = iterator;
         c->max_reqs_per_event = settings.reqs_per_event_high_priority;
         c->setCurrentEvent(EV_WRITE);
-        conn_set_state(c, conn_ship_log);
+        c->setState(conn_ship_log);
     }
 }
 
@@ -2142,7 +2100,7 @@ static void process_bin_tap_packet(tap_event_t event, Connection *c) {
 
     switch (ret) {
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
@@ -2151,7 +2109,7 @@ static void process_bin_tap_packet(tap_event_t event, Connection *c) {
         if ((tap_flags & TAP_FLAG_ACK) || (ret != ENGINE_SUCCESS)) {
             write_bin_packet(c, engine_error_2_protocol_error(ret));
         } else {
-            conn_set_state(c, conn_new_cmd);
+            c->setState(conn_new_cmd);
         }
     }
 }
@@ -2180,9 +2138,9 @@ static void process_bin_tap_ack(Connection *c) {
     }
 
     if (ret == ENGINE_DISCONNECT) {
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
     } else {
-        conn_set_state(c, conn_ship_log);
+        c->setState(conn_ship_log);
     }
 }
 
@@ -2191,7 +2149,7 @@ static void process_bin_tap_ack(Connection *c) {
  */
 static void process_bin_noop_response(Connection *c) {
     cb_assert(c != NULL);
-    conn_set_state(c, conn_new_cmd);
+    c->setState(conn_new_cmd);
 }
 
 /*******************************************************************************
@@ -2770,7 +2728,7 @@ static void ship_dcp_log(Connection *c) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Failed to create output headers. Shutting down DCP connection\n", c->sfd);
         }
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         return ;
     }
 
@@ -2787,10 +2745,10 @@ static void ship_dcp_log(Connection *c) {
     }
 
     if (ret == ENGINE_SUCCESS) {
-        conn_set_state(c, conn_mwrite);
+        c->setState(conn_mwrite);
         c->write_and_go = conn_ship_log;
     } else {
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
     }
 }
 
@@ -2804,7 +2762,7 @@ static void tap_connect_executor(Connection *c, void *packet)
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
         tap_stats.received.connect++;
-        conn_set_state(c, conn_setup_tap_stream);
+        c->setState(conn_setup_tap_stream);
     }
 }
 
@@ -2916,7 +2874,7 @@ static void dcp_open_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -2950,10 +2908,10 @@ static void dcp_add_stream_executor(Connection *c, void *packet)
         switch (ret) {
         case ENGINE_SUCCESS:
             c->dcp = 1;
-            conn_set_state(c, conn_ship_log);
+            c->setState(conn_ship_log);
             break;
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -2990,7 +2948,7 @@ static void dcp_close_stream_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3059,7 +3017,7 @@ static void dcp_get_failover_log_executor(Connection *c, void *packet) {
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3130,7 +3088,7 @@ static void dcp_stream_req_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3163,11 +3121,11 @@ static void dcp_stream_end_executor(Connection *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            conn_set_state(c, conn_ship_log);
+            c->setState(conn_ship_log);
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3206,11 +3164,11 @@ static void dcp_snapshot_marker_executor(Connection *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            conn_set_state(c, conn_ship_log);
+            c->setState(conn_ship_log);
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3261,11 +3219,11 @@ static void dcp_mutation_executor(Connection *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            conn_set_state(c, conn_new_cmd);
+            c->setState(conn_new_cmd);
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3306,11 +3264,11 @@ static void dcp_deletion_executor(Connection *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            conn_set_state(c, conn_new_cmd);
+            c->setState(conn_new_cmd);
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3351,11 +3309,11 @@ static void dcp_expiration_executor(Connection *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            conn_set_state(c, conn_new_cmd);
+            c->setState(conn_new_cmd);
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3387,11 +3345,11 @@ static void dcp_flush_executor(Connection *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            conn_set_state(c, conn_new_cmd);
+            c->setState(conn_new_cmd);
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3425,10 +3383,10 @@ static void dcp_set_vbucket_state_executor(Connection *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            conn_set_state(c, conn_ship_log);
+            c->setState(conn_ship_log);
             break;
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3436,7 +3394,7 @@ static void dcp_set_vbucket_state_executor(Connection *c, void *packet)
             break;
 
         default:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
         }
     }
@@ -3464,7 +3422,7 @@ static void dcp_noop_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3499,11 +3457,11 @@ static void dcp_buffer_acknowledgement_executor(Connection *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            conn_set_state(c, conn_new_cmd);
+            c->setState(conn_new_cmd);
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3542,7 +3500,7 @@ static void dcp_control_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -3573,10 +3531,10 @@ static void isasl_refresh_executor(Connection *c, void *packet)
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
-        conn_set_state(c, conn_refresh_cbsasl);
+        c->setState(conn_refresh_cbsasl);
         break;
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -3601,10 +3559,10 @@ static void ssl_certs_refresh_executor(Connection *c, void *packet)
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
-        conn_set_state(c, conn_refresh_ssl_certs);
+        c->setState(conn_refresh_ssl_certs);
         break;
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -3739,7 +3697,7 @@ static void quit_executor(Connection *c, void *packet)
 static void quitq_executor(Connection *c, void *packet)
 {
     (void)packet;
-    conn_set_state(c, conn_closing);
+    c->setState(conn_closing);
 }
 
 static void sasl_list_mech_executor(Connection *c, void *packet)
@@ -3849,11 +3807,11 @@ static void sasl_auth_executor(Connection *c, void *packet)
 
         if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
                            outlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return;
         }
         add_iov(c, out, outlen);
-        conn_set_state(c, conn_mwrite);
+        c->setState(conn_mwrite);
         c->write_and_go = conn_new_cmd;
         break;
     case CBSASL_BADPARAM:
@@ -3930,10 +3888,10 @@ static void flush_executor(Connection *c, void *packet)
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
-        conn_set_state(c, conn_flush);
+        c->setState(conn_flush);
         break;
     case ENGINE_DISCONNECT:
-        c->state = conn_closing;
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -3980,7 +3938,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
             c->ewouldblock = true;
             return ;
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return ;
         default:
             write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -4042,7 +4000,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
         c->ewouldblock = true;
         break;
     case ENGINE_DISCONNECT:
-        c->state = conn_closing;
+        c->setState(conn_closing);
         break;
     case ENGINE_NOT_STORED:
         if (store_op == OPERATION_ADD) {
@@ -4152,7 +4110,7 @@ static void append_prepend_executor(Connection *c,
             c->ewouldblock = true;
             return ;
         case ENGINE_DISCONNECT:
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return ;
         default:
             write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -4216,7 +4174,7 @@ static void append_prepend_executor(Connection *c,
         c->ewouldblock = true;
         break;
     case ENGINE_DISCONNECT:
-        c->state = conn_closing;
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -4397,7 +4355,7 @@ static void stat_executor(Connection *c, void *packet)
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
         break;
     case ENGINE_DISCONNECT:
-        c->state = conn_closing;
+        c->setState(conn_closing);
         break;
     case ENGINE_ENOTSUP:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -4562,7 +4520,7 @@ static void arithmetic_executor(Connection *c, void *packet)
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_STORED);
         break;
     case ENGINE_DISCONNECT:
-        c->state = conn_closing;
+        c->setState(conn_closing);
         break;
     case ENGINE_ENOTSUP:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -4779,7 +4737,7 @@ static void config_validate_executor(Connection *c, void *packet) {
                                         "%d: Failed to allocate buffer of size %" PRIu64
                                         " to validate config. Shutting down connection",
                                         c->sfd, vallen + 1);
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         return;
     }
 
@@ -4796,7 +4754,7 @@ static void audit_config_reload_executor(Connection *c, void *packet) {
     if (settings.audit_file) {
         if (configure_auditdaemon(settings.audit_file, c) == AUDIT_EWOULDBLOCK) {
             c->ewouldblock = true;
-            conn_set_state(c, conn_audit_configuring);
+            c->setState(conn_audit_configuring);
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "configuration of audit "
@@ -4899,10 +4857,10 @@ static void create_bucket_executor(Connection *c, void *packet)
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
-        conn_set_state(c, conn_create_bucket);
+        c->setState(conn_create_bucket);
         break;
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -4971,10 +4929,10 @@ static void delete_bucket_executor(Connection *c, void *packet)
         break;
     case ENGINE_EWOULDBLOCK:
         c->ewouldblock = true;
-        conn_set_state(c, conn_delete_bucket);
+        c->setState(conn_delete_bucket);
         break;
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -5304,7 +5262,7 @@ static void complete_nread(Connection *c) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                        "%d: Unsupported response packet received: %u",
                         c->sfd, (unsigned int)c->binary_header.request.opcode);
-                conn_set_state(c, conn_closing);
+                c->setState(conn_closing);
             }
         } else {
             process_bin_packet(c);
@@ -5339,9 +5297,9 @@ static void reset_cmd_handler(Connection *c) {
 
     conn_shrink(c);
     if (c->read.bytes > 0) {
-        conn_set_state(c, conn_parse_cmd);
+        c->setState(conn_parse_cmd);
     } else {
-        conn_set_state(c, conn_waiting);
+        c->setState(conn_waiting);
     }
 }
 
@@ -5350,14 +5308,14 @@ void write_and_free(Connection *c, struct dynamic_buffer* buf) {
         c->write_and_free = buf->buffer;
         c->write.curr = buf->buffer;
         c->write.bytes = (uint32_t)buf->offset;
-        conn_set_state(c, conn_write);
+        c->setState(conn_write);
         c->write_and_go = conn_new_cmd;
 
         buf->buffer = NULL;
         buf->size = 0;
         buf->offset = 0;
     } else {
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
     }
 }
 
@@ -5752,7 +5710,7 @@ static int try_read_command(Connection *c) {
                                                 c->sfd, (unsigned int)c->binary_header.request.opcode);
 
             }
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return -1;
         }
 
@@ -5760,7 +5718,7 @@ static int try_read_command(Connection *c) {
         c->msgused = 0;
         c->iovused = 0;
         if (add_msghdr(c) != 0) {
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return -1;
         }
 
@@ -6023,7 +5981,7 @@ static TryReadResult try_read_network(Connection *c) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "Couldn't realloc input buffer");
                 c->read.bytes = 0; /* ignore what we read */
-                conn_set_state(c, conn_closing);
+                c->setState(conn_closing);
                 return TryReadResult::MemoryError;
             }
             c->read.curr = c->read.buf = new_rbuf;
@@ -6109,7 +6067,7 @@ static TransmitResult transmit(Connection *c) {
 
         if (res == -1 && is_blocking(error)) {
             if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {
-                conn_set_state(c, conn_closing);
+                c->setState(conn_closing);
                 return TransmitResult::HardError;
             }
             return TransmitResult::SoftError;
@@ -6133,14 +6091,14 @@ static TransmitResult transmit(Connection *c) {
             }
         }
 
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         return TransmitResult::HardError;
     } else {
         if (c->ssl.isEnabled()) {
             c->ssl.drainBioSendPipe(c->sfd);
             if (c->ssl.morePendingOutput()) {
                 if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {
-                    conn_set_state(c, conn_closing);
+                    c->setState(conn_closing);
                     return TransmitResult::HardError;
                 }
                 return TransmitResult::SoftError;
@@ -6239,10 +6197,10 @@ bool conn_ship_log(Connection *c) {
     if (c->isReadevent() || c->read.bytes > 0) {
         if (c->read.bytes > 0) {
             if (try_read_command(c) == 0) {
-                conn_set_state(c, conn_read);
+                c->setState(conn_read);
             }
         } else {
-            conn_set_state(c, conn_read);
+            c->setState(conn_read);
         }
 
         /* we're going to process something.. let's proceed */
@@ -6275,7 +6233,7 @@ bool conn_ship_log(Connection *c) {
     }
 
     if (!c->updateEvent(mask)) {
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
     }
 
     return cont;
@@ -6293,7 +6251,7 @@ static bool is_bucket_dying(Connection *c)
     cb_mutex_exit(&b.mutex);
 
     if (disconnect) {
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         return true;
     }
 
@@ -6306,10 +6264,10 @@ bool conn_waiting(Connection *c) {
     }
 
     if (!c->updateEvent(EV_READ | EV_PERSIST)) {
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         return true;
     }
-    conn_set_state(c, conn_read);
+    c->setState(conn_read);
     return false;
 }
 
@@ -6320,13 +6278,13 @@ bool conn_read(Connection *c) {
 
     switch (try_read_network(c)) {
     case TryReadResult::NoDataReceived:
-        conn_set_state(c, conn_waiting);
+        c->setState(conn_waiting);
         break;
     case TryReadResult::DataReceived:
-        conn_set_state(c, conn_parse_cmd);
+        c->setState(conn_parse_cmd);
         break;
     case TryReadResult::SocketError:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     case TryReadResult::MemoryError: /* Failed to allocate more memory */
         /* State already set by try_read_network */
@@ -6339,7 +6297,7 @@ bool conn_read(Connection *c) {
 bool conn_parse_cmd(Connection *c) {
     if (try_read_command(c) == 0) {
         /* wee need more data! */
-        conn_set_state(c, conn_waiting);
+        c->setState(conn_waiting);
     }
 
     return !c->ewouldblock;
@@ -6386,7 +6344,7 @@ bool conn_new_cmd(Connection *c) {
 
         if (block) {
             if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {
-                conn_set_state(c, conn_closing);
+                c->setState(conn_closing);
                 return true;
             }
         }
@@ -6436,13 +6394,13 @@ bool conn_nread(Connection *c) {
         return true;
     }
     if (res == 0) { /* end of stream */
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         return true;
     }
 
     if (res == -1 && is_blocking(error)) {
         if (!c->updateEvent(EV_READ | EV_PERSIST)) {
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return true;
         }
         return false;
@@ -6458,7 +6416,7 @@ bool conn_nread(Connection *c) {
                                         (long)c->read.curr, (long)c->ritem, (long)c->read.buf,
                                         (int)c->rlbytes, (int)c->read.size);
     }
-    conn_set_state(c, conn_closing);
+    c->setState(conn_closing);
     return true;
 }
 
@@ -6472,7 +6430,7 @@ bool conn_write(Connection *c) {
         if (add_iov(c, c->write.curr, c->write.bytes) != 0) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "Couldn't build response, closing connection");
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
             return true;
         }
     }
@@ -6494,18 +6452,18 @@ bool conn_mwrite(Connection *c) {
             c->temp_alloc.resize(0);
 
             /* XXX:  I don't know why this wasn't the general case */
-            conn_set_state(c, c->write_and_go);
+            c->setState(c->write_and_go);
         } else if (c->state == conn_write) {
             if (c->write_and_free) {
                 free(c->write_and_free);
                 c->write_and_free = 0;
             }
-            conn_set_state(c, c->write_and_go);
+            c->setState(c->write_and_go);
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Unexpected state %d, closing",
                                             c->sfd, c->state);
-            conn_set_state(c, conn_closing);
+            c->setState(conn_closing);
         }
         break;
 
@@ -6535,7 +6493,7 @@ bool conn_pending_close(Connection *c) {
         return false;
     }
 
-    conn_set_state(c, conn_immediate_close);
+    c->setState(conn_immediate_close);
     return true;
 }
 
@@ -6569,9 +6527,9 @@ bool conn_closing(Connection *c) {
     conn_cleanup_engine_allocations(c);
 
     if (c->refcount > 1 || c->ewouldblock) {
-        conn_set_state(c, conn_pending_close);
+        c->setState(conn_pending_close);
     } else {
-        conn_set_state(c, conn_immediate_close);
+        c->setState(conn_immediate_close);
     }
     return true;
 }
@@ -6601,7 +6559,7 @@ bool conn_refresh_cbsasl(Connection *c) {
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -6622,7 +6580,7 @@ bool conn_refresh_ssl_certs(Connection *c) {
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -6652,7 +6610,7 @@ bool conn_flush(Connection *c) {
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -6692,7 +6650,7 @@ bool conn_create_bucket(Connection *c) {
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -6713,7 +6671,7 @@ bool conn_delete_bucket(Connection *c) {
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_DISCONNECT:
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
         break;
     default:
         write_bin_packet(c, engine_error_2_protocol_error(ret));
@@ -7557,9 +7515,9 @@ static void process_bin_dcp_response(Connection *c) {
     }
 
     if (ret == ENGINE_DISCONNECT) {
-        conn_set_state(c, conn_closing);
+        c->setState(conn_closing);
     } else {
-        conn_set_state(c, conn_ship_log);
+        c->setState(conn_ship_log);
     }
 }
 
