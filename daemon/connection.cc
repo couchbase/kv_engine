@@ -83,6 +83,7 @@ Connection::Connection()
 }
 
 Connection::~Connection() {
+    MEMCACHED_CONN_DESTROY(this);
     auth_destroy(auth_context);
     cbsasl_dispose(&sasl_conn);
     free(read.buf);
