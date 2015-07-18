@@ -567,7 +567,7 @@ extern "C" {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-        } catch(std::runtime_error& ex) {
+        } catch(std::runtime_error&) {
             *msg = "Value out of range.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }

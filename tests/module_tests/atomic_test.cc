@@ -65,7 +65,7 @@ static void testAtomicInt() {
 static void testAtomicUint64() {
     // Check that we can correctly load / store from values larger than 32bits.
     AtomicValue<uint64_t> value;
-    uint64_t expected_val = 1ul << 33;
+    uint64_t expected_val = 1ull << 33;
     value.store(expected_val);
     cb_assert(value == expected_val);
 
