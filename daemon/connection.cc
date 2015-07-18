@@ -172,6 +172,16 @@ void Connection::setState(STATE_FUNC next_state) {
     }
 }
 
+void Connection::runStateMachinery() {
+    do {
+        if (settings.verbose) {
+            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
+                                            "%d - Running task: (%s)", sfd,
+                                            state_text(state));
+        }
+    } while (state(this));
+}
+
 /**
  * Convert a sockaddr_storage to a textual string (no name lookup).
  *

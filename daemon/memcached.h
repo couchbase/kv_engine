@@ -310,7 +310,9 @@ public:
                      worker thread timeslice */
 
     cbsasl_conn_t *sasl_conn;
+private:
     STATE_FUNC   state;
+public:
     enum bin_substates substate;
 
 private:
@@ -445,6 +447,11 @@ public:
     STATE_FUNC getState() const {
         return state;
     }
+
+    /**
+     * Run the state machinery
+     */
+    void runStateMachinery();
 
     /**
      * Resolve the name of the local socket and the peer for the connected

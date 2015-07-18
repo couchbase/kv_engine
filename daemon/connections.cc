@@ -145,12 +145,7 @@ void run_event_loop(Connection * c) {
         conn_loan_buffers(c);
     }
 
-    do {
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                    "%d - Running task: (%s)\n", c->sfd, state_text(c->state));
-        }
-    } while (c->state(c));
+    c->runStateMachinery();
 
     if (!is_listen_thread()) {
         conn_return_buffers(c);
