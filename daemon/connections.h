@@ -83,8 +83,6 @@ struct listening_port *get_listening_port_instance(const in_port_t port);
  */
 void connection_stats(ADD_STAT add_stats, Connection *c, const int64_t fd);
 
-bool connection_set_nodelay(Connection *c, bool enable);
-
 /*
  * Use engine::release to drop any data we may have allocated with engine::allocate
  */

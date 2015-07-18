@@ -19,6 +19,7 @@
 #include "runtime.h"
 #include <exception>
 #include <utilities/protocol2text.h>
+#include <platform/strerror.h>
 
 Connection::Connection()
     : all_next(nullptr),
@@ -341,7 +342,33 @@ bool Connection::initializeEvent(struct event_base* base) {
     return registerEvent();
 }
 
-static const char *substate_text(enum bin_substates state) {
+bool Connection::setTcpNoDelay(bool enable) {
+    int flags = enable ? 1 : 0;
+
+#if defined(WIN32)
+    char* flags_ptr = reinterpret_cast<char*>(&flags);
+#else
+    void* flags_ptr = reinterpret_cast<void*>(&flags);
+#endif
+    int error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, flags_ptr,
+                           sizeof(flags));
+
+    if (error != 0) {
+        std::string errmsg = cb_strerror(GetLastNetworkError());
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                        "setsockopt(TCP_NODELAY): %s",
+                                        errmsg.c_str());
+        nodelay = false;
+        return false;
+    } else {
+        nodelay = enable;
+    }
+
+    return true;
+}
+
+
+static const char* substate_text(enum bin_substates state) {
     switch (state) {
     case bin_no_state: return "bin_no_state";
     case bin_reading_packet: return "bin_reading_packet";

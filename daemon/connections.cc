@@ -175,7 +175,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
         for (int ii = 0; ii < settings.num_interfaces; ++ii) {
             if (parent_port == settings.interfaces[ii].port) {
                 c->setProtocol(settings.interfaces[ii].protocol);
-                c->nodelay = settings.interfaces[ii].tcp_nodelay;
+                c->setTcpNoDelay(settings.interfaces[ii].tcp_nodelay);
                 if (settings.interfaces[ii].ssl.cert != NULL) {
                     if (!c->ssl.enable(settings.interfaces[ii].ssl.cert,
                                        settings.interfaces[ii].ssl.key)) {
@@ -425,34 +425,6 @@ void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) 
         }
     }
     cb_mutex_exit(&connections.mutex);
-}
-
-bool connection_set_nodelay(Connection *c, bool enable)
-{
-    int flags = 0;
-    if (enable) {
-        flags = 1;
-    }
-
-#if defined(WIN32)
-    char* flags_ptr = reinterpret_cast<char*>(&flags);
-#else
-    void* flags_ptr = reinterpret_cast<void*>(&flags);
-#endif
-    int error = setsockopt(c->sfd, IPPROTO_TCP, TCP_NODELAY, flags_ptr,
-                           sizeof(flags));
-
-    if (error != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "setsockopt(TCP_NODELAY): %s",
-                                        strerror(errno));
-        c->nodelay = false;
-        return false;
-    } else {
-        c->nodelay = enable;
-    }
-
-    return true;
 }
 
 /** Internal functions *******************************************************/

@@ -3636,7 +3636,7 @@ static void process_hello_packet_executor(Connection *c, void *packet) {
         case PROTOCOL_BINARY_FEATURE_TCPNODELAY:
         case PROTOCOL_BINARY_FEATURE_TCPDELAY:
             if (!tcpdelay_handled) {
-                connection_set_nodelay(c, in == PROTOCOL_BINARY_FEATURE_TCPNODELAY);
+                c->setTcpNoDelay(in == PROTOCOL_BINARY_FEATURE_TCPNODELAY);
                 tcpdelay_handled = true;
                 added = true;
             }

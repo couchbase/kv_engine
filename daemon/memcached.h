@@ -375,8 +375,11 @@ public:
     int    hdrsize;   /* number of headers' worth of space is allocated */
 
     bool   noreply;   /* True if the reply should not be sent. */
-    bool nodelay; /* Is tcp nodelay enabled? */
+private:
+    /** Is tcp nodelay enabled or not? */
+    bool nodelay;
 
+public:
     /* current stats command */
 
     uint8_t refcount; /* number of references to the object */
@@ -552,6 +555,13 @@ public:
      * Caller is responsible for freeing the result with cJSON_Delete().
      */
     cJSON *toJSON() const;
+
+    /**
+     * Enable or disable TCP NoDelay on the underlying socket
+     *
+     * @return true on success, false otherwise
+     */
+    bool setTcpNoDelay(bool enable);
 
 private:
     std::string peername; /* Name of the peer if known */
