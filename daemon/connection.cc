@@ -70,8 +70,7 @@ Connection::Connection()
       cmd_context(nullptr),
       auth_context(nullptr),
       peername("unknown"),
-      sockname("unknown")
-{
+      sockname("unknown") {
     MEMCACHED_CONN_CREATE(this);
 
     memset(&event, 0, sizeof(event));
@@ -98,7 +97,7 @@ Connection::~Connection() {
     free(msglist);
 
     cb_assert(reservedItems.empty());
-    for (auto *ptr : temp_alloc) {
+    for (auto* ptr : temp_alloc) {
         free(ptr);
     }
 }
@@ -148,9 +147,8 @@ void Connection::resetBufferSize() {
  *         if an error occurs (caller takes ownership of the buffer and
  *         must call free)
  */
-static std::string sockaddr_to_string(const struct sockaddr_storage *addr,
-                                      socklen_t addr_len)
-{
+static std::string sockaddr_to_string(const struct sockaddr_storage* addr,
+                                      socklen_t addr_len) {
     char host[50];
     char port[50];
 
@@ -193,7 +191,6 @@ void Connection::resolveConnectionName() {
 
     peername = sockaddr_to_string(&peer, peer_len);
     sockname = sockaddr_to_string(&sock, sock_len);
-
 }
 
 bool Connection::unregisterEvent() {
@@ -305,7 +302,7 @@ SslContext::~SslContext() {
     }
 }
 
-bool SslContext::enable(const std::string &cert, const std::string &pkey) {
+bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     ctx = SSL_CTX_new(SSLv23_server_method());
 
     /* MB-12359 - Disable SSLv2 & SSLv3 due to POODLE */
@@ -360,7 +357,7 @@ void SslContext::drainBioRecvPipe(SOCKET sfd) {
     do {
         if (in.current < in.total) {
             n = BIO_write(network, in.buffer.data() + in.current,
-                          in.total - in.current);
+                          int(in.total - in.current));
             if (n > 0) {
                 in.current += n;
                 if (in.current == in.total) {
@@ -370,7 +367,7 @@ void SslContext::drainBioRecvPipe(SOCKET sfd) {
                 /* Our input BIO is full, no need to grab more data from
                  * the network at this time..
                  */
-                return ;
+                return;
             }
         }
 
@@ -412,12 +409,12 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
                         error = true;
                     }
                 }
-                return ;
+                return;
             }
         }
 
         if (out.total == 0) {
-            n = BIO_read(network, out.buffer.data(), out.buffer.size());
+            n = BIO_read(network, out.buffer.data(), int(out.buffer.size()));
             if (n > 0) {
                 out.total = n;
             } else {
@@ -431,7 +428,7 @@ void SslContext::dumpCipherList(SOCKET sfd) {
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
                                     "%d: Using SSL ciphers:", sfd);
     int ii = 0;
-    const char *cipher;
+    const char* cipher;
     while ((cipher = SSL_get_cipher_list(client, ii++)) != NULL) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
                                         "%d    %s", sfd, cipher);
