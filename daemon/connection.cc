@@ -101,8 +101,8 @@ void Connection::resetBufferSize() {
     bool ret = true;
 
     if (iovsize != IOV_LIST_INITIAL) {
-        auto *ptr = reinterpret_cast<struct iovec*>
-        (malloc(sizeof(struct iovec) * IOV_LIST_INITIAL));
+        void* mem = malloc(sizeof(struct iovec) * IOV_LIST_INITIAL);
+        auto* ptr = reinterpret_cast<struct iovec*>(mem);
         if (ptr != NULL) {
             free(iov);
             iov = ptr;
@@ -113,8 +113,8 @@ void Connection::resetBufferSize() {
     }
 
     if (msgsize != MSG_LIST_INITIAL) {
-        auto* ptr = reinterpret_cast<struct msghdr*>
-        (malloc(sizeof(struct msghdr) * MSG_LIST_INITIAL));
+        void* mem = malloc(sizeof(struct msghdr) * MSG_LIST_INITIAL);
+        auto* ptr = reinterpret_cast<struct msghdr*>(mem);
         if (ptr != NULL) {
             free(msglist);
             msglist = ptr;
