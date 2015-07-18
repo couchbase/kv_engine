@@ -369,8 +369,7 @@ void SslContext::drainBioRecvPipe(SOCKET sfd) {
                 if (n == 0) {
                     error = true; /* read end shutdown */
                 } else {
-                    auto error = GetLastNetworkError();
-                    if (!is_blocking(error)) {
+                    if (!is_blocking(GetLastNetworkError())) {
                         error = true;
                     }
                 }
@@ -394,8 +393,7 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
                 }
             } else {
                 if (n == -1) {
-                    auto error = GetLastNetworkError();
-                    if (!is_blocking(error)) {
+                    if (!is_blocking(GetLastNetworkError())) {
                         error = true;
                     }
                 }
