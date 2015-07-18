@@ -147,8 +147,11 @@ static std::string sockaddr_to_string(const struct sockaddr_storage *addr,
 {
     char host[50];
     char port[50];
-    int err = getnameinfo((struct sockaddr*)addr, addr_len, host, sizeof(host),
-                          port, sizeof(port), NI_NUMERICHOST | NI_NUMERICSERV);
+
+    int err = getnameinfo(reinterpret_cast<const struct sockaddr*>(addr), addr_len,
+                          host, sizeof(host),
+                          port, sizeof(port),
+                          NI_NUMERICHOST | NI_NUMERICSERV);
     if (err != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "getnameinfo failed with error %d",
@@ -156,7 +159,7 @@ static std::string sockaddr_to_string(const struct sockaddr_storage *addr,
         return NULL;
     }
 
-    return std::string(host) + ":" + port;
+    return std::string(host) + ":" + std::string(port);
 }
 
 void Connection::resolveConnectionName() {
@@ -164,7 +167,8 @@ void Connection::resolveConnectionName() {
     struct sockaddr_storage peer;
     socklen_t peer_len = sizeof(peer);
 
-    if ((err = getpeername(sfd, (struct sockaddr*)&peer, &peer_len)) != 0) {
+    if ((err = getpeername(sfd, reinterpret_cast<struct sockaddr*>(&peer),
+                           &peer_len)) != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "getpeername for socket %d with error %d",
                                         sfd, err);
@@ -173,7 +177,8 @@ void Connection::resolveConnectionName() {
 
     struct sockaddr_storage sock;
     socklen_t sock_len = sizeof(sock);
-    if ((err = getsockname(sfd, (struct sockaddr*)&sock, &sock_len)) != 0) {
+    if ((err = getsockname(sfd, reinterpret_cast<struct sockaddr*>(&sock),
+                           &sock_len)) != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "getsock for socket %d with error %d",
                                         sfd, err);
