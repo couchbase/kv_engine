@@ -61,7 +61,7 @@ void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
     Connection *c = connections.sentinal.all_next;
     while (c != &connections.sentinal) {
         if (c->thread == me && c->bucket.idx == bucket_idx) {
-            if (c->state == conn_read || c->state == conn_waiting) {
+            if (c->getState() == conn_read || c->getState() == conn_waiting) {
                 /* set write access to ensure it's handled */
                 if (!c->updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
                     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
@@ -156,7 +156,7 @@ void run_event_loop(Connection * c) {
         conn_return_buffers(c);
     }
 
-    if (c->state == conn_destroyed) {
+    if (c->getState() == conn_destroyed) {
         /* Actually free the memory from this connection. Unsafe to dereference
          * c after this point.
          */
@@ -298,7 +298,7 @@ static void conn_cleanup(Connection *c) {
 void conn_close(Connection *c) {
     cb_assert(c != NULL);
     cb_assert(c->sfd == INVALID_SOCKET);
-    cb_assert(c->state == conn_immediate_close);
+    cb_assert(c->getState() == conn_immediate_close);
 
     cb_assert(c->thread);
     /* remove from pending-io list */
@@ -710,7 +710,7 @@ static cJSON* get_connection_stats(const Connection *c) {
         {
             cJSON *state = cJSON_CreateArray();
             cJSON_AddItemToArray(state,
-                                 cJSON_CreateString(state_text(c->state)));
+                                 cJSON_CreateString(state_text(c->getState())));
             cJSON_AddItemToArray(state,
                                  cJSON_CreateString(substate_text(c->substate)));
             cJSON_AddItemToObject(obj, "state", state);

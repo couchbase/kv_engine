@@ -6441,7 +6441,7 @@ bool conn_write(Connection *c) {
 bool conn_mwrite(Connection *c) {
     switch (transmit(c)) {
     case TransmitResult::Complete:
-        if (c->state == conn_mwrite) {
+        if (c->getState() == conn_mwrite) {
             for (auto *it : c->reservedItems) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
             }
@@ -6453,7 +6453,7 @@ bool conn_mwrite(Connection *c) {
 
             /* XXX:  I don't know why this wasn't the general case */
             c->setState(c->write_and_go);
-        } else if (c->state == conn_write) {
+        } else if (c->getState() == conn_write) {
             if (c->write_and_free) {
                 free(c->write_and_free);
                 c->write_and_free = 0;
@@ -6462,7 +6462,7 @@ bool conn_mwrite(Connection *c) {
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%d: Unexpected state %d, closing",
-                                            c->sfd, c->state);
+                                            c->sfd, c->getState());
             c->setState(conn_closing);
         }
         break;

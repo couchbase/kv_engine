@@ -439,6 +439,12 @@ public:
      */
     void setState(STATE_FUNC next_state);
 
+    /**
+     * Get the current state
+     */
+    STATE_FUNC getState() const {
+        return state;
+    }
 
     /**
      * Resolve the name of the local socket and the peer for the connected
