@@ -55,16 +55,6 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
  */
 void conn_close(Connection *c);
 
-/*
- * Shrinks a connection's buffers if they're too big.  This prevents
- * periodic large "get" requests from permanently chewing lots of server
- * memory.
- *
- * This should only be called in between requests since it can wipe output
- * buffers!
- */
-void conn_shrink(Connection *c);
-
 /* Attempt to grow the connections' dynamic buffer so there is at least
  * 'needed' bytes available.
  * Returns true if it could be grown, else false.

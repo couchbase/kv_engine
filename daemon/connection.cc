@@ -561,6 +561,63 @@ cJSON* Connection::toJSON() const {
     return obj;
 }
 
+void Connection::shrinkBuffers() {
+    if (read.size > READ_BUFFER_HIGHWAT && read.bytes < DATA_BUFFER_SIZE) {
+        if (read.curr != read.buf) {
+            /* Pack the buffer */
+            memmove(read.buf, read.curr, (size_t)read.bytes);
+        }
+
+        void* ptr = realloc(read.buf, DATA_BUFFER_SIZE);
+        char* newbuf = reinterpret_cast<char*>(ptr);
+        if (newbuf) {
+            read.buf = newbuf;
+            read.size = DATA_BUFFER_SIZE;
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                            "%d: Failed to shrink read buffer down to %" PRIu64
+                                            " bytes.", sfd, DATA_BUFFER_SIZE);
+        }
+        read.curr = read.buf;
+    }
+
+    if (msgsize > MSG_LIST_HIGHWAT) {
+        void* ptr = realloc(msglist, MSG_LIST_INITIAL * sizeof(msglist[0]));
+        auto* newbuf = reinterpret_cast<struct msghdr*>(ptr);
+        if (newbuf) {
+            msglist = newbuf;
+            msgsize = MSG_LIST_INITIAL;
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                            "%d: Failed to shrink msglist down to %" PRIu64
+                                            " bytes.", sfd,
+                                            MSG_LIST_INITIAL * sizeof(msglist[0]));
+        }
+    }
+
+    if (iovsize > IOV_LIST_HIGHWAT) {
+        void* ptr = realloc(iov, IOV_LIST_INITIAL * sizeof(iov[0]));
+        auto* newbuf = reinterpret_cast<struct iovec*>(ptr);
+        if (newbuf) {
+            iov = newbuf;
+            iovsize = IOV_LIST_INITIAL;
+        } else {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                            "%d: Failed to shrink iov down to %" PRIu64
+                                            " bytes.", sfd,
+                                            IOV_LIST_INITIAL * sizeof(iov[0]));
+        }
+    }
+
+    // The dynamic_buffer is only occasionally used - free the whole thing
+    // if it's still allocated.
+    if (dynamic_buffer.buffer != nullptr) {
+        free(dynamic_buffer.buffer);
+        dynamic_buffer.buffer = nullptr;
+        dynamic_buffer.size = 0;
+    }
+}
+
 SslContext::~SslContext() {
     if (enabled) {
         disable();

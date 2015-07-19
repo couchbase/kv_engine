@@ -5295,7 +5295,7 @@ static void reset_cmd_handler(Connection *c) {
         c->read.curr = c->read.buf;
     }
 
-    conn_shrink(c);
+    c->shrinkBuffers();
     if (c->read.bytes > 0) {
         c->setState(conn_parse_cmd);
     } else {

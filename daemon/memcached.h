@@ -563,6 +563,15 @@ public:
      */
     bool setTcpNoDelay(bool enable);
 
+    /**
+     * Shrinks a connection's buffers if they're too big.  This prevents
+     * periodic large "get" requests from permanently chewing lots of server
+     * memory.
+     *
+     * This should only be called in between requests since it can wipe output
+     * buffers!
+     */
+    void shrinkBuffers();
 private:
     std::string peername; /* Name of the peer if known */
     std::string sockname; /* Name of the local socket if known */

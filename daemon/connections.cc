@@ -306,65 +306,6 @@ void conn_close(Connection *c) {
     c->setState(conn_destroyed);
 }
 
-void conn_shrink(Connection *c) {
-    cb_assert(c != NULL);
-
-    if (c->read.size > READ_BUFFER_HIGHWAT && c->read.bytes < DATA_BUFFER_SIZE) {
-        if (c->read.curr != c->read.buf) {
-            /* Pack the buffer */
-            memmove(c->read.buf, c->read.curr, (size_t)c->read.bytes);
-        }
-
-        char* newbuf = reinterpret_cast<char*>(realloc(c->read.buf, DATA_BUFFER_SIZE));
-
-        if (newbuf) {
-            c->read.buf = newbuf;
-            c->read.size = DATA_BUFFER_SIZE;
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Failed to shrink read buffer down to %" PRIu64
-                                            " bytes.", c->sfd, DATA_BUFFER_SIZE);
-        }
-        c->read.curr = c->read.buf;
-    }
-
-    if (c->msgsize > MSG_LIST_HIGHWAT) {
-        auto *newbuf = reinterpret_cast<struct msghdr*>(realloc(c->msglist,
-                                                                MSG_LIST_INITIAL * sizeof(c->msglist[0])));
-        if (newbuf) {
-            c->msglist = newbuf;
-            c->msgsize = MSG_LIST_INITIAL;
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Failed to shrink msglist down to %" PRIu64
-                                            " bytes.", c->sfd,
-                                            MSG_LIST_INITIAL * sizeof(c->msglist[0]));
-        }
-    }
-
-    if (c->iovsize > IOV_LIST_HIGHWAT) {
-        auto *newbuf = reinterpret_cast<struct iovec*>
-            (realloc(c->iov, IOV_LIST_INITIAL * sizeof(c->iov[0])));
-        if (newbuf) {
-            c->iov = newbuf;
-            c->iovsize = IOV_LIST_INITIAL;
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Failed to shrink iov down to %" PRIu64
-                                            " bytes.", c->sfd,
-                                            IOV_LIST_INITIAL * sizeof(c->iov[0]));
-        }
-    }
-
-    // The dynamic_buffer is only occasionally used - free the whole thing
-    // if it's still allocated.
-    if (c->dynamic_buffer.buffer != nullptr) {
-        free(c->dynamic_buffer.buffer);
-        c->dynamic_buffer.buffer = nullptr;
-        c->dynamic_buffer.size = 0;
-    }
-}
-
 bool grow_dynamic_buffer(Connection *c, size_t needed) {
     size_t nsize = c->dynamic_buffer.size;
     size_t available = nsize - c->dynamic_buffer.offset;
