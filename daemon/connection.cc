@@ -618,6 +618,212 @@ void Connection::shrinkBuffers() {
     }
 }
 
+
+int Connection::sslPreConnection() {
+    int r = ssl.accept();
+    if (r == 1) {
+        ssl.drainBioSendPipe(sfd);
+        ssl.setConnected();
+    } else {
+        if (ssl.getError(r) == SSL_ERROR_WANT_READ) {
+            ssl.drainBioSendPipe(sfd);
+            set_ewouldblock();
+            return -1;
+        } else {
+            try {
+                std::string errmsg(
+                    "SSL_accept() returned " + std::to_string(r) +
+                    " with error " +
+                    std::to_string(ssl.getError(r)));
+
+                std::vector<char> ssl_err(1024);
+                ERR_error_string_n(ERR_get_error(), ssl_err.data(),
+                                   ssl_err.size());
+
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                                "%d: ERROR: %s\n%s",
+                                                sfd, errmsg.c_str(),
+                                                ssl_err.data());
+            } catch (const std::bad_alloc&) {
+                // unable to print error message; continue.
+            }
+
+            set_econnreset();
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+int Connection::recv(char* dest, size_t nbytes) {
+    int res;
+    if (ssl.isEnabled()) {
+        ssl.drainBioRecvPipe(sfd);
+
+        if (ssl.hasError()) {
+            set_econnreset();
+            return -1;
+        }
+
+        if (!ssl.isConnected()) {
+            res = sslPreConnection();
+            if (res == -1) {
+                return -1;
+            }
+        }
+
+        /* The SSL negotiation might be complete at this time */
+        if (ssl.isConnected()) {
+            res = sslRead(dest, nbytes);
+        }
+    } else {
+#ifdef WIN32
+        res = ::recv(sfd, dest, (int)nbytes, 0);
+#else
+        res = (int)::recv(sfd, dest, nbytes, 0);
+#endif
+    }
+
+    return res;
+}
+
+int Connection::sendmsg(struct msghdr* m) {
+    int res;
+    if (ssl.isEnabled()) {
+        res = 0;
+        for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
+            int n = sslWrite(reinterpret_cast<char*>(m->msg_iov[ii].iov_base),
+                             m->msg_iov[ii].iov_len);
+            if (n > 0) {
+                res += n;
+            } else {
+                return res > 0 ? res : -1;
+            }
+        }
+
+        /* @todo figure out how to drain the rest of the data if we
+         * failed to send all of it...
+         */
+        ssl.drainBioSendPipe(sfd);
+        return res;
+    } else {
+        res = ::sendmsg(sfd, m, 0);
+    }
+
+    return res;
+}
+
+int Connection::sslRead(char* dest, size_t nbytes) {
+    int ret = 0;
+
+    while (ret < int(nbytes)) {
+        int n;
+        ssl.drainBioRecvPipe(sfd);
+        if (ssl.hasError()) {
+            set_econnreset();
+            return -1;
+        }
+        n = ssl.read(dest + ret, (int)(nbytes - ret));
+        if (n > 0) {
+            ret += n;
+        } else {
+            /* n < 0 and n == 0 require a check of SSL error*/
+            int error = ssl.getError(n);
+
+            switch (error) {
+            case SSL_ERROR_WANT_READ:
+                /*
+                 * Drain the buffers and retry if we've got data in
+                 * our input buffers
+                 */
+                if (ssl.moreInputAvailable()) {
+                    /* our recv buf has data feed the BIO */
+                    ssl.drainBioRecvPipe(sfd);
+                } else if (ret > 0) {
+                    /* nothing in our recv buf, return what we have */
+                    return ret;
+                } else {
+                    set_ewouldblock();
+                    return -1;
+                }
+                break;
+
+            case SSL_ERROR_ZERO_RETURN:
+                /* The TLS/SSL connection has been closed (cleanly). */
+                return 0;
+
+            default:
+                /*
+                 * @todo I don't know how to gracefully recover from this
+                 * let's just shut down the connection
+                 */
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                                "%d: ERROR: SSL_read returned -1 with error %d",
+                                                sfd, error);
+                set_econnreset();
+                return -1;
+            }
+        }
+    }
+
+    return ret;
+}
+
+int Connection::sslWrite(const char* src, size_t nbytes) {
+    int ret = 0;
+
+    int chunksize = settings.bio_drain_buffer_sz;
+
+    while (ret < int(nbytes)) {
+        int n;
+        int chunk;
+
+        ssl.drainBioSendPipe(sfd);
+        if (ssl.hasError()) {
+            set_econnreset();
+            return -1;
+        }
+
+        chunk = (int)(nbytes - ret);
+        if (chunk > chunksize) {
+            chunk = chunksize;
+        }
+
+        n = ssl.write(src + ret, chunk);
+        if (n > 0) {
+            ret += n;
+        } else {
+            if (ret > 0) {
+                /* We've sent some data.. let the caller have them */
+                return ret;
+            }
+
+            if (n < 0) {
+                int error = ssl.getError(n);
+                switch (error) {
+                case SSL_ERROR_WANT_WRITE:
+                    set_ewouldblock();
+                    return -1;
+
+                default:
+                    /*
+                     * @todo I don't know how to gracefully recover from this
+                     * let's just shut down the connection
+                     */
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                                    "%d: ERROR: SSL_write returned -1 with error %d",
+                                                    sfd, error);
+                    set_econnreset();
+                    return -1;
+                }
+            }
+        }
+    }
+
+    return ret;
+}
+
 SslContext::~SslContext() {
     if (enabled) {
         disable();

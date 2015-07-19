@@ -572,6 +572,48 @@ public:
      * buffers!
      */
     void shrinkBuffers();
+
+    /**
+     * Receive data from the socket
+     *
+     * @param where to store the result
+     * @param nbytes the size of the buffer
+     *
+     * @return the number of bytes read, or -1 for an error
+     */
+    int recv(char* dest, size_t nbytes);
+
+    /**
+     * Send data over the socket
+     *
+     * @param m the message header to send
+     * @return the number of bytes sent, or -1 for an error
+     */
+    int sendmsg(struct msghdr* m);
+
+protected:
+    /**
+     * Read data over the SSL connection
+     *
+     * @param dest where to store the data
+     * @param nbytes the size of the destination buffer
+     * @return the number of bytes read
+     */
+    int sslRead(char* dest, size_t nbytes);
+    /**
+     * Write data over the SSL stream
+     *
+     * @param src the source of the data
+     * @param nbytes the number of bytes to send
+     * @return the number of bytes written
+     */
+    int sslWrite(const char* src, size_t nbytes);
+    /**
+     * Handle the state for the ssl connection before the ssl connection
+     * is fully established
+     */
+    int sslPreConnection();
+
 private:
     std::string peername; /* Name of the peer if known */
     std::string sockname; /* Name of the local socket if known */

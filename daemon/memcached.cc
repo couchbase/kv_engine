@@ -5737,213 +5737,6 @@ static int try_read_command(Connection *c) {
     return 1;
 }
 
-static int do_ssl_pre_connection(Connection *c) {
-    int r = c->ssl.accept();
-    if (r == 1) {
-        c->ssl.drainBioSendPipe(c->sfd);
-        c->ssl.setConnected();
-    } else {
-        if (c->ssl.getError(r) == SSL_ERROR_WANT_READ) {
-            c->ssl.drainBioSendPipe(c->sfd);
-            set_ewouldblock();
-            return -1;
-        } else {
-            try {
-                std::string errmsg(
-                        "SSL_accept() returned " + std::to_string(r) +
-                        " with error " +
-                        std::to_string(c->ssl.getError(r)));
-
-                std::vector<char> ssl_err(1024);
-                ERR_error_string_n(ERR_get_error(), ssl_err.data(),
-                                   ssl_err.size());
-
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: ERROR: %s\n%s",
-                                                c->sfd, errmsg.c_str(),
-                                                ssl_err.data());
-            } catch (const std::bad_alloc&) {
-                // unable to print error message; continue.
-            }
-
-            set_econnreset();
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-static int do_ssl_read(Connection *c, char *dest, size_t nbytes) {
-    int ret = 0;
-
-    while (ret < int(nbytes)) {
-        int n;
-        c->ssl.drainBioRecvPipe(c->sfd);
-        if (c->ssl.hasError()) {
-            set_econnreset();
-            return -1;
-        }
-        n = c->ssl.read(dest + ret, (int)(nbytes - ret));
-        if (n > 0) {
-            ret += n;
-        } else {
-            /* n < 0 and n == 0 require a check of SSL error*/
-            int error = c->ssl.getError(n);
-
-            switch (error) {
-            case SSL_ERROR_WANT_READ:
-                /*
-                 * Drain the buffers and retry if we've got data in
-                 * our input buffers
-                 */
-                if (c->ssl.moreInputAvailable()) {
-                    /* our recv buf has data feed the BIO */
-                    c->ssl.drainBioRecvPipe(c->sfd);
-                } else if (ret > 0) {
-                    /* nothing in our recv buf, return what we have */
-                    return ret;
-                } else {
-                    set_ewouldblock();
-                    return -1;
-                }
-                break;
-
-            case SSL_ERROR_ZERO_RETURN:
-                /* The TLS/SSL connection has been closed (cleanly). */
-                return 0;
-
-            default:
-                /*
-                 * @todo I don't know how to gracefully recover from this
-                 * let's just shut down the connection
-                 */
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: ERROR: SSL_read returned -1 with error %d",
-                                                c->sfd, error);
-                set_econnreset();
-                return -1;
-            }
-        }
-    }
-
-    return ret;
-}
-
-static int do_data_recv(Connection *c, char *dest, size_t nbytes) {
-    int res;
-    if (c->ssl.isEnabled()) {
-        c->ssl.drainBioRecvPipe(c->sfd);
-
-        if (c->ssl.hasError()) {
-            set_econnreset();
-            return -1;
-        }
-
-        if (!c->ssl.isConnected()) {
-            res = do_ssl_pre_connection(c);
-            if (res == -1) {
-                return -1;
-            }
-        }
-
-        /* The SSL negotiation might be complete at this time */
-        if (c->ssl.isConnected()) {
-            res = do_ssl_read(c, dest, nbytes);
-        }
-    } else {
-#ifdef WIN32
-        res = recv(c->sfd, dest, (int)nbytes, 0);
-#else
-        res = (int)recv(c->sfd, dest, nbytes, 0);
-#endif
-    }
-
-    return res;
-}
-
-static int do_ssl_write(Connection *c, char *dest, size_t nbytes) {
-    int ret = 0;
-
-    int chunksize = settings.bio_drain_buffer_sz;
-
-    while (ret < int(nbytes)) {
-        int n;
-        int chunk;
-
-        c->ssl.drainBioSendPipe(c->sfd);
-        if (c->ssl.hasError()) {
-            set_econnreset();
-            return -1;
-        }
-
-        chunk = (int)(nbytes - ret);
-        if (chunk > chunksize) {
-            chunk = chunksize;
-        }
-
-        n = c->ssl.write(dest + ret, chunk);
-        if (n > 0) {
-            ret += n;
-        } else {
-            if (ret > 0) {
-                /* We've sent some data.. let the caller have them */
-                return ret;
-            }
-
-            if (n < 0) {
-                int error = c->ssl.getError(n);
-                switch (error) {
-                case SSL_ERROR_WANT_WRITE:
-                    set_ewouldblock();
-                    return -1;
-
-                default:
-                    /*
-                     * @todo I don't know how to gracefully recover from this
-                     * let's just shut down the connection
-                     */
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                    "%d: ERROR: SSL_write returned -1 with error %d",
-                                                    c->sfd, error);
-                    set_econnreset();
-                    return -1;
-                }
-            }
-        }
-    }
-
-    return ret;
-}
-
-
-static int do_data_sendmsg(Connection *c, struct msghdr *m) {
-    int res;
-    if (c->ssl.isEnabled()) {
-        res = 0;
-        for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
-            int n = do_ssl_write(c,
-                                 reinterpret_cast<char*>(m->msg_iov[ii].iov_base),
-                                 m->msg_iov[ii].iov_len);
-            if (n > 0) {
-                res += n;
-            } else {
-                return res > 0 ? res : -1;
-            }
-        }
-
-        /* @todo figure out how to drain the rest of the data if we
-         * failed to send all of it...
-         */
-        c->ssl.drainBioSendPipe(c->sfd);
-        return res;
-    } else {
-        res = sendmsg(c->sfd, m, 0);
-    }
-
-    return res;
-}
-
 /*
  * read from network as much as we can, handle buffer overflow and connection
  * close.
@@ -5989,7 +5782,7 @@ static TryReadResult try_read_network(Connection *c) {
         }
 
         avail = c->read.size - c->read.bytes;
-        res = do_data_recv(c, c->read.buf + c->read.bytes, avail);
+        res = c->recv(c->read.buf + c->read.bytes, avail);
         if (res > 0) {
             get_thread_stats(c)->bytes_read += res;
             gotdata = TryReadResult::DataReceived;
@@ -6043,7 +5836,7 @@ static TransmitResult transmit(Connection *c) {
         ssize_t res;
         struct msghdr *m = &c->msglist[c->msgcurr];
 
-        res = do_data_sendmsg(c, m);
+        res = c->sendmsg(m);
         auto error = GetLastNetworkError();
         if (res > 0) {
             get_thread_stats(c)->bytes_written += res;
@@ -6382,7 +6175,7 @@ bool conn_nread(Connection *c) {
     }
 
     /*  now try reading from the socket */
-    res = do_data_recv(c, c->ritem, c->rlbytes);
+    res = c->recv(c->ritem, c->rlbytes);
     auto error = GetLastNetworkError();
     if (res > 0) {
         get_thread_stats(c)->bytes_read += res;
