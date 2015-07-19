@@ -173,20 +173,6 @@ static void register_callback(ENGINE_HANDLE *eh,
                               EVENT_CALLBACK cb, const void *cb_data);
 static SERVER_HANDLE_V1 *get_server_api(void);
 
-
-enum class TryReadResult {
-    /** Data received on the socket and ready to parse */
-    DataReceived,
-    /** No data received on the socket */
-    NoDataReceived,
-    /** An error occurred on the socket (or the client closed the connection) */
-    SocketError,
-    /** Failed to allocate more memory for the input buffer */
-    MemoryError
-};
-
-static TryReadResult try_read_network(Connection *c);
-
 /* stats */
 static void stats_init(void);
 static void server_stats(ADD_STAT add_stats, Connection *c);
@@ -237,19 +223,6 @@ static void set_stats_reset_time(void)
         *ptr = '\0';
     }
 }
-
-enum class TransmitResult {
-    /** All done writing. */
-    Complete,
-    /** More data remaining to write. */
-    Incomplete,
-    /** Can't write any more right now. */
-    SoftError,
-    /** Can't write (c->state is set to conn_closing) */
-    HardError
-};
-
-static TransmitResult transmit(Connection *c);
 
 static void disassociate_bucket(Connection *c) {
     Bucket &b = all_buckets.at(c->bucket.idx);
@@ -5737,171 +5710,6 @@ static int try_read_command(Connection *c) {
     return 1;
 }
 
-/*
- * read from network as much as we can, handle buffer overflow and connection
- * close.
- * before reading, move the remaining incomplete fragment of a command
- * (if any) to the beginning of the buffer.
- *
- * To protect us from someone flooding a connection with bogus data causing
- * the connection to eat up all available memory, break out and start looking
- * at the data I've got after a number of reallocs...
- *
- * @return enum try_read_result
- */
-static TryReadResult try_read_network(Connection *c) {
-    TryReadResult gotdata = TryReadResult::NoDataReceived;
-    int res;
-    int num_allocs = 0;
-    cb_assert(c != NULL);
-
-    if (c->read.curr != c->read.buf) {
-        if (c->read.bytes != 0) /* otherwise there's nothing to copy */
-            memmove(c->read.buf, c->read.curr, c->read.bytes);
-        c->read.curr = c->read.buf;
-    }
-
-    while (1) {
-        int avail;
-        if (c->read.bytes >= c->read.size) {
-            if (num_allocs == 4) {
-                return gotdata;
-            }
-            ++num_allocs;
-            char* new_rbuf = reinterpret_cast<char*>(realloc(c->read.buf,
-                                                             c->read.size * 2));
-            if (!new_rbuf) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "Couldn't realloc input buffer");
-                c->read.bytes = 0; /* ignore what we read */
-                c->setState(conn_closing);
-                return TryReadResult::MemoryError;
-            }
-            c->read.curr = c->read.buf = new_rbuf;
-            c->read.size *= 2;
-        }
-
-        avail = c->read.size - c->read.bytes;
-        res = c->recv(c->read.buf + c->read.bytes, avail);
-        if (res > 0) {
-            get_thread_stats(c)->bytes_read += res;
-            gotdata = TryReadResult::DataReceived;
-            c->read.bytes += res;
-            if (res == avail) {
-                continue;
-            } else {
-                break;
-            }
-        }
-        if (res == 0) {
-            return TryReadResult::SocketError;
-        }
-        if (res == -1) {
-            auto error = GetLastNetworkError();
-
-            if (is_blocking(error)) {
-                break;
-            }
-            char prefix[160];
-            snprintf(prefix, sizeof(prefix),
-                     "%d Closing connection [%s - %s] due to read error: %%s",
-                     c->sfd, c->getPeername().c_str(), c->getSockname().c_str());
-            log_errcode_error(EXTENSION_LOG_WARNING, c, prefix, error);
-
-            return TryReadResult::SocketError;
-        }
-    }
-    return gotdata;
-}
-
-/*
- * Transmit the next chunk of data from our list of msgbuf structures.
- *
- * Returns:
- *   Complete   All done writing.
- *   Incomplete More data remaining to write.
- *   SoftError Can't write any more right now.
- *   HardError Can't write (c->state is set to conn_closing)
- */
-static TransmitResult transmit(Connection *c) {
-    cb_assert(c != NULL);
-
-    while (c->msgcurr < c->msgused &&
-           c->msglist[c->msgcurr].msg_iovlen == 0) {
-        /* Finished writing the current msg; advance to the next. */
-        c->msgcurr++;
-    }
-
-    if (c->msgcurr < c->msgused) {
-        ssize_t res;
-        struct msghdr *m = &c->msglist[c->msgcurr];
-
-        res = c->sendmsg(m);
-        auto error = GetLastNetworkError();
-        if (res > 0) {
-            get_thread_stats(c)->bytes_written += res;
-
-            /* We've written some of the data. Remove the completed
-               iovec entries from the list of pending writes. */
-            while (m->msg_iovlen > 0 && res >= ssize_t(m->msg_iov->iov_len)) {
-                res -= (ssize_t)m->msg_iov->iov_len;
-                m->msg_iovlen--;
-                m->msg_iov++;
-            }
-
-            /* Might have written just part of the last iovec entry;
-               adjust it so the next write will do the rest. */
-            if (res > 0) {
-                m->msg_iov->iov_base = (void*)((unsigned char*)m->msg_iov->iov_base + res);
-                m->msg_iov->iov_len -= res;
-            }
-            return TransmitResult::Incomplete;
-        }
-
-        if (res == -1 && is_blocking(error)) {
-            if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {
-                c->setState(conn_closing);
-                return TransmitResult::HardError;
-            }
-            return TransmitResult::SoftError;
-        }
-        /* if res == 0 or res == -1 and error is not EAGAIN or EWOULDBLOCK,
-           we have a real error, on which we close the connection */
-        if (settings.verbose > 0) {
-            if (res == -1) {
-                log_socket_error(EXTENSION_LOG_WARNING, c,
-                                 "Failed to write, and not due to blocking: %s");
-            } else {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d - sendmsg returned 0\n",
-                                                c->sfd);
-                for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                    "\t%d - %zu\n",
-                                                    c->sfd, m->msg_iov[ii].iov_len);
-                }
-
-            }
-        }
-
-        c->setState(conn_closing);
-        return TransmitResult::HardError;
-    } else {
-        if (c->ssl.isEnabled()) {
-            c->ssl.drainBioSendPipe(c->sfd);
-            if (c->ssl.morePendingOutput()) {
-                if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {
-                    c->setState(conn_closing);
-                    return TransmitResult::HardError;
-                }
-                return TransmitResult::SoftError;
-            }
-        }
-
-        return TransmitResult::Complete;
-    }
-}
-
 bool conn_listening(Connection *c)
 {
     SOCKET sfd;
@@ -6069,17 +5877,17 @@ bool conn_read(Connection *c) {
         return true;
     }
 
-    switch (try_read_network(c)) {
-    case TryReadResult::NoDataReceived:
+    switch (c->tryReadNetwork()) {
+    case Connection::TryReadResult::NoDataReceived:
         c->setState(conn_waiting);
         break;
-    case TryReadResult::DataReceived:
+    case Connection::TryReadResult::DataReceived:
         c->setState(conn_parse_cmd);
         break;
-    case TryReadResult::SocketError:
+    case Connection::TryReadResult::SocketError:
         c->setState(conn_closing);
         break;
-    case TryReadResult::MemoryError: /* Failed to allocate more memory */
+    case Connection::TryReadResult::MemoryError: /* Failed to allocate more memory */
         /* State already set by try_read_network */
         break;
     }
@@ -6232,8 +6040,8 @@ bool conn_write(Connection *c) {
 }
 
 bool conn_mwrite(Connection *c) {
-    switch (transmit(c)) {
-    case TransmitResult::Complete:
+    switch (c->transmit()) {
+    case Connection::TransmitResult::Complete:
         if (c->getState() == conn_mwrite) {
             for (auto *it : c->reservedItems) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
@@ -6260,11 +6068,11 @@ bool conn_mwrite(Connection *c) {
         }
         break;
 
-    case TransmitResult::Incomplete:
-    case TransmitResult::HardError:
+    case Connection::TransmitResult::Incomplete:
+    case Connection::TransmitResult::HardError:
         break;                   /* Continue in state machine. */
 
-    case TransmitResult::SoftError:
+    case Connection::TransmitResult::SoftError:
         return false;
     }
 

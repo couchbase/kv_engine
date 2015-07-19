@@ -591,6 +591,50 @@ public:
      */
     int sendmsg(struct msghdr* m);
 
+
+    enum class TransmitResult {
+        /** All done writing. */
+        Complete,
+        /** More data remaining to write. */
+        Incomplete,
+        /** Can't write any more right now. */
+        SoftError,
+        /** Can't write (c->state is set to conn_closing) */
+        HardError
+    };
+
+    /**
+     * Transmit the next chunk of data from our list of msgbuf structures.
+     *
+     * Returns:
+     *   Complete   All done writing.
+     *   Incomplete More data remaining to write.
+     *   SoftError Can't write any more right now.
+     *   HardError Can't write (c->state is set to conn_closing)
+     */
+    TransmitResult transmit();
+
+    enum class TryReadResult {
+        /** Data received on the socket and ready to parse */
+        DataReceived,
+        /** No data received on the socket */
+        NoDataReceived,
+        /** An error occurred on the socket (or the client closed the connection) */
+        SocketError,
+        /** Failed to allocate more memory for the input buffer */
+        MemoryError
+    };
+
+    /**
+     * read from network as much as we can, handle buffer overflow and
+     * connection close. Before reading, move the remaining incomplete fragment
+     * of a command (if any) to the beginning of the buffer.
+     *
+     * @return enum try_read_result
+     */
+    TryReadResult tryReadNetwork();
+
+
 protected:
     /**
      * Read data over the SSL connection

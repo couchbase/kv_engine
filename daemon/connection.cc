@@ -714,6 +714,152 @@ int Connection::sendmsg(struct msghdr* m) {
     return res;
 }
 
+Connection::TransmitResult Connection::transmit() {
+    while (msgcurr < msgused &&
+           msglist[msgcurr].msg_iovlen == 0) {
+        /* Finished writing the current msg; advance to the next. */
+        msgcurr++;
+    }
+
+    if (msgcurr < msgused) {
+        ssize_t res;
+        struct msghdr *m = &msglist[msgcurr];
+
+        res = sendmsg(m);
+        auto error = GetLastNetworkError();
+        if (res > 0) {
+            get_thread_stats(this)->bytes_written += res;
+
+            /* We've written some of the data. Remove the completed
+               iovec entries from the list of pending writes. */
+            while (m->msg_iovlen > 0 && res >= ssize_t(m->msg_iov->iov_len)) {
+                res -= (ssize_t)m->msg_iov->iov_len;
+                m->msg_iovlen--;
+                m->msg_iov++;
+            }
+
+            /* Might have written just part of the last iovec entry;
+               adjust it so the next write will do the rest. */
+            if (res > 0) {
+                m->msg_iov->iov_base = (void*)((unsigned char*)m->msg_iov->iov_base + res);
+                m->msg_iov->iov_len -= res;
+            }
+            return TransmitResult::Incomplete;
+        }
+
+        if (res == -1 && is_blocking(error)) {
+            if (!updateEvent(EV_WRITE | EV_PERSIST)) {
+                setState(conn_closing);
+                return TransmitResult::HardError;
+            }
+            return TransmitResult::SoftError;
+        }
+        /* if res == 0 or res == -1 and error is not EAGAIN or EWOULDBLOCK,
+           we have a real error, on which we close the connection */
+        if (settings.verbose > 0) {
+            if (res == -1) {
+                log_socket_error(EXTENSION_LOG_WARNING, this,
+                                 "Failed to write, and not due to blocking: %s");
+            } else {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                                "%d - sendmsg returned 0\n",
+                                                sfd);
+                for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
+                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                                    "\t%d - %zu\n",
+                                                    sfd, m->msg_iov[ii].iov_len);
+                }
+
+            }
+        }
+
+        setState(conn_closing);
+        return TransmitResult::HardError;
+    } else {
+        if (ssl.isEnabled()) {
+            ssl.drainBioSendPipe(sfd);
+            if (ssl.morePendingOutput()) {
+                if (!updateEvent(EV_WRITE | EV_PERSIST)) {
+                    setState(conn_closing);
+                    return TransmitResult::HardError;
+                }
+                return TransmitResult::SoftError;
+            }
+        }
+
+        return TransmitResult::Complete;
+    }
+}
+/**
+ * To protect us from someone flooding a connection with bogus data causing
+ * the connection to eat up all available memory, break out and start
+ * looking at the data I've got after a number of reallocs...
+ */
+Connection::TryReadResult Connection::tryReadNetwork() {
+    TryReadResult gotdata = TryReadResult::NoDataReceived;
+    int res;
+    int num_allocs = 0;
+
+    if (read.curr != read.buf) {
+        if (read.bytes != 0) { /* otherwise there's nothing to copy */
+            memmove(read.buf, read.curr, read.bytes);
+        }
+        read.curr = read.buf;
+    }
+
+    while (1) {
+        int avail;
+        if (read.bytes >= read.size) {
+            if (num_allocs == 4) {
+                return gotdata;
+            }
+            ++num_allocs;
+            char* new_rbuf = reinterpret_cast<char*>(realloc(read.buf,
+                                                             read.size * 2));
+            if (!new_rbuf) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                                "Couldn't realloc input buffer");
+                read.bytes = 0; /* ignore what we read */
+                setState(conn_closing);
+                return TryReadResult::MemoryError;
+            }
+            read.curr = read.buf = new_rbuf;
+            read.size *= 2;
+        }
+
+        avail = read.size - read.bytes;
+        res = recv(read.buf + read.bytes, avail);
+        if (res > 0) {
+            get_thread_stats(this)->bytes_read += res;
+            gotdata = TryReadResult::DataReceived;
+            read.bytes += res;
+            if (res == avail) {
+                continue;
+            } else {
+                break;
+            }
+        }
+        if (res == 0) {
+            return TryReadResult::SocketError;
+        }
+        if (res == -1) {
+            auto error = GetLastNetworkError();
+
+            if (is_blocking(error)) {
+                break;
+            }
+            char prefix[160];
+            snprintf(prefix, sizeof(prefix),
+                     "%d Closing connection [%s - %s] due to read error: %%s",
+                     sfd, getPeername().c_str(), getSockname().c_str());
+            log_errcode_error(EXTENSION_LOG_WARNING, this, prefix, error);
+
+            return TryReadResult::SocketError;
+        }
+    }
+    return gotdata;
+}
+
 int Connection::sslRead(char* dest, size_t nbytes) {
     int ret = 0;
 
