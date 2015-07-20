@@ -704,6 +704,7 @@ void DcpProducer::setDisconnect(bool disconnect) {
 
 void DcpProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
     LockHolder lh(queueLock);
+    bool notifyPausedConnection = false;
 
     std::list<uint16_t>::iterator iter =
         std::find(ready.begin(), ready.end(), vbucket);
@@ -712,9 +713,13 @@ void DcpProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
     }
 
     ready.push_back(vbucket);
-    lh.unlock();
 
     if (!log || (log && !log->isFull())) {
+        notifyPausedConnection = true;
+    }
+    lh.unlock();
+
+    if (notifyPausedConnection) {
         engine_.getDcpConnMap().notifyPausedConnection(this, schedule);
     }
 }
