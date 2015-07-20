@@ -462,6 +462,13 @@ public:
      */
     static void setMutationMemoryThreshold(double memThreshold);
 
+    /**
+     * Return the memory threshold for accepting a new mutation
+     */
+    static double getMutationMemThreshold() {
+        return mutation_mem_threshold;
+    }
+
     /*
      * Values of the bySeqno attribute used by temporarily created StoredValue
      * objects.

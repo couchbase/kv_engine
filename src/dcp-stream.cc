@@ -1221,10 +1221,17 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
     if (byseqno == cur_snapshot_end) {
         if (cur_snapshot_type == disk && vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);
+            uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
+            vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+        } else {
+            double maxSize = static_cast<double>(engine->getEpStats().getMaxDataSize());
+            double mem_threshold = StoredValue::getMutationMemThreshold();
+            double mem_used = static_cast<double>(engine->getEpStats().getTotalMemoryUsed());
+            if (maxSize * mem_threshold < mem_used) {
+                uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
+                vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
+            }
         }
-
-        uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
-        vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
 
         if (cur_snapshot_ack) {
             LockHolder lh(streamMutex);
