@@ -45,9 +45,8 @@ extern SOCKET sock;
 extern in_port_t port;
 
 
-// Test the various memcached binary protocol commands against a
-// external `memcached` process.
-class McdTestappTest : public ::testing::TestWithParam<Transport> {
+// Base class for tests against just the "plain" socker (no SSL).
+class TestappTest : public ::testing::Test {
 public:
     // Per-test-case set-up.
     // Called before the first test in this test case.
@@ -81,6 +80,20 @@ protected:
 
     /* Disable the ewouldblock_engine. */
     static void ewouldblock_engine_disable();
+
+};
+
+// Test the various memcached binary protocol commands against a
+// external `memcached` process. Tests are parameterized to test both Plain and
+// SSL transports.
+class McdTestappTest : public TestappTest,
+                       public ::testing::WithParamInterface<Transport> {
+protected:
+    // per test setup function.
+    virtual void SetUp();
+
+    // per test tear-down function.
+    virtual void TearDown();
 
     /* Helpers for individual testcases */
     void test_set_huge_impl(const char *key, uint8_t cmd, int result,

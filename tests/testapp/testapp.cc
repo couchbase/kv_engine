@@ -107,7 +107,7 @@ std::ostream& operator << (std::ostream& os, const Transport& t)
     return os;
 }
 
-void McdTestappTest::CreateTestBucket()
+void TestappTest::CreateTestBucket()
 {
     // We need to create the bucket
     int phase = current_phase;
@@ -148,7 +148,7 @@ void McdTestappTest::CreateTestBucket()
 
 // Per-test-case set-up.
 // Called before the first test in this test case.
-void McdTestappTest::SetUpTestCase() {
+void TestappTest::SetUpTestCase() {
     cJSON *config = generate_config();
     start_memcached_server(config);
     cJSON_Delete(config);
@@ -162,7 +162,7 @@ void McdTestappTest::SetUpTestCase() {
 
 // Per-test-case tear-down.
 // Called after the last test in this test case.
-void McdTestappTest::TearDownTestCase() {
+void TestappTest::TearDownTestCase() {
     closesocket(sock);
 
     if (server_pid != reinterpret_cast<pid_t>(-1)) {
@@ -189,6 +189,23 @@ void McdTestappTest::TearDownTestCase() {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
     stop_memcached_server();
+}
+
+// per test setup function.
+void TestappTest::SetUp() {
+    ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
+    current_phase = phase_plain;
+    sock = connect_to_server_plain(port, false);
+    ASSERT_NE(INVALID_SOCKET, sock);
+
+    // Set ewouldblock_engine test harness to default mode.
+    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_FIRST,
+                                 /*unused*/0);
+}
+
+// per test tear-down function.
+void TestappTest::TearDown() {
+    closesocket(sock);
 }
 
 // per test setup function.
@@ -261,7 +278,7 @@ static void get_working_current_directory(char* out_buf, int out_buf_len) {
     }
 }
 
-cJSON* McdTestappTest::generate_config(int num_threads)
+cJSON* TestappTest::generate_config(int num_threads)
 {
     cJSON *root = cJSON_CreateObject();
     cJSON *array = cJSON_CreateArray();
@@ -695,7 +712,7 @@ static void reconnect_to_server(bool nonblocking) {
 
 static char *isasl_file;
 
-void McdTestappTest::start_memcached_server(cJSON* config) {
+void TestappTest::start_memcached_server(cJSON* config) {
 
     strncpy(config_file, CFG_FILE_PATTERN, sizeof(config_file));
     ASSERT_NE(cb_mktemp(config_file), nullptr);
@@ -1218,7 +1235,7 @@ static void validate_arithmetic(const protocol_binary_response_incr* incr,
 
 // Configues the ewouldblock_engine to use the given mode; value
 // is a mode-specific parameter.
-void McdTestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
+void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
                                                   EWBEngine_Mode mode,
                                                   uint32_t value) {
     union {
@@ -1242,7 +1259,7 @@ void McdTestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
-void McdTestappTest::ewouldblock_engine_disable() {
+void TestappTest::ewouldblock_engine_disable() {
     // Value for err_code doesn't matter...
     ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_NEXT_N, 0);
 }
@@ -3797,7 +3814,7 @@ static int sasl_get_password(cbsasl_conn_t *conn, void *context, int id,
     return CBSASL_OK;
 }
 
-uint16_t McdTestappTest::sasl_auth(const char *username, const char *password) {
+uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
     cbsasl_error_t err;
     const char *data;
     unsigned int len;

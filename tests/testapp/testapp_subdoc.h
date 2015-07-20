@@ -23,10 +23,59 @@
 
 #include "testapp.h"
 
-#if defined(__cplusplus)
-extern "C" {
-#endif
+#include <memory>
 
-#if defined(__cplusplus)
-} // extern "C"
-#endif
+// Class representing a subdoc command; to assist in constructing / encoding one.
+struct SubdocCmd {
+    // Always need at least a cmd, key and path.
+    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
+                       const std::string& path_)
+      : cmd(cmd_), key(key_), path(path_), value(""), flags(), cas() {}
+
+    // Constructor including a value.
+    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
+                       const std::string& path_, const std::string& value_)
+      : cmd(cmd_), key(key_), path(path_), value(value_), flags(), cas() {}
+
+    // Constructor additionally including flags.
+    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
+                       const std::string& path_, const std::string& value_,
+                       protocol_binary_subdoc_flag flags_)
+      : cmd(cmd_), key(key_), path(path_), value(value_), flags(flags_),
+        cas() {}
+
+    // Constructor additionally including CAS.
+    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
+                       const std::string& path_, const std::string& value_,
+                       protocol_binary_subdoc_flag flags_, uint64_t cas_)
+      : cmd(cmd_), key(key_), path(path_), value(value_), flags(flags_),
+        cas(cas_) {}
+
+    protocol_binary_command cmd;
+    std::string key;
+    std::string path;
+    std::string value;
+    protocol_binary_subdoc_flag flags;
+    uint64_t cas;
+};
+
+// helper class for use with std::unique_ptr in managing cJSON* objects.
+struct cJSONDeleter {
+  void operator()(cJSON* j) { cJSON_Delete(j); }
+};
+
+typedef std::unique_ptr<cJSON, cJSONDeleter> unique_cJSON_ptr;
+
+/* Encodes and sends a sub-document command with the given parameters, receives
+ * the response and validates that the status matches the expected one.
+ * If expected_value is non-empty, also verifies that the response value equals
+ * expectd_value.
+ * @return CAS value (if applicable for the command, else zero).
+ */
+uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
+                           protocol_binary_response_status expected_status,
+                           const std::string& expected_value);
+
+void store_object(const std::string& key,
+                  const std::string& value,
+                  bool JSON, bool compress);

@@ -37,48 +37,6 @@
 // that large and one bigger to test with.
 const int MAX_SUBDOC_PATH_COMPONENTS = 32;
 
-
-// helper class for use with std::unique_ptr in managing cJSON* objects.
-struct cJSONDeleter {
-  void operator()(cJSON* j) { cJSON_Delete(j); }
-};
-
-typedef std::unique_ptr<cJSON, cJSONDeleter> unique_cJSON_ptr;
-
-// Class representing a subdoc command; to assist in constructing / encoding one.
-struct SubdocCmd {
-    // Always need at least a cmd, key and path.
-    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
-                       const std::string& path_)
-      : cmd(cmd_), key(key_), path(path_), value(""), flags(), cas() {}
-
-    // Constructor including a value.
-    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
-                       const std::string& path_, const std::string& value_)
-      : cmd(cmd_), key(key_), path(path_), value(value_), flags(), cas() {}
-
-    // Constructor additionally including flags.
-    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
-                       const std::string& path_, const std::string& value_,
-                       protocol_binary_subdoc_flag flags_)
-      : cmd(cmd_), key(key_), path(path_), value(value_), flags(flags_),
-        cas() {}
-
-    // Constructor additionally including CAS.
-    explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
-                       const std::string& path_, const std::string& value_,
-                       protocol_binary_subdoc_flag flags_, uint64_t cas_)
-      : cmd(cmd_), key(key_), path(path_), value(value_), flags(flags_),
-        cas(cas_) {}
-
-    protocol_binary_command cmd;
-    std::string key;
-    std::string path;
-    std::string value;
-    protocol_binary_subdoc_flag flags;
-    uint64_t cas;
-};
-
 std::ostream& operator<<(std::ostream& os, const SubdocCmd& obj)
 {
     os << "[cmd:" << memcached_opcode_2_text(obj.cmd)
@@ -189,12 +147,6 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
     return header->response.cas;
 }
 
-/* Encodes and sends a sub-document command with the given parameters, receives
- * the response and validates that the status matches the expected one.
- * If expected_value is non-empty, also verifies that the response value equals
- * expectd_value.
- * @return CAS value (if applicable for the command, else zero).
- */
 uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
                            protocol_binary_response_status expected_status,
                            const std::string& expected_value) {
@@ -1566,7 +1518,7 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
 
 // Tests how a single worker handles multiple "concurrent" connections
 // performing operations.
-class WorkerConcurrencyTest : public McdTestappTest {
+class WorkerConcurrencyTest : public TestappTest {
 public:
     static void SetUpTestCase() {
         // Change the number of worker threads to one so we guarantee that
@@ -1579,14 +1531,9 @@ public:
 };
 
 
-TEST_P(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
-    // Concurrently add to two different array documents, using two connections.
 
-    // Current SSL connection code is very stateful (i.e. non-trivial to spin
-    // up a second connection). Only run this test for plain connections.
-    if (GetParam() == Transport::SSL) {
-        return;
-    }
+TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
+    // Concurrently add to two different array documents, using two connections.
 
     // Setup the initial empty objects.
     store_object("a", "[]", /*JSON*/true, /*compress*/false);
@@ -1661,7 +1608,3 @@ TEST_P(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     delete_object("a");
     delete_object("b");
 }
-
-INSTANTIATE_TEST_CASE_P(PlainOrSSL,
-                        WorkerConcurrencyTest,
-                        ::testing::Values(Transport::Plain, Transport::SSL));
