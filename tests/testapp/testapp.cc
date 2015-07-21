@@ -3968,14 +3968,11 @@ int get_topkeys_legacy_value(const std::string& key) {
 }
 
 /**
- * Accesses either the maximum value or the current value of the key via
- * the JSON formatted topkeys return.
+ * Accesses the current value of the key via the JSON formatted topkeys return.
+ * @return True if the specified key was found (and sets count to the
+ *         keys' access count) or false if not found.
  */
-int get_topkeys_json_value(const std::string& key) {
-
-    char *response_string = NULL;
-    int max_value = 0;
-    int current_value = 0;
+bool get_topkeys_json_value(const std::string& key, int& count) {
 
     union {
         protocol_binary_request_no_extras request;
@@ -3996,10 +3993,14 @@ int get_topkeys_json_value(const std::string& key) {
 
     EXPECT_NE(0, buffer.response.message.header.response.keylen);
 
-    response_string = buffer.bytes + (sizeof(buffer.response) +
+    const char* val_ptr = buffer.bytes + (sizeof(buffer.response) +
              buffer.response.message.header.response.keylen +
              buffer.response.message.header.response.extlen);
-
+    const size_t vallen(buffer.response.message.header.response.bodylen -
+                        buffer.response.message.header.response.keylen -
+                        buffer.response.message.header.response.extlen);
+    EXPECT_GT(vallen, 0);
+    const std::string value(val_ptr, vallen);
 
     // Consume NULL stats packet.
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
@@ -4008,40 +4009,32 @@ int get_topkeys_json_value(const std::string& key) {
     EXPECT_EQ(0, buffer.response.message.header.response.keylen);
 
     // Check for response string
-    EXPECT_TRUE(response_string != NULL);
 
-    cJSON *topkeys = cJSON_Parse(response_string);
-    char *topkeys_string = cJSON_Print(cJSON_GetObjectItem(topkeys, "topkeys"));
+    cJSON* json_value = cJSON_Parse(value.c_str());
+    EXPECT_NE(nullptr, json_value)
+        << "Failed to parse response string '" << value << "' to JSON";
 
-    if (strcmp(topkeys_string, "[]") != 0)
-    {
+    cJSON* topkeys = cJSON_GetObjectItem(json_value, "topkeys");
+    EXPECT_NE(nullptr, topkeys);
 
-        for (int ii = 0; ii < cJSON_GetArraySize(topkeys); ii++) {
-            cJSON *current_key = cJSON_GetArrayItem(cJSON_GetObjectItem(topkeys,
-                                                    "topkeys"), ii);
+    // Search the array for the specified key's information.
+    for (int ii = 0; ii < cJSON_GetArraySize(topkeys); ii++) {
+        cJSON *record = cJSON_GetArrayItem(topkeys, ii);
 
-            current_value = cJSON_GetObjectItem(current_key,
-                                                "access_count")->valueint;
+        cJSON* current_key = cJSON_GetObjectItem(record, "key");
+        EXPECT_NE(nullptr, current_key);
 
-            if (current_value > max_value) {
-                max_value = current_value;
-            }
-
-            if (strcmp(cJSON_GetObjectItem(current_key, "key")->valuestring,
-                       key.c_str()) == 0) {
-                cJSON_Delete(topkeys);
-                cJSON_Free(topkeys_string);
-                // Return current value of existing key.
-                return (current_value);
-            }
+        if (key == current_key->valuestring) {
+            cJSON* access_count = cJSON_GetObjectItem(record, "access_count");
+            EXPECT_NE(nullptr, access_count);
+            count = access_count->valueint;
+            cJSON_Delete(json_value);
+            return true;
         }
     }
 
-    cJSON_Free(topkeys_string);
-    cJSON_Delete(topkeys);
-
-    // Return current largest value if key doesn't exist.
-    return (max_value * -1);
+    cJSON_Delete(json_value);
+    return false;
 }
 
 /**
@@ -4051,11 +4044,12 @@ int get_topkeys_json_value(const std::string& key) {
 static void check_topkeys_value(const std::string key, const int expect_value) {
 
     /* Get old and new topkeys return values */
-    const int json_value = get_topkeys_json_value(key);
+    int json_value;
+    ASSERT_TRUE(get_topkeys_json_value(key, json_value));
     const int legacy_value = get_topkeys_legacy_value(key);
 
     /* Check old and new topkeys implementations return same value */
-    ASSERT_EQ(json_value, legacy_value);
+    ASSERT_EQ(expect_value, legacy_value);
 
     /* Ensure returned value is equal to prior value + sum operations */
     ASSERT_EQ(expect_value, json_value);
@@ -4065,9 +4059,11 @@ static void check_topkeys_value(const std::string key, const int expect_value) {
  * Set a key a number of times and assert that the return value matches the
  * change after the number of set operations.
  */
-static void test_set_topkeys(const std::string& key) {
-    int sum = 0;
-    int current = get_topkeys_json_value(key);
+static void test_set_topkeys(const std::string& key, const int operations) {
+
+    // Should start with no record of the key.
+    int temp;
+    ASSERT_FALSE(get_topkeys_json_value(key, temp));
 
     int ii;
     size_t len;
@@ -4078,16 +4074,9 @@ static void test_set_topkeys(const std::string& key) {
     } buffer;
     memset(buffer.bytes, 0, sizeof(buffer));
 
-    if (current < 0) {
-        sum = (current * -1) + 1;
-        current = 0;
-    } else {
-        sum = current + 1;
-    }
-
     /* Send CMD_SET for current key 'sum' number of times (and validate
      * response). */
-    for (ii = 0; ii < sum; ii++) {
+    for (ii = 0; ii < operations; ii++) {
         len = storage_command(buffer.bytes, sizeof(buffer.bytes),
                               PROTOCOL_BINARY_CMD_SET, key.c_str(),
                               key.length(),
@@ -4100,7 +4089,7 @@ static void test_set_topkeys(const std::string& key) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
-    check_topkeys_value(key, (current + sum));
+    check_topkeys_value(key, operations);
 }
 
 
@@ -4108,9 +4097,9 @@ static void test_set_topkeys(const std::string& key) {
  * Get a key a number of times and assert that the return value matches the
  * change after the number of get operations.
  */
-static void test_get_topkeys(const std::string& key) {
-    int sum = 0;
-    int current = get_topkeys_json_value(key);
+static void test_get_topkeys(const std::string& key, int operations) {
+    int initial_count;
+    ASSERT_TRUE(get_topkeys_json_value(key, initial_count));
 
     int ii;
     size_t len;
@@ -4121,14 +4110,7 @@ static void test_get_topkeys(const std::string& key) {
     } buffer;
     memset(buffer.bytes, 0, sizeof(buffer));
 
-    if (current < 0) {
-        sum = (current * -1) + 1;
-        current = 0;
-    } else {
-        sum = current + 1;
-    }
-
-    for (ii = 0; ii < sum; ii++) {
+    for (ii = 0; ii < operations; ii++) {
         len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                           PROTOCOL_BINARY_CMD_GET, key.c_str(), key.length(),
                           NULL, 0);
@@ -4139,7 +4121,7 @@ static void test_get_topkeys(const std::string& key) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
-    check_topkeys_value(key, (current + sum));
+    check_topkeys_value(key, initial_count + operations);
 }
 
 /**
@@ -4147,8 +4129,8 @@ static void test_get_topkeys(const std::string& key) {
  * after the delete operation.
  */
 static void test_delete_topkeys(const std::string& key) {
-    int sum = 1;
-    int current = get_topkeys_json_value(key);
+    int initial_count;
+    ASSERT_TRUE(get_topkeys_json_value(key, initial_count));
 
     size_t len;
     union {
@@ -4167,7 +4149,7 @@ static void test_delete_topkeys(const std::string& key) {
     validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_DELETE,
                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    check_topkeys_value(key, (current + sum));
+    check_topkeys_value(key, initial_count + 1);
 }
 
 
@@ -4177,14 +4159,14 @@ static void test_delete_topkeys(const std::string& key) {
  */
 TEST_P(McdTestappTest, test_topkeys) {
 
-    /* Key for use throughout tests to prevent ENGINE_ENOENT */
-    std::string key = "foo";
+    /* Perform sets on a few different keys. */
+    test_set_topkeys("key1", 1);
+    test_set_topkeys("key2", 2);
+    test_set_topkeys("key3", 3);
 
-    test_set_topkeys(key);
+    test_get_topkeys("key1", 10);
 
-    test_get_topkeys(key);
-
-    test_delete_topkeys(key);
+    test_delete_topkeys("key1");
 }
 
 INSTANTIATE_TEST_CASE_P(PlainOrSSL,
