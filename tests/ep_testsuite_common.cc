@@ -33,7 +33,7 @@
 
 #include <platform/dirutils.h>
 
-static const char *default_dbname = "/tmp/test";
+static const char *default_dbname = "./test";
 const char *dbname_env = NULL;
 
 static enum test_result skipped_test_function(ENGINE_HANDLE *h,

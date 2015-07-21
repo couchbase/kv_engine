@@ -379,35 +379,35 @@ static enum test_result perf_latency_baseline_multi_bucket_4(engine_test_t* test
  * List of testcases
  *****************************************************************************/
 
-/* NOTE: Please pass "backend=couchdb;dbname=/tmp/perf_test" as the test cfg
+/* NOTE: Please pass "backend=couchdb;dbname=./perf_test" as the test cfg
          parameter always. This ensures that the perf test doesn't not use the
          same file as the functional test when they are running concurrently. */
 BaseTestCase testsuite_testcases[] = {
         TestCase("Baseline latency", perf_latency_baseline,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=/tmp/perf_test;ht_size=393209",
+                 "backend=couchdb;dbname=./perf_test;ht_size=393209",
                  prepare, cleanup),
         TestCase("Defragmenter latency", perf_latency_defragmenter,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=/tmp/perf_test;ht_size=393209"
+                 "backend=couchdb;dbname=./perf_test;ht_size=393209"
                  // Run defragmenter constantly.
                  ";defragmenter_interval=0",
                  prepare, cleanup),
         TestCase("Expiry pager latency", perf_latency_expiry_pager,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=/tmp/perf_test;ht_size=393209"
+                 "backend=couchdb;dbname=./perf_test;ht_size=393209"
                  // Run expiry pager constantly.
                  ";exp_pager_stime=0",
                  prepare, cleanup),
         TestCaseV2("Multi bucket latency", perf_latency_baseline_multi_bucket_2,
                    NULL, NULL,
-                   "backend=couchdb;dbname=/tmp/perf_test;ht_size=393209",
+                   "backend=couchdb;dbname=./perf_test;ht_size=393209",
                    prepare, cleanup),
         TestCaseV2("Multi bucket latency", perf_latency_baseline_multi_bucket_4,
                    NULL, NULL,
-                   "backend=couchdb;dbname=/tmp/perf_test;ht_size=393209",
+                   "backend=couchdb;dbname=./perf_test;ht_size=393209",
                    prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL,
-                 "backend=couchdb;dbname=/tmp/perf_test", prepare, cleanup)
+                 "backend=couchdb;dbname=./perf_test", prepare, cleanup)
 };
