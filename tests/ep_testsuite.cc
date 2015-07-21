@@ -3913,7 +3913,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     bool done = false;
     int num_mutations = 0;
     int num_deletions = 0;
-    int num_snapshot_marker = 0;
+    int num_snapshot_markers = 0;
     int num_set_vbucket_pending = 0;
     int num_set_vbucket_active = 0;
 
@@ -4007,7 +4007,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     all_bytes += dcp_last_packet_size;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
-                    if (exp_disk_snapshot && num_snapshot_marker == 0) {
+                    if (exp_disk_snapshot && num_snapshot_markers == 0) {
                         check(dcp_last_flags == 1, "Expected disk snapshot");
                     }
 
@@ -4016,7 +4016,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                         marker_end = dcp_last_snap_end_seqno;
                     }
 
-                    num_snapshot_marker++;
+                    num_snapshot_markers++;
                     bytes_read += dcp_last_packet_size;
                     all_bytes += dcp_last_packet_size;
                     break;
@@ -4062,7 +4062,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     }
 
     if (simulate_cursor_dropping) {
-        if (num_snapshot_marker == 0) {
+        if (num_snapshot_markers == 0) {
             cb_assert(num_mutations == 0 && num_deletions == 0);
         } else {
             check(num_mutations <= exp_mutations, "Invalid number of mutations");
@@ -4071,7 +4071,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     } else {
         check(num_mutations == exp_mutations, "Invalid number of mutations");
         check(num_deletions == exp_deletions, "Invalid number of deletes");
-        check(num_snapshot_marker == exp_markers,
+        check(num_snapshot_markers == exp_markers,
                 "Didn't receive expected number of snapshot marker");
     }
 
@@ -4568,7 +4568,7 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
     struct dcp_message_producers* producers = get_dcp_producers();
 
     bool done = false;
-    int num_snapshot_marker = 0;
+    int num_snapshot_markers = 0;
     int num_set_vbucket_pending = 0;
     int num_set_vbucket_active = 0;
 
@@ -4582,7 +4582,7 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
                     done = true;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
-                    num_snapshot_marker++;
+                    num_snapshot_markers++;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE:
                     if (dcp_last_vbucket_state == vbucket_state_pending) {
@@ -4603,7 +4603,7 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
         }
     } while (!done);
 
-    check(num_snapshot_marker == 0, "Invalid number of snapshot marker");
+    check(num_snapshot_markers == 0, "Invalid number of snapshot marker");
     check(num_set_vbucket_pending == 1, "Didn't receive pending set state");
     check(num_set_vbucket_active == 1, "Didn't receive active set state");
 
