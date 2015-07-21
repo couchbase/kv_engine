@@ -126,14 +126,16 @@ backfill_status_t DCPBackfill::create() {
     uint64_t lastPersistedSeqno =
         engine->getEpStore()->getLastPersistedSeqno(vbid);
 
+    ActiveStream* as = static_cast<ActiveStream*>(stream.get());
+
     if (lastPersistedSeqno < endSeqno) {
-        LOG(EXTENSION_LOG_NOTICE, "Rescheduling backfill for vbucket %d "
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Rescheduling backfill"
             "because backfill up to seqno %llu is needed but only up to "
-            "%llu is persisted", vbid, endSeqno, lastPersistedSeqno);
+            "%llu is persisted", as->logHeader(), vbid, endSeqno,
+            lastPersistedSeqno);
         return backfill_snooze;
     }
 
-    ActiveStream* as = static_cast<ActiveStream*>(stream.get());
     KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
     size_t numItems = kvstore->getNumItems(vbid, startSeqno,
                                            std::numeric_limits<uint64_t>::max());
@@ -181,9 +183,9 @@ backfill_status_t DCPBackfill::complete(bool cancelled) {
     ActiveStream* as = static_cast<ActiveStream*>(stream.get());
     as->completeBackfill();
 
-    LOG(EXTENSION_LOG_NOTICE, "Backfill task (%llu to %llu) %s for vb %d",
-        startSeqno, endSeqno, cancelled ? "cancelled" : "finished",
-        stream->getVBucket());
+    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill task (%llu to %llu) %s",
+        as->logHeader(), vbid, startSeqno, endSeqno,
+        cancelled ? "cancelled" : "finished", stream->getVBucket());
 
     transitionState(backfill_state_done);
 

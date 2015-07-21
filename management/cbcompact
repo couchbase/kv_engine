@@ -60,7 +60,7 @@ def main():
 
     c.addCommand('compact', compact, 'compact vbucketid')
     c.addOption('-b', 'bucketName',
-                'the bucket to get stats from (Default: default)')
+                'the bucket to perform compaction on (Default: default)')
     c.addOption('-p', 'password', 'the password for the bucket if one exists')
     c.addOption('--purge-before', 'purgeBeforeTs',
                 'purge documents before this timestamp')
