@@ -43,6 +43,7 @@ std::ostream& operator << (std::ostream& os, const Transport& t);
 // Needed by subdocument tests in seperate .cc file.
 extern SOCKET sock;
 extern in_port_t port;
+extern pid_t server_pid;
 
 
 // Base class for tests against just the "plain" socker (no SSL).

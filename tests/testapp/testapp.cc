@@ -59,7 +59,7 @@ char rbac_file[] = RBAC_FILE_PATTERN;
 #define phase_max 4
 static int current_phase = 0;
 
-static pid_t server_pid;
+pid_t server_pid;
 in_port_t port = -1;
 static in_port_t ssl_port = -1;
 SOCKET sock;

@@ -1526,7 +1526,13 @@ public:
         cJSON *config = generate_config(1);
         start_memcached_server(config);
         cJSON_Delete(config);
-        CreateTestBucket();
+
+        if (HasFailure()) {
+            server_pid = reinterpret_cast<pid_t>(-1);
+        } else {
+            CreateTestBucket();
+        }
+
     }
 };
 
