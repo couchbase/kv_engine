@@ -4062,14 +4062,18 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     }
 
     if (simulate_cursor_dropping) {
-        check(num_mutations <= exp_mutations, "Invalid number of mutations");
-        check(num_deletions <= exp_deletions, "Invalid number of deletes");
+        if (num_snapshot_marker == 0) {
+            cb_assert(num_mutations == 0 && num_deletions == 0);
+        } else {
+            check(num_mutations <= exp_mutations, "Invalid number of mutations");
+            check(num_deletions <= exp_deletions, "Invalid number of deletes");
+        }
     } else {
         check(num_mutations == exp_mutations, "Invalid number of mutations");
         check(num_deletions == exp_deletions, "Invalid number of deletes");
+        check(num_snapshot_marker == exp_markers,
+                "Didn't receive expected number of snapshot marker");
     }
-    check(num_snapshot_marker == exp_markers,
-          "Didn't receive expected number of snapshot marker");
 
     if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         check(num_set_vbucket_pending == 1, "Didn't receive pending set state");
