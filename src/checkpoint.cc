@@ -216,6 +216,15 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
             ++numNewItems;
         }
     }
+
+    /**
+     * Update snapshot start of current checkpoint to the first
+     * item's sequence number, after merge completed, as items
+     * from the previous checkpoint will be inserted into this
+     * checkpoint.
+     */
+    setSnapshotStartSeqno(getLowSeqno());
+
     memOverhead += newEntryMemOverhead;
     stats.memOverhead.fetch_add(newEntryMemOverhead);
     cb_assert(stats.memOverhead.load() < GIGANTOR);
