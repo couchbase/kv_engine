@@ -448,6 +448,8 @@ static bool isMemcachedAlive() {
  *                 listening on
  * @param daemon set to true if you want to run the memcached server
  *               as a daemon process
+ * @param timeout Number of seconds to wait for server to start before
+ *                giving up.
  */
 static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
                          bool daemon, int timeout)
@@ -456,7 +458,6 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
 #ifdef __sun
     char coreadm[128];
 #endif
-    FILE *fp;
     char buffer[80];
 
     snprintf(mcd_parent_monitor_env, sizeof(mcd_parent_monitor_env),
@@ -521,9 +522,6 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
         /* Child */
         const char *argv[20];
         int arg = 0;
-        char tmo[24];
-
-        snprintf(tmo, sizeof(tmo), "%u", timeout);
         putenv(mcd_port_filename_env);
 
         if (getenv("RUN_UNDER_VALGRIND") != NULL) {
@@ -543,12 +541,22 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
         cb_assert(execvp(argv[0], const_cast<char **>(argv)) != -1);
     }
 #endif // !WIN32
-    /* Yeah just let us "busy-wait" for the file to be created ;-) */
-    while ((fp = fopen(filename, "r")) == nullptr)
-    {
+
+    FILE* fp;
+    const time_t deadline = time(NULL) + timeout;
+    // Wait up to timeout seconds for the port file to be created.
+    do {
+        fp = fopen(filename, "r");
+        if (fp != nullptr) {
+            break;
+        }
+
         usleep(10);
         ASSERT_TRUE(isMemcachedAlive());
-    }
+    } while (time(NULL) < deadline);
+
+    ASSERT_NE(nullptr, fp) << "Timed out after " << timeout
+                           << "s waiting for memcached port file '" << filename << "' to be created.";
 
     *port_out = (in_port_t)-1;
     *ssl_port_out = (in_port_t)-1;
@@ -746,7 +754,7 @@ void TestappTest::start_memcached_server(cJSON* config) {
     putenv(envvar);
 
     server_start_time = time(0);
-    start_server(&port, &ssl_port, false, 600);
+    start_server(&port, &ssl_port, false, 30);
 }
 
 static void stop_memcached_server(void) {
