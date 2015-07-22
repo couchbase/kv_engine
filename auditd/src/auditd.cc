@@ -15,15 +15,17 @@
  *   limitations under the License.
  */
 
+#include "config.h"
+
 #include <algorithm>
 #include <cstring>
 #include <sstream>
 #include <cJSON.h>
 #include <platform/dirutils.h>
+#include <platform/strerror.h>
 #include <memcached/isotime.h>
 #include "auditd.h"
 #include "audit.h"
-#include "config.h"
 #include "auditd_audit_events.h"
 #include "event.h"
 
@@ -94,7 +96,11 @@ static void consume_events(void *arg) {
 AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
     Audit::logger = extension_data->log_extension;
     char host[128];
-    gethostname(host, sizeof(host));
+    if (gethostname(host, sizeof(host)) != 0) {
+        Audit::log_error(AuditErrorCode::INITIALIZATION_ERROR,
+                         std::string("gethostname failed: " + cb_strerror()).c_str());
+        return AUDIT_FAILED;
+    }
     Audit::hostname = std::string(host);
     Audit::notify_io_complete = extension_data->notify_io_complete;
 

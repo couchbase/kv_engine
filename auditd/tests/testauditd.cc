@@ -224,6 +224,9 @@ int main(int argc, char **argv) {
 
     configuration.setLogPath(testdir);
 
+    // required for gethostname(); normally called by memcached's main()
+    cb_initialize_sockets();
+
     // Start the audit daemon
     AUDIT_EXTENSION_DATA audit_extension_data;
     audit_extension_data.version = 1;

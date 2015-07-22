@@ -190,6 +190,9 @@ void Audit::log_error(const AuditErrorCode return_code, const char *string) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Audit: error: %s does not exists",
                     string);
+    case AuditErrorCode::INITIALIZATION_ERROR:
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: error during initialization: %s", string);
     default:
         assert(false);
     }
