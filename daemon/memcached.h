@@ -304,11 +304,12 @@ public:
     Connection * all_prev;
 
     SOCKET sfd;
+private:
     int max_reqs_per_event; /** The maximum requests we can process in a worker
                                 thread timeslice */
+public:
     int nevents; /** number of events this connection can process in a single
                      worker thread timeslice */
-
     cbsasl_conn_t *sasl_conn;
 private:
     STATE_FUNC   state;
@@ -541,6 +542,21 @@ public:
         Connection::admin = admin;
     }
 
+    /**
+     * Get the maximum number of events we should process per invocation
+     * for a connection object (to avoid starvation of other connections)
+     */
+    int getMaxReqsPerEvent() const {
+        return max_reqs_per_event;
+    }
+
+    /**
+     * Set the maximum number of events we should process per invocation
+     * for a connection object (to avoid starvation of other connections)
+     */
+    void setMaxReqsPerEvent(int max_reqs_per_event) {
+        Connection::max_reqs_per_event = max_reqs_per_event;
+    }
 
     const Protocol &getProtocol() const {
         return protocol;

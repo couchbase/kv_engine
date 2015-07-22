@@ -1986,9 +1986,8 @@ static void process_bin_tap_connect(Connection *c) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         c->write_and_go = conn_closing;
     } else {
-        c->max_reqs_per_event = settings.reqs_per_event_high_priority;
+        c->setMaxReqsPerEvent(settings.reqs_per_event_high_priority);
         c->tap_iterator = iterator;
-        c->max_reqs_per_event = settings.reqs_per_event_high_priority;
         c->setCurrentEvent(EV_WRITE);
         c->setState(conn_ship_log);
     }
@@ -3040,7 +3039,7 @@ static void dcp_stream_req_executor(Connection *c, void *packet)
         switch (ret) {
         case ENGINE_SUCCESS:
             c->dcp = 1;
-            c->max_reqs_per_event = settings.reqs_per_event_med_priority;
+            c->setMaxReqsPerEvent(settings.reqs_per_event_med_priority);
             if (c->dynamic_buffer.buffer != NULL) {
                 write_and_free(c, &c->dynamic_buffer);
             } else {
@@ -5815,7 +5814,7 @@ bool conn_ship_log(Connection *c) {
         /* up in a situation where we're receiving a burst of nack messages */
         /* we'll only process a subset of messages in our input queue, */
         /* and it will slowly grow.. */
-        c->nevents = c->max_reqs_per_event;
+        c->nevents = c->getMaxReqsPerEvent();
     } else if (c->isWriteevent()) {
         --c->nevents;
         if (c->nevents >= 0) {
@@ -6309,7 +6308,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     /* sanity */
     cb_assert(fd == c->sfd);
 
-    c->nevents = c->max_reqs_per_event;
+    c->nevents = c->getMaxReqsPerEvent();
 
     run_event_loop(c);
 
@@ -6785,13 +6784,13 @@ static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {
     Connection * c = (Connection *)cookie;
     switch (priority) {
     case CONN_PRIORITY_HIGH:
-        c->max_reqs_per_event = settings.reqs_per_event_high_priority;
+        c->setMaxReqsPerEvent(settings.reqs_per_event_high_priority);
         break;
     case CONN_PRIORITY_MED:
-        c->max_reqs_per_event = settings.reqs_per_event_med_priority;
+        c->setMaxReqsPerEvent(settings.reqs_per_event_med_priority);
         break;
     case CONN_PRIORITY_LOW:
-        c->max_reqs_per_event = settings.reqs_per_event_low_priority;
+        c->setMaxReqsPerEvent(settings.reqs_per_event_low_priority);
         break;
     default:
         abort();
