@@ -24,6 +24,12 @@
 #include "dcp/consumer.h"
 #include "dcp/stream.h"
 
+const std::string DcpConsumer::noopCtrlMsg = "enable_noop";
+const std::string DcpConsumer::noopIntervalCtrlMsg = "set_noop_interval";
+const std::string DcpConsumer::connBufferCtrlMsg = "connection_buffer_size";
+const std::string DcpConsumer::priorityCtrlMsg = "set_priority";
+const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
+
 class Processer : public GlobalTask {
 public:
     Processer(EventuallyPersistentEngine* e, connection_t c,
@@ -819,9 +825,11 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
     if (enableNoop) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
+        std::string val = "true";
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        ret = producers->control(getCookie(), opaque, "enable_noop", 11,
-                                 "true", 4);
+        ret = producers->control(getCookie(), opaque,
+                                 noopCtrlMsg.c_str(), noopCtrlMsg.size(),
+                                 val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
         enableNoop = false;
         return ret;
@@ -833,7 +841,9 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
         char buf_size[10];
         snprintf(buf_size, 10, "%u", noopInterval);
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        ret = producers->control(getCookie(), opaque, "set_noop_interval", 17,
+        ret = producers->control(getCookie(), opaque,
+                                 noopIntervalCtrlMsg.c_str(),
+                                 noopIntervalCtrlMsg.size(),
                                  buf_size, strlen(buf_size));
         ObjectRegistry::onSwitchThread(epe);
         sendNoopInterval = false;
@@ -859,8 +869,9 @@ ENGINE_ERROR_CODE DcpConsumer::handleFlowCtl(struct dcp_message_producers* produ
             snprintf(buf_size, 10, "%u", flowControl.bufferSize);
             EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
             ret = producers->control(getCookie(), opaque,
-                                     "connection_buffer_size", 22, buf_size,
-                                     strlen(buf_size));
+                                     connBufferCtrlMsg.c_str(),
+                                     connBufferCtrlMsg.size(),
+                                     buf_size, strlen(buf_size));
             ObjectRegistry::onSwitchThread(epe);
             flowControl.pendingControl = false;
             return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
@@ -896,9 +907,11 @@ ENGINE_ERROR_CODE DcpConsumer::handlePriority(struct dcp_message_producers* prod
     if (setPriority) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
+        std::string val = "high";
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        ret = producers->control(getCookie(), opaque, "set_priority", 12,
-                                 "high", 4);
+        ret = producers->control(getCookie(), opaque,
+                                 priorityCtrlMsg.c_str(), priorityCtrlMsg.size(),
+                                 val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
         setPriority = false;
         return ret;
@@ -911,9 +924,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* p
     if (enableExtMetaData) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
+        std::string val = "true";
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-        ret = producers->control(getCookie(), opaque, "enable_ext_metadata", 19,
-                                 "true", 4);
+        ret = producers->control(getCookie(), opaque,
+                                 extMetadataCtrlMsg.c_str(),
+                                 extMetadataCtrlMsg.size(),
+                                 val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
         enableExtMetaData = false;
         return ret;

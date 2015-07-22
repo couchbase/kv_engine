@@ -145,6 +145,12 @@ private:
         AtomicValue<uint32_t> freedBytes;
         AtomicValue<uint64_t> ackedBytes;
     } flowControl;
+
+    static const std::string noopCtrlMsg;
+    static const std::string noopIntervalCtrlMsg;
+    static const std::string connBufferCtrlMsg;
+    static const std::string priorityCtrlMsg;
+    static const std::string extMetadataCtrlMsg;
 };
 
 /*
