@@ -103,6 +103,7 @@
                     "GET_CMD_TIMER",
                     "GET_LOCKED",
                     "GET_META",
+                    "GET_RANDOM_KEY",
                     "GET_REPLICA",
                     "GET_VBUCKET",
                     "HELLO",
