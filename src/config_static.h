@@ -97,7 +97,9 @@
 */
 
 #define sched_yield() SwitchToThread()
+#if _MSC_VER < 1900
 #define snprintf _snprintf
+#endif
 #define sleep(a) Sleep(a * 1000)
 #define random() (long)rand()
 
