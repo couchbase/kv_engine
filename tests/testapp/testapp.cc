@@ -43,7 +43,6 @@
 static uint8_t read_command = 0xe1;
 static uint8_t write_command = 0xe2;
 
-char *config_string = NULL;
 #define CFG_FILE_PATTERN "memcached_testapp.json.XXXXXX"
 char config_file[] = CFG_FILE_PATTERN;
 #define RBAC_FILE_PATTERN "testapp_rbac.json.XXXXXX"
@@ -149,9 +148,8 @@ void TestappTest::CreateTestBucket()
 // Per-test-case set-up.
 // Called before the first test in this test case.
 void TestappTest::SetUpTestCase() {
-    cJSON *config = generate_config();
-    start_memcached_server(config);
-    cJSON_Delete(config);
+    memcached_cfg.reset(generate_config(/*disable SSL*/0));
+    start_memcached_server(memcached_cfg.get());
 
     if (HasFailure()) {
         server_pid = reinterpret_cast<pid_t>(-1);
@@ -208,6 +206,19 @@ void TestappTest::TearDown() {
     closesocket(sock);
 }
 
+// Per-test-case set-up.
+// Called before the first test in this test case.
+void McdTestappTest::SetUpTestCase() {
+    memcached_ssl_port = get_random_port();
+    memcached_cfg.reset(generate_config(memcached_ssl_port));
+    start_memcached_server(memcached_cfg.get());
+
+    if (HasFailure()) {
+        server_pid = reinterpret_cast<pid_t>(-1);
+    } else {
+        CreateTestBucket();
+    }
+}
 // per test setup function.
 void McdTestappTest::SetUp() {
     ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
@@ -278,7 +289,7 @@ static void get_working_current_directory(char* out_buf, int out_buf_len) {
     }
 }
 
-cJSON* TestappTest::generate_config(int num_threads)
+cJSON* TestappTest::generate_config(uint16_t ssl_port)
 {
     cJSON *root = cJSON_CreateObject();
     cJSON *array = cJSON_CreateArray();
@@ -322,38 +333,24 @@ cJSON* TestappTest::generate_config(int num_threads)
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddItemToArray(array, obj);
 
-    // We need to ensure that if >1 instance of this testsuite is run
-    // at once then there each has a unique SSL port.  For the first
-    // interface this is simple: we can specify the magic value '0'
-    // which will cause memcached to automatically select an available
-    // port, however for the second (SSL) port this isn't possible
-    // (port numbers - even when zero - are used to uniquely identify
-    // interfaces in memcached.  The (somewhat hacky) solution we use
-    // here is to derive a SSL port number using the process ID. While
-    // not guaranteed to be unique (port namespace is 16bit whereas
-    // PIDs are normally at least 32bit) but given the common case
-    // will be 2 testapp processes it should suffice in reality.
-    uint16_t ssl_port = 40000 + (getpid() % 10000);
-
-    obj = cJSON_CreateObject();
-    cJSON_AddNumberToObject(obj, "port", ssl_port);
-    cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
-    cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
-    cJSON_AddStringToObject(obj, "host", "*");
-    obj_ssl = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj_ssl, "key", pem_path);
-    cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
-    cJSON_AddItemToObject(obj, "ssl", obj_ssl);
-    cJSON_AddItemToArray(array, obj);
+    if (ssl_port != 0) {
+        obj = cJSON_CreateObject();
+        cJSON_AddNumberToObject(obj, "port", ssl_port);
+        cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
+        cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
+        cJSON_AddStringToObject(obj, "host", "*");
+        obj_ssl = cJSON_CreateObject();
+        cJSON_AddStringToObject(obj_ssl, "key", pem_path);
+        cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
+        cJSON_AddItemToObject(obj, "ssl", obj_ssl);
+        cJSON_AddItemToArray(array, obj);
+    }
 
     cJSON_AddItemToObject(root, "interfaces", array);
 
     cJSON_AddStringToObject(root, "admin", "");
     cJSON_AddTrueToObject(root, "datatype_support");
     cJSON_AddStringToObject(root, "rbac_file", rbac_path);
-    if (num_threads != -1) {
-        cJSON_AddNumberToObject(root, "threads", num_threads);
-    }
 
     return root;
 }
@@ -413,6 +410,23 @@ static cJSON *generate_rbac_config(void)
     return root;
 }
 
+uint16_t TestappTest::get_random_port() {
+    // We need to ensure that if >1 instance of this testsuite is run
+    // at once then there each has a unique SSL port.  For the first
+    // interface this is simple: we can specify the magic value '0'
+    // which will cause memcached to automatically select an available
+    // port, however for the second (SSL) port this isn't possible
+    // (port numbers - even when zero - are used to uniquely identify
+    // interfaces in memcached). The (somewhat hacky) solution we use
+    // here is to derive a SSL port number using the process ID. While
+    // not guaranteed to be unique (port namespace is 16bit whereas
+    // PIDs are normally at least 32bit) but given the common case
+    // will be 2 testapp processes it should suffice in reality.
+    // We also mix in the current time as some tests re-launch memcached
+    // and hence we'll need a new port number.
+    return 40000 + ((getpid() + time(NULL)) % 10000);
+}
+
 static int write_config_to_file(const char* config, const char *fname) {
     FILE *fp;
     if ((fp = fopen(fname, "w")) == NULL) {
@@ -465,7 +479,8 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
     putenv(mcd_parent_monitor_env);
 
     snprintf(mcd_port_filename_env, sizeof(mcd_port_filename_env),
-             "MEMCACHED_PORT_FILENAME=memcached_ports.%lu", (long)getpid());
+             "MEMCACHED_PORT_FILENAME=memcached_ports.%lu.%lu",
+             (long)getpid(), (unsigned long)time(NULL));
     remove(filename);
 
     static char topkeys_env[] = "MEMCACHED_TOP_KEYS=10";
@@ -725,8 +740,10 @@ void TestappTest::start_memcached_server(cJSON* config) {
     strncpy(config_file, CFG_FILE_PATTERN, sizeof(config_file));
     ASSERT_NE(cb_mktemp(config_file), nullptr);
 
-    config_string = cJSON_Print(config);
+    char* config_string = cJSON_Print(config);
+
     ASSERT_EQ(0, write_config_to_file(config_string, config_file));
+    cJSON_Free(config_string);
 
     char fname[1024];
     snprintf(fname, sizeof(fname), "isasl.%lu.%lu.pw",
@@ -779,7 +796,6 @@ static void stop_memcached_server(void) {
 #endif
     }
 
-    cJSON_Free(config_string);
     EXPECT_NE(-1, remove(config_file));
     EXPECT_NE(-1, remove(isasl_file));
     free(isasl_file);
@@ -2391,9 +2407,11 @@ TEST_P(McdTestappTest, Config_Validate) {
     } buffer;
 
     /* identity config is valid. */
+    char* config_string = cJSON_Print(memcached_cfg.get());
     size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
                              PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
                              config_string, strlen(config_string));
+    cJSON_Free(config_string);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
@@ -2466,7 +2484,7 @@ TEST_P(McdTestappTest, Config_Validate) {
 
     /* 'interfaces' - should be able to change max connections */
     {
-        cJSON *dynamic = generate_config();
+        cJSON *dynamic = generate_config(memcached_ssl_port);
         char* dyn_string = NULL;
         cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
@@ -2513,7 +2531,7 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change max_conns on first interface. */
     {
-        cJSON *dynamic = generate_config();
+        cJSON *dynamic = generate_config(memcached_ssl_port);
         char* dyn_string = NULL;
         cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
@@ -2540,7 +2558,7 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change backlog on first interface. */
     {
-        cJSON *dynamic = generate_config();
+        cJSON *dynamic = generate_config(memcached_ssl_port);
         char* dyn_string = NULL;
         cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
@@ -2567,7 +2585,7 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change tcp_nodelay on first interface. */
     {
-        cJSON *dynamic = generate_config();
+        cJSON *dynamic = generate_config(memcached_ssl_port);
         char* dyn_string = NULL;
         cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
@@ -2594,7 +2612,7 @@ TEST_P(McdTestappTest, Config_Reload) {
     /* Check that invalid (corrupted) file is rejected (and we don't
        leak any memory in the process). */
     {
-        cJSON *dynamic = generate_config();
+        cJSON *dynamic = generate_config(memcached_ssl_port);
         char* dyn_string = cJSON_Print(dynamic);
         cJSON_Delete(dynamic);
         // Corrupt the JSON by replacing first opening brace '{' with
@@ -2620,7 +2638,7 @@ TEST_P(McdTestappTest, Config_Reload) {
     }
 
     /* Restore original configuration. */
-    cJSON *dynamic = generate_config();
+    cJSON *dynamic = generate_config(memcached_ssl_port);
     char* dyn_string = cJSON_Print(dynamic);
     cJSON_Delete(dynamic);
     if (write_config_to_file(dyn_string, config_file) == -1) {
@@ -2652,7 +2670,7 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     }
 
     /* Change ssl cert/key on second interface. */
-    cJSON *dynamic = generate_config();
+    cJSON *dynamic = generate_config(memcached_ssl_port);
     char* dyn_string = NULL;
     cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
     cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
@@ -4213,6 +4231,10 @@ public:
         shutdown_openssl();
     }
 };
+
+unique_cJSON_ptr TestappTest::memcached_cfg;
+
+in_port_t McdTestappTest::memcached_ssl_port;
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

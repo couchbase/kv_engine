@@ -19,7 +19,6 @@
 
 #include <cstring>
 #include <limits>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -1521,21 +1520,23 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
 class WorkerConcurrencyTest : public TestappTest {
 public:
     static void SetUpTestCase() {
+        memcached_cfg.reset(generate_config(/*disable SSL*/0));
         // Change the number of worker threads to one so we guarantee that
         // multiple connections are handled by a single worker.
-        cJSON *config = generate_config(1);
-        start_memcached_server(config);
-        cJSON_Delete(config);
+        cJSON_AddNumberToObject(memcached_cfg.get(), "threads", 1);
+        start_memcached_server(memcached_cfg.get());
 
         if (HasFailure()) {
             server_pid = reinterpret_cast<pid_t>(-1);
         } else {
             CreateTestBucket();
         }
-
     }
+
+    static unique_cJSON_ptr memcached_cfg;
 };
 
+unique_cJSON_ptr WorkerConcurrencyTest::memcached_cfg;
 
 
 TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {

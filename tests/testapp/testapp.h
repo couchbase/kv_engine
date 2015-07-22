@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include <memory>
 #include <stdint.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -45,6 +46,12 @@ extern SOCKET sock;
 extern in_port_t port;
 extern pid_t server_pid;
 
+// helper class for use with std::unique_ptr in managing cJSON* objects.
+struct cJSONDeleter {
+  void operator()(cJSON* j) { cJSON_Delete(j); }
+};
+
+typedef std::unique_ptr<cJSON, cJSONDeleter> unique_cJSON_ptr;
 
 // Base class for tests against just the "plain" socker (no SSL).
 class TestappTest : public ::testing::Test {
@@ -67,7 +74,12 @@ protected:
     // per test tear-down function.
     virtual void TearDown();
 
-    static cJSON* generate_config(int num_threads = -1);
+    /* Generate a memcached config.
+     * @param ssl_port SSL port to use. If set to 0 then don't enable SSL.
+     */
+    static cJSON* generate_config(uint16_t ssl_port);
+
+    static uint16_t get_random_port();
 
     static void start_memcached_server(cJSON* config);
 
@@ -82,6 +94,8 @@ protected:
     /* Disable the ewouldblock_engine. */
     static void ewouldblock_engine_disable();
 
+    // JSON configuration (as JSON object) memcached was configured with.
+    static unique_cJSON_ptr memcached_cfg;
 };
 
 // Test the various memcached binary protocol commands against a
@@ -89,6 +103,13 @@ protected:
 // SSL transports.
 class McdTestappTest : public TestappTest,
                        public ::testing::WithParamInterface<Transport> {
+public:
+    // Per-test-case set-up.
+    // Called before the first test in this test case.
+    static void SetUpTestCase();
+
+    // TearDownTestCase same as parent.
+
 protected:
     // per test setup function.
     virtual void SetUp();
@@ -101,6 +122,9 @@ protected:
                             bool pipeline, int iterations, int message_size);
 
     void test_subdoc_dict_add_cas(bool compress, protocol_binary_command cmd);
+
+    // SSL port memcached was configured with.
+    static in_port_t memcached_ssl_port;
 };
 
 SOCKET connect_to_server_plain(in_port_t port, bool nonblocking);
