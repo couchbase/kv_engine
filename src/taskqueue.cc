@@ -60,8 +60,8 @@ void TaskQueue::_doWake_UNLOCKED(size_t &numToWake) {
 }
 
 bool TaskQueue::_doSleep(ExecutorThread &t) {
-    gettimeofday(&t.now, NULL);
-    if (less_tv(t.now, t.waketime) && manager->trySleep(queueType)) {
+    t.now = gethrtime();
+    if (t.now < t.waketime && manager->trySleep(queueType)) {
         // Atomically switch from running to sleeping; iff we were previously
         // running.
         executor_state_t expected_state = EXECUTOR_RUNNING;
@@ -71,12 +71,12 @@ bool TaskQueue::_doSleep(ExecutorThread &t) {
         }
         sleepers++;
         // zzz....
-        struct timeval waketime = t.now;
-        advance_tv(waketime, MIN_SLEEP_TIME); // avoid sleeping more than this
-        if (less_tv(waketime, t.waketime)) { // to prevent losing posts
-            mutex.wait(waketime);
+        hrtime_t snooze_nsecs = t.waketime - t.now;
+
+        if (snooze_nsecs > MIN_SLEEP_TIME * 1000000000) {
+            mutex.wait(MIN_SLEEP_TIME);
         } else {
-            mutex.wait(t.waketime);
+            mutex.wait(snooze_nsecs);
         }
         // ... woke!
         sleepers--;
@@ -89,9 +89,9 @@ bool TaskQueue::_doSleep(ExecutorThread &t) {
                                              EXECUTOR_RUNNING)) {
             return false;
         }
-        gettimeofday(&t.now, NULL);
+        t.now = gethrtime();
     }
-    set_max_tv(t.waketime);
+    t.waketime = hrtime_t(-1);
     return true;
 }
 
@@ -106,7 +106,7 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
     size_t numToWake = _moveReadyTasks(t.now);
 
     if (!futureQueue.empty() && t.startIndex == queueType &&
-        less_tv(futureQueue.top()->waketime, t.waketime)) {
+        futureQueue.top()->waketime < t.waketime) {
         t.waketime = futureQueue.top()->waketime; // record earliest waketime
     }
 
@@ -148,7 +148,7 @@ bool TaskQueue::fetchNextTask(ExecutorThread &thread, bool toSleep) {
     return rv;
 }
 
-size_t TaskQueue::_moveReadyTasks(struct timeval tv) {
+size_t TaskQueue::_moveReadyTasks(hrtime_t tv) {
     if (!readyQueue.empty()) {
         return 0;
     }
@@ -156,7 +156,7 @@ size_t TaskQueue::_moveReadyTasks(struct timeval tv) {
     size_t numReady = 0;
     while (!futureQueue.empty()) {
         ExTask tid = futureQueue.top();
-        if (less_eq_tv(tid->waketime, tv)) {
+        if (tid->waketime <= tv) {
             futureQueue.pop();
             readyQueue.push(tid);
             numReady++;
@@ -180,25 +180,25 @@ void TaskQueue::_checkPendingQueue(void) {
     }
 }
 
-struct timeval TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType) {
-    struct timeval waktime;
+hrtime_t TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType) {
+    hrtime_t wakeTime;
     manager->doneWork(curTaskType);
 
     LockHolder lh(mutex);
 
     futureQueue.push(task);
     if (curTaskType == queueType) {
-        waktime = futureQueue.top()->waketime;
+        wakeTime = futureQueue.top()->waketime;
     } else {
-        set_max_tv(waktime);
+        wakeTime = hrtime_t(-1);
     }
 
-    return waktime;
+    return wakeTime;
 }
 
-struct timeval TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType) {
+hrtime_t TaskQueue::reschedule(ExTask &task, task_type_t &curTaskType) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    struct timeval rv = _reschedule(task, curTaskType);
+    hrtime_t rv = _reschedule(task, curTaskType);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
@@ -227,9 +227,8 @@ void TaskQueue::schedule(ExTask &task) {
 }
 
 void TaskQueue::_wake(ExTask &task) {
-    struct  timeval    now;
     size_t numReady = 0;
-    gettimeofday(&now, NULL);
+    const hrtime_t now = gethrtime();
 
     LockHolder lh(mutex);
     LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\" id %d", name.c_str(),
@@ -261,7 +260,7 @@ void TaskQueue::_wake(ExTask &task) {
 
     while (!notReady.empty()) {
         ExTask tid = notReady.front();
-        if (less_eq_tv(tid->waketime, now) || tid->isdead()) {
+        if (tid->waketime <= now || tid->isdead()) {
             readyQueue.push(tid);
             numReady++;
         } else {

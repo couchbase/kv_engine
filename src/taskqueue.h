@@ -35,7 +35,7 @@ public:
 
     void schedule(ExTask &task);
 
-    struct timeval reschedule(ExTask &task, task_type_t &curTaskType);
+    hrtime_t reschedule(ExTask &task, task_type_t &curTaskType);
 
     void checkPendingQueue(void);
 
@@ -53,13 +53,13 @@ public:
 
 private:
     void _schedule(ExTask &task);
-    struct timeval _reschedule(ExTask &task, task_type_t &curTaskType);
+    hrtime_t _reschedule(ExTask &task, task_type_t &curTaskType);
     void _checkPendingQueue(void);
     bool _fetchNextTask(ExecutorThread &thread, bool toSleep);
     void _wake(ExTask &task);
     bool _doSleep(ExecutorThread &thread);
     void _doWake_UNLOCKED(size_t &numToWake);
-    size_t _moveReadyTasks(struct timeval tv);
+    size_t _moveReadyTasks(hrtime_t tv);
     ExTask _popReadyTask(void);
 
     SyncObject mutex;

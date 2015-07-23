@@ -150,7 +150,7 @@ protected:
     bool blockShutdown;
     AtomicValue<task_state_t> state;
     const size_t taskId;
-    struct timeval waketime;
+    hrtime_t waketime; // used for priority_queue, guarded by TaskQ mutex
     EventuallyPersistentEngine *engine;
 
     static AtomicValue<size_t> task_id_counter;
@@ -452,7 +452,7 @@ public:
 class CompareByDueDate {
 public:
     bool operator()(ExTask &t1, ExTask &t2) {
-        return less_tv(t2->waketime, t1->waketime);
+        return t2->waketime < t1->waketime;
     }
 };
 

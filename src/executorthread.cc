@@ -87,23 +87,19 @@ void ExecutorThread::run() {
 
             // Measure scheduling overhead as difference between the time
             // that the task wanted to wake up and the current time
-            gettimeofday(&now, NULL);
-            struct timeval woketime = currentTask->waketime;
-            uint64_t diffsec = now.tv_sec > woketime.tv_sec ?
-                               now.tv_sec - woketime.tv_sec : 0;
-            uint64_t diffusec = now.tv_usec > woketime.tv_usec ?
-                                now.tv_usec - woketime.tv_usec : 0;
-
+            now = gethrtime();
+            hrtime_t woketime = currentTask->waketime;
             engine->getEpStore()->logQTime(currentTask->getTypeId(),
-                                   diffsec*1000000 + diffusec);
+                                           now > woketime ? now - woketime
+                                                          : 0);
 
-            taskStart = gethrtime();
+            taskStart = now;
             rel_time_t startReltime = ep_current_time();
             try {
                 LOG(EXTENSION_LOG_DEBUG,
-                    "%s: Run task \"%s\" id %d waketime %d",
+                    "%s: Run task \"%s\" id %d",
                 getName().c_str(), currentTask->getDescription().c_str(),
-                currentTask->getId(), currentTask->waketime.tv_sec);
+                currentTask->getId());
 
                 // Now Run the Task ....
                 currentTask->setState(TASK_RUNNING, TASK_SNOOZED);
@@ -125,26 +121,26 @@ void ExecutorThread::run() {
                     manager->doneWork(curTaskType);
                     manager->cancel(currentTask->taskId, true);
                 } else {
-                    struct timeval timetowake;
+                    hrtime_t new_waketime;
                     // if a task has not set snooze, update its waketime to now
                     // before rescheduling for more accurate timing histograms
-                    if (less_eq_tv(currentTask->waketime, now)) {
+                    if (currentTask->waketime <= now) {
                         currentTask->waketime = now;
                     }
                     // release capacity back to TaskQueue ..
                     manager->doneWork(curTaskType);
-                    timetowake = q->reschedule(currentTask, curTaskType);
+                    new_waketime = q->reschedule(currentTask, curTaskType);
                     // record min waketime ...
-                    if (less_tv(timetowake, waketime)) {
-                        waketime = timetowake;
+                    if (new_waketime < waketime) {
+                        waketime = new_waketime;
                     }
-                    LOG(EXTENSION_LOG_DEBUG,
-                            "%s: Reschedule a task \"%s\" id %d[%d %d |%d]",
+                    LOG(EXTENSION_LOG_DEBUG, "%s: Reschedule a task"
+                            " \"%s\" id %d[%llu %llu |%llu]",
                             name.c_str(),
                             currentTask->getDescription().c_str(),
-                            currentTask->getId(), timetowake.tv_sec,
-                            currentTask->waketime.tv_sec,
-                            waketime.tv_sec);
+                            currentTask->getId(), new_waketime,
+                            currentTask->waketime,
+                            waketime);
                 }
             } catch (std::exception& e) {
                 LOG(EXTENSION_LOG_WARNING,
