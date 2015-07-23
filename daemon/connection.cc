@@ -26,7 +26,7 @@ Connection::Connection()
       all_prev(this),
       socketDescriptor(INVALID_SOCKET),
       max_reqs_per_event(settings.default_reqs_per_event),
-      nevents(0),
+      numEvents(0),
       sasl_conn(nullptr),
       state(conn_immediate_close),
       substate(bin_substates::bin_no_state),
@@ -422,7 +422,7 @@ cJSON* Connection::toJSON() const {
         cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
         cJSON_AddNumberToObject(obj, "max_reqs_per_event",
                                 max_reqs_per_event);
-        cJSON_AddNumberToObject(obj, "nevents", nevents);
+        cJSON_AddNumberToObject(obj, "nevents", numEvents);
         json_add_bool_to_object(obj, "admin", isAdmin());
         if (sasl_conn != NULL) {
             json_add_uintptr_to_object(obj, "sasl_conn",

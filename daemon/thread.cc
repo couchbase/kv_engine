@@ -334,7 +334,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
          * from the context of the notification pipe, so just let it
          * run one time to set up the correct mask in libevent
          */
-        c->nevents = 1;
+        c->setNumEvents(1);
         run_event_loop(c);
     }
 

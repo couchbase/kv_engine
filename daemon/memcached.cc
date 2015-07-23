@@ -5811,10 +5811,9 @@ bool conn_ship_log(Connection *c) {
         /* up in a situation where we're receiving a burst of nack messages */
         /* we'll only process a subset of messages in our input queue, */
         /* and it will slowly grow.. */
-        c->nevents = c->getMaxReqsPerEvent();
+        c->setNumEvents(c->getMaxReqsPerEvent());
     } else if (c->isWriteEvent()) {
-        --c->nevents;
-        if (c->nevents >= 0) {
+        if (c->decrementNumEvents() >= 0) {
             c->ewouldblock = false;
             if (c->isDCP()) {
                 ship_dcp_log(c);
@@ -5906,14 +5905,13 @@ bool conn_new_cmd(Connection *c) {
     }
 
     c->start = 0;
-    --c->nevents;
 
     /*
      * In order to ensure that all clients will be served each
      * connection will only process a certain number of operations
      * before they will back off.
      */
-    if (c->nevents >= 0) {
+    if (c->decrementNumEvents() >= 0) {
         reset_cmd_handler(c);
     } else {
         get_thread_stats(c)->conn_yields++;
@@ -6296,7 +6294,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     /* sanity */
     cb_assert(fd == c->getSocketDescriptor());
 
-    c->nevents = c->getMaxReqsPerEvent();
+    c->setNumEvents(c->getMaxReqsPerEvent());
 
     run_event_loop(c);
 

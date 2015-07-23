@@ -436,12 +436,19 @@ public:
         Connection::all_prev = all_prev;
     }
 
-    int getNevents() const {
-        return nevents;
+    /**
+     * Decrement the number of events to process and return the new value
+     */
+    int decrementNumEvents() {
+        return --numEvents;
     }
 
-    void setNevents(int nevents) {
-        Connection::nevents = nevents;
+    /**
+     * Set the number of events to process per timeslice of the worker
+     * thread before yielding.
+     */
+    void setNumEvents(int nevents) {
+        Connection::numEvents = nevents;
     }
 
     cbsasl_conn_t* getSaslConn() const {
@@ -918,10 +925,13 @@ private:
 
     int max_reqs_per_event; /** The maximum requests we can process in a worker
                                 thread timeslice */
+    /**
+     * number of events this connection can process in a single worker
+     * thread timeslice
+     */
+    int numEvents;
+
 public:
-    int nevents;
-    /** number of events this connection can process in a single
-                        worker thread timeslice */
     cbsasl_conn_t* sasl_conn;
 private:
     STATE_FUNC state;
