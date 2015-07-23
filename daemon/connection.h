@@ -1069,12 +1069,13 @@ public:
         ENGINE_HANDLE_V1* engine;
     } bucket;
 
+private:
 
+    /** Name of the peer if known */
     std::string peername;
-    /* Name of the peer if known */
-    std::string sockname;
 
-    /* Name of the local socket if known */
+    /** Name of the local socket if known */
+    std::string sockname;
 
     void resetBufferSize();
 };
