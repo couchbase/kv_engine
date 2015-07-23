@@ -2315,6 +2315,11 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
 
 static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
+
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "exp_pager_enabled", "false");
+    int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
+
     const char *key = "KEY";
     const char *data = "VALUE";
 
@@ -2342,13 +2347,18 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "curr_items") == 1, "Failed store item");
     testHarness.time_travel(5);
 
+    check(get_int_stat(h, h1, "ep_num_expiry_pager_runs") == pager_runs,
+          "Expiry pager shouldn't have run during this time");
+
     // Restart the engine to ensure the above item is expired
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
     wait_for_warmup_complete(h, h1);
-    int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
+    check(get_bool_stat(h, h1, "ep_exp_pager_enabled"),
+          "Expiry pager should be enabled on warmup");
+    pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
     wait_for_stat_change(h, h1, "ep_num_expiry_pager_runs", pager_runs);
     wait_for_flusher_to_settle(h, h1);
     check(get_int_stat(h, h1, "curr_items") == 0,
