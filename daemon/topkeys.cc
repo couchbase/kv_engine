@@ -170,7 +170,8 @@ static void tk_jsonfunc(dlist_t *list, void *arg) {
     topkey_item_t *it = (topkey_item_t*)list;
     cb_assert(it != NULL);
     cJSON *key = cJSON_CreateObject();
-    cJSON_AddItemToObject(key, "key", cJSON_CreateString((char *)(it + 1)));
+    std::string key_name((char *)(it + 1), it->ti_nkey);
+    cJSON_AddItemToObject(key, "key", cJSON_CreateString(key_name.c_str()));
     cJSON_AddItemToObject(key, "access_count",
                           cJSON_CreateNumber(it->ti_access_count));
     cJSON_AddItemToObject(key, "ctime", cJSON_CreateNumber(c->current_time
