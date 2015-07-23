@@ -2414,6 +2414,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(rv == ENGINE_SUCCESS, "Add failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
+    wait_for_flusher_to_settle(h, h1);
 
     check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_SUCCESS,
           "Item shouldn't expire");
