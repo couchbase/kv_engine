@@ -627,12 +627,19 @@ public:
         Connection::noreply = noreply;
     }
 
+    /**
+     * Get the current reference count
+     */
     uint8_t getRefcount() const {
         return refcount;
     }
 
-    void setRefcount(uint8_t refcount) {
-        Connection::refcount = refcount;
+    void incrementRefcount() {
+        ++refcount;
+    }
+
+    void decrementRefcount() {
+        --refcount;
     }
 
     bool isSupportsDatatype() const {
@@ -1009,13 +1016,9 @@ private:
     /** Is tcp nodelay enabled or not? */
     bool nodelay;
 
-public:
-    /* current stats command */
-
+    /** number of references to the object */
     uint8_t refcount;
-    /* number of references to the object */
 
-private:
     /**
      * If the client enabled the datatype support the response packet
      * will contain the datatype as set for the object

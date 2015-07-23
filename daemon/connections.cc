@@ -105,7 +105,7 @@ void close_all_connections(void)
             c->setSocketDescriptor(INVALID_SOCKET);
         }
 
-        if (c->refcount > 1) {
+        if (c->getRefcount() > 1) {
             perform_callbacks(ON_DISCONNECT, NULL, c);
         }
         c = next;
@@ -118,7 +118,7 @@ void close_all_connections(void)
     c = connections.sentinal.getAllNext();
     while (c != &connections.sentinal) {
         Connection *next = c->getAllNext();
-        while (c->refcount > 1) {
+        while (c->getRefcount() > 1) {
             usleep(500);
         }
         c = next;
@@ -199,7 +199,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
 
     stats.total_conns++;
 
-    c->refcount = 1;
+    c->incrementRefcount();
 
     if (init_state == conn_listening) {
         c->bucket.engine = NULL;

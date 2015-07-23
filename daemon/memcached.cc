@@ -6075,7 +6075,7 @@ bool conn_pending_close(Connection *c) {
      */
     perform_callbacks(ON_DISCONNECT, NULL, c);
 
-    if (c->refcount > 1) {
+    if (c->getRefcount() > 1) {
         return false;
     }
 
@@ -6112,7 +6112,7 @@ bool conn_closing(Connection *c) {
     /* engine::release any allocated state */
     conn_cleanup_engine_allocations(c);
 
-    if (c->refcount > 1 || c->ewouldblock) {
+    if (c->getRefcount() > 1 || c->ewouldblock) {
         c->setState(conn_pending_close);
     } else {
         c->setState(conn_immediate_close);
@@ -6716,7 +6716,7 @@ static void decrement_session_ctr(void) {
 
 static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {
     Connection *c = (Connection *)cookie;
-    ++c->refcount;
+    c->incrementRefcount();
     return ENGINE_SUCCESS;
 }
 
@@ -6729,7 +6729,7 @@ static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
     thr = c->thread;
     cb_assert(thr);
     LOCK_THREAD(thr);
-    --c->refcount;
+    c->decrementRefcount();
 
     /* Releasing the refererence to the object may cause it to change
      * state. (NOTE: the release call shall never be called from the
