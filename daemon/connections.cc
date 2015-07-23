@@ -155,11 +155,11 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
     }
 
     if (init_state == conn_listening) {
-        c->auth_context = auth_create(NULL, NULL, NULL);
+        c->setAuthContext(auth_create(NULL, NULL, NULL));
     } else {
         c->resolveConnectionName();
-        c->auth_context = auth_create(NULL, c->getPeername().c_str(),
-                                      c->getSockname().c_str());
+        c->setAuthContext(auth_create(NULL, c->getPeername().c_str(),
+                                      c->getSockname().c_str()));
 
         for (int ii = 0; ii < settings.num_interfaces; ++ii) {
             if (parent_port == settings.interfaces[ii].port) {

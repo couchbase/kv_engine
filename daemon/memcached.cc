@@ -3756,10 +3756,9 @@ static void sasl_auth_executor(Connection *c, void *packet)
              * We've successfully changed our user identity.
              * Update the authentication context
              */
-            auth_destroy(c->auth_context);
-            c->auth_context = auth_create(data.username,
+            c->setAuthContext(auth_create(data.username,
                                           c->getPeername().c_str(),
-                                          c->getSockname().c_str());
+                                          c->getSockname().c_str()));
 
             if (settings.disable_admin) {
                 /* "everyone is admins" */
@@ -4757,14 +4756,14 @@ static void assume_role_executor(Connection *c, void *packet)
         try {
             auto* role_ptr = reinterpret_cast<const char*>(req + 1);
             std::string role(role_ptr, rlen);
-            err = auth_assume_role(c->auth_context, role.c_str());
+            err = c->assumeRole(role.c_str());
 
         } catch (const std::bad_alloc&) {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             return;
         }
     } else {
-        err = auth_drop_role(c->auth_context);
+        err = c->dropRole();
     }
 
     switch (err) {
@@ -5058,7 +5057,7 @@ static void process_bin_packet(Connection *c) {
     bin_package_validate validator = validators[opcode];
     bin_package_execute executor = executors[opcode];
 
-    switch (auth_check_access(c->auth_context, opcode)) {
+    switch (c->checkAccess(opcode)) {
     case AuthResult::FAIL:
         /* @TODO Should go to audit */
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,

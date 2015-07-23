@@ -826,12 +826,43 @@ public:
         }
     }
 
-    AuthContext* getAuthContext() const {
-        return auth_context;
+    /**
+     * Set the authentication context to be used by this connection.
+     *
+     * The connection object takes the ownership of the pointer and is
+     * responsible for releasing the memory.
+     */
+    void setAuthContext(AuthContext* auth_context) {
+        if (Connection::auth_context != nullptr) {
+            // Delete the previously allocated auth object
+            auth_destroy(Connection::auth_context);
+        }
+        Connection::auth_context = auth_context;
     }
 
-    void setAuthContext(AuthContext* auth_context) {
-        Connection::auth_context = auth_context;
+    /**
+     * Check if the client is allowed to execute the specified opcode
+     *
+     * @param opcode the opcode in the memcached binary protocol
+     */
+    AuthResult checkAccess(uint8_t opcode) const {
+        return auth_check_access(auth_context, opcode);
+    }
+
+    /**
+     * Update the authentication context to operate on behalf of a given
+     * role
+     */
+    AuthResult assumeRole(const std::string &role) {
+        return auth_assume_role(auth_context, role.c_str());
+    }
+
+    /**
+     * Update the authentication context to operate as the authenticated
+     * user rather than the current role
+     */
+    AuthResult dropRole() {
+        return auth_drop_role(auth_context);
     }
 
     /**
@@ -1061,8 +1092,11 @@ private:
      */
     SslContext ssl;
 
-public:
+    /**
+     * The authentication context in use by this connection
+     */
     AuthContext* auth_context;
+public:
     struct {
         int idx;
         /* The internal index for the connected bucket */
