@@ -48,8 +48,6 @@ Connection::Connection()
       msgused(0),
       msgcurr(0),
       msgbytes(0),
-      request_addr_size(0),
-      hdrsize(0),
       noreply(false),
       nodelay(false),
       refcount(0),
@@ -76,7 +74,6 @@ Connection::Connection()
     MEMCACHED_CONN_CREATE(this);
 
     memset(&event, 0, sizeof(event));
-    memset(&request_addr, 0, sizeof(request_addr));
     memset(&read, 0, sizeof(read));
     memset(&write, 0, sizeof(write));
     memset(&dynamic_buffer, 0, sizeof(dynamic_buffer));

@@ -612,30 +612,6 @@ public:
         Connection::temp_alloc = temp_alloc;
     }
 
-    const sockaddr_storage& getRequestAddr() const {
-        return request_addr;
-    }
-
-    void setRequestAddr(const sockaddr_storage& request_addr) {
-        Connection::request_addr = request_addr;
-    }
-
-    socklen_t getRequestAddrSize() const {
-        return request_addr_size;
-    }
-
-    void setRequestAddrSize(socklen_t request_addr_size) {
-        Connection::request_addr_size = request_addr_size;
-    }
-
-    int getHdrsize() const {
-        return hdrsize;
-    }
-
-    void setHdrsize(int hdrsize) {
-        Connection::hdrsize = hdrsize;
-    }
-
     bool isNoReply() const {
         return noreply;
     }
@@ -1014,12 +990,6 @@ public:
     // List of items we've reserved during the command (should call item_release)
     std::vector<void*> reservedItems;
     std::vector<char*> temp_alloc;
-
-    struct sockaddr_storage request_addr;
-    /* Who sent the most recent request */
-    socklen_t request_addr_size;
-    int hdrsize;
-    /* number of headers' worth of space is allocated */
 
 private:
     /** True if the reply should not be sent (unless there is an error) */

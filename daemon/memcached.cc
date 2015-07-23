@@ -538,11 +538,6 @@ static int add_msghdr(Connection *c)
 
     msg->msg_iov = &c->iov[c->iovused];
 
-    if (c->request_addr_size > 0) {
-        msg->msg_name = &c->request_addr;
-        msg->msg_namelen = c->request_addr_size;
-    }
-
     c->msgbytes = 0;
     c->msgused++;
     STATS_MAX(c, msgused_high_watermark, c->msgused);
