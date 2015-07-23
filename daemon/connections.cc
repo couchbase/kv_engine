@@ -166,14 +166,10 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
                 c->setProtocol(settings.interfaces[ii].protocol);
                 c->setTcpNoDelay(settings.interfaces[ii].tcp_nodelay);
                 if (settings.interfaces[ii].ssl.cert != NULL) {
-                    if (!c->ssl.enable(settings.interfaces[ii].ssl.cert,
-                                       settings.interfaces[ii].ssl.key)) {
+                    if (!c->enableSSL(settings.interfaces[ii].ssl.cert,
+                                      settings.interfaces[ii].ssl.key)) {
                         release_connection(c);
                         return NULL;
-                    }
-
-                    if (settings.verbose > 1) {
-                        c->ssl.dumpCipherList(c->getId());
                     }
                 }
             }
@@ -273,7 +269,7 @@ static void conn_cleanup(Connection *c) {
     cb_assert(c->next == NULL);
     c->setSocketDescriptor(INVALID_SOCKET);
     c->start = 0;
-    c->ssl.disable();
+    c->disableSSL();
 }
 
 void conn_close(Connection *c) {

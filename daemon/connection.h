@@ -826,20 +826,52 @@ public:
         }
     }
 
-    const SslContext& getSsl() const {
-        return ssl;
-    }
-
-    void setSsl(const SslContext& ssl) {
-        Connection::ssl = ssl;
-    }
-
     AuthContext* getAuthContext() const {
         return auth_context;
     }
 
     void setAuthContext(AuthContext* auth_context) {
         Connection::auth_context = auth_context;
+    }
+
+    /**
+     * Try to enable SSL for this connection
+     *
+     * @param cert the SSL certificate to use
+     * @param pkey the SSL private key to use
+     * @return true if successful, false otherwise
+     */
+    bool enableSSL(const std::string& cert, const std::string& pkey) {
+        if (ssl.enable(cert, pkey)) {
+            if (settings.verbose > 1) {
+                ssl.dumpCipherList(getId());
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Disable SSL for this connection
+     */
+    void disableSSL() {
+        ssl.disable();
+    }
+
+    /**
+     * Do we have any pending input data on this connection?
+     */
+    bool havePendingInputData() {
+        int block = (read.bytes > 0);
+
+        if (!block && ssl.isEnabled()) {
+            char dummy;
+            block |= ssl.peek(&dummy, 1);
+        }
+
+        return block != 0;
     }
 
 protected:
@@ -1024,9 +1056,12 @@ private:
      */
     CommandContext* commandContext;
 
-public:
+    /**
+     * The SSL context used by this connection (if enabled)
+     */
     SslContext ssl;
 
+public:
     AuthContext* auth_context;
     struct {
         int idx;

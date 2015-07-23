@@ -5930,21 +5930,12 @@ bool conn_new_cmd(Connection *c) {
          * userspace buffer so the client is idle waiting for the
          * response to arrive. Lets set up a _write_ notification,
          * since that'll most likely be true really soon.
-         */
-        int block = (c->read.bytes > 0);
-
-        if (c->ssl.isEnabled()) {
-            char dummy;
-            block |= c->ssl.peek(&dummy, 1);
-        }
-        /*
+         *
          * DCP and TAP connections is different from normal
          * connections in the way that they may not even get data from
          * the other end so that they'll _have_ to wait for a write event.
          */
-        block |= c->isDCP() || c->isTAP();
-
-        if (block) {
+        if (c->havePendingInputData() || c->isDCP() || c->isTAP()) {
             if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {
                 c->setState(conn_closing);
                 return true;
