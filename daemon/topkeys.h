@@ -22,20 +22,18 @@
 #include <mutex>
 #include <list>
 #include <string>
-#include <map>
+#include <unordered_map>
 
-typedef struct dlist {
-    struct dlist *next;
-    struct dlist *prev;
-} dlist_t;
+struct topkey_item_t {
+    topkey_item_t(rel_time_t create_time)
+        : ti_ctime(create_time),
+          ti_atime(create_time),
+          ti_access_count(0) { }
 
-typedef struct {
-    dlist_t ti_list; /* Must be at the beginning because we downcast! */
-    int ti_nkey;
     rel_time_t ti_ctime;
     rel_time_t ti_atime; /* Time this item was created/last accessed */
     int ti_access_count; /* Int count for number of times key has been accessed */
-} topkey_item_t;
+};
 
 class TopKeys {
 public:
@@ -75,9 +73,17 @@ private:
 
     void deleteTail();
 
-    int nkeys;
-    int max_keys;
+    unsigned int max_keys;
     std::mutex mutex;
-    dlist_t list;
-    std::map<std::string, topkey_item_t*> hash;
+
+
+
+    // list of keys, ordered from most-recently used (front) to least recently
+    // used (back).
+    typedef std::list<const std::string*> key_history_t;
+    key_history_t list;
+
+    // map of key to topkey stats.
+    typedef std::unordered_map<std::string, topkey_item_t> key_hash_t;
+    key_hash_t hash;
 };

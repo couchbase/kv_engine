@@ -16,6 +16,8 @@
  */
 
 #include "config.h"
+
+#include <algorithm>
 #include <sys/types.h>
 #include <stdlib.h>
 #include <inttypes.h>
@@ -23,93 +25,40 @@
 #include <platform/platform.h>
 #include "topkeys.h"
 
-static topkey_item_t *topkey_item_init(const void *key, int nkey, rel_time_t ct) {
-    topkey_item_t *it = (topkey_item_t *)calloc(sizeof(topkey_item_t) + nkey, 1);
-    cb_assert(it);
-    cb_assert(key);
-    cb_assert(nkey > 0);
-    it->ti_nkey = nkey;
-    it->ti_ctime = ct;
-    it->ti_atime = ct;
-    /* Copy the key into the part trailing the struct */
-    memcpy(it + 1, key, nkey);
-    return it;
-}
-
 TopKeys::TopKeys(int mkeys)
-    : nkeys(0), max_keys(mkeys)
+    : max_keys(mkeys)
 {
-    list.next = &list;
-    list.prev = &list;
 }
 
 TopKeys::~TopKeys() {
-    dlist_t *p = list.next;
-    while (p != &list) {
-        dlist_t *tmp = p->next;
-        free(p);
-        p = tmp;
-    }
 }
-
-static void dlist_remove(dlist_t *list) {
-    cb_assert(list->prev->next == list);
-    cb_assert(list->next->prev == list);
-    list->prev->next = list->next;
-    list->next->prev = list->prev;
-}
-
-static void dlist_insert_after(dlist_t *list, dlist_t *newitem) {
-    newitem->next = list->next;
-    newitem->prev = list;
-    list->next->prev = newitem;
-    list->next = newitem;
-}
-
-static void dlist_iter(dlist_t *list,
-                       void (*iterfunc)(dlist_t *item, void *arg),
-                       void *arg)
-{
-    dlist_t *p = list;
-    while ((p = p->next) != list) {
-        iterfunc(p, arg);
-    }
-}
-
-void TopKeys::deleteTail() {
-    topkey_item_t *it = (topkey_item_t*)(list.prev);
-    std::string key(reinterpret_cast<char*>(it+1), it->ti_nkey);
-    auto iterator = hash.find(key);
-    cb_assert(iterator != hash.end());
-    hash.erase(iterator);
-    dlist_remove(&it->ti_list);
-    --nkeys;
-    free(it);
-}
-
 
 topkey_item_t *TopKeys::getOrCreate(const void *key, size_t nkey, const rel_time_t ct) {
     try {
         std::string k(reinterpret_cast<const char*>(key), nkey);
-        auto iterator = hash.find(k);
-        topkey_item_t *it = nullptr;
+        auto result = hash.emplace(std::make_pair(k, rel_time_t(ct)));
+        if (result.second) {
+            // New item was inserted.
 
-        if (iterator == hash.end()) {
-            it = topkey_item_init(key, (int)nkey, ct);
-            if (it != NULL) {
-                if (++nkeys > max_keys) {
-                    deleteTail();
-                }
-                hash[k] = it;
-            } else {
-                return NULL;
+            // check maximum keys hasn't been exceeded. If so remove
+            // least-recently used item.
+            if (hash.size() > max_keys) {
+                const std::string* victim = list.back();
+                cb_assert(hash.erase(*victim) == 1);
+                list.pop_back();
             }
+            // Add new item to head of the list (marking it as most-recently used).
+            list.push_front(&result.first->first);
+
         } else {
-            it = iterator->second;
-            dlist_remove(&it->ti_list);
+            // Item already exists. Move this item to the head of the list
+            // (marking it as MRU).
+            auto it = std::find(list.begin(), list.end(),
+                                &result.first->first);
+            list.splice(list.begin(), list, it);
         }
-        dlist_insert_after(&list, &it->ti_list);
-        return it;
+
+        return &result.first->second;
     } catch (const std::bad_alloc&) {
         return nullptr;
     }
@@ -139,9 +88,9 @@ struct tk_context {
     cJSON *array;
 };
 
-static void tk_iterfunc(dlist_t *list, void *arg) {
+static void tk_iterfunc(const std::string& key, const topkey_item_t& it,
+                        void *arg) {
     struct tk_context *c = (struct tk_context*)arg;
-    topkey_item_t *it = (topkey_item_t*)list;
     char val_str[500];
     int vlen = snprintf(val_str, sizeof(val_str) - 1, "get_hits=%d,"
                         "get_misses=0,cmd_set=0,incr_hits=0,incr_misses=0,"
@@ -149,10 +98,10 @@ static void tk_iterfunc(dlist_t *list, void *arg) {
                         "delete_misses=0,evictions=0,cas_hits=0,cas_badval=0,"
                         "cas_misses=0,get_replica=0,evict=0,getl=0,unlock=0,"
                         "get_meta=0,set_meta=0,del_meta=0,ctime=%" PRIu32
-                        ",atime=%" PRIu32, it->ti_access_count,
-                        c->current_time - it->ti_ctime,
-                        c->current_time - it->ti_atime);
-    c->add_stat((char*)(it + 1), it->ti_nkey, val_str, vlen, c->cookie);
+                        ",atime=%" PRIu32, it.ti_access_count,
+                        c->current_time - it.ti_ctime,
+                        c->current_time - it.ti_atime);
+    c->add_stat(key.c_str(), key.size(), val_str, vlen, c->cookie);
 }
 
 /**
@@ -165,21 +114,19 @@ static void tk_iterfunc(dlist_t *list, void *arg) {
  *    "atime": aaa
  * }
  */
-static void tk_jsonfunc(dlist_t *list, void *arg) {
+static void tk_jsonfunc(const std::string& key, const topkey_item_t& it,
+                        void* arg) {
     struct tk_context *c = (struct tk_context*)arg;
-    topkey_item_t *it = (topkey_item_t*)list;
-    cb_assert(it != NULL);
-    cJSON *key = cJSON_CreateObject();
-    std::string key_name((char *)(it + 1), it->ti_nkey);
-    cJSON_AddItemToObject(key, "key", cJSON_CreateString(key_name.c_str()));
-    cJSON_AddItemToObject(key, "access_count",
-                          cJSON_CreateNumber(it->ti_access_count));
-    cJSON_AddItemToObject(key, "ctime", cJSON_CreateNumber(c->current_time
-                                                           - it->ti_ctime));
-    cJSON_AddItemToObject(key, "atime", cJSON_CreateNumber(c->current_time
-                                                           - it->ti_atime));
+    cJSON *obj = cJSON_CreateObject();
+    cJSON_AddItemToObject(obj, "key", cJSON_CreateString(key.c_str()));
+    cJSON_AddItemToObject(obj, "access_count",
+                          cJSON_CreateNumber(it.ti_access_count));
+    cJSON_AddItemToObject(obj, "ctime", cJSON_CreateNumber(c->current_time
+                                                           - it.ti_ctime));
+    cJSON_AddItemToObject(obj, "atime", cJSON_CreateNumber(c->current_time
+                                                           - it.ti_atime));
     cb_assert(c->array != NULL);
-    cJSON_AddItemToArray(c->array, key);
+    cJSON_AddItemToArray(c->array, obj);
 }
 
 ENGINE_ERROR_CODE TopKeys::stats(const void *cookie,
@@ -188,7 +135,9 @@ ENGINE_ERROR_CODE TopKeys::stats(const void *cookie,
     struct tk_context context(cookie, add_stat, current_time, nullptr);
 
     std::lock_guard<std::mutex> lock(mutex);
-    dlist_iter(&list, tk_iterfunc, &context);
+    for (const auto& key : list) {
+        tk_iterfunc(*key, hash.at(*key), (void*)&context);
+    }
 
     return ENGINE_SUCCESS;
 }
@@ -212,7 +161,9 @@ ENGINE_ERROR_CODE TopKeys::json_stats(cJSON *object,
     /* Collate the topkeys JSON object */
     {
         std::lock_guard<std::mutex> lock(mutex);
-        dlist_iter(&list, tk_jsonfunc, &context);
+        for (const auto& key : list) {
+            tk_jsonfunc(*key, hash.at(*key), (void*)&context);
+        }
     }
 
     cJSON_AddItemToObject(object, "topkeys", topkeys);

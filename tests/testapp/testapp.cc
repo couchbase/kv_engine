@@ -4055,24 +4055,6 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
 }
 
 /**
- * Used to compare actual value of topkeys (json/legacy_value) vs the expected
- * value (current + sum).
- */
-static void check_topkeys_value(const std::string key, const int expect_value) {
-
-    /* Get old and new topkeys return values */
-    int json_value;
-    ASSERT_TRUE(get_topkeys_json_value(key, json_value));
-    const int legacy_value = get_topkeys_legacy_value(key);
-
-    /* Check old and new topkeys implementations return same value */
-    ASSERT_EQ(expect_value, legacy_value);
-
-    /* Ensure returned value is equal to prior value + sum operations */
-    ASSERT_EQ(expect_value, json_value);
-}
-
-/**
  * Set a key a number of times and assert that the return value matches the
  * change after the number of set operations.
  */
@@ -4106,7 +4088,10 @@ static void test_set_topkeys(const std::string& key, const int operations) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
-    check_topkeys_value(key, operations);
+    EXPECT_EQ(operations, get_topkeys_legacy_value(key));
+    int json_value;
+    EXPECT_TRUE(get_topkeys_json_value(key, json_value));
+    EXPECT_EQ(operations, json_value);
 }
 
 
@@ -4138,7 +4123,11 @@ static void test_get_topkeys(const std::string& key, int operations) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
-    check_topkeys_value(key, initial_count + operations);
+    const int expected_count = initial_count + operations;
+    EXPECT_EQ(expected_count, get_topkeys_legacy_value(key));
+    int json_value;
+    EXPECT_TRUE(get_topkeys_json_value(key, json_value));
+    EXPECT_EQ(expected_count, json_value);
 }
 
 /**
@@ -4166,7 +4155,10 @@ static void test_delete_topkeys(const std::string& key) {
     validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_DELETE,
                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    check_topkeys_value(key, initial_count + 1);
+    EXPECT_EQ(initial_count + 1, get_topkeys_legacy_value(key));
+    int json_value;
+    EXPECT_TRUE(get_topkeys_json_value(key, json_value));
+    EXPECT_EQ(initial_count + 1, json_value);
 }
 
 
