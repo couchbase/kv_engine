@@ -1478,6 +1478,7 @@ static void ship_tap_log(Connection *c) {
     c->write.bytes = 0;
     c->write.curr = c->write.buf;
 
+    auto tap_iterator = c->getTapIterator();
     do {
         /* @todo fixme! */
         void *engine;
@@ -1503,9 +1504,9 @@ static void ship_tap_log(Connection *c) {
             break;
         }
 
-        event = c->tap_iterator(v1_handle_2_handle(c->bucket.engine), c, &it,
-                                &engine, &nengine, &ttl,
-                                &tap_flags, &seqno, &vbucket);
+        event = tap_iterator(v1_handle_2_handle(c->bucket.engine), c, &it,
+                             &engine, &nengine, &ttl,
+                             &tap_flags, &seqno, &vbucket);
         memset(&msg, 0, sizeof(msg));
         msg.opaque.message.header.request.magic = (uint8_t)PROTOCOL_BINARY_REQ;
         msg.opaque.message.header.request.opaque = htonl(seqno);
@@ -1992,7 +1993,7 @@ static void process_bin_tap_connect(Connection *c) {
         c->write_and_go = conn_closing;
     } else {
         c->setMaxReqsPerEvent(settings.reqs_per_event_high_priority);
-        c->tap_iterator = iterator;
+        c->setTapIterator(iterator);
         c->setCurrentEvent(EV_WRITE);
         c->setState(conn_ship_log);
     }
@@ -5946,7 +5947,7 @@ bool conn_new_cmd(Connection *c) {
          * connections in the way that they may not even get data from
          * the other end so that they'll _have_ to wait for a write event.
          */
-        block |= c->isDCP() || (c->tap_iterator != NULL);
+        block |= c->isDCP() || c->isTAP();
 
         if (block) {
             if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {

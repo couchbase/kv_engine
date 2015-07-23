@@ -788,6 +788,10 @@ public:
         Connection::parent_port = parent_port;
     }
 
+    bool isTAP() const {
+        return tap_iterator != nullptr;
+    }
+
     bool isDCP() const {
         return dcp;
     }
@@ -982,10 +986,12 @@ public:
 
     ENGINE_ERROR_CODE aiostat;
     bool ewouldblock;
-    TAP_ITERATOR tap_iterator;
     in_port_t parent_port;
     /* Listening port that creates this connection instance */
 private:
+    /** The iterator function to use to traverse the TAP stream */
+    TAP_ITERATOR tap_iterator;
+
     /** Is this connection used by a DCP connection? */
     bool dcp;
 
