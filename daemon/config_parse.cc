@@ -1236,17 +1236,17 @@ static void dyna_reconfig_iface_nodelay(const struct interface *new_if,
 #else
                 void* ptr = reinterpret_cast<void*>(&nodelay_flag);
 #endif
-                int error = setsockopt(c->sfd, IPPROTO_TCP, TCP_NODELAY,
+                int error = setsockopt(c->getSocketDescriptor(), IPPROTO_TCP, TCP_NODELAY,
                                        ptr, sizeof(nodelay_flag));
                 if (error != 0) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                          "Failed to set TCP_NODELAY for FD %d, interface %s:%hu to %d: %s",
-                         c->sfd, cur_if->host, cur_if->port, nodelay_flag,
+                                                    c->getSocketDescriptor(), cur_if->host, cur_if->port, nodelay_flag,
                          strerror(errno));
                 } else {
                     settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
                         "Changed tcp_nodelay for FD %d, interface %s:%hu from %d to %d",
-                        c->sfd, cur_if->host, cur_if->port, old_tcp_nodelay,
+                                                    c->getSocketDescriptor(), cur_if->host, cur_if->port, old_tcp_nodelay,
                         cur_if->tcp_nodelay);
                 }
             }

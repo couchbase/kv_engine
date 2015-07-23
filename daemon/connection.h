@@ -111,10 +111,10 @@ public:
 
     /**
      * Dump the list of available ciphers to the log
-     * @param sfd the socket bound to the connection. Its only used in the
+     * @param id the connection id. Its only used in the
      *            log messages.
      */
-    void dumpCipherList(SOCKET sfd) const;
+    void dumpCipherList(uint32_t id) const;
 
     int accept() {
         return SSL_accept(client);
@@ -178,6 +178,33 @@ public:
     ~Connection();
 
     Connection(const Connection&) = delete;
+
+    /**
+     * Return an identifier for this connection. To be backwards compatible
+     * this is the socket filedescriptor (or the socket handle casted to an
+     * unsigned integer on windows).
+     */
+    uint32_t getId() const {
+        return uint32_t(socketDescriptor);
+    }
+
+    /**
+     *  Get the socket descriptor used by this connection.
+     */
+    SOCKET getSocketDescriptor() const {
+        return socketDescriptor;
+    }
+
+    /**
+     * Set the socket descriptor used by this connection
+     */
+    void setSocketDescriptor(SOCKET sfd) {
+        Connection::socketDescriptor = sfd;
+    }
+
+    bool isSocketClosed() const {
+        return socketDescriptor == INVALID_SOCKET;
+    }
 
     /**
      * Set the connection state in the state machine. Any special
@@ -407,14 +434,6 @@ public:
 
     void setAllPrev(Connection* all_prev) {
         Connection::all_prev = all_prev;
-    }
-
-    int getSfd() const {
-        return sfd;
-    }
-
-    void setSfd(int sfd) {
-        Connection::sfd = sfd;
     }
 
     int getNevents() const {
@@ -831,9 +850,11 @@ private:
     /** Intrusive list to track all connections */
     Connection* all_prev;
 
-public:
-    SOCKET sfd;
-private:
+    /**
+     * The actual socket descriptor used by this connection
+     */
+    SOCKET socketDescriptor;
+
     int max_reqs_per_event; /** The maximum requests we can process in a worker
                                 thread timeslice */
 public:

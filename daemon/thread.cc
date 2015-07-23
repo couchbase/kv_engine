@@ -324,7 +324,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         pending = pending->next;
         c->next = NULL;
 
-        if (c->sfd != INVALID_SOCKET && !c->isRegisteredInLibevent()) {
+        if (c->getSocketDescriptor() != INVALID_SOCKET && !c->isRegisteredInLibevent()) {
             /* The socket may have been shut down while we're looping */
             /* in delayed shutdown */
             c->registerEvent();
@@ -417,8 +417,8 @@ void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
     cb_assert(thr);
 
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                    "Got notify from %d, status %x\n",
-                                    conn->sfd, status);
+                                    "Got notify from %u, status %x\n",
+                                    conn->getId(), status);
 
     LOCK_THREAD(thr);
     conn->aiostat = status;

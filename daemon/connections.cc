@@ -111,9 +111,9 @@ void close_all_connections(void)
     while (c != &connections.sentinal) {
         Connection *next = c->getAllNext();
 
-        if (c->sfd != INVALID_SOCKET) {
-            safe_close(c->sfd);
-            c->sfd = INVALID_SOCKET;
+        if (!c->isSocketClosed()) {
+            safe_close(c->getSocketDescriptor());
+            c->setSocketDescriptor(INVALID_SOCKET);
         }
 
         if (c->refcount > 1) {
@@ -184,7 +184,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
                     }
 
                     if (settings.verbose > 1) {
-                        c->ssl.dumpCipherList(sfd);
+                        c->ssl.dumpCipherList(c->getId());
                     }
                 }
             }
@@ -201,7 +201,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
         }
     }
 
-    c->sfd = sfd;
+    c->setSocketDescriptor(sfd);
     c->parent_port = parent_port;
     c->setState(init_state);
     c->write_and_go = init_state;
@@ -223,7 +223,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
         associate_initial_bucket(c);
     }
 
-    MEMCACHED_CONN_ALLOCATE(c->sfd);
+    MEMCACHED_CONN_ALLOCATE(c->getId());
 
     if (init_state != conn_listening) {
         perform_callbacks(ON_CONNECT, NULL, c);
@@ -282,14 +282,14 @@ static void conn_cleanup(Connection *c) {
 
     c->thread = NULL;
     cb_assert(c->next == NULL);
-    c->sfd = INVALID_SOCKET;
+    c->setSocketDescriptor(INVALID_SOCKET);
     c->start = 0;
     c->ssl.disable();
 }
 
 void conn_close(Connection *c) {
     cb_assert(c != NULL);
-    cb_assert(c->sfd == INVALID_SOCKET);
+    cb_assert(c->isSocketClosed());
     cb_assert(c->getState() == conn_immediate_close);
 
     cb_assert(c->thread);
@@ -354,7 +354,7 @@ void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) 
     for (iter = connections.sentinal.getAllNext();
          iter != &connections.sentinal;
          iter = iter->getAllNext()) {
-        if (iter->sfd == fd || fd == -1) {
+        if (iter->getSocketDescriptor() == fd || fd == -1) {
             cJSON* stats = iter->toJSON();
             /* blank key - JSON value contains all properties of the connection. */
             char key[] = " ";
@@ -508,8 +508,8 @@ static BufferLoan conn_loan_single_buffer(Connection *c, struct net_buf *thread_
              */
             if (settings.verbose) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                    "%d: Failed to allocate new read buffer.. closing connection\n",
-                    c->sfd);
+                    "%u: Failed to allocate new read buffer.. closing connection",
+                    c->getId());
             }
             c->setState(conn_closing);
             return BufferLoan::Existing;

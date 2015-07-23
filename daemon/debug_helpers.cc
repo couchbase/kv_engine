@@ -40,11 +40,11 @@ ssize_t buf_to_printable_buffer(char *dest, size_t destsz,
     return (ssize_t)(ptr - dest);
 }
 
-ssize_t key_to_printable_buffer(char *dest, size_t destsz, SOCKET client,
+ssize_t key_to_printable_buffer(char *dest, size_t destsz, uint32_t client,
                                 bool from_client, const char *prefix,
                                 const char *key, size_t nkey)
 {
-    ssize_t nw = snprintf(dest, destsz, "%c%d %s ", from_client ? '>' : '<',
+    ssize_t nw = snprintf(dest, destsz, "%c%u %s ", from_client ? '>' : '<',
                           (int)client, prefix);
     if (nw == -1) {
         return -1;

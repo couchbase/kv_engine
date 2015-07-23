@@ -583,7 +583,7 @@ static void disable_listen(void) {
 
     for (next = listen_conn; next; next = next->next) {
         next->updateEvent(0);
-        if (listen(next->sfd, 1) != 0) {
+        if (listen(next->getSocketDescriptor(), 1) != 0) {
             log_socket_error(EXTENSION_LOG_WARNING, NULL,
                              "listen() failed: %s");
         }
@@ -694,7 +694,7 @@ void collect_timings(const Connection *c) {
         }
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "%u: Slow %s operation on connection: %lu ms",
-                                        (unsigned int)c->sfd, opcode,
+                                        c->getId(), opcode,
                                         (unsigned long)elapsed_ms);
     }
 }
@@ -815,13 +815,13 @@ static char* binary_get_key(Connection *c) {
  * @return number of bytes in dest if success, -1 otherwise
  */
 static ssize_t bytes_to_output_string(char *dest, size_t destsz,
-                                      SOCKET client, bool from_client,
+                                      uint32_t client, bool from_client,
                                       const char *prefix,
                                       const char *data,
                                       size_t size)
 {
-    ssize_t nw = snprintf(dest, destsz, "%c%d %s", from_client ? '>' : '<',
-                          (int)client, prefix);
+    ssize_t nw = snprintf(dest, destsz, "%c%u %s", from_client ? '>' : '<',
+                          client, prefix);
     ssize_t offset = nw;
 
     if (nw == -1) {
@@ -879,7 +879,7 @@ int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_le
 
     if (settings.verbose > 1) {
         char buffer[1024];
-        if (bytes_to_output_string(buffer, sizeof(buffer), c->sfd, false,
+        if (bytes_to_output_string(buffer, sizeof(buffer), c->getId(), false,
                                    "Writing bin response:",
                                    (const char*)header->bytes,
                                    sizeof(header->bytes)) != -1) {
@@ -941,7 +941,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     if (!grow_dynamic_buffer(c, needed)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                     "<%d ERROR: Failed to allocate memory for response",
-                    c->sfd);
+                    c->getId());
         return ENGINE_ENOMEM;
     }
 
@@ -991,8 +991,8 @@ void write_bin_packet(Connection *c, protocol_binary_response_status err) {
 
         if (errtext && settings.verbose > 1) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            ">%d Writing an error: %s\n", c->sfd,
-                                            errtext);
+                                            ">%u Writing an error: %s",
+                                            c->getId(), errtext);
         }
 
         add_bin_header(c, err, 0, 0, len, PROTOCOL_BINARY_RAW_BYTES);
@@ -1056,9 +1056,9 @@ static void process_bin_get(Connection *c) {
 
     if (settings.verbose > 1) {
         char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
+        if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     "GET", key, nkey) != -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s\n",
+            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s",
                                             buffer);
         }
     }
@@ -1081,8 +1081,8 @@ static void process_bin_get(Connection *c) {
         if (!bucket_get_item_info(c, it, &info.info)) {
             c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Failed to get item info",
-                                            c->sfd);
+                                            "%u: Failed to get item info",
+                                            c->getId());
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             break;
         }
@@ -1150,7 +1150,7 @@ static void process_bin_get(Connection *c) {
     case ENGINE_KEY_ENOENT:
         STATS_MISS(c, get, key, nkey);
 
-        MEMCACHED_COMMAND_GET(c->sfd, key, nkey, -1, 0);
+        MEMCACHED_COMMAND_GET(c->getId(), key, nkey, -1, 0);
 
         if (c->noreply) {
             c->setState(conn_new_cmd);
@@ -1256,14 +1256,14 @@ static void bin_read_chunk(Connection *c,
             char *newm;
             if (settings.verbose > 1) {
                 settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                        "%d: Need to grow buffer from %lu to %lu\n",
-                        c->sfd, (unsigned long)c->read.size, (unsigned long)nsize);
+                        "%u: Need to grow buffer from %lu to %lu",
+                        c->getId(), (unsigned long)c->read.size, (unsigned long)nsize);
             }
             newm = reinterpret_cast<char*>(realloc(c->read.buf, nsize));
             if (newm == NULL) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                            "%d: Failed to grow buffer.. closing connection",
-                            c->sfd);
+                            "%u: Failed to grow buffer.. closing connection",
+                            c->getId());
                 c->setState(conn_closing);
                 return;
             }
@@ -1278,8 +1278,8 @@ static void bin_read_chunk(Connection *c,
             c->read.curr = c->read.buf;
             if (settings.verbose > 1) {
                 settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                "%d: Repack input buffer\n",
-                                                c->sfd);
+                                                "%u: Repack input buffer\n",
+                                                c->getId());
             }
         }
     }
@@ -1293,8 +1293,8 @@ static void bin_read_chunk(Connection *c,
 static void handle_binary_protocol_error(Connection *c) {
     write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
     settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                         "%d: Protocol error (opcode %02x), close connection",
-                                    c->sfd, c->binary_header.request.opcode);
+                         "%u: Protocol error (opcode %02x), close connection",
+                                    c->getId(), c->binary_header.request.opcode);
     c->write_and_go = conn_closing;
 }
 
@@ -1332,8 +1332,8 @@ static bool authenticated(Connection *c) {
 
     if (settings.verbose > 1) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                "%d: authenticated() in cmd 0x%02x is %s\n",
-                c->sfd, c->cmd, rv ? "true" : "false");
+                "%u: authenticated() in cmd 0x%02x is %s\n",
+                c->getId(), c->cmd, rv ? "true" : "false");
     }
 
     return rv;
@@ -1367,10 +1367,10 @@ bool binary_response_handler(const void *key, uint16_t keylen,
         if (snappy_uncompressed_length(reinterpret_cast<const char*>(body),
                                        bodylen, &inflated_length) != SNAPPY_OK) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                    "<%d ERROR: Failed to inflate body, "
+                    "<%u ERROR: Failed to inflate body, "
                     "Key: %s may have an incorrect datatype, "
                     "Datatype indicates that document is %s" ,
-                    c->sfd, (const char *)key,
+                    c->getId(), (const char *)key,
                     (datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED) ?
                     "RAW_COMPRESSED" : "JSON_COMPRESSED");
             return false;
@@ -1382,8 +1382,8 @@ bool binary_response_handler(const void *key, uint16_t keylen,
 
     if (!grow_dynamic_buffer(c, needed)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                          "<%d ERROR: Failed to allocate memory for response",
-                          c->sfd);
+                          "<%u ERROR: Failed to allocate memory for response",
+                          c->getId());
         return false;
     }
 
@@ -1422,7 +1422,7 @@ bool binary_response_handler(const void *key, uint16_t keylen,
         if (snappy_uncompress(reinterpret_cast<const char*>(body), bodylen,
                               buf, &inflated_length) != SNAPPY_OK) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                        "<%d Failed to inflate item", c->sfd);
+                        "<%u Failed to inflate item", c->getId());
                 return false;
             }
         } else {
@@ -1468,7 +1468,8 @@ static void ship_tap_log(Connection *c) {
     if (add_msghdr(c) != 0) {
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Failed to create output headers. Shutting down tap connection\n", c->sfd);
+                                            "%u: Failed to create output headers. Shutting down tap connection",
+                                            c->getId());
         }
         c->setState(conn_closing);
         return ;
@@ -1535,7 +1536,8 @@ static void ship_tap_log(Connection *c) {
             if (!bucket_get_item_info(c, it, &info.info)) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: Failed to get item info\n", c->sfd);
+                                                "%u: Failed to get item info",
+                                                c->getId());
                 break;
             }
             try {
@@ -1543,8 +1545,8 @@ static void ship_tap_log(Connection *c) {
             } catch (std::bad_alloc) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: Failed to grow item array",
-                                                c->sfd);
+                                                "%u: Failed to grow item array",
+                                                c->getId());
                 break;
             }
             send_data = true;
@@ -1579,10 +1581,10 @@ static void ship_tap_log(Connection *c) {
                     break;
                 default:
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                    "%d: shipping data with"
+                                                    "%u: shipping data with"
                                                     " an invalid datatype "
                                                     "(stripping info)",
-                                                    c->sfd);
+                                                    c->getId());
                 }
                 msg.mutation.message.header.request.datatype = 0;
             }
@@ -1596,8 +1598,8 @@ static void ship_tap_log(Connection *c) {
                         bodylen += (uint32_t)inflated_length;
                     } else {
                         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                        "<%d Failed to determine inflated size. Sending as compressed",
-                                                        c->sfd);
+                                                        "<%u Failed to determine inflated size. Sending as compressed",
+                                                        c->getId());
                         inflate = false;
                         bodylen += info.info.nbytes;
                     }
@@ -1635,9 +1637,10 @@ static void ship_tap_log(Connection *c) {
                     char *buf = reinterpret_cast<char*>(malloc(inflated_length));
                     if (buf == NULL) {
                         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                        "%d: FATAL: failed to allocate buffer of size %" PRIu64
+                                                        "%u: FATAL: failed to allocate buffer of size %" PRIu64
                                                         " to inflate object into. "
-                                                        "Shutting down connection", c->sfd, inflated_length);
+                                                        "Shutting down connection",
+                                                        c->getId(), inflated_length);
                         c->setState(conn_closing);
                         return;
                     }
@@ -1650,8 +1653,8 @@ static void ship_tap_log(Connection *c) {
                         } catch (std::bad_alloc) {
                             free(buf);
                             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                            "%d: FATAL: failed to allocate space to keep temporary buffer",
-                                                            c->sfd);
+                                                            "%u: FATAL: failed to allocate space to keep temporary buffer",
+                                                            c->getId());
                             c->setState(conn_closing);
                             return;
                         }
@@ -1659,7 +1662,8 @@ static void ship_tap_log(Connection *c) {
                     } else {
                         free(buf);
                         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                        "%d: FATAL: failed to inflate object. shutting down connection", c->sfd);
+                                                        "%u: FATAL: failed to inflate object. shutting down connection",
+                                                        c->getId());
                         c->setState(conn_closing);
                         return;
                     }
@@ -1678,7 +1682,8 @@ static void ship_tap_log(Connection *c) {
             if (!bucket_get_item_info(c, it, &info.info)) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: Failed to get item info\n", c->sfd);
+                                                "%u: Failed to get item info",
+                                                c->getId());
                 break;
             }
             try {
@@ -1686,8 +1691,8 @@ static void ship_tap_log(Connection *c) {
             } catch (std::bad_alloc) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: Failed to grow item array",
-                                                c->sfd);
+                                                "%u: Failed to grow item array",
+                                                c->getId());
                 break;
             }
             send_data = true;
@@ -1778,8 +1783,8 @@ static void ship_tap_log(Connection *c) {
             /* No more items to ship to the slave at this time.. suspend.. */
             if (settings.verbose > 1) {
                 settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                "%d: No more items in tap log.. waiting\n",
-                                                c->sfd);
+                                                "%u: No more items in tap log.. waiting",
+                                                c->getId());
             }
             c->ewouldblock = true;
         }
@@ -1950,8 +1955,8 @@ static void process_bin_tap_connect(Connection *c) {
             /* the userdata has to be at least 8 bytes! */
             if (ndata < 8) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: ERROR: Invalid tap connect message\n",
-                                                c->sfd);
+                                                "%u: ERROR: Invalid tap connect message",
+                                                c->getId());
                 c->setState(conn_closing);
                 return ;
             }
@@ -1970,8 +1975,8 @@ static void process_bin_tap_connect(Connection *c) {
         memcpy(buffer, key, len);
         buffer[len] = '\0';
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "%d: Trying to connect with named tap connection: <%s>\n",
-                                        c->sfd, buffer);
+                                        "%u: Trying to connect with named tap connection: <%s>",
+                                        c->getId(), buffer);
     }
 
     iterator = c->bucket.engine->get_tap_iterator(v1_handle_2_handle(c->bucket.engine),
@@ -1981,8 +1986,8 @@ static void process_bin_tap_connect(Connection *c) {
 
     if (iterator == NULL) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: FATAL: The engine does not support tap\n",
-                                        c->sfd);
+                                        "%u: FATAL: The engine does not support tap",
+                                        c->getId());
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         c->write_and_go = conn_closing;
     } else {
@@ -2370,7 +2375,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     if (!bucket_get_item_info(c, it, &info.info)) {
         c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: Failed to get item info\n", c->sfd);
+                                        "%u: Failed to get item info", c->getId());
         return ENGINE_FAILED;
     }
 
@@ -2379,8 +2384,8 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     } catch (std::bad_alloc) {
         c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: Failed to grow item array",
-                                        c->sfd);
+                                        "%u: Failed to grow item array",
+                                        c->getId());
         return ENGINE_FAILED;
     }
 
@@ -2698,7 +2703,8 @@ static void ship_dcp_log(Connection *c) {
     if (add_msghdr(c) != 0) {
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Failed to create output headers. Shutting down DCP connection\n", c->sfd);
+                                            "%u: Failed to create output headers. Shutting down DCP connection",
+                                            c->getId());
         }
         c->setState(conn_closing);
         return ;
@@ -3649,7 +3655,7 @@ static void process_hello_packet_executor(Connection *c, void *packet) {
         --offset;
     }
     settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                    "%d: %s", c->sfd, log_buffer);
+                                    "%u: %s", c->getId(), log_buffer);
 }
 
 static void version_executor(Connection *c, void *packet)
@@ -3681,8 +3687,8 @@ static void sasl_list_mech_executor(Connection *c, void *packet)
     if (cbsasl_list_mechs(&result_string, &string_length) != CBSASL_OK) {
         /* Perhaps there's a better error for this... */
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: Failed to list SASL mechanisms.\n",
-                                        c->sfd);
+                                        "%u: Failed to list SASL mechanisms.\n",
+                                        c->getId());
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
         return;
     }
@@ -3699,7 +3705,7 @@ static void sasl_auth_executor(Connection *c, void *packet)
     if (nkey > 1023) {
         /* too big.. */
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                "%d: sasl error. key: %d > 1023", c->sfd, nkey);
+                "%u: sasl error. key: %d > 1023", c->getId(), nkey);
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
         return;
     }
@@ -3709,8 +3715,8 @@ static void sasl_auth_executor(Connection *c, void *packet)
 
     if (settings.verbose) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "%d: SASL auth with mech: '%s' with %d "
-                                        "bytes of data\n", c->sfd, mech, vlen);
+                                        "%u: SASL auth with mech: '%s' with %d "
+                                        "bytes of data\n", c->getId(), mech, vlen);
     }
 
     char *challenge =
@@ -3739,8 +3745,8 @@ static void sasl_auth_executor(Connection *c, void *packet)
 
             if (settings.verbose > 0) {
                 settings.extensions.logger->log
-                    (EXTENSION_LOG_INFO, c, "%d: Client %s authenticated as %s",
-                     c->sfd, c->getPeername().c_str(), data.username);
+                    (EXTENSION_LOG_INFO, c, "%u: Client %s authenticated as %s",
+                     c->getId(), c->getPeername().c_str(), data.username);
             }
 
             write_bin_response(c, NULL, 0, 0, 0);
@@ -3773,8 +3779,8 @@ static void sasl_auth_executor(Connection *c, void *packet)
     case CBSASL_CONTINUE:
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                            "%d: SASL continue",
-                                            c->sfd, result);
+                                            "%u: SASL continue",
+                                            c->getId(), result);
         }
 
         if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
@@ -3788,8 +3794,8 @@ static void sasl_auth_executor(Connection *c, void *packet)
         break;
     case CBSASL_BADPARAM:
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: Bad sasl params: %d",
-                                        c->sfd, result);
+                                        "%u: Bad sasl params: %d",
+                                        c->getId(), result);
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         {
              auto *ts = get_thread_stats(c);
@@ -3800,8 +3806,8 @@ static void sasl_auth_executor(Connection *c, void *packet)
     default:
         if (!is_server_initialized()) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: SASL AUTH failure during initialization",
-                                            c->sfd);
+                                            "%u: SASL AUTH failure during initialization",
+                                            c->getId());
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
             c->write_and_go = conn_closing;
             return ;
@@ -3811,12 +3817,12 @@ static void sasl_auth_executor(Connection *c, void *packet)
             audit_auth_failure(c, result == CBSASL_NOUSER ?
                                "Unknown user" : "Incorrect password");
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Invalid username/password combination",
-                                            c->sfd);
+                                            "%u: Invalid username/password combination",
+                                            c->getId());
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Unknown sasl response: %d",
-                                            c->sfd, result);
+                                            "%u: Unknown sasl response: %d",
+                                            c->getId(), result);
         }
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
 
@@ -3848,7 +3854,7 @@ static void flush_executor(Connection *c, void *packet)
 
     if (settings.verbose > 1) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "%d: flush %ld", c->sfd,
+                                        "%u: flush %ld", c->getId(),
                                         (long)exptime);
     }
 
@@ -3934,8 +3940,8 @@ static void add_set_replace_executor(Connection *c, void *packet,
                 info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
                 if (!bucket_set_item_info(c, it, &info.info)) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                            "%d: Failed to set item info",
-                            c->sfd);
+                            "%u: Failed to set item info",
+                            c->getId());
                 }
             }
         }
@@ -3954,8 +3960,8 @@ static void add_set_replace_executor(Connection *c, void *packet,
             if (!bucket_get_item_info(c, c->item, &info.info)) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: Failed to get item info",
-                                                c->sfd);
+                                                "%u: Failed to get item info",
+                                                c->getId());
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return;
             }
@@ -4106,8 +4112,8 @@ static void append_prepend_executor(Connection *c,
                 info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
                 if (!bucket_set_item_info(c, it, &info.info)) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                            "%d: Failed to set item info",
-                            c->sfd);
+                            "%u: Failed to set item info",
+                            c->getId());
                 }
             }
         }
@@ -4128,8 +4134,8 @@ static void append_prepend_executor(Connection *c,
             if (!bucket_get_item_info(c, c->item, &info.info)) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: Failed to get item info",
-                                                c->sfd);
+                                                "%u: Failed to get item info",
+                                                c->getId());
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return;
             }
@@ -4232,7 +4238,7 @@ static void stat_executor(Connection *c, void *packet)
 
     if (settings.verbose > 1) {
         char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
+        if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     "STATS", subcommand, nkey) != -1) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s\n",
                                             buffer);
@@ -4392,7 +4398,7 @@ static void arithmetic_executor(Connection *c, void *packet)
     if (settings.verbose > 1) {
         char buffer[1024];
         ssize_t nw;
-        nw = key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
+        nw = key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                      incr ? "INCR" : "DECR", key, nkey);
         if (nw != -1) {
             if (snprintf(buffer + nw, sizeof(buffer) - nw,
@@ -4428,8 +4434,8 @@ static void arithmetic_executor(Connection *c, void *packet)
         if (!bucket_get_item_info(c, item, &info)) {
             c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, item);
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Failed to get item info",
-                                            c->sfd);
+                                            "%u: Failed to get item info",
+                                            c->getId());
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
@@ -4706,9 +4712,9 @@ static void config_validate_executor(Connection *c, void *packet) {
         cJSON_Delete(errors);
     } catch (const std::bad_alloc&) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: Failed to allocate buffer of size %" PRIu64
+                                        "%u: Failed to allocate buffer of size %" PRIu64
                                         " to validate config. Shutting down connection",
-                                        c->sfd, vallen + 1);
+                                        c->getId(), vallen + 1);
         c->setState(conn_closing);
         return;
     }
@@ -5055,8 +5061,8 @@ static void process_bin_packet(Connection *c) {
     case AuthResult::FAIL:
         /* @TODO Should go to audit */
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d (%s => %s): no access to command %s",
-                                        c->sfd, c->getPeername().c_str(),
+                                        "%u (%s => %s): no access to command %s",
+                                        c->getId(), c->getPeername().c_str(),
                                         c->getSockname().c_str(),
                                         memcached_opcode_2_text(opcode));
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
@@ -5064,8 +5070,8 @@ static void process_bin_packet(Connection *c) {
     case AuthResult::OK:
         if (validator != NULL && validator(packet) != 0) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Invalid format for specified for %s",
-                                            c->sfd,
+                                            "%u: Invalid format for specified for %s",
+                                            c->getId(),
                                             memcached_opcode_2_text(opcode));
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         } else if (executor != NULL) {
@@ -5129,7 +5135,7 @@ static void dispatch_bin_command(Connection *c) {
         c->start = gethrtime();
     }
 
-    MEMCACHED_PROCESS_COMMAND_START(c->sfd, c->read.curr, c->read.bytes);
+    MEMCACHED_PROCESS_COMMAND_START(c->getId(), c->read.curr, c->read.bytes);
 
     /* binprot supports 16bit keys, but internals are still 8bit */
     if (keylen > KEY_MAX_LENGTH) {
@@ -5163,7 +5169,7 @@ static void process_bin_delete(Connection *c) {
 
     if (settings.verbose > 1) {
         char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer), c->sfd, true,
+        if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     "DELETE", key, nkey) != -1) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s\n",
                                             buffer);
@@ -5232,8 +5238,8 @@ static void complete_nread(Connection *c) {
                 handler(c);
             } else {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                       "%d: Unsupported response packet received: %u",
-                        c->sfd, (unsigned int)c->binary_header.request.opcode);
+                       "%u: Unsupported response packet received: %u",
+                        c->getId(), (unsigned int)c->binary_header.request.opcode);
                 c->setState(conn_closing);
             }
         } else {
@@ -5652,7 +5658,7 @@ static int try_read_command(Connection *c) {
             /* Dump the packet before we convert it to host order */
             char buffer[1024];
             ssize_t nw;
-            nw = bytes_to_output_string(buffer, sizeof(buffer), c->sfd,
+            nw = bytes_to_output_string(buffer, sizeof(buffer), c->getId(),
                                         true, "Read binary protocol data:",
                                         (const char*)req->bytes,
                                         sizeof(req->bytes));
@@ -5673,13 +5679,13 @@ static int try_read_command(Connection *c) {
               response_handlers[c->binary_header.request.opcode])) {
             if (c->binary_header.request.magic != PROTOCOL_BINARY_RES) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: Invalid magic: %x, closing connection",
-                                                c->sfd,
+                                                "%u: Invalid magic: %x, closing connection",
+                                                c->getId(),
                                                 c->binary_header.request.magic);
             } else {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%d: Unsupported response packet received: %u, closing connection",
-                                                c->sfd, (unsigned int)c->binary_header.request.opcode);
+                                                "%u: Unsupported response packet received: %u, closing connection",
+                                                c->getId(), (unsigned int)c->binary_header.request.opcode);
 
             }
             c->setState(conn_closing);
@@ -5718,7 +5724,7 @@ bool conn_listening(Connection *c)
     int port_conns;
     struct listening_port *port_instance;
 
-    if ((sfd = accept(c->sfd, (struct sockaddr *)&addr, &addrlen)) == -1) {
+    if ((sfd = accept(c->getSocketDescriptor(), (struct sockaddr *)&addr, &addrlen)) == -1) {
         auto error = GetLastNetworkError();
         if (is_emfile(error)) {
 #if defined(WIN32)
@@ -5790,7 +5796,7 @@ bool conn_ship_log(Connection *c) {
     bool cont = false;
     short mask = EV_READ | EV_PERSIST | EV_WRITE;
 
-    if (c->sfd == INVALID_SOCKET) {
+    if (c->isSocketClosed()) {
         return false;
     }
 
@@ -6009,10 +6015,10 @@ bool conn_nread(Connection *c) {
     /* otherwise we have a real error, on which we close the connection */
     if (!is_closed_conn(error)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d Failed to read, and not due to blocking:\n"
+                                        "%u Failed to read, and not due to blocking:\n"
                                         "errno: %d %s \n"
                                         "rcurr=%lx ritem=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
-                                        c->sfd, errno, strerror(errno),
+                                        c->getId(), errno, strerror(errno),
                                         (long)c->read.curr, (long)c->ritem, (long)c->read.buf,
                                         (int)c->rlbytes, (int)c->read.size);
     }
@@ -6061,8 +6067,8 @@ bool conn_mwrite(Connection *c) {
             c->setState(c->write_and_go);
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%d: Unexpected state %d, closing",
-                                            c->sfd, c->getState());
+                                            "%u: Unexpected state %d, closing",
+                                            c->getId(), c->getState());
             c->setState(conn_closing);
         }
         break;
@@ -6079,7 +6085,7 @@ bool conn_mwrite(Connection *c) {
 }
 
 bool conn_pending_close(Connection *c) {
-    cb_assert(c->sfd == INVALID_SOCKET);
+    cb_assert(c->isSocketClosed());
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                     "Awaiting clients to release the cookie (pending close for %p)",
                                     (void*)c);
@@ -6099,7 +6105,7 @@ bool conn_pending_close(Connection *c) {
 
 bool conn_immediate_close(Connection *c) {
     struct listening_port *port_instance;
-    cb_assert(c->sfd == INVALID_SOCKET);
+    cb_assert(c->isSocketClosed());
     settings.extensions.logger->log(EXTENSION_LOG_DETAIL, c,
                                     "Releasing connection %p",
                                     c);
@@ -6120,8 +6126,8 @@ bool conn_immediate_close(Connection *c) {
 bool conn_closing(Connection *c) {
     /* We don't want any network notifications anymore.. */
     c->unregisterEvent();
-    safe_close(c->sfd);
-    c->sfd = INVALID_SOCKET;
+    safe_close(c->getSocketDescriptor());
+    c->setSocketDescriptor(INVALID_SOCKET);
 
     /* engine::release any allocated state */
     conn_cleanup_engine_allocations(c);
@@ -6306,7 +6312,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     c->setCurrentEvent(which);
 
     /* sanity */
-    cb_assert(fd == c->sfd);
+    cb_assert(fd == c->getSocketDescriptor());
 
     c->nevents = c->getMaxReqsPerEvent();
 
@@ -6346,7 +6352,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
                     }
                 }
 
-                if (listen(next->sfd, backlog) != 0) {
+                if (listen(next->getSocketDescriptor(), backlog) != 0) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                                     "listen() failed",
                                                     strerror(errno));
@@ -6729,7 +6735,7 @@ static void decrement_session_ctr(void) {
 
 static SOCKET get_socket_fd(const void *cookie) {
     Connection *c = (Connection *)cookie;
-    return c->sfd;
+    return c->getSocketDescriptor();
 }
 
 static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {

@@ -52,7 +52,7 @@ ssize_t buf_to_printable_buffer(char *dest, size_t destsz,
  * @param nkey the number of bytes in the key
  * @return number of bytes in dest if success, -1 otherwise
  */
-ssize_t key_to_printable_buffer(char *dest, size_t destsz, SOCKET client,
+ssize_t key_to_printable_buffer(char *dest, size_t destsz, uint32_t client,
                                 bool from_client, const char *prefix,
                                 const char *key, size_t nkey);
 

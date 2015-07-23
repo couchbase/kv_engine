@@ -24,7 +24,7 @@
 Connection::Connection()
     : all_next(nullptr),
       all_prev(nullptr),
-      sfd(INVALID_SOCKET),
+      socketDescriptor(INVALID_SOCKET),
       max_reqs_per_event(settings.default_reqs_per_event),
       nevents(0),
       sasl_conn(nullptr),
@@ -85,7 +85,7 @@ Connection::Connection()
     memset(&binary_header, 0, sizeof(binary_header));
 
     state = conn_immediate_close;
-    sfd = INVALID_SOCKET;
+    socketDescriptor = INVALID_SOCKET;
     resetBufferSize();
 }
 
@@ -157,8 +157,8 @@ void Connection::setState(STATE_FUNC next_state) {
         if (settings.verbose > 2 || state == conn_closing
             || state == conn_setup_tap_stream) {
             settings.extensions.logger->log(EXTENSION_LOG_DETAIL, this,
-                                            "%d: going from %s to %s\n",
-                                            sfd, state_text(state),
+                                            "%u: going from %s to %s\n",
+                                            getId(), state_text(state),
                                             state_text(next_state));
         }
 
@@ -167,7 +167,7 @@ void Connection::setState(STATE_FUNC next_state) {
                 collect_timings(this);
                 start = 0;
             }
-            MEMCACHED_PROCESS_COMMAND_END(sfd, write.buf, write.bytes);
+            MEMCACHED_PROCESS_COMMAND_END(getId(), write.buf, write.bytes);
         }
 
         state = next_state;
@@ -178,8 +178,8 @@ void Connection::runStateMachinery() {
     do {
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
-                                            "%d - Running task: (%s)", sfd,
-                                            state_text(state));
+                                            "%u - Running task: (%s)",
+                                            getId(), state_text(state));
         }
     } while (state(this));
 }
@@ -218,21 +218,21 @@ void Connection::resolveConnectionName() {
     struct sockaddr_storage peer;
     socklen_t peer_len = sizeof(peer);
 
-    if ((err = getpeername(sfd, reinterpret_cast<struct sockaddr*>(&peer),
+    if ((err = getpeername(socketDescriptor, reinterpret_cast<struct sockaddr*>(&peer),
                            &peer_len)) != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "getpeername for socket %d with error %d",
-                                        sfd, err);
+                                        socketDescriptor, err);
         return;
     }
 
     struct sockaddr_storage sock;
     socklen_t sock_len = sizeof(sock);
-    if ((err = getsockname(sfd, reinterpret_cast<struct sockaddr*>(&sock),
+    if ((err = getsockname(socketDescriptor, reinterpret_cast<struct sockaddr*>(&sock),
                            &sock_len)) != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "getsock for socket %d with error %d",
-                                        sfd, err);
+                                        socketDescriptor, err);
         return;
     }
 
@@ -242,7 +242,7 @@ void Connection::resolveConnectionName() {
 
 bool Connection::unregisterEvent() {
     cb_assert(registered_in_libevent);
-    cb_assert(sfd != INVALID_SOCKET);
+    cb_assert(socketDescriptor != INVALID_SOCKET);
 
     if (event_del(&event) == -1) {
         log_system_error(EXTENSION_LOG_WARNING,
@@ -257,7 +257,7 @@ bool Connection::unregisterEvent() {
 
 bool Connection::registerEvent() {
     cb_assert(!registered_in_libevent);
-    cb_assert(sfd != INVALID_SOCKET);
+    cb_assert(socketDescriptor != INVALID_SOCKET);
 
     if (event_add(&event, NULL) == -1) {
         log_system_error(EXTENSION_LOG_WARNING,
@@ -298,8 +298,8 @@ bool Connection::updateEvent(const short new_flags) {
 
     if (settings.verbose > 1) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                        "Updated event for %d to read=%s, write=%s\n",
-                                        sfd,
+                                        "Updated event for %u to read=%s, write=%s\n",
+                                        getId(),
                                         (new_flags & EV_READ ? "yes" : "no"),
                                         (new_flags & EV_WRITE ? "yes" : "no"));
     }
@@ -314,7 +314,7 @@ bool Connection::updateEvent(const short new_flags) {
         return false;
     }
 
-    event_set(&event, sfd, new_flags, event_handler,
+    event_set(&event, socketDescriptor, new_flags, event_handler,
               reinterpret_cast<void*>(this));
     event_base_set(base, &event);
     ev_flags = new_flags;
@@ -334,7 +334,7 @@ bool Connection::updateEvent(const short new_flags) {
 
 bool Connection::initializeEvent(struct event_base* base) {
     short event_flags = (EV_READ | EV_PERSIST);
-    event_set(&event, sfd, event_flags, event_handler,
+    event_set(&event, socketDescriptor, event_flags, event_handler,
               reinterpret_cast<void*>(this));
     event_base_set(base, &event);
     ev_flags = event_flags;
@@ -350,7 +350,7 @@ bool Connection::setTcpNoDelay(bool enable) {
 #else
     void* flags_ptr = reinterpret_cast<void*>(&flags);
 #endif
-    int error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, flags_ptr,
+    int error = setsockopt(socketDescriptor, IPPROTO_TCP, TCP_NODELAY, flags_ptr,
                            sizeof(flags));
 
     if (error != 0) {
@@ -416,10 +416,10 @@ const char* to_string(const Protocol& protocol) {
 cJSON* Connection::toJSON() const {
     cJSON* obj = cJSON_CreateObject();
     json_add_uintptr_to_object(obj, "connection", (uintptr_t) this);
-    if (sfd == INVALID_SOCKET) {
+    if (socketDescriptor == INVALID_SOCKET) {
         cJSON_AddStringToObject(obj, "socket", "disconnected");
     } else {
-        cJSON_AddNumberToObject(obj, "socket", (double) sfd);
+        cJSON_AddNumberToObject(obj, "socket", (double) socketDescriptor);
         cJSON_AddStringToObject(obj, "protocol", to_string(getProtocol()));
         cJSON_AddStringToObject(obj, "peername", getPeername().c_str());
         cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
@@ -575,8 +575,8 @@ void Connection::shrinkBuffers() {
             read.size = DATA_BUFFER_SIZE;
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                            "%d: Failed to shrink read buffer down to %" PRIu64
-                                            " bytes.", sfd, DATA_BUFFER_SIZE);
+                                            "%u: Failed to shrink read buffer down to %" PRIu64
+                                            " bytes.", getId(), DATA_BUFFER_SIZE);
         }
         read.curr = read.buf;
     }
@@ -589,8 +589,8 @@ void Connection::shrinkBuffers() {
             msgsize = MSG_LIST_INITIAL;
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                            "%d: Failed to shrink msglist down to %" PRIu64
-                                            " bytes.", sfd,
+                                            "%u: Failed to shrink msglist down to %" PRIu64
+                                            " bytes.", getId(),
                                             MSG_LIST_INITIAL * sizeof(msglist[0]));
         }
     }
@@ -603,8 +603,8 @@ void Connection::shrinkBuffers() {
             iovsize = IOV_LIST_INITIAL;
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                            "%d: Failed to shrink iov down to %" PRIu64
-                                            " bytes.", sfd,
+                                            "%u: Failed to shrink iov down to %" PRIu64
+                                            " bytes.", getId(),
                                             IOV_LIST_INITIAL * sizeof(iov[0]));
         }
     }
@@ -622,11 +622,11 @@ void Connection::shrinkBuffers() {
 int Connection::sslPreConnection() {
     int r = ssl.accept();
     if (r == 1) {
-        ssl.drainBioSendPipe(sfd);
+        ssl.drainBioSendPipe(socketDescriptor);
         ssl.setConnected();
     } else {
         if (ssl.getError(r) == SSL_ERROR_WANT_READ) {
-            ssl.drainBioSendPipe(sfd);
+            ssl.drainBioSendPipe(socketDescriptor);
             set_ewouldblock();
             return -1;
         } else {
@@ -641,8 +641,8 @@ int Connection::sslPreConnection() {
                                    ssl_err.size());
 
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                                "%d: ERROR: %s\n%s",
-                                                sfd, errmsg.c_str(),
+                                                "%u: ERROR: %s\n%s",
+                                                getId(), errmsg.c_str(),
                                                 ssl_err.data());
             } catch (const std::bad_alloc&) {
                 // unable to print error message; continue.
@@ -659,7 +659,7 @@ int Connection::sslPreConnection() {
 int Connection::recv(char* dest, size_t nbytes) {
     int res;
     if (ssl.isEnabled()) {
-        ssl.drainBioRecvPipe(sfd);
+        ssl.drainBioRecvPipe(socketDescriptor);
 
         if (ssl.hasError()) {
             set_econnreset();
@@ -679,9 +679,9 @@ int Connection::recv(char* dest, size_t nbytes) {
         }
     } else {
 #ifdef WIN32
-        res = ::recv(sfd, dest, (int)nbytes, 0);
+        res = ::recv(socketDescriptor, dest, (int)nbytes, 0);
 #else
-        res = (int)::recv(sfd, dest, nbytes, 0);
+        res = (int)::recv(socketDescriptor, dest, nbytes, 0);
 #endif
     }
 
@@ -705,10 +705,10 @@ int Connection::sendmsg(struct msghdr* m) {
         /* @todo figure out how to drain the rest of the data if we
          * failed to send all of it...
          */
-        ssl.drainBioSendPipe(sfd);
+        ssl.drainBioSendPipe(socketDescriptor);
         return res;
     } else {
-        res = ::sendmsg(sfd, m, 0);
+        res = ::sendmsg(socketDescriptor, m, 0);
     }
 
     return res;
@@ -763,11 +763,11 @@ Connection::TransmitResult Connection::transmit() {
             } else {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
                                                 "%d - sendmsg returned 0\n",
-                                                sfd);
+                                                socketDescriptor);
                 for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
                                                     "\t%d - %zu\n",
-                                                    sfd, m->msg_iov[ii].iov_len);
+                                                    socketDescriptor, m->msg_iov[ii].iov_len);
                 }
 
             }
@@ -777,7 +777,7 @@ Connection::TransmitResult Connection::transmit() {
         return TransmitResult::HardError;
     } else {
         if (ssl.isEnabled()) {
-            ssl.drainBioSendPipe(sfd);
+            ssl.drainBioSendPipe(socketDescriptor);
             if (ssl.morePendingOutput()) {
                 if (!updateEvent(EV_WRITE | EV_PERSIST)) {
                     setState(conn_closing);
@@ -790,6 +790,7 @@ Connection::TransmitResult Connection::transmit() {
         return TransmitResult::Complete;
     }
 }
+
 /**
  * To protect us from someone flooding a connection with bogus data causing
  * the connection to eat up all available memory, break out and start
@@ -850,8 +851,8 @@ Connection::TryReadResult Connection::tryReadNetwork() {
             }
             char prefix[160];
             snprintf(prefix, sizeof(prefix),
-                     "%d Closing connection [%s - %s] due to read error: %%s",
-                     sfd, getPeername().c_str(), getSockname().c_str());
+                     "%u Closing connection [%s - %s] due to read error: %%s",
+                     getId(), getPeername().c_str(), getSockname().c_str());
             log_errcode_error(EXTENSION_LOG_WARNING, this, prefix, error);
 
             return TryReadResult::SocketError;
@@ -865,7 +866,7 @@ int Connection::sslRead(char* dest, size_t nbytes) {
 
     while (ret < int(nbytes)) {
         int n;
-        ssl.drainBioRecvPipe(sfd);
+        ssl.drainBioRecvPipe(socketDescriptor);
         if (ssl.hasError()) {
             set_econnreset();
             return -1;
@@ -885,7 +886,7 @@ int Connection::sslRead(char* dest, size_t nbytes) {
                  */
                 if (ssl.moreInputAvailable()) {
                     /* our recv buf has data feed the BIO */
-                    ssl.drainBioRecvPipe(sfd);
+                    ssl.drainBioRecvPipe(socketDescriptor);
                 } else if (ret > 0) {
                     /* nothing in our recv buf, return what we have */
                     return ret;
@@ -905,8 +906,8 @@ int Connection::sslRead(char* dest, size_t nbytes) {
                  * let's just shut down the connection
                  */
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                                "%d: ERROR: SSL_read returned -1 with error %d",
-                                                sfd, error);
+                                                "%u: ERROR: SSL_read returned -1 with error %d",
+                                                getId(), error);
                 set_econnreset();
                 return -1;
             }
@@ -925,7 +926,7 @@ int Connection::sslWrite(const char* src, size_t nbytes) {
         int n;
         int chunk;
 
-        ssl.drainBioSendPipe(sfd);
+        ssl.drainBioSendPipe(socketDescriptor);
         if (ssl.hasError()) {
             set_econnreset();
             return -1;
@@ -958,8 +959,8 @@ int Connection::sslWrite(const char* src, size_t nbytes) {
                      * let's just shut down the connection
                      */
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                                    "%d: ERROR: SSL_write returned -1 with error %d",
-                                                    sfd, error);
+                                                    "%u: ERROR: SSL_write returned -1 with error %d",
+                                                    getId(), error);
                     set_econnreset();
                     return -1;
                 }
@@ -1098,13 +1099,13 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
     } while (!stop);
 }
 
-void SslContext::dumpCipherList(SOCKET sfd) const {
+void SslContext::dumpCipherList(uint32_t id) const {
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                    "%d: Using SSL ciphers:", sfd);
+                                    "%u: Using SSL ciphers:", id);
     int ii = 0;
     const char* cipher;
     while ((cipher = SSL_get_cipher_list(client, ii++)) != NULL) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                        "%d    %s", sfd, cipher);
+                                        "%u    %s", id, cipher);
     }
 }

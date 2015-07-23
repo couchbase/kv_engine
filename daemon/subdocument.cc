@@ -375,7 +375,7 @@ void subdoc_executor(Connection *c, const void *packet) {
         char clean_key[KEY_MAX_LENGTH + 32];
         char clean_path[SUBDOC_PATH_MAX_LENGTH];
         char clean_value[80]; // only print the first few characters of the value.
-        if ((key_to_printable_buffer(clean_key, sizeof(clean_key), c->sfd, true,
+        if ((key_to_printable_buffer(clean_key, sizeof(clean_key), c->getId(), true,
                                      memcached_opcode_2_text(CMD),
                                      key, keylen) != -1) &&
             (buf_to_printable_buffer(clean_path, sizeof(clean_path),
@@ -482,16 +482,16 @@ get_document_for_searching(Connection * c, const item* item,
     if (!c->bucket.engine->get_item_info(reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine),
                                          c, item, &info.info)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: Failed to get item info",
-                                        c->sfd);
+                                        "%u: Failed to get item info",
+                                        c->getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
     // Need to have the complete document in a single iovec.
     if (info.info.nvalue != 1) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: More than one iovec in document",
-                                        c->sfd);
+                                        "%u: More than one iovec in document",
+                                        c->getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
@@ -524,10 +524,10 @@ get_document_for_searching(Connection * c, const item* item,
                                             static_cast<const char*>(info.info.key),
                                             info.info.nkey) != -1) {
                     settings.extensions.logger->log(
-                            EXTENSION_LOG_WARNING, c, "<%d ERROR: Failed to "
+                            EXTENSION_LOG_WARNING, c, "<%u ERROR: Failed to "
                             "determine inflated body size. Key: '%s' may have an "
                             "incorrect datatype of COMPRESSED_JSON.",
-                            c->sfd, clean_key);
+                            c->getId(), clean_key);
                 }
                 return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
             }
@@ -538,9 +538,9 @@ get_document_for_searching(Connection * c, const item* item,
             if (!grow_dynamic_buffer(c, uncompressed_len)) {
                 if (settings.verbose > 0) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                            "<%d ERROR: Failed to grow dynamic buffer to %" PRIu64
+                            "<%u ERROR: Failed to grow dynamic buffer to %" PRIu64
                             "for uncompressing document.",
-                            c->sfd, uncompressed_len);
+                            c->getId(), uncompressed_len);
                 }
                 return PROTOCOL_BINARY_RESPONSE_E2BIG;
             }
@@ -553,9 +553,9 @@ get_document_for_searching(Connection * c, const item* item,
                                             static_cast<const char*>(info.info.key),
                                             info.info.nkey) != -1) {
                     settings.extensions.logger->log(
-                            EXTENSION_LOG_WARNING, c, "<%d ERROR: Failed to "
+                            EXTENSION_LOG_WARNING, c, "<%u ERROR: Failed to "
                             "inflate body. Key: '%s' may have an incorrect "
-                            "datatype of COMPRESSED_JSON.", c->sfd, clean_key);
+                            "datatype of COMPRESSED_JSON.", c->getId(), clean_key);
                 }
                 return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
             }
@@ -579,9 +579,9 @@ get_document_for_searching(Connection * c, const item* item,
                                         static_cast<const char*>(info.info.key),
                                         info.info.nkey) != -1) {
                 settings.extensions.logger->log(
-                        EXTENSION_LOG_WARNING, c, "<%d ERROR: Unhandled datatype "
+                        EXTENSION_LOG_WARNING, c, "<%u ERROR: Unhandled datatype "
                         "'%u' of document '%s'.",
-                        c->sfd, info.info.datatype, clean_key);
+                        c->getId(), info.info.datatype, clean_key);
             }
             return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         }
