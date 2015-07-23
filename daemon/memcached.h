@@ -56,7 +56,7 @@
 #define IOCTL_KEY_LENGTH 128
 #define IOCTL_VAL_LENGTH 128
 
-enum bin_substates {
+enum class bin_substates {
     bin_no_state,
     bin_reading_packet
 };

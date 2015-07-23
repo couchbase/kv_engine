@@ -1230,11 +1230,11 @@ static void append_stats(const char *key, const uint16_t klen,
 }
 
 static void bin_read_chunk(Connection *c,
-                           enum bin_substates next_substate,
+                           bin_substates next_substate,
                            uint32_t chunk) {
     ptrdiff_t offset;
     cb_assert(c);
-    c->substate = next_substate;
+    c->setSubstate(next_substate);
     c->rlbytes = chunk;
 
     /* Ok... do we have room for everything in our buffer? */
@@ -5148,7 +5148,8 @@ static void dispatch_bin_command(Connection *c) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         c->write_and_go = conn_closing;
     } else {
-        bin_read_chunk(c, bin_reading_packet, c->binary_header.request.bodylen);
+        bin_read_chunk(c, bin_substates::bin_reading_packet,
+                       c->binary_header.request.bodylen);
     }
 }
 
@@ -5224,8 +5225,8 @@ static void complete_nread(Connection *c) {
     cb_assert(c != NULL);
     cb_assert(c->cmd >= 0);
 
-    switch(c->substate) {
-    case bin_reading_packet:
+    switch(c->getSubstate()) {
+    case bin_substates::bin_reading_packet:
         if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {
             RESPONSE_HANDLER handler;
             handler = response_handlers[c->binary_header.request.opcode];
@@ -5243,14 +5244,14 @@ static void complete_nread(Connection *c) {
         break;
     default:
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                "Not handling substate %d\n", c->substate);
+                "Not handling substate %d\n", c->getSubstate());
         abort();
     }
 }
 
 static void reset_cmd_handler(Connection *c) {
     c->cmd = -1;
-    c->substate = bin_no_state;
+    c->setSubstate(bin_substates::bin_no_state);
     if(c->item != NULL) {
         c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
         c->item = NULL;

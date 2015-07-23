@@ -29,7 +29,7 @@ Connection::Connection()
       nevents(0),
       sasl_conn(nullptr),
       state(conn_immediate_close),
-      substate(bin_no_state),
+      substate(bin_substates::bin_no_state),
       protocol(Protocol::Memcached),
       admin(false),
       registered_in_libevent(false),
@@ -365,10 +365,10 @@ bool Connection::setTcpNoDelay(bool enable) {
 }
 
 
-static const char* substate_text(enum bin_substates state) {
+static const char* substate_text(bin_substates state) {
     switch (state) {
-    case bin_no_state: return "bin_no_state";
-    case bin_reading_packet: return "bin_reading_packet";
+    case bin_substates::bin_no_state: return "bin_no_state";
+    case bin_substates::bin_reading_packet: return "bin_reading_packet";
     default:
         return "illegal";
     }

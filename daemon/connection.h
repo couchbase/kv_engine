@@ -925,10 +925,11 @@ public:
     cbsasl_conn_t* sasl_conn;
 private:
     STATE_FUNC state;
-public:
-    enum bin_substates substate;
+    /**
+     * The current substate we're in
+     */
+    bin_substates substate;
 
-private:
     /* The protocol used by the connection */
     Protocol protocol;
 
