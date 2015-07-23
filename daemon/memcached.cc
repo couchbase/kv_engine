@@ -1083,7 +1083,7 @@ static void process_bin_get(Connection *c) {
         }
 
         datatype = info.info.datatype;
-        if (!c->supports_datatype) {
+        if (!c->isSupportsDatatype()) {
             if ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) == PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
                 need_inflate = true;
             } else {
@@ -1348,7 +1348,7 @@ bool binary_response_handler(const void *key, uint16_t keylen,
     bool need_inflate = false;
     size_t inflated_length;
 
-    if (!c->supports_datatype) {
+    if (!c->isSupportsDatatype()) {
         if ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) ==
                                 PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
             need_inflate = true;
@@ -1563,7 +1563,7 @@ static void ship_tap_log(Connection *c) {
             msg.mutation.message.header.request.cas = htonll(info.info.cas);
             msg.mutation.message.header.request.keylen = htons(info.info.nkey);
             msg.mutation.message.header.request.extlen = 16;
-            if (c->supports_datatype) {
+            if (c->isSupportsDatatype()) {
                 msg.mutation.message.header.request.datatype = info.info.datatype;
             } else {
                 switch (info.info.datatype) {
@@ -1795,7 +1795,7 @@ static ENGINE_ERROR_CODE default_unknown_command(EXTENSION_BINARY_PROTOCOL_DESCR
 {
     Connection *c = const_cast<Connection *>(reinterpret_cast<const Connection *>(cookie));
 
-    if (!c->supports_datatype && request->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
+    if (!c->isSupportsDatatype() && request->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
                      PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie)) {
             return ENGINE_SUCCESS;
@@ -2051,7 +2051,7 @@ static void process_bin_tap_packet(tap_event_t event, Connection *c) {
 
         if (ret == ENGINE_SUCCESS) {
             uint8_t datatype = c->binary_header.request.datatype;
-            if (event == TAP_MUTATION && !c->supports_datatype) {
+            if (event == TAP_MUTATION && !c->isSupportsDatatype()) {
                 if (checkUTF8JSON(reinterpret_cast<unsigned char*>(data),
                                   ndata)) {
                     datatype = PROTOCOL_BINARY_DATATYPE_JSON;
@@ -2830,7 +2830,7 @@ static void dcp_open_executor(Connection *c, void *packet)
         ENGINE_ERROR_CODE ret = c->aiostat;
         c->aiostat = ENGINE_SUCCESS;
         c->ewouldblock = false;
-        c->supports_datatype = true;
+        c->setSupportsDatatype(true);
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->bucket.engine->dcp.open(v1_handle_2_handle(c->bucket.engine), c,
@@ -3573,8 +3573,8 @@ static void process_hello_packet_executor(Connection *c, void *packet) {
      * Disable all features the hello packet may enable, so that
      * the client can toggle features on/off during a connection
      */
-    c->supports_datatype = false;
-    c->supports_mutation_extras = false;
+    c->setSupportsDatatype(false);
+    c->setSupportsMutationExtras(false);
 
     if (klen) {
         if (klen > 256) {
@@ -3601,8 +3601,8 @@ static void process_hello_packet_executor(Connection *c, void *packet) {
             /* Not implemented */
             break;
         case PROTOCOL_BINARY_FEATURE_DATATYPE:
-            if (settings.datatype && !c->supports_datatype) {
-                c->supports_datatype = true;
+            if (settings.datatype && !c->isSupportsDatatype()) {
+                c->setSupportsDatatype(true);
                 added = true;
             }
             break;
@@ -3617,8 +3617,8 @@ static void process_hello_packet_executor(Connection *c, void *packet) {
             break;
 
         case PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO:
-            if (!c->supports_mutation_extras) {
-                c->supports_mutation_extras = true;
+            if (!c->isSupportsMutationExtras()) {
+                c->setSupportsMutationExtras(true);
                 added = true;
             }
             break;
@@ -3929,7 +3929,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
         cb_assert(info.info.value[0].iov_len == vlen);
         memcpy(info.info.value[0].iov_base, key + nkey, vlen);
 
-        if (!c->supports_datatype) {
+        if (!c->isSupportsDatatype()) {
             if (checkUTF8JSON(reinterpret_cast<unsigned char*>(info.info.value[0].iov_base),
                               info.info.value[0].iov_len)) {
                 info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
@@ -3950,7 +3950,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
     switch (ret) {
     case ENGINE_SUCCESS:
         /* Stored */
-        if (c->supports_mutation_extras) {
+        if (c->isSupportsMutationExtras()) {
             info.info.nvalue = 1;
             if (!bucket_get_item_info(c, c->item, &info.info)) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
@@ -4101,7 +4101,7 @@ static void append_prepend_executor(Connection *c,
         cb_assert(info.info.value[0].iov_len == vlen);
         memcpy(info.info.value[0].iov_base, key + nkey, vlen);
 
-        if (!c->supports_datatype) {
+        if (!c->isSupportsDatatype()) {
             if (checkUTF8JSON(reinterpret_cast<unsigned char*>(info.info.value[0].iov_base),
                               info.info.value[0].iov_len)) {
                 info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
@@ -4124,7 +4124,7 @@ static void append_prepend_executor(Connection *c,
     switch (ret) {
     case ENGINE_SUCCESS:
         /* Stored */
-        if (c->supports_mutation_extras) {
+        if (c->isSupportsMutationExtras()) {
             info.info.nvalue = 1;
             if (!bucket_get_item_info(c, c->item, &info.info)) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
@@ -4438,7 +4438,7 @@ static void arithmetic_executor(Connection *c, void *packet)
 
         char* body_buf =
                 (c->write.buf + sizeof(protocol_binary_response_incr));
-        if (c->supports_mutation_extras) {
+        if (c->isSupportsMutationExtras()) {
             /* Response includes vbucket UUID and sequence number (in addition
              * to value) */
             struct mutation_extras_plus_body {
@@ -5033,7 +5033,7 @@ static int invalid_datatype(Connection *c) {
     case PROTOCOL_BINARY_DATATYPE_JSON:
     case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
     case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
-        if (c->supports_datatype) {
+        if (c->isSupportsDatatype()) {
             return 0;
         }
         /* FALLTHROUGH */
@@ -5186,7 +5186,7 @@ static void process_bin_delete(Connection *c) {
     switch (ret) {
     case ENGINE_SUCCESS:
         c->cas = cas;
-        if (c->supports_mutation_extras) {
+        if (c->isSupportsMutationExtras()) {
             /* Response includes vbucket UUID and sequence number */
             mutation_descr_t* const extras = (mutation_descr_t*)
                     (c->write.buf + sizeof(protocol_binary_response_delete));
@@ -6674,12 +6674,12 @@ static void *get_engine_specific(const void *cookie) {
 
 static bool is_datatype_supported(const void *cookie) {
     Connection *c = (Connection *)cookie;
-    return c->supports_datatype;
+    return c->isSupportsDatatype();
 }
 
 static bool is_mutation_extras_supported(const void *cookie) {
     Connection *c = (Connection *)cookie;
-    return c->supports_mutation_extras;
+    return c->isSupportsMutationExtras();
 }
 
 static uint8_t get_opcode_if_ewouldblock_set(const void *cookie) {
@@ -7091,7 +7091,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
 static void process_bin_dcp_response(Connection *c) {
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
-    c->supports_datatype = true;
+    c->setSupportsDatatype(true);
 
     if (c->bucket.engine->dcp.response_handler != NULL) {
         auto* header = reinterpret_cast<protocol_binary_response_header*>

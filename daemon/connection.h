@@ -1014,7 +1014,14 @@ public:
 
     uint8_t refcount;
     /* number of references to the object */
+
+private:
+    /**
+     * If the client enabled the datatype support the response packet
+     * will contain the datatype as set for the object
+     */
     bool supports_datatype;
+
     /**
      * If the client enabled the mutation seqno feature each mutation
      * command will return the vbucket UUID and sequence number for the
@@ -1022,6 +1029,7 @@ public:
      */
     bool supports_mutation_extras;
 
+public:
     struct dynamic_buffer dynamic_buffer;
 
     // Pointer to engine-specific data which the engine has requested the server
