@@ -6714,11 +6714,6 @@ static void decrement_session_ctr(void) {
     cb_mutex_exit(&(session_cas.mutex));
 }
 
-static SOCKET get_socket_fd(const void *cookie) {
-    Connection *c = (Connection *)cookie;
-    return c->getSocketDescriptor();
-}
-
 static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {
     Connection *c = (Connection *)cookie;
     ++c->refcount;
@@ -7037,7 +7032,6 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.get_opcode_if_ewouldblock_set = get_opcode_if_ewouldblock_set;
         server_cookie_api.validate_session_cas = validate_session_cas;
         server_cookie_api.decrement_session_ctr = decrement_session_ctr;
-        server_cookie_api.get_socket_fd = get_socket_fd;
         server_cookie_api.notify_io_complete = notify_io_complete;
         server_cookie_api.reserve = reserve_cookie;
         server_cookie_api.release = release_cookie;

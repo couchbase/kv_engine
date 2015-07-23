@@ -102,11 +102,6 @@ static void mock_decrement_session_ctr(void) {
     cb_mutex_exit(&(session_mutex));
 }
 
-static SOCKET mock_get_socket_fd(const void *cookie) {
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    return c->sfd;
-}
-
 static ENGINE_ERROR_CODE mock_cookie_reserve(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     c->references++;
@@ -359,7 +354,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.get_opcode_if_ewouldblock_set = mock_get_opcode_if_ewouldblock_set;
       server_cookie_api.validate_session_cas = mock_validate_session_cas;
       server_cookie_api.decrement_session_ctr = mock_decrement_session_ctr;
-      server_cookie_api.get_socket_fd = mock_get_socket_fd;
       server_cookie_api.notify_io_complete = mock_notify_io_complete;
       server_cookie_api.reserve = mock_cookie_reserve;
       server_cookie_api.release = mock_cookie_release;

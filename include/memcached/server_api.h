@@ -74,18 +74,6 @@ extern "C" {
      * Commands to operate on a specific cookie.
      */
     typedef struct {
-        /**
-         * Retrieve socket file descriptor of the session for the given cookie.
-         *
-         * @param cookie The cookie provided by the frontend
-         *
-         * @return the socket file descriptor of the session for the given cookie.
-         */
-#ifdef WIN32
-        SOCKET (*get_socket_fd)(const void *cookie);
-#else
-        int (*get_socket_fd)(const void *cookie);
-#endif
 
         /**
          * Get the auth data for the connection associated with the
