@@ -5794,7 +5794,7 @@ bool conn_ship_log(Connection *c) {
         return false;
     }
 
-    if (c->isReadevent() || c->read.bytes > 0) {
+    if (c->isReadEvent() || c->read.bytes > 0) {
         if (c->read.bytes > 0) {
             if (try_read_command(c) == 0) {
                 c->setState(conn_read);
@@ -5815,7 +5815,7 @@ bool conn_ship_log(Connection *c) {
         /* we'll only process a subset of messages in our input queue, */
         /* and it will slowly grow.. */
         c->nevents = c->getMaxReqsPerEvent();
-    } else if (c->isWriteevent()) {
+    } else if (c->isWriteEvent()) {
         --c->nevents;
         if (c->nevents >= 0) {
             c->ewouldblock = false;

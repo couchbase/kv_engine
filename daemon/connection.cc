@@ -1098,7 +1098,7 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
     } while (!stop);
 }
 
-void SslContext::dumpCipherList(SOCKET sfd) {
+void SslContext::dumpCipherList(SOCKET sfd) const {
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
                                     "%d: Using SSL ciphers:", sfd);
     int ii = 0;

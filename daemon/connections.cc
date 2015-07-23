@@ -55,7 +55,7 @@ static void release_connection(Connection *c);
 void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
 {
     cb_mutex_enter(&connections.mutex);
-    Connection *c = connections.sentinal.all_next;
+    Connection *c = connections.sentinal.getAllNext();
     while (c != &connections.sentinal) {
         if (c->thread == me && c->bucket.idx == bucket_idx) {
             if (c->getState() == conn_read || c->getState() == conn_waiting) {
@@ -66,7 +66,7 @@ void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
                 }
             }
         }
-        c = c->all_next;
+        c = c->getAllNext();
     }
 
     cb_mutex_exit(&connections.mutex);
@@ -75,10 +75,10 @@ void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
 void assert_no_associations(int bucket_idx)
 {
     cb_mutex_enter(&connections.mutex);
-    Connection *c = connections.sentinal.all_next;
+    Connection *c = connections.sentinal.getAllNext();
     while (c != &connections.sentinal) {
         cb_assert(c->bucket.idx != bucket_idx);
-        c = c->all_next;
+        c = c->getAllNext();
     }
 
     cb_mutex_exit(&connections.mutex);
@@ -87,29 +87,29 @@ void assert_no_associations(int bucket_idx)
 void initialize_connections(void)
 {
     cb_mutex_initialize(&connections.mutex);
-    connections.sentinal.all_next = &connections.sentinal;
-    connections.sentinal.all_prev = &connections.sentinal;
+    connections.sentinal.setAllNext(&connections.sentinal);
+    connections.sentinal.setAllPrev(&connections.sentinal);
 }
 
 void destroy_connections(void)
 {
     /* traverse the list of connections. */
-    Connection *c = connections.sentinal.all_next;
+    Connection *c = connections.sentinal.getAllNext();
     while (c != &connections.sentinal) {
-        Connection *next = c->all_next;
+        Connection *next = c->getAllNext();
         conn_destructor(c);
         c = next;
     }
-    connections.sentinal.all_next = &connections.sentinal;
-    connections.sentinal.all_prev = &connections.sentinal;
+    connections.sentinal.setAllNext(&connections.sentinal);
+    connections.sentinal.setAllPrev(&connections.sentinal);
 }
 
 void close_all_connections(void)
 {
     /* traverse the list of connections. */
-    Connection *c = connections.sentinal.all_next;
+    Connection *c = connections.sentinal.getAllNext();
     while (c != &connections.sentinal) {
-        Connection *next = c->all_next;
+        Connection *next = c->getAllNext();
 
         if (c->sfd != INVALID_SOCKET) {
             safe_close(c->sfd);
@@ -126,9 +126,9 @@ void close_all_connections(void)
      * do a second loop, this time wait for all of them to
      * be closed.
      */
-    c = connections.sentinal.all_next;
+    c = connections.sentinal.getAllNext();
     while (c != &connections.sentinal) {
-        Connection *next = c->all_next;
+        Connection *next = c->getAllNext();
         while (c->refcount > 1) {
             usleep(500);
         }
@@ -351,9 +351,9 @@ struct listening_port *get_listening_port_instance(const in_port_t port) {
 void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) {
     const Connection *iter = NULL;
     cb_mutex_enter(&connections.mutex);
-    for (iter = connections.sentinal.all_next;
+    for (iter = connections.sentinal.getAllNext();
          iter != &connections.sentinal;
-         iter = iter->all_next) {
+         iter = iter->getAllNext()) {
         if (iter->sfd == fd || fd == -1) {
             cJSON* stats = iter->toJSON();
             /* blank key - JSON value contains all properties of the connection. */
@@ -456,11 +456,11 @@ static Connection *allocate_connection(void) {
 
     cb_mutex_enter(&connections.mutex);
     // First update the new nodes' links ...
-    ret->all_next = connections.sentinal.all_next;
-    ret->all_prev = &connections.sentinal;
+    ret->setAllNext(connections.sentinal.getAllNext());
+    ret->setAllPrev(&connections.sentinal);
     // ... then the existing nodes' links.
-    connections.sentinal.all_next->all_prev = ret;
-    connections.sentinal.all_next = ret;
+    connections.sentinal.getAllNext()->setAllPrev(ret);
+    connections.sentinal.setAllNext(ret);
     cb_mutex_exit(&connections.mutex);
 
     return ret;
@@ -471,8 +471,8 @@ static Connection *allocate_connection(void) {
  */
 static void release_connection(Connection *c) {
     cb_mutex_enter(&connections.mutex);
-    c->all_next->all_prev = c->all_prev;
-    c->all_prev->all_next = c->all_next;
+    c->getAllNext()->setAllPrev(c->getAllPrev());
+    c->getAllPrev()->setAllNext(c->getAllNext());
     cb_mutex_exit(&connections.mutex);
 
     // Finally free it
