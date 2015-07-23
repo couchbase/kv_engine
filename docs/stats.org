@@ -326,6 +326,8 @@ For introductory information on stats within Couchbase, start with the
 |                                    | dropping.                              |
 | ep_cursor_dropping_upper_threshold | Memory threshold above which checkpoint|
 |                                    | remover will start cursor dropping     |
+| ep_cursors_dropped                 | Number of cursors dropped by the       |
+|                                    | checkpoint remover                     |
 
 
 ** vBucket total stats

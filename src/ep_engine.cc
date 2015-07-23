@@ -3538,6 +3538,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.cursorDroppingLThreshold, add_stat, cookie);
     add_casted_stat("ep_cursor_dropping_upper_threshold",
                     epstats.cursorDroppingUThreshold, add_stat, cookie);
+    add_casted_stat("ep_cursors_dropped",
+                    epstats.cursorsDropped, add_stat, cookie);
 
     return ENGINE_SUCCESS;
 }

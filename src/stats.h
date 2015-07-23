@@ -79,6 +79,7 @@ public:
         mem_high_wat_percent(0),
         cursorDroppingLThreshold(0),
         cursorDroppingUThreshold(0),
+        cursorsDropped(0),
         pagerRuns(0),
         expiryPagerRuns(0),
         itemsRemovedFromCheckpoints(0),
@@ -266,6 +267,9 @@ public:
     //! Cursor dropping thresholds used by checkpoint remover
     AtomicValue<size_t> cursorDroppingLThreshold;
     AtomicValue<size_t> cursorDroppingUThreshold;
+
+    //! Number of cursors dropped by checkpoint remover
+    AtomicValue<size_t> cursorsDropped;
 
     //! Number of times we needed to kick in the pager
     AtomicValue<size_t> pagerRuns;
