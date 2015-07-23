@@ -30,9 +30,6 @@
 extern "C" {
 #endif
 
-/* Initialise connection management */
-void initialize_connections(void);
-
 /* Destroy all connections and reset connection management */
 void destroy_connections(void);
 

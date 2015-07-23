@@ -7946,9 +7946,6 @@ int main (int argc, char **argv) {
     /* Initialize bucket engine */
     initialize_buckets();
 
-    /* allocate the connection array */
-    initialize_connections();
-
     cbsasl_server_init();
 
     /* initialize main thread libevent instance */

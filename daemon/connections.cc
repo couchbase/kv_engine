@@ -27,7 +27,7 @@
 struct connections {
     Connection sentinal; /* Sentinal Connection object used as the base of the linked-list
                       of connections. */
-    cb_mutex_t mutex;
+    std::mutex mutex;
 } connections;
 
 /** Types ********************************************************************/
@@ -54,7 +54,7 @@ static void release_connection(Connection *c);
 /** External functions *******************************************************/
 void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
 {
-    cb_mutex_enter(&connections.mutex);
+    std::lock_guard<std::mutex> lock(connections.mutex);
     Connection *c = connections.sentinal.getAllNext();
     while (c != &connections.sentinal) {
         if (c->thread == me && c->bucket.idx == bucket_idx) {
@@ -68,27 +68,16 @@ void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
         }
         c = c->getAllNext();
     }
-
-    cb_mutex_exit(&connections.mutex);
 }
 
 void assert_no_associations(int bucket_idx)
 {
-    cb_mutex_enter(&connections.mutex);
+    std::lock_guard<std::mutex> lock(connections.mutex);
     Connection *c = connections.sentinal.getAllNext();
     while (c != &connections.sentinal) {
         cb_assert(c->bucket.idx != bucket_idx);
         c = c->getAllNext();
     }
-
-    cb_mutex_exit(&connections.mutex);
-}
-
-void initialize_connections(void)
-{
-    cb_mutex_initialize(&connections.mutex);
-    connections.sentinal.setAllNext(&connections.sentinal);
-    connections.sentinal.setAllPrev(&connections.sentinal);
 }
 
 void destroy_connections(void)
@@ -349,8 +338,8 @@ struct listening_port *get_listening_port_instance(const in_port_t port) {
 }
 
 void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) {
-    const Connection *iter = NULL;
-    cb_mutex_enter(&connections.mutex);
+    std::lock_guard<std::mutex> lock(connections.mutex);
+    const Connection *iter;
     for (iter = connections.sentinal.getAllNext();
          iter != &connections.sentinal;
          iter = iter->getAllNext()) {
@@ -365,7 +354,6 @@ void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) 
             cJSON_Delete(stats);
         }
     }
-    cb_mutex_exit(&connections.mutex);
 }
 
 /** Internal functions *******************************************************/
@@ -454,14 +442,15 @@ static Connection *allocate_connection(void) {
     }
     stats.conn_structs++;
 
-    cb_mutex_enter(&connections.mutex);
-    // First update the new nodes' links ...
-    ret->setAllNext(connections.sentinal.getAllNext());
-    ret->setAllPrev(&connections.sentinal);
-    // ... then the existing nodes' links.
-    connections.sentinal.getAllNext()->setAllPrev(ret);
-    connections.sentinal.setAllNext(ret);
-    cb_mutex_exit(&connections.mutex);
+    {
+        std::lock_guard<std::mutex> lock(connections.mutex);
+        // First update the new nodes' links ...
+        ret->setAllNext(connections.sentinal.getAllNext());
+        ret->setAllPrev(&connections.sentinal);
+        // ... then the existing nodes' links.
+        connections.sentinal.getAllNext()->setAllPrev(ret);
+        connections.sentinal.setAllNext(ret);
+    }
 
     return ret;
 }
@@ -470,10 +459,11 @@ static Connection *allocate_connection(void) {
  *  and freeing the Connection object.
  */
 static void release_connection(Connection *c) {
-    cb_mutex_enter(&connections.mutex);
-    c->getAllNext()->setAllPrev(c->getAllPrev());
-    c->getAllPrev()->setAllNext(c->getAllNext());
-    cb_mutex_exit(&connections.mutex);
+    {
+        std::lock_guard<std::mutex> lock(connections.mutex);
+        c->getAllNext()->setAllPrev(c->getAllPrev());
+        c->getAllPrev()->setAllNext(c->getAllNext());
+    }
 
     // Finally free it
     conn_destructor(c);

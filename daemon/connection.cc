@@ -22,8 +22,8 @@
 #include <platform/strerror.h>
 
 Connection::Connection()
-    : all_next(nullptr),
-      all_prev(nullptr),
+    : all_next(this),
+      all_prev(this),
       socketDescriptor(INVALID_SOCKET),
       max_reqs_per_event(settings.default_reqs_per_event),
       nevents(0),
