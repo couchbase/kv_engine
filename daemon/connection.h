@@ -160,7 +160,7 @@ protected:
  *  calls that returns EWOULDBLOCK).
  *
  *  The implementation of such commands should subclass this class and
- *  allocate an instance and store in the commands cmd_context member (which
+ *  allocate an instance and store in the commands commandContext member (which
  *  will be deleted and set to nullptr between each command being processed).
  */
 class CommandContext {
@@ -800,12 +800,30 @@ public:
         Connection::dcp = dcp;
     }
 
-    CommandContext* getCmdContext() const {
-        return cmd_context;
+    /**
+     *  Get the command context stored for this command
+     */
+    CommandContext* getCommandContext() const {
+        return commandContext;
     }
 
-    void setCmdContext(CommandContext* cmd_context) {
-        Connection::cmd_context = cmd_context;
+    /**
+     *  Set the command context stored for this command
+     */
+    void setCommandContext(CommandContext* cmd_context) {
+        Connection::commandContext = cmd_context;
+    }
+
+    /**
+     * Reset the command context
+     *
+     * Release the allocated resources and set the command context to nullptr
+     */
+    void resetCommandContext() {
+        if (commandContext != nullptr) {
+            delete commandContext;
+            commandContext = nullptr;
+        }
     }
 
     const SslContext& getSsl() const {
@@ -996,7 +1014,6 @@ private:
     /** Is this connection used by a DCP connection? */
     bool dcp;
 
-public:
     /**
      *  command-specific context - for use by command executors to maintain
      *  additional state while executing a command. For example
@@ -1005,8 +1022,9 @@ public:
      *
      *  Between each command this is deleted and reset to nullptr.
      */
-    CommandContext* cmd_context;
+    CommandContext* commandContext;
 
+public:
     SslContext ssl;
 
     AuthContext* auth_context;

@@ -69,7 +69,7 @@ Connection::Connection()
       parent_port(0),
       tap_iterator(nullptr),
       dcp(false),
-      cmd_context(nullptr),
+      commandContext(nullptr),
       auth_context(nullptr),
       peername("unknown"),
       sockname("unknown") {

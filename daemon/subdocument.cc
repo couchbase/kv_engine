@@ -436,11 +436,8 @@ void subdoc_executor(Connection *c, const void *packet) {
                     c->bucket.engine->release(handle, c, c->item);
                     c->item = nullptr;
                 }
-                if (c->cmd_context != nullptr) {
-                    delete reinterpret_cast<SubdocCmdContext*>(c->cmd_context);
-                    c->cmd_context = nullptr;
-                }
 
+                c->resetCommandContext();
                 continue;
             } else {
                 // No auto-retry - return status back to client and return.
@@ -609,8 +606,8 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
             // next time) and create the subdoc_cmd_context for the other
             // information we need to record.
             c->item = initial_item;
-            cb_assert(c->cmd_context == NULL);
-            c->cmd_context = new SubdocCmdContext(c);
+            cb_assert(c->getCommandContext() == nullptr);
+            c->setCommandContext(new SubdocCmdContext(c));
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -638,8 +635,7 @@ template<protocol_binary_command CMD>
 static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
                            const char* value, size_t vallen,
                            protocol_binary_subdoc_flag flags, uint64_t in_cas) {
-    SubdocCmdContext* context =
-            reinterpret_cast<SubdocCmdContext*>(c->cmd_context);
+    auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
     cb_assert(context != NULL);
 
     if (context->in_doc.buf == NULL) {
@@ -651,7 +647,7 @@ static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
             get_document_for_searching(c, c->item, doc, in_cas, doc_cas);
 
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            // Failed. Note c->item and c->cmd_context will both be freed for
+            // Failed. Note c->item and c->commandContext will both be freed for
             // us as part of preparing for the next command.
             write_bin_packet(c, status);
             return false;
@@ -742,8 +738,7 @@ template<protocol_binary_command CMD>
 ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
                                 size_t keylen, uint16_t vbucket) {
     auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine);
-    SubdocCmdContext* context =
-            reinterpret_cast<SubdocCmdContext*>(c->cmd_context);
+    auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
     cb_assert(context != NULL);
 
     if (!cmd_traits<Cmd2Type<CMD>>::is_mutator) {
@@ -845,8 +840,7 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
 // Respond back to the user as appropriate to the specific command.
 template<protocol_binary_command CMD>
 void subdoc_response(Connection * c) {
-    SubdocCmdContext* context =
-            reinterpret_cast<SubdocCmdContext*>(c->cmd_context);
+    auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
     cb_assert(context != NULL);
 
     protocol_binary_response_subdocument* rsp =
