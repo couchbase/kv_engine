@@ -636,11 +636,11 @@ public:
         Connection::hdrsize = hdrsize;
     }
 
-    bool isNoreply() const {
+    bool isNoReply() const {
         return noreply;
     }
 
-    void setNoreply(bool noreply) {
+    void setNoReply(bool noreply) {
         Connection::noreply = noreply;
     }
 
@@ -1021,8 +1021,10 @@ public:
     int hdrsize;
     /* number of headers' worth of space is allocated */
 
-    bool noreply;   /* True if the reply should not be sent. */
 private:
+    /** True if the reply should not be sent (unless there is an error) */
+    bool noreply;
+
     /** Is tcp nodelay enabled or not? */
     bool nodelay;
 

@@ -1011,7 +1011,7 @@ void write_bin_packet(Connection *c, protocol_binary_response_status err) {
  */
 static void write_bin_response(Connection *c, const void *d, int extlen, int keylen,
                                int dlen) {
-    if (!c->noreply || c->cmd == PROTOCOL_BINARY_CMD_GET ||
+    if (!c->isNoReply() || c->cmd == PROTOCOL_BINARY_CMD_GET ||
         c->cmd == PROTOCOL_BINARY_CMD_GETK) {
         if (add_bin_header(c, 0, extlen, keylen, dlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
             c->setState(conn_closing);
@@ -1152,7 +1152,7 @@ static void process_bin_get(Connection *c) {
 
         MEMCACHED_COMMAND_GET(c->getId(), key, nkey, -1, 0);
 
-        if (c->noreply) {
+        if (c->isNoReply()) {
             c->setState(conn_new_cmd);
         } else {
             if ((c->cmd == PROTOCOL_BINARY_CMD_GETK) ||
@@ -3845,7 +3845,7 @@ static void flush_executor(Connection *c, void *packet)
     auto* req = reinterpret_cast<protocol_binary_request_flush*>(packet);
 
     if (c->cmd == PROTOCOL_BINARY_CMD_FLUSHQ) {
-        c->noreply = true;
+        c->setNoReply(true);
     }
 
     if (c->binary_header.request.extlen == sizeof(req->message.body)) {
@@ -4021,37 +4021,37 @@ static void add_set_replace_executor(Connection *c, void *packet,
 
 static void add_executor(Connection *c, void *packet)
 {
-    c->noreply = false;
+    c->setNoReply(false);
     add_set_replace_executor(c, packet, OPERATION_ADD);
 }
 
 static void addq_executor(Connection *c, void *packet)
 {
-    c->noreply = true;
+    c->setNoReply(true);
     add_set_replace_executor(c, packet, OPERATION_ADD);
 }
 
 static void set_executor(Connection *c, void *packet)
 {
-    c->noreply = false;
+    c->setNoReply(false);
     add_set_replace_executor(c, packet, OPERATION_SET);
 }
 
 static void setq_executor(Connection *c, void *packet)
 {
-    c->noreply = true;
+    c->setNoReply(true);
     add_set_replace_executor(c, packet, OPERATION_SET);
 }
 
 static void replace_executor(Connection *c, void *packet)
 {
-    c->noreply = false;
+    c->setNoReply(false);
     add_set_replace_executor(c, packet, OPERATION_REPLACE);
 }
 
 static void replaceq_executor(Connection *c, void *packet)
 {
-    c->noreply = true;
+    c->setNoReply(true);
     add_set_replace_executor(c, packet, OPERATION_REPLACE);
 }
 
@@ -4169,25 +4169,25 @@ static void append_prepend_executor(Connection *c,
 
 static void append_executor(Connection *c, void *packet)
 {
-    c->noreply = false;
+    c->setNoReply(false);
     append_prepend_executor(c, packet, OPERATION_APPEND);
 }
 
 static void appendq_executor(Connection *c, void *packet)
 {
-    c->noreply = true;
+    c->setNoReply(true);
     append_prepend_executor(c, packet, OPERATION_APPEND);
 }
 
 static void prepend_executor(Connection *c, void *packet)
 {
-    c->noreply = false;
+    c->setNoReply(false);
     append_prepend_executor(c, packet, OPERATION_PREPEND);
 }
 
 static void prependq_executor(Connection *c, void *packet)
 {
-    c->noreply = true;
+    c->setNoReply(true);
     append_prepend_executor(c, packet, OPERATION_PREPEND);
 }
 
@@ -4198,16 +4198,16 @@ static void get_executor(Connection *c, void *packet)
 
     switch (c->cmd) {
     case PROTOCOL_BINARY_CMD_GETQ:
-        c->noreply = true;
+        c->setNoReply(true);
         break;
     case PROTOCOL_BINARY_CMD_GET:
-        c->noreply = false;
+        c->setNoReply(false);
         break;
     case PROTOCOL_BINARY_CMD_GETKQ:
-        c->noreply = true;
+        c->setNoReply(true);
         break;
     case PROTOCOL_BINARY_CMD_GETK:
-        c->noreply = false;
+        c->setNoReply(false);
         break;
     default:
         abort();
@@ -4222,7 +4222,7 @@ static void delete_executor(Connection *c, void *packet)
     (void)packet;
 
     if (c->cmd == PROTOCOL_BINARY_CMD_DELETEQ) {
-        c->noreply = true;
+        c->setNoReply(true);
     }
 
     process_bin_delete(c);
@@ -4366,16 +4366,16 @@ static void arithmetic_executor(Connection *c, void *packet)
 
     switch (c->cmd) {
     case PROTOCOL_BINARY_CMD_INCREMENTQ:
-        c->noreply = true;
+        c->setNoReply(true);
         break;
     case PROTOCOL_BINARY_CMD_INCREMENT:
-        c->noreply = false;
+        c->setNoReply(false);
         break;
     case PROTOCOL_BINARY_CMD_DECREMENTQ:
-        c->noreply = true;
+        c->setNoReply(true);
         break;
     case PROTOCOL_BINARY_CMD_DECREMENT:
-        c->noreply = false;
+        c->setNoReply(false);
         break;
     default:
         abort();
@@ -5143,7 +5143,7 @@ static void dispatch_bin_command(Connection *c) {
         return;
     }
 
-    c->noreply = false;
+    c->setNoReply(false);
 
     /*
      * Protect ourself from someone trying to kill us by sending insanely
