@@ -4499,7 +4499,12 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
 
     check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
           "Last DCP op wasn't a stream END");
-    check(dcp_last_flags & 4, "Last DCP flag not END_STREAM_SLOW");
+
+    if (get_int_stat(h, h1, "ep_cursors_dropped") > 0) {
+        check(dcp_last_flags == 4, "Last DCP flag not END_STREAM_SLOW");
+    } else {
+        check(dcp_last_flags == 0, "Last DCP flag not END_STREAM_OK");
+    }
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
