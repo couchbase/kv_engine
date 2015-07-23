@@ -68,7 +68,7 @@ Connection::Connection()
       ewouldblock(false),
       tap_iterator(nullptr),
       parent_port(0),
-      dcp(0),
+      dcp(false),
       cmd_context(nullptr),
       auth_context(nullptr),
       peername("unknown"),
@@ -147,7 +147,7 @@ void Connection::setState(STATE_FUNC next_state) {
          * New messages may appear from both sides, so we can't block on
          * read from the nework / engine
          */
-        if (tap_iterator != NULL || dcp) {
+        if (tap_iterator != NULL || isDCP()) {
             if (state == conn_waiting) {
                 setCurrentEvent(EV_WRITE);
                 state = conn_ship_log;

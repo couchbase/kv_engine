@@ -2885,7 +2885,7 @@ static void dcp_add_stream_executor(Connection *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            c->dcp = 1;
+            c->setDCP(true);
             c->setState(conn_ship_log);
             break;
         case ENGINE_DISCONNECT:
@@ -3044,7 +3044,7 @@ static void dcp_stream_req_executor(Connection *c, void *packet)
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            c->dcp = 1;
+            c->setDCP(true);
             c->setMaxReqsPerEvent(settings.reqs_per_event_med_priority);
             if (c->dynamic_buffer.buffer != NULL) {
                 write_and_free(c, &c->dynamic_buffer);
@@ -5825,7 +5825,7 @@ bool conn_ship_log(Connection *c) {
         --c->nevents;
         if (c->nevents >= 0) {
             c->ewouldblock = false;
-            if (c->dcp) {
+            if (c->isDCP()) {
                 ship_dcp_log(c);
             } else {
                 ship_tap_log(c);
@@ -5946,7 +5946,7 @@ bool conn_new_cmd(Connection *c) {
          * connections in the way that they may not even get data from
          * the other end so that they'll _have_ to wait for a write event.
          */
-        block |= c->dcp || (c->tap_iterator != NULL);
+        block |= c->isDCP() || (c->tap_iterator != NULL);
 
         if (block) {
             if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {

@@ -263,7 +263,7 @@ static void conn_cleanup(Connection *c) {
      * conn_return_buffers() will actually free the buffers.
      */
     c->tap_iterator = NULL;
-    c->dcp = 0;
+    c->setDCP(false);
     conn_return_buffers(c);
     free(c->dynamic_buffer.buffer);
 
@@ -406,7 +406,7 @@ static void conn_return_buffers(Connection *c) {
         return;
     }
 
-    if (c->tap_iterator != NULL || c->dcp) {
+    if (c->tap_iterator != NULL || c->isDCP()) {
         /* TAP & DCP work differently - let them keep their buffers once
          * allocated.
          */

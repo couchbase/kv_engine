@@ -788,11 +788,11 @@ public:
         Connection::parent_port = parent_port;
     }
 
-    int getDCP() const {
+    bool isDCP() const {
         return dcp;
     }
 
-    void setDCP(int dcp) {
+    void setDCP(bool dcp) {
         Connection::dcp = dcp;
     }
 
@@ -985,9 +985,11 @@ public:
     TAP_ITERATOR tap_iterator;
     in_port_t parent_port;
     /* Listening port that creates this connection instance */
+private:
+    /** Is this connection used by a DCP connection? */
+    bool dcp;
 
-    int dcp;
-
+public:
     /**
      *  command-specific context - for use by command executors to maintain
      *  additional state while executing a command. For example
