@@ -153,6 +153,7 @@ AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
       sleepTime(sleeptime),
       available(true) {
 
+    double initialSleep = sleeptime;
     if (useStartTime) {
         size_t startTime =
             store.getEPEngine().getConfiguration().getAlogTaskTime();
@@ -171,7 +172,6 @@ AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
          * Otherwise this task will wake up periodically in a time
          * specified by sleeptime.
          */
-        double initialSleep = 0;
         time_t now = ep_abs_time(ep_current_time());
         struct tm timeNow, timeTarget;
         timeNow = *(gmtime(&now));
@@ -187,7 +187,7 @@ AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
         snooze(initialSleep);
     }
 
-    stats.alogTime.store(waketime.tv_sec);
+    updateAlogTime(initialSleep);
 }
 
 bool AccessScanner::run() {
@@ -206,8 +206,16 @@ bool AccessScanner::run() {
         }
     }
     snooze(sleepTime);
-    stats.alogTime.store(waketime.tv_sec);
+    updateAlogTime(sleepTime);
+
     return true;
+}
+
+void AccessScanner::updateAlogTime(double sleepSecs) {
+    struct timeval _waketime;
+    gettimeofday(&_waketime, NULL);
+    _waketime.tv_sec += sleepSecs;
+    stats.alogTime.store(_waketime.tv_sec);
 }
 
 std::string AccessScanner::getDescription() {

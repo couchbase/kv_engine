@@ -63,8 +63,8 @@ public:
           state(EXECUTOR_RUNNING), taskStart(0),
           currentTask(NULL), curTaskType(NO_TASK_TYPE),
           tasklog(TASK_LOG_SIZE), slowjobs(TASK_LOG_SIZE) {
-              gettimeofday(&now, NULL);
-              set_max_tv(waketime);
+              now = gethrtime();
+              waketime = hrtime_t(-1);
     }
 
     ~ExecutorThread() {
@@ -111,9 +111,9 @@ public:
         return slowjobs.contents();
     }
 
-    struct timeval getWaketime(void) { return waketime; }
+    const hrtime_t getWaketime(void) { return waketime; }
 
-    struct timeval getCurTime(void) { return now; }
+    const hrtime_t getCurTime(void) { return now; }
 
 private:
 
@@ -123,8 +123,8 @@ private:
     const std::string name;
     AtomicValue<executor_state_t> state;
 
-    struct  timeval    now;  // record of current time
-    struct timeval waketime; // set to the earliest
+    hrtime_t     now;  // record of current time
+    hrtime_t waketime; // set to the earliest
 
     hrtime_t taskStart;
     ExTask currentTask;

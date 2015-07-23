@@ -38,22 +38,22 @@ GlobalTask::GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
            double sleeptime, bool completeBeforeShutdown) :
       RCValue(), priority(p),
       blockShutdown(completeBeforeShutdown),
-      state(TASK_RUNNING), taskId(nextTaskId()), engine(e), taskable(e->getTaskable()) {
+      state(TASK_RUNNING), taskId(nextTaskId()), engine(e),
+      taskable(e->getTaskable()) {
     snooze(sleeptime);
 }
 
 void GlobalTask::snooze(const double secs) {
     if (secs == INT_MAX) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        set_max_tv(waketime);
+        waketime = hrtime_t(-1);
         return;
     }
 
-    gettimeofday(&waketime, NULL);
-
+    waketime = gethrtime();
     if (secs) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        advance_tv(waketime, secs);
+        waketime += hrtime_t(secs * 1000000000);
     }
 }
 

@@ -534,10 +534,7 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
             }
         }
         if (unfinishedTask) {
-            struct timeval waktime;
-            gettimeofday(&waktime, NULL);
-            advance_tv(waktime, MIN_SLEEP_TIME);
-            tMutex.wait(waktime); // Wait till task gets cancelled
+            tMutex.wait(MIN_SLEEP_TIME); // Wait till task gets cancelled
         }
     } while (unfinishedTask);
 
@@ -697,13 +694,9 @@ static void addWorkerStats(const char *prefix, ExecutorThread *t,
                 (gethrtime() - t->getTaskStart()) / 1000, add_stat, cookie);
     }
     snprintf(statname, sizeof(statname), "%s:waketime", prefix);
-    uint64_t abstime = t->getWaketime().tv_sec*1000000 +
-                       t->getWaketime().tv_usec;
-    add_casted_stat(statname, abstime, add_stat, cookie);
+    add_casted_stat(statname, t->getWaketime(), add_stat, cookie);
     snprintf(statname, sizeof(statname), "%s:cur_time", prefix);
-    abstime = t->getCurTime().tv_sec*1000000 +
-              t->getCurTime().tv_usec;
-    add_casted_stat(statname, abstime, add_stat, cookie);
+    add_casted_stat(statname, t->getCurTime(), add_stat, cookie);
 }
 
 void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
