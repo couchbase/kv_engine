@@ -5749,7 +5749,7 @@ bool conn_listening(Connection *c)
 
     curr_conns = stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     STATS_LOCK();
-    port_instance = get_listening_port_instance(c->parent_port);
+    port_instance = get_listening_port_instance(c->getParentPort());
     cb_assert(port_instance);
     port_conns = ++port_instance->curr_conns;
     STATS_UNLOCK();
@@ -5777,7 +5777,7 @@ bool conn_listening(Connection *c)
         return false;
     }
 
-    dispatch_conn_new(sfd, c->parent_port, conn_new_cmd);
+    dispatch_conn_new(sfd, c->getParentPort(), conn_new_cmd);
 
     return false;
 }
@@ -6112,7 +6112,7 @@ bool conn_immediate_close(Connection *c) {
                                     c);
 
     STATS_LOCK();
-    port_instance = get_listening_port_instance(c->parent_port);
+    port_instance = get_listening_port_instance(c->getParentPort());
     cb_assert(port_instance);
     --port_instance->curr_conns;
     STATS_UNLOCK();
@@ -6346,8 +6346,9 @@ static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
                 int backlog = 1024;
                 int ii;
                 next->updateEvent(EV_READ | EV_PERSIST);
+                auto parent_port = next->getParentPort();
                 for (ii = 0; ii < settings.num_interfaces; ++ii) {
-                    if (next->parent_port == settings.interfaces[ii].port) {
+                    if (parent_port == settings.interfaces[ii].port) {
                         backlog = settings.interfaces[ii].backlog;
                         break;
                     }

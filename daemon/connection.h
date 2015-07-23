@@ -986,9 +986,10 @@ public:
 
     ENGINE_ERROR_CODE aiostat;
     bool ewouldblock;
-    in_port_t parent_port;
-    /* Listening port that creates this connection instance */
+
 private:
+    /** Listening port that creates this connection instance */
+    in_port_t parent_port;
     /** The iterator function to use to traverse the TAP stream */
     TAP_ITERATOR tap_iterator;
 

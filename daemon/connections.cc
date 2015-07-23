@@ -191,7 +191,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
     }
 
     c->setSocketDescriptor(sfd);
-    c->parent_port = parent_port;
+    c->setParentPort(parent_port);
     c->setState(init_state);
     c->write_and_go = init_state;
 
