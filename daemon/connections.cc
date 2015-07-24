@@ -58,7 +58,7 @@ void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
 {
     std::lock_guard<std::mutex> lock(connections.mutex);
     for (auto* c : connections.conns) {
-        if (c->thread == me && c->bucket.idx == bucket_idx) {
+        if (c->getThread() == me && c->bucket.idx == bucket_idx) {
             if (c->getState() == conn_read || c->getState() == conn_waiting) {
                 /* set write access to ensure it's handled */
                 if (!c->updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
@@ -194,7 +194,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->setWriteAndGo(init_state);
 
     if (!c->initializeEvent(base)) {
-        cb_assert(c->thread == NULL);
+        cb_assert(c->getThread() == nullptr);
         release_connection(c);
         return NULL;
     }
@@ -254,7 +254,7 @@ static void conn_cleanup(Connection *c) {
 
     c->setEngineStorage(nullptr);
 
-    c->thread = NULL;
+    c->setThread(nullptr);
     cb_assert(c->next == NULL);
     c->setSocketDescriptor(INVALID_SOCKET);
     c->start = 0;
@@ -266,17 +266,18 @@ void conn_close(Connection *c) {
     cb_assert(c->isSocketClosed());
     cb_assert(c->getState() == conn_immediate_close);
 
-    cb_assert(c->thread);
+    auto thread = c->getThread();
+    cb_assert(thread != nullptr);
     /* remove from pending-io list */
-    if (settings.verbose > 1 && list_contains(c->thread->pending_io, c)) {
+    if (settings.verbose > 1 && list_contains(thread->pending_io, c)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "Current connection was in the pending-io list.. Nuking it\n");
     }
-    c->thread->pending_io = list_remove(c->thread->pending_io, c);
+    thread->pending_io = list_remove(thread->pending_io, c);
 
     conn_cleanup(c);
 
-    cb_assert(c->thread == NULL);
+    cb_assert(c->getThread() == nullptr);
     c->setState(conn_destroyed);
 }
 
@@ -355,7 +356,7 @@ void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) 
  */
 static void conn_loan_buffers(Connection *c) {
 
-    auto res = conn_loan_single_buffer(c, &c->thread->read, &c->read);
+    auto res = conn_loan_single_buffer(c, &c->getThread()->read, &c->read);
     auto *ts = get_thread_stats(c);
     if (res == BufferLoan::Allocated) {
         ts->rbufs_allocated++;
@@ -365,7 +366,7 @@ static void conn_loan_buffers(Connection *c) {
         ts->rbufs_existing++;
     }
 
-    res = conn_loan_single_buffer(c, &c->thread->write, &c->write);
+    res = conn_loan_single_buffer(c, &c->getThread()->write, &c->write);
     if (res == BufferLoan::Allocated) {
         ts->wbufs_allocated++;
     } else if (res == BufferLoan::Loaned) {
@@ -381,7 +382,9 @@ static void conn_loan_buffers(Connection *c) {
  * If there is partial data, then keep the buffer with the connection.
  */
 static void conn_return_buffers(Connection *c) {
-    if (c->thread == NULL) {
+    auto thread = c->getThread();
+
+    if (thread == nullptr) {
         // Connection already cleaned up - nothing to do.
         cb_assert(c->read.buf == NULL);
         cb_assert(c->write.buf == NULL);
@@ -395,8 +398,8 @@ static void conn_return_buffers(Connection *c) {
         return;
     }
 
-    conn_return_single_buffer(c, &c->thread->read, &c->read);
-    conn_return_single_buffer(c, &c->thread->write, &c->write);
+    conn_return_single_buffer(c, &thread->read, &c->read);
+    conn_return_single_buffer(c, &thread->write, &c->write);
 }
 
 

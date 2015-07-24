@@ -654,7 +654,7 @@ static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
         }
 
         // Prepare the specified sub-document command.
-        Subdoc::Operation* op = c->thread->subdoc_op;
+        Subdoc::Operation* op = c->getThread()->subdoc_op;
         op->clear();
         Subdoc::Command opcode = cmd_traits<Cmd2Type<CMD>>::optype;
         if ((flags & SUBDOC_FLAG_MKDIR_P) == SUBDOC_FLAG_MKDIR_P) {

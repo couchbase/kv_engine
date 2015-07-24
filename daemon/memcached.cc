@@ -400,9 +400,9 @@ static void stats_init(void) {
 
 struct thread_stats *get_thread_stats(Connection *c) {
     struct thread_stats *independent_stats;
-    cb_assert(c->thread->index < (settings.num_threads + 1));
+    cb_assert(c->getThread()->index < (settings.num_threads + 1));
     independent_stats = all_buckets[c->bucket.idx].stats;
-    return &independent_stats[c->thread->index];
+    return &independent_stats[c->getThread()->index];
 }
 
 static void stats_reset(const void *cookie) {
@@ -6261,7 +6261,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         return ;
     }
 
-    thr = c->thread;
+    thr = c->getThread();
     if (!is_listen_thread()) {
         cb_assert(thr);
         LOCK_THREAD(thr);
@@ -6270,7 +6270,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
          * object was scheduled to run in the dispatcher before the
          * callback for the worker thread is executed.
          */
-        c->thread->pending_io = list_remove(c->thread->pending_io, c);
+        thr->pending_io = list_remove(thr->pending_io, c);
     }
 
     c->setCurrentEvent(which);
@@ -6710,7 +6710,7 @@ static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
     LIBEVENT_THREAD *thr;
 
     cb_assert(c);
-    thr = c->thread;
+    thr = c->getThread();
     cb_assert(thr);
     LOCK_THREAD(thr);
     c->decrementRefcount();

@@ -309,8 +309,8 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
                                             item->sfd);
             closesocket(item->sfd);
         } else {
-            cb_assert(c->thread == NULL);
-            c->thread = me;
+            cb_assert(c->getThread() == nullptr);
+            c->setThread(me);
         }
         cqi_free(item);
     }
@@ -320,7 +320,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     me->pending_io = NULL;
     while (pending != NULL) {
         Connection *c = pending;
-        cb_assert(me == c->thread);
+        cb_assert(me == c->getThread());
         pending = pending->next;
         c->next = NULL;
 
@@ -392,7 +392,7 @@ Connection * list_remove(Connection *haystack, Connection *needle) {
 }
 
 static void enlist_conn(Connection *c, Connection **list) {
-    LIBEVENT_THREAD *thr = c->thread;
+    LIBEVENT_THREAD *thr = c->getThread();
     cb_assert(list == &thr->pending_io);
     if ((c->list_state & LIST_STATE_PROCESSING) == 0) {
         cb_assert(!list_contains(thr->pending_io, c));
@@ -413,7 +413,7 @@ void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
     int notify;
 
     cb_assert(conn);
-    thr = conn->thread;
+    thr = conn->getThread();
     cb_assert(thr);
 
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
@@ -603,11 +603,12 @@ void notify_thread(LIBEVENT_THREAD *thread) {
 
 int add_conn_to_pending_io_list(Connection *c) {
     int notify = 0;
-    if (number_of_pending(c, c->thread->pending_io) == 0) {
-        if (c->thread->pending_io == NULL) {
+    auto thread = c->getThread();
+    if (number_of_pending(c, thread->pending_io) == 0) {
+        if (thread->pending_io == NULL) {
             notify = 1;
         }
-        enlist_conn(c, &c->thread->pending_io);
+        enlist_conn(c, &thread->pending_io);
     }
 
     return notify;

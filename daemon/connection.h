@@ -1064,9 +1064,12 @@ public:
     /* bitmask of list state data for this connection */
     Connection* next;
     /* Used for generating a list of Connection structures */
-    LIBEVENT_THREAD* thread;
-    /* Pointer to the thread object serving this connection */
 
+private:
+    /** Pointer to the thread object serving this connection */
+    LIBEVENT_THREAD* thread;
+
+public:
     ENGINE_ERROR_CODE aiostat;
     bool ewouldblock;
 
