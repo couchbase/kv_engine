@@ -11804,7 +11804,10 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
     set_with_meta(h, h1, "key3", 4, "val1", 4, 0, &itm_meta, last_meta.cas);
 
     testHarness.time_travel(500000000);
-    wait_for_stat_to_be(h, h1, "curr_items", 0);
+    // Wait for the item to be expired, either by the pager,
+    // or by access (as part of persistence callback from a
+    // previous set - slow disk), or the compactor (unlikely).
+    wait_for_expired_items_to_be(h, h1, 1);
 
     check(get_meta(h, h1, "key3"), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");

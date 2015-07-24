@@ -223,6 +223,8 @@ void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, int final,
                              const char* stat_key = NULL,
                              const time_t wait_time = 60);
+void wait_for_expired_items_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                  int final, const time_t wait_time = 60);
 void wait_for_str_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, const char* final,
                              const char* stat_key,
