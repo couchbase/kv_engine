@@ -179,6 +179,9 @@ ExecutorPool::~ExecutorPool(void) {
     delete [] curWorkers;
     delete[] maxWorkers;
     delete[] numReadyTasks;
+
+    _stopAndJoinThreads();
+
     if (isHiPrioQset) {
         for (size_t i = 0; i < numTaskSets; i++) {
             delete hpTaskQ[i];
@@ -716,4 +719,27 @@ void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,
                    threadQ[tidx]->getSlowLog(), cookie, add_stat);
     }
     ObjectRegistry::onSwitchThread(epe);
+}
+
+void ExecutorPool::_stopAndJoinThreads() {
+
+    // Ask all threads to stop (but don't wait)
+    for (auto thread : threadQ) {
+        thread->stop(false);
+    }
+
+    // Go over all tasks and wake them up.
+    for (auto tq : lpTaskQ) {
+        size_t wakeAll = threadQ.size();
+        tq->doWake(wakeAll);
+    }
+    for (auto tq : hpTaskQ) {
+        size_t wakeAll = threadQ.size();
+        tq->doWake(wakeAll);
+    }
+
+    // Now reap/join those threads.
+    for (auto thread : threadQ) {
+        thread->stop(true);
+    }
 }

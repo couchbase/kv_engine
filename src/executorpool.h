@@ -142,6 +142,7 @@ private:
     void _unregisterTaskable(Taskable* taskable);
     bool _stopTaskGroup(task_gid_t taskGID, task_type_t qidx);
     TaskQueue* _getTaskQueue(Taskable *t, task_type_t qidx);
+    void _stopAndJoinThreads();
 
     size_t numTaskSets; // safe to read lock-less not altered after creation
     size_t maxGlobalThreads;
