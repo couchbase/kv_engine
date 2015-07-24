@@ -191,7 +191,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->setSocketDescriptor(sfd);
     c->setParentPort(parent_port);
     c->setState(init_state);
-    c->write_and_go = init_state;
+    c->setWriteAndGo(init_state);
 
     if (!c->initializeEvent(base)) {
         cb_assert(c->thread == NULL);

@@ -976,9 +976,11 @@ public:
     /** Read buffer */
     struct net_buf write; /* Write buffer */
 
+private:
     /** which state to go into after finishing current write */
     STATE_FUNC write_and_go;
 
+public:
     char* ritem;
     /** when we read in an item's value, it goes here */
     uint32_t rlbytes;

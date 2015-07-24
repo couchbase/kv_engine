@@ -998,7 +998,7 @@ void write_bin_packet(Connection *c, protocol_binary_response_status err) {
             add_iov(c, errtext, len);
         }
         c->setState(conn_mwrite);
-        c->write_and_go = conn_new_cmd;
+        c->setWriteAndGo(conn_new_cmd);
     }
 }
 
@@ -1017,7 +1017,7 @@ static void write_bin_response(Connection *c, const void *d, int extlen, int key
         }
         add_iov(c, d, dlen);
         c->setState(conn_mwrite);
-        c->write_and_go = conn_new_cmd;
+        c->setWriteAndGo(conn_new_cmd);
     } else {
         if (c->start != 0) {
             collect_timings(c);
@@ -1293,7 +1293,7 @@ static void handle_binary_protocol_error(Connection *c) {
     settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
                          "%u: Protocol error (opcode %02x), close connection",
                                     c->getId(), c->binary_header.request.opcode);
-    c->write_and_go = conn_closing;
+    c->setWriteAndGo(conn_closing);
 }
 
 static bool authenticated(Connection *c) {
@@ -1754,9 +1754,9 @@ static void ship_tap_log(Connection *c) {
     if (send_data) {
         c->setState(conn_mwrite);
         if (disconnect) {
-            c->write_and_go = conn_closing;
+            c->setWriteAndGo(conn_closing);
         } else {
-            c->write_and_go = conn_ship_log;
+            c->setWriteAndGo(conn_ship_log);
         }
     } else {
         if (disconnect) {
@@ -1971,7 +1971,7 @@ static void process_bin_tap_connect(Connection *c) {
                                         "%u: FATAL: The engine does not support tap",
                                         c->getId());
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-        c->write_and_go = conn_closing;
+        c->setWriteAndGo(conn_closing);
     } else {
         c->setMaxReqsPerEvent(settings.reqs_per_event_high_priority);
         c->setTapIterator(iterator);
@@ -2706,7 +2706,7 @@ static void ship_dcp_log(Connection *c) {
 
     if (ret == ENGINE_SUCCESS) {
         c->setState(conn_mwrite);
-        c->write_and_go = conn_ship_log;
+        c->setWriteAndGo(conn_ship_log);
     } else {
         c->setState(conn_closing);
     }
@@ -3651,7 +3651,7 @@ static void quit_executor(Connection *c, void *packet)
 {
     (void)packet;
     write_bin_response(c, NULL, 0, 0, 0);
-    c->write_and_go = conn_closing;
+    c->setWriteAndGo(conn_closing);
 }
 
 static void quitq_executor(Connection *c, void *packet)
@@ -3771,7 +3771,7 @@ static void sasl_auth_executor(Connection *c, void *packet)
         }
         add_iov(c, out, outlen);
         c->setState(conn_mwrite);
-        c->write_and_go = conn_new_cmd;
+        c->setWriteAndGo(conn_new_cmd);
         break;
     case CBSASL_BADPARAM:
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -3790,7 +3790,7 @@ static void sasl_auth_executor(Connection *c, void *packet)
                                             "%u: SASL AUTH failure during initialization",
                                             c->getId());
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
-            c->write_and_go = conn_closing;
+            c->setWriteAndGo(conn_closing);
             return ;
         }
 
@@ -5096,19 +5096,19 @@ static void dispatch_bin_command(Connection *c) {
 
     if (!is_initialized(c, c->binary_header.request.opcode)) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
-        c->write_and_go = conn_closing;
+        c->setWriteAndGo(conn_closing);
         return;
     }
 
     if (settings.require_sasl && !authenticated(c)) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
-        c->write_and_go = conn_closing;
+        c->setWriteAndGo(conn_closing);
         return;
     }
 
     if (invalid_datatype(c)) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-        c->write_and_go = conn_closing;
+        c->setWriteAndGo(conn_closing);
         return;
     }
 
@@ -5132,7 +5132,7 @@ static void dispatch_bin_command(Connection *c) {
      */
     if (c->binary_header.request.bodylen > settings.max_packet_size) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-        c->write_and_go = conn_closing;
+        c->setWriteAndGo(conn_closing);
     } else {
         bin_read_chunk(c, bin_substates::bin_reading_packet,
                        c->binary_header.request.bodylen);
@@ -5269,7 +5269,7 @@ void write_and_free(Connection *c, struct dynamic_buffer* buf) {
         c->write.curr = buf->buffer;
         c->write.bytes = (uint32_t)buf->offset;
         c->setState(conn_write);
-        c->write_and_go = conn_new_cmd;
+        c->setWriteAndGo(conn_new_cmd);
 
         buf->buffer = NULL;
         buf->size = 0;
@@ -6023,21 +6023,20 @@ bool conn_mwrite(Connection *c) {
             free(temp_alloc);
         }
         c->temp_alloc.resize(0);
+
         if (c->getState() == conn_mwrite) {
             for (auto *it : c->reservedItems) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
             }
             c->reservedItems.clear();
-            /* XXX:  I don't know why this wasn't the general case */
-            c->setState(c->write_and_go);
-        } else if (c->getState() == conn_write) {
-            c->setState(c->write_and_go);
-        } else {
+        } else if (c->getState() != conn_write) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%u: Unexpected state %d, closing",
                                             c->getId(), c->getState());
             c->setState(conn_closing);
+            return true;
         }
+        c->setState(c->getWriteAndGo());
         break;
 
     case Connection::TransmitResult::Incomplete:
