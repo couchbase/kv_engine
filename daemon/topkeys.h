@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <array>
 #include <platform/cbassert.h>
 #include <memcached/engine.h>
 #include <cJSON.h>
@@ -35,8 +36,14 @@ struct topkey_item_t {
     int ti_access_count; /* Int count for number of times key has been accessed */
 };
 
+/* Class to track the "top" keys in a bucket.
+ */
 class TopKeys {
 public:
+    /* Constructor.
+     * @param mkeys Number of keys stored in each shard (i.e. up to
+     * mkeys * SHARDS will be tracked).
+     */
     TopKeys(int mkeys);
     ~TopKeys();
 
@@ -67,23 +74,56 @@ public:
 
 
 private:
-    topkey_item_t *getOrCreate(const void *key,
-                               size_t nkey,
-                               rel_time_t operation_time);
+    // Number of shards the keyspace is broken into. Permits some level of
+    // concurrent update (there is one mutex per shard).
+    static const int NUM_SHARDS = 8;
 
-    void deleteTail();
+    class Shard;
 
-    unsigned int max_keys;
-    std::mutex mutex;
+    Shard& getShard(const std::string& key);
 
+    class Shard {
+    public:
 
+        void setMaxKeys(int mkeys) {
+            max_keys = mkeys;
+        }
 
-    // list of keys, ordered from most-recently used (front) to least recently
-    // used (back).
-    typedef std::list<const std::string*> key_history_t;
-    key_history_t list;
+        // Returns a topkey_item for the specified key and operation time.
+        // If the item does not exist it will be created (with it's creation
+        // time set to operation_time), otherwise an existing item will be
+        // returned.
+        // If insufficient memory to create a new item, returns nullptr.
+        topkey_item_t *getOrCreate(const std::string& key,
+                                   rel_time_t operation_time);
 
-    // map of key to topkey stats.
-    typedef std::unordered_map<std::string, topkey_item_t> key_hash_t;
-    key_hash_t hash;
+        typedef void (*iterfunc_t)(const std::string& key,
+                                   const topkey_item_t& it,
+                                   void *arg);
+
+        /* For each key in this shard, invoke the given callback function.
+         */
+        void accept_visitor(iterfunc_t visitor_func, void* visitor_ctx);
+
+    private:
+
+        // Maxumum numbers of keys to be tracked per shard.
+        unsigned int max_keys;
+
+        // mutex to serial access to this shard.
+        std::mutex mutex;
+
+        // list of keys, ordered from most-recently used (front) to least recently
+        // used (back).
+        typedef std::list<const std::string*> key_history_t;
+        key_history_t list;
+
+        // map of key to topkey stats.
+        typedef std::unordered_map<std::string, topkey_item_t> key_hash_t;
+        key_hash_t hash;
+
+    };
+
+    // array of topkey shards.
+    std::array<Shard, NUM_SHARDS> shards;
 };

@@ -4108,9 +4108,13 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
  */
 static void test_set_topkeys(const std::string& key, const int operations) {
 
-    // Should start with no record of the key.
-    int temp;
-    ASSERT_FALSE(get_topkeys_json_value(key, temp));
+    // In theory we should start with no record of a key; but there's no
+    // explicit way to clear topkeys; and a previous test run against the same
+    // memcached instance may have used the same key.
+    // Therefore for robustness don't assume the key doesn't exist; and fetch
+    // the initial count.
+    int initial_count = 0;
+    get_topkeys_json_value(key, initial_count);
 
     int ii;
     size_t len;
@@ -4136,10 +4140,10 @@ static void test_set_topkeys(const std::string& key, const int operations) {
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
-    EXPECT_EQ(operations, get_topkeys_legacy_value(key));
+    EXPECT_EQ(initial_count + operations, get_topkeys_legacy_value(key));
     int json_value;
     EXPECT_TRUE(get_topkeys_json_value(key, json_value));
-    EXPECT_EQ(operations, json_value);
+    EXPECT_EQ(initial_count + operations, json_value);
 }
 
 

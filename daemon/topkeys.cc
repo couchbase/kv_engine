@@ -25,18 +25,29 @@
 #include <platform/platform.h>
 #include "topkeys.h"
 
-TopKeys::TopKeys(int mkeys)
-    : max_keys(mkeys)
-{
+TopKeys::TopKeys(int mkeys) {
+    for (auto& shard : shards) {
+        shard.setMaxKeys(mkeys);
+    }
 }
 
 TopKeys::~TopKeys() {
 }
 
-topkey_item_t *TopKeys::getOrCreate(const void *key, size_t nkey, const rel_time_t ct) {
+TopKeys::Shard& TopKeys::getShard(const std::string& key) {
+    /* This is special-cased for 8 */
+    static_assert(NUM_SHARDS == 8,
+                  "Topkeys::getShard() special-cased for SHARDS==8");
+    std::hash<std::string> hash_fn;
+    return shards[hash_fn(key) & 0x7];
+}
+
+
+topkey_item_t* TopKeys::Shard::getOrCreate(const std::string& key,
+                                           const rel_time_t ct) {
     try {
-        std::string k(reinterpret_cast<const char*>(key), nkey);
-        auto result = hash.emplace(std::make_pair(k, rel_time_t(ct)));
+        std::lock_guard<std::mutex> lock(mutex);
+        auto result = hash.emplace(std::make_pair(key, rel_time_t(ct)));
         if (result.second) {
             // New item was inserted.
 
@@ -65,11 +76,12 @@ topkey_item_t *TopKeys::getOrCreate(const void *key, size_t nkey, const rel_time
 }
 
 void TopKeys::updateKey(const void *key, size_t nkey,
-                      rel_time_t operation_time) {
+                        rel_time_t operation_time) {
     cb_assert(key);
     cb_assert(nkey > 0);
-    std::lock_guard<std::mutex> lock(mutex);
-    topkey_item_t *tmp = getOrCreate(key, nkey, operation_time);
+
+    std::string key_str(reinterpret_cast<const char*>(key), nkey);
+    topkey_item_t* tmp = getShard(key_str).getOrCreate(key_str, operation_time);
     if (tmp != NULL) {
         tmp->ti_access_count++;
     }
@@ -134,9 +146,8 @@ ENGINE_ERROR_CODE TopKeys::stats(const void *cookie,
                                  ADD_STAT add_stat) {
     struct tk_context context(cookie, add_stat, current_time, nullptr);
 
-    std::lock_guard<std::mutex> lock(mutex);
-    for (const auto& key : list) {
-        tk_iterfunc(*key, hash.at(*key), (void*)&context);
+    for (auto& shard : shards) {
+        shard.accept_visitor(tk_iterfunc, &context);
     }
 
     return ENGINE_SUCCESS;
@@ -159,13 +170,18 @@ ENGINE_ERROR_CODE TopKeys::json_stats(cJSON *object,
     struct tk_context context(nullptr, nullptr, current_time, topkeys);
 
     /* Collate the topkeys JSON object */
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        for (const auto& key : list) {
-            tk_jsonfunc(*key, hash.at(*key), (void*)&context);
-        }
+    for (auto& shard : shards) {
+        shard.accept_visitor(tk_jsonfunc, &context);
     }
 
     cJSON_AddItemToObject(object, "topkeys", topkeys);
     return ENGINE_SUCCESS;
+}
+
+void TopKeys::Shard::accept_visitor(iterfunc_t visitor_func,
+                                    void* visitor_ctx) {
+    std::lock_guard<std::mutex> lock(mutex);
+    for (const auto& key : list) {
+        visitor_func(*key, hash.at(*key), visitor_ctx);
+    }
 }
