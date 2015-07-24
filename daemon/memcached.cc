@@ -5687,7 +5687,6 @@ static int try_read_command(Connection *c) {
         }
 
         c->setCmd(c->binary_header.request.opcode);
-        c->keylen = c->binary_header.request.keylen;
         /* clear the returned cas value */
         c->setCAS(0);
 

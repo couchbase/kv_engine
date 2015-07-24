@@ -711,14 +711,6 @@ public:
         return binary_header.request.opaque;
     }
 
-    int getKeylen() const {
-        return keylen;
-    }
-
-    void setKeylen(int keylen) {
-        Connection::keylen = keylen;
-    }
-
     int getListState() const {
         return list_state;
     }
@@ -1068,8 +1060,6 @@ private:
     uint8_t cmd;
 
 public:
-    int keylen;
-
     int list_state;
     /* bitmask of list state data for this connection */
     Connection* next;
