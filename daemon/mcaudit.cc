@@ -22,26 +22,6 @@
 #include <memcached/audit_interface.h>
 #include <cJSON.h>
 
-static const char unknown[] = "unknown";
-
-/**
- * Get the username associated with the given connection
- *
- * @param c the connection object
- * @return the username associated with the given connection or "unknown"
- */
-static const char *get_username(const Connection *c)
-{
-    const void *username = unknown;
-
-    if (c->sasl_conn && (cbsasl_getprop(c->sasl_conn,
-                                        CBSASL_USERNAME,
-                                        &username) != CBSASL_OK)) {
-        username = unknown;
-    }
-    return reinterpret_cast<const char*>(username);
-}
-
 /**
  * Get the bucket the connection is bound to.
  *
@@ -80,7 +60,7 @@ static cJSON *create_memcached_audit_object(const Connection *c)
     cJSON_AddStringToObject(root, "sockname", c->getSockname().c_str());
     cJSON *source = cJSON_CreateObject();
     cJSON_AddStringToObject(source, "source", "memcached");
-    cJSON_AddStringToObject(source, "user", get_username(c));
+    cJSON_AddStringToObject(source, "user", c->getUsername());
     cJSON_AddItemToObject(root, "real_userid", source);
 
     return root;

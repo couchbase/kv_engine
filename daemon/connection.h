@@ -451,6 +451,21 @@ public:
         Connection::numEvents = nevents;
     }
 
+    /**
+     * Get the username this connection is authenticated as
+     */
+    const char* getUsername() const {
+        static const char unknown[] = "unknown";
+        const void *username = unknown;
+
+        if (sasl_conn && (cbsasl_getprop(sasl_conn,
+                                         CBSASL_USERNAME,
+                                         &username) != CBSASL_OK)) {
+            username = unknown;
+        }
+        return reinterpret_cast<const char*>(username);
+    }
+
     cbsasl_conn_t* getSaslConn() const {
         return sasl_conn;
     }
