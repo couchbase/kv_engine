@@ -39,13 +39,6 @@ cb_mutex_t session_mutex;
  * SERVER CORE API FUNCTIONS
  */
 
-static void mock_get_auth_data(const void *cookie, auth_data_t *data) {
-    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    if (c != NULL) {
-        data->username = c->uname;
-    }
-}
-
 static void mock_store_engine_specific(const void *cookie, void *engine_data) {
     if (cookie) {
         struct mock_connstruct *c = (struct mock_connstruct *)cookie;
@@ -345,7 +338,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       core_api.abstime = mock_abstime;
       core_api.parse_config = mock_parse_config;
 
-      server_cookie_api.get_auth_data = mock_get_auth_data;
       server_cookie_api.store_engine_specific = mock_store_engine_specific;
       server_cookie_api.get_engine_specific = mock_get_engine_specific;
       server_cookie_api.is_datatype_supported = mock_is_datatype_supported;

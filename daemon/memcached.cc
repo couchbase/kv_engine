@@ -1291,17 +1291,6 @@ static void handle_binary_protocol_error(Connection *c) {
     c->write_and_go = conn_closing;
 }
 
-static void get_auth_data(const void *cookie, auth_data_t *data) {
-    Connection *c = (Connection *)cookie;
-    auto *conn = c->getSaslConn();
-    if (conn) {
-        cbsasl_getprop(conn, CBSASL_USERNAME,
-                       reinterpret_cast<const void**>(&data->username));
-    } else {
-        data->username = NULL;
-    }
-}
-
 static bool authenticated(Connection *c) {
     bool rv = false;
 
@@ -3731,13 +3720,10 @@ static void sasl_auth_executor(Connection *c, void *packet)
     switch(result) {
     case CBSASL_OK:
         {
-            auth_data_t data;
-            get_auth_data(c, &data);
-
             if (settings.verbose > 0) {
                 settings.extensions.logger->log
                     (EXTENSION_LOG_INFO, c, "%u: Client %s authenticated as %s",
-                     c->getId(), c->getPeername().c_str(), data.username);
+                     c->getId(), c->getPeername().c_str(), c->getUsername());
             }
 
             c->setAuthenticated(true);
@@ -3747,15 +3733,15 @@ static void sasl_auth_executor(Connection *c, void *packet)
              * We've successfully changed our user identity.
              * Update the authentication context
              */
-            c->setAuthContext(auth_create(data.username,
+            c->setAuthContext(auth_create(c->getUsername(),
                                           c->getPeername().c_str(),
                                           c->getSockname().c_str()));
 
             if (settings.disable_admin) {
                 /* "everyone is admins" */
                 cookie_set_admin(c);
-            } else if (settings.admin != NULL && data.username != NULL) {
-                if (strcmp(settings.admin, data.username) == 0) {
+            } else if (settings.admin != NULL) {
+                if (strcmp(settings.admin, c->getUsername()) == 0) {
                     cookie_set_admin(c);
                 }
             }
@@ -3763,7 +3749,7 @@ static void sasl_auth_executor(Connection *c, void *packet)
 
             /* associate the connection with the appropriate bucket */
             /* @TODO Trond do we really want to do this? */
-            associate_bucket(c, data.username);
+            associate_bucket(c, c->getUsername());
         }
         break;
     case CBSASL_CONTINUE:
@@ -7019,7 +7005,6 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         core_api.shutdown = shutdown_server;
         core_api.get_config = get_config;
 
-        server_cookie_api.get_auth_data = get_auth_data;
         server_cookie_api.store_engine_specific = store_engine_specific;
         server_cookie_api.get_engine_specific = get_engine_specific;
         server_cookie_api.is_datatype_supported = is_datatype_supported;
