@@ -50,7 +50,7 @@ static BufferLoan conn_loan_single_buffer(Connection *c, struct net_buf *thread_
 static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
                                       struct net_buf *conn_buf);
 static void conn_destructor(Connection *c);
-static Connection *allocate_connection(void);
+static Connection *allocate_connection(SOCKET sfd);
 static void release_connection(Connection *c);
 
 /** External functions *******************************************************/
@@ -151,7 +151,7 @@ void run_event_loop(Connection * c) {
 Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
                STATE_FUNC init_state,
                struct event_base *base) {
-    Connection *c = allocate_connection();
+    Connection *c = allocate_connection(sfd);
     if (c == NULL) {
         return NULL;
     }
@@ -188,7 +188,6 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
         }
     }
 
-    c->setSocketDescriptor(sfd);
     c->setParentPort(parent_port);
     c->setState(init_state);
     c->setWriteAndGo(init_state);
@@ -377,7 +376,7 @@ static void conn_destructor(Connection *c) {
  *  list. Returns a pointer to the newly-allocated connection if successful,
  *  else NULL.
  */
-static Connection *allocate_connection(void) {
+static Connection *allocate_connection(SOCKET sfd) {
     Connection *ret;
 
     try {
@@ -387,6 +386,7 @@ static Connection *allocate_connection(void) {
                                         "Failed to allocate memory for connection");
         return NULL;
     }
+    ret->setSocketDescriptor(sfd);
     stats.conn_structs++;
 
     {
