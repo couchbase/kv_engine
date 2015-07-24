@@ -704,12 +704,11 @@ public:
         Connection::cmd = cmd;
     }
 
+    /**
+     * Return the opaque value for the command being processed
+     */
     uint32_t getOpaque() const {
-        return opaque;
-    }
-
-    void setOpaque(uint32_t opaque) {
-        Connection::opaque = opaque;
+        return binary_header.request.opaque;
     }
 
     int getKeylen() const {
@@ -1064,7 +1063,7 @@ public:
     uint64_t cas;
     /** current command being processed */
     uint8_t cmd;
-    uint32_t opaque;
+
     int keylen;
 
     int list_state;

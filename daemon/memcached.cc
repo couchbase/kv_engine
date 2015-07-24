@@ -872,7 +872,7 @@ int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_le
     header->response.status = (uint16_t)htons(err);
 
     header->response.bodylen = htonl(body_len);
-    header->response.opaque = c->opaque;
+    header->response.opaque = c->getOpaque();
     header->response.cas = htonll(c->cas);
 
     if (settings.verbose > 1) {
@@ -950,7 +950,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     header.response.opcode = c->binary_header.request.opcode;
     header.response.status = (uint16_t)htons(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
     header.response.bodylen = htonl((uint32_t)mapsize);
-    header.response.opaque = c->opaque;
+    header.response.opaque = c->getOpaque();
 
     memcpy(buf, header.bytes, sizeof(header.response));
     buf += sizeof(header.response);
@@ -1194,7 +1194,7 @@ static void append_bin_stats(const char *key, const uint16_t klen,
     header.response.keylen = (uint16_t)htons(klen);
     header.response.datatype = (uint8_t)PROTOCOL_BINARY_RAW_BYTES;
     header.response.bodylen = htonl(bodylen);
-    header.response.opaque = c->opaque;
+    header.response.opaque = c->getOpaque();
 
     memcpy(buf, header.bytes, sizeof(header.response));
     buf += sizeof(header.response);
@@ -1381,7 +1381,7 @@ bool binary_response_handler(const void *key, uint16_t keylen,
     } else {
         header.response.bodylen = htonl(bodylen + keylen + extlen);
     }
-    header.response.opaque = c->opaque;
+    header.response.opaque = c->getOpaque();
     header.response.cas = htonll(cas);
 
     memcpy(buf, header.bytes, sizeof(header.response));
@@ -5680,7 +5680,6 @@ static int try_read_command(Connection *c) {
 
         c->cmd = c->binary_header.request.opcode;
         c->keylen = c->binary_header.request.keylen;
-        c->opaque = c->binary_header.request.opaque;
         /* clear the returned cas value */
         c->cas = 0;
 
