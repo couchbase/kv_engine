@@ -36,9 +36,8 @@ static const char *get_bucketname(const Connection *c)
     static const char default_bucket[] = "default";
     const void *bucketname = default_bucket;
 
-    if (c->sasl_conn && (cbsasl_getprop(c->sasl_conn,
-                                        CBSASL_USERNAME,
-                                        &bucketname) != CBSASL_OK)) {
+    // @todo refactor to return the real bucket name (from the buckets array)
+    if (cbsasl_getprop(c->getSaslConn(), CBSASL_USERNAME, &bucketname) != CBSASL_OK) {
         bucketname = default_bucket;
     }
     return reinterpret_cast<const char*>(bucketname);

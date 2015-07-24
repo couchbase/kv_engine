@@ -466,6 +466,14 @@ public:
         return reinterpret_cast<const char*>(username);
     }
 
+    bool isAuthenticated() const {
+        const void *uname = NULL;
+        if (sasl_conn) {
+            cbsasl_getprop(sasl_conn, CBSASL_USERNAME, &uname);
+        }
+        return uname != NULL;
+    }
+
     cbsasl_conn_t* getSaslConn() const {
         return sasl_conn;
     }
@@ -953,7 +961,9 @@ private:
      */
     int numEvents;
 
-public:
+    /**
+     * The SASL object used to do sasl authentication
+     */
     cbsasl_conn_t* sasl_conn;
 private:
     STATE_FUNC state;

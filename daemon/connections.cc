@@ -244,11 +244,6 @@ static void conn_cleanup(Connection *c) {
         c->write_and_free = 0;
     }
 
-    if (c->sasl_conn) {
-        cbsasl_dispose(&c->sasl_conn);
-        c->sasl_conn = NULL;
-    }
-
     c->read.curr = c->read.buf;
     c->read.bytes = 0;
     c->write.curr = c->write.buf;
