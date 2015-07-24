@@ -33,6 +33,7 @@ Connection::Connection()
       protocol(Protocol::Memcached),
       admin(false),
       authenticated(false),
+      username("unknown"),
       registered_in_libevent(false),
       ev_flags(0),
       currentEvent(0),

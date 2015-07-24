@@ -317,6 +317,17 @@ public:
 
     void setAuthenticated(bool authenticated) {
         Connection::authenticated = authenticated;
+
+        static const char unknown[] = "unknown";
+        const void *unm = unknown;
+
+        if (authenticated) {
+            if (cbsasl_getprop(sasl_conn, CBSASL_USERNAME, &unm) != CBSASL_OK) {
+                unm = unknown;
+            }
+        }
+
+        username.assign(reinterpret_cast<const char*>(unm));
     }
 
     /**
@@ -461,17 +472,11 @@ public:
 
     /**
      * Get the username this connection is authenticated as
+     *
+     * NOTE: the return value should not be returned by the client
      */
     const char* getUsername() const {
-        static const char unknown[] = "unknown";
-        const void *username = unknown;
-
-        if (sasl_conn && (cbsasl_getprop(sasl_conn,
-                                         CBSASL_USERNAME,
-                                         &username) != CBSASL_OK)) {
-            username = unknown;
-        }
-        return reinterpret_cast<const char*>(username);
+        return username.c_str();
     }
 
     cbsasl_conn_t* getSaslConn() const {
@@ -980,6 +985,9 @@ private:
 
     /** Is the connection authenticated or not */
     bool authenticated;
+
+    /** The username authenticated as */
+    std::string username;
 
     // Members related to libevent
 
