@@ -6642,12 +6642,12 @@ const char* get_server_version(void) {
 static void store_engine_specific(const void *cookie,
                                   void *engine_data) {
     Connection *c = (Connection *)cookie;
-    c->engine_storage = engine_data;
+    c->setEngineStorage(engine_data);
 }
 
 static void *get_engine_specific(const void *cookie) {
     Connection *c = (Connection *)cookie;
-    return c->engine_storage;
+    return c->getEngineStorage();
 }
 
 static bool is_datatype_supported(const void *cookie) {

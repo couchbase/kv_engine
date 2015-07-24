@@ -252,7 +252,7 @@ static void conn_cleanup(Connection *c) {
     conn_return_buffers(c);
     free(c->dynamic_buffer.buffer);
 
-    c->engine_storage = NULL;
+    c->setEngineStorage(nullptr);
 
     c->thread = NULL;
     cb_assert(c->next == NULL);

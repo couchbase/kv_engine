@@ -1046,11 +1046,15 @@ private:
 public:
     struct dynamic_buffer dynamic_buffer;
 
-    // Pointer to engine-specific data which the engine has requested the server
-    // to persist for the life of the connection.
-    // See SERVER_COOKIE_API::{get,store}_engine_specific()
+private:
+    /**
+     * Pointer to engine-specific data which the engine has requested the server
+     * to persist for the life of the connection.
+     * See SERVER_COOKIE_API::{get,store}_engine_specific()
+     */
     void* engine_storage;
 
+public:
     hrtime_t start;
 
     /* Binary protocol stuff */
