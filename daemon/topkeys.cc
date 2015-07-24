@@ -104,6 +104,11 @@ static void tk_iterfunc(const std::string& key, const topkey_item_t& it,
                         void *arg) {
     struct tk_context *c = (struct tk_context*)arg;
     char val_str[500];
+    /* Note we use accessed time for both 'atime' and 'ctime' below. They have
+     * had the same value since the topkeys code was added; but given that
+     * clients may expect separate values we print both.
+     */
+    rel_time_t created_time = c->current_time - it.ti_ctime;
     int vlen = snprintf(val_str, sizeof(val_str) - 1, "get_hits=%d,"
                         "get_misses=0,cmd_set=0,incr_hits=0,incr_misses=0,"
                         "decr_hits=0,decr_misses=0,delete_hits=0,"
@@ -111,8 +116,7 @@ static void tk_iterfunc(const std::string& key, const topkey_item_t& it,
                         "cas_misses=0,get_replica=0,evict=0,getl=0,unlock=0,"
                         "get_meta=0,set_meta=0,del_meta=0,ctime=%" PRIu32
                         ",atime=%" PRIu32, it.ti_access_count,
-                        c->current_time - it.ti_ctime,
-                        c->current_time - it.ti_atime);
+                        created_time, created_time);
     c->add_stat(key.c_str(), key.size(), val_str, vlen, c->cookie);
 }
 
@@ -135,8 +139,6 @@ static void tk_jsonfunc(const std::string& key, const topkey_item_t& it,
                           cJSON_CreateNumber(it.ti_access_count));
     cJSON_AddItemToObject(obj, "ctime", cJSON_CreateNumber(c->current_time
                                                            - it.ti_ctime));
-    cJSON_AddItemToObject(obj, "atime", cJSON_CreateNumber(c->current_time
-                                                           - it.ti_atime));
     cb_assert(c->array != NULL);
     cJSON_AddItemToArray(c->array, obj);
 }

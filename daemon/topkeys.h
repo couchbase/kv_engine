@@ -28,11 +28,9 @@
 struct topkey_item_t {
     topkey_item_t(rel_time_t create_time)
         : ti_ctime(create_time),
-          ti_atime(create_time),
           ti_access_count(0) { }
 
-    rel_time_t ti_ctime;
-    rel_time_t ti_atime; /* Time this item was created/last accessed */
+    rel_time_t ti_ctime; /* Time this item was created */
     int ti_access_count; /* Int count for number of times key has been accessed */
 };
 
