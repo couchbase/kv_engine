@@ -297,7 +297,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
          * The following events operates on a connection which is passed in
          * as the cookie.
          */
-    case ON_AUTH:
     case ON_CONNECT:
     case ON_DISCONNECT:
         cb_assert(connection);
@@ -336,7 +335,6 @@ static void register_callback(ENGINE_HANDLE *eh,
      * The following events operates on a connection which is passed in
      * as the cookie.
      */
-    case ON_AUTH:
     case ON_CONNECT:
     case ON_DISCONNECT:
         cb_assert(eh);
@@ -3761,7 +3759,6 @@ static void sasl_auth_executor(Connection *c, void *packet)
                     cookie_set_admin(c);
                 }
             }
-            perform_callbacks(ON_AUTH, (const void*)&data, c);
             get_thread_stats(c)->auth_cmds++;
 
             /* associate the connection with the appropriate bucket */
