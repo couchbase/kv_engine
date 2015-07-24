@@ -20,15 +20,17 @@
 #include "utilities/protocol2text.h"
 
 #include <cJSON.h>
+#include <list>
+#include <algorithm>
 
 /*
  * Free list management for connections.
  */
 struct connections {
-    Connection sentinal; /* Sentinal Connection object used as the base of the linked-list
-                      of connections. */
     std::mutex mutex;
+    std::list<Connection*> conns;
 } connections;
+
 
 /** Types ********************************************************************/
 
@@ -55,8 +57,7 @@ static void release_connection(Connection *c);
 void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
 {
     std::lock_guard<std::mutex> lock(connections.mutex);
-    Connection *c = connections.sentinal.getAllNext();
-    while (c != &connections.sentinal) {
+    for (auto* c : connections.conns) {
         if (c->thread == me && c->bucket.idx == bucket_idx) {
             if (c->getState() == conn_read || c->getState() == conn_waiting) {
                 /* set write access to ensure it's handled */
@@ -66,63 +67,64 @@ void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
                 }
             }
         }
-        c = c->getAllNext();
     }
 }
 
 void assert_no_associations(int bucket_idx)
 {
     std::lock_guard<std::mutex> lock(connections.mutex);
-    Connection *c = connections.sentinal.getAllNext();
-    while (c != &connections.sentinal) {
+    for (auto* c : connections.conns) {
         cb_assert(c->bucket.idx != bucket_idx);
-        c = c->getAllNext();
     }
 }
 
 void destroy_connections(void)
 {
+    std::lock_guard<std::mutex> lock(connections.mutex);
     /* traverse the list of connections. */
-    Connection *c = connections.sentinal.getAllNext();
-    while (c != &connections.sentinal) {
-        Connection *next = c->getAllNext();
+    for (auto* c : connections.conns) {
         conn_destructor(c);
-        c = next;
     }
-    connections.sentinal.setAllNext(&connections.sentinal);
-    connections.sentinal.setAllPrev(&connections.sentinal);
+    connections.conns.clear();
 }
 
 void close_all_connections(void)
 {
     /* traverse the list of connections. */
-    Connection *c = connections.sentinal.getAllNext();
-    while (c != &connections.sentinal) {
-        Connection *next = c->getAllNext();
+    {
+        std::lock_guard<std::mutex> lock(connections.mutex);
+        for (auto* c : connections.conns) {
+            if (!c->isSocketClosed()) {
+                safe_close(c->getSocketDescriptor());
+                c->setSocketDescriptor(INVALID_SOCKET);
+            }
 
-        if (!c->isSocketClosed()) {
-            safe_close(c->getSocketDescriptor());
-            c->setSocketDescriptor(INVALID_SOCKET);
+            if (c->getRefcount() > 1) {
+                perform_callbacks(ON_DISCONNECT, NULL, c);
+            }
         }
-
-        if (c->getRefcount() > 1) {
-            perform_callbacks(ON_DISCONNECT, NULL, c);
-        }
-        c = next;
     }
 
     /*
      * do a second loop, this time wait for all of them to
      * be closed.
      */
-    c = connections.sentinal.getAllNext();
-    while (c != &connections.sentinal) {
-        Connection *next = c->getAllNext();
-        while (c->getRefcount() > 1) {
+    bool done;
+    do {
+        done = true;
+        {
+            std::lock_guard<std::mutex> lock(connections.mutex);
+            for (auto* c : connections.conns) {
+                while (c->getRefcount() > 1) {
+                    done = false;
+                }
+            }
+        }
+
+        if (!done) {
             usleep(500);
         }
-        c = next;
-    }
+    } while (!done);
 }
 
 void run_event_loop(Connection * c) {
@@ -330,12 +332,9 @@ struct listening_port *get_listening_port_instance(const in_port_t port) {
 
 void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) {
     std::lock_guard<std::mutex> lock(connections.mutex);
-    const Connection *iter;
-    for (iter = connections.sentinal.getAllNext();
-         iter != &connections.sentinal;
-         iter = iter->getAllNext()) {
-        if (iter->getSocketDescriptor() == fd || fd == -1) {
-            cJSON* stats = iter->toJSON();
+    for (auto *c : connections.conns) {
+        if (c->getSocketDescriptor() == fd || fd == -1) {
+            cJSON* stats = c->toJSON();
             /* blank key - JSON value contains all properties of the connection. */
             char key[] = " ";
             char *stats_str = cJSON_PrintUnformatted(stats);
@@ -435,12 +434,7 @@ static Connection *allocate_connection(void) {
 
     {
         std::lock_guard<std::mutex> lock(connections.mutex);
-        // First update the new nodes' links ...
-        ret->setAllNext(connections.sentinal.getAllNext());
-        ret->setAllPrev(&connections.sentinal);
-        // ... then the existing nodes' links.
-        connections.sentinal.getAllNext()->setAllPrev(ret);
-        connections.sentinal.setAllNext(ret);
+        connections.conns.push_back(ret);
     }
 
     return ret;
@@ -452,8 +446,10 @@ static Connection *allocate_connection(void) {
 static void release_connection(Connection *c) {
     {
         std::lock_guard<std::mutex> lock(connections.mutex);
-        c->getAllNext()->setAllPrev(c->getAllPrev());
-        c->getAllPrev()->setAllNext(c->getAllNext());
+        auto iter = std::find(connections.conns.begin(), connections.conns.end(), c);
+        // I should assert
+        cb_assert(iter != connections.conns.end());
+        connections.conns.erase(iter);
     }
 
     // Finally free it

@@ -22,9 +22,7 @@
 #include <platform/strerror.h>
 
 Connection::Connection()
-    : all_next(this),
-      all_prev(this),
-      socketDescriptor(INVALID_SOCKET),
+    : socketDescriptor(INVALID_SOCKET),
       max_reqs_per_event(settings.default_reqs_per_event),
       numEvents(0),
       sasl_conn(nullptr),

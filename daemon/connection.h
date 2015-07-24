@@ -438,23 +438,6 @@ public:
      */
     TryReadResult tryReadNetwork();
 
-
-    Connection* getAllNext() const {
-        return all_next;
-    }
-
-    void setAllNext(Connection* all_next) {
-        Connection::all_next = all_next;
-    }
-
-    Connection* getAllPrev() const {
-        return all_prev;
-    }
-
-    void setAllPrev(Connection* all_prev) {
-        Connection::all_prev = all_prev;
-    }
-
     /**
      * Decrement the number of events to process and return the new value
      */
@@ -949,10 +932,6 @@ protected:
     int sslPreConnection();
 
 private:
-    Connection* all_next;
-    /** Intrusive list to track all connections */
-    Connection* all_prev;
-
     /**
      * The actual socket descriptor used by this connection
      */
