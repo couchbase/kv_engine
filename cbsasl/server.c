@@ -130,7 +130,7 @@ cbsasl_error_t cbsasl_getprop(cbsasl_conn_t *conn,
                               cbsasl_prop_t propnum,
                               const void **pvalue)
 {
-    if (conn->client || pvalue == NULL) {
+    if (conn == NULL || conn->client || pvalue == NULL) {
         return CBSASL_BADPARAM;
     }
 
