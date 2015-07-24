@@ -236,10 +236,7 @@ static void conn_cleanup(Connection *c) {
     cb_assert(c != NULL);
     c->setAdmin(false);
 
-    for (auto *ptr : c->temp_alloc) {
-        free(ptr);
-    }
-    c->temp_alloc.resize(0);
+    c->releaseTempAlloc();
 
     c->read.curr = c->read.buf;
     c->read.bytes = 0;

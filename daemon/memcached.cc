@@ -1630,9 +1630,7 @@ static void ship_tap_log(Connection *c) {
                     size_t bodylen = info.info.value[0].iov_len;
                     if (snappy_uncompress(body, bodylen,
                                           buf, &inflated_length) == SNAPPY_OK) {
-                        try {
-                            c->temp_alloc.push_back(buf);
-                        } catch (std::bad_alloc) {
+                        if (!c->pushTempAlloc(buf)) {
                             free(buf);
                             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                             "%u: FATAL: failed to allocate space to keep temporary buffer",
@@ -5260,9 +5258,7 @@ static void reset_cmd_handler(Connection *c) {
 
 void write_and_free(Connection *c, struct dynamic_buffer* buf) {
     if (buf->buffer) {
-        try {
-            c->temp_alloc.push_back(buf->buffer);
-        } catch (std::bad_alloc) {
+        if (!c->pushTempAlloc(buf->buffer)) {
             c->setState(conn_closing);
             return;
         }
@@ -6019,11 +6015,7 @@ bool conn_mwrite(Connection *c) {
     switch (c->transmit()) {
     case Connection::TransmitResult::Complete:
 
-        for (auto *temp_alloc : c->temp_alloc) {
-            free(temp_alloc);
-        }
-        c->temp_alloc.resize(0);
-
+        c->releaseTempAlloc();
         if (c->getState() == conn_mwrite) {
             for (auto *it : c->reservedItems) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);

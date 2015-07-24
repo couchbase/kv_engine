@@ -614,12 +614,23 @@ public:
         Connection::reservedItems = reservedItems;
     }
 
-    const std::vector<char*>& getTempAlloc() const {
-        return temp_alloc;
+    void releaseTempAlloc() {
+        for (auto* ptr : temp_alloc) {
+            free(ptr);
+        }
+        temp_alloc.resize(0);
     }
 
-    void setTempAlloc(const std::vector<char*>& temp_alloc) {
-        Connection::temp_alloc = temp_alloc;
+    bool pushTempAlloc(char* ptr) {
+        try {
+            temp_alloc.push_back(ptr);
+            return true;
+        } catch (std::bad_alloc) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
+                                            "%u: FATAL: failed to allocate space to keep temporary buffer",
+                                            getId());
+            return false;
+        }
     }
 
     bool isNoReply() const {
@@ -1012,9 +1023,16 @@ public:
 
     // List of items we've reserved during the command (should call item_release)
     std::vector<void*> reservedItems;
-    std::vector<char*> temp_alloc;
 
 private:
+    /**
+     * A vector of temporary allocations that should be freed when the
+     * the connection is done sending all of the data. Use pushTempAlloc to
+     * push a pointer to this list (must be allocated with malloc/calloc/strdup
+     * etc.. will be freed by calling "free")
+     */
+    std::vector<char*> temp_alloc;
+
     /** True if the reply should not be sent (unless there is an error) */
     bool noreply;
 
