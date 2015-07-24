@@ -11809,6 +11809,9 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
     // previous set - slow disk), or the compactor (unlikely).
     wait_for_expired_items_to_be(h, h1, 1);
 
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "curr_items", 0);
+
     check(get_meta(h, h1, "key3"), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     check(last_meta.revSeqno == 4, "Expected seqno to match");
