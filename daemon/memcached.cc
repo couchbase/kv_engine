@@ -873,7 +873,7 @@ int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_le
 
     header->response.bodylen = htonl(body_len);
     header->response.opaque = c->getOpaque();
-    header->response.cas = htonll(c->cas);
+    header->response.cas = htonll(c->getCAS());
 
     if (settings.verbose > 1) {
         char buffer[1024];
@@ -3927,8 +3927,12 @@ static void add_set_replace_executor(Connection *c, void *packet,
     }
 
     if (ret == ENGINE_SUCCESS) {
-        ret = bucket_store(c, c->item, &c->cas, store_op,
+        uint64_t cas = c->getCAS();
+        ret = bucket_store(c, c->item, &cas, store_op,
                            ntohs(req->message.header.request.vbucket));
+        if (ret == ENGINE_SUCCESS) {
+            c->setCAS(cas);
+        }
     }
 
     switch (ret) {
@@ -4101,8 +4105,12 @@ static void append_prepend_executor(Connection *c,
     }
 
     if (ret == ENGINE_SUCCESS) {
-        ret = bucket_store(c, c->item, &c->cas, store_op,
+        uint64_t cas = c->getCAS();
+        ret = bucket_store(c, c->item, &cas, store_op,
                            ntohs(req->message.header.request.vbucket));
+        if (ret == ENGINE_SUCCESS) {
+            c->setCAS(cas);
+        }
     }
 
     switch (ret) {
@@ -4418,7 +4426,7 @@ static void arithmetic_executor(Connection *c, void *packet)
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
-        c->cas = info.cas;
+        c->setCAS(info.cas);
 
         char* body_buf =
                 (c->write.buf + sizeof(protocol_binary_response_incr));
@@ -5169,7 +5177,7 @@ static void process_bin_delete(Connection *c) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->cas = cas;
+        c->setCAS(cas);
         if (c->isSupportsMutationExtras()) {
             /* Response includes vbucket UUID and sequence number */
             mutation_descr_t* const extras = (mutation_descr_t*)
@@ -5681,7 +5689,7 @@ static int try_read_command(Connection *c) {
         c->cmd = c->binary_header.request.opcode;
         c->keylen = c->binary_header.request.keylen;
         /* clear the returned cas value */
-        c->cas = 0;
+        c->setCAS(0);
 
         dispatch_bin_command(c);
 

@@ -744,7 +744,7 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
     if (!cmd_traits<Cmd2Type<CMD>>::is_mutator) {
         // No update required - just make sure we have the correct cas to use
         // for response.
-        c->cas = context->in_cas;
+        c->setCAS(context->in_cas);
         return ENGINE_SUCCESS;
     }
 
@@ -813,7 +813,7 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
                                   OPERATION_REPLACE, vbucket);
     switch (ret) {
     case ENGINE_SUCCESS:
-        c->cas = new_cas;
+        c->setCAS(new_cas);
         break;
 
     case ENGINE_KEY_EEXISTS:
@@ -859,7 +859,7 @@ void subdoc_response(Connection * c) {
         c->setState(conn_closing);
         return;
     }
-    rsp->message.header.response.cas = htonll(c->cas);
+    rsp->message.header.response.cas = htonll(c->getCAS());
 
     if (cmd_traits<Cmd2Type<CMD>>::response_has_value) {
         add_iov(c, value, vallen);

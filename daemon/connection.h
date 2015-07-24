@@ -1059,8 +1059,12 @@ public:
     /* Binary protocol stuff */
     /* This is where the binary header goes */
     protocol_binary_request_header binary_header;
+
+private:
     /** the cas to return */
     uint64_t cas;
+
+public:
     /** current command being processed */
     uint8_t cmd;
 
