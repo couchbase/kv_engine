@@ -3836,6 +3836,16 @@ static void add_set_replace_executor(Connection *c, void *packet,
         store_op = OPERATION_CAS;
     }
 
+    if (settings.verbose > 1) {
+        char buffer[1024];
+        if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
+                                    memcached_opcode_2_text(store_op), key,
+                                    nkey) != -1) {
+            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s",
+                                            buffer);
+        }
+    }
+
     if (c->item == NULL) {
         item *it;
 
