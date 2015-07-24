@@ -262,7 +262,7 @@ static void worker_libevent(void *arg) {
 
 static int number_of_pending(Connection *c, Connection *list) {
     int rv = 0;
-    for (; list; list = list->next) {
+    for (; list; list = list->getNext()) {
         if (list == c) {
             rv ++;
         }
@@ -321,8 +321,8 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     while (pending != NULL) {
         Connection *c = pending;
         cb_assert(me == c->getThread());
-        pending = pending->next;
-        c->next = NULL;
+        pending = pending->getNext();
+        c->setNext(nullptr);
 
         if (c->getSocketDescriptor() != INVALID_SOCKET && !c->isRegisteredInLibevent()) {
             /* The socket may have been shut down while we're looping */
@@ -357,17 +357,17 @@ static bool has_cycle(Connection *c) {
     }
 
     slowNode = fastNode1 = fastNode2 = c;
-    while (slowNode && (fastNode1 = fastNode2->next) && (fastNode2 = fastNode1->next)) {
+    while (slowNode && (fastNode1 = fastNode2->getNext()) && (fastNode2 = fastNode1->getNext())) {
         if (slowNode == fastNode1 || slowNode == fastNode2) {
             return true;
         }
-        slowNode = slowNode->next;
+        slowNode = slowNode->getNext();
     }
     return false;
 }
 
 bool list_contains(Connection *haystack, Connection *needle) {
-    for (; haystack; haystack = haystack -> next) {
+    for (; haystack; haystack = haystack->getNext()) {
         if (needle == haystack) {
             return true;
         }
@@ -381,12 +381,12 @@ Connection * list_remove(Connection *haystack, Connection *needle) {
     }
 
     if (haystack == needle) {
-        Connection *rv = needle->next;
-        needle->next = NULL;
+        Connection *rv = needle->getNext();
+        needle->setNext(nullptr);
         return rv;
     }
 
-    haystack->next = list_remove(haystack->next, needle);
+    haystack->setNext(list_remove(haystack->getNext(), needle));
 
     return haystack;
 }
@@ -396,8 +396,8 @@ static void enlist_conn(Connection *c, Connection **list) {
     cb_assert(list == &thr->pending_io);
     if ((c->list_state & LIST_STATE_PROCESSING) == 0) {
         cb_assert(!list_contains(thr->pending_io, c));
-        cb_assert(c->next == NULL);
-        c->next = *list;
+        cb_assert(c->getNext() == nullptr);
+        c->setNext(*list);
         *list = c;
         cb_assert(list_contains(*list, c));
         cb_assert(!has_cycle(*list));

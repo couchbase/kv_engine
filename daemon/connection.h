@@ -1062,10 +1062,11 @@ private:
 public:
     int list_state;
     /* bitmask of list state data for this connection */
-    Connection* next;
-    /* Used for generating a list of Connection structures */
 
 private:
+    /* Used for generating a list of Connection structures */
+    Connection* next;
+
     /** Pointer to the thread object serving this connection */
     LIBEVENT_THREAD* thread;
 

@@ -579,7 +579,7 @@ static void disable_listen(void) {
     ++listen_state.num_disable;
     cb_mutex_exit(&listen_state.mutex);
 
-    for (next = listen_conn; next; next = next->next) {
+    for (next = listen_conn; next; next = next->getNext()) {
         next->updateEvent(0);
         if (listen(next->getSocketDescriptor(), 1) != 0) {
             log_socket_error(EXTENSION_LOG_WARNING, NULL,
@@ -6305,7 +6305,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
         cb_mutex_exit(&listen_state.mutex);
         if (enable) {
             Connection *next;
-            for (next = listen_conn; next; next = next->next) {
+            for (next = listen_conn; next; next = next->getNext()) {
                 int backlog = 1024;
                 int ii;
                 next->updateEvent(EV_READ | EV_PERSIST);
@@ -6557,7 +6557,7 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
                                             "failed to create listening connection\n");
             exit(EXIT_FAILURE);
         }
-        listen_conn_add->next = listen_conn;
+        listen_conn_add->setNext(listen_conn);
         listen_conn = listen_conn_add;
 
         stats.daemon_conns++;

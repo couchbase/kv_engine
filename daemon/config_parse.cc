@@ -1228,7 +1228,7 @@ static void dyna_reconfig_iface_nodelay(const struct interface *new_if,
         cur_if->tcp_nodelay = new_if->tcp_nodelay;
 
         /* find all sockets for this connection, and update TCP_NODELAY sockopt */
-        for (c = listen_conn; c != NULL; c = c->next) {
+        for (c = listen_conn; c != NULL; c = c->getNext()) {
             auto port = c->getParentPort();
             if (port == cur_if->port) {
                 int nodelay_flag = cur_if->tcp_nodelay;
