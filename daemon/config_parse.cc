@@ -7,12 +7,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
-#include <stdint.h>
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <limits>
 
 #include "breakpad.h"
 #include "cmdline.h"
@@ -137,9 +137,9 @@ static bool get_in_port_value(cJSON *i, const char *key, in_port_t* value,
     if (!get_int_value(i, key, &int_value, error_msg)) {
         return false;
     }
-    if (int_value < 0 || int_value > UINT16_MAX) {
+    if (int_value < 0 || int_value > std::numeric_limits<uint16_t>::max()) {
         do_asprintf(error_msg, "port must be in the range: [0,%u] for %s\n",
-                    UINT16_MAX, key);
+                    std::numeric_limits<uint16_t>::max(), key);
         return false;
     }
 
