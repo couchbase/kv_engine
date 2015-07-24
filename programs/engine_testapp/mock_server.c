@@ -406,30 +406,6 @@ void init_mock_server(bool log_to_stderr) {
     cb_mutex_initialize(&time_mutex);
 }
 
-struct mock_connstruct *mk_mock_connection(const char *user) {
-    struct mock_connstruct *rv = calloc(sizeof(struct mock_connstruct), 1);
-    auth_data_t ad;
-    cb_assert(rv);
-    rv->magic = CONN_MAGIC;
-    rv->uname = user ? strdup(user) : NULL;
-    rv->connected = true;
-    rv->next = connstructs;
-    rv->evictions = 0;
-    rv->sfd = 0; /* TODO make this more realistic */
-    rv->status = ENGINE_SUCCESS;
-    connstructs = rv;
-    mock_perform_callbacks(ON_CONNECT, NULL, rv);
-    if (rv->uname) {
-        mock_get_auth_data(rv, &ad);
-        mock_perform_callbacks(ON_AUTH, (const void*)&ad, rv);
-    }
-
-    cb_mutex_initialize(&rv->mutex);
-    cb_cond_initialize(&rv->cond);
-
-    return rv;
-}
-
 const void *create_mock_cookie(void) {
     struct mock_connstruct *rv = calloc(sizeof(struct mock_connstruct), 1);
     cb_assert(rv);

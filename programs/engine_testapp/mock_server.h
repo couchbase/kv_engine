@@ -40,9 +40,6 @@ MEMCACHED_PUBLIC_API SERVER_HANDLE_V1 *get_mock_server_api(void);
 
 MEMCACHED_PUBLIC_API void init_mock_server(bool log_to_stderr);
 
-MEMCACHED_PUBLIC_API
-struct mock_connstruct *mk_mock_connection(const char *user);
-
 MEMCACHED_PUBLIC_API const void *create_mock_cookie(void);
 
 MEMCACHED_PUBLIC_API void destroy_mock_cookie(const void *cookie);
