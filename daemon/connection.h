@@ -936,14 +936,14 @@ private:
      * The SASL object used to do sasl authentication
      */
     cbsasl_conn_t* sasl_conn;
-private:
+
+    /** The current state we're in */
     STATE_FUNC state;
-    /**
-     * The current substate we're in
-     */
+
+    /** The current substate we're in */
     bin_substates substate;
 
-    /* The protocol used by the connection */
+    /** The protocol used by the connection */
     Protocol protocol;
 
     /** Is the connection set up with admin privileges */
@@ -967,20 +967,21 @@ private:
     short currentEvent;
 
 public:
-    struct net_buf read;
     /** Read buffer */
-    struct net_buf write; /* Write buffer */
+    struct net_buf read;
+    /** Write buffer */
+    struct net_buf write;
 
 private:
     /** which state to go into after finishing current write */
     STATE_FUNC write_and_go;
 
 public:
-    char* ritem;
     /** when we read in an item's value, it goes here */
-    uint32_t rlbytes;
+    char* ritem;
 
     /* data for the nread state */
+    uint32_t rlbytes;
 
     /**
      * item is used to hold an item structure created after reading the command
@@ -991,21 +992,24 @@ public:
 
     /* data for the mwrite state */
     struct iovec* iov;
+    /** number of elements allocated in iov[] */
     int iovsize;
-    /* number of elements allocated in iov[] */
+    /** number of elements used in iov[] */
     int iovused;
-    /* number of elements used in iov[] */
 
     struct msghdr* msglist;
+    /** number of elements allocated in msglist[] */
     int msgsize;
-    /* number of elements allocated in msglist[] */
+    /** number of elements used in msglist[] */
     int msgused;
-    /* number of elements used in msglist[] */
+    /** element in msglist[] being transmitted now */
     int msgcurr;
-    /* element in msglist[] being transmitted now */
-    int msgbytes;  /* number of bytes in current msg */
+    /** number of bytes in current msg */
+    int msgbytes;
 
-    // List of items we've reserved during the command (should call item_release)
+    /** List of items we've reserved during the command (should call
+     * item_release when transmit is complete)
+     */
     std::vector<void*> reservedItems;
 
 private:
@@ -1052,10 +1056,10 @@ public:
     /* Binary protocol stuff */
     /* This is where the binary header goes */
     protocol_binary_request_header binary_header;
+    /** the cas to return */
     uint64_t cas;
-    /* the cas to return */
+    /** current command being processed */
     uint8_t cmd;
-    /* current command being processed */
     uint32_t opaque;
     int keylen;
 
