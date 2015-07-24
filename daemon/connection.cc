@@ -32,6 +32,7 @@ Connection::Connection()
       substate(bin_substates::bin_no_state),
       protocol(Protocol::Memcached),
       admin(false),
+      authenticated(false),
       registered_in_libevent(false),
       ev_flags(0),
       currentEvent(0),

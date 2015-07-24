@@ -311,6 +311,14 @@ public:
         Connection::admin = admin;
     }
 
+    bool isAuthenticated() const {
+        return authenticated;
+    }
+
+    void setAuthenticated(bool authenticated) {
+        Connection::authenticated = authenticated;
+    }
+
     /**
      * Get the maximum number of events we should process per invocation
      * for a connection object (to avoid starvation of other connections)
@@ -464,14 +472,6 @@ public:
             username = unknown;
         }
         return reinterpret_cast<const char*>(username);
-    }
-
-    bool isAuthenticated() const {
-        const void *uname = NULL;
-        if (sasl_conn) {
-            cbsasl_getprop(sasl_conn, CBSASL_USERNAME, &uname);
-        }
-        return uname != NULL;
     }
 
     cbsasl_conn_t* getSaslConn() const {
@@ -977,6 +977,9 @@ private:
 
     /** Is the connection set up with admin privileges */
     bool admin;
+
+    /** Is the connection authenticated or not */
+    bool authenticated;
 
     // Members related to libevent
 

@@ -3729,6 +3729,7 @@ static void sasl_auth_executor(Connection *c, void *packet)
                                     &out, &outlen);
     }
 
+    c->setAuthenticated(false);
     switch(result) {
     case CBSASL_OK:
         {
@@ -3741,6 +3742,7 @@ static void sasl_auth_executor(Connection *c, void *packet)
                      c->getId(), c->getPeername().c_str(), data.username);
             }
 
+            c->setAuthenticated(true);
             write_bin_response(c, NULL, 0, 0, 0);
 
             /*
