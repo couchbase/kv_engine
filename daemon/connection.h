@@ -478,22 +478,6 @@ public:
         Connection::substate = substate;
     }
 
-    const struct event& getEvent() const {
-        return event;
-    }
-
-    void setEvent(const struct event& event) {
-        Connection::event = event;
-    }
-
-    short getEvFlags() const {
-        return ev_flags;
-    }
-
-    void setEvFlags(short ev_flags) {
-        Connection::ev_flags = ev_flags;
-    }
-
     const net_buf& getRead() const {
         return read;
     }
