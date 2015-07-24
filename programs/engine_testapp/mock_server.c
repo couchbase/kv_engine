@@ -43,7 +43,6 @@ static void mock_get_auth_data(const void *cookie, auth_data_t *data) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     if (c != NULL) {
         data->username = c->uname;
-        data->config = c->config;
     }
 }
 
@@ -407,13 +406,12 @@ void init_mock_server(bool log_to_stderr) {
     cb_mutex_initialize(&time_mutex);
 }
 
-struct mock_connstruct *mk_mock_connection(const char *user, const char *config) {
+struct mock_connstruct *mk_mock_connection(const char *user) {
     struct mock_connstruct *rv = calloc(sizeof(struct mock_connstruct), 1);
     auth_data_t ad;
     cb_assert(rv);
     rv->magic = CONN_MAGIC;
     rv->uname = user ? strdup(user) : NULL;
-    rv->config = config ? strdup(config) : NULL;
     rv->connected = true;
     rv->next = connstructs;
     rv->evictions = 0;
@@ -497,7 +495,6 @@ static void disconnect_all_mock_connections_inner(struct mock_connstruct *c) {
         disconnect_mock_connection(c);
         disconnect_all_mock_connections_inner(c->next);
         free((void*)c->uname);
-        free((void*)c->config);
         free(c);
     }
 }

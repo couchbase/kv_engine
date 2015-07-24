@@ -1299,11 +1299,8 @@ static void get_auth_data(const void *cookie, auth_data_t *data) {
     if (conn) {
         cbsasl_getprop(conn, CBSASL_USERNAME,
                        reinterpret_cast<const void**>(&data->username));
-        cbsasl_getprop(conn, CBSASL_CONFIG,
-                       reinterpret_cast<const void**>(&data->config));
     } else {
         data->username = NULL;
-        data->config = NULL;
     }
 }
 
