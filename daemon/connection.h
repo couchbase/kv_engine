@@ -227,9 +227,10 @@ public:
 
     /**
      * Resolve the name of the local socket and the peer for the connected
-     * socket
+     * socket.
+     * @param listening True if the local socket is a listening socket.
      */
-    void resolveConnectionName();
+    void resolveConnectionName(bool listening);
 
     const std::string& getPeername() const {
         return peername;

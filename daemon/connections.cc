@@ -156,10 +156,10 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
         return NULL;
     }
 
+    c->resolveConnectionName(init_state == conn_listening);
     if (init_state == conn_listening) {
         c->setAuthContext(auth_create(NULL, NULL, NULL));
     } else {
-        c->resolveConnectionName();
         c->setAuthContext(auth_create(NULL, c->getPeername().c_str(),
                                       c->getSockname().c_str()));
 

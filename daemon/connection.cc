@@ -166,17 +166,22 @@ static std::string sockaddr_to_string(const struct sockaddr_storage* addr,
     return std::string(host) + ":" + std::string(port);
 }
 
-void Connection::resolveConnectionName() {
+void Connection::resolveConnectionName(bool listening) {
     int err;
-    struct sockaddr_storage peer;
-    socklen_t peer_len = sizeof(peer);
 
-    if ((err = getpeername(socketDescriptor, reinterpret_cast<struct sockaddr*>(&peer),
-                           &peer_len)) != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "getpeername for socket %d with error %d",
-                                        socketDescriptor, err);
-        return;
+    if (listening) {
+        peername = "*";
+    } else {
+        struct sockaddr_storage peer;
+        socklen_t peer_len = sizeof(peer);
+        if ((err = getpeername(socketDescriptor, reinterpret_cast<struct sockaddr*>(&peer),
+                               &peer_len)) != 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "getpeername for socket %d with error %d",
+                                            socketDescriptor, err);
+        } else {
+            peername = sockaddr_to_string(&peer, peer_len);
+        }
     }
 
     struct sockaddr_storage sock;
@@ -184,13 +189,11 @@ void Connection::resolveConnectionName() {
     if ((err = getsockname(socketDescriptor, reinterpret_cast<struct sockaddr*>(&sock),
                            &sock_len)) != 0) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "getsock for socket %d with error %d",
+                                        "getsockname for socket %d with error %d",
                                         socketDescriptor, err);
-        return;
+    } else {
+        sockname = sockaddr_to_string(&sock, sock_len);
     }
-
-    peername = sockaddr_to_string(&peer, peer_len);
-    sockname = sockaddr_to_string(&sock, sock_len);
 }
 
 bool Connection::unregisterEvent() {
