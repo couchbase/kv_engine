@@ -3962,12 +3962,7 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize)
  * Returns the current access count of the test key ("someval") as an integer
  * via the old string format.
  */
-int get_topkeys_legacy_value(const std::string& key) {
-
-    char *response_string = NULL;
-    char *token;
-    int access_count = 0;
-    bool found = false;
+int get_topkeys_legacy_value(const std::string& wanted_key) {
 
     union {
         protocol_binary_request_no_extras request;
@@ -3981,33 +3976,60 @@ int get_topkeys_legacy_value(const std::string& key) {
                              NULL, 0);
     safe_send(buffer.bytes, len, false);
 
-    do {
+    // We expect a variable number of response packets (one per top key);
+    // take them all off the wire, recording the one for our key which we
+    // parse at the end.
+    std::string value;
+    while (true) {
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
         validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        response_string = buffer.bytes + (sizeof(buffer.response) +
-                  buffer.response.message.header.response.keylen +
-                  buffer.response.message.header.response.extlen);
 
-        /* Return the get_hits aggregate count of the desired key
-         * - ("someval"). Legacy never used to check prior count.*/
-        if (!found &&
-            strstr((buffer.bytes + sizeof(buffer.response)), key.c_str())) {
-            while ((token = strtok(response_string, "=,"))) {
-                if (strncmp(token, "get_hits", 8) == 0) {
-                    found = true;
-                    access_count = (int)strtol(strtok(NULL, "=,"), NULL, 10);
-                    break;
-                }
-                strtok(NULL, "=,");
-            }
+        const char* key_ptr(buffer.bytes + sizeof(buffer.response) +
+                            buffer.response.message.header.response.extlen);
+        size_t key_len(buffer.response.message.header.response.keylen);
+
+        // A packet with key length zero indicates end of the stats.
+        if (key_len == 0) {
+            break;
         }
 
-    } while (buffer.response.message.header.response.keylen != 0);
+        const std::string key(key_ptr, key_len);
+        if (key == wanted_key) {
+            // Got our key. Save the value to one side; and finish consuming
+            // the STAT reponse packets.
+            EXPECT_EQ(0u, value.size())
+                << "Unexpectedly found a second topkey for wanted key '" << wanted_key;
 
-    EXPECT_TRUE(found);
+            const char* val_ptr(key_ptr + key_len);
+            const size_t val_len(buffer.response.message.header.response.bodylen -
+                                 key_len -
+                                 buffer.response.message.header.response.extlen);
+            EXPECT_GT(val_len, 0);
+            value = std::string(val_ptr, val_len);
+        }
+    };
 
-    return access_count;
+    if (value.size() > 0) {
+        // Extract the 'get_hits' stat (which actually the aggregate of all
+        // operations now).
+
+        const std::string token("get_hits=");
+        auto pos = value.find(token);
+        EXPECT_NE(std::string::npos, pos)
+            << "Failed to locate '" << token << "' substring in topkey '"
+            << wanted_key << "' value '" << value << "'";
+
+        // Move iterator to the other side of the equals sign (the value) and
+        // erase before that point.
+        pos += token.size();
+        value.erase(0, pos);
+
+        return std::stoi(value);
+    } else {
+        // If we got here then we failed to find the given key.
+        return 0;
+    }
 }
 
 /**
@@ -4150,7 +4172,8 @@ static void test_get_topkeys(const std::string& key, int operations) {
     }
 
     const int expected_count = initial_count + operations;
-    EXPECT_EQ(expected_count, get_topkeys_legacy_value(key));
+    EXPECT_EQ(expected_count, get_topkeys_legacy_value(key))
+        << "Unexpected topkeys legacy count for key:" << key;
     int json_value;
     EXPECT_TRUE(get_topkeys_json_value(key, json_value));
     EXPECT_EQ(expected_count, json_value);
@@ -4181,7 +4204,8 @@ static void test_delete_topkeys(const std::string& key) {
     validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_DELETE,
                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    EXPECT_EQ(initial_count + 1, get_topkeys_legacy_value(key));
+    EXPECT_EQ(initial_count + 1, get_topkeys_legacy_value(key))
+        << "Unexpected topkeys legacy count for key:" << key;
     int json_value;
     EXPECT_TRUE(get_topkeys_json_value(key, json_value));
     EXPECT_EQ(initial_count + 1, json_value);
