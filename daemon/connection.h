@@ -518,14 +518,6 @@ public:
         Connection::write_and_go = write_and_go;
     }
 
-    void* getWriteAndFree() const {
-        return write_and_free;
-    }
-
-    void setWriteAndFree(void* write_and_free) {
-        Connection::write_and_free = write_and_free;
-    }
-
     char* getRitem() const {
         return ritem;
     }
@@ -986,10 +978,6 @@ public:
 
     /** which state to go into after finishing current write */
     STATE_FUNC write_and_go;
-    void* write_and_free;
-    /** free this memory after finishing writing. Note:
-                                   used only by write_and_free(); shouldn't be
-                                   directly used by any commands.*/
 
     char* ritem;
     /** when we read in an item's value, it goes here */

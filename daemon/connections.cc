@@ -241,11 +241,6 @@ static void conn_cleanup(Connection *c) {
     }
     c->temp_alloc.resize(0);
 
-    if (c->write_and_free) {
-        free(c->write_and_free);
-        c->write_and_free = 0;
-    }
-
     c->read.curr = c->read.buf;
     c->read.bytes = 0;
     c->write.curr = c->write.buf;

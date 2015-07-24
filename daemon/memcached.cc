@@ -5260,7 +5260,12 @@ static void reset_cmd_handler(Connection *c) {
 
 void write_and_free(Connection *c, struct dynamic_buffer* buf) {
     if (buf->buffer) {
-        c->write_and_free = buf->buffer;
+        try {
+            c->temp_alloc.push_back(buf->buffer);
+        } catch (std::bad_alloc) {
+            c->setState(conn_closing);
+            return;
+        }
         c->write.curr = buf->buffer;
         c->write.bytes = (uint32_t)buf->offset;
         c->setState(conn_write);
@@ -6013,23 +6018,19 @@ bool conn_write(Connection *c) {
 bool conn_mwrite(Connection *c) {
     switch (c->transmit()) {
     case Connection::TransmitResult::Complete:
+
+        for (auto *temp_alloc : c->temp_alloc) {
+            free(temp_alloc);
+        }
+        c->temp_alloc.resize(0);
         if (c->getState() == conn_mwrite) {
             for (auto *it : c->reservedItems) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
             }
             c->reservedItems.clear();
-            for (auto *temp_alloc : c->temp_alloc) {
-                free(temp_alloc);
-            }
-            c->temp_alloc.resize(0);
-
             /* XXX:  I don't know why this wasn't the general case */
             c->setState(c->write_and_go);
         } else if (c->getState() == conn_write) {
-            if (c->write_and_free) {
-                free(c->write_and_free);
-                c->write_and_free = 0;
-            }
             c->setState(c->write_and_go);
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,

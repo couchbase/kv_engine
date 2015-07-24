@@ -36,7 +36,6 @@ Connection::Connection()
       ev_flags(0),
       currentEvent(0),
       write_and_go(nullptr),
-      write_and_free(nullptr),
       ritem(nullptr),
       rlbytes(0),
       item(nullptr),
