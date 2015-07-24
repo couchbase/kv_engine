@@ -669,7 +669,7 @@ void collect_timings(const Connection *c) {
     hrtime_t now = gethrtime();
     const hrtime_t elapsed_ns = now - c->start;
     // aggregated timing for all buckets
-    all_buckets[0].timings.collect(c->cmd, elapsed_ns);
+    all_buckets[0].timings.collect(c->getCmd(), elapsed_ns);
 
     // timing for current bucket
     bucket_id_t bucketid = get_bucket_id(c);
@@ -678,16 +678,16 @@ void collect_timings(const Connection *c) {
      * to delete the bucket you're associated with and your're idle.
      */
     if (bucketid != 0) {
-        all_buckets[bucketid].timings.collect(c->cmd, elapsed_ns);
+        all_buckets[bucketid].timings.collect(c->getCmd(), elapsed_ns);
     }
 
     // Log operations taking longer than 0.5s
     const hrtime_t elapsed_ms = elapsed_ns / (1000 * 1000);
     if (elapsed_ms > 500) {
-        const char *opcode = memcached_opcode_2_text(c->cmd);
+        const char *opcode = memcached_opcode_2_text(c->getCmd());
         char opcodetext[10];
         if (opcode == NULL) {
-            snprintf(opcodetext, sizeof(opcodetext), "0x%0X", c->cmd);
+            snprintf(opcodetext, sizeof(opcodetext), "0x%0X", c->getCmd());
             opcode = opcodetext;
         }
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -1009,8 +1009,8 @@ void write_bin_packet(Connection *c, protocol_binary_response_status err) {
  */
 static void write_bin_response(Connection *c, const void *d, int extlen, int keylen,
                                int dlen) {
-    if (!c->isNoReply() || c->cmd == PROTOCOL_BINARY_CMD_GET ||
-        c->cmd == PROTOCOL_BINARY_CMD_GETK) {
+    if (!c->isNoReply() || c->getCmd() == PROTOCOL_BINARY_CMD_GET ||
+        c->getCmd() == PROTOCOL_BINARY_CMD_GETK) {
         if (add_bin_header(c, 0, extlen, keylen, dlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
             c->setState(conn_closing);
             return;
@@ -1097,8 +1097,8 @@ static void process_bin_get(Connection *c) {
         keylen = 0;
         bodylen = sizeof(rsp->message.body) + info.info.nbytes;
 
-        if ((c->cmd == PROTOCOL_BINARY_CMD_GETK) ||
-            (c->cmd == PROTOCOL_BINARY_CMD_GETKQ)) {
+        if ((c->getCmd() == PROTOCOL_BINARY_CMD_GETK) ||
+            (c->getCmd() == PROTOCOL_BINARY_CMD_GETKQ)) {
             bodylen += (uint32_t)nkey;
             keylen = (uint16_t)nkey;
         }
@@ -1130,8 +1130,8 @@ static void process_bin_get(Connection *c) {
             rsp->message.body.flags = info.info.flags;
             add_iov(c, &rsp->message.body, sizeof(rsp->message.body));
 
-            if ((c->cmd == PROTOCOL_BINARY_CMD_GETK) ||
-                (c->cmd == PROTOCOL_BINARY_CMD_GETKQ)) {
+            if ((c->getCmd() == PROTOCOL_BINARY_CMD_GETK) ||
+                (c->getCmd() == PROTOCOL_BINARY_CMD_GETKQ)) {
                 add_iov(c, info.info.key, nkey);
             }
 
@@ -1153,8 +1153,8 @@ static void process_bin_get(Connection *c) {
         if (c->isNoReply()) {
             c->setState(conn_new_cmd);
         } else {
-            if ((c->cmd == PROTOCOL_BINARY_CMD_GETK) ||
-                (c->cmd == PROTOCOL_BINARY_CMD_GETKQ)) {
+            if ((c->getCmd() == PROTOCOL_BINARY_CMD_GETK) ||
+                (c->getCmd() == PROTOCOL_BINARY_CMD_GETKQ)) {
                 char *ofs = c->write.buf + sizeof(protocol_binary_response_header);
                 if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
                                    0, (uint16_t)nkey,
@@ -1299,7 +1299,7 @@ static void handle_binary_protocol_error(Connection *c) {
 static bool authenticated(Connection *c) {
     bool rv = false;
 
-    switch (c->cmd) {
+    switch (c->getCmd()) {
     case PROTOCOL_BINARY_CMD_SASL_LIST_MECHS: /* FALLTHROUGH */
     case PROTOCOL_BINARY_CMD_SASL_AUTH:       /* FALLTHROUGH */
     case PROTOCOL_BINARY_CMD_SASL_STEP:       /* FALLTHROUGH */
@@ -1314,7 +1314,7 @@ static bool authenticated(Connection *c) {
     if (settings.verbose > 1) {
         settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                 "%u: authenticated() in cmd 0x%02x is %s\n",
-                c->getId(), c->cmd, rv ? "true" : "false");
+                c->getId(), c->getCmd(), rv ? "true" : "false");
     }
 
     return rv;
@@ -3709,7 +3709,7 @@ static void sasl_auth_executor(Connection *c, void *packet)
     unsigned int outlen = 0;
     int result;
 
-    if (c->cmd == PROTOCOL_BINARY_CMD_SASL_AUTH) {
+    if (c->getCmd() == PROTOCOL_BINARY_CMD_SASL_AUTH) {
         cbsasl_conn_t* conn = c->getSaslConn();
         result = cbsasl_server_start(&conn, mech, challenge, vlen,
                                      (unsigned char**) &out, &outlen);
@@ -3823,7 +3823,7 @@ static void flush_executor(Connection *c, void *packet)
     time_t exptime = 0;
     auto* req = reinterpret_cast<protocol_binary_request_flush*>(packet);
 
-    if (c->cmd == PROTOCOL_BINARY_CMD_FLUSHQ) {
+    if (c->getCmd() == PROTOCOL_BINARY_CMD_FLUSHQ) {
         c->setNoReply(true);
     }
 
@@ -4183,7 +4183,7 @@ static void get_executor(Connection *c, void *packet)
 {
     (void)packet;
 
-    switch (c->cmd) {
+    switch (c->getCmd()) {
     case PROTOCOL_BINARY_CMD_GETQ:
         c->setNoReply(true);
         break;
@@ -4208,7 +4208,7 @@ static void delete_executor(Connection *c, void *packet)
 {
     (void)packet;
 
-    if (c->cmd == PROTOCOL_BINARY_CMD_DELETEQ) {
+    if (c->getCmd() == PROTOCOL_BINARY_CMD_DELETEQ) {
         c->setNoReply(true);
     }
 
@@ -4351,7 +4351,7 @@ static void arithmetic_executor(Connection *c, void *packet)
     cb_assert(c != NULL);
 
 
-    switch (c->cmd) {
+    switch (c->getCmd()) {
     case PROTOCOL_BINARY_CMD_INCREMENTQ:
         c->setNoReply(true);
         break;
@@ -4379,8 +4379,8 @@ static void arithmetic_executor(Connection *c, void *packet)
     expiration = ntohl(req->message.body.expiration);
     key = binary_get_key(c);
     nkey = c->binary_header.request.keylen;
-    incr = (c->cmd == PROTOCOL_BINARY_CMD_INCREMENT ||
-            c->cmd == PROTOCOL_BINARY_CMD_INCREMENTQ);
+    incr = (c->getCmd() == PROTOCOL_BINARY_CMD_INCREMENT ||
+            c->getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ);
 
     if (settings.verbose > 1) {
         char buffer[1024];
@@ -4465,8 +4465,8 @@ static void arithmetic_executor(Connection *c, void *packet)
         break;
     case ENGINE_KEY_ENOENT:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-        if ((c->cmd == PROTOCOL_BINARY_CMD_INCREMENT) ||
-            (c->cmd == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
+        if ((c->getCmd() == PROTOCOL_BINARY_CMD_INCREMENT) ||
+            (c->getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ)) {
             STATS_INCR(c, incr_misses, key, nkey);
         } else {
             STATS_INCR(c, decr_misses, key, nkey);
@@ -5215,7 +5215,7 @@ static void process_bin_delete(Connection *c) {
 
 static void complete_nread(Connection *c) {
     cb_assert(c != NULL);
-    cb_assert(c->cmd >= 0);
+    cb_assert(c->getCmd() >= 0);
 
     switch(c->getSubstate()) {
     case bin_substates::bin_reading_packet:
@@ -5242,7 +5242,7 @@ static void complete_nread(Connection *c) {
 }
 
 static void reset_cmd_handler(Connection *c) {
-    c->cmd = -1;
+    c->setCmd(-1);
     c->setSubstate(bin_substates::bin_no_state);
     if(c->item != NULL) {
         c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
@@ -5686,7 +5686,7 @@ static int try_read_command(Connection *c) {
             return -1;
         }
 
-        c->cmd = c->binary_header.request.opcode;
+        c->setCmd(c->binary_header.request.opcode);
         c->keylen = c->binary_header.request.keylen;
         /* clear the returned cas value */
         c->setCAS(0);

@@ -1064,10 +1064,10 @@ private:
     /** the cas to return */
     uint64_t cas;
 
-public:
     /** current command being processed */
     uint8_t cmd;
 
+public:
     int keylen;
 
     int list_state;
