@@ -126,5 +126,17 @@ public:
      * Topkeys
      */
     TopKeys *topkeys;
-
 };
+
+class Connection;
+/**
+ * Get the name of the associated bucket. Note that this function must
+ * only be called while the current connection is being served (otherwise
+ * a race may occur causing the data to be returned to be modified).
+ *
+ * The client should not try to modify (or release) the returned pointer
+ * as it points into the static area of the bucket array. The entry
+ * is valid as long as the current connection is being served (unless it
+ * tries to switch bucket/delete bucket, then it is invalidated).
+ */
+extern const char* getBucketName(const Connection* c);

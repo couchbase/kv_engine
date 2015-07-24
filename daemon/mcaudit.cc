@@ -18,31 +18,10 @@
 #include "memcached.h"
 #include "mcaudit.h"
 #include "memcached_audit_events.h"
+#include "buckets.h"
 
 #include <memcached/audit_interface.h>
 #include <cJSON.h>
-
-/**
- * Get the bucket the connection is bound to.
- *
- * Currently the bucket name is the same as the authenticated
- * user, but when we're moving to RBAC this will differ
- *
- * @param c the connection object
- * @return the name of the bucket currently connected to
- */
-static const char *get_bucketname(const Connection *c)
-{
-    static const char default_bucket[] = "default";
-    const void *bucketname = default_bucket;
-
-    // @todo refactor to return the real bucket name (from the buckets array)
-    if (cbsasl_getprop(c->getSaslConn(), CBSASL_USERNAME, &bucketname) != CBSASL_OK) {
-        bucketname = default_bucket;
-    }
-    return reinterpret_cast<const char*>(bucketname);
-}
-
 
 /**
  * Create the typical memcached audit object. It constists of a
@@ -100,7 +79,7 @@ void audit_dcp_open(const Connection *c)
                                         "Open DCP stream with admin credentials");
     } else {
         cJSON *root = create_memcached_audit_object(c);
-        cJSON_AddStringToObject(root, "bucket", get_bucketname(c));
+        cJSON_AddStringToObject(root, "bucket", getBucketName(c));
 
         do_audit(c, MEMCACHED_AUDIT_OPENED_DCP_CONNECTION, root,
                  "Failed to send DCP open connection "

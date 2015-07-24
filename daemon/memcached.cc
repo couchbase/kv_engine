@@ -87,6 +87,11 @@ static ENGINE_HANDLE* v1_handle_2_handle(ENGINE_HANDLE_V1* v1) {
     return reinterpret_cast<ENGINE_HANDLE*>(v1);
 }
 
+
+const char* getBucketName(const Connection* c) {
+    return all_buckets[c->bucket.idx].name;
+}
+
 /* Wrap the engine interface ! */
 
 void bucket_item_set_cas(Connection *c, item *it, uint64_t cas) {
