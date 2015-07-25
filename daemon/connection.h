@@ -902,6 +902,34 @@ public:
         return block != 0;
     }
 
+    /**
+     * Ensures that there is room for another struct iovec in a connection's
+     * iov list.
+     */
+    bool ensureIovSpace() {
+        if (iovused >= iovsize) {
+            auto *new_iov = (struct iovec *)realloc(iov,
+                                                    (iovsize * 2) * sizeof(struct iovec));
+            if (new_iov == nullptr) {
+                return false;
+            }
+            iov = new_iov;
+            iovsize *= 2;
+
+            /* Point all the msghdr structures at the new list. */
+            int ii;
+            int iovnum;
+            for (ii = 0, iovnum = 0; ii < msgused; ii++) {
+                msglist[ii].msg_iov = &iov[iovnum];
+                iovnum += msglist[ii].msg_iovlen;
+            }
+        }
+
+        return true;
+    }
+
+
+
 protected:
     /**
      * Read data over the SSL connection

@@ -189,7 +189,6 @@ static void settings_init(void);
 
 /* event handling, network IO */
 static void complete_nread(Connection *c);
-static int ensure_iov_space(Connection *c);
 static int add_msghdr(Connection *c);
 
 /** exported globals **/
@@ -539,7 +538,7 @@ static int add_msghdr(Connection *c)
        msg_flags, the last 3 of which aren't defined on solaris: */
     memset(msg, 0, sizeof(struct msghdr));
 
-    msg->msg_iov = &c->iov[c->iovused];
+    msg->msg_iov = &c->getIov()[c->getIovused()];
 
     c->msgbytes = 0;
     c->msgused++;
@@ -697,35 +696,6 @@ void collect_timings(const Connection *c) {
     }
 }
 
-/*
- * Ensures that there is room for another struct iovec in a connection's
- * iov list.
- *
- * Returns 0 on success, -1 on out-of-memory.
- */
-static int ensure_iov_space(Connection *c) {
-    cb_assert(c != NULL);
-
-    if (c->iovused >= c->iovsize) {
-        int i, iovnum;
-        struct iovec *new_iov = (struct iovec *)realloc(c->iov,
-                                (c->iovsize * 2) * sizeof(struct iovec));
-        if (! new_iov)
-            return -1;
-        c->iov = new_iov;
-        c->iovsize *= 2;
-
-        /* Point all the msghdr structures at the new list. */
-        for (i = 0, iovnum = 0; i < c->msgused; i++) {
-            c->msglist[i].msg_iov = &c->iov[iovnum];
-            iovnum += c->msglist[i].msg_iovlen;
-        }
-    }
-
-    return 0;
-}
-
-
 int add_iov(Connection *c, const void *buf, size_t len) {
     struct msghdr *m;
     size_t leftover;
@@ -754,8 +724,9 @@ int add_iov(Connection *c, const void *buf, size_t len) {
             }
         }
 
-        if (ensure_iov_space(c) != 0)
+        if (!c->ensureIovSpace()) {
             return -1;
+        }
 
         /* If the fragment is too big to fit in the datagram, split it up */
         if (limit_to_mtu && len + c->msgbytes > UDP_MAX_PAYLOAD_SIZE) {
