@@ -1064,9 +1064,13 @@ private:
      */
     void* engine_storage;
 
-public:
+    /**
+     * The high resolution timer value for when we started executing the
+     * current command.
+     */
     hrtime_t start;
 
+public:
     /* Binary protocol stuff */
     /* This is where the binary header goes */
     protocol_binary_request_header binary_header;

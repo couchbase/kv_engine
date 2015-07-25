@@ -254,7 +254,7 @@ static void conn_cleanup(Connection *c) {
     c->setThread(nullptr);
     cb_assert(c->getNext() == nullptr);
     c->setSocketDescriptor(INVALID_SOCKET);
-    c->start = 0;
+    c->setStart(0);
     c->disableSSL();
 }
 

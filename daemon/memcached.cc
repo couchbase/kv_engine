@@ -667,7 +667,7 @@ static bucket_id_t get_bucket_id(const void *cookie) {
 
 void collect_timings(const Connection *c) {
     hrtime_t now = gethrtime();
-    const hrtime_t elapsed_ns = now - c->start;
+    const hrtime_t elapsed_ns = now - c->getStart();
     // aggregated timing for all buckets
     all_buckets[0].timings.collect(c->getCmd(), elapsed_ns);
 
@@ -1019,9 +1019,9 @@ static void write_bin_response(Connection *c, const void *d, int extlen, int key
         c->setState(conn_mwrite);
         c->setWriteAndGo(conn_new_cmd);
     } else {
-        if (c->start != 0) {
+        if (c->getStart() != 0) {
             collect_timings(c);
-            c->start = 0;
+            c->setStart(0);
         }
         c->setState(conn_new_cmd);
     }
@@ -5114,8 +5114,8 @@ static void dispatch_bin_command(Connection *c) {
         return;
     }
 
-    if (c->start == 0) {
-        c->start = gethrtime();
+    if (c->getStart() == 0) {
+        c->setStart(gethrtime());
     }
 
     MEMCACHED_PROCESS_COMMAND_START(c->getId(), c->read.curr, c->read.bytes);
@@ -5893,7 +5893,7 @@ bool conn_new_cmd(Connection *c) {
         return true;
     }
 
-    c->start = 0;
+    c->setStart(0);
 
     /*
      * In order to ensure that all clients will be served each
