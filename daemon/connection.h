@@ -526,28 +526,32 @@ public:
         Connection::item = item;
     }
 
-    iovec* getIov() const {
-        return iov;
+    /**
+     * Get the pointer to the IO Vector
+     */
+    iovec* getIov() {
+        return iov.data();
     }
 
-    void setIov(iovec* iov) {
-        Connection::iov = iov;
+    /**
+     * Reset the number of elements used in the IO Vector
+     */
+    void resetIovUsed() {
+        iovused = 0;
     }
 
-    int getIovsize() const {
-        return iovsize;
+    /**
+     * Increment the number of elements used in the IO Vector
+     */
+    void incIovUsed() {
+        ++iovused;
     }
 
-    void setIovsize(int iovsize) {
-        Connection::iovsize = iovsize;
-    }
-
-    int getIovused() const {
+    /**
+     * Get the number of entries in use in the IO Vector
+     */
+    int getIovUsed() const {
         return iovused;
-    }
-
-    void setIovused(int iovused) {
-        Connection::iovused = iovused;
     }
 
     msghdr* getMsglist() const {
@@ -907,22 +911,24 @@ public:
      * iov list.
      */
     bool ensureIovSpace() {
-        if (iovused >= iovsize) {
-            auto *new_iov = (struct iovec *)realloc(iov,
-                                                    (iovsize * 2) * sizeof(struct iovec));
-            if (new_iov == nullptr) {
-                return false;
-            }
-            iov = new_iov;
-            iovsize *= 2;
+        if (iovused < iov.size()) {
+            // There is still size in the list
+            return true;
+        }
 
-            /* Point all the msghdr structures at the new list. */
-            int ii;
-            int iovnum;
-            for (ii = 0, iovnum = 0; ii < msgused; ii++) {
-                msglist[ii].msg_iov = &iov[iovnum];
-                iovnum += msglist[ii].msg_iovlen;
-            }
+        // Try to double the size of the array
+        try {
+            iov.resize(iov.size() * 2);
+        } catch (std::bad_alloc) {
+            return false;
+        }
+
+        /* Point all the msghdr structures at the new list. */
+        int ii;
+        int iovnum;
+        for (ii = 0, iovnum = 0; ii < msgused; ii++) {
+            msglist[ii].msg_iov = &iov[iovnum];
+            iovnum += msglist[ii].msg_iovlen;
         }
 
         return true;
@@ -1027,12 +1033,13 @@ public:
      */
     void* item;
 
+private:
     /* data for the mwrite state */
-    struct iovec* iov;
-    /** number of elements allocated in iov[] */
-    int iovsize;
+    std::vector<iovec> iov;
     /** number of elements used in iov[] */
-    int iovused;
+    size_t iovused;
+
+public:
 
     struct msghdr* msglist;
     /** number of elements allocated in msglist[] */

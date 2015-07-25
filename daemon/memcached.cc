@@ -538,7 +538,7 @@ static int add_msghdr(Connection *c)
        msg_flags, the last 3 of which aren't defined on solaris: */
     memset(msg, 0, sizeof(struct msghdr));
 
-    msg->msg_iov = &c->getIov()[c->getIovused()];
+    msg->msg_iov = &c->getIov()[c->getIovUsed()];
 
     c->msgbytes = 0;
     c->msgused++;
@@ -741,8 +741,8 @@ int add_iov(Connection *c, const void *buf, size_t len) {
         m->msg_iov[m->msg_iovlen].iov_len = len;
 
         c->msgbytes += (int)len;
-        c->iovused++;
-        STATS_MAX(c, iovused_high_watermark, c->iovused);
+        c->incIovUsed();
+        STATS_MAX(c, iovused_high_watermark, c->getIovUsed());
         m->msg_iovlen++;
 
         buf = ((char *)buf) + len;
@@ -827,7 +827,7 @@ int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_le
 
     c->msgcurr = 0;
     c->msgused = 0;
-    c->iovused = 0;
+    c->resetIovUsed();
     if (add_msghdr(c) != 0) {
         return -1;
     }
@@ -1416,7 +1416,7 @@ static void ship_tap_log(Connection *c) {
 
     c->msgcurr = 0;
     c->msgused = 0;
-    c->iovused = 0;
+    c->resetIovUsed();
     if (add_msghdr(c) != 0) {
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -2646,7 +2646,7 @@ static void ship_dcp_log(Connection *c) {
 
     c->msgcurr = 0;
     c->msgused = 0;
-    c->iovused = 0;
+    c->resetIovUsed();
     if (add_msghdr(c) != 0) {
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -5647,7 +5647,7 @@ static int try_read_command(Connection *c) {
 
         c->msgcurr = 0;
         c->msgused = 0;
-        c->iovused = 0;
+        c->resetIovUsed();
         if (add_msghdr(c) != 0) {
             c->setState(conn_closing);
             return -1;
@@ -5972,7 +5972,7 @@ bool conn_write(Connection *c) {
      * assemble it into a msgbuf list (this will be a single-entry
      * list for TCP).
      */
-    if (c->iovused == 0) {
+    if (c->getIovUsed() == 0) {
         if (add_iov(c, c->write.curr, c->write.bytes) != 0) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "Couldn't build response, closing connection");

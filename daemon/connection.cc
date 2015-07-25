@@ -39,8 +39,7 @@ Connection::Connection()
       ritem(nullptr),
       rlbytes(0),
       item(nullptr),
-      iov(nullptr),
-      iovsize(0),
+      iov(IOV_LIST_INITIAL),
       iovused(0),
       msglist(nullptr),
       msgsize(0),
@@ -89,7 +88,6 @@ Connection::~Connection() {
     cbsasl_dispose(&sasl_conn);
     free(read.buf);
     free(write.buf);
-    free(iov);
     free(msglist);
 
     cb_assert(reservedItems.empty());
@@ -100,18 +98,6 @@ Connection::~Connection() {
 
 void Connection::resetBufferSize() {
     bool ret = true;
-
-    if (iovsize != IOV_LIST_INITIAL) {
-        void* mem = malloc(sizeof(struct iovec) * IOV_LIST_INITIAL);
-        auto* ptr = reinterpret_cast<struct iovec*>(mem);
-        if (ptr != NULL) {
-            free(iov);
-            iov = ptr;
-            iovsize = IOV_LIST_INITIAL;
-        } else {
-            ret = false;
-        }
-    }
 
     if (msgsize != MSG_LIST_INITIAL) {
         void* mem = malloc(sizeof(struct msghdr) * MSG_LIST_INITIAL);
@@ -127,7 +113,6 @@ void Connection::resetBufferSize() {
 
     if (!ret) {
         free(msglist);
-        free(iov);
         std::bad_alloc ex;
         throw ex;
     }
@@ -465,12 +450,11 @@ cJSON* Connection::toJSON() const {
         cJSON_AddNumberToObject(obj, "rlbytes", rlbytes);
         json_add_uintptr_to_object(obj, "item", (uintptr_t) item);
         {
-            cJSON* iov = cJSON_CreateObject();
-            json_add_uintptr_to_object(iov, "ptr", (uintptr_t) iov);
-            cJSON_AddNumberToObject(iov, "size", iovsize);
-            cJSON_AddNumberToObject(iov, "used", iovused);
+            cJSON* iovobj = cJSON_CreateObject();
+            cJSON_AddNumberToObject(iovobj, "size", iov.size());
+            cJSON_AddNumberToObject(iovobj, "used", iovused);
 
-            cJSON_AddItemToObject(obj, "iov", iov);
+            cJSON_AddItemToObject(obj, "iov", iovobj);
         }
         {
             cJSON* msg = cJSON_CreateObject();
@@ -588,17 +572,15 @@ void Connection::shrinkBuffers() {
         }
     }
 
-    if (iovsize > IOV_LIST_HIGHWAT) {
-        void* ptr = realloc(iov, IOV_LIST_INITIAL * sizeof(iov[0]));
-        auto* newbuf = reinterpret_cast<struct iovec*>(ptr);
-        if (newbuf) {
-            iov = newbuf;
-            iovsize = IOV_LIST_INITIAL;
-        } else {
+    if (iov.size() > IOV_LIST_HIGHWAT) {
+        try {
+            iov.resize(IOV_LIST_INITIAL);
+            iov.shrink_to_fit();
+        } catch (std::bad_alloc) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                            "%u: Failed to shrink iov down to %" PRIu64
-                                            " bytes.", getId(),
-                                            IOV_LIST_INITIAL * sizeof(iov[0]));
+                                            "%u: Failed to shrink iov down to %"
+                                                PRIu64 " elements.", getId(),
+                                            IOV_LIST_INITIAL);
         }
     }
 
