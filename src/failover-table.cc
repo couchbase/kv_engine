@@ -78,11 +78,19 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
     }
 
     *rollback_seqno = 0;
+
+    /* To be more efficient (avoid unnecessary rollback), see if the client has
+       already received all items in the requested snapshot */
+    if (start_seqno == snap_end_seqno) {
+        snap_start_seqno = start_seqno;
+    }
+
     /* There may be items that are purged during compaction. We need
      to rollback to seq no 0 in that case */
     if (snap_start_seqno < purge_seqno) {
         return true;
     }
+
     table_t::reverse_iterator itr;
     for (itr = table.rbegin(); itr != table.rend(); ++itr) {
         if (itr->vb_uuid == vb_uuid) {
