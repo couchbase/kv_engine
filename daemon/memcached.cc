@@ -1522,9 +1522,8 @@ static void ship_tap_log(Connection *c) {
                                                 c->getId());
                 break;
             }
-            try {
-                c->reservedItems.push_back(it);
-            } catch (std::bad_alloc) {
+
+            if (!c->reserveItem(it)) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Failed to grow item array",
@@ -1666,9 +1665,8 @@ static void ship_tap_log(Connection *c) {
                                                 c->getId());
                 break;
             }
-            try {
-                c->reservedItems.push_back(it);
-            } catch (std::bad_alloc) {
+
+            if (!c->reserveItem(it)) {
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Failed to grow item array",
@@ -2359,9 +2357,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
         return ENGINE_FAILED;
     }
 
-    try {
-        c->reservedItems.push_back(it);
-    } catch (std::bad_alloc) {
+    if (!c->reserveItem(it)) {
         c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%u: Failed to grow item array",
@@ -6023,10 +6019,7 @@ bool conn_mwrite(Connection *c) {
 
         c->releaseTempAlloc();
         if (c->getState() == conn_mwrite) {
-            for (auto *it : c->reservedItems) {
-                c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
-            }
-            c->reservedItems.clear();
+            c->releaseReservedItems();
         } else if (c->getState() != conn_write) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%u: Unexpected state %d, closing",

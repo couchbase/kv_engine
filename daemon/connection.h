@@ -590,12 +590,30 @@ public:
         Connection::msgbytes = msgbytes;
     }
 
-    const std::vector<void*>& getReservedItems() const {
-        return reservedItems;
+    /**
+     * Release all of the items we've saved a reference to
+     */
+    void releaseReservedItems() {
+        ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(bucket.engine);
+        for (auto *it : reservedItems) {
+            bucket.engine->release(handle, this, it);
+        }
+        reservedItems.clear();
     }
 
-    void setReservedItems(const std::vector<void*>& reservedItems) {
-        Connection::reservedItems = reservedItems;
+    /**
+     * Put an item on our list of reserved items (which we should release
+     * at a later time through releaseReservedItems).
+     *
+     * @return true if success, false otherwise
+     */
+    bool reserveItem(void *item) {
+        try {
+            reservedItems.push_back(item);
+            return true;
+        } catch (std::bad_alloc) {
+            return false;
+        }
     }
 
     void releaseTempAlloc() {
@@ -998,12 +1016,13 @@ public:
     /** number of bytes in current msg */
     int msgbytes;
 
-    /** List of items we've reserved during the command (should call
+private:
+    /**
+     * List of items we've reserved during the command (should call
      * item_release when transmit is complete)
      */
     std::vector<void*> reservedItems;
 
-private:
     /**
      * A vector of temporary allocations that should be freed when the
      * the connection is done sending all of the data. Use pushTempAlloc to

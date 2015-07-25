@@ -226,10 +226,7 @@ void conn_cleanup_engine_allocations(Connection * c) {
         c->item = NULL;
     }
 
-    for (auto *it : c->reservedItems) {
-        c->bucket.engine->release(handle, c, it);
-    }
-    c->reservedItems.clear();
+    c->releaseReservedItems();
 }
 
 static void conn_cleanup(Connection *c) {
