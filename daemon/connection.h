@@ -554,23 +554,26 @@ public:
         return iovused;
     }
 
-    msghdr* getMsglist() const {
-        return msglist;
+    /**
+     * Grow the message list if it is full
+     */
+    bool growMsglist() {
+        if (msglist.size() == msgused) {
+            cb_assert(msglist.size() > 0);
+            try {
+                msglist.resize(msglist.size() * 2);
+            } catch (std::bad_alloc) {
+                return false;
+            }
+        }
+        return true;
     }
 
-    void setMsglist(msghdr* msglist) {
-        Connection::msglist = msglist;
+    struct msghdr* getMsglist() {
+        return msglist.data();
     }
 
-    int getMsgsize() const {
-        return msgsize;
-    }
-
-    void setMsgsize(int msgsize) {
-        Connection::msgsize = msgsize;
-    }
-
-    int getMsgused() const {
+    size_t getMsgused() const {
         return msgused;
     }
 
@@ -578,11 +581,11 @@ public:
         Connection::msgused = msgused;
     }
 
-    int getMsgcurr() const {
+    size_t getMsgcurr() const {
         return msgcurr;
     }
 
-    void setMsgcurr(int msgcurr) {
+    void setMsgcurr(size_t msgcurr) {
         Connection::msgcurr = msgcurr;
     }
 
@@ -926,7 +929,7 @@ public:
         }
 
         /* Point all the msghdr structures at the new list. */
-        int ii;
+        size_t ii;
         int iovnum;
         for (ii = 0, iovnum = 0; ii < msgused; ii++) {
             msglist[ii].msg_iov = &iov[iovnum];
@@ -1041,19 +1044,15 @@ private:
     /** number of elements used in iov[] */
     size_t iovused;
 
-public:
-
-    struct msghdr* msglist;
-    /** number of elements allocated in msglist[] */
-    int msgsize;
+    /** The message list being used for transfer */
+    std::vector<struct msghdr> msglist;
     /** number of elements used in msglist[] */
-    int msgused;
+    size_t msgused;
     /** element in msglist[] being transmitted now */
-    int msgcurr;
+    size_t msgcurr;
     /** number of bytes in current msg */
     int msgbytes;
 
-private:
     /**
      * List of items we've reserved during the command (should call
      * item_release when transmit is complete)
@@ -1173,6 +1172,4 @@ private:
 
     /** Name of the local socket if known */
     std::string sockname;
-
-    void resetBufferSize();
 };

@@ -522,17 +522,11 @@ static int add_msghdr(Connection *c)
 
     cb_assert(c != NULL);
 
-    if (c->msgsize == c->msgused) {
-        cb_assert(c->msgsize > 0);
-        msg = reinterpret_cast<struct msghdr*>(
-                realloc(c->msglist, c->msgsize * 2 * sizeof(struct msghdr)));
-        if (! msg)
-            return -1;
-        c->msglist = msg;
-        c->msgsize *= 2;
+    if (!c->growMsglist()) {
+        return -1;
     }
 
-    msg = c->msglist + c->msgused;
+    msg = c->getMsglist() + c->getMsgused();
 
     /* this wipes msg_iovlen, msg_control, msg_controllen, and
        msg_flags, the last 3 of which aren't defined on solaris: */
@@ -540,9 +534,9 @@ static int add_msghdr(Connection *c)
 
     msg->msg_iov = &c->getIov()[c->getIovUsed()];
 
-    c->msgbytes = 0;
-    c->msgused++;
-    STATS_MAX(c, msgused_high_watermark, c->msgused);
+    c->setMsgbytes(0);
+    c->setMsgused(c->getMsgused() + 1);
+    STATS_MAX(c, msgused_high_watermark, c->getMsgused());
 
     return 0;
 }
@@ -708,17 +702,17 @@ int add_iov(Connection *c, const void *buf, size_t len) {
     }
 
     do {
-        m = &c->msglist[c->msgused - 1];
+        m = &c->getMsglist()[c->getMsgused() - 1];
 
         /*
          * Limit the first payloads of TCP replies, to
          * UDP_MAX_PAYLOAD_SIZE bytes.
          */
-        limit_to_mtu = (1 == c->msgused);
+        limit_to_mtu = (1 == c->getMsgused());
 
         /* We may need to start a new msghdr if this one is full. */
         if (m->msg_iovlen == IOV_MAX ||
-            (limit_to_mtu && c->msgbytes >= UDP_MAX_PAYLOAD_SIZE)) {
+            (limit_to_mtu && c->getMsgbytes() >= UDP_MAX_PAYLOAD_SIZE)) {
             if (add_msghdr(c) != 0) {
                 return -1;
             }
@@ -729,18 +723,18 @@ int add_iov(Connection *c, const void *buf, size_t len) {
         }
 
         /* If the fragment is too big to fit in the datagram, split it up */
-        if (limit_to_mtu && len + c->msgbytes > UDP_MAX_PAYLOAD_SIZE) {
-            leftover = len + c->msgbytes - UDP_MAX_PAYLOAD_SIZE;
+        if (limit_to_mtu && len + c->getMsgbytes() > UDP_MAX_PAYLOAD_SIZE) {
+            leftover = len + c->getMsgbytes() - UDP_MAX_PAYLOAD_SIZE;
             len -= leftover;
         } else {
             leftover = 0;
         }
 
-        m = &c->msglist[c->msgused - 1];
+        m = &c->getMsglist()[c->getMsgused() - 1];
         m->msg_iov[m->msg_iovlen].iov_base = (void *)buf;
         m->msg_iov[m->msg_iovlen].iov_len = len;
 
-        c->msgbytes += (int)len;
+        c->setMsgbytes(c->getMsgbytes() + (int)len);
         c->incIovUsed();
         STATS_MAX(c, iovused_high_watermark, c->getIovUsed());
         m->msg_iovlen++;
@@ -825,8 +819,8 @@ int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_le
 
     cb_assert(c);
 
-    c->msgcurr = 0;
-    c->msgused = 0;
+    c->setMsgcurr(0);
+    c->setMsgused(0);
     c->resetIovUsed();
     if (add_msghdr(c) != 0) {
         return -1;
@@ -1419,8 +1413,8 @@ static void ship_tap_log(Connection *c) {
     uint32_t bodylen;
     int ii = 0;
 
-    c->msgcurr = 0;
-    c->msgused = 0;
+    c->setMsgcurr(0);
+    c->setMsgused(0);
     c->resetIovUsed();
     if (add_msghdr(c) != 0) {
         if (settings.verbose) {
@@ -2647,8 +2641,8 @@ static void ship_dcp_log(Connection *c) {
     };
     ENGINE_ERROR_CODE ret;
 
-    c->msgcurr = 0;
-    c->msgused = 0;
+    c->setMsgcurr(0);
+    c->setMsgused(0);
     c->resetIovUsed();
     if (add_msghdr(c) != 0) {
         if (settings.verbose) {
@@ -5646,8 +5640,8 @@ static int try_read_command(Connection *c) {
             return -1;
         }
 
-        c->msgcurr = 0;
-        c->msgused = 0;
+        c->setMsgcurr(0);
+        c->setMsgused(0);
         c->resetIovUsed();
         if (add_msghdr(c) != 0) {
             c->setState(conn_closing);

@@ -41,8 +41,7 @@ Connection::Connection()
       item(nullptr),
       iov(IOV_LIST_INITIAL),
       iovused(0),
-      msglist(nullptr),
-      msgsize(0),
+      msglist(MSG_LIST_INITIAL),
       msgused(0),
       msgcurr(0),
       msgbytes(0),
@@ -77,7 +76,6 @@ Connection::Connection()
 
     state = conn_immediate_close;
     socketDescriptor = INVALID_SOCKET;
-    resetBufferSize();
 }
 
 Connection::~Connection() {
@@ -86,33 +84,10 @@ Connection::~Connection() {
     cbsasl_dispose(&sasl_conn);
     free(read.buf);
     free(write.buf);
-    free(msglist);
 
     cb_assert(reservedItems.empty());
     for (auto* ptr : temp_alloc) {
         free(ptr);
-    }
-}
-
-void Connection::resetBufferSize() {
-    bool ret = true;
-
-    if (msgsize != MSG_LIST_INITIAL) {
-        void* mem = malloc(sizeof(struct msghdr) * MSG_LIST_INITIAL);
-        auto* ptr = reinterpret_cast<struct msghdr*>(mem);
-        if (ptr != NULL) {
-            free(msglist);
-            msglist = ptr;
-            msgsize = MSG_LIST_INITIAL;
-        } else {
-            ret = false;
-        }
-    }
-
-    if (!ret) {
-        free(msglist);
-        std::bad_alloc ex;
-        throw ex;
     }
 }
 
@@ -456,8 +431,7 @@ cJSON* Connection::toJSON() const {
         }
         {
             cJSON* msg = cJSON_CreateObject();
-            json_add_uintptr_to_object(msg, "list", (uintptr_t) msglist);
-            cJSON_AddNumberToObject(msg, "size", msgsize);
+            cJSON_AddNumberToObject(msg, "size", msglist.size());
             cJSON_AddNumberToObject(msg, "used", msgused);
             cJSON_AddNumberToObject(msg, "curr", msgcurr);
             cJSON_AddNumberToObject(msg, "bytes", msgbytes);
@@ -555,17 +529,15 @@ void Connection::shrinkBuffers() {
         read.curr = read.buf;
     }
 
-    if (msgsize > MSG_LIST_HIGHWAT) {
-        void* ptr = realloc(msglist, MSG_LIST_INITIAL * sizeof(msglist[0]));
-        auto* newbuf = reinterpret_cast<struct msghdr*>(ptr);
-        if (newbuf) {
-            msglist = newbuf;
-            msgsize = MSG_LIST_INITIAL;
-        } else {
+    if (msglist.size() > MSG_LIST_HIGHWAT) {
+        try {
+            msglist.resize(MSG_LIST_INITIAL);
+            msglist.shrink_to_fit();
+        } catch (std::bad_alloc) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                            "%u: Failed to shrink msglist down to %" PRIu64
-                                            " bytes.", getId(),
-                                            MSG_LIST_INITIAL * sizeof(msglist[0]));
+                                            "%u: Failed to shrink msglist down to %"
+                                                PRIu64 " elements.", getId(),
+                                            MSG_LIST_INITIAL);
         }
     }
 
