@@ -907,14 +907,15 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     Connection *c = (Connection *)cookie;
     protocol_binary_response_header header;
     size_t needed = mapsize+ sizeof(protocol_binary_response_header);
-    if (!grow_dynamic_buffer(c, needed)) {
+    if (!c->growDynamicBuffer(needed)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                     "<%d ERROR: Failed to allocate memory for response",
                     c->getId());
         return ENGINE_ENOMEM;
     }
 
-    buf = c->dynamic_buffer.buffer + c->dynamic_buffer.offset;
+    auto &buffer = c->getDynamicBuffer();
+    buf = buffer.getCurrent();
     memset(&header, 0, sizeof(header));
 
     header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
@@ -926,7 +927,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     memcpy(buf, header.bytes, sizeof(header.response));
     buf += sizeof(header.response);
     memcpy(buf, map, mapsize);
-    c->dynamic_buffer.offset += needed;
+    buffer.moveOffset(needed);
 
     return ENGINE_SUCCESS;
 }
@@ -937,7 +938,7 @@ void write_bin_packet(Connection *c, protocol_binary_response_status err) {
 
         ret = bucket_get_engine_vb_map(c, get_vb_map_cb);
         if (ret == ENGINE_SUCCESS) {
-            write_and_free(c, &c->dynamic_buffer);
+            write_and_free(c, &c->getDynamicBuffer());
         } else {
             c->setState(conn_closing);
         }
@@ -1084,7 +1085,7 @@ static void process_bin_get(Connection *c) {
                                                datatype,
                                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                                info.info.cas, c)) {
-                write_and_free(c, &c->dynamic_buffer);
+                write_and_free(c, &c->getDynamicBuffer());
                 c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, it);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
@@ -1155,7 +1156,11 @@ static void process_bin_get(Connection *c) {
 static void append_bin_stats(const char *key, const uint16_t klen,
                              const char *val, const uint32_t vlen,
                              Connection *c) {
-    char *buf = c->dynamic_buffer.buffer + c->dynamic_buffer.offset;
+    auto &dbuf = c->getDynamicBuffer();
+    // We've ensured that there is enough room in the buffer before calling
+    // this method
+    char *buf = dbuf.getCurrent();
+
     uint32_t bodylen = klen + vlen;
     protocol_binary_response_header header;
 
@@ -1180,7 +1185,7 @@ static void append_bin_stats(const char *key, const uint16_t klen,
         }
     }
 
-    c->dynamic_buffer.offset += sizeof(header.response) + bodylen;
+    dbuf.moveOffset(sizeof(header.response) + bodylen);
 }
 
 
@@ -1196,11 +1201,10 @@ static void append_stats(const char *key, const uint16_t klen,
     }
 
     needed = vlen + klen + sizeof(protocol_binary_response_header);
-    if (!grow_dynamic_buffer(c, needed)) {
+    if (!c->growDynamicBuffer(needed)) {
         return ;
     }
     append_bin_stats(key, klen, val, vlen, c);
-    cb_assert(c->dynamic_buffer.offset <= c->dynamic_buffer.size);
 }
 
 static void bin_read_chunk(Connection *c,
@@ -1332,14 +1336,15 @@ bool binary_response_handler(const void *key, uint16_t keylen,
         needed += bodylen;
     }
 
-    if (!grow_dynamic_buffer(c, needed)) {
+    auto &dbuf = c->getDynamicBuffer();
+    if (!dbuf.grow(needed)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                           "<%u ERROR: Failed to allocate memory for response",
                           c->getId());
         return false;
     }
 
-    buf = c->dynamic_buffer.buffer + c->dynamic_buffer.offset;
+    buf = dbuf.getCurrent();
     memset(&header, 0, sizeof(header));
     header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
     header.response.opcode = c->binary_header.request.opcode;
@@ -1382,7 +1387,7 @@ bool binary_response_handler(const void *key, uint16_t keylen,
         }
     }
 
-    c->dynamic_buffer.offset += needed;
+    dbuf.moveOffset(needed);
     return true;
 }
 
@@ -1802,8 +1807,8 @@ static void process_bin_unknown_packet(Connection *c) {
     switch (ret) {
     case ENGINE_SUCCESS:
         {
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, &c->dynamic_buffer);
+            if (c->getDynamicBuffer().getRoot() != nullptr) {
+                write_and_free(c, &c->getDynamicBuffer());
             } else {
                 c->setState(conn_new_cmd);
             }
@@ -1821,9 +1826,7 @@ static void process_bin_unknown_packet(Connection *c) {
         break;
     default:
         /* Release the dynamic buffer.. it may be partial.. */
-        free(c->dynamic_buffer.buffer);
-        c->dynamic_buffer.buffer = NULL;
-        c->dynamic_buffer.size = 0;
+        c->clearDynamicBuffer();
         write_bin_packet(c, engine_error_2_protocol_error(ret));
     }
 }
@@ -2934,8 +2937,8 @@ static void dcp_get_failover_log_executor(Connection *c, void *packet) {
 
         switch (ret) {
         case ENGINE_SUCCESS:
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, &c->dynamic_buffer);
+            if (c->getDynamicBuffer().getRoot() != nullptr) {
+                write_and_free(c, &c->getDynamicBuffer());
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             }
@@ -2993,8 +2996,8 @@ static void dcp_stream_req_executor(Connection *c, void *packet)
         case ENGINE_SUCCESS:
             c->setDCP(true);
             c->setMaxReqsPerEvent(settings.reqs_per_event_med_priority);
-            if (c->dynamic_buffer.buffer != NULL) {
-                write_and_free(c, &c->dynamic_buffer);
+            if (c->getDynamicBuffer().getRoot() != nullptr) {
+                write_and_free(c, &c->getDynamicBuffer());
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             }
@@ -3006,7 +3009,7 @@ static void dcp_stream_req_executor(Connection *c, void *packet)
                                         sizeof(rollback_seqno), 0,
                                         PROTOCOL_BINARY_RESPONSE_ROLLBACK, 0,
                                         c)) {
-                write_and_free(c, &c->dynamic_buffer);
+                write_and_free(c, &c->getDynamicBuffer());
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             }
@@ -3591,7 +3594,7 @@ static void process_hello_packet_executor(Connection *c, void *packet) {
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                 0, c);
-        write_and_free(c, &c->dynamic_buffer);
+        write_and_free(c, &c->getDynamicBuffer());
     }
 
 
@@ -4272,7 +4275,7 @@ static void stat_executor(Connection *c, void *packet)
     switch (ret) {
     case ENGINE_SUCCESS:
         append_stats(NULL, 0, NULL, 0, c);
-        write_and_free(c, &c->dynamic_buffer);
+        write_and_free(c, &c->getDynamicBuffer());
         break;
     case ENGINE_ENOMEM:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
@@ -4496,7 +4499,7 @@ static void get_cmd_timer_executor(Connection *c, void *packet)
                                 PROTOCOL_BINARY_RAW_BYTES,
                                 PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                 0, c);
-        write_and_free(c, &c->dynamic_buffer);
+        write_and_free(c, &c->getDynamicBuffer());
     } else if (cookie_is_admin(c)) {
         bool found = false;
         for (int ii = 1; ii < settings.max_buckets && !found; ++ii) {
@@ -4515,7 +4518,7 @@ static void get_cmd_timer_executor(Connection *c, void *packet)
                                     PROTOCOL_BINARY_RAW_BYTES,
                                     PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                     0, c);
-            write_and_free(c, &c->dynamic_buffer);
+            write_and_free(c, &c->getDynamicBuffer());
         } else {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         }
@@ -4547,7 +4550,7 @@ static void set_ctrl_token_executor(Connection *c, void *packet)
                             ret, session_cas.value, c);
     cb_mutex_exit(&(session_cas.mutex));
 
-    write_and_free(c, &c->dynamic_buffer);
+    write_and_free(c, &c->getDynamicBuffer());
 }
 
 static void get_ctrl_token_executor(Connection *c, void *packet)
@@ -4559,7 +4562,7 @@ static void get_ctrl_token_executor(Connection *c, void *packet)
                             PROTOCOL_BINARY_RESPONSE_SUCCESS,
                             session_cas.value, c);
     cb_mutex_exit(&(session_cas.mutex));
-    write_and_free(c, &c->dynamic_buffer);
+    write_and_free(c, &c->getDynamicBuffer());
 }
 
 static void init_complete_executor(Connection *c, void *packet)
@@ -4597,7 +4600,7 @@ static void ioctl_get_executor(Connection *c, void *packet)
                                     uint32_t(length),
                                     PROTOCOL_BINARY_RAW_BYTES,
                                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
-            write_and_free(c, &c->dynamic_buffer);
+            write_and_free(c, &c->getDynamicBuffer());
         } else {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
@@ -4656,7 +4659,7 @@ static void config_validate_executor(Connection *c, void *packet) {
                                         (uint32_t)strlen(error_string), 0,
                                         PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
                                         c)) {
-                write_and_free(c, &c->dynamic_buffer);
+                write_and_free(c, &c->getDynamicBuffer());
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             }
@@ -4820,7 +4823,7 @@ static void list_bucket_executor(Connection *c, void *)
         if (binary_response_handler(NULL, 0, NULL, 0, blob.data(),
                                     uint32_t(blob.size()), 0,
                                     PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
-            write_and_free(c, &c->dynamic_buffer);
+            write_and_free(c, &c->getDynamicBuffer());
         } else {
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
@@ -5231,22 +5234,20 @@ static void reset_cmd_handler(Connection *c) {
     }
 }
 
-void write_and_free(Connection *c, struct dynamic_buffer* buf) {
-    if (buf->buffer) {
-        if (!c->pushTempAlloc(buf->buffer)) {
+void write_and_free(Connection *c, DynamicBuffer* buf) {
+    if (buf->getRoot() == nullptr) {
+        c->setState(conn_closing);
+    } else {
+        if (!c->pushTempAlloc(buf->getRoot())) {
             c->setState(conn_closing);
             return;
         }
-        c->write.curr = buf->buffer;
-        c->write.bytes = (uint32_t)buf->offset;
+        c->write.curr = buf->getRoot();
+        c->write.bytes = (uint32_t)buf->getOffset();
         c->setState(conn_write);
         c->setWriteAndGo(conn_new_cmd);
 
-        buf->buffer = NULL;
-        buf->size = 0;
-        buf->offset = 0;
-    } else {
-        c->setState(conn_closing);
+        buf->takeOwnership();
     }
 }
 

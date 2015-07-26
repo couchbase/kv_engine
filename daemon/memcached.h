@@ -24,6 +24,8 @@
 #include "settings.h"
 
 #include "stats_counter.h"
+#include "dynamic_buffer.h"
+
 
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
@@ -85,12 +87,6 @@ struct net_buf {
     char     *curr; /** but if we parsed some already, this is where we stopped */
     uint32_t size;  /** total allocated size of buf */
     uint32_t bytes; /** how much data, starting from curr, do we have unparsed */
-};
-
-struct dynamic_buffer {
-     char *buffer;   /** Start of the allocated buffer */
-     size_t size;    /** Total allocated size */
-     size_t offset;  /** How much of the buffer has been used so far. */
 };
 
 class Connection;
@@ -271,8 +267,8 @@ int add_iov(Connection *c, const void *buf, size_t len);
 int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_len,
                    uint32_t body_len, uint8_t datatype);
 
-/* set up a connection to write a dynamic_buffer then free it once sent. */
-void write_and_free(Connection *c, struct dynamic_buffer* buf);
+/* set up a connection to write a DynamicBuffer then free it once sent. */
+void write_and_free(Connection *c, DynamicBuffer* buf);
 
 void write_bin_packet(Connection *c, protocol_binary_response_status err);
 

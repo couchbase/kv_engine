@@ -678,12 +678,22 @@ public:
         Connection::supports_mutation_extras = supports_mutation_extras;
     }
 
-    const struct dynamic_buffer& getDynamicBuffer() const {
-        return dynamic_buffer;
+    /**
+     * Clear the dynamic buffer
+     */
+    void clearDynamicBuffer() {
+        dynamicBuffer.clear();
     }
 
-    void setDynamicBuffer(const struct dynamic_buffer& dynamic_buffer) {
-        Connection::dynamic_buffer = dynamic_buffer;
+    /**
+     * Grow the dynamic buffer to
+     */
+    bool growDynamicBuffer(size_t needed) {
+        return dynamicBuffer.grow(needed);
+    }
+
+    DynamicBuffer& getDynamicBuffer() {
+        return dynamicBuffer;
     }
 
     void* getEngineStorage() const {
@@ -1080,10 +1090,12 @@ private:
      */
     bool supports_mutation_extras;
 
-public:
-    struct dynamic_buffer dynamic_buffer;
+    /**
+     * The dynamic buffer is used to format output packets to be sent on
+     * the wire.
+     */
+    DynamicBuffer dynamicBuffer;
 
-private:
     /**
      * Pointer to engine-specific data which the engine has requested the server
      * to persist for the life of the connection.

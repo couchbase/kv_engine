@@ -301,7 +301,7 @@ struct SubdocCmdContext : public CommandContext {
     Connection * c;
 
     // The expanded input JSON document. This may either refer to the raw engine
-    // item iovec; or to the connections' dynamic_buffer if the JSON document
+    // item iovec; or to the connections' DynamicBuffer if the JSON document
     // had to be decompressed. Either way, it should /not/ be free()d.
     sized_buffer in_doc;
 
@@ -532,7 +532,7 @@ get_document_for_searching(Connection * c, const item* item,
             // We use the connections' dynamic buffer to uncompress into; this
             // will later be used as the the send buffer for the subset of the
             // document we send.
-            if (!grow_dynamic_buffer(c, uncompressed_len)) {
+            if (!c->growDynamicBuffer(uncompressed_len)) {
                 if (settings.verbose > 0) {
                     settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                             "<%u ERROR: Failed to grow dynamic buffer to %" PRIu64
@@ -542,7 +542,8 @@ get_document_for_searching(Connection * c, const item* item,
                 return PROTOCOL_BINARY_RESPONSE_E2BIG;
             }
 
-            char* buffer = c->dynamic_buffer.buffer + c->dynamic_buffer.offset;
+            auto &dbuf = c->getDynamicBuffer();
+            char* buffer = dbuf.getCurrent();
             if (snappy_uncompress(compressed_buf, compressed_len, buffer,
                                   &uncompressed_len) != SNAPPY_OK) {
                 char clean_key[KEY_MAX_LENGTH + 32];
@@ -556,7 +557,7 @@ get_document_for_searching(Connection * c, const item* item,
                 }
                 return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
             }
-
+            dbuf.moveOffset(uncompressed_len);
             // Update document to point to the uncompressed version in the buffer.
             document.buf = buffer;
             document.len = uncompressed_len;

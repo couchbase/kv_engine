@@ -50,6 +50,8 @@ ADD_EXECUTABLE(memcached
                connections.h
                debug_helpers.cc
                debug_helpers.h
+               dynamic_buffer.cc
+               dynamic_buffer.h
                enginemap.h
                enginemap.cc
                hash.c

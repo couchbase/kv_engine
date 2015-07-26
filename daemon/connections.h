@@ -52,12 +52,6 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
  */
 void conn_close(Connection *c);
 
-/* Attempt to grow the connections' dynamic buffer so there is at least
- * 'needed' bytes available.
- * Returns true if it could be grown, else false.
- */
-bool grow_dynamic_buffer(Connection *c, size_t needed);
-
 /**
  * Return the TCP or domain socket listening_port structure that
  * has a given port number

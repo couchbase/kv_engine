@@ -71,7 +71,6 @@ Connection::Connection()
     memset(&event, 0, sizeof(event));
     memset(&read, 0, sizeof(read));
     memset(&write, 0, sizeof(write));
-    memset(&dynamic_buffer, 0, sizeof(dynamic_buffer));
     memset(&ssl, 0, sizeof(ssl));
     memset(&bucket, 0, sizeof(bucket));
     memset(&binary_header, 0, sizeof(binary_header));
@@ -490,13 +489,13 @@ cJSON* Connection::toJSON() const {
         {
             cJSON* dy_buf = cJSON_CreateObject();
             json_add_uintptr_to_object(dy_buf, "buffer",
-                                       (uintptr_t) dynamic_buffer.buffer);
+                                       (uintptr_t) dynamicBuffer.getRoot());
             cJSON_AddNumberToObject(dy_buf, "size",
-                                    (double) dynamic_buffer.size);
+                                    (double) dynamicBuffer.getSize());
             cJSON_AddNumberToObject(dy_buf, "offset",
-                                    (double) dynamic_buffer.offset);
+                                    (double) dynamicBuffer.getOffset());
 
-            cJSON_AddItemToObject(obj, "dynamic_buffer", dy_buf);
+            cJSON_AddItemToObject(obj, "DynamicBuffer", dy_buf);
         }
         json_add_uintptr_to_object(obj, "engine_storage",
                                    (uintptr_t) engine_storage);
@@ -582,13 +581,9 @@ void Connection::shrinkBuffers() {
         }
     }
 
-    // The dynamic_buffer is only occasionally used - free the whole thing
+    // The DynamicBuffer is only occasionally used - free the whole thing
     // if it's still allocated.
-    if (dynamic_buffer.buffer != nullptr) {
-        free(dynamic_buffer.buffer);
-        dynamic_buffer.buffer = nullptr;
-        dynamic_buffer.size = 0;
-    }
+    dynamicBuffer.clear();
 }
 
 
