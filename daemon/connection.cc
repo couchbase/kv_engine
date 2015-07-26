@@ -55,7 +55,6 @@ Connection::Connection()
       start(0),
       cas(0),
       cmd(PROTOCOL_BINARY_CMD_INVALID),
-      list_state(0),
       next(nullptr),
       thread(nullptr),
       aiostat(ENGINE_SUCCESS),
@@ -515,7 +514,6 @@ cJSON* Connection::toJSON() const {
             cJSON_AddItemToObject(obj, "cmd", cmdarr);
         }
         json_add_uintptr_to_object(obj, "opaque", getOpaque());
-        cJSON_AddNumberToObject(obj, "list_state", list_state);
         json_add_uintptr_to_object(obj, "next", (uintptr_t) next);
         json_add_uintptr_to_object(obj, "thread", (uintptr_t) thread);
         cJSON_AddNumberToObject(obj, "aiostat", aiostat);

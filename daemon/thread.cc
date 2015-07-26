@@ -394,16 +394,12 @@ Connection * list_remove(Connection *haystack, Connection *needle) {
 static void enlist_conn(Connection *c, Connection **list) {
     LIBEVENT_THREAD *thr = c->getThread();
     cb_assert(list == &thr->pending_io);
-    if ((c->list_state & LIST_STATE_PROCESSING) == 0) {
-        cb_assert(!list_contains(thr->pending_io, c));
-        cb_assert(c->getNext() == nullptr);
-        c->setNext(*list);
-        *list = c;
-        cb_assert(list_contains(*list, c));
-        cb_assert(!has_cycle(*list));
-    } else {
-        c->list_state |= LIST_STATE_REQ_PENDING_IO;
-    }
+    cb_assert(!list_contains(thr->pending_io, c));
+    cb_assert(c->getNext() == nullptr);
+    c->setNext(*list);
+    *list = c;
+    cb_assert(list_contains(*list, c));
+    cb_assert(!has_cycle(*list));
 }
 
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)

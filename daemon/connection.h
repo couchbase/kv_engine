@@ -733,14 +733,6 @@ public:
         return binary_header.request.opaque;
     }
 
-    int getListState() const {
-        return list_state;
-    }
-
-    void setListState(int list_state) {
-        Connection::list_state = list_state;
-    }
-
     Connection* getNext() const {
         return next;
     }
@@ -1117,11 +1109,6 @@ private:
     /** current command being processed */
     uint8_t cmd;
 
-public:
-    int list_state;
-    /* bitmask of list state data for this connection */
-
-private:
     /* Used for generating a list of Connection structures */
     Connection* next;
 
