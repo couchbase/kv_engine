@@ -1126,11 +1126,16 @@ private:
     /** Pointer to the thread object serving this connection */
     LIBEVENT_THREAD* thread;
 
-public:
+    /**
+     * The status for the async io operation
+     */
     ENGINE_ERROR_CODE aiostat;
+
+    /**
+     * Is this connection currently in an "ewouldblock" state?
+     */
     bool ewouldblock;
 
-private:
     /** Listening port that creates this connection instance */
     in_port_t parent_port;
     /** The iterator function to use to traverse the TAP stream */

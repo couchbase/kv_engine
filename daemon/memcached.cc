@@ -1027,8 +1027,8 @@ static void process_bin_get(Connection *c) {
         }
     }
 
-    ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
+    ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
     if (ret == ENGINE_SUCCESS) {
         ret = bucket_get(c, &it, key, (int)nkey,
                          c->binary_header.request.vbucket);
@@ -1137,7 +1137,7 @@ static void process_bin_get(Connection *c) {
         }
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
@@ -1716,7 +1716,7 @@ static void ship_tap_log(Connection *c) {
         }
     } while (more_data);
 
-    c->ewouldblock = false;
+    c->setEwouldblock(false);
     if (send_data) {
         c->setState(conn_mwrite);
         if (disconnect) {
@@ -1734,7 +1734,7 @@ static void ship_tap_log(Connection *c) {
                                                 "%u: No more items in tap log.. waiting",
                                                 c->getId());
             }
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
         }
     }
 }
@@ -1785,9 +1785,9 @@ static void process_bin_unknown_packet(Connection *c) {
                    (c->binary_header.request.bodylen + sizeof(c->binary_header));
 
     auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
         struct request_lookup *rq = request_handlers + c->binary_header.request.opcode;
@@ -1813,7 +1813,7 @@ static void process_bin_unknown_packet(Connection *c) {
             break;
         }
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
@@ -1974,7 +1974,7 @@ static void process_bin_tap_packet(tap_event_t event, Connection *c) {
     flags = 0;
     exptime = 0;
     ndata = c->binary_header.request.bodylen - nengine - nkey - 8;
-    ret = c->aiostat;
+    ret = c->getAiostat();
 
     if (ttl == 0) {
         ret = ENGINE_EINVAL;
@@ -2026,7 +2026,7 @@ static void process_bin_tap_packet(tap_event_t event, Connection *c) {
         c->setState(conn_closing);
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         break;
     default:
         if ((tap_flags & TAP_FLAG_ACK) || (ret != ENGINE_SUCCESS)) {
@@ -2656,11 +2656,11 @@ static void ship_dcp_log(Connection *c) {
 
     c->write.bytes = 0;
     c->write.curr = c->write.buf;
-    c->ewouldblock = false;
+    c->setEwouldblock(false);
     ret = c->bucket.engine->dcp.step(v1_handle_2_handle(c->bucket.engine), c, &producers);
     if (ret == ENGINE_SUCCESS) {
         /* the engine don't have more data to send at this moment */
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
     } else if (ret == ENGINE_WANT_MORE) {
         /* The engine got more data it wants to send */
         ret = ENGINE_SUCCESS;
@@ -2775,9 +2775,9 @@ static void dcp_open_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.open == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
         c->setSupportsDatatype(true);
 
         if (ret == ENGINE_SUCCESS) {
@@ -2800,7 +2800,7 @@ static void dcp_open_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -2816,9 +2816,9 @@ static void dcp_add_stream_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.add_stream == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->bucket.engine->dcp.add_stream(v1_handle_2_handle(c->bucket.engine), c,
@@ -2837,7 +2837,7 @@ static void dcp_add_stream_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -2853,9 +2853,9 @@ static void dcp_close_stream_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.close_stream == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             uint16_t vbucket = ntohs(req->message.header.request.vbucket);
@@ -2874,7 +2874,7 @@ static void dcp_close_stream_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -2918,9 +2918,9 @@ static void dcp_get_failover_log_executor(Connection *c, void *packet) {
     if (c->bucket.engine->dcp.get_failover_log == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->bucket.engine->dcp.get_failover_log(v1_handle_2_handle(c->bucket.engine), c,
@@ -2943,7 +2943,7 @@ static void dcp_get_failover_log_executor(Connection *c, void *packet) {
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -2967,9 +2967,9 @@ static void dcp_stream_req_executor(Connection *c, void *packet)
         uint64_t snap_end_seqno = ntohll(req->message.body.snap_end_seqno);
         uint64_t rollback_seqno;
 
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         cb_assert(ret != ENGINE_ROLLBACK);
 
@@ -3014,7 +3014,7 @@ static void dcp_stream_req_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3030,9 +3030,9 @@ static void dcp_stream_end_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.stream_end == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->bucket.engine->dcp.stream_end(v1_handle_2_handle(c->bucket.engine), c,
@@ -3051,7 +3051,7 @@ static void dcp_stream_end_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3073,9 +3073,9 @@ static void dcp_snapshot_marker_executor(Connection *c, void *packet)
         uint64_t start_seqno = ntohll(req->message.body.start_seqno);
         uint64_t end_seqno = ntohll(req->message.body.end_seqno);
 
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->bucket.engine->dcp.snapshot_marker(v1_handle_2_handle(c->bucket.engine), c,
@@ -3094,7 +3094,7 @@ static void dcp_snapshot_marker_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3110,9 +3110,9 @@ static void dcp_mutation_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.mutation == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             char *key = (char*)packet + sizeof(req->bytes);
@@ -3149,7 +3149,7 @@ static void dcp_mutation_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3165,9 +3165,9 @@ static void dcp_deletion_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.deletion == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             char *key = (char*)packet + sizeof(req->bytes);
@@ -3194,7 +3194,7 @@ static void dcp_deletion_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3210,9 +3210,9 @@ static void dcp_expiration_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.expiration == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             char *key = (char*)packet + sizeof(req->bytes);
@@ -3239,7 +3239,7 @@ static void dcp_expiration_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3255,9 +3255,9 @@ static void dcp_flush_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.flush == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->bucket.engine->dcp.flush(v1_handle_2_handle(c->bucket.engine), c,
@@ -3275,7 +3275,7 @@ static void dcp_flush_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3291,9 +3291,9 @@ static void dcp_set_vbucket_state_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.set_vbucket_state== NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             vbucket_state_t state = (vbucket_state_t)req->message.body.state;
@@ -3312,7 +3312,7 @@ static void dcp_set_vbucket_state_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3329,9 +3329,9 @@ static void dcp_noop_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.noop == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->bucket.engine->dcp.noop(v1_handle_2_handle(c->bucket.engine), c,
@@ -3348,7 +3348,7 @@ static void dcp_noop_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3364,9 +3364,9 @@ static void dcp_buffer_acknowledgement_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.buffer_acknowledgement == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             uint32_t bbytes;
@@ -3387,7 +3387,7 @@ static void dcp_buffer_acknowledgement_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3401,9 +3401,9 @@ static void dcp_control_executor(Connection *c, void *packet)
     if (c->bucket.engine->dcp.control == NULL) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
-        ENGINE_ERROR_CODE ret = c->aiostat;
-        c->aiostat = ENGINE_SUCCESS;
-        c->ewouldblock = false;
+        ENGINE_ERROR_CODE ret = c->getAiostat();
+        c->setAiostat(ENGINE_SUCCESS);
+        c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
             auto* req = reinterpret_cast<protocol_binary_request_dcp_control*>(packet);
@@ -3426,7 +3426,7 @@ static void dcp_control_executor(Connection *c, void *packet)
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             break;
 
         default:
@@ -3437,11 +3437,11 @@ static void dcp_control_executor(Connection *c, void *packet)
 
 static void isasl_refresh_executor(Connection *c, void *packet)
 {
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
     (void)packet;
 
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
         ret = refresh_cbsasl(c);
@@ -3452,7 +3452,7 @@ static void isasl_refresh_executor(Connection *c, void *packet)
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         c->setState(conn_refresh_cbsasl);
         break;
     case ENGINE_DISCONNECT:
@@ -3465,11 +3465,11 @@ static void isasl_refresh_executor(Connection *c, void *packet)
 
 static void ssl_certs_refresh_executor(Connection *c, void *packet)
 {
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
     (void)packet;
 
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
         ret = refresh_ssl_certs(c);
@@ -3480,7 +3480,7 @@ static void ssl_certs_refresh_executor(Connection *c, void *packet)
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         c->setState(conn_refresh_ssl_certs);
         break;
     case ENGINE_DISCONNECT:
@@ -3808,7 +3808,7 @@ static void flush_executor(Connection *c, void *packet)
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         c->setState(conn_flush);
         break;
     case ENGINE_DISCONNECT:
@@ -3823,9 +3823,9 @@ static void add_set_replace_executor(Connection *c, void *packet,
                                      ENGINE_STORE_OPERATION store_op)
 {
     auto* req = reinterpret_cast<protocol_binary_request_add*>(packet);
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     uint8_t extlen = req->message.header.request.extlen;
     char *key = (char*)packet + sizeof(req->bytes);
@@ -3856,7 +3856,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
             update_topkeys(key, nkey, c);
             break;
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             return ;
         case ENGINE_DISCONNECT:
             c->setState(conn_closing);
@@ -3922,7 +3922,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
         }
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
@@ -3958,7 +3958,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
         SLAB_INCR(c, cmd_set, key, nkey);
     }
 
-    if (!c->ewouldblock) {
+    if (!c->isEwouldblock()) {
         /* release the c->item reference */
         c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
         c->item = 0;
@@ -4007,9 +4007,9 @@ static void append_prepend_executor(Connection *c,
                                     ENGINE_STORE_OPERATION store_op)
 {
     auto* req = reinterpret_cast<protocol_binary_request_append*>(packet);
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     char *key = (char*)packet + sizeof(req->bytes);
     uint16_t nkey = ntohs(req->message.header.request.keylen);
@@ -4032,7 +4032,7 @@ static void append_prepend_executor(Connection *c,
         case ENGINE_SUCCESS:
             break;
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             return ;
         case ENGINE_DISCONNECT:
             c->setState(conn_closing);
@@ -4100,7 +4100,7 @@ static void append_prepend_executor(Connection *c,
         }
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         break;
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
@@ -4111,7 +4111,7 @@ static void append_prepend_executor(Connection *c,
 
     SLAB_INCR(c, cmd_set, key, nkey);
 
-    if (!c->ewouldblock) {
+    if (!c->isEwouldblock()) {
         /* release the c->item reference */
         c->bucket.engine->release(v1_handle_2_handle(c->bucket.engine), c, c->item);
         c->item = 0;
@@ -4196,9 +4196,9 @@ static void stat_executor(Connection *c, void *packet)
         }
     }
 
-    ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
         if (nkey == 0) {
@@ -4290,7 +4290,7 @@ static void stat_executor(Connection *c, void *packet)
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         break;
     default:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
@@ -4361,8 +4361,8 @@ static void arithmetic_executor(Connection *c, void *packet)
         }
     }
 
-    ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
+    ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
 
     item* item = NULL;
     if (ret == ENGINE_SUCCESS) {
@@ -4458,7 +4458,7 @@ static void arithmetic_executor(Connection *c, void *packet)
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         break;
     default:
         abort();
@@ -4682,7 +4682,7 @@ static void audit_config_reload_executor(Connection *c, void *packet) {
     (void)packet;
     if (settings.audit_file) {
         if (configure_auditdaemon(settings.audit_file, c) == AUDIT_EWOULDBLOCK) {
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             c->setState(conn_audit_configuring);
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -4758,11 +4758,11 @@ static void create_bucket_main(void *c);
  */
 static void create_bucket_executor(Connection *c, void *packet)
 {
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
     (void)packet;
 
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
         cb_thread_t tid;
@@ -4785,7 +4785,7 @@ static void create_bucket_executor(Connection *c, void *packet)
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         c->setState(conn_create_bucket);
         break;
     case ENGINE_DISCONNECT:
@@ -4830,11 +4830,11 @@ static void delete_bucket_main(void *c);
 
 static void delete_bucket_executor(Connection *c, void *packet)
 {
-    ENGINE_ERROR_CODE ret = c->aiostat;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
     (void)packet;
 
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
         cb_thread_t tid;
@@ -4857,7 +4857,7 @@ static void delete_bucket_executor(Connection *c, void *packet)
         write_bin_response(c, NULL, 0, 0, 0);
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         c->setState(conn_delete_bucket);
         break;
     case ENGINE_DISCONNECT:
@@ -5128,9 +5128,9 @@ static void process_bin_delete(Connection *c) {
         }
     }
 
-    ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     mutation_descr_t mut_info;
     if (ret == ENGINE_SUCCESS) {
@@ -5170,7 +5170,7 @@ static void process_bin_delete(Connection *c) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
         break;
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         break;
     default:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
@@ -5769,13 +5769,13 @@ bool conn_ship_log(Connection *c) {
         c->setNumEvents(c->getMaxReqsPerEvent());
     } else if (c->isWriteEvent()) {
         if (c->decrementNumEvents() >= 0) {
-            c->ewouldblock = false;
+            c->setEwouldblock(false);
             if (c->isDCP()) {
                 ship_dcp_log(c);
             } else {
                 ship_tap_log(c);
             }
-            if (c->ewouldblock) {
+            if (c->isEwouldblock()) {
                 mask = EV_READ | EV_PERSIST;
             } else {
                 cont = true;
@@ -5851,7 +5851,7 @@ bool conn_parse_cmd(Connection *c) {
         c->setState(conn_waiting);
     }
 
-    return !c->ewouldblock;
+    return !c->isEwouldblock();
 }
 
 bool conn_new_cmd(Connection *c) {
@@ -5899,9 +5899,10 @@ bool conn_nread(Connection *c) {
     ssize_t res;
 
     if (c->rlbytes == 0) {
-        bool block = c->ewouldblock = false;
+        c->setEwouldblock(false);
+        bool block = false;
         complete_nread(c);
-        if (c->ewouldblock) {
+        if (c->isEwouldblock()) {
             c->unregisterEvent();
             block = true;
         }
@@ -6055,7 +6056,7 @@ bool conn_closing(Connection *c) {
     /* engine::release any allocated state */
     conn_cleanup_engine_allocations(c);
 
-    if (c->getRefcount() > 1 || c->ewouldblock) {
+    if (c->getRefcount() > 1 || c->isEwouldblock()) {
         c->setState(conn_pending_close);
     } else {
         c->setState(conn_immediate_close);
@@ -6077,9 +6078,9 @@ bool conn_setup_tap_stream(Connection *c) {
 }
 
 bool conn_refresh_cbsasl(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     cb_assert(ret != ENGINE_EWOULDBLOCK);
 
@@ -6098,9 +6099,9 @@ bool conn_refresh_cbsasl(Connection *c) {
 }
 
 bool conn_refresh_ssl_certs(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     cb_assert(ret != ENGINE_EWOULDBLOCK);
 
@@ -6130,9 +6131,9 @@ bool conn_refresh_ssl_certs(Connection *c) {
  *              connection.
  */
 bool conn_flush(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     switch (ret) {
     case ENGINE_SUCCESS:
@@ -6149,9 +6150,9 @@ bool conn_flush(Connection *c) {
 }
 
 bool conn_audit_configuring(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
     switch (ret) {
     case ENGINE_SUCCESS:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -6168,9 +6169,9 @@ bool conn_audit_configuring(Connection *c) {
 }
 
 bool conn_create_bucket(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     cb_assert(ret != ENGINE_EWOULDBLOCK);
 
@@ -6189,9 +6190,9 @@ bool conn_create_bucket(Connection *c) {
 }
 
 bool conn_delete_bucket(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
-    c->ewouldblock = false;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
 
     cb_assert(ret != ENGINE_EWOULDBLOCK);
 
@@ -6628,7 +6629,7 @@ static bool is_mutation_extras_supported(const void *cookie) {
 static uint8_t get_opcode_if_ewouldblock_set(const void *cookie) {
     Connection *c = (Connection *)cookie;
     uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
-    if (c->ewouldblock) {
+    if (c->isEwouldblock()) {
         opcode = c->binary_header.request.opcode;
     }
     return opcode;

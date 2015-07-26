@@ -417,7 +417,7 @@ void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
                                     conn->getId(), status);
 
     LOCK_THREAD(thr);
-    conn->aiostat = status;
+    conn->setAiostat(status);
     notify = add_conn_to_pending_io_list(conn);
     UNLOCK_THREAD(thr);
 

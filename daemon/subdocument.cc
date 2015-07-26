@@ -401,8 +401,8 @@ void subdoc_executor(Connection *c, const void *packet) {
     // We potentially need to make multiple attempts at this as the engine may
     // return EWOULDBLOCK if not initially resident, hence initialise ret to
     // c->aiostat.
-    ENGINE_ERROR_CODE ret = c->aiostat;
-    c->aiostat = ENGINE_SUCCESS;
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
 
     // If client didn't specify a CAS, we still use CAS internally to check
     // that we are updating the same version of the document as was fetched.
@@ -612,7 +612,7 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             return false;
 
         case ENGINE_DISCONNECT:
@@ -772,7 +772,7 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
             break;
 
         case ENGINE_EWOULDBLOCK:
-            c->ewouldblock = true;
+            c->setEwouldblock(true);
             return ret;
 
         case ENGINE_DISCONNECT:
@@ -823,7 +823,7 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
         break;
 
     case ENGINE_EWOULDBLOCK:
-        c->ewouldblock = true;
+        c->setEwouldblock(true);
         break;
 
     case ENGINE_DISCONNECT:
