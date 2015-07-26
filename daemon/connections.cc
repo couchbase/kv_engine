@@ -58,7 +58,7 @@ void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
 {
     std::lock_guard<std::mutex> lock(connections.mutex);
     for (auto* c : connections.conns) {
-        if (c->getThread() == me && c->bucket.idx == bucket_idx) {
+        if (c->getThread() == me && c->getBucketIndex() == bucket_idx) {
             if (c->getState() == conn_read || c->getState() == conn_waiting) {
                 /* set write access to ensure it's handled */
                 if (!c->updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
@@ -74,7 +74,7 @@ void assert_no_associations(int bucket_idx)
 {
     std::lock_guard<std::mutex> lock(connections.mutex);
     for (auto* c : connections.conns) {
-        cb_assert(c->bucket.idx != bucket_idx);
+        cb_assert(c->getBucketIndex() != bucket_idx);
     }
 }
 
@@ -204,8 +204,8 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->incrementRefcount();
 
     if (init_state == conn_listening) {
-        c->bucket.engine = NULL;
-        c->bucket.idx = -1;
+        c->setBucketEngine(nullptr);
+        c->setBucketIndex(-1);
     } else {
         associate_initial_bucket(c);
     }
@@ -220,9 +220,9 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
 }
 
 void conn_cleanup_engine_allocations(Connection * c) {
-    ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine);
+    ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
     if (c->item) {
-        c->bucket.engine->release(handle, c, c->item);
+        c->getBucketEngine()->release(handle, c, c->item);
         c->item = NULL;
     }
 

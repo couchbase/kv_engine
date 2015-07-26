@@ -601,9 +601,9 @@ public:
      * Release all of the items we've saved a reference to
      */
     void releaseReservedItems() {
-        ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(bucket.engine);
+        ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(bucketEngine);
         for (auto *it : reservedItems) {
-            bucket.engine->release(handle, this, it);
+            bucketEngine->release(handle, this, it);
         }
         reservedItems.clear();
     }
@@ -939,7 +939,21 @@ public:
         return true;
     }
 
+    int getBucketIndex() const {
+        return bucketIndex;
+    }
 
+    void setBucketIndex(int bucketIndex) {
+        Connection::bucketIndex = bucketIndex;
+    }
+
+    ENGINE_HANDLE_V1* getBucketEngine() const {
+        return bucketEngine;
+    };
+
+    void setBucketEngine(ENGINE_HANDLE_V1* bucketEngine) {
+        Connection::bucketEngine = bucketEngine;
+    };
 
 protected:
     /**
@@ -1159,22 +1173,24 @@ private:
      */
     SslContext ssl;
 
-    /**
-     * The authentication context in use by this connection
-     */
-    AuthContext* auth_context;
-public:
-    struct {
-        int idx;
-        /* The internal index for the connected bucket */
-        ENGINE_HANDLE_V1* engine;
-    } bucket;
-
-private:
-
     /** Name of the peer if known */
     std::string peername;
 
     /** Name of the local socket if known */
     std::string sockname;
+
+    /**
+     * The authentication context in use by this connection
+     */
+    AuthContext* auth_context;
+
+    /**
+     * The index of the connected bucket
+     */
+    int bucketIndex;
+
+    /**
+     * The engine interface for the connected bucket
+     */
+    ENGINE_HANDLE_V1* bucketEngine;
 };

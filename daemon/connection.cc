@@ -62,16 +62,17 @@ Connection::Connection()
       tap_iterator(nullptr),
       dcp(false),
       commandContext(nullptr),
-      auth_context(nullptr),
       peername("unknown"),
-      sockname("unknown") {
+      sockname("unknown"),
+      auth_context(nullptr),
+      bucketIndex(0),
+      bucketEngine(nullptr) {
     MEMCACHED_CONN_CREATE(this);
 
     memset(&event, 0, sizeof(event));
     memset(&read, 0, sizeof(read));
     memset(&write, 0, sizeof(write));
     memset(&ssl, 0, sizeof(ssl));
-    memset(&bucket, 0, sizeof(bucket));
     memset(&binary_header, 0, sizeof(binary_header));
 
     state = conn_immediate_close;

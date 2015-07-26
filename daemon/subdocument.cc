@@ -288,8 +288,8 @@ struct SubdocCmdContext : public CommandContext {
 
     virtual ~SubdocCmdContext() {
         if (out_doc != NULL) {
-            c->bucket.engine->release(reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine),
-                                      c, out_doc);
+            auto engine = c->getBucketEngine();
+            engine->release(reinterpret_cast<ENGINE_HANDLE*>(engine), c, out_doc);
         }
     }
 
@@ -432,8 +432,8 @@ void subdoc_executor(Connection *c, const void *packet) {
                 // state, so start from the beginning again.
                 ret = ENGINE_SUCCESS;
                 if (c->item != nullptr) {
-                    auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine);
-                    c->bucket.engine->release(handle, c, c->item);
+                    auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
+                    c->getBucketEngine()->release(handle, c, c->item);
                     c->item = nullptr;
                 }
 
@@ -476,7 +476,7 @@ get_document_for_searching(Connection * c, const item* item,
     item_info_holder info;
     info.info.nvalue = IOV_MAX;
 
-    if (!c->bucket.engine->get_item_info(reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine),
+    if (!c->getBucketEngine()->get_item_info(reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine()),
                                          c, item, &info.info)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%u: Failed to get item info",
@@ -591,13 +591,13 @@ get_document_for_searching(Connection * c, const item* item,
 // else false.
 static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket) {
-    auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine);
+    auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
 
     if (c->item == NULL) {
         item* initial_item;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->get(handle, c, &initial_item,
+            ret = c->getBucketEngine()->get(handle, c, &initial_item,
                                         key, (int)keylen, vbucket);
         }
 
@@ -738,7 +738,7 @@ static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
 template<protocol_binary_command CMD>
 ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
                                 size_t keylen, uint16_t vbucket) {
-    auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->bucket.engine);
+    auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
     auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
     cb_assert(context != NULL);
 
@@ -760,7 +760,7 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
         item *new_doc;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->bucket.engine->allocate(handle,
+            ret = c->getBucketEngine()->allocate(handle,
                                              c, &new_doc, key, keylen, new_doc_len, 0, 0,
                                              PROTOCOL_BINARY_DATATYPE_JSON);
         }
@@ -786,13 +786,13 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
 
         // To ensure we only replace the version of the document we
         // just appended to; set the CAS to the one retrieved from.
-        c->bucket.engine->item_set_cas(handle, c,
+        c->getBucketEngine()->item_set_cas(handle, c,
                                        new_doc, context->in_cas);
 
         // Obtain the item info (and it's iovectors)
         item_info new_doc_info;
         new_doc_info.nvalue = IOV_MAX;
-        if (!c->bucket.engine->get_item_info(handle,
+        if (!c->getBucketEngine()->get_item_info(handle,
                                              c, new_doc, &new_doc_info)) {
             // TODO: free everything!!
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
@@ -809,7 +809,7 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
 
     // And finally, store the new document.
     uint64_t new_cas;
-    ret = c->bucket.engine->store(handle, c,
+    ret = c->getBucketEngine()->store(handle, c,
                                   context->out_doc, &new_cas,
                                   OPERATION_REPLACE, vbucket);
     switch (ret) {
