@@ -96,7 +96,7 @@ const char * Stream::stateName(stream_state_t st) const {
 }
 
 void Stream::addStats(ADD_STAT add_stat, const void *c) {
-    const int bsize = 128;
+    const int bsize = 1024;
     char buffer[bsize];
     snprintf(buffer, bsize, "%s:stream_%d_flags", name_.c_str(), vb_);
     add_casted_stat(buffer, flags_, add_stat, c);
@@ -407,7 +407,7 @@ DcpResponse* ActiveStream::deadPhase() {
 void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     Stream::addStats(add_stat, c);
 
-    const int bsize = 128;
+    const int bsize = 1024;
     char buffer[bsize];
     snprintf(buffer, bsize, "%s:stream_%d_backfill_disk_items",
              name_.c_str(), vb_);
@@ -1200,7 +1200,7 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
 void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
     Stream::addStats(add_stat, c);
 
-    const int bsize = 128;
+    const int bsize = 1024;
     char buf[bsize];
     snprintf(buf, bsize, "%s:stream_%d_buffer_items", name_.c_str(), vb_);
     add_casted_stat(buf, buffer.items, add_stat, c);
