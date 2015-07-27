@@ -1515,6 +1515,41 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
     delete_object("b");
 }
 
+// Test handling of the internal auto-retry when a CAS mismatch occurs due
+// to the underlying document changing between subdoc readint the initial value
+// and trying to write the new value (after applying the subdoc modification).
+TEST_P(McdTestappTest, SubdocCASAutoRetry)
+{
+    // Store a simple dict value to operate on.
+    store_object("a", "{}");
+
+    // 1. Setup ewouldblock_engine - make the first three store commands return
+    // EXISTS.
+    ewouldblock_engine_configure(/*not used for this mode*/ENGINE_SUCCESS,
+                                 EWBEngineMode_CAS_MISMATCH, 3);
+
+    // Issue a DICT_ADD without an explicit CAS. We should have an auto-retry
+    // occur (and the command succeed).
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                                "a", "key1", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+    // 2. Now retry with MAXIMUM_ATTEMPTS-1 CAS mismatches - this should still
+    // succeed.
+    ewouldblock_engine_configure(/*not used for this mode*/ENGINE_SUCCESS,
+                                 EWBEngineMode_CAS_MISMATCH, 99);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                                "a", "key2", "2"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+    // 3. Now with MAXIMUM_ATTEMPTS CAS mismatches - this should return TMPFAIL.
+    ewouldblock_engine_configure(/*not used for this mode*/ENGINE_SUCCESS,
+                                 EWBEngineMode_CAS_MISMATCH, 100);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                                "a", "key3", "3"),
+                      PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "");
+}
+
 // Tests how a single worker handles multiple "concurrent" connections
 // performing operations.
 class WorkerConcurrencyTest : public TestappTest {

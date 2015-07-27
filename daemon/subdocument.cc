@@ -410,7 +410,16 @@ void subdoc_executor(Connection *c, const void *packet) {
     // by some other client.
     const bool auto_retry = (cas == 0);
 
+    // We specify a finite number of times to retry; to prevent the (extremely
+    // unlikely) event that we are fighting with another client for the
+    // correct CAS value for an abitrary amount of time (and to defend against
+    // possible bugs in our code ;)
+    const int MAXIMUM_ATTEMPTS = 100;
+
+    int attempts = 0;
     do {
+        attempts++;
+
         // 1. Attempt to fetch from the engine the document to operate on. Only
         // continue if it returned true, otherwise return from this function
         // (which may result in it being called again later in the EWOULDBLOCK
@@ -458,8 +467,18 @@ void subdoc_executor(Connection *c, const void *packet) {
 
         // 4. Form a response and send it back to the client.
         subdoc_response<CMD>(c);
-        break;
-    } while (auto_retry);
+        return;
+    } while (auto_retry && attempts < MAXIMUM_ATTEMPTS);
+
+    // Hit maximum attempts - this theoretically could happen but shouldn't
+    // in reality.
+    settings.extensions.logger->log
+        (EXTENSION_LOG_WARNING, c,
+         "%u: Subdoc: Hit maximum number of auto-retry attempts (%d) when "
+         "attempting to perform op %s for client %s - returning TMPFAIL",
+         c->getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(CMD),
+         c->getPeername().c_str());
+    write_bin_packet(c, engine_error_2_protocol_error(ENGINE_TMPFAIL));
 }
 
 /* Gets a flat, uncompressed JSON document ready for performing a subjson
