@@ -34,16 +34,6 @@ extern "C" {
         const char* (*server_version)(void);
 
         /**
-         * Generate a simple hash value of a piece of data.
-         *
-         * @param data pointer to data to hash
-         * @param size size of the data to generate the hash value of
-         * @param seed an extra seed value for the hash function
-         * @return hash value of the data.
-         */
-        uint32_t (*hash)(const void *data, size_t size, uint32_t seed);
-
-        /**
          * parser config options
          */
         int (*parse_config)(const char *str, struct config_item items[], FILE *error);

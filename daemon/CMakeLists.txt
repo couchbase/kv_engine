@@ -54,7 +54,6 @@ ADD_EXECUTABLE(memcached
                dynamic_buffer.h
                enginemap.h
                enginemap.cc
-               hash.c
                ioctl.cc
                mcaudit.cc
                mcaudit.h

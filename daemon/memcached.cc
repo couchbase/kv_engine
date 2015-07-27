@@ -35,7 +35,6 @@
 #include "subdocument.h"
 #include "enginemap.h"
 #include "buckets.h"
-#include "hash.h"
 #include "topkeys.h"
 
 #include <platform/strerror.h>
@@ -6961,7 +6960,6 @@ static SERVER_HANDLE_V1 *get_server_api(void)
     if (!init) {
         init = 1;
         core_api.server_version = get_server_version;
-        core_api.hash = hash;
         core_api.realtime = mc_time_convert_to_real_time;
         core_api.abstime = mc_time_convert_to_abs_time;
         core_api.get_current_time = mc_time_get_current_time;
