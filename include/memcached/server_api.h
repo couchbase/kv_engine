@@ -170,11 +170,6 @@ extern "C" {
         ENGINE_ERROR_CODE (*release)(const void *cookie);
 
         /**
-         * Set admin access for this connection
-         */
-        void (*set_admin)(const void *cookie);
-
-        /**
          * See if this connection have admin access or not
          */
         bool (*is_admin)(const void *cookie);

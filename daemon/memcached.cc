@@ -80,7 +80,6 @@ std::vector<Bucket> all_buckets;
 
 bool *topkey_commands;
 
-static void cookie_set_admin(const void *cookie);
 static bool cookie_is_admin(const void *cookie);
 
 static ENGINE_HANDLE* v1_handle_2_handle(ENGINE_HANDLE_V1* v1) {
@@ -3704,10 +3703,10 @@ static void sasl_auth_executor(Connection *c, void *packet)
 
             if (settings.disable_admin) {
                 /* "everyone is admins" */
-                cookie_set_admin(c);
+                c->setAdmin(true);
             } else if (settings.admin != NULL) {
                 if (strcmp(settings.admin, c->getUsername()) == 0) {
-                    cookie_set_admin(c);
+                    c->setAdmin(true);
                 }
             }
             get_thread_stats(c)->auth_cmds++;
@@ -6690,12 +6689,6 @@ static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
     return ENGINE_SUCCESS;
 }
 
-static void cookie_set_admin(const void *cookie) {
-    cb_assert(cookie);
-    auto conn = const_cast<void*>(cookie);
-    reinterpret_cast<Connection *>(conn)->setAdmin(true);
-}
-
 static bool cookie_is_admin(const void *cookie) {
     if (settings.disable_admin) {
         return true;
@@ -6976,7 +6969,6 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.notify_io_complete = notify_io_complete;
         server_cookie_api.reserve = reserve_cookie;
         server_cookie_api.release = release_cookie;
-        server_cookie_api.set_admin = cookie_set_admin;
         server_cookie_api.is_admin = cookie_is_admin;
         server_cookie_api.set_priority = cookie_set_priority;
         server_cookie_api.get_bucket_id = get_bucket_id;
