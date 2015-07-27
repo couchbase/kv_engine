@@ -73,7 +73,10 @@ enum EWBEngine_Mode {
                           // failing again.  In other words, return
                           // EWOULDBLOCK iif the previous function was not
                           // this one.
-    EWBEngineMode_SEQUENCE  // Make the next N calls return a sequence of either
+    EWBEngineMode_SEQUENCE, // Make the next N calls return a sequence of either
                           // their normal value or the injected error code.
                           // The sequence can be up to 32 elements long.
+    EWBEngineMode_CAS_MISMATCH // Simulate CAS mismatch - make the next N
+                          // store operations return KEY_EEXISTS. N specified
+                          // by the {value} field.
 };

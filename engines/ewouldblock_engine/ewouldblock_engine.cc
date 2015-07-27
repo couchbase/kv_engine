@@ -314,6 +314,10 @@ public:
         return ewb->real_engine->get_stats_struct(ewb->real_handle, cookie);
     }
 
+    /* Handle 'unknown_command'. In additional to wrapping calls to the
+     * underlying real engine, this is also used to configure
+     * ewouldblock_engine itself using he CMD_EWOULDBLOCK_CTL opcode.
+     */
     static ENGINE_ERROR_CODE unknown_command(ENGINE_HANDLE* handle,
                                              const void* cookie,
                                              protocol_binary_request_header *request,
@@ -347,12 +351,16 @@ public:
                     new_mode = std::make_shared<ErrSequence>(injected_error, value);
                     break;
 
+                case EWBEngineMode_CAS_MISMATCH:
+                    new_mode = std::make_shared<CASMismatch>(value);
+                    break;
+
                 default:
                     break;
             }
 
+            auto logger = ewb->gsa()->log->get_logger();
             if (new_mode == nullptr) {
-                auto logger = ewb->gsa()->log->get_logger();
                 logger->log(EXTENSION_LOG_WARNING, NULL,
                             "EWB_Engine::unknown_command(): "
                             "Got unexpected mode=%d for EWOULDBLOCK_CTL, ",
@@ -362,6 +370,11 @@ public:
                          PROTOCOL_BINARY_RESPONSE_EINVAL, /*cas*/0, cookie);
                 return ENGINE_FAILED;
             } else {
+                logger->log(EXTENSION_LOG_DEBUG, NULL,
+                            "EWB_Engine::unknown_command(): Setting EWB mode to "
+                            "%s for cookie %d", new_mode->to_string().c_str(),
+                            cookie);
+
                 {
                     std::lock_guard<std::mutex> guard(ewb->cookie_map_mutex);
                     ewb->cookie_map.erase(cookie);
@@ -428,6 +441,8 @@ private:
 
         virtual bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) = 0;
 
+        virtual std::string to_string() const = 0;
+
     protected:
         ENGINE_ERROR_CODE injected_error;
     };
@@ -452,6 +467,10 @@ private:
             return inject;
         }
 
+        std::string to_string() const {
+            return "ErrOnFirst inject_error=" + std::to_string(injected_error);
+        }
+
     private:
         // Last command issued by this cookie.
         Cmd prev_cmd;
@@ -471,6 +490,12 @@ private:
             } else {
                 return false;
             }
+        }
+
+        std::string to_string() const {
+            return std::string("ErrOnNextN") +
+                   " inject_error=" + std::to_string(injected_error) +
+                   " count=" + std::to_string(count);
         }
 
     private:
@@ -495,6 +520,13 @@ private:
                 return false;
             }
         }
+
+        std::string to_string() const {
+            return std::string("ErrRandom") +
+                   " inject_error=" + std::to_string(injected_error) +
+                   " percentage=" + std::to_string(percentage_to_err);
+        }
+
     private:
         // Percentage chance that the specified error should be injected.
         uint32_t percentage_to_err;
@@ -519,9 +551,41 @@ private:
             return inject;
         }
 
+        std::string to_string() const {
+            return std::string("ErrSequence") +
+                   " inject_error=" + std::to_string(injected_error) +
+                   " sequence=" + std::to_string(sequence) +
+                   " pos=" + std::to_string(pos);
+        }
+
     private:
         uint32_t sequence;
         uint32_t pos;
+    };
+
+    class CASMismatch : public FaultInjectMode {
+    public:
+        CASMismatch(uint32_t count_)
+          : FaultInjectMode(ENGINE_KEY_EEXISTS),
+            count(count_) {}
+
+        bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+            if (cmd == Cmd::STORE && (count > 0)) {
+                --count;
+                err = injected_error;
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        std::string to_string() const {
+            return std::string("CASMismatch") +
+                   " count=" + std::to_string(count);
+        }
+
+    private:
+        uint32_t count;
     };
 
     // Map of connections (aka cookies) to their current mode.
