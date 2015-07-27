@@ -10,6 +10,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <platform/platform.h>
+#include <platform/crc32c.h>
 
 #include "default_engine_internal.h"
 
@@ -234,9 +235,9 @@ static void assoc_maintenance_thread(void *arg) {
                  NULL != it; it = next) {
                 next = it->h_next;
                 const hash_key* key = item_get_key(it);
-                bucket = engine->server.core->hash(hash_key_get_key(key),
-                                                   hash_key_get_key_len(key),
-                                                   0) & hashmask(engine->assoc->hashpower);
+                bucket = crc32c(hash_key_get_key(key),
+                                hash_key_get_key_len(key),
+                                0) & hashmask(engine->assoc->hashpower);
                 it->h_next = engine->assoc->primary_hashtable[bucket];
                 engine->assoc->primary_hashtable[bucket] = it;
             }

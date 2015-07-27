@@ -8,6 +8,7 @@
 #include <time.h>
 #include <inttypes.h>
 
+#include <platform/crc32c.h>
 #include "default_engine_internal.h"
 #include "engine_manager.h"
 
@@ -302,9 +303,9 @@ int do_item_link(struct default_engine *engine, hash_item *it) {
     it->iflag |= ITEM_LINKED;
     it->time = engine->server.core->get_current_time();
 
-    assoc_insert(engine, engine->server.core->hash(hash_key_get_key(key),
-                                                   hash_key_get_key_len(key), 0),
-                                                   it);
+    assoc_insert(engine, crc32c(hash_key_get_key(key),
+                                hash_key_get_key_len(key), 0),
+                 it);
 
     cb_mutex_enter(&engine->stats.lock);
     engine->stats.curr_bytes += ITEM_ntotal(engine, it);
@@ -331,9 +332,9 @@ void do_item_unlink(struct default_engine *engine, hash_item *it) {
         engine->stats.curr_bytes -= ITEM_ntotal(engine, it);
         engine->stats.curr_items -= 1;
         cb_mutex_exit(&engine->stats.lock);
-        assoc_delete(engine, engine->server.core->hash(hash_key_get_key(key),
-                                                       hash_key_get_key_len(key),
-                                                       0), key);
+        assoc_delete(engine, crc32c(hash_key_get_key(key),
+                                    hash_key_get_key_len(key), 0),
+                     key);
         item_unlink_q(engine, it);
         if (it->refcount == 0 || engine->scrubber.force_delete) {
             item_free(engine, it);
@@ -480,8 +481,8 @@ hash_item *do_item_get(struct default_engine *engine,
                        const hash_key *key) {
     rel_time_t current_time = engine->server.core->get_current_time();
     hash_item *it = assoc_find(engine,
-                               engine->server.core->hash(hash_key_get_key(key),
-                                                         hash_key_get_key_len(key), 0),
+                               crc32c(hash_key_get_key(key),
+                                      hash_key_get_key_len(key), 0),
                                key);
     int was_found = 0;
 
