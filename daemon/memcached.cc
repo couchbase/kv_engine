@@ -301,7 +301,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
          * The following events operates on a connection which is passed in
          * as the cookie.
          */
-    case ON_CONNECT:
     case ON_DISCONNECT:
         cb_assert(connection);
         cb_assert(connection->getBucketIndex() != -1);
@@ -339,7 +338,6 @@ static void register_callback(ENGINE_HANDLE *eh,
      * The following events operates on a connection which is passed in
      * as the cookie.
      */
-    case ON_CONNECT:
     case ON_DISCONNECT:
         cb_assert(eh);
         for (idx = 0; idx < settings.max_buckets; ++idx) {

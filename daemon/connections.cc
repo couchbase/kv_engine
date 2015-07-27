@@ -212,10 +212,6 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
 
     MEMCACHED_CONN_ALLOCATE(c->getId());
 
-    if (init_state != conn_listening) {
-        perform_callbacks(ON_CONNECT, NULL, c);
-    }
-
     return c;
 }
 
