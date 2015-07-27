@@ -895,10 +895,15 @@ ENGINE_ERROR_CODE CouchKVStore::updateVBState(uint16_t vbucketId,
                                               uint64_t maxCas,
                                               uint64_t driftCounter) {
 
-    updateCachedVBState(vbucketId, maxDeletedRevSeqno, snapStartSeqno,
-                        snapEndSeqno, maxCas, driftCounter);
+    std::string state = updateCachedVBState(vbucketId, maxDeletedRevSeqno,
+                                            snapStartSeqno,
+                                            snapEndSeqno, maxCas, driftCounter);
 
-    return ENGINE_SUCCESS;
+    if (!state.empty()) {
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_FAILED;
+    }
 }
 
 vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {

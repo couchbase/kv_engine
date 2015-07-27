@@ -455,25 +455,29 @@ ENGINE_ERROR_CODE ForestKVStore::updateVBState(uint16_t vbucketId,
     std::string state = updateCachedVBState(vbucketId, maxDeletedRevSeqno,
                                             snapStartSeqno, snapEndSeqno,
                                             maxCas, driftCounter);
-    char keybuf[20];
-    fdb_doc statDoc;
-    memset(&statDoc, 0, sizeof(statDoc));
-    sprintf(keybuf, "partition%d", vbucketId);
-    statDoc.key = keybuf;
-    statDoc.keylen = strlen(keybuf);
-    statDoc.meta = NULL;
-    statDoc.metalen = 0;
-    statDoc.body = const_cast<char *>(state.c_str());
-    statDoc.bodylen = state.length();
-    fdb_status status = fdb_set(vbStateHandle, &statDoc);
 
-    if (status != FDB_RESULT_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "Failed to save vbucket state for "
-            "vbucket=%d error=%s", vbucketId, fdb_error_msg(status));
-        return ENGINE_FAILED;
+    if (!state.empty()) {
+        char keybuf[20];
+        fdb_doc statDoc;
+        memset(&statDoc, 0, sizeof(statDoc));
+        sprintf(keybuf, "partition%d", vbucketId);
+        statDoc.key = keybuf;
+        statDoc.keylen = strlen(keybuf);
+        statDoc.meta = NULL;
+        statDoc.metalen = 0;
+        statDoc.body = const_cast<char *>(state.c_str());
+        statDoc.bodylen = state.length();
+        fdb_status status = fdb_set(vbStateHandle, &statDoc);
+
+        if (status == FDB_RESULT_SUCCESS) {
+            return ENGINE_SUCCESS;
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "Failed to save vbucket state for "
+                    "vbucket=%d error=%s", vbucketId, fdb_error_msg(status));
+        }
     }
 
-    return ENGINE_SUCCESS;
+    return ENGINE_FAILED;
 }
 
 static void commitCallback(std::vector<ForestRequest *> &committedReqs) {
