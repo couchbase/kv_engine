@@ -2818,23 +2818,29 @@ void validate_object(const char *key, const std::string& expected_value) {
     EXPECT_EQ(expected_value, actual);
 }
 
-void store_object(const char *key, const char *value) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } send, receive;
-    size_t len = storage_command(send.bytes, sizeof(send.bytes),
+void store_object(const char *key, const char *value, bool validate) {
+    std::vector<char> send;
+    send.resize(sizeof(protocol_binary_request_set) + strlen(key) +
+                strlen(value));
+
+    size_t len = storage_command(send.data(), send.size(),
                                  PROTOCOL_BINARY_CMD_SET,
                                  key, strlen(key), value, strlen(value),
                                  0, 0);
 
-    safe_send(send.bytes, len, false);
+    safe_send(send.data(), len, false);
+
+    union {
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } receive;
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    validate_object(key, value);
+    if (validate) {
+        validate_object(key, value);
+    }
 }
 
 void delete_object(const char* key) {

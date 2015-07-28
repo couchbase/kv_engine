@@ -149,8 +149,13 @@ fetch_value(const std::string& key);
  */
 void validate_object(const char *key, const std::string& expected_value);
 
-/* Attempts to store an object with the given key and value */
-void store_object(const char *key, const char *value);
+/* Attempts to store an object with the given key and value.
+ * @param key Document key
+ * @param value Document value. Supports up to maximum size server allows.
+ * @param validate If true then after storing, read the value from the server
+ *        and check it matches the specified value.
+ */
+void store_object(const char *key, const char *value, bool validate = false);
 
 /* Attempts to delete the object with the given key */
 void delete_object(const char *key);

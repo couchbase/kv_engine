@@ -77,7 +77,8 @@ TEST_F(SubdocPerfTest, Array5k_AddUnique) {
                            iterations);
 }
 
-static void subdoc_create_array(const std::string& name, size_t elements) {
+// Build an array of the given number of elements.
+static std::string subdoc_create_array(size_t elements) {
     std::string list("[");
     for (size_t i = 0; i < elements; i++) {
         std::string key(std::to_string(i));
@@ -87,14 +88,15 @@ static void subdoc_create_array(const std::string& name, size_t elements) {
     list.pop_back();
     list.push_back(']');
 
-    store_object(name, list, /*JSON*/true, /*compress*/false);
+    return list;
 }
 
 // Baseline test case for Array5k_Remove tests; this 'test' just creates the
 // document with 5k elements to operate on. Can then subtract the runtime of
 // this from Array5k_Remove tests to see actual performance.
 TEST_F(SubdocPerfTest, Array5k_RemoveBaseline) {
-    subdoc_create_array("list", iterations);
+    std::string list(subdoc_create_array(iterations));
+    store_object("list", list.c_str());
     delete_object("list");
 }
 
@@ -102,7 +104,8 @@ TEST_F(SubdocPerfTest, Array5k_RemoveBaseline) {
 // Create an N-element array, then benchmark removing N elements individually
 // by removing the first element each time.
 TEST_F(SubdocPerfTest, Array5k_RemoveFirst) {
-    subdoc_create_array("list", iterations);
+    std::string list(subdoc_create_array(iterations));
+    store_object("list", list.c_str());
 
     for (size_t i = 0; i < iterations; i++) {
         expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
@@ -115,7 +118,8 @@ TEST_F(SubdocPerfTest, Array5k_RemoveFirst) {
 // Create an N-element array, then benchmark removing N elements individually
 // by removing the last element each time.
 TEST_F(SubdocPerfTest, Array5k_RemoveLast) {
-    subdoc_create_array("list", iterations);
+    std::string list(subdoc_create_array(iterations));
+    store_object("list", list.c_str());
 
     for (size_t i = 0; i < iterations; i++) {
         expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
@@ -124,6 +128,48 @@ TEST_F(SubdocPerfTest, Array5k_RemoveLast) {
     }
     delete_object("list");
 }
+
+
+// Create an N-element array, then benchmark replacing the first element.
+TEST_F(SubdocPerfTest, Array5k_ReplaceFirst) {
+    std::string list(subdoc_create_array(iterations));
+    store_object("list", list.c_str());
+
+    for (size_t i = 0; i < iterations; i++) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                                    "list", "[0]", "1"),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    }
+    delete_object("list");
+}
+
+// Create an N-element array, then benchmark replacing the middle element.
+TEST_F(SubdocPerfTest, Array5k_ReplaceMiddle) {
+    std::string list(subdoc_create_array(iterations));
+    store_object("list", list.c_str());
+
+    std::string path(std::string("[") + std::to_string(iterations / 2) + "]");
+    for (size_t i = 0; i < iterations; i++) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                                    "list", path, "1"),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    }
+    delete_object("list");
+}
+
+// Create an N-element array, then benchmark replacing the first element.
+TEST_F(SubdocPerfTest, Array5k_ReplaceLast) {
+    std::string list(subdoc_create_array(iterations));
+    store_object("list", list, /*JSON*/true, /*compress*/false);
+
+    for (size_t i = 0; i < iterations; i++) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                                    "list", "[-1]", "1"),
+                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+    }
+    delete_object("list");
+}
+
 
 TEST_F(SubdocPerfTest, Dict5k_Add) {
     store_object("dict", "{}");
@@ -195,4 +241,98 @@ TEST_F(SubdocPerfTest, Dict5k_Get) {
 // Measure checking for EXISTence of all keys in a dictionary.
 TEST_F(SubdocPerfTest, Dict5k_Exists) {
     subdoc_perf_test_dict(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, iterations);
+}
+
+
+/*****************************************************************************
+ * 'Fulldoc' Performance Tests
+ *
+ * These test equivalent functionality to their subdoc siblings above, but
+ * implemented using the traditional operations which operate on the entire
+ * document - aka "Fulldoc" operations.
+ ****************************************************************************/
+
+TEST_F(SubdocPerfTest, Array5k_PushFirst_Fulldoc) {
+    store_object("list", "[]");
+
+    // At each iteration create a new document with one more element in it,
+    // and store to the server.
+    std::string list("]");
+    for (unsigned int i = 0; i < iterations; i++) {
+        if (i != 0) {
+            // After the first element, replace the opening bracket with a
+            // comma.
+            list.front() = ',';
+        }
+        // Prepend the number and close the list.
+        list.insert(0, std::to_string(i));
+        list.insert(0, 1, '[');
+
+        store_object("list", list.c_str(), /*validate*/false);
+    }
+
+    delete_object("list");
+}
+
+TEST_F(SubdocPerfTest, Array5k_PushLast_Fulldoc) {
+    store_object("list", "[]");
+
+    // At each iteration create a new document with one more element in it,
+    // and store to the server.
+    std::string list("[");
+    for (unsigned int i = 0; i < iterations; i++) {
+        if (i != 0) {
+            // After the first element, replace the closing bracket with a
+            // comma.
+            list.back() = ',';
+        }
+        // Append the number and close the list.
+        list.append(std::to_string(i));
+        list.push_back(']');
+
+        store_object("list", list.c_str(), /*validate*/false);
+    }
+
+    delete_object("list");
+}
+
+TEST_F(SubdocPerfTest, Dict5k_Add_Fulldoc) {
+    store_object("dict", "{}");
+
+    // At each iteration add another key to the dictionary, and SET the whole
+    // thing.
+    std::string dict("{");
+    for (size_t i = 0; i < iterations; i++) {
+        if (i != 0) {
+            // After the first element, replace the closing bracket with a
+            // comma.
+            dict.back() = ',';
+        }
+        std::string key(std::to_string(i));
+        std::string value("\"value_" + std::to_string(i) + '"');
+        dict.append('"' + key + "\":" + value);
+
+        // Add the closing brace.
+        dict.push_back('}');
+
+        store_object("dict", dict.c_str(), /*validate*/false);
+    }
+
+    delete_object("dict");
+}
+
+// Create an N-element array, then benchmark replacing (any) element. (For
+// fulldoc commands we are sending the whole document, so doesn't matter what
+// we replace).
+TEST_F(SubdocPerfTest, Array5k_Replace_Fulldoc) {
+    std::string list(subdoc_create_array(iterations));
+    store_object("list", list.c_str());
+
+    // No point in actually 'replacing' anything, just send the same original
+    // thing.
+    for (size_t i = 0; i < iterations; i++) {
+        store_object("list", list.c_str(), /*validate*/false);
+    }
+
+    delete_object("list");
 }
