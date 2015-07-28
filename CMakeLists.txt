@@ -208,6 +208,11 @@ ADD_EXECUTABLE(ep-engine_chunk_creation_test
   tests/module_tests/chunk_creation_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_chunk_creation_test platform)
 
+ADD_EXECUTABLE(ep-engine_compress_test
+  tests/module_tests/compress_test.cc
+  src/compress.cc)
+TARGET_LINK_LIBRARIES(ep-engine_compress_test ${SNAPPY_LIBRARIES} platform)
+
 ADD_EXECUTABLE(ep-engine_hash_table_test
   tests/module_tests/hash_table_test.cc
   src/atomic.cc
@@ -256,6 +261,7 @@ ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
 ADD_TEST(ep-engine_atomic_test ep-engine_atomic_test)
 ADD_TEST(ep-engine_checkpoint_test ep-engine_checkpoint_test)
 ADD_TEST(ep-engine_chunk_creation_test ep-engine_chunk_creation_test)
+ADD_TEST(ep-engine_compress_test ep-engine_compress_test)
 ADD_TEST(ep-engine_failover_table_test ep-engine_failover_table_test)
 ADD_TEST(ep-engine_hash_table_test ep-engine_hash_table_test)
 ADD_TEST(ep-engine_histo_test ep-engine_histo_test)
