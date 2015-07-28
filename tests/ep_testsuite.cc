@@ -9484,6 +9484,12 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     /* DCP stream, expect a rollback to seq 0 */
     dcp_stream_req(h, h1, 1, 0, 3, high_seqno, vb_uuid,
                    3, high_seqno, 0, ENGINE_ROLLBACK);
+
+    /* Do not expect rollback when you already have all items in the snapshot
+       (that is, start == snap_end_seqno)*/
+    dcp_stream_req(h, h1, 1, 0, high_seqno, high_seqno + 10, vb_uuid,
+                   0, high_seqno, 0, ENGINE_SUCCESS);
+
     return SUCCESS;
 }
 
