@@ -2010,7 +2010,11 @@ ENGINE_ERROR_CODE Consumer::setVBucketState(uint32_t opaque, uint16_t vbucket,
         "%s Received TAP/DCP_VBUCKET_SET with vbucket %d and state \"%s\"\n",
         logHeader(), vbucket, VBucket::toString(state));
 
-    return engine_.getEpStore()->setVBucketState(vbucket, state, true);
+    // For TAP-based VBucket takeover, we should create a new VBucket UUID
+    // to prevent any potential data loss after fully switching from TAP to
+    // DCP. Please refer to https://issues.couchbase.com/browse/MB-15837 for
+    // more details.
+    return engine_.getEpStore()->setVBucketState(vbucket, state, false);
 }
 
 void Consumer::processedEvent(uint16_t event, ENGINE_ERROR_CODE ret)
