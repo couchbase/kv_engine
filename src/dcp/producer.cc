@@ -397,14 +397,14 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             "not supported by this engine", logHeader());
         return ENGINE_ENOTSUP;
     } else if (strncmp(param, "enable_noop", nkey) == 0) {
-        if (valueStr.compare("true") == 0) {
+        if (valueStr == "true") {
             noopCtx.enabled = true;
         } else {
             noopCtx.enabled = false;
         }
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "enable_ext_metadata", nkey) == 0) {
-        if (valueStr.compare("true") == 0) {
+        if (valueStr == "true") {
             enableExtMetaData = true;
         } else {
             enableExtMetaData = false;
@@ -415,15 +415,15 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             return ENGINE_SUCCESS;
         }
     } else if(strncmp(param, "set_priority", nkey) == 0) {
-        if (valueStr.compare("high") == 0) {
+        if (valueStr == "high") {
             engine_.setDCPPriority(getCookie(), CONN_PRIORITY_HIGH);
             priority.assign("high");
             return ENGINE_SUCCESS;
-        } else if (valueStr.compare("medium") == 0) {
+        } else if (valueStr == "medium") {
             engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
             priority.assign("medium");
             return ENGINE_SUCCESS;
-        } else if (valueStr.compare("low") == 0) {
+        } else if (valueStr == "low") {
             engine_.setDCPPriority(getCookie(), CONN_PRIORITY_LOW);
             priority.assign("low");
             return ENGINE_SUCCESS;
