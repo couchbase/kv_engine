@@ -102,18 +102,22 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
                                   uint64_t snap_end_seqno,
                                   uint64_t purge_seqno,
                                   uint64_t* rollback_seqno) {
+    /* Start with upper as vb highSeqno */
+    uint64_t upper = cur_seqno;
     LockHolder lh(lock);
+
     if (start_seqno == 0) {
         return false;
     }
 
     *rollback_seqno = 0;
 
-    /* To be more efficient (avoid unnecessary rollback), see if the client has
-       already received all items in the requested snapshot */
-    if (start_seqno == snap_end_seqno) {
-        snap_start_seqno = start_seqno;
-    }
+    /* One of the reasons for rollback is client being in middle of a snapshot.
+       We compare snapshot_start and snapshot_end with start_seqno to see if
+       the client is really in the middle of a snapshot. To prevent unnecessary
+       rollback, we update snap_start_seqno/snap_end_seqno accordingly and then
+       use those values for rollback calculations below */
+    adjustSnapshotRange(start_seqno, snap_start_seqno, snap_end_seqno);
 
     /* There may be items that are purged during compaction. We need
      to rollback to seq no 0 in that case */
@@ -124,36 +128,38 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
     table_t::reverse_iterator itr;
     for (itr = table.rbegin(); itr != table.rend(); ++itr) {
         if (itr->vb_uuid == vb_uuid) {
-            uint64_t upper = cur_seqno;
-
-            ++itr;
-            if (itr != table.rend()) {
+            if (++itr != table.rend()) {
+                /* Since producer has more history we need to consider the
+                   next seqno in failover table as upper */
                 upper = itr->by_seqno;
             }
-
-            if (snap_end_seqno <= upper) {
-                return false;
-            }
-
-            if (snap_start_seqno == start_seqno && upper == start_seqno) {
-                return false;
-            }
-
-            if (snap_start_seqno >= upper) {
-                *rollback_seqno = upper;
-                return true;
-            }
-
-            if (snap_start_seqno == start_seqno) {
-                return false;
-            }
-
-            *rollback_seqno = snap_start_seqno;
-            return true;
+            --itr; /* Get back the iterator to current entry */
+            break;
         }
     }
 
-    return true;
+    /* Find the rollback point */
+    if (itr == table.rend()) {
+        /* No vb_uuid match found in failover table, so producer and consumer
+         have no common history. Rollback to zero */
+        return true;
+    } else {
+        if (snap_end_seqno <= upper) {
+            /* No rollback needed as producer and consumer histories are same */
+            return false;
+        } else {
+            /* We need a rollback as producer upper is lower than the end in
+               consumer snapshot */
+            if (upper < snap_start_seqno) {
+                *rollback_seqno = upper;
+            } else {
+                /* We have to rollback till snap_start_seqno to handle
+                   deduplicaton case */
+                *rollback_seqno = snap_start_seqno;
+            }
+            return true;
+        }
+    }
 }
 
 void FailoverTable::pruneEntries(uint64_t seqno) {
@@ -296,4 +302,17 @@ void FailoverTable::replaceFailoverLog(uint8_t* bytes, uint32_t length) {
     latest_uuid = table.front().vb_uuid;
 
     cacheTableJSON();
+}
+
+void FailoverTable::adjustSnapshotRange(uint64_t start_seqno,
+                                        uint64_t &snap_start_seqno,
+                                        uint64_t &snap_end_seqno)
+{
+    if (start_seqno == snap_end_seqno) {
+        /* Client already has all elements in the snapshot */
+        snap_start_seqno = start_seqno;
+    } else if (start_seqno == snap_start_seqno) {
+        /* Client has no elements in the snapshot */
+        snap_end_seqno = start_seqno;
+    }
 }

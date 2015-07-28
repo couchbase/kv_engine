@@ -152,6 +152,19 @@ class FailoverTable {
     bool loadFromJSON(const std::string& json);
     void cacheTableJSON();
 
+    /**
+     * DCP consumer being in middle of a snapshot is one of the reasons for rollback.
+     * By updating the snap_start_seqno and snap_end_seqno appropriately we can
+     * avoid unnecessary rollbacks.
+     *
+     * @param start_seqno the sequence number that a consumer wants to start with
+     * @param snap_start_seqno the start sequence number of the snapshot
+     * @param snap_end_seqno the end sequence number of the snapshot
+     */
+    void adjustSnapshotRange(uint64_t start_seqno,
+                             uint64_t &snap_start_seqno,
+                             uint64_t &snap_end_seqno);
+
     Mutex lock;
     table_t table;
     size_t max_entries;
