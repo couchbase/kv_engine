@@ -5141,7 +5141,7 @@ static enum test_result test_tap_rcvr_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE
 
 static enum test_result test_tap_rcvr_set_vbstate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[8];
-    vbucket_state_t vb_state = vbucket_state_active;
+    vbucket_state_t vb_state = static_cast<vbucket_state_t>(htonl(vbucket_state_active));
     memcpy(eng_specific, &vb_state, sizeof(vb_state));
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
     // Get the vbucket UUID before vbucket takeover.
