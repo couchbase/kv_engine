@@ -825,7 +825,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
     if (enableNoop) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
-        std::string val = "true";
+        std::string val("true");
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         ret = producers->control(getCookie(), opaque,
                                  noopCtrlMsg.c_str(), noopCtrlMsg.size(),
@@ -907,7 +907,7 @@ ENGINE_ERROR_CODE DcpConsumer::handlePriority(struct dcp_message_producers* prod
     if (setPriority) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
-        std::string val = "high";
+        std::string val("high");
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         ret = producers->control(getCookie(), opaque,
                                  priorityCtrlMsg.c_str(), priorityCtrlMsg.size(),
@@ -924,7 +924,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* p
     if (enableExtMetaData) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
-        std::string val = "true";
+        std::string val("true");
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         ret = producers->control(getCookie(), opaque,
                                  extMetadataCtrlMsg.c_str(),
