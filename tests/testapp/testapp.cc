@@ -1115,7 +1115,7 @@ void validate_response_header(protocol_binary_response_no_extras *response,
         << memcached_protocol_errcode_2_text(static_cast<protocol_binary_response_status>(status))
         << "', actual (as string): '"
         << memcached_protocol_errcode_2_text(static_cast<protocol_binary_response_status>(header->response.status))
-        << "'";
+        << "' for opcode: '" << memcached_opcode_2_text(header->response.opcode) << "'";
 
     EXPECT_EQ(0xdeadbeef, header->response.opaque);
 
@@ -1842,43 +1842,52 @@ static enum test_return test_flush_impl(const char *key, uint8_t cmd) {
     } send, receive;
     int ii;
 
-    size_t len = storage_command(send.bytes, sizeof(send.bytes),
-                                 PROTOCOL_BINARY_CMD_ADD,
-                                 key, strlen(key), NULL, 0, 0, 0);
-    safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_ADD,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    len = flush_command(send.bytes, sizeof(send.bytes), cmd, 2, true);
-    safe_send(send.bytes, len, false);
-    if (cmd == PROTOCOL_BINARY_CMD_FLUSH) {
+    size_t len;
+    {
+        SCOPED_TRACE("flush_impl: timed flush");
+        len = storage_command(send.bytes, sizeof(send.bytes),
+                              PROTOCOL_BINARY_CMD_ADD, key, strlen(key), NULL,
+                              0, 0, 0);
+        safe_send(send.bytes, len, false);
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-        validate_response_header(&receive.response, cmd,
+        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_ADD,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+        len = flush_command(send.bytes, sizeof(send.bytes), cmd, 2, true);
+        safe_send(send.bytes, len, false);
+        if (cmd == PROTOCOL_BINARY_CMD_FLUSH) {
+            safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+            validate_response_header(&receive.response, cmd,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        }
+
+        len = raw_command(send.bytes, sizeof(send.bytes),
+                          PROTOCOL_BINARY_CMD_GET, key, strlen(key), NULL, 0);
+        safe_send(send.bytes, len, false);
+        safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
-    len = raw_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_GET,
-                      key, strlen(key), NULL, 0);
-    safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
+    {
+        SCOPED_TRACE("flush_impl: GET 2");
 #ifdef WIN32
-    Sleep(2000);
+        Sleep(2000);
 #else
-    sleep(2);
+        sleep(2);
 #endif
-    safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
-                             PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+        safe_send(send.bytes, len, false);
+        safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
+                                 PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+    }
 
     for (ii = 0; ii < 2; ++ii) {
+        SCOPED_TRACE("flush_impl: ADD[post flush] iteration " +
+                     std::to_string(ii));
         len = storage_command(send.bytes, sizeof(send.bytes),
-                              PROTOCOL_BINARY_CMD_ADD,
-                              key, strlen(key), NULL, 0, 0, 0);
+                              PROTOCOL_BINARY_CMD_ADD, key, strlen(key), NULL,
+                              0, 0, 0);
         safe_send(send.bytes, len, false);
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_ADD,
@@ -1893,8 +1902,7 @@ static enum test_return test_flush_impl(const char *key, uint8_t cmd) {
         }
 
         len = raw_command(send.bytes, sizeof(send.bytes),
-                          PROTOCOL_BINARY_CMD_GET,
-                          key, strlen(key), NULL, 0);
+                          PROTOCOL_BINARY_CMD_GET, key, strlen(key), NULL, 0);
         safe_send(send.bytes, len, false);
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
         validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
