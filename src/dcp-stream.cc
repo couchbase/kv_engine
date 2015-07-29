@@ -614,10 +614,12 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             pushToReadyQ(new StreamEndResponse(opaque_, reason, vb_));
         }
         transitionState(STREAM_DEAD);
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream closing, %llu items sent"
-            " from backfill phase, %llu items sent from memory phase, %llu was "
-            "last seqno sent, reason: %s", producer->logHeader(), vb_,
-            backfillItems.sent.load(), itemsFromMemoryPhase, lastSentSeqno,
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRId16 ") Stream closing, "
+            "%" PRIu64 " items sent from backfill phase, %" PRIu64 " items "
+            "sent from memory phase, %" PRIu64 " was last seqno sent, "
+            "reason: %s", producer->logHeader(), vb_,
+            uint64_t(backfillItems.sent.load()),
+            uint64_t(itemsFromMemoryPhase), lastSentSeqno,
             getEndStreamStatusStr(reason));
     }
 }
