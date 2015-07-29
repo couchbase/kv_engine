@@ -80,7 +80,7 @@ void CheckpointCursor::decrPos() {
 
 Checkpoint::~Checkpoint() {
     LOG(EXTENSION_LOG_INFO,
-        "Checkpoint %llu for vbucket %d is purged from memory",
+        "Checkpoint %" PRIu64 " for vbucket %d is purged from memory",
         checkpointId, vbucketId);
     stats.memOverhead.fetch_sub(memorySize());
     cb_assert(stats.memOverhead.load() < GIGANTOR);
@@ -183,7 +183,8 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
     std::list<queued_item>::reverse_iterator rit = pPrevCheckpoint->rbegin();
 
     LOG(EXTENSION_LOG_INFO,
-        "Collapse the checkpoint %llu into the checkpoint %llu for vbucket %d",
+        "Collapse the checkpoint %" PRIu64 " into the checkpoint %" PRIu64
+        " for vbucket %d",
         pPrevCheckpoint->getId(), checkpointId, vbucketId);
 
     std::list<queued_item>::iterator itr = toWrite.begin();
@@ -304,9 +305,9 @@ void CheckpointManager::setOpenCheckpointId_UNLOCKED(uint64_t id) {
         }
 
         checkpointList.back()->setId(id);
-        LOG(EXTENSION_LOG_INFO, "Set the current open checkpoint id to %llu "
-            "for vbucket %d, bySeqno is %llu, max is %llu", id, vbucketId,
-            (*it)->getBySeqno(), lastBySeqno);
+        LOG(EXTENSION_LOG_INFO, "Set the current open checkpoint id to %" PRIu64
+            " for vbucket %d, bySeqno is %" PRId64 ", max is %" PRId64,
+            id, vbucketId, (*it)->getBySeqno(), lastBySeqno);
     }
 }
 
@@ -324,8 +325,8 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
         closeOpenCheckpoint_UNLOCKED();
     }
 
-    LOG(EXTENSION_LOG_INFO, "Create a new open checkpoint %llu for vbucket %d",
-        id, vbucketId);
+    LOG(EXTENSION_LOG_INFO, "Create a new open checkpoint %" PRIu64
+        " for vbucket %d", id, vbucketId);
 
     bool was_empty = checkpointList.empty() ? true : false;
     Checkpoint *checkpoint = new Checkpoint(stats, id, snapStartSeqno,
@@ -390,8 +391,8 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
     }
 
     uint64_t id = checkpointList.back()->getId();
-    LOG(EXTENSION_LOG_INFO, "Close the open checkpoint %llu for vbucket %d",
-        id, vbucketId);
+    LOG(EXTENSION_LOG_INFO, "Close the open checkpoint %" PRIu64
+        " for vbucket %d", id, vbucketId);
 
     // This item represents the end of the current open checkpoint and is sent to the slave node.
     queued_item qi = createCheckpointItem(id, vbucketId,
@@ -472,7 +473,7 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(const std::string &name
          * is already an assert above for this case.
          */
         LOG(EXTENSION_LOG_WARNING, "Cursor not registered into vb %d "
-            " for stream '%s' because seqno %llu is too high",
+            " for stream '%s' because seqno %" PRIu64 " is too high",
             vbucketId, name.c_str(), startBySeqno);
     }
     return result;
@@ -517,8 +518,8 @@ bool CheckpointManager::registerCursor_UNLOCKED(const std::string &name,
         }
 
         LOG(EXTENSION_LOG_DEBUG,
-            "Checkpoint %llu for vbucket %d doesn't exist in memory. "
-            "Set the cursor with the name \"%s\" to checkpoint %d.\n",
+            "Checkpoint %" PRIu64 " for vbucket %d doesn't exist in memory. "
+            "Set the cursor with the name \"%s\" to checkpoint %" PRIu64 ".\n",
             checkpointId, vbucketId, name.c_str(), (*it)->getId());
 
         cb_assert(it != checkpointList.end());
@@ -537,8 +538,8 @@ bool CheckpointManager::registerCursor_UNLOCKED(const std::string &name,
         std::list<queued_item>::iterator curr;
 
         LOG(EXTENSION_LOG_DEBUG,
-            "Checkpoint %llu for vbucket %d exists in memory. "
-            "Set the cursor with the name \"%s\" to the checkpoint %llu\n",
+            "Checkpoint %" PRIu64 " for vbucket %d exists in memory. "
+            "Set the cursor with the name \"%s\" to the checkpoint %" PRIu64,
             checkpointId, vbucketId, name.c_str(), checkpointId);
 
         if (!alwaysFromBeginning &&
@@ -892,9 +893,9 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
             addNewCheckpoint_UNLOCKED(checkpointList.back()->getId() + 1);
         } else {
             LOG(EXTENSION_LOG_WARNING, "Checkpoint closed in queueDirty()!"
-                "This is not expected. vb %d, vb state %d, lastBySeqno %llu,"
-                "genSeqno: %d", vb->getId(), vb->getState(), lastBySeqno,
-                genSeqno);
+                "This is not expected. vb %d, vb state %d, lastBySeqno %" PRId64
+                ", genSeqno: %d",
+                vb->getId(), vb->getState(), lastBySeqno, genSeqno);
             cb_assert(false);
         }
     }
@@ -912,9 +913,9 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
     if (!(st <= static_cast<uint64_t>(lastBySeqno) &&
           static_cast<uint64_t>(lastBySeqno) <= en)) {
         LOG(EXTENSION_LOG_WARNING, "lastBySeqno not in snapshot range "
-            "vb %d, vb state %d, snapshotstart %llu, lastBySeqno %llu, "
-            "snapshotend %llu genSeqno: %d", vb->getId(), vb->getState(),
-            st, lastBySeqno, en, genSeqno);
+            "vb %d, vb state %d, snapshotstart %" PRIu64
+            ", lastBySeqno %" PRId64 ", snapshotend %" PRIu64 " genSeqno: %d",
+            vb->getId(), vb->getState(), st, lastBySeqno, en, genSeqno);
         cb_assert(false);
     }
 

@@ -57,8 +57,8 @@ void BgFetcher::notifyBGEvent(void) {
 size_t BgFetcher::doFetch(uint16_t vbId) {
     hrtime_t startTime(gethrtime());
     LOG(EXTENSION_LOG_DEBUG, "BgFetcher is fetching data, vBucket = %d "
-        "numDocs = %d, startTime = %lld\n", vbId, items2fetch.size(),
-        startTime/1000000);
+        "numDocs = %" PRIu64 ", startTime = %" PRIu64,
+        vbId, uint64_t(items2fetch.size()), startTime/1000000);
 
     shard->getROUnderlying()->getMulti(vbId, items2fetch);
 

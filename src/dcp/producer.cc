@@ -127,17 +127,17 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 
     if (!notifyOnly && start_seqno > end_seqno) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "the start seqno (%llu) is larger than the end seqno (%llu)",
-            logHeader(), vbucket, start_seqno, end_seqno);
+            "the start seqno (%" PRIu64 ") is larger than the end seqno "
+            "(%" PRIu64 ")", logHeader(), vbucket, start_seqno, end_seqno);
         return ENGINE_ERANGE;
     }
 
     if (!notifyOnly && !(snap_start_seqno <= start_seqno &&
         start_seqno <= snap_end_seqno)) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "the snap start seqno (%llu) <= start seqno (%llu) <= snap end "
-            "seqno (%llu) is required", logHeader(), vbucket, snap_start_seqno,
-            start_seqno, snap_end_seqno);
+            "the snap start seqno (%" PRIu64 ") <= start seqno (%" PRIu64 ")"
+            " <= snap end seqno (%" PRIu64 ") is required", logHeader(), vbucket,
+            snap_start_seqno, start_seqno, snap_end_seqno);
         return ENGINE_ERANGE;
     }
 
@@ -171,8 +171,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                      snap_end_seqno, vb->getPurgeSeqno(),
                                      rollback_seqno)) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed "
-            "because a rollback to seqno %llu is required (start seqno %llu, "
-            "vb_uuid %llu, snapStartSeqno %llu, snapEndSeqno %llu)",
+            "because a rollback to seqno %" PRIu64 " is required "
+            "(start seqno %" PRIu64 ", vb_uuid %" PRIu64 ", snapStartSeqno %" PRIu64
+            ", snapEndSeqno %" PRIu64 ")",
             logHeader(), vbucket, *rollback_seqno, start_seqno, vbucket_uuid,
             snap_start_seqno, snap_end_seqno);
         return ENGINE_ROLLBACK;

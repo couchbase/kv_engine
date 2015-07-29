@@ -74,8 +74,8 @@ ENGINE_ERROR_CODE VBucketMap::addBucket(const RCPtr<VBucket> &b) {
             b->getId(), VBucket::toString(b->getState()));
         return ENGINE_SUCCESS;
     }
-    LOG(EXTENSION_LOG_WARNING, "Cannot create vb %d, max vbuckets is %d",
-        b->getId(), size);
+    LOG(EXTENSION_LOG_WARNING, "Cannot create vb %d, max vbuckets is %" PRIu64,
+        b->getId(), uint64_t(size));
     return ENGINE_ERANGE;
 }
 

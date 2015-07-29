@@ -75,9 +75,9 @@ void Stream::popFromReadyQ(void)
             readyQueueMemory -= respSize;
         } else {
             LOG(EXTENSION_LOG_DEBUG, "readyQ size for stream %s (vb %d)"
-                "underflow, likely wrong stat calculation! curr size: %llu;"
-                "new size: %d", name_.c_str(), getVBucket(), readyQueueMemory,
-                respSize);
+                "underflow, likely wrong stat calculation! curr size: %" PRIu64
+                "; new size: %d",
+                name_.c_str(), getVBucket(), readyQueueMemory, respSize);
             readyQueueMemory = 0;
         }
     }
@@ -152,9 +152,10 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
     takeoverStart = 0;
     takeoverSendMaxTime = engine->getConfiguration().getDcpTakeoverMaxTime();
 
-    LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) %sstream created with start seqno "
-        "%llu and end seqno %llu", producer->logHeader(), vb, type, st_seqno,
-        en_seqno);
+    LOG(EXTENSION_LOG_NOTICE,
+        "%s (vb %d) %sstream created with start seqno %" PRIu64
+        " and end seqno %" PRIu64, producer->logHeader(),
+        vb, type, st_seqno, en_seqno);
 }
 
 ActiveStream::~ActiveStream() {
@@ -216,8 +217,8 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     firstMarkerSent = true;
 
     LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Sending disk snapshot with start "
-        "seqno %llu and end seqno %llu", producer->logHeader(), vb_, startSeqno,
-        endSeqno);
+        "seqno %" PRIu64 " and end seqno %" PRIu64,
+        producer->logHeader(), vb_, startSeqno, endSeqno);
     pushToReadyQ(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
                                    MARKER_FLAG_DISK));
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
@@ -279,10 +280,11 @@ void ActiveStream::completeBackfill() {
 
     if (state_ == STREAM_BACKFILLING) {
         isBackfillTaskRunning = false;
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Backfill complete, %d items read"
-            " from disk %d from memory, last seqno read: %ld",
-            producer->logHeader(), vb_, backfillItems.disk.load(),
-            backfillItems.memory.load(), lastReadSeqno);
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Backfill complete,"
+            "%" PRIu64 " items read from disk, %" PRIu64 " from memory,"
+            " last seqno read: %" PRIu64,
+            producer->logHeader(), vb_, uint64_t(backfillItems.disk.load()),
+            uint64_t(backfillItems.memory.load()), lastReadSeqno);
 
         if (!itemsReady) {
             itemsReady = true;
@@ -636,10 +638,13 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             pushToReadyQ(new StreamEndResponse(opaque_, reason, vb_));
         }
         transitionState(STREAM_DEAD);
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Stream closing, %llu items sent"
-            " from backfill phase, %llu items sent from memory phase, %llu was "
-            "last seqno sent, reason: %s", producer->logHeader(), vb_,
-            backfillItems.sent.load(), itemsFromMemoryPhase, lastSentSeqno,
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Stream closing, "
+            "%" PRIu64 " items sent from backfill phase, "
+            "%" PRIu64 " items sent from memory phase, "
+            "%" PRIu64 " was last seqno sent, reason: %s",
+            producer->logHeader(), vb_,
+            uint64_t(backfillItems.sent.load()),
+            uint64_t(itemsFromMemoryPhase), lastSentSeqno,
             getEndStreamStatusStr(reason));
     }
 }
@@ -829,8 +834,8 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, DcpProducer* p,
     type_ = STREAM_NOTIFIER;
 
     LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) stream created with start seqno "
-        "%llu and end seqno %llu", producer->logHeader(), vb, st_seqno,
-        en_seqno);
+        "%" PRIu64 " and end seqno %" PRIu64,
+        producer->logHeader(), vb, st_seqno, en_seqno);
 }
 
 uint32_t NotifierStream::setDead(end_stream_status_t status) {
@@ -915,8 +920,9 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
 
     const char* type = (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) ? "takeover" : "";
     LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Attempting to add %s stream with "
-        "start seqno %llu, end seqno %llu, vbucket uuid %llu, snap start seqno "
-        "%llu, and snap end seqno %llu", consumer->logHeader(), vb, type,
+        "start seqno %" PRIu64 ", end seqno %" PRIu64 ", vbucket uuid %" PRIu64
+        ", snap start seqno %" PRIu64 ", and snap end seqno %" PRIu64,
+        consumer->logHeader(), vb, type,
         st_seqno, en_seqno, vb_uuid, snap_start_seqno, snap_end_seqno);
 }
 
@@ -985,8 +991,9 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
     snap_end_seqno_ = info.range.end;
 
     LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Attempting to reconnect stream "
-        "with opaque %ld, start seq no %llu, end seq no %llu, snap start seqno "
-        "%llu, and snap end seqno %llu", consumer->logHeader(), vb_, new_opaque,
+        "with opaque %" PRIu32 ", start seq no %" PRIu64 ", end seq no %" PRIu64
+        ", snap start seqno %" PRIu64 ", and snap end seqno %" PRIu64,
+        consumer->logHeader(), vb_, new_opaque,
         start_seqno, end_seqno_, snap_start_seqno_, snap_end_seqno_);
 
     LockHolder lh(streamMutex);
@@ -1016,9 +1023,9 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         uint64_t bySeqno = m->getBySeqno();
         if (bySeqno <= last_seqno) {
             LOG(EXTENSION_LOG_INFO, "%s Dropping dcp mutation for vbucket %d "
-                "with opaque %ld because the byseqno given (%llu) must be "
-                "larger than %llu", consumer->logHeader(), vb_, opaque_,
-                bySeqno, last_seqno);
+                "with opaque %" PRIu32 " because the byseqno given (%" PRIu64
+                ") must be larger than %" PRIu64,
+                consumer->logHeader(), vb_, opaque_, bySeqno, last_seqno);
             delete m;
             return ENGINE_ERANGE;
         }

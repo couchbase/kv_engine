@@ -719,7 +719,8 @@ void Warmup::loadingAccessLog(uint16_t shardId)
     size_t numItems = store->getEPEngine().getEpStats().warmedUpValues;
     if (success && numItems) {
         LOG(EXTENSION_LOG_NOTICE,
-            "%d items loaded from access log, completed in %s", numItems,
+            "%" PRIu64 " items loaded from access log, completed in %s",
+            uint64_t(numItems),
             hrtime2text((gethrtime() - stTime) / 1000).c_str());
     } else {
         size_t estimatedCount= store->getEPEngine().getEpStats().warmedUpKeys;

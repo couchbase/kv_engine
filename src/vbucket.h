@@ -434,8 +434,9 @@ public:
             oldVal = dirtyQueueSize.load();
             if (oldVal < decrementBy) {
                 LOG(EXTENSION_LOG_DEBUG,
-                    "Cannot decrement dirty queue size of vbucket %d by %lld, "
-                    "the current value is %lld\n", id, decrementBy, oldVal);
+                    "Cannot decrement dirty queue size of vbucket %d by %"
+                    PRIu64 ", the current value is %" PRIu64 "\n", id,
+                    uint64_t(decrementBy), uint64_t(oldVal));
                 return false;
             }
         } while (!dirtyQueueSize.compare_exchange_strong(oldVal, oldVal - decrementBy));

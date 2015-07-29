@@ -223,8 +223,8 @@ void TaskQueue::_schedule(ExTask &task) {
 
     futureQueue.push(task);
 
-    LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %d",
-            name.c_str(), task->getDescription().c_str(), task->getId());
+    LOG(EXTENSION_LOG_DEBUG, "%s: Schedule a task \"%s\" id %" PRIu64,
+        name.c_str(), task->getDescription().c_str(), uint64_t(task->getId()));
 
     size_t numToWake = 1;
     TaskQueue *sleepQ = manager->getSleepQ(queueType);
@@ -246,8 +246,8 @@ void TaskQueue::_wake(ExTask &task) {
     const hrtime_t now = gethrtime();
 
     LockHolder lh(mutex);
-    LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\" id %d", name.c_str(),
-            task->getDescription().c_str(), task->getId());
+    LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\" id %" PRIu64,
+        name.c_str(), task->getDescription().c_str(), uint64_t(task->getId()));
 
     // MB-9986: Re-sort futureQueue for now. TODO: avoid this O(N) overhead
     std::queue<ExTask> notReady;

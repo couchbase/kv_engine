@@ -1434,9 +1434,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
 
     ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
 
-    LOG(EXTENSION_LOG_DEBUG, "Scheduled compaction task %d on vbucket %d,"
-        "purge_before_ts = %lld, purge_before_seq = %lld, dropdeletes = %d",
-        task->getId(), vbid, c.purge_before_ts,
+    LOG(EXTENSION_LOG_DEBUG,
+        "Scheduled compaction task %" PRIu64 " on vbucket %d,"
+        "purge_before_ts = %" PRIu64 ", purge_before_seq = %" PRIu64
+        ", dropdeletes = %d",
+        uint64_t(task->getId()), vbid, c.purge_before_ts,
         c.purge_before_seq, c.drop_deletes);
 
    return ENGINE_EWOULDBLOCK;
@@ -1760,8 +1762,9 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
-                        "Warning: failed background fetch for vb=%d seq=%d "
-                        "key=%s", vbucket, v->getBySeqno(), key.c_str());
+                        "Warning: failed background fetch for vb=%d "
+                        "seq=%" PRId64 " key=%s", vbucket, v->getBySeqno(),
+                        key.c_str());
                     status = ENGINE_TMPFAIL;
                 }
             }
@@ -1885,9 +1888,9 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
     }
 
     LOG(EXTENSION_LOG_DEBUG,
-        "EP Store completes %d of batched background fetch "
-        "for vBucket = %d endTime = %lld\n",
-        fetchedItems.size(), vbId, gethrtime()/1000000);
+        "EP Store completes %" PRIu64 " of batched background fetch "
+        "for vBucket = %d endTime = %" PRIu64,
+        uint64_t(fetchedItems.size()), vbId, gethrtime()/1000000);
 }
 
 void EventuallyPersistentStore::bgFetch(const std::string &key,
@@ -2401,8 +2404,9 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
-                        "Warning: failed background fetch for vb=%d seq=%d "
-                        "key=%s", vbid, v->getBySeqno(), key.c_str());
+                        "Warning: failed background fetch for vb=%d "
+                        "seq=%" PRId64 " key=%s", vbid, v->getBySeqno(),
+                        key.c_str());
                 }
             }
         }

@@ -292,13 +292,14 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
     LockHolder lh(tMutex);
     std::map<size_t, TaskQpair>::iterator itr = taskLocator.find(taskId);
     if (itr == taskLocator.end()) {
-        LOG(EXTENSION_LOG_DEBUG, "Task id %d not found");
+        LOG(EXTENSION_LOG_DEBUG, "Task id %" PRIu64 " not found",
+            uint64_t(taskId));
         return false;
     }
 
     ExTask task = itr->second.first;
-    LOG(EXTENSION_LOG_DEBUG, "Cancel task %s id %d on bucket %s %s",
-            task->getDescription().c_str(), task->getId(),
+    LOG(EXTENSION_LOG_DEBUG, "Cancel task %s id %" PRIu64 " on bucket %s %s",
+            task->getDescription().c_str(), uint64_t(task->getId()),
             task->getTaskable()->getName().c_str(), eraseTask ? "final erase" : "!");
 
     task->cancel(); // must be idempotent, just set state to dead
@@ -467,7 +468,7 @@ bool ExecutorPool::_startWorkers(void) {
     std::stringstream ss;
     ss << "Spawning " << numReaders << " readers, " << numWriters <<
     " writers, " << numAuxIO << " auxIO, " << numNonIO << " nonIO threads";
-    LOG(EXTENSION_LOG_NOTICE, ss.str().c_str());
+    LOG(EXTENSION_LOG_NOTICE, "%s", ss.str().c_str());
 
     for (size_t tidx = 0; tidx < numReaders; ++tidx) {
         std::stringstream ss;
@@ -525,9 +526,10 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
             TaskQueue *q = itr->second.second;
             if (task->getTaskable()->getGID() == taskGID &&
                 (taskType == NO_TASK_TYPE || q->queueType == taskType)) {
-                LOG(EXTENSION_LOG_DEBUG, "Stopping Task id %d %s %s ",
-                        task->getId(), task->getTaskable()->getName().c_str(),
-                        task->getDescription().c_str());
+                LOG(EXTENSION_LOG_DEBUG, "Stopping Task id %" PRIu64 " %s %s ",
+                    uint64_t(task->getId()),
+                    task->getTaskable()->getName().c_str(),
+                    task->getDescription().c_str());
                 if (!task->blockShutdown) {
                     task->cancel(); // Must be idempotent
                 }

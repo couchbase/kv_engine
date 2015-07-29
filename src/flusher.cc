@@ -41,7 +41,7 @@ void Flusher::wait(void) {
         if (!ExecutorPool::get()->wake(taskId)) {
             std::stringstream ss;
             ss << "Flusher task " << taskId << " vanished!";
-            LOG(EXTENSION_LOG_WARNING, ss.str().c_str());
+            LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
             break;
         }
         usleep(1000);
@@ -142,8 +142,9 @@ void Flusher::schedule_UNLOCKED() {
 void Flusher::start() {
     LockHolder lh(taskMutex);
     if (taskId) {
-        LOG(EXTENSION_LOG_WARNING, "Double start in flusher task id %llu: %s",
-                taskId.load(), stateName());
+        LOG(EXTENSION_LOG_WARNING,
+            "Double start in flusher task id %" PRIu64 ": %s",
+            uint64_t(taskId.load()), stateName());
         return;
     }
     schedule_UNLOCKED();

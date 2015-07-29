@@ -432,8 +432,8 @@ bool MutationLog::prepareWrites() {
         int64_t unaligned_bytes = seek_result % blockSize;
         if (unaligned_bytes != 0) {
             LOG(EXTENSION_LOG_WARNING,
-                    "WARNING: filesize %d not block aligned", seek_result,
-                    "'%s': %s", getLogFile().c_str(), strerror(errno));
+                "WARNING: filesize %" PRId64 " not block aligned '%s': %s",
+                seek_result, getLogFile().c_str(), strerror(errno));
             if (blockSize < (size_t)seek_result) {
                 if (SeekFile(file, getLogFile(),
                     seek_result - unaligned_bytes, false) < 0) {

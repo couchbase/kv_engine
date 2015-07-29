@@ -55,7 +55,7 @@ bool DefragmenterTask::run(void) {
         ss << " Using chunk_duration=" << getChunkDurationMS() << " ms."
            << " mem_used=" << stats.getTotalMemoryUsed()
            << ", mapped_bytes=" << getMappedBytes();
-        LOG(EXTENSION_LOG_INFO, ss.str().c_str());
+        LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
 
         // Disable thread-caching (as we are about to defragment, and hence don't
         // want any of the new Blobs in tcache).
@@ -102,7 +102,7 @@ bool DefragmenterTask::run(void) {
            << " mem_used=" << stats.getTotalMemoryUsed()
            << ", mapped_bytes=" << getMappedBytes()
            << ". Sleeping for " << getSleepTime() << " seconds.";
-        LOG(EXTENSION_LOG_INFO, ss.str().c_str());
+        LOG(EXTENSION_LOG_INFO, "%s", ss.str().c_str());
 
         // Delete visitor if it finished.
         if (completed) {

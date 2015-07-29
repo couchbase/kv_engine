@@ -185,8 +185,9 @@ public:
             oldVal = diskQueueSize.load();
             if (oldVal < decrementBy) {
                 LOG(EXTENSION_LOG_DEBUG,
-                    "Cannot decrement diskQueueSize by %lld, "
-                    "the current value is %lld\n", decrementBy, oldVal);
+                    "Cannot decrement diskQueueSize by %" PRIu64 ", "
+                    "the current value is %" PRIu64 "\n",
+                    uint64_t(decrementBy), uint64_t(oldVal));
                 return false;
             }
         } while (!diskQueueSize.compare_exchange_strong(oldVal, oldVal - decrementBy));

@@ -332,8 +332,8 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             stats.chkPersistenceHisto.add(wall_time / 1000);
             adjustCheckpointFlushTimeout(wall_time / 1000000000);
             LOG(EXTENSION_LOG_NOTICE, "Notified the completion of checkpoint "
-                "persistence for vbucket %d, id %llu, cookie %p", id, idNum,
-                entry->cookie);
+                "persistence for vbucket %d, id %" PRIu64 ", cookie %p",
+                id, idNum, entry->cookie);
             entry = hpChks.erase(entry);
             if (shard) {
                 --shard->highPriorityCount;
@@ -343,8 +343,8 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             e.storeEngineSpecific(entry->cookie, NULL);
             toNotify[entry->cookie] = ENGINE_TMPFAIL;
             LOG(EXTENSION_LOG_WARNING, "Notified the timeout on checkpoint "
-                "persistence for vbucket %d, id %llu, cookie %p", id, idNum,
-                entry->cookie);
+                "persistence for vbucket %d, id %" PRIu64 ", cookie %p",
+                id, idNum, entry->cookie);
             entry = hpChks.erase(entry);
             if (shard) {
                 --shard->highPriorityCount;

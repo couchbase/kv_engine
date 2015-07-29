@@ -111,9 +111,9 @@ void ExecutorThread::run() {
             rel_time_t startReltime = ep_current_time();
             try {
                 LOG(EXTENSION_LOG_DEBUG,
-                    "%s: Run task \"%s\" id %d",
-                getName().c_str(), currentTask->getDescription().c_str(),
-                currentTask->getId());
+                    "%s: Run task \"%s\" id %" PRIu64,
+                    getName().c_str(), currentTask->getDescription().c_str(),
+                    uint64_t(currentTask->getId()));
 
                 // Now Run the Task ....
                 currentTask->setState(TASK_RUNNING, TASK_SNOOZED);
@@ -157,12 +157,12 @@ void ExecutorThread::run() {
                         waketime = new_waketime;
                     }
                     LOG(EXTENSION_LOG_DEBUG, "%s: Reschedule a task"
-                            " \"%s\" id %d[%llu %llu |%llu]",
+                            " \"%s\" id %" PRIu64 "[%" PRIu64 " %" PRIu64 " |%" PRIu64 "]",
                             name.c_str(),
                             currentTask->getDescription().c_str(),
-                            currentTask->getId(), new_waketime,
-                            currentTask->waketime,
-                            waketime);
+                            uint64_t(currentTask->getId()), uint64_t(new_waketime),
+                            uint64_t(currentTask->waketime),
+                            uint64_t(waketime));
                 }
             } catch (std::exception& e) {
                 LOG(EXTENSION_LOG_WARNING,

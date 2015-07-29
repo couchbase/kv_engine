@@ -183,7 +183,7 @@ bool BackFillVisitor::pauseVisitor() {
     pause = theSize > maxBackfillSize;
 
     if (pause) {
-        LOG(EXTENSION_LOG_INFO, "Tap queue depth is too big for %s!!! ",
+        LOG(EXTENSION_LOG_INFO, "Tap queue depth is too big for %s!!! "
             "Pausing backfill temporarily...\n", name.c_str());
     }
     return pause;

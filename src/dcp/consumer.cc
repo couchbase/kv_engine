@@ -571,8 +571,8 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
     }
 
     if (!validOpaque) {
-        LOG(EXTENSION_LOG_WARNING, "%s Received response with opaque %ld and "
-            "that stream no longer exists", logHeader());
+        LOG(EXTENSION_LOG_WARNING, "%s Received response with opaque %"
+            PRIu32 "and that stream no longer exists", logHeader(), opaque);
         return ENGINE_KEY_ENOENT;
     }
 
@@ -592,7 +592,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
             rollbackSeqno = ntohll(rollbackSeqno);
 
             LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Received rollback request "
-                "to rollback seq no. %llu", logHeader(), vbid, rollbackSeqno);
+                "to rollback seq no. %" PRIu64, logHeader(), vbid, rollbackSeqno);
 
             ExTask task = new RollbackTask(&engine_, opaque, vbid,
                                            rollbackSeqno, this,
@@ -603,8 +603,8 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
 
         if (((bodylen % 16) != 0 || bodylen == 0) && status == ENGINE_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING, "%s (vb %d)Got a stream response with a "
-                "bad failover log (length %llu), disconnecting", logHeader(),
-                vbid, bodylen);
+                "bad failover log (length %" PRIu64 "), disconnecting",
+                logHeader(), vbid, bodylen);
             return ENGINE_DISCONNECT;
         }
 
@@ -789,19 +789,19 @@ void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
                 st->scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
                                 st->getVBuckets().getShard(vbucket)->getId());
             }
-            LOG(EXTENSION_LOG_INFO, "%s (vb %d) Add stream for opaque %ld"
+            LOG(EXTENSION_LOG_INFO, "%s (vb %d) Add stream for opaque %" PRIu32
                 " %s with error code %d", logHeader(), vbucket, opaque,
                 status == ENGINE_SUCCESS ? "succeeded" : "failed", status);
             stream->acceptStream(status, add_opaque);
         } else {
             LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Trying to add stream, but "
-                "none exists (opaque: %d, add_opaque: %d)", logHeader(),
-                vbucket, opaque, add_opaque);
+                "none exists (opaque: %" PRIu32 ", add_opaque: %" PRIu32 ")",
+                logHeader(), vbucket, opaque, add_opaque);
         }
         opaqueMap_.erase(opaque);
     } else {
         LOG(EXTENSION_LOG_WARNING, "%s No opaque found for add stream response "
-            "with opaque %ld", logHeader(), opaque);
+            "with opaque %" PRIu32, logHeader(), opaque);
     }
 }
 

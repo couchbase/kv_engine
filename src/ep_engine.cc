@@ -2926,7 +2926,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::ConnHandlerCheckPoint(
     else {
         ret = ENGINE_DISCONNECT;
         LOG(EXTENSION_LOG_WARNING, "%s Error processing "
-            "checkpoint %llu. Force disconnect\n",
+            "checkpoint %" PRIu64 ". Force disconnect\n",
             consumer->logHeader(), checkpointId);
     }
 
@@ -4732,7 +4732,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
     memcpy(&vb_uuid, data, sizeof(uint64_t));
     vb_uuid = ntohll(vb_uuid);
 
-    LOG(EXTENSION_LOG_DEBUG, "Observing vbucket: %d with uuid: %llu\n",
+    LOG(EXTENSION_LOG_DEBUG, "Observing vbucket: %d with uuid: %" PRIu64,
                              vb_id, vb_uuid);
 
     RCPtr<VBucket> vb = epstore->getVBucket(vb_id);
@@ -5000,7 +5000,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
                 } else {
                     storeEngineSpecific(cookie, NULL);
                     LOG(EXTENSION_LOG_INFO,
-                        "Checkpoint %llu persisted for vbucket %d.",
+                        "Checkpoint %" PRIu64 " persisted for vbucket %d.",
                         chk_id, vbucket);
                 }
             }
@@ -5061,7 +5061,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
         } else {
             storeEngineSpecific(cookie, NULL);
             LOG(EXTENSION_LOG_INFO,
-                "Sequence number %llu persisted for vbucket %d.",
+                "Sequence number %" PRIu64 " persisted for vbucket %d.",
                 seqno, vbucket);
         }
     }

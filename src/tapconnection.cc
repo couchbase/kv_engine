@@ -391,7 +391,7 @@ void TapProducer::setBackfillAge(uint64_t age, bool reconnect) {
 
     if (flags & TAP_CONNECT_FLAG_BACKFILL) {
         backfillAge = age;
-        LOG(EXTENSION_LOG_DEBUG, "%s Backfill age set to %llu\n",
+        LOG(EXTENSION_LOG_DEBUG, "%s Backfill age set to %" PRIu64,
             logHeader(), age);
     }
 }
@@ -2121,7 +2121,7 @@ bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
     // messaages, simply ignore those messages.
     if (vb->getState() == vbucket_state_active) {
         LOG(EXTENSION_LOG_INFO,
-            "%s Checkpoint %llu ignored because vbucket %d is in active state",
+            "%s Checkpoint %" PRIu64 " ignored because vbucket %d is in active state",
             logHeader(), checkpointId, vbucket);
         return true;
     }
@@ -2131,7 +2131,7 @@ bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
     case TAP_CHECKPOINT_START:
         {
             LOG(EXTENSION_LOG_INFO,
-                "%s Received checkpoint_start message with id %llu for vbucket %d",
+                "%s Received checkpoint_start message with id %" PRIu64 " for vbucket %d",
                 logHeader(), checkpointId, vbucket);
             if (vb->isBackfillPhase() && checkpointId > 0) {
                 setBackfillPhase(false, vbucket);
@@ -2142,7 +2142,7 @@ bool TapConsumer::processCheckpointCommand(uint8_t event, uint16_t vbucket,
         break;
     case TAP_CHECKPOINT_END:
         LOG(EXTENSION_LOG_INFO,
-            "%s Received checkpoint_end message with id %llu for vbucket %d",
+            "%s Received checkpoint_end message with id %" PRIu64 " for vbucket %d",
             logHeader(), checkpointId, vbucket);
         ret = vb->checkpointManager.closeOpenCheckpoint();
         break;
