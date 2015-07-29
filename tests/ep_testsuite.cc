@@ -6091,6 +6091,24 @@ static enum test_result test_tap_rcvr_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE
     return SUCCESS;
 }
 
+static enum test_result test_tap_rcvr_set_vbstate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    char eng_specific[8];
+    vbucket_state_t vb_state = static_cast<vbucket_state_t>(htonl(vbucket_state_active));
+    memcpy(eng_specific, &vb_state, sizeof(vb_state));
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
+    // Get the vbucket UUID before vbucket takeover.
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
+    check(h1->tap_notify(h, NULL, eng_specific, sizeof(vb_state),
+                         1, 0, TAP_VBUCKET_SET, 1, "", 0, 828, 0, 0,
+                         PROTOCOL_BINARY_RAW_BYTES,
+                         "", 0, 1) == ENGINE_SUCCESS,
+          "Failed tap notify.");
+    // Get the vbucket UUID after vbucket takeover.
+    check(get_ull_stat(h, h1, "vb_1:0:id", "failovers") != vb_uuid,
+          "A new vbucket uuid should be created after TAP-based vbucket takeover.");
+    return SUCCESS;
+}
+
 static enum test_result test_tap_rcvr_mutate_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[9];
     memset(eng_specific, 0, sizeof(eng_specific));
@@ -13721,6 +13739,8 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("tap receiver mutation", test_tap_rcvr_mutate, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("tap receiver checkpoint start/end", test_tap_rcvr_checkpoint,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("tap receiver vbucket state", test_tap_rcvr_set_vbstate,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("tap receiver mutation (dead)", test_tap_rcvr_mutate_dead,
                  test_setup, teardown, NULL, prepare, cleanup),
