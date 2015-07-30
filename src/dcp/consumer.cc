@@ -135,11 +135,11 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     flowControl.maxUnackedBytes = config.getDcpMaxUnackedBytes();
 
     noopInterval = config.getDcpNoopInterval();
-    enableNoop = config.isDcpEnableNoop();
-    sendNoopInterval = config.isDcpEnableNoop();
 
-    setPriority = true;
-    enableExtMetaData = true;
+    pendingEnableNoop = config.isDcpEnableNoop();
+    pendingSendNoopInterval = config.isDcpEnableNoop();
+    pendingSetPriority = true;
+    pendingEnableExtMetaData = true;
 
     ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
     processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
@@ -822,7 +822,7 @@ void DcpConsumer::closeAllStreams() {
 }
 
 ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producers) {
-    if (enableNoop) {
+    if (pendingEnableNoop) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
@@ -831,11 +831,11 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
                                  noopCtrlMsg.c_str(), noopCtrlMsg.size(),
                                  val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
-        enableNoop = false;
+        pendingEnableNoop = false;
         return ret;
     }
 
-    if (sendNoopInterval) {
+    if (pendingSendNoopInterval) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         char buf_size[10];
@@ -846,7 +846,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
                                  noopIntervalCtrlMsg.size(),
                                  buf_size, strlen(buf_size));
         ObjectRegistry::onSwitchThread(epe);
-        sendNoopInterval = false;
+        pendingSendNoopInterval = false;
         return ret;
     }
 
@@ -904,7 +904,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleFlowCtl(struct dcp_message_producers* produ
 }
 
 ENGINE_ERROR_CODE DcpConsumer::handlePriority(struct dcp_message_producers* producers) {
-    if (setPriority) {
+    if (pendingSetPriority) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("high");
@@ -913,7 +913,7 @@ ENGINE_ERROR_CODE DcpConsumer::handlePriority(struct dcp_message_producers* prod
                                  priorityCtrlMsg.c_str(), priorityCtrlMsg.size(),
                                  val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
-        setPriority = false;
+        pendingSetPriority = false;
         return ret;
     }
 
@@ -921,7 +921,7 @@ ENGINE_ERROR_CODE DcpConsumer::handlePriority(struct dcp_message_producers* prod
 }
 
 ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* producers) {
-    if (enableExtMetaData) {
+    if (pendingEnableExtMetaData) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
         std::string val("true");
@@ -931,7 +931,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* p
                                  extMetadataCtrlMsg.size(),
                                  val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
-        enableExtMetaData = false;
+        pendingEnableExtMetaData = false;
         return ret;
     }
 

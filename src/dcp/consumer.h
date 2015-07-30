@@ -128,10 +128,11 @@ private:
     rel_time_t lastNoopTime;
     uint32_t backoffs;
     uint32_t noopInterval;
-    bool enableNoop;
-    bool sendNoopInterval;
-    bool setPriority;
-    bool enableExtMetaData;
+
+    bool pendingEnableNoop;
+    bool pendingSendNoopInterval;
+    bool pendingSetPriority;
+    bool pendingEnableExtMetaData;
 
     struct FlowControl {
         FlowControl() : enabled(true), pendingControl(true), bufferSize(0),
