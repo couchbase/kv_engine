@@ -13265,19 +13265,18 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
 
 static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
+    const int num_items = 50, num_testcases = 12;
+    uint64_t end_seqno = num_items + 1000;
+    uint32_t high_seqno = 0;
 
-    int num_items = 10;
     for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
+        std::string key("key" + std::to_string(j));
+        check(store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", NULL)
               == ENGINE_SUCCESS, "Failed to store a value");
-        h1->release(h, NULL, i);
     }
 
     wait_for_flusher_to_settle(h, h1);
-    wait_for_stat_to_be(h, h1, "curr_items", 10);
+    wait_for_stat_to_be(h, h1, "curr_items", num_items);
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -13285,56 +13284,59 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
                               true, true);
     wait_for_warmup_complete(h, h1);
 
-    wait_for_stat_to_be(h, h1, "curr_items", 10);
+    wait_for_stat_to_be(h, h1, "curr_items", num_items);
 
-    uint64_t start = 0;
-    uint64_t end = 1000;
-    uint64_t uuid = 0;
-    uint64_t snap_start_seq = start;
-    uint64_t snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
-                   snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
+    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
 
-    start = 0;
-    end = 1000;
-    uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
-    snap_start_seq = start;
-    snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
-                   snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
+    typedef struct dcp_params {
+        uint64_t vb_uuid;
+        uint64_t start_seqno;
+        uint64_t snap_start_seqno;
+        uint64_t snap_end_seqno;
+        uint64_t exp_rollback;
+        ENGINE_ERROR_CODE exp_err_code;
+    } dcp_params_t;
 
-    start = 2;
-    end = 1000;
-    uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
-    snap_start_seq = start;
-    snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
-                   snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
+    dcp_params_t params[num_testcases] =
+    {   /* Do not expect rollback when start_seqno is 0 */
+        {uuid, 0, 0, 0, 0, ENGINE_SUCCESS},
+        /* Do not expect rollback when start_seqno is 0 and vb_uuid mismatch */
+        {0xBAD, 0, 0, 0, 0, ENGINE_SUCCESS},
+        /* Don't expect rollback when you already have all items in the snapshot
+           (that is, start == snap_end) and upper >= snap_end */
+        {uuid, high_seqno, 0, high_seqno, 0, ENGINE_SUCCESS},
+        {uuid, high_seqno - 1, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
+        /* Do not expect rollback when you have no items in the snapshot
+         (that is, start == snap_start) and upper >= snap_end */
+        {uuid, high_seqno - 10, high_seqno - 10, high_seqno, 0, ENGINE_SUCCESS},
+        {uuid, high_seqno - 10, high_seqno - 10, high_seqno - 1, 0,
+         ENGINE_SUCCESS},
+        /* Do not expect rollback when you are in middle of a snapshot (that is,
+           snap_start < start < snap_end) and upper >= snap_end */
+        {uuid, 10, 0, high_seqno, 0, ENGINE_SUCCESS},
+        {uuid, 10, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
+        /* Expect rollback when you are in middle of a snapshot (that is,
+           snap_start < start < snap_end) and upper < snap_end. Rollback to
+           snap_start if snap_start < upper */
+        {uuid, 20, 10, high_seqno + 1, 10, ENGINE_ROLLBACK},
+        /* Expect rollback when upper < snap_start_seqno. Rollback to upper */
+        {uuid, high_seqno + 20, high_seqno + 10, high_seqno + 30, high_seqno,
+         ENGINE_ROLLBACK},
+        {uuid, high_seqno + 10, high_seqno + 10, high_seqno + 10, high_seqno,
+         ENGINE_ROLLBACK},
+        /* vb_uuid not found in failover table, rollback to zero */
+        {0xBAD, 10, 0, high_seqno, 0, ENGINE_ROLLBACK},
+        /* Add new test case here */
+    };
 
-    start = 10;
-    end = 1000;
-    uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
-    snap_start_seq = start;
-    snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
-                   snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
-
-    start = 12;
-    end = 1000;
-    uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
-    snap_start_seq = start;
-    snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
-                   snap_start_seq, snap_end_seq, 10, ENGINE_ROLLBACK);
-
-    start = 2;
-    end = 1000;
-    uuid = 123456;
-    snap_start_seq = start;
-    snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
-                   snap_start_seq, snap_end_seq, 0, ENGINE_ROLLBACK);
-
+    for (int i = 0; i < num_testcases; i++)
+    {
+        dcp_stream_req(h, h1, 1, 0, params[i].start_seqno, end_seqno,
+                       params[i].vb_uuid, params[i].snap_start_seqno,
+                       params[i].snap_end_seqno, params[i].exp_rollback,
+                       params[i].exp_err_code);
+    }
     return SUCCESS;
 }
 
