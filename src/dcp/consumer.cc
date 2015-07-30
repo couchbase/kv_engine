@@ -29,6 +29,7 @@ const std::string DcpConsumer::noopIntervalCtrlMsg = "set_noop_interval";
 const std::string DcpConsumer::connBufferCtrlMsg = "connection_buffer_size";
 const std::string DcpConsumer::priorityCtrlMsg = "set_priority";
 const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
+const std::string DcpConsumer::valueCompressionCtrlMsg = "enable_value_compression";
 
 class Processer : public GlobalTask {
 public:
@@ -91,6 +92,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingSendNoopInterval = config.isDcpEnableNoop();
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
+    pendingEnableValueCompression = config.isDcpValueCompressionEnabled();
 
     ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
     processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
@@ -432,6 +434,13 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     }
 
     if ((ret = handleExtMetaData(producers)) != ENGINE_FAILED) {
+        if (ret == ENGINE_SUCCESS) {
+            ret = ENGINE_WANT_MORE;
+        }
+        return ret;
+    }
+
+    if ((ret = handleValueCompression(producers)) != ENGINE_FAILED) {
         if (ret == ENGINE_SUCCESS) {
             ret = ENGINE_WANT_MORE;
         }
@@ -834,6 +843,24 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* p
                                  val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
         pendingEnableExtMetaData = false;
+        return ret;
+    }
+
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::handleValueCompression(struct dcp_message_producers* producers) {
+    if (pendingEnableValueCompression) {
+        ENGINE_ERROR_CODE ret;
+        uint32_t opaque = ++opaqueCounter;
+        std::string val("true");
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        ret = producers->control(getCookie(), opaque,
+                                 valueCompressionCtrlMsg.c_str(),
+                                 valueCompressionCtrlMsg.size(),
+                                 val.c_str(), val.size());
+        ObjectRegistry::onSwitchThread(epe);
+        pendingEnableValueCompression = false;
         return ret;
     }
 

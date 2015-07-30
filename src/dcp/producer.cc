@@ -76,6 +76,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     noopCtx.enabled = false;
 
     enableExtMetaData = false;
+    enableValueCompression = false;
 
     backfillMgr = new BackfillManager(&engine_, this);
 }
@@ -411,6 +412,13 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             enableExtMetaData = false;
         }
         return ENGINE_SUCCESS;
+    } else if (strncmp(param, "enable_value_compression", nkey) == 0) {
+        if (valueStr == "true") {
+            enableValueCompression = true;
+        } else {
+            enableValueCompression = false;
+        }
+        return ENGINE_SUCCESS;
     } else if (strncmp(param, "set_noop_interval", nkey) == 0) {
         if (parseUint32(valueStr.c_str(), &noopCtx.noopInterval)) {
             return ENGINE_SUCCESS;
@@ -540,6 +548,9 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
     addStat("priority", priority.c_str(), add_stat, c);
     addStat("enable_ext_metadata", enableExtMetaData ? "enabled" : "disabled",
+            add_stat, c);
+    addStat("enable_value_compression",
+            enableValueCompression ? "enabled" : "disabled",
             add_stat, c);
 
     if (backfillMgr) {

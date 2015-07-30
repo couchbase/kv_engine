@@ -533,6 +533,12 @@
             "dynamic": false,
             "type": "bool"
         },
+        "dcp_value_compression_enabled": {
+            "default": "false",
+            "desr": "Whether or not dcp producer should compress value before transmitting",
+            "dynamic": false,
+            "type": "bool"
+        },
         "dcp_noop_interval": {
             "default": "180",
             "descr": "Number of seconds between a noop",

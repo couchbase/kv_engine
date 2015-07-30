@@ -165,6 +165,7 @@ private:
 
     bool notifyOnly;
     bool enableExtMetaData;
+    bool enableValueCompression;
     rel_time_t lastSendTime;
     BufferLog* log;
     BackfillManager* backfillMgr;
