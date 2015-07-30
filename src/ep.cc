@@ -1659,8 +1659,9 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
-                        "Warning: failed background fetch for vb=%d seq=%d "
-                        "key=%s", vbucket, v->getBySeqno(), key.c_str());
+                        "Warning: failed background fetch for vb=%d "
+                        "seq=%" PRId64 " key=%s", vbucket, v->getBySeqno(),
+                        key.c_str());
                     status = ENGINE_TMPFAIL;
                 }
             }
@@ -2294,8 +2295,9 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
-                        "Warning: failed background fetch for vb=%d seq=%d "
-                        "key=%s", vbid, v->getBySeqno(), key.c_str());
+                        "Warning: failed background fetch for vb=%d "
+                        "seq=%" PRId64 " key=%s", vbid, v->getBySeqno(),
+                        key.c_str());
                 }
             }
         }

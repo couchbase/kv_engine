@@ -871,7 +871,7 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
                 "Warning: failed to open compacted database file %s "
                 "fileRev = %llu", new_file.c_str(), new_rev);
         if (remove(new_file.c_str()) != 0) {
-            LOG(EXTENSION_LOG_WARNING, NULL,
+            LOG(EXTENSION_LOG_WARNING,
                 "Warning: Failed to remove '%s': %s",
                 new_file.c_str(), getSystemStrerror().c_str());
         }
@@ -1356,7 +1356,7 @@ uint64_t CouchKVStore::checkNewRevNum(std::string &dbFileName, bool newFile) {
 
 void CouchKVStore::updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev) {
     if (vbucketId >= numDbFiles) {
-        LOG(EXTENSION_LOG_WARNING, NULL,
+        LOG(EXTENSION_LOG_WARNING,
             "Warning: cannot update db file map for an invalid vbucket, "
             "vbucket id = %d, rev = %lld\n", vbucketId, newFileRev);
         return;
@@ -1428,7 +1428,8 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
     if (errorCode) {
         st.numOpenFailure++;
         LOG(EXTENSION_LOG_WARNING, "Warning: couchstore_open_db failed, name=%s"
-            " option=%X rev=%llu error=%s [%s]\n", dbFileName.c_str(), options,
+            " option=%" PRIX64 " rev=%llu error=%s [%s]\n",
+            dbFileName.c_str(), options,
             ((newRevNum > fileRev) ? newRevNum : fileRev),
             couchstore_strerror(errorCode),
             getSystemStrerror().c_str());
@@ -1458,7 +1459,7 @@ couchstore_error_t CouchKVStore::openDB_retry(std::string &dbfile,
             return errCode;
         }
         LOG(EXTENSION_LOG_INFO, "INFO: couchstore_open_db failed, name=%s "
-            "options=%X error=%s [%s], try it again!",
+            "options=%" PRIX64 " error=%s [%s], try it again!",
             dbfile.c_str(), options, couchstore_strerror(errCode),
             getSystemStrerror().c_str());
         *newFileRev = checkNewRevNum(dbfile);
@@ -1917,7 +1918,7 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
 
 void CouchKVStore::remVBucketFromDbFileMap(uint16_t vbucketId) {
     if (vbucketId >= numDbFiles) {
-        LOG(EXTENSION_LOG_WARNING, NULL,
+        LOG(EXTENSION_LOG_WARNING,
             "Warning: cannot remove db file map entry for an invalid vbucket, "
             "vbucket id = %d\n", vbucketId);
         return;

@@ -142,8 +142,9 @@ void Flusher::schedule_UNLOCKED() {
 void Flusher::start() {
     LockHolder lh(taskMutex);
     if (taskId) {
-        LOG(EXTENSION_LOG_WARNING, "Double start in flusher task id %llu: %s",
-                taskId, stateName());
+        LOG(EXTENSION_LOG_WARNING,
+            "Double start in flusher task id %" PRIu64 ": %s",
+            uint64_t(taskId), stateName());
         return;
     }
     schedule_UNLOCKED();
