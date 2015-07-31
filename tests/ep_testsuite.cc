@@ -5309,11 +5309,9 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
-    dcp_step(h, h1, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
-
-    dcp_step(h, h1, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    do {
+        dcp_step(h, h1, cookie);
+    } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     check(h1->dcp.add_stream(h, cookie, ++opaque, vbid, 0)
           == ENGINE_SUCCESS, "Add stream request failed");
@@ -5411,14 +5409,9 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
-    dcp_step(h, h1, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
-
-    dcp_step(h, h1, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
-
-    dcp_step(h, h1, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    do {
+        dcp_step(h, h1, cookie);
+    } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     check(h1->dcp.add_stream(h, cookie, opaque, 0, 0)
             == ENGINE_SUCCESS, "Add stream request failed");
@@ -5539,14 +5532,9 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
           == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
-    dcp_step(h, h1, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
-
-    dcp_step(h, h1, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
-
-    dcp_step(h, h1, cookie);
-    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    do {
+        dcp_step(h, h1, cookie);
+    } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     check(h1->dcp.add_stream(h, cookie, opaque, 0, 0)
             == ENGINE_SUCCESS, "Add stream request failed");
