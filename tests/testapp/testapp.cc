@@ -509,8 +509,8 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
     putenv(mcd_port_filename_env);
 
     if (!CreateProcess("memcached.exe", commandline,
-                       NULL, NULL, FALSE,
-                       CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
+                       NULL, NULL, /*bInheritHandles*/FALSE,
+                       0,
                        NULL, NULL, &sinfo, &pinfo)) {
         LPVOID error_msg;
         DWORD err = GetLastError();
