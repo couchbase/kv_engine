@@ -440,10 +440,10 @@ void subdoc_executor(Connection *c, const void *packet) {
                 // Retry the operation. Reset the command context and related
                 // state, so start from the beginning again.
                 ret = ENGINE_SUCCESS;
-                if (c->item != nullptr) {
+                if (c->getItem() != nullptr) {
                     auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
-                    c->getBucketEngine()->release(handle, c, c->item);
-                    c->item = nullptr;
+                    c->getBucketEngine()->release(handle, c, c->getItem());
+                    c->setItem(nullptr);
                 }
 
                 c->resetCommandContext();
@@ -612,7 +612,7 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket) {
     auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
 
-    if (c->item == NULL) {
+    if (c->getItem() == NULL) {
         item* initial_item;
 
         if (ret == ENGINE_SUCCESS) {
@@ -625,7 +625,7 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
             // We have the item; assign to c->item (so we'll start from step 2
             // next time) and create the subdoc_cmd_context for the other
             // information we need to record.
-            c->item = initial_item;
+            c->setItem(initial_item);
             cb_assert(c->getCommandContext() == nullptr);
             c->setCommandContext(new SubdocCmdContext(c));
             break;
@@ -664,7 +664,7 @@ static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
         uint64_t doc_cas;
         sized_buffer doc;
         protocol_binary_response_status status =
-            get_document_for_searching(c, c->item, doc, in_cas, doc_cas);
+            get_document_for_searching(c, c->getItem(), doc, in_cas, doc_cas);
 
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             // Failed. Note c->item and c->commandContext will both be freed for

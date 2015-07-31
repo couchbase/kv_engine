@@ -1039,7 +1039,6 @@ private:
     /** which state to go into after finishing current write */
     STATE_FUNC write_and_go;
 
-public:
     /** when we read in an item's value, it goes here */
     char* ritem;
 
@@ -1053,7 +1052,6 @@ public:
      */
     void* item;
 
-private:
     /* data for the mwrite state */
     std::vector<iovec> iov;
     /** number of elements used in iov[] */

@@ -216,9 +216,9 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
 
 void conn_cleanup_engine_allocations(Connection * c) {
     ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
-    if (c->item) {
-        c->getBucketEngine()->release(handle, c, c->item);
-        c->item = NULL;
+    if (c->getItem() != nullptr) {
+        c->getBucketEngine()->release(handle, c, c->getItem());
+        c->setItem(nullptr);
     }
 
     c->releaseReservedItems();

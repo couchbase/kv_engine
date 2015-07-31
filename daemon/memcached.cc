@@ -1103,7 +1103,7 @@ static void process_bin_get(Connection *c) {
             }
             c->setState(conn_mwrite);
             /* Remember this item so we can garbage collect it later */
-            c->item = it;
+            c->setItem(it);
         }
         update_topkeys(key, nkey, c);
         break;
@@ -1203,13 +1203,13 @@ static void bin_read_chunk(Connection *c,
     ptrdiff_t offset;
     cb_assert(c);
     c->setSubstate(next_substate);
-    c->rlbytes = chunk;
+    c->setRlbytes(chunk);
 
     /* Ok... do we have room for everything in our buffer? */
     offset = c->read.curr + sizeof(protocol_binary_request_header) - c->read.buf;
-    if (c->rlbytes > c->read.size - offset) {
+    if (c->getRlbytes() > c->read.size - offset) {
         size_t nsize = c->read.size;
-        size_t size = c->rlbytes + sizeof(protocol_binary_request_header);
+        size_t size = c->getRlbytes() + sizeof(protocol_binary_request_header);
 
         while (size > nsize) {
             nsize *= 2;
@@ -1248,7 +1248,7 @@ static void bin_read_chunk(Connection *c,
     }
 
     /* preserve the header in the buffer.. */
-    c->ritem = c->read.curr + sizeof(protocol_binary_request_header);
+    c->setRitem(c->read.curr + sizeof(protocol_binary_request_header));
     c->setState(conn_nread);
 }
 
@@ -3845,7 +3845,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
         }
     }
 
-    if (c->item == NULL) {
+    if (c->getItem() == nullptr) {
         item *it;
 
         if (ret == ENGINE_SUCCESS) {
@@ -3879,7 +3879,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
             return;
         }
 
-        c->item = it;
+        c->setItem(it);
         cb_assert(info.info.value[0].iov_len == vlen);
         memcpy(info.info.value[0].iov_base, key + nkey, vlen);
 
@@ -3898,7 +3898,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
 
     if (ret == ENGINE_SUCCESS) {
         uint64_t cas = c->getCAS();
-        ret = bucket_store(c, c->item, &cas, store_op,
+        ret = bucket_store(c, c->getItem(), &cas, store_op,
                            ntohs(req->message.header.request.vbucket));
         if (ret == ENGINE_SUCCESS) {
             c->setCAS(cas);
@@ -3910,8 +3910,8 @@ static void add_set_replace_executor(Connection *c, void *packet,
         /* Stored */
         if (c->isSupportsMutationExtras()) {
             info.info.nvalue = 1;
-            if (!bucket_get_item_info(c, c->item, &info.info)) {
-                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->item);
+            if (!bucket_get_item_info(c, c->getItem(), &info.info)) {
+                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Failed to get item info",
                                                 c->getId());
@@ -3966,8 +3966,8 @@ static void add_set_replace_executor(Connection *c, void *packet,
 
     if (!c->isEwouldblock()) {
         /* release the c->item reference */
-        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->item);
-        c->item = 0;
+        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
+        c->setItem(nullptr);
     }
 }
 
@@ -4024,7 +4024,7 @@ static void append_prepend_executor(Connection *c,
     info.info.clsid = 0;
     info.info.nvalue = 1;
 
-    if (c->item == NULL) {
+    if (c->getItem() == NULL) {
         item *it;
 
         if (ret == ENGINE_SUCCESS) {
@@ -4055,7 +4055,7 @@ static void append_prepend_executor(Connection *c,
             return;
         }
 
-        c->item = it;
+        c->setItem(it);
         cb_assert(info.info.value[0].iov_len == vlen);
         memcpy(info.info.value[0].iov_base, key + nkey, vlen);
 
@@ -4076,7 +4076,7 @@ static void append_prepend_executor(Connection *c,
 
     if (ret == ENGINE_SUCCESS) {
         uint64_t cas = c->getCAS();
-        ret = bucket_store(c, c->item, &cas, store_op,
+        ret = bucket_store(c, c->getItem(), &cas, store_op,
                            ntohs(req->message.header.request.vbucket));
         if (ret == ENGINE_SUCCESS) {
             c->setCAS(cas);
@@ -4088,8 +4088,8 @@ static void append_prepend_executor(Connection *c,
         /* Stored */
         if (c->isSupportsMutationExtras()) {
             info.info.nvalue = 1;
-            if (!bucket_get_item_info(c, c->item, &info.info)) {
-                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->item);
+            if (!bucket_get_item_info(c, c->getItem(), &info.info)) {
+                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Failed to get item info",
                                                 c->getId());
@@ -4119,8 +4119,8 @@ static void append_prepend_executor(Connection *c,
 
     if (!c->isEwouldblock()) {
         /* release the c->item reference */
-        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->item);
-        c->item = 0;
+        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
+        c->setItem(nullptr);
     }
 }
 
@@ -5214,9 +5214,9 @@ static void complete_nread(Connection *c) {
 static void reset_cmd_handler(Connection *c) {
     c->setCmd(-1);
     c->setSubstate(bin_substates::bin_no_state);
-    if(c->item != NULL) {
-        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->item);
-        c->item = NULL;
+    if(c->getItem() != nullptr) {
+        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
+        c->setItem(nullptr);
     }
 
     c->resetCommandContext();
@@ -5904,7 +5904,7 @@ bool conn_new_cmd(Connection *c) {
 bool conn_nread(Connection *c) {
     ssize_t res;
 
-    if (c->rlbytes == 0) {
+    if (c->getRlbytes() == 0) {
         c->setEwouldblock(false);
         bool block = false;
         complete_nread(c);
@@ -5916,29 +5916,29 @@ bool conn_nread(Connection *c) {
     }
     /* first check if we have leftovers in the conn_read buffer */
     if (c->read.bytes > 0) {
-        uint32_t tocopy = c->read.bytes > c->rlbytes ? c->rlbytes : c->read.bytes;
-        if (c->ritem != c->read.curr) {
-            memmove(c->ritem, c->read.curr, tocopy);
+        uint32_t tocopy = c->read.bytes > c->getRlbytes() ? c->getRlbytes() : c->read.bytes;
+        if (c->getRitem() != c->read.curr) {
+            memmove(c->getRitem(), c->read.curr, tocopy);
         }
-        c->ritem += tocopy;
-        c->rlbytes -= tocopy;
+        c->setRitem(c->getRitem() + tocopy);
+        c->setRlbytes(c->getRlbytes() - tocopy);
         c->read.curr += tocopy;
         c->read.bytes -= tocopy;
-        if (c->rlbytes == 0) {
+        if (c->getRlbytes() == 0) {
             return true;
         }
     }
 
     /*  now try reading from the socket */
-    res = c->recv(c->ritem, c->rlbytes);
+    res = c->recv(c->getRitem(), c->getRlbytes());
     auto error = GetLastNetworkError();
     if (res > 0) {
         get_thread_stats(c)->bytes_read += res;
-        if (c->read.curr == c->ritem) {
+        if (c->read.curr == c->getRitem()) {
             c->read.curr += res;
         }
-        c->ritem += res;
-        c->rlbytes -= res;
+        c->setRitem(c->getRitem() + res);
+        c->setRlbytes(c->getRlbytes() - res);
         return true;
     }
     if (res == 0) { /* end of stream */
@@ -5961,8 +5961,8 @@ bool conn_nread(Connection *c) {
                                         "errno: %d %s \n"
                                         "rcurr=%lx ritem=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
                                         c->getId(), errno, strerror(errno),
-                                        (long)c->read.curr, (long)c->ritem, (long)c->read.buf,
-                                        (int)c->rlbytes, (int)c->read.size);
+                                        (long)c->read.curr, (long)c->getRitem(), (long)c->read.buf,
+                                        (int)c->getRlbytes(), (int)c->read.size);
     }
     c->setState(conn_closing);
     return true;
