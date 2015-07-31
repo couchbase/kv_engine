@@ -180,7 +180,7 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     dcp_last_byseqno = by_seqno;
     dcp_last_revseqno = rev_seqno;
     dcp_last_locktime = lock_time;
-    dcp_last_meta = malloc(sizeof(uint8_t) * nmeta);
+    dcp_last_meta = malloc(nmeta);
     memcpy(dcp_last_meta, meta, nmeta);
     dcp_last_nmeta = nmeta;
     dcp_last_nru = nru;
@@ -208,7 +208,7 @@ static ENGINE_ERROR_CODE mock_deletion(const void* cookie,
     dcp_last_vbucket = vbucket;
     dcp_last_byseqno = by_seqno;
     dcp_last_revseqno = rev_seqno;
-    dcp_last_meta = malloc(sizeof(uint8_t) * nmeta);
+    dcp_last_meta = malloc(nmeta);
     memcpy(dcp_last_meta, meta, nmeta);
     dcp_last_nmeta = nmeta;
     dcp_last_packet_size = 42 + nkey + nmeta;
