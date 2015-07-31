@@ -3628,7 +3628,49 @@ static enum test_result test_dcp_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_flow_control_buf_sz(ENGINE_HANDLE *h,
+static enum test_result test_dcp_consumer_flow_control_none(ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+    const void *cookie1 = testHarness.create_cookie();
+    uint32_t opaque = 0;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    std::string name("unittest");
+    std::string stats_buffer("eq_dcpq:" + name + ":max_buffer_bytes");
+
+    checkeq(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name.c_str(),
+                         name.length()), ENGINE_SUCCESS,
+            "Failed dcp consumer open connection.");
+
+    checkeq((uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"), (uint32_t)0,
+            "Flow Control Buffer Size not zero");
+    testHarness.destroy_cookie(cookie1);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_consumer_flow_control_static(ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+    const void *cookie1 = testHarness.create_cookie();
+    const uint32_t flow_ctl_buf_def_size = 10485760;
+    uint32_t opaque = 0;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    std::string name("unittest");
+    std::string stats_buffer("eq_dcpq:" + name + ":max_buffer_bytes");
+
+    checkeq(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name.c_str(),
+                         name.length()), ENGINE_SUCCESS,
+            "Failed dcp consumer open connection.");
+
+    checkeq((uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
+            flow_ctl_buf_def_size,
+            "Flow Control Buffer Size not equal to default value");
+    testHarness.destroy_cookie(cookie1);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_consumer_flow_control_dynamic(ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = testHarness.create_cookie();
     uint32_t opaque = 0;
@@ -14104,9 +14146,18 @@ BaseTestCase testsuite_testcases[] = {
                  NULL, prepare, cleanup),
         TestCase("test open consumer", test_dcp_consumer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test dcp consumer flow control buffer size",
-                 test_dcp_consumer_flow_control_buf_sz,
-                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test dcp consumer flow control none",
+                 test_dcp_consumer_flow_control_none,
+                 test_setup, teardown, "dcp_flow_control_policy=none",
+                 prepare, cleanup),
+        TestCase("test dcp consumer flow control static",
+                 test_dcp_consumer_flow_control_static,
+                 test_setup, teardown, "dcp_flow_control_policy=static",
+                 prepare, cleanup),
+        TestCase("test dcp consumer flow control dynamic",
+                 test_dcp_consumer_flow_control_dynamic,
+                 test_setup, teardown, "dcp_flow_control_policy=dynamic",
+                 prepare, cleanup),
         TestCase("test open producer", test_dcp_producer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test dcp noop", test_dcp_noop, test_setup, teardown, NULL,
@@ -14160,86 +14211,69 @@ BaseTestCase testsuite_testcases[] = {
                  test_failover_scenario_with_dcp, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test add stream", test_dcp_add_stream, test_setup, teardown,
-                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
-                 cleanup),
+                 "dcp_enable_noop=false", prepare, cleanup),
         TestCase("test consumer backoff stat", test_consumer_backoff_stat,
-                 test_setup, teardown, "dcp_enable_flow_control=true", prepare,
-                 cleanup),
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test dcp reconnect full snapshot", test_dcp_reconnect_full,
-                 test_setup, teardown,
-                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test reconnect partial snapshot", test_dcp_reconnect_partial,
-                 test_setup, teardown,
-                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test crash full snapshot", test_dcp_crash_reconnect_full,
-                 test_setup, teardown,
-                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test crash partial snapshot",
                  test_dcp_crash_reconnect_partial, test_setup, teardown,
-                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
-                 cleanup),
+                 "dcp_enable_noop=false", prepare, cleanup),
         TestCase("test rollback to zero on consumer", test_rollback_to_zero,
-                test_setup, teardown,
-                "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                test_setup, teardown, "dcp_enable_noop=false", prepare,
                 cleanup),
         TestCase("test chk manager rollback", test_chk_manager_rollback,
                 test_setup, teardown,
-                "dcp_enable_flow_control=false;dcp_enable_noop=false", prepare,
+                 "dcp_flow_control_policy=none;dcp_enable_noop=false", prepare,
                 cleanup),
         TestCase("test full rollback on consumer", test_fullrollback_for_consumer,
                 test_setup, teardown,
-                "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                "dcp_enable_noop=false", prepare,
                 cleanup),
         TestCase("test partial rollback on consumer",
                 test_partialrollback_for_consumer, test_setup, teardown,
-                "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
-                cleanup),
+                "dcp_enable_noop=false", prepare, cleanup),
         TestCase("test change dcp buffer log size", test_dcp_buffer_log_size,
                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test get failover log", test_dcp_get_failover_log,
                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream exists", test_dcp_add_stream_exists,
-                 test_setup, teardown,
-                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test add stream nmvb", test_dcp_add_stream_nmvb, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("test add stream prod exists", test_dcp_add_stream_prod_exists,
-                 test_setup, teardown,
-                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test add stream prod nmvb", test_dcp_add_stream_prod_nmvb,
-                 test_setup, teardown,
-                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test close stream (no stream)",
                  test_dcp_close_stream_no_stream, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("test close stream", test_dcp_close_stream,
-                 test_setup, teardown,
-                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("test dcp consumer end stream", test_dcp_consumer_end_stream,
-                 test_setup, teardown,
-                 "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
+                 test_setup, teardown, "dcp_enable_noop=false", prepare,
                  cleanup),
         TestCase("dcp consumer mutate", test_dcp_consumer_mutate, test_setup,
-                 teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
-                 prepare, cleanup),
+                 teardown, "dcp_enable_noop=false", prepare, cleanup),
         TestCase("dcp consumer mutate with time sync",
                  test_dcp_consumer_mutate_with_time_sync, test_setup,
-                 teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
-                 prepare, cleanup),
+                 teardown, "dcp_enable_noop=false", prepare, cleanup),
         TestCase("dcp consumer delete", test_dcp_consumer_delete, test_setup,
-                 teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
-                 prepare, cleanup),
+                 teardown, "dcp_enable_noop=false", prepare, cleanup),
         TestCase("dcp consumer delete with time sync",
                  test_dcp_consumer_delete_with_time_sync, test_setup,
-                 teardown, "dcp_enable_flow_control=true;dcp_enable_noop=false",
-                 prepare, cleanup),
+                 teardown, "dcp_enable_noop=false", prepare, cleanup),
         TestCase("dcp failover log", test_failover_log_dcp, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,

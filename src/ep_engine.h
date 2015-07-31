@@ -40,6 +40,7 @@
 #include "tapconnection.h"
 #include "workload.h"
 #include "taskable.h"
+#include "dcp/flow-control-manager.h"
 
 #include <JSON_checker.h>
 
@@ -708,6 +709,10 @@ public:
 
     DcpConnMap &getDcpConnMap() { return *dcpConnMap_; }
 
+    DcpFlowControlManager &getDcpFlowControlManager() {
+        return *dcpFlowControlManager_;
+    }
+
     TapConfig &getTapConfig() { return *tapConfig; }
 
     ReplicationThrottle &getReplicationThrottle() { return *replicationThrottle; }
@@ -980,6 +985,7 @@ private:
     } info;
 
     DcpConnMap *dcpConnMap_;
+    DcpFlowControlManager *dcpFlowControlManager_;
     TapConnMap *tapConnMap;
     TapConfig *tapConfig;
     CheckpointConfig *checkpointConfig;

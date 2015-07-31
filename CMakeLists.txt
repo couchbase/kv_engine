@@ -134,6 +134,8 @@ ADD_LIBRARY(ep SHARED
             src/dcp/backfill-manager.cc
             src/dcp/backfill.cc
             src/dcp/consumer.cc
+            src/dcp/flow-control.cc
+            src/dcp/flow-control-manager.cc
             src/dcp/producer.cc
             src/dcp/response.cc
             src/dcp/stream.cc

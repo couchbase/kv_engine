@@ -479,17 +479,23 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "dcp_flow_control_policy": {
+            "default": "dynamic",
+            "descr": "Flow control policy used on consumer side buffer",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                         "none",
+                         "static",
+                         "dynamic"
+                        ]
+            }
+        },
         "dcp_conn_buffer_size": {
             "default": "10485760",
             "descr": "Size in bytes of an dcp consumer connection buffer",
             "dynamic": false,
             "type": "size_t"
-        },
-        "dcp_enable_dynamic_conn_buffer_size": {
-            "default": "true",
-            "descr": "Whether or not the buffer size in dcp flow control be decided dynamically",
-            "dynamic": false,
-            "type": "bool"
         },
         "dcp_conn_buffer_size_max": {
             "default": "52428800",
@@ -499,7 +505,7 @@
         },
         "dcp_conn_buffer_size_perc": {
             "default": "1",
-            "descr": "Percentage of memQuota for a dcp consumer connection buffer",
+            "descr": "Percentage of memQuota for a dcp consumer connection buffer in dynamic flow ctl policy",
             "type": "size_t",
             "dynamic": false,
             "validator": {
@@ -520,12 +526,6 @@
                     "min": 1
                 }
             }
-        },
-        "dcp_enable_flow_control": {
-            "default": "true",
-            "descr": "Whether or not dcp connections should use flow control",
-            "dynamic": false,
-            "type": "bool"
         },
         "dcp_enable_noop": {
             "default": "true",

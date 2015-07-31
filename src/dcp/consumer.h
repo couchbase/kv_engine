@@ -23,6 +23,7 @@
 #include "tapconnection.h"
 #include "dcp/response.h"
 #include "dcp/stream.h"
+#include "dcp/flow-control.h"
 
 class PassiveStream;
 class DcpResponse;
@@ -93,6 +94,14 @@ public:
 
     process_items_error_t processBufferedItems();
 
+    uint64_t incrOpaqueCounter();
+
+    uint32_t getFlowControlBufSize();
+
+    void setFlowControlBufSize(uint32_t newSize);
+
+    static const std::string& getControlMsgKey(void);
+
 private:
 
     DcpResponse* getNextItem();
@@ -111,8 +120,6 @@ private:
                         uint32_t bodylen);
 
     ENGINE_ERROR_CODE handleNoop(struct dcp_message_producers* producers);
-
-    ENGINE_ERROR_CODE handleFlowCtl(struct dcp_message_producers* producers);
 
     ENGINE_ERROR_CODE handlePriority(struct dcp_message_producers* producers);
 
@@ -134,18 +141,7 @@ private:
     bool pendingSetPriority;
     bool pendingEnableExtMetaData;
 
-    struct FlowControl {
-        FlowControl() : enabled(true), pendingControl(true), bufferSize(0),
-                        maxUnackedBytes(0), lastBufferAck(ep_current_time()),
-                        freedBytes(0), ackedBytes(0) {}
-        bool enabled;
-        bool pendingControl;
-        uint32_t bufferSize;
-        uint32_t maxUnackedBytes;
-        rel_time_t lastBufferAck;
-        AtomicValue<uint32_t> freedBytes;
-        AtomicValue<uint64_t> ackedBytes;
-    } flowControl;
+    FlowControl flowControl;
 
     static const std::string noopCtrlMsg;
     static const std::string noopIntervalCtrlMsg;

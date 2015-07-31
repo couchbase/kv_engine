@@ -1924,8 +1924,12 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     clusterConfig(), epstore(NULL), workload(NULL),
     workloadPriority(NO_BUCKET_PRIORITY),
     replicationThrottle(NULL), getServerApiFunc(get_server_api),
-    dcpConnMap_(NULL), tapConnMap(NULL) ,tapConfig(NULL), checkpointConfig(NULL),
-    trafficEnabled(false), flushAllEnabled(false),startupTime(0), taskable(this)
+    dcpConnMap_(NULL),
+    dcpFlowControlManager_(NULL),
+    tapConnMap(NULL) ,
+    tapConfig(NULL), checkpointConfig(NULL),
+    trafficEnabled(false), flushAllEnabled(false), startupTime(0),
+    taskable(this)
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = EvpGetInfo;
@@ -2098,6 +2102,19 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     }
 
     dcpConnMap_ = new DcpConnMap(*this);
+
+    /* Get the flow control policy */
+    std::string flowCtlPolicy = configuration.getDcpFlowControlPolicy();
+
+    if (!flowCtlPolicy.compare("static")) {
+        dcpFlowControlManager_ = new DcpFlowControlManagerStatic(*this);
+    } else if (!flowCtlPolicy.compare("dynamic")) {
+        dcpFlowControlManager_ = new DcpFlowControlManagerDynamic(*this);
+    } else {
+        /* Flow control is not enabled */
+        dcpFlowControlManager_ = new DcpFlowControlManager(*this);
+    }
+
     tapConnMap = new TapConnMap(*this);
     tapConfig = new TapConfig(*this);
     replicationThrottle = new ReplicationThrottle(configuration, stats);
@@ -6225,6 +6242,7 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete epstore;
     delete workload;
     delete dcpConnMap_;
+    delete dcpFlowControlManager_;
     delete tapConnMap;
     delete tapConfig;
     delete checkpointConfig;

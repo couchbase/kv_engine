@@ -76,63 +76,14 @@ std::string Processer::getDescription() {
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name), opaqueCounter(0), processTaskId(0),
-          itemsToProcess(false), lastNoopTime(ep_current_time()), backoffs(0) {
+      itemsToProcess(false), lastNoopTime(ep_current_time()), backoffs(0),
+      flowControl(engine, this)
+{
     Configuration& config = engine.getConfiguration();
     streams = new passive_stream_t[config.getMaxVbuckets()];
     setSupportAck(false);
     setLogHeader("DCP (Consumer) " + getName() + " -");
     setReserved(true);
-
-    flowControl.enabled = config.isDcpEnableFlowControl();
-
-    if (flowControl.enabled && config.isDcpEnableDynamicConnBufferSize()) {
-        double dcpConnBufferSizePerc = static_cast<double>
-                                       (config.getDcpConnBufferSizePerc())/100;
-        size_t bufferSize = dcpConnBufferSizePerc *
-                            engine.getEpStats().getMaxDataSize();
-
-        /* Make sure that the flow control buffer size is within a max and min
-           range */
-        if (bufferSize < config.getDcpConnBufferSize()) {
-            bufferSize = config.getDcpConnBufferSize();
-            LOG(EXTENSION_LOG_WARNING, "%s Conn flow control buffer is set to"
-                "minimum, as calculated sz is (%f) * (%zu)", logHeader(),
-                dcpConnBufferSizePerc, engine.getEpStats().getMaxDataSize());
-        } else if (bufferSize > config.getDcpConnBufferSizeMax()) {
-            bufferSize = config.getDcpConnBufferSizeMax();
-            LOG(EXTENSION_LOG_WARNING, "%s Conn flow control buffer is set to"
-                "maximum, as calculated sz is (%f) * (%zu)", logHeader(),
-                dcpConnBufferSizePerc, engine.getEpStats().getMaxDataSize());
-        }
-
-        /* If aggr memory used for flow control buffers across all consumers
-           exceeds the threshold, then we limit it to min size */
-        double dcpConnBufferSizeThreshold = static_cast<double>
-                            (config.getDcpConnBufferSizeAggrMemThreshold())/100;
-        if ((engine.getDcpConnMap().getAggrDcpConsumerBufferSize() + bufferSize)
-            > dcpConnBufferSizeThreshold * engine.getEpStats().getMaxDataSize())
-        {
-            /* Setting to default minimum size */
-            bufferSize = config.getDcpConnBufferSize();
-            LOG(EXTENSION_LOG_WARNING, "%s Conn flow control buffer is set to"
-                "minimum, as aggr memory used for flow control buffers across"
-                "all consumers is %zu and is above the threshold (%f) * (%zu)",
-                logHeader(),
-                engine.getDcpConnMap().getAggrDcpConsumerBufferSize(),
-                dcpConnBufferSizeThreshold,
-                engine.getEpStats().getMaxDataSize());
-        }
-        flowControl.bufferSize = bufferSize;
-    } else {
-        LOG(EXTENSION_LOG_WARNING, "%s Not using dynamic flow control",
-            logHeader());
-        flowControl.bufferSize = config.getDcpConnBufferSize();
-    }
-    engine.getDcpConnMap().incAggrDcpConsumerBufferSize(flowControl.bufferSize);
-    LOG(EXTENSION_LOG_WARNING, "%s Conn flow control buffer is %u", logHeader(),
-      flowControl.bufferSize);
-
-    flowControl.maxUnackedBytes = config.getDcpMaxUnackedBytes();
 
     noopInterval = config.getDcpNoopInterval();
 
@@ -148,8 +99,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
 DcpConsumer::~DcpConsumer() {
     closeAllStreams();
     delete[] streams;
-    engine_.getDcpConnMap().decAggrDcpConsumerBufferSize
-                                (flowControl.bufferSize);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
@@ -221,7 +170,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     }
 
     uint32_t bytesCleared = stream->setDead(END_STREAM_CLOSED);
-    flowControl.freedBytes.fetch_add(bytesCleared);
+    flowControl.incrFreedBytes(bytesCleared);
     return ENGINE_SUCCESS;
 }
 
@@ -257,7 +206,7 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
             "%d but does not exist", logHeader(), vbucket, opaque);
     }
 
-    flowControl.freedBytes.fetch_add(StreamEndResponse::baseMsgBytes);
+    flowControl.incrFreedBytes(StreamEndResponse::baseMsgBytes);
     return err;
 }
 
@@ -311,7 +260,7 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
 
     uint32_t bytes =
         MutationResponse::mutationBaseMsgBytes + nkey + nmeta + nvalue;
-    flowControl.freedBytes.fetch_add(bytes);
+    flowControl.incrFreedBytes(bytes);
 
     return err;
 }
@@ -362,7 +311,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
     }
 
     uint32_t bytes = MutationResponse::deletionBaseMsgBytes + nkey + nmeta;
-    flowControl.freedBytes.fetch_add(bytes);
+    flowControl.incrFreedBytes(bytes);
 
     return err;
 }
@@ -405,7 +354,7 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
         return ENGINE_SUCCESS;
     }
 
-    flowControl.freedBytes.fetch_add(SnapshotMarker::baseMsgBytes);
+    flowControl.incrFreedBytes(SnapshotMarker::baseMsgBytes);
 
     return err;
 }
@@ -448,7 +397,7 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
         return ENGINE_SUCCESS;
     }
 
-    flowControl.freedBytes.fetch_add(SetVBucketState::baseMsgBytes);
+    flowControl.incrFreedBytes(SetVBucketState::baseMsgBytes);
 
     return err;
 }
@@ -461,7 +410,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     }
 
     ENGINE_ERROR_CODE ret;
-    if ((ret = handleFlowCtl(producers)) != ENGINE_FAILED) {
+    if ((ret = flowControl.handleFlowCtl(producers)) != ENGINE_FAILED) {
         if (ret == ENGINE_SUCCESS) {
             ret = ENGINE_WANT_MORE;
         }
@@ -678,10 +627,7 @@ void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
     }
 
     addStat("total_backoffs", backoffs, add_stat, c);
-    if (flowControl.enabled) {
-        addStat("total_acked_bytes", flowControl.ackedBytes, add_stat, c);
-        addStat("max_buffer_bytes", flowControl.bufferSize, add_stat, c);
-    }
+    flowControl.addStats(add_stat, c);
 }
 
 void DcpConsumer::aggregateQueueStats(ConnCounter* aggregator) {
@@ -710,7 +656,7 @@ process_items_error_t DcpConsumer::processBufferedItems() {
 
             bytes_processed = 0;
             process_ret = stream->processBufferedMessages(bytes_processed);
-            flowControl.freedBytes.fetch_add(bytes_processed);
+            flowControl.incrFreedBytes(bytes_processed);
         } while (bytes_processed > 0 && process_ret != cannot_process);
     }
 
@@ -859,50 +805,6 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
     return ENGINE_FAILED;
 }
 
-ENGINE_ERROR_CODE DcpConsumer::handleFlowCtl(struct dcp_message_producers* producers) {
-    if (flowControl.enabled) {
-        ENGINE_ERROR_CODE ret;
-        uint32_t ackable_bytes = flowControl.freedBytes;
-        if (flowControl.pendingControl) {
-            uint32_t opaque = ++opaqueCounter;
-            char buf_size[10];
-            snprintf(buf_size, 10, "%u", flowControl.bufferSize);
-            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-            ret = producers->control(getCookie(), opaque,
-                                     connBufferCtrlMsg.c_str(),
-                                     connBufferCtrlMsg.size(),
-                                     buf_size, strlen(buf_size));
-            ObjectRegistry::onSwitchThread(epe);
-            flowControl.pendingControl = false;
-            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
-        } else if (ackable_bytes > (flowControl.bufferSize * .2)) {
-            // Send a buffer ack when at least 20% of the buffer is drained
-            uint32_t opaque = ++opaqueCounter;
-            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-            ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
-                                                    ackable_bytes);
-            ObjectRegistry::onSwitchThread(epe);
-            flowControl.lastBufferAck = ep_current_time();
-            flowControl.ackedBytes.fetch_add(ackable_bytes);
-            flowControl.freedBytes.fetch_sub(ackable_bytes);
-            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
-        } else if (ackable_bytes > 0 &&
-                   (ep_current_time() - flowControl.lastBufferAck) > 5) {
-            // Ack at least every 5 seconds
-            uint32_t opaque = ++opaqueCounter;
-            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-            ret = producers->buffer_acknowledgement(getCookie(), opaque, 0,
-                                                    ackable_bytes);
-            ObjectRegistry::onSwitchThread(epe);
-            flowControl.lastBufferAck = ep_current_time();
-            flowControl.ackedBytes.fetch_add(ackable_bytes);
-            flowControl.freedBytes.fetch_sub(ackable_bytes);
-            return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
-        }
-    }
-    return ENGINE_FAILED;
-}
-
 ENGINE_ERROR_CODE DcpConsumer::handlePriority(struct dcp_message_producers* producers) {
     if (pendingSetPriority) {
         ENGINE_ERROR_CODE ret;
@@ -936,4 +838,24 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* p
     }
 
     return ENGINE_FAILED;
+}
+
+uint64_t DcpConsumer::incrOpaqueCounter()
+{
+    return (++opaqueCounter);
+}
+
+uint32_t DcpConsumer::getFlowControlBufSize()
+{
+    return flowControl.getFlowControlBufSize();
+}
+
+void DcpConsumer::setFlowControlBufSize(uint32_t newSize)
+{
+    flowControl.setFlowControlBufSize(newSize);
+}
+
+const std::string& DcpConsumer::getControlMsgKey(void)
+{
+    return connBufferCtrlMsg;
 }

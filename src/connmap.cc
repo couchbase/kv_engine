@@ -929,7 +929,7 @@ void TAPSessionStats::clearStats(const std::string &name) {
 }
 
 DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
-    : ConnMap(e), aggrDcpConsumerBufferSize(0) {
+    : ConnMap(e) {
     numActiveSnoozingBackfills = 0;
     updateMaxActiveSnoozingBackfills(engine.getEpStats().getMaxDataSize());
 }
