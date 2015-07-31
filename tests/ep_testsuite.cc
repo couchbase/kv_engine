@@ -4102,8 +4102,10 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                      */
                      break;
                 default:
-                    break;
-                    abort();
+                     // Aborting ...
+                    std::stringstream ss;
+                    ss << "Unknown DCP operation: " << dcp_last_op;
+                    check(false, ss.str().c_str());
             }
             if (dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_END) {
                 dcp_last_op = 0;
