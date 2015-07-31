@@ -21,4 +21,4 @@ ADD_TEST(NAME memcached-basic-unit-tests-SSL
 # results in Jenkins.
 ADD_TEST(NAME memcached-basic-perf-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND memcached_testapp --gtest_filter=*PerfTest.* --gtest_output=xml:gtest_results/)
+         COMMAND memcached_testapp --gtest_filter=*PerfTest.* --gtest_output=xml:gtest_results/memcached_basic_perf_tests.xml)
