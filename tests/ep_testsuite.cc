@@ -4019,14 +4019,15 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
                     if (time_sync_enabled) {
-                        check(dcp_last_nmeta == 16,
+                        check(dcp_last_meta.size() == 16,
                                 "Expected extended meta in mutation packet");
                     } else {
-                        check(dcp_last_nmeta == 5,
+                        check(dcp_last_meta.size() == 5,
                                 "Expected no extended metadata");
                     }
 
-                    emd = new ExtendedMetaData(dcp_last_meta, dcp_last_nmeta);
+                    emd = new ExtendedMetaData(dcp_last_meta.c_str(),
+                                               dcp_last_meta.size());
                     check(exp_conflict_res == emd->getConflictResMode(),
                               "Unexpected conflict resolution mode");
                     delete emd;
@@ -4042,14 +4043,15 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
                     if (time_sync_enabled) {
-                        check(dcp_last_nmeta == 16,
+                        check(dcp_last_meta.size() == 16,
                                 "Expected adjusted time in mutation packet");
                     } else {
-                        check(dcp_last_nmeta == 5,
+                        check(dcp_last_meta.size() == 5,
                                 "Expected no extended metadata");
                     }
 
-                    emd = new ExtendedMetaData(dcp_last_meta, dcp_last_nmeta);
+                    emd = new ExtendedMetaData(dcp_last_meta.c_str(),
+                                               dcp_last_meta.size());
                     check(exp_conflict_res == emd->getConflictResMode(),
                               "Unexpected conflict resolution mode");
                     delete emd;
