@@ -26,11 +26,19 @@
 
 #include "alloc_hooks.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Register our wrapper zone as the system default allocator. The wrapper zone
  * simply forwards all requests to the "real" default allocator, adding in
  * memory tracking calls to the specified new_hook & delete_hook where necessary.
  */
 void register_wrapper_zone(malloc_new_hook_t* new_hook,
                            malloc_delete_hook_t* delete_hook);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DARWIN_ZONE_H_ */

@@ -17,12 +17,6 @@
 extern "C" {
 #endif
 
-    typedef enum alloc_hooks_type {
-        none = 0,
-        tcmalloc = 1,
-        jemalloc = 2
-    } alloc_hooks_type;
-
     typedef void (*malloc_new_hook_t)(const void *ptr, size_t sz);
     typedef void (*malloc_delete_hook_t)(const void *ptr);
 
@@ -52,8 +46,6 @@ extern "C" {
      * properties. If the value was successfully set, returns true.
      */
     bool mc_set_allocator_property(const char* name, size_t value);
-
-    alloc_hooks_type get_alloc_hooks_type(void);
 
 #ifdef __cplusplus
 }

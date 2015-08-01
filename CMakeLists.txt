@@ -104,9 +104,16 @@ IF (BREAKPAD_FOUND)
    ENDIF (UNIX)
 ENDIF (BREAKPAD_FOUND)
 
-LIST(APPEND MEMORY_TRACKING_SRCS
-  ${Memcached_SOURCE_DIR}/daemon/alloc_hooks.c
-  ${Memcached_SOURCE_DIR}/daemon/alloc_hooks.h)
+
+IF (MEMORY_ALLOCATOR STREQUAL jemalloc OR MEMORY_ALLOCATOR STREQUAL tcmalloc)
+  LIST(APPEND MEMORY_TRACKING_SRCS
+       ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_${MEMORY_ALLOCATOR}.cc)
+ELSE()
+  LIST(APPEND MEMORY_TRACKING_SRCS
+       ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_dummy.cc)
+ENDIF()
+
+LIST(APPEND MEMORY_TRACKING_SRCS ${Memcached_SOURCE_DIR}/daemon/alloc_hooks.h)
 
 IF (APPLE)
   LIST(APPEND MEMORY_TRACKING_SRCS
