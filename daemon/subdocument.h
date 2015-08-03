@@ -23,27 +23,7 @@
 
 #include "config.h"
 
-#include "memcached.h"
-
-#if defined(__cplusplus)
-extern "C" {
-#endif
-
-/* Maximum sub-document path length */
-const size_t SUBDOC_PATH_MAX_LENGTH = 1024;
-
-/* Subdocument validator functions. Returns 0 if valid, else -1. */
-int subdoc_get_validator(void* packet);
-int subdoc_exists_validator(void* packet);
-int subdoc_dict_add_validator(void* packet);
-int subdoc_dict_upsert_validator(void* packet);
-int subdoc_delete_validator(void* packet);
-int subdoc_replace_validator(void* packet);
-int subdoc_array_push_last_validator(void* packet);
-int subdoc_array_push_first_validator(void* packet);
-int subdoc_array_insert_validator(void* packet);
-int subdoc_array_add_unique_validator(void* packet);
-int subdoc_counter_validator(void* packet);
+class Connection;
 
 /* Subdocument executor functions. */
 void subdoc_get_executor(Connection *c, void *packet);
@@ -57,7 +37,3 @@ void subdoc_array_push_first_executor(Connection *c, void *packet);
 void subdoc_array_insert_executor(Connection * c, void* packet);
 void subdoc_array_add_unique_executor(Connection * c, void* packet);
 void subdoc_counter_executor(Connection *c, void *packet);
-
-#if defined(__cplusplus)
-} // extern "C"
-#endif

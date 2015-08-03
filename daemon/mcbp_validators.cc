@@ -19,8 +19,9 @@
 #include "mcbp_validators.h"
 #include <memcached/protocol_binary.h>
 
-#include "subdocument.h"
 #include "buckets.h"
+#include "memcached.h"
+#include "subdocument_validators.h"
 
 #include <mutex>
 #include <vector>
