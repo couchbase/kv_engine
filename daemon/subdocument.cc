@@ -102,6 +102,36 @@ static ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret,
 template<protocol_binary_command CMD>
 static void subdoc_response(Connection * c);
 
+// Debug - print details of the specified subdocument command.
+static void subdoc_print_command(Connection* c, protocol_binary_command cmd,
+                                 const char* key, const uint16_t keylen,
+                                 const char* path, const uint16_t pathlen,
+                                 const char* value, const uint32_t vallen) {
+    char clean_key[KEY_MAX_LENGTH + 32];
+    char clean_path[SUBDOC_PATH_MAX_LENGTH];
+    char clean_value[80]; // only print the first few characters of the value.
+    if ((key_to_printable_buffer(clean_key, sizeof(clean_key), c->getId(), true,
+                                 memcached_opcode_2_text(cmd), key, keylen)
+                    != -1)
+                    && (buf_to_printable_buffer(clean_path, sizeof(clean_path),
+                                                path, pathlen) != -1)) {
+        // print key, path & value if there is a value.
+        if ((vallen > 0)
+                        && (buf_to_printable_buffer(clean_value,
+                                                    sizeof(clean_value), value,
+                                                    vallen) != -1)) {
+            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                            "%s path:'%s' value:'%s'",
+                                            clean_key, clean_path, clean_value);
+        } else {
+            // key & path only
+            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                            "%s path:'%s'", clean_key,
+                                            clean_path);
+        }
+    }
+}
+
 /*
  * Definitions
  */
@@ -117,7 +147,7 @@ static void subdoc_response(Connection * c);
  * @param packet request packet.
  */
 template<protocol_binary_command CMD>
-void subdoc_executor(Connection *c, const void *packet) {
+static void subdoc_executor(Connection *c, const void *packet) {
 
     // 0. Parse the request and log it if debug enabled.
     const protocol_binary_request_subdocument *req =
@@ -140,30 +170,7 @@ void subdoc_executor(Connection *c, const void *packet) {
     const uint32_t vallen = bodylen - keylen - extlen - pathlen;
 
     if (settings.verbose > 1) {
-        char clean_key[KEY_MAX_LENGTH + 32];
-        char clean_path[SUBDOC_PATH_MAX_LENGTH];
-        char clean_value[80]; // only print the first few characters of the value.
-        if ((key_to_printable_buffer(clean_key, sizeof(clean_key), c->getId(), true,
-                                     memcached_opcode_2_text(CMD),
-                                     key, keylen) != -1) &&
-            (buf_to_printable_buffer(clean_path, sizeof(clean_path),
-                                     path, pathlen) != -1)) {
-
-            // print key, path & value if there is a value.
-            if ((vallen > 0) &&
-                (buf_to_printable_buffer(clean_value, sizeof(clean_value),
-                                         value, vallen) != -1)) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                "%s path:'%s' value:'%s'",
-                                                clean_key, clean_path,
-                                                clean_value);
-            } else {
-                // key & path only
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                "%s path:'%s'", clean_key,
-                                                clean_path);
-            }
-        }
+        subdoc_print_command(c, CMD, key, keylen, path, pathlen, value, vallen);
     }
 
     // We potentially need to make multiple attempts at this as the engine may
