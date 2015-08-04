@@ -27,6 +27,8 @@ const Priority Priority::VKeyStatBgFetcherPriority(VKEY_STAT_BGFETCHER_ID, 3);
 
 // Priorities for Auxiliary IO tasks
 const Priority Priority::TapBgFetcherPriority(TAP_BGFETCHER_ID, 1);
+const Priority Priority::AccessScannerPriority(ACCESS_SCANNER_ID, 3);
+const Priority Priority::BackfillTaskPriority(BACKFILL_TASK_ID, 8);
 
 // Priorities for Read-Write IO tasks
 const Priority Priority::VBucketDeletionPriority(VBUCKET_DELETION_ID, 1);
@@ -37,7 +39,6 @@ const Priority Priority::FlusherPriority(FLUSHER_ID, 5);
 const Priority Priority::VBucketPersistLowPriority(VBUCKET_PERSIST_LOW_ID, 9);
 const Priority Priority::StatSnapPriority(STAT_SNAP_ID, 9);
 const Priority Priority::MutationLogCompactorPriority(MUTATION_LOG_COMPACTOR_ID, 9);
-const Priority Priority::AccessScannerPriority(ACCESS_SCANNER_ID, 3);
 
 // Priorities for NON-IO tasks
 const Priority Priority::PendingOpsPriority(PENDING_OPS_ID, 0);
@@ -49,7 +50,6 @@ const Priority Priority::CheckpointStatsPriority(CHECKPOINT_STATS_ID, 7);
 const Priority Priority::ItemPagerPriority(ITEM_PAGER_ID, 7);
 const Priority Priority::DefragmenterTaskPriority(DEFRAGMENTER_ID, 7);
 const Priority Priority::TapConnMgrPriority(TAP_CONN_MGR_ID, 8);
-const Priority Priority::BackfillTaskPriority(BACKFILL_TASK_ID, 8);
 const Priority Priority::WorkLoadMonitorPriority(WORKLOAD_MONITOR_TASK_ID, 10);
 const Priority Priority::HTResizePriority(HT_RESIZER_ID, 211);
 const Priority Priority::TapResumePriority(TAP_RESUME_ID, 316);
