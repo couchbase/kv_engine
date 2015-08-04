@@ -21,69 +21,16 @@
 
 #include "connections.h"
 #include "debug_helpers.h"
+#include "subdocument_context.h"
 #include "subdocument_traits.h"
 #include "subdocument_validators.h"
 #include "timings.h"
 #include "topkeys.h"
 #include "utilities/protocol2text.h"
 
-struct sized_buffer {
-    char* buf;
-    size_t len;
-};
-
 /******************************************************************************
  * Subdocument executors
  *****************************************************************************/
-
-/*
- * Types
- */
-
-/** Subdoc command context. An instance of this exists for the lifetime of
- *  each subdocument command, and it used to hold information which needs to
- *  persist across calls to subdoc_executor; for example when one or more
- *  engine functions return EWOULDBLOCK and hence the executor needs to be
- *  retried.
- */
-struct SubdocCmdContext : public CommandContext {
-
-    SubdocCmdContext(Connection * connection)
-      : c(connection),
-        in_doc({NULL, 0}),
-        in_cas(0),
-        out_doc(NULL) {}
-
-    virtual ~SubdocCmdContext() {
-        if (out_doc != NULL) {
-            auto engine = c->getBucketEngine();
-            engine->release(reinterpret_cast<ENGINE_HANDLE*>(engine), c, out_doc);
-        }
-    }
-
-    // Static method passed back to memcached to destroy objects of this class.
-    static void dtor(Connection * c, void* context);
-
-    // Cookie this command is associated with. Needed for the destructor
-    // to release items.
-    Connection * c;
-
-    // The expanded input JSON document. This may either refer to the raw engine
-    // item iovec; or to the connections' DynamicBuffer if the JSON document
-    // had to be decompressed. Either way, it should /not/ be free()d.
-    sized_buffer in_doc;
-
-    // CAS value of the input document. Required to ensure we only store a
-    // new document which was derived from the same original input document.
-    uint64_t in_cas;
-
-    // In/Out parameter which contains the result of the executed operation
-    Subdoc::Result result;
-
-    // [Mutations only] New item to store into engine. _Must_ be released
-    // back to the engine using ENGINE_HANDLE_V1::release()
-    item* out_doc;
-};
 
 /*
  * Declarations

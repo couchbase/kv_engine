@@ -18,6 +18,12 @@
 
 // @todo make this file "standalone" with includes and forward decl.
 
+#include "config.h"
+
+#include <string>
+
+class Connection;
+
 typedef bool (* STATE_FUNC)(Connection*);
 
 /**
