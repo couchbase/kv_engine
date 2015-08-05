@@ -3919,37 +3919,38 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
         end  = -1;
     } else if (flags == DCP_ADD_STREAM_FLAG_LATEST ||
                flags == DCP_ADD_STREAM_FLAG_DISKONLY) {
-        end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+        std::string high_seqno("vb_" + std::to_string(vbucket) + ":high_seqno");
+        end = get_int_stat(h, h1, high_seqno.c_str(), "vbucket-seqno");
     }
 
-    char stats_flags[50];
-    snprintf(stats_flags, sizeof(stats_flags),"eq_dcpq:%s:stream_0_flags", name);
-    check((uint32_t)get_int_stat(h, h1, stats_flags, "dcp")
+    std::stringstream stats_flags;
+    stats_flags << "eq_dcpq:" << name << ":stream_" << vbucket << "_flags";
+    check((uint32_t)get_int_stat(h, h1, stats_flags.str().c_str(), "dcp")
           == flags, "Flags didn't match");
 
-    char stats_opaque[50];
-    snprintf(stats_opaque, sizeof(stats_opaque),"eq_dcpq:%s:stream_0_opaque", name);
-    check((uint32_t)get_int_stat(h, h1, stats_opaque, "dcp")
+    std::stringstream stats_opaque;
+    stats_opaque << "eq_dcpq:" << name << ":stream_" << vbucket << "_opaque";
+    check((uint32_t)get_int_stat(h, h1, stats_opaque.str().c_str(), "dcp")
           == opaque, "Opaque didn't match");
 
-    char stats_start_seqno[50];
-    snprintf(stats_start_seqno, sizeof(stats_start_seqno),"eq_dcpq:%s:stream_0_start_seqno", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_start_seqno, "dcp")
+    std::stringstream stats_start_seqno;
+    stats_start_seqno << "eq_dcpq:" << name << ":stream_" << vbucket << "_start_seqno";
+    check((uint64_t)get_ull_stat(h, h1, stats_start_seqno.str().c_str(), "dcp")
           == start, "Start Seqno Didn't match");
 
-    char stats_end_seqno[50];
-    snprintf(stats_end_seqno, sizeof(stats_end_seqno),"eq_dcpq:%s:stream_0_end_seqno", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_end_seqno, "dcp")
+    std::stringstream stats_end_seqno;
+    stats_end_seqno << "eq_dcpq:" << name << ":stream_" << vbucket << "_end_seqno";
+    check((uint64_t)get_ull_stat(h, h1, stats_end_seqno.str().c_str(), "dcp")
           == end, "End Seqno didn't match");
 
-    char stats_vb_uuid[50];
-    snprintf(stats_vb_uuid, sizeof(stats_vb_uuid),"eq_dcpq:%s:stream_0_vb_uuid", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_vb_uuid, "dcp")
+    std::stringstream stats_vb_uuid;
+    stats_vb_uuid << "eq_dcpq:" << name << ":stream_" << vbucket << "_vb_uuid";
+    check((uint64_t)get_ull_stat(h, h1, stats_vb_uuid.str().c_str(), "dcp")
           == vb_uuid, "VBucket UUID didn't match");
 
-    char stats_snap_seqno[50];
-    snprintf(stats_snap_seqno, sizeof(stats_snap_seqno),"eq_dcpq:%s:stream_0_snap_start_seqno", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_snap_seqno, "dcp")
+    std::stringstream stats_snap_seqno;
+    stats_snap_seqno << "eq_dcpq:" << name << ":stream_" << vbucket << "_snap_start_seqno";
+    check((uint64_t)get_ull_stat(h, h1, stats_snap_seqno.str().c_str(), "dcp")
           == snap_start_seqno, "snap start seqno didn't match");
 
     struct dcp_message_producers* producers = get_dcp_producers();
@@ -3958,9 +3959,9 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
         (flags & DCP_ADD_STREAM_FLAG_DISKONLY) == 0 &&
         !skipEstimateCheck) {
         int est = end - start;
-        char stats_takeover[50];
-        snprintf(stats_takeover, sizeof(stats_takeover), "dcp-vbtakeover 0 %s", name);
-        wait_for_stat_to_be(h, h1, "estimate", est, stats_takeover);
+        std::stringstream stats_takeover;
+        stats_takeover << "dcp-vbtakeover " << vbucket << " " << name;
+        wait_for_stat_to_be(h, h1, "estimate", est, stats_takeover.str().c_str());
     }
 
     bool done = false;
@@ -4000,7 +4001,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                 sleep(2);
                 delay_buffer_acking = false;
             }
-            h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
+            h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, vbucket, bytes_read);
             bytes_read = 0;
         }
         ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
@@ -4083,7 +4084,8 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                             std::stringstream ss;
                             ss << "key" << j;
                             check(store(h, h1, NULL, OPERATION_SET,
-                                        ss.str().c_str(), "data", &i)
+                                        ss.str().c_str(), "data", &i,
+                                        0, vbucket)
                                   == ENGINE_SUCCESS, "Failed to store a value");
                             h1->release(h, NULL, i);
                         }
@@ -4138,10 +4140,10 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     }
 
     /* Check if the readyQ size goes to zero after all items are streamed */
-    char stats_ready_queue_memory[50];
-    snprintf(stats_ready_queue_memory, sizeof(stats_ready_queue_memory),
-             "eq_dcpq:%s:stream_0_ready_queue_memory", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_ready_queue_memory, "dcp")
+    std::stringstream stats_ready_queue_memory;
+    stats_ready_queue_memory << "eq_dcpq:" << name << ":stream_" << vbucket
+                             << "_ready_queue_memory";
+    check((uint64_t)get_ull_stat(h, h1, stats_ready_queue_memory.str().c_str(), "dcp")
           == 0, "readyQ size did not go to zero");
 
     free(producers);
