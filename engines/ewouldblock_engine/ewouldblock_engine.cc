@@ -114,6 +114,11 @@ public:
         const bool inject = state->should_inject_error(cmd, err);
 
         if (inject) {
+            auto logger = gsa()->log->get_logger();
+            logger->log(EXTENSION_LOG_DEBUG, NULL,
+                        "EWB_Engine: injecting error:%d for cmd:%s",
+                        err, to_string(cmd).c_str());
+
             if (err == ENGINE_EWOULDBLOCK) {
                 // The server expects that if EWOULDBLOCK is returned then the
                 // server should be notified in the future when the operation is
