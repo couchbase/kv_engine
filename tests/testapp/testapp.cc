@@ -2802,18 +2802,23 @@ fetch_value(const std::string& key) {
 void validate_object(const char *key, const std::string& expected_value) {
     union {
         protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
         char bytes[1024];
-    } send, receive;
+    } send;
     size_t len = raw_command(send.bytes, sizeof(send.bytes),
                              PROTOCOL_BINARY_CMD_GET,
                              key, strlen(key), NULL, 0);
     safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
+
+    std::vector<char> receive;
+    receive.resize(sizeof(protocol_binary_response_get) + expected_value.size());
+
+    safe_recv_packet(receive.data(), receive.size());
+
+    auto* response = reinterpret_cast<protocol_binary_response_no_extras*>(receive.data());
+    validate_response_header(response, PROTOCOL_BINARY_CMD_GET,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    char* ptr = receive.bytes + sizeof(receive.response) + 4;
-    size_t vallen = receive.response.message.header.response.bodylen - 4;
+    char* ptr = receive.data() + sizeof(*response) + 4;
+    size_t vallen = response->message.header.response.bodylen - 4;
     std::string actual(ptr, vallen);
     EXPECT_EQ(expected_value, actual);
 }
