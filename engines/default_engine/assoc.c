@@ -53,12 +53,14 @@ ENGINE_ERROR_CODE assoc_init(struct default_engine *engine) {
 }
 
 void assoc_destroy() {
-    while (global_assoc->expanding) {
-        usleep(250);
+    if (global_assoc != NULL) {
+        while (global_assoc->expanding) {
+            usleep(250);
+        }
+        free(global_assoc->primary_hashtable);
+        free(global_assoc);
+        global_assoc = NULL;
     }
-    free(global_assoc->primary_hashtable);
-    free(global_assoc);
-    global_assoc = NULL;
 }
 
 hash_item *assoc_find(struct default_engine *engine, uint32_t hash, const hash_key *key) {
