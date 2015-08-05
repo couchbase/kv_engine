@@ -144,8 +144,8 @@ backfill_status_t DCPBackfill::create() {
 
     shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));
     shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(engine, stream));
-    scanCtx = kvstore->initScanContext(cb, cl, vbid, startSeqno, false, false,
-                                       false);
+    scanCtx = kvstore->initScanContext(cb, cl, vbid, startSeqno, false,
+                                       DocumentFilter::ALL_ITEMS);
     if (scanCtx) {
         as->markDiskSnapshot(startSeqno, scanCtx->maxSeqno);
         transitionState(backfill_state_scanning);

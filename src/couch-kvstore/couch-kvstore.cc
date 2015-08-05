@@ -1195,8 +1195,7 @@ void CouchKVStore::pendingTasks() {
 ScanContext* CouchKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
                                            shared_ptr<Callback<CacheLookup> > cl,
                                            uint16_t vbid, uint64_t startSeqno,
-                                           bool keysOnly, bool noDeletes,
-                                           bool deletesOnly) {
+                                           bool keysOnly, DocumentFilter options) {
     Db *db = NULL;
     uint64_t rev = dbFileRevMap[vbid];
     couchstore_error_t errorCode = openDB(vbid, rev, &db,
@@ -1222,8 +1221,7 @@ ScanContext* CouchKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
     backfills[backfillId] = db;
 
     return new ScanContext(cb, cl, vbid, backfillId, startSeqno,
-                           info.last_sequence, keysOnly, noDeletes,
-                           deletesOnly);
+                           info.last_sequence, keysOnly, options);
 }
 
 scan_error_t CouchKVStore::scan(ScanContext* ctx) {
@@ -1245,12 +1243,20 @@ scan_error_t CouchKVStore::scan(ScanContext* ctx) {
     lh.unlock();
 
     couchstore_docinfos_options options;
-    if (ctx->noDeletes) {
-        options = COUCHSTORE_NO_DELETES;
-    } else if (ctx->onlyDeletes) {
-        options = COUCHSTORE_DELETES_ONLY;
-    } else {
-        options = COUCHSTORE_NO_OPTIONS;
+    switch (ctx->docFilter) {
+        case DocumentFilter::NO_DELETES:
+            options = COUCHSTORE_NO_DELETES;
+            break;
+        case DocumentFilter::ONLY_DELETES:
+            options = COUCHSTORE_DELETES_ONLY;
+            break;
+        case DocumentFilter::ALL_ITEMS:
+            options = COUCHSTORE_NO_OPTIONS;
+            break;
+        default:
+            std::string err("Illegal document filter!" +
+                            std::to_string(static_cast<int>(ctx->docFilter)));
+            throw std::runtime_error(err);
     }
 
     uint64_t start = ctx->startSeqno;
@@ -2331,7 +2337,7 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
 
     shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
     ScanContext* ctx = initScanContext(cb, cl, vbid, info.last_sequence + 1,
-                                       true, false, false);
+                                       true, DocumentFilter::ALL_ITEMS);
     scan_error_t error = scan(ctx);
     destroyScanContext(ctx);
 

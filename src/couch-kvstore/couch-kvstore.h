@@ -473,8 +473,7 @@ public:
     ScanContext* initScanContext(shared_ptr<Callback<GetValue> > cb,
                                  shared_ptr<Callback<CacheLookup> > cl,
                                  uint16_t vbid, uint64_t startSeqno,
-                                 bool keysOnly, bool noDeletes,
-                                 bool deletesOnly);
+                                 bool keysOnly, DocumentFilter options);
 
     scan_error_t scan(ScanContext* sctx);
 

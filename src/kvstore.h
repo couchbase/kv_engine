@@ -164,16 +164,22 @@ enum scan_error_t {
     scan_failed
 };
 
+enum class DocumentFilter {
+    ALL_ITEMS,
+    NO_DELETES,
+    ONLY_DELETES
+};
+
 class ScanContext {
 public:
     ScanContext(shared_ptr<Callback<GetValue> > cb,
                 shared_ptr<Callback<CacheLookup> > cl,
                 uint16_t vb, size_t id, uint64_t start,
-                uint64_t end, bool _onlyKeys, bool _noDeletes,
-                bool _onlyDeletes)
+                uint64_t end, bool _onlyKeys,
+                DocumentFilter _docFilter)
     : callback(cb), lookup(cl), lastReadSeqno(0), startSeqno(start),
       maxSeqno(end), scanId(id), vbid(vb), onlyKeys(_onlyKeys),
-      noDeletes(_noDeletes), onlyDeletes(_onlyDeletes) {}
+      docFilter(_docFilter) {}
 
     ~ScanContext() {}
 
@@ -186,8 +192,7 @@ public:
     const size_t scanId;
     const uint16_t vbid;
     const bool onlyKeys;
-    const bool noDeletes;
-    const bool onlyDeletes;
+    const DocumentFilter docFilter;
 };
 
 // First bool is true if an item exists in VB DB file.
@@ -539,8 +544,7 @@ public:
     virtual ScanContext* initScanContext(shared_ptr<Callback<GetValue> > cb,
                                          shared_ptr<Callback<CacheLookup> > cl,
                                          uint16_t vbid, uint64_t startSeqno,
-                                         bool keysOnly, bool noDeletes,
-                                         bool deletesOnly) = 0;
+                                         bool keysOnly, DocumentFilter options) = 0;
 
     virtual scan_error_t scan(ScanContext* sctx) = 0;
 

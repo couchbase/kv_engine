@@ -594,7 +594,7 @@ void Warmup::keyDumpforShard(uint16_t shardId)
         std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
         for (; itr != shardVbIds[shardId].end(); ++itr) {
             ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0, true,
-                                                        true, false);
+                                                   DocumentFilter::NO_DELETES);
             if (ctx) {
                 kvstore->scan(ctx);
                 kvstore->destroyScanContext(ctx);
@@ -808,7 +808,7 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
     for (; itr != shardVbIds[shardId].end(); ++itr) {
         ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0, false,
-                                                    true, false);
+                                                    DocumentFilter::NO_DELETES);
         if (ctx) {
             kvstore->scan(ctx);
             kvstore->destroyScanContext(ctx);
@@ -844,7 +844,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
     std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
     for (; itr != shardVbIds[shardId].end(); ++itr) {
         ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0, false,
-                                                    true, false);
+                                                    DocumentFilter::NO_DELETES);
         if (ctx) {
             kvstore->scan(ctx);
             kvstore->destroyScanContext(ctx);
