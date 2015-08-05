@@ -37,11 +37,11 @@
  */
 
 static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
-                         size_t keylen, uint16_t vbucket);
+                         size_t keylen, uint16_t vbucket, uint64_t cas);
 template<protocol_binary_command CMD>
 static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
                            const char* value, size_t vallen,
-                           protocol_binary_subdoc_flag flags, uint64_t in_cas);
+                           protocol_binary_subdoc_flag flags);
 template<protocol_binary_command CMD>
 static ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret,
                                        const char* key, size_t keylen,
@@ -146,12 +146,12 @@ static void subdoc_executor(Connection *c, const void *packet) {
         // continue if it returned true, otherwise return from this function
         // (which may result in it being called again later in the EWOULDBLOCK
         // case).
-        if (!subdoc_fetch(c, ret, key, keylen, vbucket)) {
+        if (!subdoc_fetch(c, ret, key, keylen, vbucket, cas)) {
             return;
         }
 
         // 2. Perform the operation specified by CMD. Again, return if it fails.
-        if (!subdoc_operate<CMD>(c, path, pathlen, value, vallen, flags, cas)) {
+        if (!subdoc_operate<CMD>(c, path, pathlen, value, vallen, flags)) {
             return;
         }
 
@@ -331,7 +331,7 @@ get_document_for_searching(Connection * c, const item* item,
 // Returns true if the command was successful (and execution should continue),
 // else false.
 static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
-                         size_t keylen, uint16_t vbucket) {
+                         size_t keylen, uint16_t vbucket, uint64_t cas) {
     auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
 
     if (c->getItem() == NULL) {
@@ -366,6 +366,28 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
         }
     }
 
+    auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
+    cb_assert(context != NULL);
+
+    if (context->in_doc.buf == nullptr) {
+        // Retrieve the item_info the engine, and if necessary
+        // uncompress it so subjson can parse it.
+        uint64_t doc_cas;
+        sized_buffer doc;
+        protocol_binary_response_status status;
+        status = get_document_for_searching(c, c->getItem(), doc, cas, doc_cas);
+
+        if (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            context->in_doc = doc;
+            context->in_cas = doc_cas;
+        } else {
+            // Failed. Note c->item and c->commandContext will both be freed for
+            // us as part of preparing for the next command.
+            write_bin_packet(c, status);
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -376,25 +398,11 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
 template<protocol_binary_command CMD>
 static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
                            const char* value, size_t vallen,
-                           protocol_binary_subdoc_flag flags, uint64_t in_cas) {
+                           protocol_binary_subdoc_flag flags) {
     auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
     cb_assert(context != NULL);
 
-    if (context->in_doc.buf == NULL) {
-        // Retrieve the item_info the engine, and if necessary
-        // uncompress it so subjson can parse it.
-        uint64_t doc_cas;
-        sized_buffer doc;
-        protocol_binary_response_status status =
-            get_document_for_searching(c, c->getItem(), doc, in_cas, doc_cas);
-
-        if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            // Failed. Note c->item and c->commandContext will both be freed for
-            // us as part of preparing for the next command.
-            write_bin_packet(c, status);
-            return false;
-        }
-
+    if (!context->executed) {
         // Prepare the specified sub-document command.
         Subdoc::Operation* op = c->getThread()->subdoc_op;
         op->clear();
@@ -404,7 +412,7 @@ static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
         }
         op->set_result_buf(&context->result);
         op->set_code(opcode);
-        op->set_doc(doc.buf, doc.len);
+        op->set_doc(context->in_doc.buf, context->in_doc.len);
         if (cmd_traits<Cmd2Type<CMD>>::request_has_value) {
             op->set_value(value, vallen);
         }
@@ -413,13 +421,10 @@ static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
         Subdoc::Error subdoc_res = op->op_exec(path, pathlen);
 
         switch (subdoc_res) {
-        case Subdoc::Error::SUCCESS: {
-            // Save the information necessary to construct the result of the
-            // subdoc.
-            context->in_doc = doc;
-            context->in_cas = doc_cas;
+        case Subdoc::Error::SUCCESS:
+            context->executed = true;
             break;
-        }
+
         case Subdoc::Error::PATH_ENOENT:
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT);
             return false;

@@ -42,6 +42,7 @@ struct SubdocCmdContext : public CommandContext {
       : c(connection),
         in_doc({NULL, 0}),
         in_cas(0),
+        executed(false),
         out_doc(NULL) {}
 
     virtual ~SubdocCmdContext() {
@@ -66,6 +67,10 @@ struct SubdocCmdContext : public CommandContext {
     // CAS value of the input document. Required to ensure we only store a
     // new document which was derived from the same original input document.
     uint64_t in_cas;
+
+    // True if this operation has been successfully executed (via subjson)
+    // and we have valid result.
+    bool executed;
 
     // In/Out parameter which contains the result of the executed operation
     Subdoc::Result result;
