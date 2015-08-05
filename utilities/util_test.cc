@@ -148,56 +148,6 @@ TEST(StringTest, safe_strtof) {
     EXPECT_EQ(123.00f, val);
 }
 
-#ifndef WIN32
-TEST(VperrorTest, A) {
-    int rv = 0;
-    int oldstderr = dup(STDERR_FILENO);
-    char tmpl[sizeof(TMP_TEMPLATE)+1];
-    int newfile;
-    char buf[80] = {0};
-    FILE *efile;
-    char *prv;
-    char expected[80] = {0};
-
-    strncpy(tmpl, TMP_TEMPLATE, sizeof(TMP_TEMPLATE)+1);
-
-    newfile = mkstemp(tmpl);
-    ASSERT_GT(newfile, 0);
-    rv = dup2(newfile, STDERR_FILENO);
-    ASSERT_EQ(STDERR_FILENO, rv);
-    rv = close(newfile);
-    ASSERT_EQ(0, rv);
-
-    errno = EIO;
-    vperror("Old McDonald had a farm.  %s", "EI EIO");
-
-    /* Restore stderr */
-    rv = dup2(oldstderr, STDERR_FILENO);
-    ASSERT_EQ(STDERR_FILENO, rv);
-
-
-    /* Go read the file */
-    efile = fopen(tmpl, "r");
-    ASSERT_TRUE(efile);
-    prv = fgets(buf, sizeof(buf), efile);
-    EXPECT_TRUE(prv);
-    fclose(efile);
-
-    unlink(tmpl);
-
-    snprintf(expected, sizeof(expected),
-             "Old McDonald had a farm.  EI EIO: %s\n", strerror(EIO));
-
-    /*
-    fprintf(stderr,
-            "\nExpected:  ``%s''"
-            "\nGot:       ``%s''\n", expected, buf);
-    */
-
-    EXPECT_STREQ(expected, buf);
-}
-#endif // !WIN32
-
 static char* trim(char* ptr) {
     char *start = ptr;
     char *end;

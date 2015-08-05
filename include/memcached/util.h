@@ -24,21 +24,6 @@ MEMCACHED_PUBLIC_API bool safe_strtof(const char *str, float *out);
 MEMCACHED_PUBLIC_API
 const char *memcached_protocol_errcode_2_text(protocol_binary_response_status err);
 
-#ifdef __GCC
-# define __gcc_attribute__ __attribute__
-#else
-# define __gcc_attribute__(x)
-#endif
-
-/**
- * Vararg variant of perror that makes for more useful error messages
- * when reporting with parameters.
- *
- * @param fmt a printf format
- */
-MEMCACHED_PUBLIC_API void vperror(const char *fmt, ...)
-    __gcc_attribute__ ((format (printf, 1, 2)));
-
 #ifdef __cplusplus
 }
 #endif /* __cplusplus */
