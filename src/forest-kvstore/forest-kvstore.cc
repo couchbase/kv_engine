@@ -211,14 +211,14 @@ void ForestKVStore::readVBState(uint16_t vbId) {
 
     if (status != FDB_RESULT_SUCCESS) {
         LOG(EXTENSION_LOG_DEBUG,
-            "Warning: failed to retrieve stat info for vBucket=%d "
+            "Failed to retrieve stat info for vBucket=%d "
             "error=%s", vbId, fdb_error_msg(status));
     } else {
         cJSON *jsonObj = cJSON_Parse((char *)statDoc->body);
 
         if (!jsonObj) {
             LOG(EXTENSION_LOG_WARNING,
-                "Warning: failed to parse the vbstat json doc for vbucket %d: %s",
+                "Failed to parse the vbstat json doc for vbucket %d: %s",
                 vbId, (char *)statDoc->body);
             fdb_doc_free(statDoc);
             abort();
@@ -249,7 +249,7 @@ void ForestKVStore::readVBState(uint16_t vbId) {
         if (vb_state.compare("") == 0 || checkpoint_id.compare("") == 0
                || max_deleted_seqno.compare("") == 0) {
              LOG(EXTENSION_LOG_WARNING,
-                 "Warning: state JSON doc for vbucket %d is in the wrong format: %s",
+                 "State JSON doc for vbucket %d is in the wrong format: %s",
                  vbId, (char *)statDoc->body);
         } else {
             state = VBucket::fromString(vb_state.c_str());
@@ -365,12 +365,12 @@ void ForestKVStore::getWithHeader(void *dbHandle, const std::string &key,
     if (status != FDB_RESULT_SUCCESS) {
         if (!getMetaOnly) {
             LOG(EXTENSION_LOG_WARNING,
-                "Warning: failed to retrieve metadata from "
+                "Failed to retrieve metadata from "
                 "database, vbucketId:%d key:%s error:%s\n",
                 vb, key.c_str(), fdb_error_msg(status));
         } else {
             LOG(EXTENSION_LOG_WARNING,
-                "Warning: failed to retrieve key value from database,"
+                "Failed to retrieve key value from database,"
                 "vbucketId:%d key:%s error:%s deleted:%s", vb, key.c_str(),
                 fdb_error_msg(status), rdoc.deleted ? "yes" : "no");
         }

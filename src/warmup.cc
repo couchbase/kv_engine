@@ -88,7 +88,7 @@ static bool batchWarmupCallback(uint16_t vbId,
                 c->cb.callback(val);
            } else {
                 LOG(EXTENSION_LOG_WARNING,
-                "Warning: warmup failed to load data for vBucket = %d"
+                "Warmup failed to load data for vBucket = %d"
                 " key = %s error = %X\n",
                 vbId,
                     (*items).first.c_str(), val.getStatus());
@@ -117,7 +117,7 @@ static bool warmupCallback(void *arg, uint16_t vb, const std::string &key)
             cookie->cb.callback(cb.val);
             cookie->loaded++;
         } else {
-            LOG(EXTENSION_LOG_WARNING, "Warning: warmup failed to load data "
+            LOG(EXTENSION_LOG_WARNING, "Warmup failed to load data "
                 "for vBucket = %d key = %s error = %X\n", vb, key.c_str(),
                 cb.val.getStatus());
             cookie->error++;

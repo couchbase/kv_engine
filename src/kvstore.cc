@@ -63,7 +63,7 @@ void KVStore::createDataDir(const std::string& dbname) {
     if (!mkdirp(dbname.c_str())) {
         if (errno != EEXIST) {
             std::stringstream ss;
-            ss << "Warning: Failed to create data directory ["
+            ss << "Failed to create data directory ["
                << dbname << "]: " << strerror(errno);
             throw std::runtime_error(ss.str());
         }

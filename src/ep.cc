@@ -538,7 +538,7 @@ bool EventuallyPersistentStore::resumeFlusher() {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
         if (!flusher->resume()) {
             LOG(EXTENSION_LOG_WARNING,
-                    "Warning: attempted to resume flusher in state [%s], "
+                    "Attempted to resume flusher in state [%s], "
                     "shard = %d", flusher->stateName(), i);
             rv = false;
         }
@@ -1762,7 +1762,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
-                        "Warning: failed background fetch for vb=%d "
+                        "Failed background fetch for vb=%d "
                         "seq=%" PRId64 " key=%s", vbucket, v->getBySeqno(),
                         key.c_str());
                     status = ENGINE_TMPFAIL;
@@ -1868,7 +1868,7 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
-                        "Warning: failed background fetch for vb=%d "
+                        "Failed background fetch for vb=%d "
                         "key=%s", vbId, key.c_str());
                     status = ENGINE_TMPFAIL;
                 }
@@ -2404,7 +2404,7 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
                     LOG(EXTENSION_LOG_WARNING,
-                        "Warning: failed background fetch for vb=%d "
+                        "Failed background fetch for vb=%d "
                         "seq=%" PRId64 " key=%s", vbid, v->getBySeqno(),
                         key.c_str());
                 }

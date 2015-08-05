@@ -974,7 +974,7 @@ bool BGFetchCallback::run() {
         epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue());
         if (gcb.val.getStatus() != ENGINE_KEY_ENOENT) {
             LOG(EXTENSION_LOG_WARNING,
-                "Warning: failed TAP background fetch for VBucket %d, TAP %s"
+                "Failed TAP background fetch for VBucket %d, TAP %s"
                 " with the status code (%d)\n",
                 vbucket, name.c_str(), gcb.val.getStatus());
         }
