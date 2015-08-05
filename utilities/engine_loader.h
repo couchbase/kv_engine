@@ -5,6 +5,7 @@
 #include <memcached/extension.h>
 #include <memcached/engine.h>
 #include <memcached/visibility.h>
+#include <platform/dynamic.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,14 +23,24 @@ typedef struct engine_reference engine_reference;
 */
 MEMCACHED_PUBLIC_API void unload_engine(engine_reference* engine);
 
-/*
-    Load the specified engine shared object.
-    Return a engine_reference* on success or NULL for failure.
-*/
-MEMCACHED_PUBLIC_API engine_reference* load_engine(const char *soname,
+/**
+ * Load the specified engine shared object.
+ *
+ * @param soname The name of the shared object (cannot be NULL)
+ * @param create_function The name of the function used to create the engine
+ *                        (Set to NULL to use the "default" list of method
+ *                        names)
+ * @param destroy_function The name of the function used to destroy the engine
+ *                        (Set to NULL to use the "default" list of method
+ *                        names)
+ * @param logger Where to print error messages (cannot be NULL)
+ * @return engine_reference* on success or NULL for failure.
+ */
+MEMCACHED_PUBLIC_API engine_reference* load_engine(const char* soname,
                                                    const char* create_function,
                                                    const char* destroy_function,
-                                                   EXTENSION_LOGGER_DESCRIPTOR *logger);
+                                                   EXTENSION_LOGGER_DESCRIPTOR* logger)
+   CB_ATTR_NONNULL(1, 4);
 
 /*
     Create an engine instance.

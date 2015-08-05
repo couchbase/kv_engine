@@ -46,10 +46,10 @@ static void* find_symbol(cb_dlhandle_t *handle, const char* function, char** err
     return cb_dlsym(handle, function, errmsg);
 }
 
-engine_reference* load_engine(const char *soname,
+engine_reference* load_engine(const char* soname,
                               const char* create_function,
                               const char* destroy_function,
-                              EXTENSION_LOGGER_DESCRIPTOR *logger)
+                              EXTENSION_LOGGER_DESCRIPTOR* logger)
 {
     void *create_symbol = NULL;
     void *destroy_symbol = NULL;
@@ -64,9 +64,7 @@ engine_reference* load_engine(const char *soname,
 
     if (handle == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Failed to open library \"%s\": %s\n",
-                    soname ? soname : "self",
-                    errmsg);
+                    "Failed to open library \"%s\": %s\n", soname, errmsg);
         free(errmsg);
         return NULL;
     }
@@ -92,7 +90,7 @@ engine_reference* load_engine(const char *soname,
     if (create_symbol == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                 "Could not find the function to create an engine instance in %s: %s\n",
-                soname ? soname : "self", create_errmsg);
+                soname, create_errmsg);
         free(create_errmsg);
         return NULL;
     }
@@ -100,7 +98,7 @@ engine_reference* load_engine(const char *soname,
     if (destroy_symbol == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                 "Could not find the function to destroy the engine in %s: %s\n",
-                soname ? soname : "self", destroy_errmsg);
+                soname, destroy_errmsg);
         free(destroy_errmsg);
         return NULL;
     }
