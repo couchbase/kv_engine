@@ -105,7 +105,7 @@ void ExecutorThread::run() {
             hrtime_t woketime = currentTask->waketime;
             currentTask->getTaskable()->logQTime(currentTask->getTypeId(),
                                                  now > woketime ?
-                                                 now - woketime : 0);
+                                                 (now - woketime) / 1000 : 0);
 
             taskStart = now;
             rel_time_t startReltime = ep_current_time();
