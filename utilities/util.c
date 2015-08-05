@@ -230,6 +230,10 @@ const char *memcached_protocol_errcode_2_text(protocol_binary_response_status er
          return "Subdoc: Document path already exists";
     case PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP:
         return "Subdoc: Inserting value would make document too deep";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO:
+        return "Subdoc: Invalid combination for multi-path command";
+    case PROTOCOL_BINARY_RESPONSE_SUBDOC_PARTIAL_FAILURE:
+        return "Subdoc: One or more paths in a multi-path command failed";
 
     default:
         return "Unknown error code";
