@@ -170,8 +170,8 @@ bool init_engine_instance(ENGINE_HANDLE *engine,
     return true;
 }
 
-void log_engine_details(ENGINE_HANDLE * engine,
-                        EXTENSION_LOGGER_DESCRIPTOR *logger)
+void log_engine_details(ENGINE_HANDLE* engine,
+                        EXTENSION_LOGGER_DESCRIPTOR* logger)
 {
     ENGINE_HANDLE_V1 *engine_v1 = (ENGINE_HANDLE_V1*)engine;
     const engine_info *info;
@@ -180,7 +180,7 @@ void log_engine_details(ENGINE_HANDLE * engine,
         ssize_t offset;
         bool comma;
         char message[4096];
-        ssize_t nw = snprintf(message, sizeof(message), "Loaded engine: %s\n",
+        ssize_t nw = snprintf(message, sizeof(message), "Create bucket with engine: %s.",
                                         info->description ?
                                         info->description : "Unknown");
         if (nw == -1) {
@@ -222,6 +222,6 @@ void log_engine_details(ENGINE_HANDLE * engine,
         }
         logger->log(EXTENSION_LOG_NOTICE, NULL, "%s", message);
     } else {
-        logger->log(EXTENSION_LOG_NOTICE, NULL, "Loaded engine: Unknown");
+        logger->log(EXTENSION_LOG_NOTICE, NULL, "Create bucket of unknown type");
     }
 }

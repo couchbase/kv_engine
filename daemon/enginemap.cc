@@ -75,12 +75,18 @@ std::map<BucketType, Engine *> map;
 
 bool new_engine_instance(BucketType type,
                          GET_SERVER_API get_server_api,
-                         ENGINE_HANDLE **handle)
+                         ENGINE_HANDLE **handle,
+                         EXTENSION_LOGGER_DESCRIPTOR *logger)
 {
     auto iter = map.find(type);
     cb_assert(iter != map.end());
 
-    return iter->second->createInstance(get_server_api, handle);
+    auto ret = iter->second->createInstance(get_server_api, handle);
+    if (ret) {
+        log_engine_details(*handle, logger);
+    }
+
+    return ret;
 }
 
 bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)

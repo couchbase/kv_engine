@@ -7102,7 +7102,9 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
         /* People aren't allowed to use the engine in this state,
          * so we can do stuff without locking..
          */
-        if (new_engine_instance(engine, get_server_api, (ENGINE_HANDLE**)&all_buckets[ii].engine)) {
+        if (new_engine_instance(engine, get_server_api,
+                                (ENGINE_HANDLE**)&all_buckets[ii].engine,
+                                settings.extensions.logger)) {
             cb_mutex_enter(&all_buckets[ii].mutex);
             all_buckets[ii].state = BucketState::Initializing;
             cb_mutex_exit(&all_buckets[ii].mutex);
@@ -7333,7 +7335,8 @@ static void initialize_buckets(void) {
     ENGINE_HANDLE *handle;
     cb_assert(new_engine_instance(BucketType::NoBucket,
                                   get_server_api,
-                                  &handle));
+                                  &handle,
+                                  settings.extensions.logger));
 
     cb_assert(handle != nullptr);
     auto &nobucket = all_buckets.at(0);

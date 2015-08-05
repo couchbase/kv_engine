@@ -30,11 +30,13 @@ extern "C" {
      * @param get_server_api A function to get the server API (passed to the
      *                       underlying engine)
      * @param handle where to store the newly created engine
+     * @param logger where to write log messages
      * @return ENGINE_SUCCESS on success
      */
     bool new_engine_instance(BucketType type,
                              GET_SERVER_API get_server_api,
-                             ENGINE_HANDLE **handle);
+                             ENGINE_HANDLE **handle,
+                             EXTENSION_LOGGER_DESCRIPTOR *logger);
 
     /**
      * Try to convert from a module name to a bucket type

@@ -56,8 +56,15 @@ MEMCACHED_PUBLIC_API bool init_engine_instance(ENGINE_HANDLE *engine,
                                                const char *config_str,
                                                EXTENSION_LOGGER_DESCRIPTOR *logger);
 
-MEMCACHED_PUBLIC_API void log_engine_details(ENGINE_HANDLE *engine,
-                                             EXTENSION_LOGGER_DESCRIPTOR *logger);
+/**
+ * Log detailed information of the engine (features it support etc)
+ *
+ * @param engine The engine to log details for
+ * @param logger log destination
+ */
+MEMCACHED_PUBLIC_API void log_engine_details(ENGINE_HANDLE* engine,
+                                             EXTENSION_LOGGER_DESCRIPTOR* logger)
+    CB_ATTR_NONNULL(1, 2);
 
 #ifdef __cplusplus
 }
