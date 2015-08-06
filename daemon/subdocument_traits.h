@@ -28,6 +28,11 @@
 #include <memcached/protocol_binary.h>
 #include <subdoc/operations.h>
 
+enum class SubdocPath : uint8_t {
+    SINGLE,
+    MULTI
+};
+
 /* Traits of each of the sub-document commands. These are used to build up
  * the individual implementations using generic building blocks:
  *
@@ -45,7 +50,14 @@ struct SubdocCmdTraits {
     bool allow_empty_path;
     bool response_has_value;
     bool is_mutator;
+    SubdocPath path;
 };
+
+/*
+ * Dynamic lookup of a Sub-document commands' traits for the specified binary
+ * protocol command.
+ */
+SubdocCmdTraits get_subdoc_cmd_traits(protocol_binary_command cmd);
 
 template <protocol_binary_command CMD>
 SubdocCmdTraits get_traits();
@@ -57,7 +69,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>() {
             /*request_has_value*/false,
             /*allow_empty_path*/false,
             /*response_has_value*/true,
-            /*is_mutator*/false};
+            /*is_mutator*/false,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -67,7 +80,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>() {
             /*request_has_value*/false,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
-            /*is_mutator*/false};
+            /*is_mutator*/false,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -77,7 +91,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
-            /*is_mutator*/true};
+            /*is_mutator*/true,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -87,7 +102,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>() {
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
-            /*is_mutator*/true};
+            /*is_mutator*/true,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -97,7 +113,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>() {
             /*request_has_value*/false,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
-            /*is_mutator*/true};
+            /*is_mutator*/true,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -107,7 +124,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
-            /*is_mutator*/true};
+            /*is_mutator*/true,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -117,7 +135,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() 
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/false,
-            /*is_mutator*/true};
+            /*is_mutator*/true,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -127,7 +146,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>()
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/false,
-            /*is_mutator*/true};
+            /*is_mutator*/true,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -137,7 +157,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
-            /*is_mutator*/true};
+            /*is_mutator*/true,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -147,7 +168,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>()
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/false,
-            /*is_mutator*/true};
+            /*is_mutator*/true,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -157,7 +179,8 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/true,
-            /*is_mutator*/true};
+            /*is_mutator*/true,
+            SubdocPath::SINGLE};
 }
 
 template <>
@@ -167,5 +190,6 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>() {
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/true,
-            /*is_mutator*/true};
+            /*is_mutator*/false,
+            SubdocPath::MULTI};
 }

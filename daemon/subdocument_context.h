@@ -17,7 +17,7 @@
 
 #pragma once
 
-#include "connection.h"
+#include "memcached.h"
 
 #include "subdocument_traits.h"
 
@@ -32,6 +32,12 @@ struct sized_buffer {
     size_t len;
 };
 
+/* Const variant of sized_buffer. */
+struct const_sized_buffer {
+    const char* buf;
+    size_t len;
+};
+
 /** Subdoc command context. An instance of this exists for the lifetime of
  *  each subdocument command, and it used to hold information which needs to
  *  persist across calls to subdoc_executor; for example when one or more
@@ -40,20 +46,16 @@ struct sized_buffer {
  */
 struct SubdocCmdContext : public CommandContext {
 
-    SubdocCmdContext(Connection * connection, SubdocCmdTraits traits_,
-                     protocol_binary_subdoc_flag flags)
+    class OperationSpec;
+    typedef std::vector<OperationSpec> Operations;
+
+    SubdocCmdContext(Connection * connection, const SubdocCmdTraits traits_)
       : c(connection),
         traits(traits_),
         in_doc({NULL, 0}),
         in_cas(0),
         executed(false),
-        out_doc(NULL) {
-
-        if ((flags & SUBDOC_FLAG_MKDIR_P) == SUBDOC_FLAG_MKDIR_P) {
-            traits.command = Subdoc::Command(traits.command |
-                                             Subdoc::Command::FLAG_MKDIR_P);
-        }
-    }
+        out_doc(NULL) { }
 
     virtual ~SubdocCmdContext() {
         if (out_doc != NULL) {
@@ -69,10 +71,13 @@ struct SubdocCmdContext : public CommandContext {
     // The traits for this command.
     SubdocCmdTraits traits;
 
+    // Paths to operate on, one per path in the original request.
+    Operations ops;
+
     // The expanded input JSON document. This may either refer to the raw engine
     // item iovec; or to the connections' DynamicBuffer if the JSON document
     // had to be decompressed. Either way, it should /not/ be free()d.
-    sized_buffer in_doc;
+    const_sized_buffer in_doc;
 
     // CAS value of the input document. Required to ensure we only store a
     // new document which was derived from the same original input document.
@@ -82,10 +87,77 @@ struct SubdocCmdContext : public CommandContext {
     // and we have valid result.
     bool executed;
 
-    // In/Out parameter which contains the result of the executed operation
-    Subdoc::Result result;
+    // Overall status of the entire command.
+    // For single-path commands this is simply the same as the first (and only)
+    // opetation, for multi-path it's an aggregate status.
+    protocol_binary_response_status overall_status;
 
     // [Mutations only] New item to store into engine. _Must_ be released
     // back to the engine using ENGINE_HANDLE_V1::release()
     item* out_doc;
-};
+
+    /* Specification of a single path operation. Encapsulates both the request
+     * parameters, and (later) the result of the operation.
+     */
+    class OperationSpec {
+    public:
+        // Constructor for lookup operations (no value).
+        OperationSpec(SubdocCmdTraits traits_,
+                      protocol_binary_subdoc_flag flags,
+                      const_sized_buffer path_);
+
+        // Constructor for operations requiring a value.
+        OperationSpec(SubdocCmdTraits traits_,
+                      protocol_binary_subdoc_flag flags,
+                      const_sized_buffer path_,
+                      const_sized_buffer value_);
+
+        // Move constructor.
+        OperationSpec(OperationSpec&& other);
+
+        // The traits of this individual Operation.
+        SubdocCmdTraits traits;
+
+        // Path to operate on. Owned by the original request packet.
+        const_sized_buffer path;
+
+        // [For mutations only] Value to apply to document. Owned by the
+        // original request packet.
+        const_sized_buffer value;
+
+        // Status code of the operation.
+        protocol_binary_response_status status;
+
+        // Result of this operation, to be returned back to the client (for
+        // operations which return a result).
+        Subdoc::Result result;
+    };
+}; // class SubdocCmdContext
+
+SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
+                                               protocol_binary_subdoc_flag flags,
+                                               const_sized_buffer path_)
+    : SubdocCmdContext::OperationSpec::OperationSpec(traits_, flags, path_,
+                                                     {nullptr, 0}) {
+}
+
+
+SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
+                                               protocol_binary_subdoc_flag flags,
+                                               const_sized_buffer path_,
+                                               const_sized_buffer value_)
+    : traits(traits_),
+      path(path_),
+      value(value_),
+      status(PROTOCOL_BINARY_RESPONSE_EINTERNAL) {
+    if ((flags & SUBDOC_FLAG_MKDIR_P) == SUBDOC_FLAG_MKDIR_P) {
+        traits.command = Subdoc::Command
+                        (traits.command | Subdoc::Command::FLAG_MKDIR_P);
+    }
+}
+
+
+SubdocCmdContext::OperationSpec::OperationSpec(OperationSpec&& other)
+    : traits(other.traits),
+      path(std::move(other.path)),
+      value(std::move(other.value)) {}

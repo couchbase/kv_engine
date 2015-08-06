@@ -23,6 +23,8 @@
 
 #include "testapp.h"
 
+#include "utilities/subdoc_encoder.h"
+
 #include <memory>
 
 // Class representing a subdoc command; to assist in constructing / encoding one.
@@ -59,6 +61,9 @@ struct SubdocCmd {
     uint64_t cas;
 };
 
+typedef std::pair<protocol_binary_response_status,
+                  std::string> SubdocMultiLookupResult;
+
 /* Encodes and sends a sub-document command with the given parameters, receives
  * the response and validates that the status matches the expected one.
  * If expected_value is non-empty, also verifies that the response value equals
@@ -68,6 +73,10 @@ struct SubdocCmd {
 uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
                            protocol_binary_response_status expected_status,
                            const std::string& expected_value);
+
+uint64_t expect_subdoc_cmd(const SubdocMultiLookupCmd& cmd,
+                           protocol_binary_response_status expected_status,
+                           const std::vector<SubdocMultiLookupResult>& expected_results);
 
 void store_object(const std::string& key,
                   const std::string& value,

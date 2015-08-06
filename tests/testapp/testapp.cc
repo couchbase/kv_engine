@@ -1232,6 +1232,10 @@ void validate_response_header(protocol_binary_response_no_extras *response,
             /* Undefined command code */
             break;
         }
+    } else if (status == PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE) {
+        // Subdoc: Even though the some paths may have failed; actual document
+        // was successfully accessed so CAS is valid.
+        EXPECT_NE(0u, header->response.cas);
     } else {
         EXPECT_EQ(0u, header->response.cas);
         EXPECT_EQ(0, header->response.extlen);

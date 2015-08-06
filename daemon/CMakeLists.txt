@@ -76,6 +76,7 @@ ADD_EXECUTABLE(memcached
                privileges.c
                privileges.h
                subdocument.cc
+               subdocument_traits.cc
                subdocument_validators.cc
                thread.cc
                timings.cc

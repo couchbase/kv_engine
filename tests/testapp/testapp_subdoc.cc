@@ -29,7 +29,7 @@
 #include "../utilities/protocol2text.h"
 
 /*
- * testapp testcases for sub-document API.
+ * testapp testcases for sub-document API - single path.
  */
 
 // Maximum depth for a document (and path) is 32. Create documents
@@ -146,11 +146,78 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
     return header->response.cas;
 }
 
+// Overload for multi-lookup responses
+uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
+                              protocol_binary_response_status expected_status,
+                              const std::vector<SubdocMultiLookupResult>& expected_results) {
+    union {
+        protocol_binary_response_subdocument response;
+        char bytes[1024];
+    } receive;
+
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+
+    validate_response_header((protocol_binary_response_no_extras*)&receive.response,
+                             expected_cmd, expected_status);
+
+    // TODO: Check extras for subdoc command and mutation / seqno (if enabled).
+
+    // Decode body and check against expected_results
+    const auto& header = receive.response.message.header;
+    const char* val_ptr = receive.bytes + sizeof(header) +
+                          header.response.extlen;
+    const size_t vallen = header.response.bodylen + header.response.extlen;
+
+    size_t offset = 0;
+    for (unsigned int ii = 0; ii < expected_results.size(); ii++) {
+        const size_t result_header_len = sizeof(uint16_t) + sizeof(uint32_t);
+        if (offset + result_header_len > vallen) {
+            ADD_FAILURE() << "Remaining value length too short for expected result header";
+            return -1;
+        }
+
+        const auto& exp_result = expected_results[ii];
+        const char* result_header = val_ptr + offset;
+        uint16_t status = ntohs(*reinterpret_cast<const uint16_t*>(result_header));
+        EXPECT_EQ(exp_result.first, protocol_binary_response_status(status))
+            << "Lookup result[" << ii << "]: status different";
+
+        uint32_t result_len = ntohl(*reinterpret_cast<const uint32_t*>
+                (result_header + sizeof(uint16_t)));
+        EXPECT_EQ(exp_result.second.size(), result_len)
+            << "Lookup result[" << ii << "]: length different";
+
+        if (offset + result_header_len + result_len > vallen) {
+            ADD_FAILURE() << "Remaining value length too short for expected result value";
+            return -1;
+        }
+
+        std::string result_value(result_header + result_header_len, result_len);
+        EXPECT_EQ(exp_result.second, result_value)
+            << "Lookup result[" << ii << "]: value differs";
+
+        offset += result_header_len + result_len;
+    }
+
+    return header.response.cas;
+}
+
 uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
                            protocol_binary_response_status expected_status,
                            const std::string& expected_value) {
     send_subdoc_cmd(cmd);
     return recv_subdoc_response(cmd.cmd, expected_status, expected_value);
+}
+
+// Overload for multi-lookup commands.
+uint64_t expect_subdoc_cmd(const SubdocMultiLookupCmd& cmd,
+                           protocol_binary_response_status expected_status,
+                           const std::vector<SubdocMultiLookupResult>& expected_results) {
+    std::vector<char> payload = cmd.encode();
+    safe_send(payload.data(), payload.size(), false);
+
+    return recv_subdoc_response(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP,
+                                expected_status, expected_results);
 }
 
 void store_object(const std::string& key,
@@ -1549,6 +1616,7 @@ TEST_P(McdTestappTest, SubdocCASAutoRetry)
                                 "a", "key3", "3"),
                       PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "");
 }
+
 
 // Tests how a single worker handles multiple "concurrent" connections
 // performing operations.

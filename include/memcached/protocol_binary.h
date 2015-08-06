@@ -187,10 +187,11 @@ extern "C"
          * was specified. */
         PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO = 0xcb,
 
-        /** [For multi-lookup only] Specified key was successfully found, but
-         * one or more path lookups failed. Examine the individual
-         * lookup_result structures for details. */
-        PROTOCOL_BINARY_RESPONSE_SUBDOC_PARTIAL_FAILURE = 0xcc
+        /** [For multi-path commands only] Specified key was successfully
+         * found, but one or more path operations failed. Examine the individual
+         * lookup_result (MULTI_LOOKUP) / mutation_result (MULTI_MUTATION)
+         * structures for details. */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE = 0xcc,
 
     } protocol_binary_response_status;
 
