@@ -61,48 +61,48 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(GetValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_GET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_GETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_GETK));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_GETKQ));
     }
 
     TEST_F(GetValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETK));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETKQ));
     }
 
     TEST_F(GetValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETK));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETKQ));
     }
     TEST_F(GetValidatorTest, NoKey) {
         // key != bodylen
         request.message.header.request.keylen = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETK));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETKQ));
     }
     TEST_F(GetValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETK));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETKQ));
     }
     TEST_F(GetValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GET));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETK));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_GETKQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETK));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_GETKQ));
     }
 
     // Test ADD & ADDQ
@@ -125,33 +125,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(AddValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_ADD));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_ADDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_ADD));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_ADDQ));
     }
     TEST_F(AddValidatorTest, NoValue) {
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_ADD));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_ADDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_ADD));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_ADDQ));
     }
     TEST_F(AddValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_ADD));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_ADDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_ADD));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_ADDQ));
     }
     TEST_F(AddValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_ADD));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_ADDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_ADD));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_ADDQ));
     }
     TEST_F(AddValidatorTest, NoKey) {
         request.message.header.request.keylen = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_ADD));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_ADDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_ADD));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_ADDQ));
     }
     TEST_F(AddValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_ADD));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_ADDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_ADD));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_ADDQ));
     }
 
     // Test SET, SETQ, REPLACE, REPLACEQ
@@ -174,45 +174,45 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(SetReplaceValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_SET));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_SETQ));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_REPLACE));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_SET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_SETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_REPLACE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
     }
     TEST_F(SetReplaceValidatorTest, NoValue) {
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_SET));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_SETQ));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_REPLACE));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_SET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_SETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_REPLACE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
     }
     TEST_F(SetReplaceValidatorTest, Cas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_SET));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_SETQ));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_REPLACE));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_SET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_SETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_REPLACE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
     }
     TEST_F(SetReplaceValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SET));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SETQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_REPLACE));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_REPLACE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
     }
     TEST_F(SetReplaceValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SET));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SETQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_REPLACE));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_REPLACE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
     }
     TEST_F(SetReplaceValidatorTest, NoKey) {
         request.message.header.request.keylen = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SET));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SETQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_REPLACE));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SET));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SETQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_REPLACE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_REPLACEQ));
     }
 
     // Test Append[q] and Prepend[q]
@@ -235,45 +235,45 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(AppendPrependValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_APPEND));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_APPENDQ));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_PREPEND));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_APPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_APPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_PREPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
     }
     TEST_F(AppendPrependValidatorTest, NoValue) {
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_APPEND));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_APPENDQ));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_PREPEND));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_APPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_APPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_PREPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
     }
     TEST_F(AppendPrependValidatorTest, Cas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_APPEND));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_APPENDQ));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_PREPEND));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_APPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_APPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_PREPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
     }
     TEST_F(AppendPrependValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_APPEND));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_APPENDQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_PREPEND));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_APPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_APPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_PREPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
     }
     TEST_F(AppendPrependValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_APPEND));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_APPENDQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_PREPEND));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_APPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_APPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_PREPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
     }
     TEST_F(AppendPrependValidatorTest, NoKey) {
         request.message.header.request.keylen = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_APPEND));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_APPENDQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_PREPEND));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_APPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_APPENDQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_PREPEND));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_PREPENDQ));
     }
 
     // Test DELETE & DELETEQ
@@ -296,38 +296,38 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DeleteValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_DELETE));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_DELETEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_DELETE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_DELETEQ));
     }
     TEST_F(DeleteValidatorTest, Cas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_DELETE));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_DELETEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_DELETE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_DELETEQ));
     }
     TEST_F(DeleteValidatorTest, WithValue) {
         request.message.header.request.bodylen = htonl(20);
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DELETE));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DELETEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DELETE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DELETEQ));
     }
     TEST_F(DeleteValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DELETE));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DELETEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DELETE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DELETEQ));
     }
     TEST_F(DeleteValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DELETE));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DELETEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DELETE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DELETEQ));
     }
     TEST_F(DeleteValidatorTest, NoKey) {
         request.message.header.request.keylen = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DELETE));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DELETEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DELETE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DELETEQ));
     }
     TEST_F(DeleteValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DELETE));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DELETEQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DELETE));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DELETEQ));
     }
 
     // Test INCREMENT[q] and DECREMENT[q]
@@ -350,52 +350,52 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(IncrementDecrementValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_INCREMENT));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_DECREMENT));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_INCREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_DECREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
     }
     TEST_F(IncrementDecrementValidatorTest, Cas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_INCREMENT));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_DECREMENT));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_INCREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_DECREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
     }
     TEST_F(IncrementDecrementValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_INCREMENT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DECREMENT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_INCREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DECREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
     }
     TEST_F(IncrementDecrementValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_INCREMENT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DECREMENT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_INCREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DECREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
     }
     TEST_F(IncrementDecrementValidatorTest, NoKey) {
         request.message.header.request.keylen = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_INCREMENT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DECREMENT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_INCREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DECREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
     }
     TEST_F(IncrementDecrementValidatorTest, WithValue) {
         request.message.header.request.bodylen = htonl(40);
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_INCREMENT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DECREMENT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_INCREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DECREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
     }
     TEST_F(IncrementDecrementValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_INCREMENT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DECREMENT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_INCREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_INCREMENTQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DECREMENT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_DECREMENTQ));
     }
 
     // Test QUIT & QUITQ
@@ -415,40 +415,40 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(QuitValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_QUIT));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_QUITQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_QUIT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_QUITQ));
     }
     TEST_F(QuitValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUIT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUITQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUIT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUITQ));
     }
     TEST_F(QuitValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUIT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUITQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUIT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUITQ));
     }
     TEST_F(QuitValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = ntohl(10);
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUIT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUITQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUIT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUITQ));
     }
     TEST_F(QuitValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUIT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUITQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUIT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUITQ));
     }
     TEST_F(QuitValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUIT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUITQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUIT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUITQ));
     }
     TEST_F(QuitValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUIT));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_QUITQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUIT));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_QUITQ));
     }
 
 
@@ -469,47 +469,47 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(FlushValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_FLUSH));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_FLUSH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
     }
     TEST_F(FlushValidatorTest, CorrectMessageWithTime) {
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_FLUSH));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_FLUSH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
     }
 
     TEST_F(FlushValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
     }
     TEST_F(FlushValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
     }
     TEST_F(FlushValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = ntohl(10);
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
     }
     TEST_F(FlushValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
     }
     TEST_F(FlushValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
     }
     TEST_F(FlushValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
     }
 
     // test Noop
@@ -530,33 +530,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(NoopValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(NoopValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(NoopValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(NoopValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = ntohs(32);
         request.message.header.request.bodylen = htonl(32);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(NoopValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = 100;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(NoopValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(NoopValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // test version
@@ -577,33 +577,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(VersionValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(VersionValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(VersionValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(VersionValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = ntohs(32);
         request.message.header.request.bodylen = htonl(32);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(VersionValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = 100;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(VersionValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(VersionValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // test stat
@@ -624,35 +624,35 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(StatValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
 
     TEST_F(StatValidatorTest, WithKey) {
         request.message.header.request.keylen = htons(21);
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
 
     TEST_F(StatValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(StatValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(StatValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = 100;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(StatValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(StatValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // test verbosity
@@ -675,33 +675,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(VerbosityValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(VerbosityValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(VerbosityValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(VerbosityValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = 100;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(VerbosityValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(VerbosityValidatorTest, InvalidKey) {
         request.message.header.request.keylen = htons(21);
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(VerbosityValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // test HELLO
@@ -722,41 +722,41 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(HelloValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(HelloValidatorTest, MultipleFeatures) {
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
         request.message.header.request.bodylen = htonl(6);
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(HelloValidatorTest, WithKey) {
         request.message.header.request.keylen = htons(21);
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(HelloValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(HelloValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(HelloValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = htonl(1);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(HelloValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(HelloValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // test SASL_LIST_MECHS
@@ -777,33 +777,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(SaslListMechValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(SaslListMechValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SaslListMechValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SaslListMechValidatorTest, InvalidKey) {
         request.message.header.request.keylen = htons(21);
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SaslListMechValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = htonl(1);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SaslListMechValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SaslListMechValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // test SASL_AUTH
@@ -826,40 +826,40 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(SaslAuthValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
     }
     TEST_F(SaslAuthValidatorTest, WithChallenge) {
             request.message.header.request.bodylen = htonl(20);
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
-        EXPECT_EQ(0, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
     }
     TEST_F(SaslAuthValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
     }
     TEST_F(SaslAuthValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
     }
     TEST_F(SaslAuthValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 0;
         request.message.header.request.bodylen = 0;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
     }
     TEST_F(SaslAuthValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
     }
     TEST_F(SaslAuthValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
-        EXPECT_EQ(-1, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_AUTH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_SASL_STEP));
     }
 
     // test IOCTL_GET
@@ -884,36 +884,36 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(IoctlGetValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(IoctlGetValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IoctlGetValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IoctlGetValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 0;
         request.message.header.request.bodylen = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
         request.message.header.request.keylen = htons(IOCTL_KEY_LENGTH + 1);
         request.message.header.request.bodylen = htonl(IOCTL_KEY_LENGTH + 1);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IoctlGetValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IoctlGetValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IoctlGetValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(20);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // test IOCTL_SET
@@ -939,36 +939,36 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(IoctlSetValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(IoctlSetValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IoctlSetValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IoctlSetValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 0;
         request.message.header.request.bodylen = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
         request.message.header.request.keylen = htons(IOCTL_KEY_LENGTH + 1);
         request.message.header.request.bodylen = htonl(IOCTL_KEY_LENGTH + 1);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IoctlSetValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IoctlSetValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IoctlSetValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(IOCTL_VAL_LENGTH + 11);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // test AUDIT_PUT
@@ -991,33 +991,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(AuditPutValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(AuditPutValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AuditPutValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AuditPutValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(15);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AuditPutValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AuditPutValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AuditPutValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // Test audit_config_reload
@@ -1038,33 +1038,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(AuditConfigReloadValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(AuditConfigReloadValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AuditConfigReloadValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AuditConfigReloadValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AuditConfigReloadValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AuditConfigReloadValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AuditConfigReloadValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpOpenValidatorTest : public ValidatorTest {
@@ -1087,25 +1087,25 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpOpenValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpOpenValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpOpenValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 9;
         request.message.header.request.bodylen = htonl(11);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpOpenValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 0;
         request.message.header.request.bodylen = htonl(8);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpOpenValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
 
@@ -1128,29 +1128,29 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpAddStreamValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpAddStreamValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpAddStreamValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(5);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpAddStreamValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 4;
         request.message.header.request.bodylen = htonl(8);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpAddStreamValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpAddStreamValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpCloseStreamValidatorTest : public ValidatorTest {
@@ -1170,29 +1170,29 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpCloseStreamValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpCloseStreamValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpCloseStreamValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(5);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpCloseStreamValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 4;
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpCloseStreamValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpCloseStreamValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpGetFailoverLogValidatorTest : public ValidatorTest {
@@ -1212,29 +1212,29 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpGetFailoverLogValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpGetFailoverLogValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpGetFailoverLogValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(5);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpGetFailoverLogValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 4;
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpGetFailoverLogValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpGetFailoverLogValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpStreamReqValidatorTest : public ValidatorTest {
@@ -1256,30 +1256,30 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpStreamReqValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpStreamReqValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpStreamReqValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(5);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpStreamReqValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 4;
         request.message.header.request.bodylen = htonl(54);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpStreamReqValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     // Can the stream req also conain data?
     // TEST_F(DcpStreamReqValidatorTest, InvalidBody) {
     //     request.message.header.request.bodylen = htonl(12);
-    //     EXPECT_EQ(-1, validate());
+    //     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     // }
 
     class DcpStreamEndValidatorTest : public ValidatorTest {
@@ -1301,29 +1301,29 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpStreamEndValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpStreamEndValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpStreamEndValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(5);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpStreamEndValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 4;
         request.message.header.request.bodylen = htonl(8);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpStreamEndValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpStreamEndValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpSnapshotMarkerValidatorTest : public ValidatorTest {
@@ -1345,29 +1345,29 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpSnapshotMarkerValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpSnapshotMarkerValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpSnapshotMarkerValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
         request.message.header.request.bodylen = htonl(21);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpSnapshotMarkerValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 32;
         request.message.header.request.bodylen = htonl(52);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpSnapshotMarkerValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = htonl(100);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpSnapshotMarkerValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpMutationValidatorTest : public ValidatorTest {
@@ -1390,21 +1390,21 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpMutationValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpMutationValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpMutationValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 21;
         request.message.header.request.bodylen = htonl(22);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpMutationValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 0;
         request.message.header.request.bodylen = htonl(31);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpDeletionValidatorTest : public ValidatorTest {
@@ -1427,28 +1427,28 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpDeletionValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
 
     TEST_F(DcpDeletionValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     TEST_F(DcpDeletionValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(7);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpDeletionValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 0;
         request.message.header.request.bodylen = htonl(18);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     // @todo can a deletion carry value?
     // TEST_F(DcpDeletionValidatorTest, InvalidBodylen) {
     //     request.message.header.request.bodylen = htonl(100);
-    //     EXPECT_EQ(-1, validate());
+    //     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     // }
 
     class DcpExpirationValidatorTest : public ValidatorTest {
@@ -1471,27 +1471,27 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpExpirationValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
 
     TEST_F(DcpExpirationValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     TEST_F(DcpExpirationValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(7);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpExpirationValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 0;
         request.message.header.request.bodylen = htonl(18);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpExpirationValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = htonl(100);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpFlushValidatorTest : public ValidatorTest {
@@ -1511,29 +1511,29 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpFlushValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpFlushValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpFlushValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(5);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpFlushValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 4;
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpFlushValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpFlushValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpSetVbucketStateValidatorTest : public ValidatorTest {
@@ -1556,41 +1556,41 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpSetVbucketStateValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpSetVbucketStateValidatorTest, LegalValues) {
         for (int ii = 1; ii < 5; ++ii) {
             request.message.body.state = ii;
-            EXPECT_EQ(0, validate());
+            EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
         }
     }
     TEST_F(DcpSetVbucketStateValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpSetVbucketStateValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(5);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpSetVbucketStateValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 4;
         request.message.header.request.bodylen = htonl(5);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpSetVbucketStateValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpSetVbucketStateValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpSetVbucketStateValidatorTest, IllegalValues) {
         request.message.body.state = 5;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
         request.message.body.state = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpNoopValidatorTest : public ValidatorTest {
@@ -1610,29 +1610,29 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpNoopValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpNoopValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpNoopValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(5);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpNoopValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 4;
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpNoopValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpNoopValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpBufferAckValidatorTest : public ValidatorTest {
@@ -1654,29 +1654,29 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpBufferAckValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpBufferAckValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpBufferAckValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(5);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpBufferAckValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 4;
         request.message.header.request.bodylen = htonl(8);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpBufferAckValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpBufferAckValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     class DcpControlValidatorTest : public ValidatorTest {
@@ -1699,29 +1699,29 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(DcpControlValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(DcpControlValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpControlValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 5;
         request.message.header.request.bodylen = htonl(13);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpControlValidatorTest, InvalidKeylen) {
         request.message.header.request.keylen = 0;
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpControlValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(DcpControlValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // Test AssumeRole
@@ -1744,28 +1744,28 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(AssumeRoleValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(AssumeRoleValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AssumeRoleValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AssumeRoleValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AssumeRoleValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(AssumeRoleValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
 
@@ -1788,28 +1788,28 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(ObserveSeqnoValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(ObserveSeqnoValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(ObserveSeqnoValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 8;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(ObserveSeqnoValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(18);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(ObserveSeqnoValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(ObserveSeqnoValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // Test set drift counter state
@@ -1832,29 +1832,29 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(SetDriftCounterStateValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(SetDriftCounterStateValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SetDriftCounterStateValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SetDriftCounterStateValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(19);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SetDriftCounterStateValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SetDriftCounterStateValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // Test get adjusted time
@@ -1875,33 +1875,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(GetAdjustedTimeValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(GetAdjustedTimeValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAdjustedTimeValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAdjustedTimeValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAdjustedTimeValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAdjustedTimeValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAdjustedTimeValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // Test IsaslRefresh
@@ -1922,33 +1922,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(IsaslRefreshValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(IsaslRefreshValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IsaslRefreshValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IsaslRefreshValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IsaslRefreshValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IsaslRefreshValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(IsaslRefreshValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // Test SslCertsRefresh
@@ -1969,33 +1969,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(SslCertsRefreshValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(SslCertsRefreshValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SslCertsRefreshValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SslCertsRefreshValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SslCertsRefreshValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SslCertsRefreshValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SslCertsRefreshValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // Test CmdTimer
@@ -2018,33 +2018,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(CmdTimerValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(CmdTimerValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(CmdTimerValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(CmdTimerValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(CmdTimerValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(CmdTimerValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(CmdTimerValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // Test GetCtrlToken
@@ -2065,33 +2065,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(GetCtrlTokenValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(GetCtrlTokenValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetCtrlTokenValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetCtrlTokenValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetCtrlTokenValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetCtrlTokenValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetCtrlTokenValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // Test SetCtrlToken
@@ -2115,37 +2115,37 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(SetCtrlTokenValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(SetCtrlTokenValidatorTest, Cas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(SetCtrlTokenValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SetCtrlTokenValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SetCtrlTokenValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(18);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SetCtrlTokenValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SetCtrlTokenValidatorTest, InvalidNewCas) {
         request.message.body.new_cas = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(SetCtrlTokenValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
 
@@ -2167,33 +2167,33 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(InitCompleteValidatorTest, CorrectMessage) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(InitCompleteValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(InitCompleteValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(InitCompleteValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(InitCompleteValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(InitCompleteValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(InitCompleteValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
     // PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
@@ -2214,44 +2214,44 @@ namespace BinaryProtocolValidator {
     };
 
     TEST_F(GetAllVbSeqnoValidatorTest, CorrectMessageNoState) {
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(GetAllVbSeqnoValidatorTest, CorrectMessageWithState) {
         EXPECT_EQ(4, sizeof(vbucket_state_t));
         request.message.header.request.extlen = 4;
         request.message.header.request.bodylen = htonl(4);
         request.message.body.state = static_cast<vbucket_state_t>(htonl(vbucket_state_active));
-        EXPECT_EQ(0, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
     }
     TEST_F(GetAllVbSeqnoValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAllVbSeqnoValidatorTest, InvalidExtlen) {
         request.message.header.request.extlen = 2;
         request.message.header.request.bodylen = htonl(2);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAllVbSeqnoValidatorTest, InvalidKey) {
         request.message.header.request.keylen = 10;
         request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAllVbSeqnoValidatorTest, InvalidDatatype) {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAllVbSeqnoValidatorTest, InvalidCas) {
         request.message.header.request.cas = 1;
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAllVbSeqnoValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAllVbSeqnoValidatorTest, InvalidBodylen) {
         request.message.header.request.bodylen = htonl(1);
-        EXPECT_EQ(-1, validate());
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
     TEST_F(GetAllVbSeqnoValidatorTest, InvalidVbucketState) {
         request.message.header.request.extlen = 4;
@@ -2260,9 +2260,9 @@ namespace BinaryProtocolValidator {
         for (int ii = 0; ii < 100; ++ii) {
             request.message.body.state = static_cast<vbucket_state_t>(htonl(ii));
             if (is_valid_vbucket_state_t(static_cast<vbucket_state_t>(ii))) {
-                EXPECT_EQ(0, validate());
+                EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
             } else {
-                EXPECT_EQ(-1, validate());
+                EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
             }
         }
     }

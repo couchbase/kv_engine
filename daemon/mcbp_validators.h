@@ -20,12 +20,13 @@
  */
 #pragma once
 
+#include <memcached/protocol_binary.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-    typedef int (*mcbp_package_validate)(void *packet);
+    typedef protocol_binary_response_status (*mcbp_package_validate)(void *packet);
 
     /**
      * Get the memcached binary protocol validators

@@ -45,7 +45,7 @@ mcbp_package_validate *get_mcbp_validators(void) {
 /******************************************************************************
  *                         Package validators                                 *
  *****************************************************************************/
-static int dcp_open_validator(void *packet)
+static protocol_binary_response_status dcp_open_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_open*>(packet);
 
@@ -54,13 +54,13 @@ static int dcp_open_validator(void *packet)
         req->message.header.request.keylen == 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         /* INCORRECT FORMAT */
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_add_stream_validator(void *packet)
+static protocol_binary_response_status dcp_add_stream_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_add_stream *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -69,13 +69,13 @@ static int dcp_add_stream_validator(void *packet)
         req->message.header.request.bodylen != htonl(4) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         /* INCORRECT FORMAT */
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_close_stream_validator(void *packet)
+static protocol_binary_response_status dcp_close_stream_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_close_stream *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -84,13 +84,13 @@ static int dcp_close_stream_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         /* INCORRECT FORMAT */
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_get_failover_log_validator(void *packet)
+static protocol_binary_response_status dcp_get_failover_log_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_get_failover_log *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -98,13 +98,13 @@ static int dcp_get_failover_log_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_stream_req_validator(void *packet)
+static protocol_binary_response_status dcp_stream_req_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_stream_req *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -112,12 +112,12 @@ static int dcp_stream_req_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         /* INCORRECT FORMAT */
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_stream_end_validator(void *packet)
+static protocol_binary_response_status dcp_stream_end_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_stream_end *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -125,13 +125,13 @@ static int dcp_stream_end_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         req->message.header.request.bodylen != htonl(4) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_snapshot_marker_validator(void *packet)
+static protocol_binary_response_status dcp_snapshot_marker_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_snapshot_marker *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -139,38 +139,38 @@ static int dcp_snapshot_marker_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         req->message.header.request.bodylen != htonl(20) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_mutation_validator(void *packet)
+static protocol_binary_response_status dcp_mutation_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_mutation *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != (2*sizeof(uint64_t) + 3 * sizeof(uint32_t) + sizeof(uint16_t)) + sizeof(uint8_t) ||
         req->message.header.request.keylen == 0 ||
         req->message.header.request.bodylen == 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_deletion_validator(void *packet)
+static protocol_binary_response_status dcp_deletion_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_deletion *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_expiration_validator(void *packet)
+static protocol_binary_response_status dcp_expiration_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_deletion *>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
@@ -180,13 +180,13 @@ static int dcp_expiration_validator(void *packet)
         req->message.header.request.extlen != (2*sizeof(uint64_t) + sizeof(uint16_t)) ||
         req->message.header.request.keylen == 0 ||
         bodylen != 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_flush_validator(void *packet)
+static protocol_binary_response_status dcp_flush_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_flush *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -194,13 +194,13 @@ static int dcp_flush_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_set_vbucket_state_validator(void *packet)
+static protocol_binary_response_status dcp_set_vbucket_state_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_set_vbucket_state *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -208,17 +208,17 @@ static int dcp_set_vbucket_state_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         ntohl(req->message.header.request.bodylen) != 1 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if (req->message.body.state < 1 || req->message.body.state > 4) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_noop_validator(void *packet)
+static protocol_binary_response_status dcp_noop_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_noop *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -226,13 +226,13 @@ static int dcp_noop_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_buffer_acknowledgement_validator(void *packet)
+static protocol_binary_response_status dcp_buffer_acknowledgement_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_buffer_acknowledgement *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -240,13 +240,13 @@ static int dcp_buffer_acknowledgement_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         req->message.header.request.bodylen != ntohl(4) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int dcp_control_validator(void *packet)
+static protocol_binary_response_status dcp_control_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_dcp_control *>(packet);
     uint16_t nkey = ntohs(req->message.header.request.keylen);
@@ -255,13 +255,13 @@ static int dcp_control_validator(void *packet)
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 || nkey == 0 || nval == 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int isasl_refresh_validator(void *packet)
+static protocol_binary_response_status isasl_refresh_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -270,13 +270,13 @@ static int isasl_refresh_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int ssl_certs_refresh_validator(void *packet)
+static protocol_binary_response_status ssl_certs_refresh_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -285,13 +285,13 @@ static int ssl_certs_refresh_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int verbosity_validator(void *packet)
+static protocol_binary_response_status verbosity_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -300,13 +300,13 @@ static int verbosity_validator(void *packet)
         req->message.header.request.cas != 0 ||
         ntohl(req->message.header.request.bodylen) != 4 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int hello_validator(void *packet)
+static protocol_binary_response_status hello_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     uint32_t len = ntohl(req->message.header.request.bodylen);
@@ -316,13 +316,13 @@ static int hello_validator(void *packet)
         req->message.header.request.extlen != 0 || (len % 2) != 0 ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int version_validator(void *packet)
+static protocol_binary_response_status version_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
 
@@ -332,13 +332,13 @@ static int version_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int quit_validator(void *packet)
+static protocol_binary_response_status quit_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
 
@@ -348,13 +348,13 @@ static int quit_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.header.request.cas != 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int sasl_list_mech_validator(void *packet)
+static protocol_binary_response_status sasl_list_mech_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
 
@@ -364,13 +364,13 @@ static int sasl_list_mech_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int sasl_auth_validator(void *packet)
+static protocol_binary_response_status sasl_auth_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
 
@@ -379,13 +379,13 @@ static int sasl_auth_validator(void *packet)
         req->message.header.request.keylen == 0 ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int noop_validator(void *packet)
+static protocol_binary_response_status noop_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
 
@@ -395,37 +395,37 @@ static int noop_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.header.request.cas != 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int flush_validator(void *packet)
+static protocol_binary_response_status flush_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     uint8_t extlen = req->message.header.request.extlen;
     uint32_t bodylen = ntohl(req->message.header.request.bodylen);
 
     if (extlen != 0 && extlen != 4) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if (bodylen != extlen) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.keylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.header.request.cas != 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int add_validator(void *packet)
+static protocol_binary_response_status add_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     /* Must have extras and key, may have value */
@@ -434,12 +434,12 @@ static int add_validator(void *packet)
         req->message.header.request.extlen != 8 ||
         req->message.header.request.keylen == 0 ||
         req->message.header.request.cas != 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int set_replace_validator(void *packet)
+static protocol_binary_response_status set_replace_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     /* Must have extras and key, may have value */
@@ -447,12 +447,12 @@ static int set_replace_validator(void *packet)
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 8 ||
         req->message.header.request.keylen == 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int append_prepend_validator(void *packet)
+static protocol_binary_response_status append_prepend_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     /* Must not have extras, must have key, may have value */
@@ -460,12 +460,12 @@ static int append_prepend_validator(void *packet)
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen == 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int get_validator(void *packet)
+static protocol_binary_response_status get_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
@@ -476,13 +476,13 @@ static int get_validator(void *packet)
         klen == 0 || klen != blen ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.header.request.cas != 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int delete_validator(void *packet)
+static protocol_binary_response_status delete_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
@@ -492,13 +492,13 @@ static int delete_validator(void *packet)
         req->message.header.request.extlen != 0 ||
         klen == 0 || klen != blen ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int stat_validator(void *packet)
+static protocol_binary_response_status stat_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
@@ -508,13 +508,13 @@ static int stat_validator(void *packet)
         req->message.header.request.extlen != 0 || klen != blen ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int arithmetic_validator(void *packet)
+static protocol_binary_response_status arithmetic_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
@@ -524,13 +524,13 @@ static int arithmetic_validator(void *packet)
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         extlen != 20 || klen == 0 || (klen + extlen) != blen ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int get_cmd_timer_validator(void *packet)
+static protocol_binary_response_status get_cmd_timer_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
@@ -541,13 +541,13 @@ static int get_cmd_timer_validator(void *packet)
         extlen != 1 || (klen + extlen) != blen ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int set_ctrl_token_validator(void *packet)
+static protocol_binary_response_status set_ctrl_token_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_set_ctrl_token *>(packet);
 
@@ -557,13 +557,13 @@ static int set_ctrl_token_validator(void *packet)
         ntohl(req->message.header.request.bodylen) != sizeof(uint64_t) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
         req->message.body.new_cas == 0) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int get_ctrl_token_validator(void *packet)
+static protocol_binary_response_status get_ctrl_token_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -572,13 +572,13 @@ static int get_ctrl_token_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int init_complete_validator(void *packet)
+static protocol_binary_response_status init_complete_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
@@ -587,13 +587,13 @@ static int init_complete_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int ioctl_get_validator(void *packet)
+static protocol_binary_response_status ioctl_get_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_ioctl_get *>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
@@ -604,13 +604,13 @@ static int ioctl_get_validator(void *packet)
         klen == 0 || klen != blen || klen > IOCTL_KEY_LENGTH ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int ioctl_set_validator(void *packet)
+static protocol_binary_response_status ioctl_set_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_ioctl_set *>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
@@ -622,13 +622,13 @@ static int ioctl_set_validator(void *packet)
         klen == 0 || klen > IOCTL_KEY_LENGTH ||
         vallen > IOCTL_VAL_LENGTH ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int assume_role_validator(void *packet)
+static protocol_binary_response_status assume_role_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
@@ -638,13 +638,13 @@ static int assume_role_validator(void *packet)
         req->message.header.request.extlen != 0 || klen != blen  ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int audit_put_validator(void *packet)
+static protocol_binary_response_status audit_put_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_audit_put *>(packet);
 
@@ -654,12 +654,12 @@ static int audit_put_validator(void *packet)
         req->message.header.request.cas != 0 ||
         ntohl(req->message.header.request.bodylen) <= 4 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int audit_config_reload_validator(void *packet)
+static protocol_binary_response_status audit_config_reload_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
 
@@ -669,12 +669,12 @@ static int audit_config_reload_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int observe_seqno_validator(void *packet)
+static protocol_binary_response_status observe_seqno_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras *>(packet);
     uint32_t bodylen = ntohl(req->message.header.request.bodylen);
@@ -684,12 +684,12 @@ static int observe_seqno_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         bodylen != 8 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int get_adjusted_time_validator(void *packet)
+static protocol_binary_response_status get_adjusted_time_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_get_adjusted_time*>(packet);
 
@@ -699,12 +699,12 @@ static int get_adjusted_time_validator(void *packet)
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int set_drift_counter_state_validator(void *packet)
+static protocol_binary_response_status set_drift_counter_state_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_set_drift_counter_state*>(packet);
 
@@ -713,9 +713,9 @@ static int set_drift_counter_state_validator(void *packet)
         req->message.header.request.keylen != 0 ||
         ntohl(req->message.header.request.bodylen) != sizeof(uint8_t) + sizeof(int64_t) ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
 /**
@@ -723,7 +723,7 @@ static int set_drift_counter_state_validator(void *packet)
  *    key: bucket name
  *    body: module\nconfig
  */
-static int create_bucket_validator(void *packet)
+static protocol_binary_response_status create_bucket_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(packet);
 
@@ -738,13 +738,13 @@ static int create_bucket_validator(void *packet)
          */
         (blen - klen) == 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int list_bucket_validator(void *packet)
+static protocol_binary_response_status list_bucket_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(packet);
 
@@ -753,13 +753,13 @@ static int list_bucket_validator(void *packet)
         req->message.header.request.extlen != 0 ||
         req->message.header.request.bodylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int delete_bucket_validator(void *packet)
+static protocol_binary_response_status delete_bucket_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(packet);
 
@@ -768,13 +768,13 @@ static int delete_bucket_validator(void *packet)
         req->message.header.request.extlen != 0 ||
         req->message.header.request.bodylen == 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int select_bucket_validator(void *packet)
+static protocol_binary_response_status select_bucket_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_no_extras*>(packet);
 
@@ -785,13 +785,13 @@ static int select_bucket_validator(void *packet)
         klen != blen || req->message.header.request.extlen != 0 ||
         klen > 1023 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int get_all_vb_seqnos_validator(void *packet)
+static protocol_binary_response_status get_all_vb_seqnos_validator(void *packet)
 {
     auto req = static_cast<protocol_binary_request_get_all_vb_seqnos*>(packet);
     uint16_t klen = ntohs(req->message.header.request.keylen);
@@ -802,28 +802,28 @@ static int get_all_vb_seqnos_validator(void *packet)
         klen != 0 || extlen != blen ||
         req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return -1;
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     if (extlen != 0) {
         // extlen is optional, and if non-zero it contains the vbucket
         // state to report
         if (extlen != sizeof(vbucket_state_t)) {
-            return -1;
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
         vbucket_state_t state;
         memcpy(&state, &req->message.body.state, sizeof(vbucket_state_t));
         state = static_cast<vbucket_state_t>(ntohl(state));
         if (!is_valid_vbucket_state_t(state)) {
-            return -1;
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
     }
 
-    return 0;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static int null_validator(void *) {
-    return 0;
+static protocol_binary_response_status null_validator(void *) {
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
 static void initialize() {

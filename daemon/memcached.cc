@@ -4889,7 +4889,7 @@ static void select_bucket_executor(Connection *c, void *packet) {
     }
 }
 
-typedef int (*bin_package_validate)(void *packet);
+typedef protocol_binary_response_status (*bin_package_validate)(void *packet);
 typedef void (*bin_package_execute)(Connection *c, void *packet);
 
 mcbp_package_validate *validators;
@@ -5025,13 +5025,20 @@ static void process_bin_packet(Connection *c) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
         break;
     case AuthResult::OK:
-        if (validator != NULL && validator(packet) != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%u: Invalid format for specified for %s",
-                                            c->getId(),
-                                            memcached_opcode_2_text(opcode));
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-        } else if (executor != NULL) {
+        if (validator != NULL) {
+            protocol_binary_response_status result = validator(packet);
+            if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                settings.extensions.logger->log
+                    (EXTENSION_LOG_WARNING, c,
+                     "%u: Invalid format for specified for %s - %d",
+                     c->getId(), memcached_opcode_2_text(opcode), result);
+
+                write_bin_packet(c, result);
+                break;
+            }
+        }
+
+        if (executor != NULL) {
             executor(c, packet);
         } else {
             process_bin_unknown_packet(c);

@@ -23,18 +23,20 @@
 
 #include <cstddef>
 
+#include <memcached/protocol_binary.h>
+
 /* Maximum sub-document path length */
 const size_t SUBDOC_PATH_MAX_LENGTH = 1024;
 
 /* Subdocument validator functions. Returns 0 if valid, else -1. */
-int subdoc_get_validator(void* packet);
-int subdoc_exists_validator(void* packet);
-int subdoc_dict_add_validator(void* packet);
-int subdoc_dict_upsert_validator(void* packet);
-int subdoc_delete_validator(void* packet);
-int subdoc_replace_validator(void* packet);
-int subdoc_array_push_last_validator(void* packet);
-int subdoc_array_push_first_validator(void* packet);
-int subdoc_array_insert_validator(void* packet);
-int subdoc_array_add_unique_validator(void* packet);
-int subdoc_counter_validator(void* packet);
+protocol_binary_response_status subdoc_get_validator(void* packet);
+protocol_binary_response_status subdoc_exists_validator(void* packet);
+protocol_binary_response_status subdoc_dict_add_validator(void* packet);
+protocol_binary_response_status subdoc_dict_upsert_validator(void* packet);
+protocol_binary_response_status subdoc_delete_validator(void* packet);
+protocol_binary_response_status subdoc_replace_validator(void* packet);
+protocol_binary_response_status subdoc_array_push_last_validator(void* packet);
+protocol_binary_response_status subdoc_array_push_first_validator(void* packet);
+protocol_binary_response_status subdoc_array_insert_validator(void* packet);
+protocol_binary_response_status subdoc_array_add_unique_validator(void* packet);
+protocol_binary_response_status subdoc_counter_validator(void* packet);
