@@ -1195,7 +1195,8 @@ void CouchKVStore::pendingTasks() {
 ScanContext* CouchKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
                                            shared_ptr<Callback<CacheLookup> > cl,
                                            uint16_t vbid, uint64_t startSeqno,
-                                           bool keysOnly, DocumentFilter options) {
+                                           DocumentFilter options,
+                                           ValueFilter valOptions) {
     Db *db = NULL;
     uint64_t rev = dbFileRevMap[vbid];
     couchstore_error_t errorCode = openDB(vbid, rev, &db,
@@ -1221,7 +1222,7 @@ ScanContext* CouchKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
     backfills[backfillId] = db;
 
     return new ScanContext(cb, cl, vbid, backfillId, startSeqno,
-                           info.last_sequence, keysOnly, options);
+                           info.last_sequence, options, valOptions);
 }
 
 scan_error_t CouchKVStore::scan(ScanContext* ctx) {
@@ -1616,7 +1617,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     uint32_t itemflags;
     uint64_t cas;
     uint32_t exptime;
-    uint8_t ext_meta[EXT_META_LEN];
+    uint8_t ext_meta[EXT_META_LEN] = {0};
     uint8_t ext_len;
     uint8_t conf_res_mode = 0;
 
@@ -1652,10 +1653,23 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     exptime = ntohl(exptime);
     cas = ntohll(cas);
 
-    if (!sctx->onlyKeys && !docinfo->deleted) {
-        couchstore_error_t errCode ;
-        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
-                                                   DECOMPRESS_DOC_BODIES);
+    if (sctx->valFilter != ValueFilter::KEYS_ONLY && !docinfo->deleted) {
+        couchstore_error_t errCode;
+        bool expectCompressed = false;
+        /**
+         * If couch files do not support datatype or no special
+         * request is made to retrieve compressed documents as is,
+         * then DECOMPRESS the document.
+         */
+        couchstore_open_options openOptions = 0;
+        if (metadata.size == DEFAULT_META_LEN ||
+            sctx->valFilter == ValueFilter::VALUES_DECOMPRESSED) {
+            openOptions = DECOMPRESS_DOC_BODIES;
+        } else {
+            // => sctx->valFilter == ValueFilter::VALUES_COMPRESSED
+            expectCompressed = true;
+        }
+        errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc, openOptions);
 
         if (errCode == COUCHSTORE_SUCCESS) {
             if (doc->data.size) {
@@ -1671,6 +1685,19 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
                     ext_len = EXT_META_LEN;
                     ext_meta[0] = determine_datatype((const unsigned char*)valuePtr,
                                                      valuelen);
+                }
+
+                if (expectCompressed) {
+                    /**
+                     * If a compressed document was retrieved as is,
+                     * update the datatype of the document.
+                     */
+                    uint8_t datatype = ext_meta[0];
+                    if (datatype == PROTOCOL_BINARY_DATATYPE_JSON) {
+                        ext_meta[0] = PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON;
+                    } else if (datatype == PROTOCOL_BINARY_RAW_BYTES) {
+                        ext_meta[0] = PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+                    }
                 }
             }
         } else {
@@ -1700,7 +1727,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     it->setConflictResMode(
                  static_cast<enum conflict_resolution_mode>(conf_res_mode));
 
-    GetValue rv(it, ENGINE_SUCCESS, -1, sctx->onlyKeys);
+    bool onlyKeys = (sctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
+    GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);
     cb->callback(rv);
 
     couchstore_free_document(doc);
@@ -2337,7 +2365,8 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
 
     shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
     ScanContext* ctx = initScanContext(cb, cl, vbid, info.last_sequence + 1,
-                                       true, DocumentFilter::ALL_ITEMS);
+                                       DocumentFilter::ALL_ITEMS,
+                                       ValueFilter::KEYS_ONLY);
     scan_error_t error = scan(ctx);
     destroyScanContext(ctx);
 

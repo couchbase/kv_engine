@@ -142,10 +142,15 @@ backfill_status_t DCPBackfill::create() {
 
     as->incrBackfillRemaining(numItems);
 
+    bool getCompressed = as->isCompressionEnabled();
+
     shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));
     shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(engine, stream));
-    scanCtx = kvstore->initScanContext(cb, cl, vbid, startSeqno, false,
-                                       DocumentFilter::ALL_ITEMS);
+    scanCtx = kvstore->initScanContext(cb, cl, vbid, startSeqno,
+                                       DocumentFilter::ALL_ITEMS,
+                                       getCompressed
+                                        ? ValueFilter::VALUES_COMPRESSED
+                                        : ValueFilter::VALUES_DECOMPRESSED);
     if (scanCtx) {
         as->markDiskSnapshot(startSeqno, scanCtx->maxSeqno);
         transitionState(backfill_state_scanning);

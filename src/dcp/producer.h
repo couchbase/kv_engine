@@ -143,6 +143,10 @@ public:
         return enableExtMetaData;
     }
 
+    bool isValueCompressionEnabled() {
+        return enableValueCompression;
+    }
+
 private:
 
     DcpResponse* getNextItem();

@@ -204,6 +204,8 @@ public:
 
     void completeBackfill();
 
+    bool isCompressionEnabled();
+
     void addStats(ADD_STAT add_stat, const void *c);
 
     void addTakeoverStats(ADD_STAT add_stat, const void *c);

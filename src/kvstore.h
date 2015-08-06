@@ -170,16 +170,22 @@ enum class DocumentFilter {
     ONLY_DELETES
 };
 
+enum class ValueFilter {
+    KEYS_ONLY,
+    VALUES_COMPRESSED,
+    VALUES_DECOMPRESSED
+};
+
 class ScanContext {
 public:
     ScanContext(shared_ptr<Callback<GetValue> > cb,
                 shared_ptr<Callback<CacheLookup> > cl,
                 uint16_t vb, size_t id, uint64_t start,
-                uint64_t end, bool _onlyKeys,
-                DocumentFilter _docFilter)
+                uint64_t end, DocumentFilter _docFilter,
+                ValueFilter _valFilter)
     : callback(cb), lookup(cl), lastReadSeqno(0), startSeqno(start),
-      maxSeqno(end), scanId(id), vbid(vb), onlyKeys(_onlyKeys),
-      docFilter(_docFilter) {}
+      maxSeqno(end), scanId(id), vbid(vb), docFilter(_docFilter),
+      valFilter(_valFilter) {}
 
     ~ScanContext() {}
 
@@ -191,8 +197,8 @@ public:
     const uint64_t maxSeqno;
     const size_t scanId;
     const uint16_t vbid;
-    const bool onlyKeys;
     const DocumentFilter docFilter;
+    const ValueFilter valFilter;
 };
 
 // First bool is true if an item exists in VB DB file.
@@ -544,7 +550,8 @@ public:
     virtual ScanContext* initScanContext(shared_ptr<Callback<GetValue> > cb,
                                          shared_ptr<Callback<CacheLookup> > cl,
                                          uint16_t vbid, uint64_t startSeqno,
-                                         bool keysOnly, DocumentFilter options) = 0;
+                                         DocumentFilter options,
+                                         ValueFilter valOptions) = 0;
 
     virtual scan_error_t scan(ScanContext* sctx) = 0;
 

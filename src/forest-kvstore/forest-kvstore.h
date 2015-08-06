@@ -257,7 +257,8 @@ class ForestKVStore : public KVStore
     ScanContext *initScanContext(shared_ptr<Callback<GetValue> > cb,
                                  shared_ptr<Callback<CacheLookup> > cl,
                                  uint16_t vbid, uint64_t startSeqno,
-                                 bool keysOnly, DocumentFilter options) {
+                                 DocumentFilter options,
+                                 ValueFilter valOptions) {
         return NULL;
     }
 

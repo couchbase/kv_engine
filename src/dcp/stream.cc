@@ -423,6 +423,10 @@ DcpResponse* ActiveStream::deadPhase() {
     return nextQueuedItem();
 }
 
+bool ActiveStream::isCompressionEnabled() {
+    return producer->isValueCompressionEnabled();
+}
+
 void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     Stream::addStats(add_stat, c);
 

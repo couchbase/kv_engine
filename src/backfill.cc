@@ -116,8 +116,8 @@ bool BackfillDiskLoad::run() {
             cl(new ItemResidentCallback(connToken, name, connMap, engine));
 
         ScanContext* ctx = store->initScanContext(cb, cl, vbucket, startSeqno,
-                                                  false,
-                                                  DocumentFilter::ALL_ITEMS);
+                                                  DocumentFilter::ALL_ITEMS,
+                                                  ValueFilter::VALUES_DECOMPRESSED);
         if (ctx) {
             store->scan(ctx);
             store->destroyScanContext(ctx);
