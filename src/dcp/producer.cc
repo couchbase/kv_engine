@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include "backfill.h"
+#include "compress.h"
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "dcp/backfill-manager.h"
@@ -255,6 +256,20 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     Item* itmCpy = NULL;
     if (resp->getEvent() == DCP_MUTATION) {
         itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
+
+        /**
+         * If value compression is enabled, the producer will need
+         * to snappy-compress the document before transmitting.
+         * Compression will obviously be done only if the datatype
+         * indicates that the value isn't compressed already.
+         */
+        if (enableValueCompression) {
+            if (!itmCpy->compressValue()) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s Failed to snappy compress an uncompressed value!",
+                    logHeader());
+            }
+        }
     }
 
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,

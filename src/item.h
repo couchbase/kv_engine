@@ -28,6 +28,7 @@
 #include <string>
 
 #include "atomic.h"
+#include "compress.h"
 #include "locks.h"
 #include "mutex.h"
 #include "objectregistry.h"
@@ -409,6 +410,62 @@ public:
 
     ~Item() {
         ObjectRegistry::onDeleteItem(this);
+    }
+
+    /* Snappy compress value and update datatype */
+    bool compressValue() {
+        uint8_t datatype = getDataType();
+        if (datatype == PROTOCOL_BINARY_RAW_BYTES ||
+            datatype == PROTOCOL_BINARY_DATATYPE_JSON) {
+            // Attempt compression only if datatype indicates
+            // that the value is not compressed already.
+            snap_buf output;
+            snap_ret_t ret = doSnappyCompress(getData(), getNBytes(),
+                                              output);
+            if (ret == SNAP_SUCCESS) {
+                if (datatype == PROTOCOL_BINARY_RAW_BYTES) {
+                    if (output.len >= getNBytes()) {
+                        // No point doing the compression if the compressed
+                        // value's length, is equal to or greater than the
+                        // original length.
+                        return true;
+                    }
+                }
+                setData(output.buf.get(), output.len,
+                        (uint8_t *)(getExtMeta()),
+                        getExtMetaLen());
+                setDataType((datatype == PROTOCOL_BINARY_RAW_BYTES)
+                            ? PROTOCOL_BINARY_DATATYPE_COMPRESSED
+                            : PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON);
+            } else {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /* Snappy uncompress value and update datatype */
+    bool decompressValue() {
+        uint8_t datatype = getDataType();
+        if (datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED ||
+            datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+            // Attempt decompression only if datatype indicates
+            // that the value is compressed.
+            snap_buf output;
+            snap_ret_t ret = doSnappyUncompress(getData(), getNBytes(),
+                                                output);
+            if (ret == SNAP_SUCCESS) {
+                setData(output.buf.get(), output.len,
+                        (uint8_t *)(getExtMeta()),
+                        getExtMetaLen());
+                setDataType((datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED)
+                            ? PROTOCOL_BINARY_RAW_BYTES
+                            : PROTOCOL_BINARY_DATATYPE_JSON);
+            } else {
+                return false;
+            }
+        }
+        return true;
     }
 
     const char *getData() const {

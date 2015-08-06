@@ -17,7 +17,6 @@
 
 #include "config.h"
 
-#include "compress.h"
 #include "item.h"
 #include "cJSON.h"
 

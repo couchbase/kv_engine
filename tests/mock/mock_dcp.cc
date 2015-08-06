@@ -40,6 +40,7 @@ uint64_t dcp_last_snap_end_seqno;
 uint64_t dcp_last_byseqno;
 uint64_t dcp_last_revseqno;
 std::string dcp_last_meta;
+std::string dcp_last_value;
 std::string dcp_last_key;
 vbucket_state_t dcp_last_vbucket_state;
 
@@ -180,6 +181,8 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     dcp_last_revseqno = rev_seqno;
     dcp_last_locktime = lock_time;
     dcp_last_meta.assign(static_cast<const char*>(meta), nmeta);
+    dcp_last_value.assign(static_cast<const char*>(item->getData()),
+                          item->getNBytes());
     dcp_last_nru = nru;
     dcp_last_packet_size = 55 + dcp_last_key.length() +
                            item->getNBytes() + nmeta;
@@ -311,6 +314,7 @@ void clear_dcp_data() {
     dcp_last_snap_start_seqno = 0;
     dcp_last_snap_end_seqno = 0;
     dcp_last_meta.clear();
+    dcp_last_value.clear();
     dcp_last_key.clear();
     dcp_last_vbucket_state = (vbucket_state_t)0;
 }

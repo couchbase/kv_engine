@@ -4559,6 +4559,113 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+
+    item *i = NULL;
+    std::string originalValue("{\"FOO\":\"BAR\"}");
+
+    checkeq(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                         originalValue.c_str(), originalValue.length(),
+                         0, &i, 0, 0, 3600,
+                         PROTOCOL_BINARY_DATATYPE_JSON),
+            ENGINE_SUCCESS, "Failed to store an item.");
+    h1->release(h, NULL, i);
+    wait_for_flusher_to_settle(h, h1);
+
+    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    const void *cookie = testHarness.create_cookie();
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+    uint32_t opaque = 1;
+
+    checkeq(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER,
+                         (void*)name, nname),
+            ENGINE_SUCCESS,
+            "Failed dcp producer open connection.");
+
+    checkeq(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size",
+                            strlen("connection_buffer_size"), "1024", 4),
+            ENGINE_SUCCESS,
+            "Failed to establish connection buffer");
+
+    checkeq(h1->dcp.control(h, cookie, ++opaque, "enable_value_compression",
+                            strlen("enable_value_compression"), "true", 4),
+            ENGINE_SUCCESS,
+            "Failed to enable value compression");
+
+    uint64_t rollback = 0;
+    checkeq(h1->dcp.stream_req(h, cookie, 0, opaque, 0, 0, end,
+                               vb_uuid, 0, 0, &rollback,
+                               mock_dcp_add_failover_log),
+            ENGINE_SUCCESS,
+            "Failed to initiate stream request");
+
+    struct dcp_message_producers* producers = get_dcp_producers();
+
+    bool done = false;
+    uint32_t bytes_read = 0;
+    bool pending_marker_ack = false;
+    uint64_t marker_end = 0;
+
+    std::string last_mutation_val;
+
+    do {
+        if (bytes_read > 512) {
+            h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
+            bytes_read = 0;
+        }
+        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
+        if (err == ENGINE_DISCONNECT) {
+            done = true;
+        } else {
+            switch (dcp_last_op) {
+                case PROTOCOL_BINARY_CMD_DCP_MUTATION:
+                    bytes_read += dcp_last_packet_size;
+                    if (pending_marker_ack && dcp_last_byseqno == marker_end) {
+                        sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
+                               PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
+                    }
+                    last_mutation_val.assign(dcp_last_value);
+                    break;
+                case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
+                    done = true;
+                    bytes_read += dcp_last_packet_size;
+                    break;
+                case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
+                    if (dcp_last_flags & 8) {
+                        pending_marker_ack = true;
+                        marker_end = dcp_last_snap_end_seqno;
+                    }
+
+                    bytes_read += dcp_last_packet_size;
+                    break;
+                default:
+                     // Aborting ...
+                    std::stringstream ss;
+                    ss << "Unexpected DCP operation: " << dcp_last_op;
+                    check(false, ss.str().c_str());
+            }
+        }
+    } while (!done);
+
+    cb_assert(!last_mutation_val.empty());
+
+    snap_buf output;
+    doSnappyUncompress(last_mutation_val.c_str(),
+                       last_mutation_val.length(),
+                       output);
+    std::string received(output.buf.get(), output.len);
+
+    checkeq(originalValue.compare(received), 0,
+            "Value received is not what is expected");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int num_items = 10;
     for (int j = 0; j < num_items; ++j) {
@@ -4718,6 +4825,14 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("enable_ext_metadata") == 0);
     cb_assert(dcp_last_opaque != opaque);
+
+    if (get_bool_stat(h, h1, "ep_dcp_value_compression_enabled")) {
+        dcp_step(h, h1, cookie);
+        stream_opaque = dcp_last_opaque;
+        cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
+        cb_assert(dcp_last_key.compare("enable_value_compression") == 0);
+        cb_assert(dcp_last_opaque != opaque);
+    }
 
     check(h1->dcp.add_stream(h, cookie, opaque, vbucket, flags)
           == ENGINE_SUCCESS, "Add stream request failed");
@@ -14209,6 +14324,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_cursor_dropping, test_setup, teardown,
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
                  "chk_remover_stime=1;max_size=26214400", prepare, cleanup),
+        TestCase("test dcp value compression",
+                 test_dcp_value_compression, test_setup, teardown,
+                 "dcp_value_compression_enabled=true", prepare, cleanup),
         TestCase("test dcp stream takeover", test_dcp_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test dcp stream takeover no items", test_dcp_takeover_no_items,
