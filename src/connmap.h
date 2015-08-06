@@ -455,6 +455,8 @@ public:
 
     void manageConnections();
 
+    ENGINE_ERROR_CODE addPassiveStream(ConnHandler* conn, uint32_t opaque,
+                                       uint16_t vbucket, uint32_t flags);
 private:
 
     void disconnect_UNLOCKED(const void *cookie);

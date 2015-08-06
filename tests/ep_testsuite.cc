@@ -4775,24 +4775,50 @@ static enum test_result test_dcp_add_stream_exists(ENGINE_HANDLE *h,
     uint32_t flags = 0;
     const char *name = "unittest";
     uint16_t nname = strlen(name);
+    uint16_t vbucket = 0;
 
-    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+    check(set_vbucket_state(h, h1, vbucket, vbucket_state_replica),
           "Failed to set vbucket state.");
 
-    // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp consumer open connection.");
+    /* Open consumer connection */
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp consumer open connection.");
 
-    // Send add stream to consumer
-    opaque++;
-    check(h1->dcp.add_stream(h, cookie, opaque, 0, 0)
-          == ENGINE_SUCCESS, "Add stream request failed");
+    /* Send add stream to consumer */
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.add_stream(h, cookie, ++opaque, vbucket, 0),
+            "Add stream request failed");
 
-    // Send add stream to consumer twice and expect failure
-    opaque++;
-    check(h1->dcp.add_stream(h, cookie, opaque, 0, 0)
-          == ENGINE_KEY_EEXISTS, "Stream exists for this vbucket");
+    /* Send add stream to consumer twice and expect failure */
+    checkeq(ENGINE_KEY_EEXISTS,
+            h1->dcp.add_stream(h, cookie, ++opaque, 0, 0),
+            "Stream exists for this vbucket");
+
+    /* Try adding another stream for the vbucket in another consumer conn */
+    /* Open another consumer connection */
+    const void *cookie1 = testHarness.create_cookie();
+    uint32_t opaque1 = 0xFFFF0000;
+    std::string name1("unittest1");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie1, opaque1, 0, flags, (void*)name1.c_str(),
+                         name1.length()),
+            "Failed dcp consumer open connection.");
+
+    /* Send add stream */
+    checkeq(ENGINE_KEY_EEXISTS,
+            h1->dcp.add_stream(h, cookie1, ++opaque1, vbucket, 0),
+            "Stream exists for this vbucket");
+
+    /* Just check that we can add passive stream for another vbucket in this
+       conn*/
+    checkeq(true, set_vbucket_state(h, h1, vbucket + 1, vbucket_state_replica),
+            "Failed to set vbucket state.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.add_stream(h, cookie1, ++opaque1, vbucket + 1, 0),
+            "Add stream request failed in the second conn");
     testHarness.destroy_cookie(cookie);
+    testHarness.destroy_cookie(cookie1);
     return SUCCESS;
 }
 

@@ -753,3 +753,11 @@ ENGINE_ERROR_CODE DcpConsumer::handleFlowCtl(struct dcp_message_producers* produ
     }
     return ENGINE_FAILED;
 }
+
+bool DcpConsumer::isStreamPresent(uint16_t vbucket)
+{
+    if (streams[vbucket] && streams[vbucket]->isActive()) {
+        return true;
+    }
+    return false;
+}

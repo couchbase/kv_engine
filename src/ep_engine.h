@@ -428,6 +428,11 @@ public:
                               void *stream_name,
                               uint16_t nname);
 
+    ENGINE_ERROR_CODE dcpAddStream(const void* cookie,
+                                   uint32_t opaque,
+                                   uint16_t vbucket,
+                                   uint32_t flags);
+
     ENGINE_ERROR_CODE ConnHandlerCheckPoint(TapConsumer *consumer,
                                             uint8_t event,
                                             uint16_t vbucket,

@@ -90,6 +90,8 @@ public:
 
     process_items_error_t processBufferedItems();
 
+    bool isStreamPresent(uint16_t vbucket);
+
 private:
 
     DcpResponse* getNextItem();
