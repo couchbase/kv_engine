@@ -159,3 +159,13 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
             /*response_has_value*/true,
             /*is_mutator*/true};
 }
+
+template <>
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>() {
+    return {Subdoc::Command::INVALID,
+            SUBDOC_FLAG_NONE,
+            /*request_has_value*/true,
+            /*allow_empty_path*/true,
+            /*response_has_value*/true,
+            /*is_mutator*/true};
+}

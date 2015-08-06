@@ -16,8 +16,8 @@
  */
 #include "config.h"
 
-#include <gtest/gtest.h>
-#include <daemon/mcbp_validators.h>
+#include "mcbp_test.h"
+
 #include <memcached/protocol_binary.h>
 
 /**
@@ -26,20 +26,15 @@
  * don't have any command validators for...
  */
 namespace BinaryProtocolValidator {
-    class ValidatorTest : public ::testing::Test {
-    public:
-        virtual void SetUp() override {
-            validators = get_mcbp_validators();
-            ASSERT_NE(nullptr, validators);
-        }
-    protected:
-        int validate(uint8_t opcode, void *request) {
-            auto func = validators[opcode];
-            return func(request);
-        }
+    void ValidatorTest::SetUp() {
+        validators = get_mcbp_validators();
+        ASSERT_NE(nullptr, validators);
+    }
 
-        mcbp_package_validate *validators;
-    };
+    int ValidatorTest::validate(uint8_t opcode, void *request) {
+        auto func = validators[opcode];
+        return func(request);
+    }
 
     // Test the validators for GET, GETQ, GETK, GETKQ
     class GetValidatorTest : public ValidatorTest {
