@@ -28,140 +28,134 @@
 #include <memcached/protocol_binary.h>
 #include <subdoc/operations.h>
 
-
-/* Convert integers to types, to allow type traits for different
- * protocol_binary_commands, etc.
- */
-template <protocol_binary_command C>
-struct Cmd2Type
-{
-  enum { value = C };
-};
-
 /* Traits of each of the sub-document commands. These are used to build up
  * the individual implementations using generic building blocks:
  *
- *   optype: The subjson API optype for this command.
+ *   command: The subjson API operation for this command.
+ *   valid_flags: What flags are valid for this command.
  *   request_has_value: Does the command request require a value?
  *   allow_empty_path: Is the path field allowed to be empty (zero-length)?
  *   response_has_value: Does the command response require a value?
  *   is_mutator: Does the command mutate (modify) the document?
- *   valid_flags: What flags are valid for this command.
  */
-template <typename T>
-struct cmd_traits;
-
-template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_GET> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::GET;
-  static const bool request_has_value = false;
-  static const bool allow_empty_path = false;
-  static const bool response_has_value = true;
-  static const bool is_mutator = false;
-  static const protocol_binary_subdoc_flag valid_flags =
-      protocol_binary_subdoc_flag(0);
+struct SubdocCmdTraits {
+    Subdoc::Command command;
+    protocol_binary_subdoc_flag valid_flags : 8;
+    bool request_has_value;
+    bool allow_empty_path;
+    bool response_has_value;
+    bool is_mutator;
 };
 
-template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::EXISTS;
-  static const bool request_has_value = false;
-  static const bool allow_empty_path = false;
-  static const bool response_has_value = false;
-  static const bool is_mutator = false;
-  static const protocol_binary_subdoc_flag valid_flags =
-      protocol_binary_subdoc_flag(0);
-};
+template <protocol_binary_command CMD>
+SubdocCmdTraits get_traits();
 
 template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::DICT_ADD;
-  static const bool request_has_value = true;
-  static const bool allow_empty_path = false;
-  static const bool response_has_value = false;
-  static const bool is_mutator = true;
-  static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
-};
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>() {
+    return {Subdoc::Command::GET,
+            protocol_binary_subdoc_flag(0),
+            /*request_has_value*/false,
+            /*allow_empty_path*/false,
+            /*response_has_value*/true,
+            /*is_mutator*/false};
+}
 
 template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::DICT_UPSERT;
-  static const bool request_has_value = true;
-  static const bool allow_empty_path = false;
-  static const bool response_has_value = false;
-  static const bool is_mutator = true;
-  static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
-};
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>() {
+    return {Subdoc::Command::EXISTS,
+            protocol_binary_subdoc_flag(0),
+            /*request_has_value*/false,
+            /*allow_empty_path*/false,
+            /*response_has_value*/false,
+            /*is_mutator*/false};
+}
 
 template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_DELETE> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::REMOVE;
-  static const bool request_has_value = false;
-  static const bool allow_empty_path = false;
-  static const bool response_has_value = false;
-  static const bool is_mutator = true;
-  static const protocol_binary_subdoc_flag valid_flags =
-          protocol_binary_subdoc_flag(0);
-};
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
+    return {Subdoc::Command::DICT_ADD,
+            SUBDOC_FLAG_MKDIR_P,
+            /*request_has_value*/true,
+            /*allow_empty_path*/false,
+            /*response_has_value*/false,
+            /*is_mutator*/true};
+}
 
 template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::REPLACE;
-  static const bool request_has_value = true;
-  static const bool allow_empty_path = false;
-  static const bool response_has_value = false;
-  static const bool is_mutator = true;
-  static const protocol_binary_subdoc_flag valid_flags =
-          protocol_binary_subdoc_flag(0);
-};
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>() {
+    return {Subdoc::Command::DICT_UPSERT,
+            SUBDOC_FLAG_MKDIR_P,
+            /*request_has_value*/true,
+            /*allow_empty_path*/false,
+            /*response_has_value*/false,
+            /*is_mutator*/true};
+}
 
 template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::ARRAY_APPEND;
-  static const bool request_has_value = true;
-  static const bool allow_empty_path = true;
-  static const bool response_has_value = false;
-  static const bool is_mutator = true;
-  static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
-};
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>() {
+    return {Subdoc::Command::REMOVE,
+            protocol_binary_subdoc_flag(0),
+            /*request_has_value*/false,
+            /*allow_empty_path*/false,
+            /*response_has_value*/false,
+            /*is_mutator*/true};
+}
 
 template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::ARRAY_PREPEND;
-  static const bool request_has_value = true;
-  static const bool allow_empty_path = true;
-  static const bool response_has_value = false;
-  static const bool is_mutator = true;
-  static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
-};
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
+    return {Subdoc::Command::REPLACE,
+            protocol_binary_subdoc_flag(0),
+            /*request_has_value*/true,
+            /*allow_empty_path*/false,
+            /*response_has_value*/false,
+            /*is_mutator*/true};
+}
 
 template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::ARRAY_INSERT;
-  static const bool request_has_value = true;
-  static const bool allow_empty_path = false;
-  static const bool response_has_value = false;
-  static const bool is_mutator = true;
-  static const protocol_binary_subdoc_flag valid_flags =
-          protocol_binary_subdoc_flag(0);
-};
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() {
+    return {Subdoc::Command::ARRAY_APPEND,
+            SUBDOC_FLAG_MKDIR_P,
+            /*request_has_value*/true,
+            /*allow_empty_path*/true,
+            /*response_has_value*/false,
+            /*is_mutator*/true};
+}
 
 template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::ARRAY_ADD_UNIQUE;
-  static const bool request_has_value = true;
-  static const bool allow_empty_path = true;
-  static const bool response_has_value = false;
-  static const bool is_mutator = true;
-  static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
-};
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>() {
+    return {Subdoc::Command::ARRAY_PREPEND,
+            SUBDOC_FLAG_MKDIR_P,
+            /*request_has_value*/true,
+            /*allow_empty_path*/true,
+            /*response_has_value*/false,
+            /*is_mutator*/true};
+}
 
 template <>
-struct cmd_traits<Cmd2Type<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER> > {
-  static const Subdoc::Command::Code optype = Subdoc::Command::COUNTER;
-  static const bool request_has_value = true;
-  static const bool allow_empty_path = true;
-  static const bool response_has_value = true;
-  static const bool is_mutator = true;
-  static const protocol_binary_subdoc_flag valid_flags = SUBDOC_FLAG_MKDIR_P;
-};
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
+    return {Subdoc::Command::ARRAY_INSERT,
+            protocol_binary_subdoc_flag(0),
+            /*request_has_value*/true,
+            /*allow_empty_path*/false,
+            /*response_has_value*/false,
+            /*is_mutator*/true};
+}
+
+template <>
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>() {
+    return {Subdoc::Command::ARRAY_ADD_UNIQUE,
+            SUBDOC_FLAG_MKDIR_P,
+            /*request_has_value*/true,
+            /*allow_empty_path*/true,
+            /*response_has_value*/false,
+            /*is_mutator*/true};
+}
+
+template <>
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
+    return {Subdoc::Command::COUNTER,
+            SUBDOC_FLAG_MKDIR_P,
+            /*request_has_value*/true,
+            /*allow_empty_path*/true,
+            /*response_has_value*/true,
+            /*is_mutator*/true};
+}

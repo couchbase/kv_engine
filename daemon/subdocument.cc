@@ -38,16 +38,16 @@
 
 static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket, uint64_t cas);
-template<protocol_binary_command CMD>
-static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
-                           const char* value, size_t vallen,
-                           protocol_binary_subdoc_flag flags);
-template<protocol_binary_command CMD>
-static ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret,
+
+static bool subdoc_operate(SubdocCmdContext* context,
+                           const char* path, size_t pathlen,
+                           const char* value, size_t vallen);
+
+static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
+                                       ENGINE_ERROR_CODE ret,
                                        const char* key, size_t keylen,
                                        uint16_t vbucket);
-template<protocol_binary_command CMD>
-static void subdoc_response(Connection * c);
+static void subdoc_response(SubdocCmdContext* context);
 
 // Debug - print details of the specified subdocument command.
 static void subdoc_print_command(Connection* c, protocol_binary_command cmd,
@@ -83,24 +83,28 @@ static void subdoc_print_command(Connection* c, protocol_binary_command cmd,
  * Definitions
  */
 
-/* Main template function which handles execution of all sub-document
+/* Main function which handles execution of all sub-document
  * commands: fetches, operates on, updates and finally responds to the client.
  *
  * Invoked via extern "C" trampoline functions (see later) which populate the
  * subdocument elements of executors[].
  *
- * @param CMD sub-document command the function is templated on.
- * @param c connection object.
+ * @param c      connection object.
  * @param packet request packet.
+ * @param traits Traits associated with the specific command.
  */
-template<protocol_binary_command CMD>
-static void subdoc_executor(Connection *c, const void *packet) {
+static void subdoc_executor(Connection *c, const void *packet,
+                            const SubdocCmdTraits traits) {
 
     // 0. Parse the request and log it if debug enabled.
     const protocol_binary_request_subdocument *req =
             reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
     const protocol_binary_request_header* header = &req->message.header;
 
+    // TODO: Remove this; either pass in as argument or (ideally) remove it
+    // in favour of Subdoc::Command.
+    const protocol_binary_command mcbp_cmd =
+            protocol_binary_command(header->request.opcode);
     const uint8_t extlen = header->request.extlen;
     const uint16_t keylen = ntohs(header->request.keylen);
     const uint32_t bodylen = ntohl(header->request.bodylen);
@@ -117,7 +121,7 @@ static void subdoc_executor(Connection *c, const void *packet) {
     const uint32_t vallen = bodylen - keylen - extlen - pathlen;
 
     if (settings.verbose > 1) {
-        subdoc_print_command(c, CMD, key, keylen, path, pathlen, value, vallen);
+        subdoc_print_command(c, mcbp_cmd, key, keylen, path, pathlen, value, vallen);
     }
 
     // We potentially need to make multiple attempts at this as the engine may
@@ -142,6 +146,15 @@ static void subdoc_executor(Connection *c, const void *packet) {
     do {
         attempts++;
 
+        // 0. If we don't already have a command context, allocate one
+        // (we may already have one if this is an auto_retry or a re-execution
+        // due to EWOULDBLOCK).
+        if (c->getCommandContext() == nullptr) {
+            c->setCommandContext(new SubdocCmdContext(c, traits, flags));
+        }
+        auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
+        cb_assert(context != nullptr);
+
         // 1. Attempt to fetch from the engine the document to operate on. Only
         // continue if it returned true, otherwise return from this function
         // (which may result in it being called again later in the EWOULDBLOCK
@@ -151,12 +164,12 @@ static void subdoc_executor(Connection *c, const void *packet) {
         }
 
         // 2. Perform the operation specified by CMD. Again, return if it fails.
-        if (!subdoc_operate<CMD>(c, path, pathlen, value, vallen, flags)) {
+        if (!subdoc_operate(context, path, pathlen, value, vallen)) {
             return;
         }
 
         // 3. Update the document in the engine (mutations only).
-        ret = subdoc_update<CMD>(c, ret, key, keylen, vbucket);
+        ret = subdoc_update(context, ret, key, keylen, vbucket);
         if (ret == ENGINE_KEY_EEXISTS) {
             if (auto_retry) {
                 // Retry the operation. Reset the command context and related
@@ -180,7 +193,7 @@ static void subdoc_executor(Connection *c, const void *packet) {
         }
 
         // Update stats. Treat all mutations as 'cmd_set', all accesses as 'cmd_get'
-        if (cmd_traits<Cmd2Type<CMD>>::is_mutator) {
+        if (context->traits.is_mutator) {
             SLAB_INCR(c, cmd_set, key, keylen);
         } else {
             STATS_HIT(c, get, key, nkey);
@@ -188,7 +201,7 @@ static void subdoc_executor(Connection *c, const void *packet) {
         update_topkeys(key, keylen, c);
 
         // 4. Form a response and send it back to the client.
-        subdoc_response<CMD>(c);
+        subdoc_response(context);
         return;
     } while (auto_retry && attempts < MAXIMUM_ATTEMPTS);
 
@@ -198,7 +211,7 @@ static void subdoc_executor(Connection *c, const void *packet) {
         (EXTENSION_LOG_WARNING, c,
          "%u: Subdoc: Hit maximum number of auto-retry attempts (%d) when "
          "attempting to perform op %s for client %s - returning TMPFAIL",
-         c->getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(CMD),
+         c->getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(mcbp_cmd),
          c->getPeername().c_str());
     write_bin_packet(c, engine_error_2_protocol_error(ENGINE_TMPFAIL));
 }
@@ -345,11 +358,8 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
         switch (ret) {
         case ENGINE_SUCCESS:
             // We have the item; assign to c->item (so we'll start from step 2
-            // next time) and create the subdoc_cmd_context for the other
-            // information we need to record.
+            // next time).
             c->setItem(initial_item);
-            cb_assert(c->getCommandContext() == nullptr);
-            c->setCommandContext(new SubdocCmdContext(c));
             break;
 
         case ENGINE_EWOULDBLOCK:
@@ -391,29 +401,21 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
     return true;
 }
 
-// Operate on the document as specified by the the sub-document CMD template
-// parameter.
+// Operate on the document as specified by the command context.
 // Returns true if the command was successful (and execution should continue),
 // else false.
-template<protocol_binary_command CMD>
-static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
-                           const char* value, size_t vallen,
-                           protocol_binary_subdoc_flag flags) {
-    auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
-    cb_assert(context != NULL);
-
+static bool subdoc_operate(SubdocCmdContext* context,
+                           const char* path, size_t pathlen,
+                           const char* value, size_t vallen) {
+    auto* const c = context->c;
     if (!context->executed) {
         // Prepare the specified sub-document command.
         Subdoc::Operation* op = c->getThread()->subdoc_op;
         op->clear();
-        Subdoc::Command opcode = cmd_traits<Cmd2Type<CMD>>::optype;
-        if ((flags & SUBDOC_FLAG_MKDIR_P) == SUBDOC_FLAG_MKDIR_P) {
-            opcode = Subdoc::Command(opcode | Subdoc::Command::FLAG_MKDIR_P);
-        }
         op->set_result_buf(&context->result);
-        op->set_code(opcode);
+        op->set_code(context->traits.command);
         op->set_doc(context->in_doc.buf, context->in_doc.len);
-        if (cmd_traits<Cmd2Type<CMD>>::request_has_value) {
+        if (context->traits.request_has_value) {
             op->set_value(value, vallen);
         }
 
@@ -481,14 +483,13 @@ static bool subdoc_operate(Connection * c, const char* path, size_t pathlen,
 // to the document.
 // Returns true if the updare was successful (and execution should continue),
 // else false.
-template<protocol_binary_command CMD>
-ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
+ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
+                                ENGINE_ERROR_CODE ret, const char* key,
                                 size_t keylen, uint16_t vbucket) {
-    auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
-    auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
-    cb_assert(context != NULL);
+    auto* const c = context->c;
+    auto* handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
 
-    if (!cmd_traits<Cmd2Type<CMD>>::is_mutator) {
+    if (!context->traits.is_mutator) {
         // No update required - just make sure we have the correct cas to use
         // for response.
         c->setCAS(context->in_cas);
@@ -585,17 +586,15 @@ ENGINE_ERROR_CODE subdoc_update(Connection * c, ENGINE_ERROR_CODE ret, const cha
 }
 
 // Respond back to the user as appropriate to the specific command.
-template<protocol_binary_command CMD>
-void subdoc_response(Connection * c) {
-    auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
-    cb_assert(context != NULL);
+void subdoc_response(SubdocCmdContext* context) {
+    auto* const c = context->c;
 
     protocol_binary_response_subdocument* rsp =
             reinterpret_cast<protocol_binary_response_subdocument*>(c->write.buf);
 
     const char* value = NULL;
     size_t vallen = 0;
-    if (cmd_traits<Cmd2Type<CMD>>::response_has_value) {
+    if (context->traits.response_has_value) {
         auto mloc = context->result.matchloc();
         value = mloc.at;
         vallen = mloc.length;
@@ -608,52 +607,63 @@ void subdoc_response(Connection * c) {
     }
     rsp->message.header.response.cas = htonll(c->getCAS());
 
-    if (cmd_traits<Cmd2Type<CMD>>::response_has_value) {
+    if (context->traits.response_has_value) {
         add_iov(c, value, vallen);
     }
     c->setState(conn_mwrite);
 }
 
 void subdoc_get_executor(Connection *c, void* packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_GET>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>());
 }
 
 void subdoc_exists_executor(Connection *c, void* packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>());
 }
 
 void subdoc_dict_add_executor(Connection *c, void *packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>());
 }
 
 void subdoc_dict_upsert_executor(Connection *c, void *packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>());
 }
 
 void subdoc_delete_executor(Connection *c, void *packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>());
 }
 
 void subdoc_replace_executor(Connection *c, void *packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>());
 }
 
 void subdoc_array_push_last_executor(Connection *c, void *packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>());
 }
 
 void subdoc_array_push_first_executor(Connection *c, void *packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>());
 }
 
 void subdoc_array_insert_executor(Connection *c, void *packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>());
 }
 
 void subdoc_array_add_unique_executor(Connection *c, void *packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>());
 }
 
 void subdoc_counter_executor(Connection *c, void *packet) {
-    return subdoc_executor<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>(c, packet);
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
 }

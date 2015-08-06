@@ -23,10 +23,9 @@
 
 #include "subdocument_traits.h"
 
-template<protocol_binary_command CMD>
-static int subdoc_validator(void* packet) {
+static int subdoc_validator(const void* packet, const SubdocCmdTraits traits) {
     const protocol_binary_request_subdocument *req =
-            reinterpret_cast<protocol_binary_request_subdocument*>(packet);
+            reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
     const protocol_binary_request_header* header = &req->message.header;
     // Extract the various fields from the header.
     const uint16_t keylen = ntohs(header->request.keylen);
@@ -48,7 +47,7 @@ static int subdoc_validator(void* packet) {
     // Now command-trait specific stuff:
 
     // valuelen should be non-zero iff the request has a value.
-    if (cmd_traits<Cmd2Type<CMD> >::request_has_value) {
+    if (traits.request_has_value) {
         if (valuelen == 0) {
             return -1;
         }
@@ -59,11 +58,11 @@ static int subdoc_validator(void* packet) {
     }
 
     // Check only valid flags are specified.
-    if ((subdoc_flags & ~cmd_traits<Cmd2Type<CMD> >::valid_flags) != 0) {
+    if ((subdoc_flags & ~traits.valid_flags) != 0) {
         return -1;
     }
 
-    if (!cmd_traits<Cmd2Type<CMD> >::allow_empty_path &&
+    if (!traits.allow_empty_path &&
         (pathlen == 0)) {
         return -1;
     }
@@ -72,46 +71,45 @@ static int subdoc_validator(void* packet) {
 }
 
 int subdoc_get_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_GET>(packet);
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>());
 }
 
 int subdoc_exists_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>(packet);
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>());
 }
 
-int subdoc_dict_add_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>(packet);
+int subdoc_dict_add_validator(void *packet) {
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>());
 }
 
-int subdoc_dict_upsert_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>(packet);
+int subdoc_dict_upsert_validator(void *packet) {
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>());
 }
 
-int subdoc_delete_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>(packet);
+int subdoc_delete_validator(void *packet) {
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>());
 }
 
-int subdoc_replace_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>(packet);
+int subdoc_replace_validator(void *packet) {
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>());
 }
 
-int subdoc_array_push_last_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>(packet);
+int subdoc_array_push_last_validator(void *packet) {
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>());
 }
 
-int subdoc_array_push_first_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>(packet);
+int subdoc_array_push_first_validator(void *packet) {
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>());
 }
 
-int subdoc_array_insert_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>(packet);
+int subdoc_array_insert_validator(void *packet) {
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>());
 }
 
-int subdoc_array_add_unique_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>(packet);
+int subdoc_array_add_unique_validator(void *packet) {
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>());
 }
 
-int subdoc_counter_validator(void* packet) {
-    return subdoc_validator<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>(packet);
+int subdoc_counter_validator(void *packet) {
+    return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
 }
-

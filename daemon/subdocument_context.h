@@ -19,6 +19,8 @@
 
 #include "connection.h"
 
+#include "subdocument_traits.h"
+
 #include <cstddef>
 
 /* Struct repesenting a buffer of some known size. This is typically used to
@@ -38,12 +40,20 @@ struct sized_buffer {
  */
 struct SubdocCmdContext : public CommandContext {
 
-    SubdocCmdContext(Connection * connection)
+    SubdocCmdContext(Connection * connection, SubdocCmdTraits traits_,
+                     protocol_binary_subdoc_flag flags)
       : c(connection),
+        traits(traits_),
         in_doc({NULL, 0}),
         in_cas(0),
         executed(false),
-        out_doc(NULL) {}
+        out_doc(NULL) {
+
+        if ((flags & SUBDOC_FLAG_MKDIR_P) == SUBDOC_FLAG_MKDIR_P) {
+            traits.command = Subdoc::Command(traits.command |
+                                             Subdoc::Command::FLAG_MKDIR_P);
+        }
+    }
 
     virtual ~SubdocCmdContext() {
         if (out_doc != NULL) {
@@ -52,12 +62,12 @@ struct SubdocCmdContext : public CommandContext {
         }
     }
 
-    // Static method passed back to memcached to destroy objects of this class.
-    static void dtor(Connection * c, void* context);
-
     // Cookie this command is associated with. Needed for the destructor
     // to release items.
     Connection * c;
+
+    // The traits for this command.
+    SubdocCmdTraits traits;
 
     // The expanded input JSON document. This may either refer to the raw engine
     // item iovec; or to the connections' DynamicBuffer if the JSON document
