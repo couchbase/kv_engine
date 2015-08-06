@@ -805,6 +805,8 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
                                   compaction_ctx *hook_ctx,
                                   Callback<compaction_ctx> &cb,
                                   Callback<kvstats_ctx> &kvcb) {
+    cb_assert(!isReadOnly());
+
     couchstore_compact_hook       hook = time_purge_hook;
     couchstore_docinfo_hook      dhook = edit_docinfo_hook;
     const couch_file_ops     *def_iops = couchstore_get_default_file_ops();
@@ -1180,6 +1182,7 @@ void CouchKVStore::optimizeWrites(std::vector<queued_item> &items) {
 }
 
 void CouchKVStore::pendingTasks() {
+    cb_assert(!isReadOnly());
 
     if (!pendingFileDeletions.empty()) {
         std::queue<std::string> queue;
@@ -1509,13 +1512,19 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames,
             std::stringstream old_file;
             old_file << dbname << "/" << vbId << ".couch." << old_rev_num;
             if (access(old_file.str().c_str(), F_OK) == 0) {
-                if (remove(old_file.str().c_str()) != 0) {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Warning: Failed to remove the stale file '%s': %s",
-                        old_file.str().c_str(), getSystemStrerror().c_str());
+                if (!isReadOnly()) {
+                    if (remove(old_file.str().c_str()) == 0) {
+                        LOG(EXTENSION_LOG_INFO, "Removed stale file '%s'",
+                            old_file.str().c_str());
+                    } else {
+                        LOG(EXTENSION_LOG_WARNING,
+                            "Warning: Failed to remove the stale file '%s': %s",
+                            old_file.str().c_str(), getSystemStrerror().c_str());
+                    }
                 } else {
                     LOG(EXTENSION_LOG_WARNING,
-                        "Warning: Removed stale file '%s'",
+                        "A read-only instance of the underlying store was not "
+                        "allowed to delete a stale file: %s!",
                         old_file.str().c_str());
                 }
             }
@@ -2455,6 +2464,8 @@ ENGINE_ERROR_CODE CouchKVStore::getAllKeys(uint16_t vbid,
 void CouchKVStore::unlinkCouchFile(uint16_t vbucket,
                                    uint64_t fRev) {
 
+    cb_assert(!isReadOnly());
+
     int errCode;
     char fname[PATH_MAX];
     snprintf(fname, sizeof(fname), "%s/%d.couch.%" PRIu64,
@@ -2481,10 +2492,18 @@ void CouchKVStore::removeCompactFile(const std::string &dbname,
 
     std::string dbfile = getDBFileName(dbname, vbid, fileRev);
     std::string compact_file = dbfile + ".compact";
-    removeCompactFile(compact_file);
+
+    if (!isReadOnly()) {
+        removeCompactFile(compact_file);
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+            "A read-only instance of the underlying store was not allowed "
+            "to delete a temporary file: %s", compact_file.c_str());
+    }
 }
 
 void CouchKVStore::removeCompactFile(const std::string &filename) {
+    cb_assert(!isReadOnly());
 
     if (access(filename.c_str(), F_OK) == 0) {
         if (remove(filename.c_str()) == 0) {

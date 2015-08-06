@@ -881,3 +881,11 @@ ENGINE_ERROR_CODE DcpConsumer::handleExtMetaData(struct dcp_message_producers* p
 
     return ENGINE_FAILED;
 }
+
+bool DcpConsumer::isStreamPresent(uint16_t vbucket)
+{
+    if (streams[vbucket] && streams[vbucket]->isActive()) {
+        return true;
+    }
+    return false;
+}
