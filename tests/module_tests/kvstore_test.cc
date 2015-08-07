@@ -21,6 +21,7 @@
 
 #include "callbacks.h"
 #include "common.h"
+#include "compress.h"
 #include "kvstore.h"
 
 extern "C" {
@@ -55,15 +56,53 @@ public:
 
 };
 
+class CacheCallback : public Callback<CacheLookup> {
+public:
+    CacheCallback(int64_t s, int64_t e, uint16_t vbid) :
+        start(s), end(e), vb(vbid) { }
+
+    void callback(CacheLookup &lookup) {
+        cb_assert(lookup.getVBucketId() == vb);
+        cb_assert(start <= lookup.getBySeqno());
+        cb_assert(lookup.getBySeqno() <= end);
+    }
+
+private:
+    int64_t start;
+    int64_t end;
+    uint16_t vb;
+};
+
 class GetCallback : public Callback<GetValue> {
 public:
-    GetCallback() {}
+    GetCallback() :
+        expectCompressed(false) { }
+
+    GetCallback(bool expect_compressed) :
+        expectCompressed(expect_compressed) { }
 
     void callback(GetValue &result) {
-        cb_assert(strncmp("value", result.getValue()->getData(), 5) == 0);
+        if (expectCompressed) {
+            cb_assert(result.getValue()->getDataType() ==
+                      PROTOCOL_BINARY_DATATYPE_COMPRESSED);
+            snap_buf output;
+            cb_assert(doSnappyUncompress(result.getValue()->getData(),
+                                         result.getValue()->getNBytes(),
+                                         output) ==
+                      SNAP_SUCCESS);
+            cb_assert(strncmp("value",
+                              output.buf.get(),
+                              output.len) == 0);
+        } else {
+            cb_assert(strncmp("value",
+                              result.getValue()->getData(),
+                              result.getValue()->getNBytes()) == 0);
+        }
         delete result.getValue();
     }
 
+private:
+    bool expectCompressed;
 };
 
 void basic_kvstore_test(std::string& backend) {
@@ -93,11 +132,50 @@ void basic_kvstore_test(std::string& backend) {
     delete kvstore;
 }
 
+void kvstore_get_compressed_test(std::string& backend) {
+    std::string data_dir("/tmp/kvstore-test");
+
+    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+
+    KVStoreConfig config(1024, 4, data_dir, backend, 0);
+    KVStore* kvstore = KVStoreFactory::create(config);
+
+    StatsCallback sc;
+    std::string failoverLog("");
+    vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0,
+                        failoverLog);
+    kvstore->snapshotVBucket(0, state, &sc);
+
+    kvstore->begin();
+
+    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    for (int i = 1; i <= 5; i++) {
+        std::string key("key" + std::to_string(i));
+        Item item(key.c_str(), key.length(),
+                  0, 0, "value", 5, &datatype, 1, 0, i);
+        WriteCallback wc;
+        kvstore->set(item, wc);
+    }
+    kvstore->commit(&sc);
+
+    shared_ptr<Callback<GetValue> > cb(new GetCallback(true));
+    shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(1, 5, 0));
+    ScanContext* scanCtx;
+    scanCtx = kvstore->initScanContext(cb, cl, 0, 1,
+                                       DocumentFilter::ALL_ITEMS,
+                                       ValueFilter::VALUES_COMPRESSED);
+
+    cb_assert(scanCtx);
+    cb_assert(kvstore->scan(scanCtx) == scan_success);
+    delete kvstore;
+}
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
     putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
     std::string backend("couchdb");
     basic_kvstore_test(backend);
+    kvstore_get_compressed_test(backend);
     backend = "forestdb";
     basic_kvstore_test(backend);
 }

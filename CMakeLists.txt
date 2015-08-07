@@ -252,10 +252,11 @@ TARGET_LINK_LIBRARIES(ep-engine_failover_table_test cJSON platform)
 
 ADD_EXECUTABLE(ep-engine_kvstore_test
   tests/module_tests/kvstore_test.cc
-  ${OBJECTREGISTRY_SOURCE} ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
-  ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE}
+  src/compress.cc
   src/mutex.cc
-  src/testlogger.cc)
+  src/testlogger.cc
+  ${OBJECTREGISTRY_SOURCE} ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
+  ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_kvstore_test cJSON JSON_checker couchstore
   forestdb dirutils platform)
 
