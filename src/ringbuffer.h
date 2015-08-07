@@ -74,16 +74,14 @@ public:
      */
     std::vector<T> contents() {
         std::vector<T> rv;
-        size_t lpos = pos; // snapshot the position, wrapped for consistency
-        size_t lwrapped = wrapped;
-        size_t lsize = lwrapped ? max : lpos;
+        size_t lsize = wrapped ? max : pos;
         rv.resize(lsize);
         size_t copied(0);
-        if (lwrapped && lpos != max) {
-            std::copy(storage + lpos, storage + max, rv.begin());
-            copied = max - lpos;
+        if (wrapped && pos != max) {
+            std::copy(storage + pos, storage + max, rv.begin());
+            copied = max - pos;
         }
-        std::copy(storage, storage + lpos, rv.begin() + copied);
+        std::copy(storage, storage + pos, rv.begin() + copied);
         return rv;
     }
 
