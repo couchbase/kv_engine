@@ -5461,7 +5461,7 @@ static enum test_result test_dcp_add_stream_exists(ENGINE_HANDLE *h,
     checkeq(ENGINE_KEY_EEXISTS,
             h1->dcp.add_stream(h, cookie, ++opaque, 0, 0),
             "Stream exists for this vbucket");
-
+#if 0 /* Wait for ns_server change */
     /* Try adding another stream for the vbucket in another consumer conn */
     /* Open another consumer connection */
     const void *cookie1 = testHarness.create_cookie();
@@ -5484,8 +5484,9 @@ static enum test_result test_dcp_add_stream_exists(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             h1->dcp.add_stream(h, cookie1, ++opaque1, vbucket + 1, 0),
             "Add stream request failed in the second conn");
+#endif
     testHarness.destroy_cookie(cookie);
-    testHarness.destroy_cookie(cookie1);
+    //testHarness.destroy_cookie(cookie1); /* Wait for ns_server change */
     return SUCCESS;
 }
 
