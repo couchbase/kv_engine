@@ -142,8 +142,7 @@ bool KVShard::setHighPriorityVbSnapshotFlag(bool highPriority) {
 
 bool KVShard::setLowPriorityVbSnapshotFlag(bool lowPriority) {
     bool inverse = !lowPriority;
-    return lowPrioritySnapshot.compare_exchange_strong(inverse,
-                                                       lowPrioritySnapshot);
+    return lowPrioritySnapshot.compare_exchange_strong(inverse, lowPriority);
 }
 
 void NotifyFlusherCB::callback(uint16_t &vb) {
