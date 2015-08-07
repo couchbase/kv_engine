@@ -1215,3 +1215,10 @@ void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
     LOG(EXTENSION_LOG_DEBUG, "Max active snoozing backfills set to %d",
         maxActiveSnoozingBackfills);
 }
+
+void DcpConnMap::addStats(ADD_STAT add_stat, const void *c)
+{
+    LockHolder lh(connsLock);
+    add_casted_stat("ep_dcp_dead_conn_count", deadConnections.size(), add_stat,
+                    c);
+}

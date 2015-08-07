@@ -734,6 +734,7 @@ set for =replication=.
 |                             | dcp connections                              |
 | ep_dcp_max_running_backfills| Max running backfills we can have across all |
 |                             | dcp connections                              |
+| ep_dcp_dead_conn_count      | Total dead connections                       |
 
 ** Timing Stats
 

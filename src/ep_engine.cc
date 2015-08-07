@@ -4101,6 +4101,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(const void *cookie,
     add_casted_stat("ep_dcp_max_running_backfills",
                     dcpConnMap_->getMaxActiveSnoozingBackfills(), add_stat, cookie);
 
+    dcpConnMap_->addStats(add_stat, cookie);
     return ENGINE_SUCCESS;
 }
 

@@ -473,6 +473,10 @@ public:
     uint16_t getMaxActiveSnoozingBackfills () const {
         return maxActiveSnoozingBackfills;
     }
+
+    /* Use this only for any quick direct stats from DcpConnMap. To collect
+       individual conn stats from conn lists please use ConnStatBuilder */
+    void addStats(ADD_STAT add_stat, const void *c);
 private:
 
     void disconnect_UNLOCKED(const void *cookie);
