@@ -66,7 +66,7 @@ public:
      */
     void reset() {
         pos = 0;
-        wrapped = 0;
+        wrapped = false;
     }
 
     /**
