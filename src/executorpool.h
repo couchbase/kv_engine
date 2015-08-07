@@ -90,8 +90,6 @@ public:
 
     size_t getNumCPU(void);
 
-    size_t getNumWorkers(void);
-
     size_t getNumReaders(void);
 
     size_t getNumWriters(void);
