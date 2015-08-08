@@ -8,13 +8,23 @@ ADD_CUSTOM_COMMAND(OUTPUT
                         generate_rbac
                   COMMENT "Generating code for default rbac config")
 
-IF (BREAKPAD_FOUND AND UNIX)
-  # Breakpad has headers (which are dependencies for our breakpad integration
-  # code) that don't compile cleanly as C++11, so the GNU standard is
-  # used instead.
-  SET_SOURCE_FILES_PROPERTIES(breakpad.cc PROPERTIES COMPILE_FLAGS
-                              ${CB_GNU_CXX11_OPTION})
-ENDIF (BREAKPAD_FOUND AND UNIX)
+IF (BREAKPAD_FOUND)
+  IF (WIN32)
+    SET(BREAKPAD_SRCS breakpad_win32.cc)
+  ELSEIF ("${CMAKE_SYSTEM_NAME}" STREQUAL "Linux")
+    SET(BREAKPAD_SRCS breakpad_linux.cc)
+    # Breakpad has headers (which are dependencies for our breakpad integration
+    # code) that don't compile cleanly as C++11, so the GNU standard is
+    # used instead.
+    SET_SOURCE_FILES_PROPERTIES(breakpad_linux.cc PROPERTIES COMPILE_FLAGS
+                                ${CB_GNU_CXX11_OPTION})
+  ELSE()
+    MESSAGE(STATUS "Breakpad not supported on this platform")
+    SET(BREAKPAD_SRCS breakpad_dummy.cc)
+  ENDIF()
+ELSE()
+  SET(BREAKPAD_SRCS breakpad_dummy.cc)
+ENDIF()
 
 CHECK_INCLUDE_FILES(numa.h HAVE_NUMA_H)
 SET(WITH_NUMA True CACHE BOOL "Explicitly set NUMA memory allocation policy")
@@ -33,7 +43,8 @@ IF(HAVE_LIBNUMA)
 ENDIF()
 
 ADD_EXECUTABLE(memcached
-               breakpad.cc
+               ${BREAKPAD_SRCS}
+               breakpad.h
                buckets.h
                ${MEMORY_TRACKING_SRCS}
                cmdline.cc

@@ -14,21 +14,13 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#pragma once
 
 #include "config.h"
-#include "settings.h"
+#include "breakpad.h"
+#include <stdlib.h>
 
-/**
- * Initialize breakpad based on the specified settings struct.
- *
- * The function may be called multiple times and allow for reconfiguration
- * of the breakpad settings.
- */
-void initialize_breakpad(const breakpad_settings_t* settings);
+void initialize_breakpad(const breakpad_settings_t* settings) {
+}
 
-/**
- * Cleaning up when breakpad no longer needed
- * (Assuming it is enabled and has been initialized)
- */
-void destroy_breakpad(void);
+void destroy_breakpad(void) {
+}
