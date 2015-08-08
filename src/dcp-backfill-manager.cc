@@ -126,7 +126,7 @@ void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
     }
 
     if (managerTask && !managerTask->isdead()) {
-        managerTask->snooze(0);
+        ExecutorPool::get()->wake(managerTask->getId());
         return;
     }
 
@@ -175,7 +175,7 @@ void BackfillManager::bytesSent(uint32_t bytes) {
             buffer.nextReadSize = 0;
             buffer.full = false;
             if (managerTask) {
-                managerTask->snooze(0);
+                ExecutorPool::get()->wake(managerTask->getId());
             }
         }
     }
@@ -291,7 +291,7 @@ void BackfillManager::moveToActiveQueue() {
 void BackfillManager::wakeUpTask() {
     LockHolder lh(lock);
     if (managerTask) {
-        managerTask->snooze(0);
+        ExecutorPool::get()->wake(managerTask->getId());
     }
 }
 
@@ -303,7 +303,7 @@ void BackfillManager::wakeUpSnoozingBackfills(uint16_t vbid) {
         if (vbid == bfill->getVBucketId()) {
             activeBackfills.push_back(bfill);
             snoozingBackfills.erase(it);
-            managerTask->snooze(0);
+            ExecutorPool::get()->wake(managerTask->getId());
             return;
         }
     }
