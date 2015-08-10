@@ -59,32 +59,36 @@ void Stream::clear_UNLOCKED() {
 
 void Stream::pushToReadyQ(DcpResponse* resp)
 {
+   /* expect streamMutex.ownsLock() == true */
     if (resp) {
         readyQ.push(resp);
-        readyQueueMemory += resp->getMessageSize();
+        readyQueueMemory.fetch_add(resp->getMessageSize(),
+                                   std::memory_order_relaxed);
     }
 }
 
 void Stream::popFromReadyQ(void)
 {
+    /* expect streamMutex.ownsLock() == true */
     if (!readyQ.empty()) {
         uint32_t respSize = readyQ.front()->getMessageSize();
         readyQ.pop();
         /* Decrement the readyQ size */
-        if ((readyQueueMemory - respSize) <= readyQueueMemory) {
-            readyQueueMemory -= respSize;
+        if (respSize <= readyQueueMemory.load(std::memory_order_relaxed)) {
+            readyQueueMemory.fetch_sub(respSize, std::memory_order_relaxed);
         } else {
             LOG(EXTENSION_LOG_DEBUG, "readyQ size for stream %s (vb %d)"
                 "underflow, likely wrong stat calculation! curr size: %" PRIu64
                 "; new size: %d",
-                name_.c_str(), getVBucket(), readyQueueMemory, respSize);
-            readyQueueMemory = 0;
+                name_.c_str(), getVBucket(),
+                readyQueueMemory.load(std::memory_order_relaxed), respSize);
+            readyQueueMemory.store(0, std::memory_order_relaxed);
         }
     }
 }
 
 uint64_t Stream::getReadyQueueMemory() {
-    return readyQueueMemory;
+    return readyQueueMemory.load(std::memory_order_relaxed);
 }
 
 const char * Stream::stateName(stream_state_t st) const {
@@ -136,8 +140,13 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
     }
 
     if (start_seqno_ >= end_seqno_) {
+        /* streamMutex lock needs to be acquired because endStream
+         * potentially makes call to pushToReadyQueue.
+         */
+        LockHolder lh(streamMutex);
         endStream(END_STREAM_OK);
         itemsReady = true;
+        // lock is released on leaving the scope
     }
 
     backfillItems.memory = 0;
@@ -344,13 +353,13 @@ DcpResponse* ActiveStream::backfillPhase() {
         producer->getBackfillManager()->bytesSent(m->getItem()->size());
         bufferedBackfill.bytes.fetch_sub(m->getItem()->size());
         bufferedBackfill.items--;
-        if (backfillRemaining > 0) {
-            backfillRemaining--;
+        if (backfillRemaining.load(std::memory_order_relaxed) > 0) {
+            backfillRemaining.fetch_sub(1, std::memory_order_relaxed);
         }
     }
 
     if (!isBackfillTaskRunning && readyQ.empty()) {
-        backfillRemaining = 0;
+        backfillRemaining.store(0, std::memory_order_relaxed);
         if (lastReadSeqno >= end_seqno_) {
             endStream(END_STREAM_OK);
         } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -474,13 +483,15 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
         return;
     }
 
-    size_t total = backfillRemaining;
+    size_t total = backfillRemaining.load(std::memory_order_relaxed);
     if (state_ == STREAM_BACKFILLING) {
         add_casted_stat("status", "backfilling", add_stat, cookie);
     } else {
         add_casted_stat("status", "in-memory", add_stat, cookie);
     }
-    add_casted_stat("backfillRemaining", backfillRemaining, add_stat, cookie);
+    add_casted_stat("backfillRemaining",
+                    backfillRemaining.load(std::memory_order_relaxed),
+                    add_stat, cookie);
 
     item_eviction_policy_t iep = engine->getEpStore()->getItemEvictionPolicy();
     size_t vb_items = vb->getNumItems(iep);
