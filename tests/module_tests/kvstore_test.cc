@@ -149,11 +149,11 @@ void kvstore_get_compressed_test(std::string& backend) {
     kvstore->begin();
 
     uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
+    WriteCallback wc;
     for (int i = 1; i <= 5; i++) {
         std::string key("key" + std::to_string(i));
         Item item(key.c_str(), key.length(),
                   0, 0, "value", 5, &datatype, 1, 0, i);
-        WriteCallback wc;
         kvstore->set(item, wc);
     }
     kvstore->commit(&sc);
