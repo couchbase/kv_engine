@@ -981,7 +981,7 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler* conn,
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Passive stream add "
                     "failed, stream already exists in connection %s",
                     conn->logHeader(), vbucket, dcpConsumer->logHeader());
-                //return ENGINE_KEY_EEXISTS; wait for NS server change
+                return ENGINE_KEY_EEXISTS;
             }
         }
     }
