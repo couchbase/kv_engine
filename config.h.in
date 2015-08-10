@@ -50,7 +50,7 @@ typedef long long int64_t;
 #endif
 
 #define closesocket(a) close(a)
-#define SOCKET int
+typedef int SOCKET;
 #define SOCKETPAIR_AF AF_UNIX
 #define SOCKET_ERROR -1
 #define INVALID_SOCKET -1
