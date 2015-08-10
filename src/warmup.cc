@@ -487,7 +487,11 @@ void Warmup::createVBuckets(uint16_t shardId) {
                                  vbs.driftCounter));
 
             if(vbs.state == vbucket_state_active && !cleanShutdown) {
-                vb->failovers->createEntry(vbs.lastSnapStart);
+                if (static_cast<uint64_t>(vbs.highSeqno) == vbs.lastSnapEnd) {
+                    vb->failovers->createEntry(vbs.lastSnapEnd);
+                } else {
+                    vb->failovers->createEntry(vbs.lastSnapStart);
+                }
             }
 
             store->vbMap.addBucket(vb);
