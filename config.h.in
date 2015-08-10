@@ -89,15 +89,6 @@ typedef int SOCKET;
 #include <signal.h>
 #include <sysexits.h>
 
-/* @todo trondn fixme!! */
-#if !defined(__cplusplus) && !defined(PRIu64)
-#define PRIu64 "lu"
-#endif
-
-#if !defined(__cplusplus) && !defined(PRIu32)
-#define PRIu32 "u"
-#endif
-
 
 #endif
 
