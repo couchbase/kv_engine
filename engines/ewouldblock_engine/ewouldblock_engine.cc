@@ -598,7 +598,8 @@ void process_pending_queue(void* arg) {
     SERVER_HANDLE_V1* server = reinterpret_cast<SERVER_HANDLE_V1*>(arg);
     std::unique_lock<std::mutex> lk(mutex);
     while (!stop_notification_thread) {
-        condvar.wait(lk);
+        condvar.wait(lk,
+                     []{return (stop_notification_thread || !pending_io_ops.empty());});
         while (!pending_io_ops.empty()) {
             const void* cookie = pending_io_ops.front();
             pending_io_ops.pop();
