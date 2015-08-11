@@ -102,6 +102,8 @@ public:
 
     static const std::string& getControlMsgKey(void);
 
+    bool isStreamPresent(uint16_t vbucket);
+
 private:
 
     DcpResponse* getNextItem();

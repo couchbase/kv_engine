@@ -474,9 +474,13 @@ public:
         return maxActiveSnoozingBackfills;
     }
 
+    ENGINE_ERROR_CODE addPassiveStream(ConnHandler* conn, uint32_t opaque,
+                                       uint16_t vbucket, uint32_t flags);
+
     /* Use this only for any quick direct stats from DcpConnMap. To collect
        individual conn stats from conn lists please use ConnStatBuilder */
     void addStats(ADD_STAT add_stat, const void *c);
+
 private:
 
     void disconnect_UNLOCKED(const void *cookie);

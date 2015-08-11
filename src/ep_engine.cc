@@ -1491,11 +1491,10 @@ extern "C" {
                                              uint16_t vbucket,
                                              uint32_t flags)
     {
-        ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
-        ConnHandler* conn = getHandle(handle)->getConnHandler(cookie);
-        if (conn) {
-            errCode = conn->addStream(opaque, vbucket, flags);
-        }
+        ENGINE_ERROR_CODE errCode = getHandle(handle)->dcpAddStream(cookie,
+                                                                    opaque,
+                                                                    vbucket,
+                                                                    flags);
         releaseHandle(handle);
         return errCode;
     }
@@ -6131,6 +6130,20 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,
     storeEngineSpecific(cookie, handler);
 
     return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(
+                                                           const void* cookie,
+                                                           uint32_t opaque,
+                                                           uint16_t vbucket,
+                                                           uint32_t flags)
+{
+    ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
+    ConnHandler* conn = getConnHandler(cookie);
+    if (conn) {
+        errCode = dcpConnMap_->addPassiveStream(conn, opaque, vbucket, flags);
+    }
+    return errCode;
 }
 
 ConnHandler* EventuallyPersistentEngine::getConnHandler(const void *cookie) {

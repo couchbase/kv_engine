@@ -886,3 +886,11 @@ const std::string& DcpConsumer::getControlMsgKey(void)
 {
     return connBufferCtrlMsg;
 }
+
+bool DcpConsumer::isStreamPresent(uint16_t vbucket)
+{
+    if (streams[vbucket] && streams[vbucket]->isActive()) {
+        return true;
+    }
+    return false;
+}
