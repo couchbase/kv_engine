@@ -38,9 +38,7 @@
 #include <utility>
 #include <vector>
 #include <platform/dirutils.h>
-#include <cJSON.h>
 
-#include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
@@ -112,16 +110,6 @@ static uint8_t determine_datatype(const unsigned char* value,
     } else {
         return PROTOCOL_BINARY_RAW_BYTES;
     }
-}
-
-static const std::string getJSONObjString(const cJSON *i) {
-    if (i == NULL) {
-        return "";
-    }
-    if (i->type != cJSON_String) {
-        abort();
-    }
-    return i->valuestring;
 }
 
 static bool endWithCompact(const std::string &filename) {

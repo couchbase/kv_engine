@@ -26,6 +26,7 @@
 #include <utility>
 #include <vector>
 
+#include "common.h"
 #include "item.h"
 #include "configuration.h"
 

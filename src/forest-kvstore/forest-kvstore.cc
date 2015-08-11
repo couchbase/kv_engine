@@ -19,7 +19,6 @@
 #include <sys/stat.h>
 #include <platform/dirutils.h>
 #include <vbucket.h>
-#include <cJSON.h>
 #include <JSON_checker.h>
 #include <locks.h>
 
@@ -180,16 +179,6 @@ ForestRequest::~ForestRequest() {
 
 void ForestKVStore::close() {
     intransaction = false;
-}
-
-static const std::string getJSONObjString(const cJSON *i) {
-    if (i == NULL) {
-        return "";
-    }
-    if (i->type != cJSON_String) {
-        abort();
-    }
-    return i->valuestring;
 }
 
 void ForestKVStore::readVBState(uint16_t vbId) {

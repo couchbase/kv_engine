@@ -27,6 +27,7 @@
 #include <math.h>
 #include <memcached/engine.h>
 #include <platform/platform.h>
+#include <cJSON.h>
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -298,6 +299,16 @@ bool sorted(ForwardIterator first, ForwardIterator last, Compare compare) {
         }
     }
     return is_sorted;
+}
+
+inline const std::string getJSONObjString(const cJSON *i) {
+    if (i == NULL) {
+        return "";
+    }
+    if (i->type != cJSON_String) {
+        abort();
+    }
+    return i->valuestring;
 }
 
 #define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
