@@ -167,12 +167,15 @@ void kvstore_get_compressed_test(std::string& backend) {
 
     cb_assert(scanCtx);
     cb_assert(kvstore->scan(scanCtx) == scan_success);
+    kvstore->destroyScanContext(scanCtx);
     delete kvstore;
 }
 
+static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
+
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
-    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+    putenv(allow_no_stats_env);
     std::string backend("couchdb");
     basic_kvstore_test(backend);
     kvstore_get_compressed_test(backend);
