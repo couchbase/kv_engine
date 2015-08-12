@@ -93,6 +93,14 @@ public:
         }
     }
 
+    const std::string getTaskableName() const {
+        std::string name;
+        if (currentTask) {
+            name.assign(currentTask->getTaskable()->getName());
+        }
+        return name;
+    }
+
     hrtime_t getTaskStart() const { return taskStart; }
 
     const std::string getStateName();

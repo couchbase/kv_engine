@@ -688,6 +688,13 @@ static void showJobLog(const char *logname, const char *prefix,
 static void addWorkerStats(const char *prefix, ExecutorThread *t,
                            const void *cookie, ADD_STAT add_stat) {
     char statname[80] = {0};
+
+    std::string bucketName = t->getTaskableName();
+    if(!bucketName.empty()) {
+        snprintf(statname, sizeof(statname), "%s:bucket", prefix);
+        add_casted_stat(statname, bucketName.c_str(), add_stat, cookie);
+    }
+
     snprintf(statname, sizeof(statname), "%s:state", prefix);
     add_casted_stat(statname, t->getStateName().c_str(), add_stat, cookie);
     snprintf(statname, sizeof(statname), "%s:task", prefix);
