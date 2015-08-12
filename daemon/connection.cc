@@ -1053,3 +1053,44 @@ void SslContext::dumpCipherList(uint32_t id) const {
                                         "%u    %s", id, cipher);
     }
 }
+
+bool Connection::includeErrorStringInResponseBody(
+                protocol_binary_response_status err) const {
+    // Maintain backwards compatibility - return true for older commands which
+    // have for some time returned included the error string. For newer
+    // commands where there is no backwards compat issue, return false.
+
+    // Note: skipping the error string is currently "opt-in", as I'm not
+    // sure which commands other than these very new ones we can safely skip
+    // the string and not cause client incompatibilities.
+    switch (binary_header.request.opcode) {
+    case PROTOCOL_BINARY_CMD_SUBDOC_GET:
+    case PROTOCOL_BINARY_CMD_SUBDOC_EXISTS:
+    case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
+    case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
+    case PROTOCOL_BINARY_CMD_SUBDOC_DELETE:
+    case PROTOCOL_BINARY_CMD_SUBDOC_REPLACE:
+    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST:
+    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST:
+    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT:
+    case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE:
+    case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
+    case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP:
+    case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION:
+        return false;
+
+    default:
+        // Some legacy commands don't return the error string for specifie
+        // error codes:
+        switch (err) {
+        case PROTOCOL_BINARY_RESPONSE_SUCCESS:
+        case PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED:
+        case PROTOCOL_BINARY_RESPONSE_AUTH_STALE:
+        case PROTOCOL_BINARY_RESPONSE_NO_BUCKET:
+            return false;
+
+        default:
+            return true;
+        }
+    }
+}

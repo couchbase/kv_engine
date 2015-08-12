@@ -934,17 +934,15 @@ void write_bin_packet(Connection *c, protocol_binary_response_status err) {
         }
     } else {
         ssize_t len = 0;
-        const char *errtext = NULL;
+        const char *errtext = nullptr;
 
-        switch (err) {
-        case PROTOCOL_BINARY_RESPONSE_SUCCESS:
-        case PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED:
-        case PROTOCOL_BINARY_RESPONSE_AUTH_STALE:
-        case PROTOCOL_BINARY_RESPONSE_NO_BUCKET:
-            break;
-        default:
+        // Determine the error-code policy for the current opcode & error code.
+        // "Legacy" memcached opcodes had the behaviour of sending a textual
+        // description of the error in the response body for most errors.
+        // We don't want to do that for any new commands.
+        if (c->includeErrorStringInResponseBody(err)) {
             errtext = memcached_protocol_errcode_2_text(err);
-            if (errtext != NULL) {
+            if (errtext != nullptr) {
                 len = (ssize_t)strlen(errtext);
             }
         }

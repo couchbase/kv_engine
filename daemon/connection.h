@@ -962,6 +962,11 @@ public:
         Connection::bucketEngine = bucketEngine;
     };
 
+    // Returns true if a string representation of the specified status code
+    // should be included in the response body (in addition to in the reponse
+    // header) for the current command.
+    bool includeErrorStringInResponseBody(protocol_binary_response_status err) const;
+
 protected:
     /**
      * Read data over the SSL connection
