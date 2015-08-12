@@ -1,6 +1,7 @@
 ADD_LIBRARY(mcutils STATIC utilities.c utilities.h)
 
 ADD_SUBDIRECTORY(cbsasladm)
+ADD_SUBDIRECTORY(cbtrace)
 ADD_SUBDIRECTORY(engine_testapp)
 ADD_SUBDIRECTORY(generate_rbac)
 ADD_SUBDIRECTORY(mcbasher)
