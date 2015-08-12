@@ -93,10 +93,10 @@ public:
     void initialize(cJSON *root);
 
 private:
-    void parseCommands(cJSON *obj, uint8_t mask);
-    uint8_t decodeOpcode(cJSON *c, uint8_t mask);
-    void throwError(const std::string &prefix, uint8_t mask, int value);
-    void throwError(const std::string &prefix, uint8_t mask, const char *value);
+    void parseCommands(cJSON *obj);
+    uint8_t decodeOpcode(cJSON *c);
+    void throwError(const std::string &prefix, int value);
+    void throwError(const std::string &prefix, const std::string &value);
 
     std::array<uint8_t, MAX_COMMANDS> cmd;
     std::string name;

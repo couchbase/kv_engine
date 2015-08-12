@@ -107,52 +107,40 @@ std::string UserEntry::getStringField(cJSON *root, const char *field) {
     return obj->valuestring;
 }
 
-void Profile::throwError(const std::string &prefix,
-                         uint8_t mask,
-                         const char *value) {
-    std::stringstream ss;
-    ss << prefix << "\"";
-    if (mask) {
-        ss << "allow";
-    } else {
-        ss << "disallow";
-    }
-
-    ss << "\": \"" << value << "\"";
-    throw ss.str();
+void Profile::throwError(const std::string &prefix, const std::string &value) {
+    throw prefix + ": " + value;
 }
 
-void Profile::throwError(const std::string &prefix, uint8_t mask, int value) {
-    std::stringstream ss;
-    ss << value;
-    throwError(prefix, mask, ss.str().c_str());
+void Profile::throwError(const std::string &prefix, int value) {
+    throwError(prefix, std::to_string(value));
 }
 
-uint8_t Profile::decodeOpcode(cJSON *c, uint8_t mask) {
+uint8_t Profile::decodeOpcode(cJSON *c) {
     uint8_t opcode = 0xff;
 
     switch (c->type) {
     case cJSON_String:
         opcode = memcached_text_2_opcode(c->valuestring);
         if (opcode == 0xff) {
-            throwError("Invalid value specified for ", mask, c->valuestring);
+            throwError("Invalid value specified for \"opcode\"", c->valuestring);
         }
         break;
     case cJSON_Number:
         if (c->valueint < 0 || c->valueint > 0xff) {
-            throwError("Illegal value specified for ", mask, c->valueint);
+            throwError("Illegal value specified for \"opcode\"", c->valueint);
         } else {
             opcode = static_cast<uint8_t>(c->valueint);
         }
         break;
     default:
-        throwError("Invalid value specified for ", mask, "not an opcode");
+        throwError("Invalid type specified for \"opcode\"",
+                   "Must be string or number");
     }
 
     return opcode;
 }
 
-void Profile::parseCommands(cJSON *c, uint8_t mask)
+void Profile::parseCommands(cJSON *c)
 {
     if (c == nullptr) {
         return;
@@ -160,20 +148,20 @@ void Profile::parseCommands(cJSON *c, uint8_t mask)
 
     if (c->type == cJSON_String) {
         if (strcasecmp("all", c->valuestring) == 0) {
-            cmd.fill(mask);
+            cmd.fill(0xff);
         } else if (strcasecmp("none", c->valuestring) != 0) {
-            cmd[decodeOpcode(c, mask)] = mask;
+            cmd[decodeOpcode(c)] = 0xff;
         }
     } else if (c->type == cJSON_Number) {
-        cmd[decodeOpcode(c, mask)] = mask;
+        cmd[decodeOpcode(c)] = 0xff;
     } else if (c->type == cJSON_Array || c->type == cJSON_Object) {
         c = c->child;
         while (c) {
-            cmd[decodeOpcode(c, mask)] = mask;
+            cmd[decodeOpcode(c)] = 0xff;
             c = c->next;
         }
     } else {
-        throw std::string("Invalid type for allow");
+        throw std::string("Invalid type for \"opcode\": Must be string or number");
     }
 }
 
@@ -192,8 +180,7 @@ void Profile::initialize(cJSON *root) {
 
     root = cJSON_GetObjectItem(root, "memcached");
     if (root != nullptr) {
-        parseCommands(cJSON_GetObjectItem(root, "allow"), 0xff);
-        parseCommands(cJSON_GetObjectItem(root, "disallow"), 0x00);
+        parseCommands(cJSON_GetObjectItem(root, "opcode"));
     }
 }
 

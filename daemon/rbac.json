@@ -4,14 +4,14 @@
             "name": "System",
             "description": "Profile used by the internals of Couchbase",
             "memcached": {
-                "allow": "all"
+                "opcode": "all"
             }
         },
         {
             "name": "SASL",
             "description": "Profile that allows SASL auth",
             "memcached" : {
-                "allow": [
+                "opcode": [
                     "SASL_AUTH",
                     "SASL_LIST_MECHS",
                     "SASL_STEP"
@@ -22,7 +22,7 @@
             "name": "DCP",
             "description": "Profile that allows use of DCP",
             "memcached" : {
-                "allow": [
+                "opcode": [
                     "DCP_ADD_STREAM",
                     "DCP_BUFFER_ACKNOWLEDGEMENT",
                     "DCP_CLOSE_STREAM",
@@ -46,7 +46,7 @@
             "name": "TAP",
             "description": "Profile that allows use of TAP",
             "memcached" : {
-                "allow": [
+                "opcode": [
                     "TAP_CHECKPOINT_END",
                     "TAP_CHECKPOINT_START",
                     "TAP_CONNECT",
@@ -62,7 +62,7 @@
             "name": "MB-13014",
             "description": "Profile that allows upgrade from 2.x servers",
             "memcached" : {
-                "allow": [
+                "opcode": [
                     "SET_VBUCKET",
                     "DEREGISTER_TAP_CLIENT",
                     "CHANGE_VB_FILTER"
@@ -73,7 +73,7 @@
             "name": "Normal Client Access",
             "description": "Profile that gives client connections normal access to the system",
             "memcached": {
-                "allow": [
+                "opcode": [
                     "ADD",
                     "ADDQ",
                     "ADDQ_WITH_META",
@@ -158,14 +158,14 @@
             "name": "Audit",
             "description": "Profile that allows use of Audit",
             "memcached": {
-                "allow": "AUDIT_PUT"
+                "opcode": "AUDIT_PUT"
             }
         },
         {
             "name": "Multibucket",
             "description": "Profile that allows use of multiple buckets",
             "memcached": {
-                "allow": [
+                "opcode": [
                     "LIST_BUCKETS",
                     "SELECT_BUCKET"
                 ]
@@ -175,7 +175,7 @@
             "name": "XDCR",
             "description": "Profile that allows use of adjusted_time/drift_counter",
             "memcached": {
-                "allow": [
+                "opcode": [
                     "SET_DRIFT_COUNTER_STATE",
                     "GET_ADJUSTED_TIME"
                 ]
