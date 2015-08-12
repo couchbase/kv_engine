@@ -1045,7 +1045,6 @@ Stats =warmup= shows statistics related to warmup logic
 | ep_warmup_value_count           | Number of values warmed up                 |
 | ep_warmup_dups                  | Duplicates encountered during warmup       |
 | ep_warmup_oom                   | OOMs encountered during warmup             |
-| ep_warmup_item_expired          | Number of items expired during warmup      |
 | ep_warmup_time                  | Time (µs) spent by warming data            |
 | ep_warmup_keys_time             | Time (µs) spent by warming keys            |
 | ep_warmup_mutation_log          | Number of keys present in mutation log     |

@@ -48,7 +48,6 @@ public:
         warmedUpValues(0),
         warmDups(0),
         warmOOM(0),
-        warmupExpired(0),
         warmupMemUsedCap(0),
         warmupNumReadCap(0),
         replicationThrottleWriteQueueCap(0),
@@ -202,8 +201,6 @@ public:
     AtomicValue<size_t> warmDups;
     //! Number of OOM failures at warmup time.
     AtomicValue<size_t> warmOOM;
-    //! Number of expired keys during data loading
-    AtomicValue<size_t> warmupExpired;
 
     //! Fill % of memory used during warmup we're going to enable traffic
     AtomicValue<double> warmupMemUsedCap;
