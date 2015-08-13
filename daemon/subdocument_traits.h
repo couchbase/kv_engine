@@ -53,7 +53,7 @@ SubdocCmdTraits get_traits();
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>() {
     return {Subdoc::Command::GET,
-            protocol_binary_subdoc_flag(0),
+            SUBDOC_FLAG_NONE,
             /*request_has_value*/false,
             /*allow_empty_path*/false,
             /*response_has_value*/true,
@@ -63,7 +63,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>() {
     return {Subdoc::Command::EXISTS,
-            protocol_binary_subdoc_flag(0),
+            SUBDOC_FLAG_NONE,
             /*request_has_value*/false,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -93,7 +93,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>() {
     return {Subdoc::Command::REMOVE,
-            protocol_binary_subdoc_flag(0),
+            SUBDOC_FLAG_NONE,
             /*request_has_value*/false,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -103,7 +103,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
     return {Subdoc::Command::REPLACE,
-            protocol_binary_subdoc_flag(0),
+            SUBDOC_FLAG_NONE,
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -133,7 +133,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>()
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
     return {Subdoc::Command::ARRAY_INSERT,
-            protocol_binary_subdoc_flag(0),
+            SUBDOC_FLAG_NONE,
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,

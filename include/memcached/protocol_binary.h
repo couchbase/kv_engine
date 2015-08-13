@@ -487,6 +487,9 @@ extern "C"
      * Definitions of sub-document flags.
      */
     typedef enum {
+        /* No flags set */
+        SUBDOC_FLAG_NONE = 0x0,
+
         /* (Mutation) Should non-existent intermediate paths be created? */
         SUBDOC_FLAG_MKDIR_P = 0x01
     } protocol_binary_subdoc_flag;

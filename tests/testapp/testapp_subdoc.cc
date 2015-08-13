@@ -646,19 +646,19 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
                                                "dict", "int"),
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
     uint64_t new_cas = expect_subdoc_cmd(SubdocCmd(cmd, "dict", "new_int", "3",
-                                                   protocol_binary_subdoc_flag(0),
+                                                   SUBDOC_FLAG_NONE,
                                                    cas),
                                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
     EXPECT_NE(cas, new_cas);
 
     // k). CAS - cmd with old cas should fail.
     expect_subdoc_cmd(SubdocCmd(cmd, "dict", "new_int2", "4",
-                                protocol_binary_subdoc_flag(0), cas),
+                                SUBDOC_FLAG_NONE, cas),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
 
     // l). CAS - manually corrupted (off by one) cas should fail.
     expect_subdoc_cmd(SubdocCmd(cmd, "dict","new_int2", "4",
-                                protocol_binary_subdoc_flag(0), new_cas + 1),
+                                SUBDOC_FLAG_NONE, new_cas + 1),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
 
     delete_object("dict");
@@ -723,7 +723,7 @@ void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
                                  0xfffffffc /* <3 MSBytes all-ones>, 0b11,111,100 */);
 
     expect_subdoc_cmd(SubdocCmd(cmd, "dict","new_int4", "4",
-                                protocol_binary_subdoc_flag(0), new_cas),
+                                SUBDOC_FLAG_NONE, new_cas),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
 
     // Cleanup.
@@ -828,7 +828,7 @@ void test_subdoc_delete_simple(bool compress) {
 
         // Deleting with the wrong CAS should fail:
         expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE, "dict",
-                                    path, "", protocol_binary_subdoc_flag(0),
+                                    path, "", SUBDOC_FLAG_NONE,
                                     cas + 1),
                           PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
         expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, "dict",
@@ -1067,7 +1067,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
 
     // b). Check that using the correct CAS succeeds.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-                                "a", "", "3", protocol_binary_subdoc_flag(0), cas),
+                                "a", "", "3", SUBDOC_FLAG_NONE, cas),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[3]"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "3");
@@ -1075,7 +1075,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_Simple)
 
     // c). But using the wrong one fails.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
-                                "a", "", "4", protocol_binary_subdoc_flag(0), cas),
+                                "a", "", "4", SUBDOC_FLAG_NONE, cas),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
     validate_object("a", "[0,1,2,3]");
     delete_object("a");
@@ -1166,7 +1166,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
 
     // b). Check that using the correct CAS succeeds.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
-                                "a", "", "3", protocol_binary_subdoc_flag(0), cas),
+                                "a", "", "3", SUBDOC_FLAG_NONE, cas),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "a", "[0]"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "3");
@@ -1174,7 +1174,7 @@ TEST_P(McdTestappTest, SubdocArrayPushFirst_Simple)
 
     // c). But using the wrong one fails.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
-                                "a", "", "4", protocol_binary_subdoc_flag(0), cas),
+                                "a", "", "4", SUBDOC_FLAG_NONE, cas),
                       PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "");
     validate_object("a", "[3,2,1,0]");
     delete_object("a");
