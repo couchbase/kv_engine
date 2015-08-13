@@ -1191,6 +1191,13 @@ void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 }
 
+void wait_for_rollback_to_finish(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    useconds_t sleepTime = 128;
+    while (get_int_stat(h, h1, "ep_rollback_count") == 0) {
+        decayingSleep(&sleepTime);
+    }
+}
+
 void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               const char *key, const char *val,
                               uint16_t vbucketId) {

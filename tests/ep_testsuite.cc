@@ -5252,6 +5252,7 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
     testHarness.destroy_cookie(cookie);
 
     wait_for_flusher_to_settle(h, h1);
+    wait_for_rollback_to_finish(h, h1);
 
     check(get_int_stat(h, h1, "curr_items") == 0,
             "All items should be rolled back");
