@@ -4,6 +4,7 @@ add_executable(memcached_mcbp_test
                mcbp_test.cc
                mcbp_test_subdoc.cc
                ${PROJECT_SOURCE_DIR}/daemon/mcbp_validators.cc
+               ${PROJECT_SOURCE_DIR}/daemon/subdocument_traits.cc
                ${PROJECT_SOURCE_DIR}/daemon/subdocument_validators.cc
                ${PROJECT_SOURCE_DIR}/utilities/protocol2text.cc
                ${PROJECT_SOURCE_DIR}/utilities/subdoc_encoder.cc)

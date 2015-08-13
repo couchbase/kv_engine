@@ -114,84 +114,131 @@ protocol_binary_response_status subdoc_counter_validator(void *packet) {
     return subdoc_validator(packet, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
 }
 
+static protocol_binary_response_status
+is_valid_multipath_spec(const char* ptr, const SubdocMultiCmdTraits traits,
+                        size_t& spec_len) {
+
+    // Decode the operation spec from the body. Slightly different struct
+    // depending on LOOKUP/MUTATION.
+    protocol_binary_command opcode;
+    protocol_binary_subdoc_flag flags;
+    size_t headerlen;
+    size_t pathlen;
+    size_t valuelen;
+    if (traits.is_mutator) {
+        auto* spec =reinterpret_cast<const protocol_binary_subdoc_multi_mutation_spec*>
+            (ptr);
+        headerlen = sizeof(*spec);
+        opcode = protocol_binary_command(spec->opcode);
+        flags = protocol_binary_subdoc_flag(spec->flags);
+        pathlen = ntohs(spec->pathlen);
+        valuelen = ntohl(spec->valuelen);
+
+    } else {
+        auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_lookup_spec*>
+            (ptr);
+        headerlen = sizeof(*spec);
+        opcode = protocol_binary_command(spec->opcode);
+        flags = protocol_binary_subdoc_flag(spec->flags);
+        pathlen = ntohs(spec->pathlen);
+        valuelen = 0;
+    }
+
+    SubdocCmdTraits op_traits = get_subdoc_cmd_traits(opcode);
+
+    if (op_traits.command == Subdoc::Command::INVALID) {
+        return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
+    }
+    // Allow mutator opcodes iff the multipath command is MUTATION
+    if (traits.is_mutator != op_traits.is_mutator) {
+        return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
+    }
+
+    // Check only valid flags are specified.
+    if ((flags & ~op_traits.valid_flags) != 0) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // Check path length.
+    if (pathlen > SUBDOC_PATH_MAX_LENGTH) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    if (!op_traits.allow_empty_path && (pathlen == 0)) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // Check value length
+    if (op_traits.request_has_value) {
+        if (valuelen == 0) {
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+    } else {
+        if (valuelen != 0) {
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+    }
+
+    spec_len = headerlen + pathlen + valuelen;
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
+
 // Multi-path commands are a bit special - don't use the subdoc_validator<>
 // for them.
-protocol_binary_response_status subdoc_multi_lookup_validator(void* packet)
+static protocol_binary_response_status
+subdoc_multi_validator(void* packet, const SubdocMultiCmdTraits traits)
 {
-    auto req = static_cast<protocol_binary_request_subdocument_multi_lookup*>(packet);
+    auto req = static_cast<protocol_binary_request_header*>(packet);
 
     // 1. Check simple static values.
 
     // Must have at least one lookup spec; with at least a 1B path.
-    const size_t minimum_body_len =
-                    sizeof(protocol_binary_subdoc_multi_lookup_spec) + 1;
+    const size_t minimum_body_len = traits.min_body_len;
 
-    if ((req->message.header.request.magic != PROTOCOL_BINARY_REQ) ||
-        (req->message.header.request.keylen == 0) ||
-        (req->message.header.request.extlen != 0) ||
-        (req->message.header.request.bodylen < minimum_body_len) ||
-        (req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES)) {
+    if ((req->request.magic != PROTOCOL_BINARY_REQ) ||
+        (req->request.keylen == 0) ||
+        (req->request.extlen != 0) ||
+        (req->request.bodylen < minimum_body_len) ||
+        (req->request.datatype != PROTOCOL_BINARY_RAW_BYTES)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
     // 2. Check that the lookup operation specs are valid.
     const char* const body_ptr = reinterpret_cast<const char*>(packet) +
-                                 sizeof(req->message.header);
-    const size_t keylen = ntohs(req->message.header.request.keylen);
-    const size_t bodylen = ntohl(req->message.header.request.bodylen);
+                                 sizeof(*req);
+    const size_t keylen = ntohs(req->request.keylen);
+    const size_t bodylen = ntohl(req->request.bodylen);
     size_t body_validated = keylen;
     unsigned int path_index;
     for (path_index = 0;
          (path_index < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) &&
          (body_validated < bodylen);
          path_index++) {
-        auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_lookup_spec*>
-            (body_ptr + body_validated);
 
-        const uint16_t pathlen = htons(spec->pathlen);
-
-        // 2a. Check generic parameters.
-        if (((spec->opcode != PROTOCOL_BINARY_CMD_SUBDOC_GET) &&
-             (spec->opcode != PROTOCOL_BINARY_CMD_SUBDOC_EXISTS)) ||
-            (pathlen == 0) ||
-            (pathlen > SUBDOC_PATH_MAX_LENGTH)) {
-            return PROTOCOL_BINARY_RESPONSE_EINVAL;
-        }
-
-        // 2b. Check per-command parameters.
-        switch (static_cast<protocol_binary_command>(spec->opcode))
-        {
-        case PROTOCOL_BINARY_CMD_SUBDOC_GET:
-            {
-                const SubdocCmdTraits traits =
-                        get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>();
-                if ((spec->flags & ~traits.valid_flags) != 0) {
-                    return PROTOCOL_BINARY_RESPONSE_EINVAL;
-                }
-                break;
-            }
-        case PROTOCOL_BINARY_CMD_SUBDOC_EXISTS:
-            {
-                const SubdocCmdTraits traits =
-                        get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>();
-                if ((spec->flags & ~traits.valid_flags) != 0) {
-                    return PROTOCOL_BINARY_RESPONSE_EINVAL;
-                }
-                break;
-            }
-        default:
-            return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
-        }
-
-        size_t spec_len = sizeof(*spec) + pathlen;
+        size_t spec_len = 0;
+        protocol_binary_response_status status =
+                        is_valid_multipath_spec(body_ptr + body_validated,
+                                                traits, spec_len);
         body_validated += spec_len;
+
+        if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            return status;
+        }
     }
 
     // Only valid if we found at least one path and the validated
     // length is exactly the same as the specified length.
     if ((path_index == 0) || (body_validated != bodylen)) {
-        return PROTOCOL_BINARY_RESPONSE_ERANGE;
+        return PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO;
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
+protocol_binary_response_status subdoc_multi_lookup_validator(void* packet) {
+    return subdoc_multi_validator(packet, get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>());
+}
+
+protocol_binary_response_status subdoc_multi_mutation_validator(void* packet) {
+    return subdoc_multi_validator(packet, get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>());
 }

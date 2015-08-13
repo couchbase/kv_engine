@@ -897,6 +897,7 @@ static void initialize() {
     validators[PROTOCOL_BINARY_CMD_SUBDOC_COUNTER] = subdoc_counter_validator;
 #endif
     validators[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP] = subdoc_multi_lookup_validator;
+    validators[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION] = subdoc_multi_mutation_validator;
 
     validators[PROTOCOL_BINARY_CMD_SETQ] = set_replace_validator;
     validators[PROTOCOL_BINARY_CMD_SET] = set_replace_validator;

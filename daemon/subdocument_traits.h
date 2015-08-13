@@ -53,6 +53,12 @@ struct SubdocCmdTraits {
     SubdocPath path;
 };
 
+// Additional traits for multi-path operations.
+struct SubdocMultiCmdTraits {
+    uint32_t min_body_len;  // Minimum size of the command body.
+    bool is_mutator;  // Does the command mutate (modify) the document?
+};
+
 /*
  * Dynamic lookup of a Sub-document commands' traits for the specified binary
  * protocol command.
@@ -192,4 +198,32 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>() {
             /*response_has_value*/true,
             /*is_mutator*/false,
             SubdocPath::MULTI};
+}
+
+template <>
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>() {
+    return {Subdoc::Command::INVALID,
+            SUBDOC_FLAG_NONE,
+            /*request_has_value*/true,
+            /*allow_empty_path*/true,
+            /*response_has_value*/true,
+            /*is_mutator*/true,
+            SubdocPath::MULTI};
+}
+
+template <protocol_binary_command CMD>
+SubdocMultiCmdTraits get_multi_traits();
+
+template <>
+inline SubdocMultiCmdTraits get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>() {
+    // Header + 1byte path.
+    return {sizeof(protocol_binary_subdoc_multi_lookup_spec) + 1,
+            /*is_mutator*/false};
+}
+
+template <>
+inline SubdocMultiCmdTraits get_multi_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>() {
+    // Header + 1byte path (not all mutations need a value - e.g. delete).
+    return {sizeof(protocol_binary_subdoc_multi_mutation_spec) + 1,
+            /*is_mutator*/true};
 }

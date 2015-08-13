@@ -27,15 +27,56 @@
  * Sub-document API encoding helpers
  */
 
-/* Sub-document API MULTI_LOOKUP command */
-struct SubdocMultiLookupCmd {
-public:
+// Abstract base class for multi lookup / mutation command encoding.
+struct SubdocMultiCmd {
+
+    SubdocMultiCmd(protocol_binary_command command_)
+        : cas(0),
+          command(command_) {}
+
     std::string key;
+    uint64_t cas;
+
+    protocol_binary_command command;
+
+    virtual std::vector<char> encode() const = 0;
+
+protected:
+    // Fill in the header for this command.
+    void populate_header(protocol_binary_request_header& header,
+                         size_t bodylen) const;
+};
+
+/* Sub-document API MULTI_LOOKUP command */
+struct SubdocMultiLookupCmd : public SubdocMultiCmd {
+
+    SubdocMultiLookupCmd()
+        : SubdocMultiCmd(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP) {}
 
     struct LookupSpec {
         protocol_binary_command opcode;
         protocol_binary_subdoc_flag flags;
         std::string path;
+    };
+    std::vector<LookupSpec> specs;
+
+    /* Takes the current state of object and encodes a
+     * protocol_binary_request_subdocument_multi_lookup packet in network order.
+     */
+    std::vector<char> encode() const;
+};
+
+/* Sub-document API MULTI_MUTATION command */
+struct SubdocMultiMutationCmd : public SubdocMultiCmd {
+
+    SubdocMultiMutationCmd()
+        : SubdocMultiCmd(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION) {}
+
+    struct LookupSpec {
+        protocol_binary_command opcode;
+        protocol_binary_subdoc_flag flags;
+        std::string path;
+        std::string value;
     };
     std::vector<LookupSpec> specs;
 

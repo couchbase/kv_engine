@@ -41,3 +41,4 @@ protocol_binary_response_status subdoc_array_insert_validator(void* packet);
 protocol_binary_response_status subdoc_array_add_unique_validator(void* packet);
 protocol_binary_response_status subdoc_counter_validator(void* packet);
 protocol_binary_response_status subdoc_multi_lookup_validator(void* packet);
+protocol_binary_response_status subdoc_multi_mutation_validator(void* packet);

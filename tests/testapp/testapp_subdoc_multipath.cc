@@ -105,7 +105,8 @@ TEST_P(McdTestappTest, SubdocMultiLookup_GetMulti)
     lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_GET, SUBDOC_FLAG_NONE,
                             "key_" + std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS)});
     expected.clear();
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_ERANGE, expected);
+    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
+                      expected);
 
     delete_object("dict");
 }
@@ -161,7 +162,8 @@ TEST_P(McdTestappTest, SubdocMultiLookup_ExistsMulti)
                             SUBDOC_FLAG_NONE,
                             "key_" + std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS)});
     expected.clear();
-    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_ERANGE, expected);
+    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
+                      expected);
 
     delete_object("dict");
 }
