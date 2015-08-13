@@ -76,7 +76,7 @@ std::string Processer::getDescription() {
 
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
-    : Consumer(engine, cookie, name), opaqueCounter(0), processTaskId(0),
+    : Consumer(engine, cookie, name), opaqueCounter(0), processerTask(NULL),
       itemsToProcess(false), lastNoopTime(ep_current_time()), backoffs(0),
       flowControl(engine, this)
 {
@@ -94,11 +94,14 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingEnableExtMetaData = true;
     pendingEnableValueCompression = config.isDcpValueCompressionEnabled();
 
-    ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
-    processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
+    processerTask = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
+    ExecutorPool::get()->schedule(processerTask, NONIO_TASK_IDX);
 }
 
 DcpConsumer::~DcpConsumer() {
+    if (processerTask) {
+        processerTask->cancel();
+    }
     closeAllStreams();
     delete[] streams;
 }
@@ -193,7 +196,9 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
         bool disable = false;
         if (err == ENGINE_TMPFAIL &&
             itemsToProcess.compare_exchange_strong(disable, true)) {
-            ExecutorPool::get()->wake(processTaskId);
+            if (processerTask) {
+                ExecutorPool::get()->wake(processerTask->getId());
+            }
         }
     }
 
@@ -250,7 +255,9 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
         bool disable = false;
         if (err == ENGINE_TMPFAIL &&
             itemsToProcess.compare_exchange_strong(disable, true)) {
-            ExecutorPool::get()->wake(processTaskId);
+            if (processerTask) {
+                ExecutorPool::get()->wake(processerTask->getId());
+            }
         }
     }
 
@@ -302,7 +309,9 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
         bool disable = false;
         if (err == ENGINE_TMPFAIL &&
             itemsToProcess.compare_exchange_strong(disable, true)) {
-            ExecutorPool::get()->wake(processTaskId);
+            if (processerTask) {
+                ExecutorPool::get()->wake(processerTask->getId());
+            }
         }
     }
 
@@ -346,7 +355,9 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
         bool disable = false;
         if (err == ENGINE_TMPFAIL &&
             itemsToProcess.compare_exchange_strong(disable, true)) {
-            ExecutorPool::get()->wake(processTaskId);
+            if (processerTask) {
+                ExecutorPool::get()->wake(processerTask->getId());
+            }
         }
     }
 
@@ -389,7 +400,9 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
         bool disable = false;
         if (err == ENGINE_TMPFAIL &&
             itemsToProcess.compare_exchange_strong(disable, true)) {
-            ExecutorPool::get()->wake(processTaskId);
+            if (processerTask) {
+                ExecutorPool::get()->wake(processerTask->getId());
+            }
         }
     }
 

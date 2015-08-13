@@ -130,7 +130,7 @@ private:
     ENGINE_ERROR_CODE handleValueCompression(struct dcp_message_producers* producers);
 
     uint64_t opaqueCounter;
-    size_t processTaskId;
+    ExTask processerTask;
     AtomicValue<bool> itemsToProcess;
 
     Mutex readyMutex;
