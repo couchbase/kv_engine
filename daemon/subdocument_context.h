@@ -74,10 +74,19 @@ struct SubdocCmdContext : public CommandContext {
     // Paths to operate on, one per path in the original request.
     Operations ops;
 
-    // The expanded input JSON document. This may either refer to the raw engine
-    // item iovec; or to the connections' DynamicBuffer if the JSON document
-    // had to be decompressed. Either way, it should /not/ be free()d.
+    // The expanded input JSON document. This may either refer to:
+    // a). The raw engine item iovec
+    // b). The connections' DynamicBuffer if the JSON document had to be
+    //     decompressed.
+    // c). {intermediate_result} member of this object.
+    // Either way, it should /not/ be free()d.
+    // TODO: Remove (b), and just use intermediate result.
     const_sized_buffer in_doc;
+
+    // Temporary buffer used to hold the intermediate result document for
+    // multi-path mutations. {in_doc} is then updated to point to this to use
+    // as input for the next multi-path mutation.
+    std::vector<char> temp_doc;
 
     // CAS value of the input document. Required to ensure we only store a
     // new document which was derived from the same original input document.

@@ -38,3 +38,4 @@ void subdoc_array_insert_executor(Connection * c, void* packet);
 void subdoc_array_add_unique_executor(Connection * c, void* packet);
 void subdoc_counter_executor(Connection *c, void *packet);
 void subdoc_multi_lookup_executor(Connection *c, void *packet);
+void subdoc_multi_mutation_executor(Connection *c, void *packet);

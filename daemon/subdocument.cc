@@ -139,25 +139,42 @@ subdoc_create_context(Connection*c, const SubdocCmdTraits traits,
         {
             // Decode each of lookup specs from the value into our command context.
             size_t offset = 0;
-            while (offset < value.len) {
-                auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_lookup_spec*>
-                    (value.buf + offset);
 
-                const protocol_binary_command binprot_cmd =
-                        protocol_binary_command(spec->opcode);
-                const protocol_binary_subdoc_flag flags =
-                        protocol_binary_subdoc_flag(spec->flags);
+            while (offset < value.len) {
+                protocol_binary_command binprot_cmd;
+                protocol_binary_subdoc_flag flags;
+                size_t headerlen;
+                const_sized_buffer path;
+                const_sized_buffer spec_value;
+                if (traits.is_mutator) {
+                    auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_mutation_spec*>
+                        (value.buf + offset);
+                    headerlen = sizeof(*spec);
+                    binprot_cmd = protocol_binary_command(spec->opcode);
+                    flags = protocol_binary_subdoc_flag(spec->flags);
+                    path = {value.buf + offset + headerlen,
+                                 htons(spec->pathlen)};
+                    spec_value = {value.buf + offset + headerlen + path.len,
+                                  htonl(spec->valuelen)};
+
+                } else {
+                    auto* spec = reinterpret_cast<const protocol_binary_subdoc_multi_lookup_spec*>
+                        (value.buf + offset);
+                    headerlen = sizeof(*spec);
+                    binprot_cmd = protocol_binary_command(spec->opcode);
+                    flags = protocol_binary_subdoc_flag(spec->flags);
+                    path = {value.buf + offset + headerlen,
+                            htons(spec->pathlen)};
+                    spec_value = {nullptr, 0};
+                }
 
                 auto traits = get_subdoc_cmd_traits(binprot_cmd);
 
-                const uint16_t pathlen = htons(spec->pathlen);
-                const char* path = value.buf + offset + sizeof(*spec);
-
                 context->ops.emplace_back
-                    (SubdocCmdContext::OperationSpec{traits, flags,
-                                                     {path, pathlen}});
+                    (SubdocCmdContext::OperationSpec{traits, flags, path,
+                                                     spec_value});
 
-                offset += sizeof(*spec) + pathlen;
+                offset += headerlen + path.len + spec_value.len;
             }
 
             if (settings.verbose > 1) {
@@ -569,26 +586,88 @@ static bool subdoc_operate(SubdocCmdContext* context) {
         context->overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         // 2. Perform each of the operations on document.
-        for (auto& op : context->ops) {
-            op.status = subdoc_operate_one_path(context->c, op, context->in_doc,
-                                                context->in_cas);
+        for (auto op = context->ops.begin(); op != context->ops.end(); op++) {
+            op->status = subdoc_operate_one_path(context->c, *op, context->in_doc,
+                                                 context->in_cas);
 
-            if (op.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-                switch (context->traits.path) {
-                case SubdocPath::SINGLE:
+            switch (context->traits.path) {
+            case SubdocPath::SINGLE:
+                if (op->status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                     // Failure of a (the only) op stops execution and returns an
                     // error to the client.
-                    write_bin_packet(context->c, op.status);
+                    write_bin_packet(context->c, op->status);
                     return false;
-
-                case SubdocPath::MULTI:
-                    // For lookup; an operation failing doesn't stop us continuing
-                    // with the rest of the operations, but does need to be reflected in
-                    // overall status.
-                    context->overall_status =
-                        PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE;
-                    break;
                 }
+                break;
+
+            case SubdocPath::MULTI:
+                if (op->status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                    if (context->traits.is_mutator) {
+                        // Unless this is the last operation, we need to make
+                        // the result document be input for the next operation.
+                        auto last_op = std::prev(context->ops.end());
+                        if (op == last_op) {
+                            continue;
+                        }
+
+                        // Determine how much space we now need.
+                        size_t new_doc_len = 0;
+                        for (auto& loc : op->result.newdoc()) {
+                            new_doc_len += loc.length;
+                        }
+
+                        // TODO-PERF: We need to create a contiguous input
+                        // region for the next subjson call, from the set of
+                        // iovecs in the result. We can't simply write into
+                        // the dynamic_buffer, as that may be the underlying
+                        // storage for iovecs from the result. Ideally we'd
+                        // either permit subjson to take an iovec as input, or
+                        // permit subjson to take all the multipaths at once.
+                        // For now we make a contiguous region in a temporary
+                        // std::vector, and point in_doc at that.
+                        std::vector<char> intermediate_doc;
+                        try {
+                            intermediate_doc.reserve(new_doc_len);
+                        } catch (const std::bad_alloc&) {
+                            // Insufficient memory - unable to continue.
+                            write_bin_packet(context->c,
+                                             PROTOCOL_BINARY_RESPONSE_ENOMEM);
+                            return false;
+                        }
+
+                        // TODO-PERF: Compare against new[] + memcpy().
+                        for (auto& loc : op->result.newdoc()) {
+                            intermediate_doc.insert(intermediate_doc.end(),
+                                                    loc.at,
+                                                    loc.at + loc.length);
+                        }
+
+                        // Copying complete - safe to delete the old temp_doc
+                        // (even if it was the source of some of the newdoc
+                        // iovecs).
+                        context->temp_doc = std::move(intermediate_doc);
+                        context->in_doc = {context->temp_doc.data(),
+                                           context->temp_doc.size()};
+
+                    } else { // lookup
+                        // nothing to do.
+                    }
+                } else {
+                    context->overall_status
+                        = PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE;
+                    if (context->traits.is_mutator) {
+                        // For mutations, this stops the operation - however as
+                        // we need to respond with a body indicating the index
+                        // which failed we return true indicating 'success'.
+                        return true;
+                    } else {
+                        // For lookup; an operation failing doesn't stop us
+                        // continuing with the rest of the operations
+                        // - continue with the next operation.
+                        continue;
+                    }
+                }
+                break;
             }
         }
 
@@ -615,14 +694,18 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
         return ENGINE_SUCCESS;
     }
 
-    // Calculate the updated document length.
-    // TODO: this needs work for multiple mutations - I guess we want to just use
-    // the last result??
+    // For multi-mutations, we only want to actually update the engine if /all/
+    // paths succeeded - otherwise the document is unchanged (and we continue
+    // to subdoc_response() to send information back to the client on what
+    // succeeded/failed.
+    if (context->overall_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        return ENGINE_SUCCESS;
+    }
+
+    // Calculate the updated document length - use the last operation result.
     size_t new_doc_len = 0;
-    for (auto& op : context->ops) {
-        for (auto& loc : op.result.newdoc()) {
-            new_doc_len += loc.length;
-        }
+    for (auto& loc : context->ops.back().result.newdoc()) {
+        new_doc_len += loc.length;
     }
 
     // Allocate a new item of this size.
@@ -670,13 +753,9 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
 
         // Copy the new document into the item.
         char* write_ptr = static_cast<char*>(new_doc_info.value[0].iov_base);
-        // TODO: this needs work for multiple mutations - I guess we want to just use
-        // the last result??
-        for (auto& op : context->ops) {
-            for (auto& loc : op.result.newdoc()) {
-                std::memcpy(write_ptr, loc.at, loc.length);
-                write_ptr += loc.length;
-            }
+        for (auto& loc : context->ops.back().result.newdoc()) {
+            std::copy(loc.at, loc.at + loc.length, write_ptr);
+            write_ptr += loc.length;
         }
     }
 
@@ -741,9 +820,67 @@ static void subdoc_single_response(SubdocCmdContext* context) {
     c->setState(conn_mwrite);
 }
 
-/* Construct and send a response to a multi-path request back to the client.
+/* Construct and send a response to a multi-path mutation back to the client.
  */
-static void subdoc_multi_response(SubdocCmdContext* context) {
+static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
+    auto* const c = context->c;
+    protocol_binary_response_subdocument* rsp =
+            reinterpret_cast<protocol_binary_response_subdocument*>(c->write.buf);
+
+    // MULTI_MUTATION: On success zero-length body, on failure body
+    // indicates the status code and index of the first failing spec.
+    if (context->overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        write_bin_packet(c, context->overall_status);
+        return;
+    } else {
+        uint16_t first_failing_status;
+        uint8_t first_failing_idx = 0xff;
+        for (size_t ii = 0; ii < context->ops.size(); ii++) {
+            if (context->ops[ii].status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                first_failing_status = context->ops[ii].status;
+                first_failing_idx = ii;
+                break;
+            }
+        }
+        if (first_failing_idx == 0xff) {
+            // Something's gone wrong, we didn't find *any* unsuccessful spec.
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+            return;
+        }
+
+        DynamicBuffer& response_buf = c->getDynamicBuffer();
+        const size_t response_bodylen = sizeof(uint16_t) + sizeof(uint8_t);
+        if (!response_buf.grow(response_bodylen)) {
+            // Unable to form complete response.
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            return;
+        }
+
+        // Build header and add response body iovec.
+        if (add_bin_header(c, context->overall_status, /*extlen*/0, /*keylen*/0,
+                           response_bodylen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
+            c->setState(conn_closing);
+            return;
+        }
+        rsp->message.header.response.cas = htonll(c->getCAS());
+
+        // Convert to network order.
+        first_failing_status = htons(first_failing_status);
+
+        char* const response_body = response_buf.getCurrent();
+        std::memcpy(response_body, &first_failing_status,
+                    sizeof(first_failing_status));
+        std::memcpy(response_body + sizeof(first_failing_status),
+                    &first_failing_idx, sizeof(first_failing_idx));
+
+        add_iov(c, reinterpret_cast<void*>(response_body), response_bodylen);
+    }
+    c->setState(conn_mwrite);
+}
+
+/* Construct and send a response to a multi-path lookup back to the client.
+ */
+static void subdoc_multi_lookup_response(SubdocCmdContext* context) {
     auto* const c = context->c;
     protocol_binary_response_subdocument* rsp =
             reinterpret_cast<protocol_binary_response_subdocument*>(c->write.buf);
@@ -815,7 +952,11 @@ void subdoc_response(SubdocCmdContext* context) {
         break;
 
     case SubdocPath::MULTI:
-        subdoc_multi_response(context);
+        if (context->traits.is_mutator) {
+            subdoc_multi_mutation_response(context);
+        } else {
+            subdoc_multi_lookup_response(context);
+        }
         break;
 
     default:
@@ -882,4 +1023,9 @@ void subdoc_counter_executor(Connection *c, void *packet) {
 void subdoc_multi_lookup_executor(Connection *c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>());
+}
+
+void subdoc_multi_mutation_executor(Connection *c, void *packet) {
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>());
 }

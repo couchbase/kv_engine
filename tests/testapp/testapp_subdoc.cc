@@ -202,6 +202,76 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
     return header.response.cas;
 }
 
+// Allow GTest to print out std::vectors as part of EXPECT/ ASSERT error
+// messages.
+namespace std {
+template <typename T>
+std::ostream& operator<< (std::ostream& os, const std::vector<T>& v)
+{
+    os << '[';
+    for (auto& e : v) {
+        os << " " << e;
+    }
+    os << ']';
+    return os;
+}
+
+// Specialization for uint8_t to print as hex.
+template <>
+std::ostream& operator<< (std::ostream& os, const std::vector<uint8_t>& v)
+{
+    os << '[' << std::hex;
+    for (auto& e : v) {
+        os << " " << std::setw(2) << std::setfill('0') << (e & 0xff);
+    }
+    os << ']';
+    return os;
+}
+} // namespace std;
+
+// Overload for multi-mutation responses
+uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
+                              protocol_binary_response_status expected_status,
+                              SubdocMultiMutationResult expected_first_failure) {
+    union {
+        protocol_binary_response_subdocument response;
+        char bytes[1024];
+    } receive;
+
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+
+    validate_response_header((protocol_binary_response_no_extras*)&receive.response,
+                             expected_cmd, expected_status);
+
+    // TODO: Check extras for subdoc command and mutation / seqno (if enabled).
+
+    // Decode body and check against expected_results
+    const auto& header = receive.response.message.header;
+    const char* val_ptr = receive.bytes + sizeof(header) +
+                          header.response.extlen;
+    const size_t vallen = header.response.bodylen + header.response.extlen;
+    std::vector<uint8_t> value(val_ptr, val_ptr + vallen);
+
+    if (expected_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        // Success - should have zero body.
+        EXPECT_EQ(0u, vallen)
+            << "Incorrect value:'" << value << "'";
+    } else if (expected_status == PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE) {
+        // Specific path failed - should have a 3-byte body containing
+        // specific status and index of first failing spec.
+        EXPECT_EQ(3, vallen) << "Incorrect value:'" << std::string(val_ptr, vallen) << '"';
+        uint16_t actual_fail_spec_status = ntohs(*reinterpret_cast<const uint16_t*>(val_ptr));
+        uint8_t actual_fail_index = val_ptr[2];
+        EXPECT_EQ(expected_first_failure.first, actual_fail_spec_status);
+        EXPECT_EQ(expected_first_failure.second, actual_fail_index);
+    } else {
+        // Top-level error - should have zero body.
+        EXPECT_EQ(0u, vallen);
+    }
+
+    return header.response.cas;
+}
+
 uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
                            protocol_binary_response_status expected_status,
                            const std::string& expected_value) {
@@ -218,6 +288,17 @@ uint64_t expect_subdoc_cmd(const SubdocMultiLookupCmd& cmd,
 
     return recv_subdoc_response(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP,
                                 expected_status, expected_results);
+}
+
+// Overload for multi-mutation commands.
+uint64_t expect_subdoc_cmd(const SubdocMultiCmd& cmd,
+                           protocol_binary_response_status expected_status,
+                           SubdocMultiMutationResult expected_first_failure) {
+    std::vector<char> payload = cmd.encode();
+    safe_send(payload.data(), payload.size(), false);
+
+    return recv_subdoc_response(cmd.command, expected_status,
+                                expected_first_failure);
 }
 
 void store_object(const std::string& key,
@@ -1452,7 +1533,7 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
     delete_object("b");
 }
 
-TEST_P(McdTestappTest, SubdocCounter_Simplet)
+TEST_P(McdTestappTest, SubdocCounter_Simple)
 {
     store_object("a", "{}", /*JSON*/true, /*compress*/false);
 
@@ -1583,7 +1664,7 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
 }
 
 // Test handling of the internal auto-retry when a CAS mismatch occurs due
-// to the underlying document changing between subdoc readint the initial value
+// to the underlying document changing between subdoc reading the initial value
 // and trying to write the new value (after applying the subdoc modification).
 TEST_P(McdTestappTest, SubdocCASAutoRetry)
 {

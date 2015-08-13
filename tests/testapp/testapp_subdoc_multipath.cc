@@ -167,3 +167,209 @@ TEST_P(McdTestappTest, SubdocMultiLookup_ExistsMulti)
 
     delete_object("dict");
 }
+
+/******************* Multi-path mutation tests *******************************/
+
+// Test multi-path mutation command - simple single SUBDOC_DICT_ADD
+TEST_P(McdTestappTest, SubdocMultiMutation_DictAddSingle)
+{
+    store_object("dict", "{}");
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "dict";
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "key", "\"value\""});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+
+    // Check the update actually occurred.
+    validate_object("dict", "{\"key\":\"value\"}");
+
+    delete_object("dict");
+}
+
+// Test multi-path mutation command - simple multiple SUBDOC_DICT_ADD
+TEST_P(McdTestappTest, SubdocMultiMutation_DictAddMulti)
+{
+    store_object("dict", "{}");
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "dict";
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "key1", "1"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "key2", "2"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "key3", "3"});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+
+    // Check the update actually occurred.
+    validate_object("dict", "{\"key1\":1,\"key2\":2,\"key3\":3}");
+
+    delete_object("dict");
+}
+
+// Test multi-path mutation command - test maximum supported SUBDOC_DICT_ADD
+// paths.
+TEST_P(McdTestappTest, SubdocMultiMutation_DictAddMax)
+{
+    store_object("dict", "{}");
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "dict";
+    for (int ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++) {
+        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                                  SUBDOC_FLAG_NONE,
+                                  "key_" + std::to_string(ii),
+                                  "\"value_" + std::to_string(ii) + '"'});
+    }
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+
+    // Check the update actually occurred.
+    auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS);
+    auto* expected_str = cJSON_PrintUnformatted(dict.get());
+    validate_object("dict", expected_str);
+    cJSON_Free(expected_str);
+
+    delete_object("dict");
+
+    // Try with one more mutation spec - should fail and document should be
+    // unmodified.
+    store_object("dict", "{}");
+    auto max_id = std::to_string(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS);
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "key_" + max_id,
+                              "\"value_" + max_id + '"'});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+
+    // Document should be unmodified.
+    validate_object("dict", "{}");
+
+    delete_object("dict");
+}
+
+// Test attempting to add the same key twice in a multi-path command.
+TEST_P(McdTestappTest, SubdocMultiMutation_DictAddInvalidDuplicate) {
+    store_object("dict", "{}");
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "dict";
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "key", "\"value\""});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "key", "\"value2\""});
+    // Should return failure, with the index of the failing op (1).
+    expect_subdoc_cmd(mutation,
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS, 1));
+
+    // Document should be unmodified.
+    validate_object("dict", "{}");
+
+    delete_object("dict");
+}
+
+// Test multi-path mutation command - 2x DictAdd with a Counter update
+TEST_P(McdTestappTest, SubdocMultiMutation_DictAddCounter) {
+    store_object("dict", "{\"count\":0,\"items\":{}}");
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "dict";
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "items.foo", "1"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "items.bar", "2"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                              SUBDOC_FLAG_NONE, "count", "2"});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+
+    // Check the update actually occurred.
+    validate_object("dict",
+                    "{\"count\":2,\"items\":{\"foo\":1,\"bar\":2}}");
+
+    delete_object("dict");
+}
+
+// Test multi-path mutation command - 2x DictAdd with specific CAS.
+TEST_P(McdTestappTest, SubdocMultiMutation_DictAddCAS) {
+    store_object("dict", "{\"int\":1}");
+
+    // Use SUBDOC_EXISTS to obtain the current CAS.
+    uint64_t cas = expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                                               "dict", "int"),
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+    // 1. Attempt to mutate with an incorrect CAS - should fail.
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "dict";
+    mutation.cas = cas - 1;
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "float", "2.0"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "string", "\"value\""});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+    // Document should be unmodified.
+    validate_object("dict", "{\"int\":1}");
+
+    // 2. Attempt to mutate with correct CAS.
+    mutation.cas = cas;
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+    // Document should have been updated.
+    validate_object("dict", "{\"int\":1,\"float\":2.0,\"string\":\"value\"}");
+
+    delete_object("dict");
+}
+
+// Test multi-path mutation command - create a bunch of dictionary elements
+// then delete them. (Not a very useful operation but should work).
+TEST_P(McdTestappTest, SubdocMultiMutation_DictAddDelete) {
+    store_object("dict", "{\"count\":0,\"items\":{}}");
+
+    // 1. Add a series of paths, then remove two of them.
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "dict";
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "items.1", "1"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "items.2", "2"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "items.3", "3"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                              SUBDOC_FLAG_NONE, "count", "3"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                              SUBDOC_FLAG_NONE, "items.1"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                              SUBDOC_FLAG_NONE, "items.3"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                              SUBDOC_FLAG_NONE, "count", "-2"});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+
+    // Document should have been updated.
+    validate_object("dict", "{\"count\":1,\"items\":{\"2\":2}}");
+
+    // 2. Delete the old 'items' dictionary and create a new one.
+    mutation.specs.clear();
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                              SUBDOC_FLAG_NONE, "items"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                              SUBDOC_FLAG_NONE, "count", "0"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_MKDIR_P, "items.4", "4"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              SUBDOC_FLAG_NONE, "items.5", "5"});
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                              SUBDOC_FLAG_NONE, "count", "2"});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+
+    validate_object("dict", "{\"count\":2,\"items\":{\"4\":4,\"5\":5}}");
+
+    delete_object("dict");
+}

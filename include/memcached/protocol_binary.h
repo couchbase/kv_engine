@@ -932,10 +932,11 @@ extern "C"
 
     /**
      * SUBDOC_MULTI_MUTATION - Body is either empty (if all mutations
-     *                         successful), or contains the index of the first
-     *                         failed command.
-     * Mutation Result (success):
-     *                            1 @0 : 0-based index of the first command which failed
+     *                         successful), or contains the sub-code and
+     *                         index of the first failed mutation spec..
+     * Mutation Result (failure):
+     *                   2 @0 : Status code of first spec which failed.
+     *                   1 @2 : 0-based index of the first spec which failed.
      */
     typedef union {
         struct {

@@ -64,6 +64,9 @@ struct SubdocCmd {
 typedef std::pair<protocol_binary_response_status,
                   std::string> SubdocMultiLookupResult;
 
+typedef std::pair<protocol_binary_response_status,
+                  uint8_t> SubdocMultiMutationResult;
+
 /* Encodes and sends a sub-document command with the given parameters, receives
  * the response and validates that the status matches the expected one.
  * If expected_value is non-empty, also verifies that the response value equals
@@ -77,6 +80,11 @@ uint64_t expect_subdoc_cmd(const SubdocCmd& cmd,
 uint64_t expect_subdoc_cmd(const SubdocMultiLookupCmd& cmd,
                            protocol_binary_response_status expected_status,
                            const std::vector<SubdocMultiLookupResult>& expected_results);
+
+uint64_t expect_subdoc_cmd(const SubdocMultiCmd& cmd,
+                           protocol_binary_response_status expected_status,
+                           SubdocMultiMutationResult expected_first_failure);
+
 
 void store_object(const std::string& key,
                   const std::string& value,
