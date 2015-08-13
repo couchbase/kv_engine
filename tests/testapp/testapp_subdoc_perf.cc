@@ -30,6 +30,8 @@
 
 #include "testapp_subdoc.h"
 
+#include "../utilities/subdoc_encoder.h"
+
 #include <unordered_map>
 
 class SubdocPerfTest : public TestappTest {
@@ -61,6 +63,13 @@ static void subdoc_perf_test_array(protocol_binary_command cmd,
 
     delete_object("list");
 }
+
+/*****************************************************************************
+ * Sub-document API Performance Tests - Single path.
+ *
+ * These test various access patterns implemented using using single-path
+ * sub-document API commands.
+ ****************************************************************************/
 
 TEST_F(SubdocPerfTest, Array5k_PushFirst) {
     subdoc_perf_test_array(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
@@ -241,6 +250,158 @@ TEST_F(SubdocPerfTest, Dict5k_Get) {
 // Measure checking for EXISTence of all keys in a dictionary.
 TEST_F(SubdocPerfTest, Dict5k_Exists) {
     subdoc_perf_test_dict(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, iterations);
+}
+
+
+/*****************************************************************************
+ * Sub-document API Performance Tests - Multi path.
+ *
+ * These test equivilent functionality to the single-path variants above,
+ * but packing in multiple paths into a single command where possible.
+ ****************************************************************************/
+
+TEST_F(SubdocPerfTest, Array5k_PushFirst_Multipath) {
+    store_object("list", "[]");
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "list";
+    for (size_t i = 0; i < iterations; i++) {
+        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                                  SUBDOC_FLAG_NONE, "", std::to_string(i)});
+
+        // Once we have accumulated the maximum number of mutation specs
+        // (paths) permitted, send the request.
+        if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
+            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+            mutation.specs.clear();
+        }
+    }
+
+    // If there are any remaining specs, send them.
+    if (!mutation.specs.empty()) {
+        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                          std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+    }
+
+    delete_object("list");
+}
+
+// Create an N-element array, then benchmark removing N elements using
+// multi-path commands by removing the first element each time.
+TEST_F(SubdocPerfTest, Array5k_RemoveFirst_Multipath) {
+    std::string list(subdoc_create_array(iterations));
+    store_object("list", list.c_str());
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "list";
+    for (size_t i = 0; i < iterations; i++) {
+        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                                  SUBDOC_FLAG_NONE, "[0]"});
+
+        // Once we have accumulated the maximum number of mutation specs
+        // (paths) permitted, send the request.
+        if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
+            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+            mutation.specs.clear();
+        }
+    }
+
+    // If there are any remaining specs, send them.
+    if (!mutation.specs.empty()) {
+        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                          std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+    }
+
+    delete_object("list");
+}
+
+// Create an N-element array, then benchmark replacing the first element
+// using multi-path operations.
+TEST_F(SubdocPerfTest, Array5k_ReplaceFirst_Multipath) {
+    std::string list(subdoc_create_array(iterations));
+    store_object("list", list.c_str());
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "list";
+    for (size_t i = 0; i < iterations; i++) {
+        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                                  SUBDOC_FLAG_NONE, "[0]", "1"});
+
+        if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
+            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+            mutation.specs.clear();
+        }
+    }
+
+    // If there are any remaining specs, send them.
+    if (!mutation.specs.empty()) {
+        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                          std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+    }
+
+    delete_object("list");
+}
+
+// Create an N-element array, then benchmark replacing the middle element
+// using multi-path operations.
+TEST_F(SubdocPerfTest, Array5k_ReplaceMiddle_Multipath) {
+    std::string list(subdoc_create_array(iterations));
+    store_object("list", list.c_str());
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "list";
+    std::string path(std::string("[") + std::to_string(iterations / 2) + "]");
+    for (size_t i = 0; i < iterations; i++) {
+        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                                  SUBDOC_FLAG_NONE, path, "1"});
+
+        if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
+            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+            mutation.specs.clear();
+        }
+    }
+
+    // If there are any remaining specs, send them.
+    if (!mutation.specs.empty()) {
+        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                          std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+    }
+
+    delete_object("list");
+}
+
+TEST_F(SubdocPerfTest, Dict5k_Add_Multipath) {
+    store_object("dict", "{}");
+
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "dict";
+    for (size_t i = 0; i < iterations; i++) {
+        std::string key(std::to_string(i));
+        std::string value("\"value_" + std::to_string(i) + '"');
+
+        mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                                  SUBDOC_FLAG_NONE, key, value});
+
+        // Once we have accumulated the maximum number of mutation specs
+        // (paths) permitted, send the request.
+        if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
+            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                              std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+            mutation.specs.clear();
+        }
+    }
+
+    // If there are any remaining specs, send them.
+    if (!mutation.specs.empty()) {
+        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                          std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+    }
+
+    delete_object("dict");
 }
 
 
