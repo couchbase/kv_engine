@@ -30,6 +30,56 @@
 
 namespace BinaryProtocolValidator {
 
+// Single-path subdocument API commands
+class SubdocSingleTest : public ValidatorTest {
+    virtual void SetUp() override {
+        ValidatorTest::SetUp();
+        memset(&request, 0, sizeof(request));
+        request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+        request.message.header.request.extlen = 3;
+        request.message.header.request.keylen = htons(10);
+        request.message.header.request.bodylen = htonl(/*keylen*/10 +
+                                                       /*extlen*/3 +
+                                                       /*pathlen*/1);
+        request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
+        request.message.extras.pathlen = htons(1);
+    }
+
+protected:
+    int validate(uint8_t opcode) {
+        return ValidatorTest::validate(opcode, static_cast<void*>(&request));
+    }
+    protocol_binary_request_subdocument request;
+};
+
+TEST_F(SubdocSingleTest, Get_Baseline) {
+    // Ensure that the initial request as formed by SetUp is valid.
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+}
+
+TEST_F(SubdocSingleTest, Get_InvalidBody) {
+    // Need a non-zero body.
+    request.message.header.request.bodylen = htonl(0);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+              validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+}
+
+TEST_F(SubdocSingleTest, Get_InvalidPath) {
+    // Need a non-zero path.
+    request.message.header.request.bodylen = htonl(/*keylen*/10 + /*extlen*/3);
+    request.message.extras.pathlen = htons(0);
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+              validate(PROTOCOL_BINARY_CMD_SUBDOC_GET));
+}
+
+TEST_F(SubdocSingleTest, DictAdd_InvalidValue) {
+    // Need a non-zero value.
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+              validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+}
+
 class SubdocMultiLookupTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();

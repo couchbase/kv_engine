@@ -883,7 +883,6 @@ static void initialize() {
     validators[PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME] = get_adjusted_time_validator;
     validators[PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE] = set_drift_counter_state_validator;
 
-#ifndef BUILDING_VALIDATORS_TEST
     validators[PROTOCOL_BINARY_CMD_SUBDOC_GET] = subdoc_get_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_EXISTS] = subdoc_exists_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD] = subdoc_dict_add_validator;
@@ -895,7 +894,6 @@ static void initialize() {
     validators[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT] = subdoc_array_insert_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE] = subdoc_array_add_unique_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_COUNTER] = subdoc_counter_validator;
-#endif
     validators[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP] = subdoc_multi_lookup_validator;
     validators[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION] = subdoc_multi_mutation_validator;
 
