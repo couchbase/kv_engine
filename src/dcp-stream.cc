@@ -1019,9 +1019,25 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
             break;
         }
         case DCP_SNAPSHOT_MARKER:
+        {
+            SnapshotMarker* s = static_cast<SnapshotMarker*>(resp);
+            uint64_t snapStart = s->getStartSeqno();
+            uint64_t snapEnd = s->getEndSeqno();
+            if (snapStart < last_seqno && snapEnd <= last_seqno) {
+                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous snapshot "
+                    "marker received, with opaque: %ld, its start (%llu), and"
+                    "end (%llu) are less than last received seqno (%llu); "
+                    "Dropping marker!", consumer->logHeader(), vb_, opaque_,
+                    snapStart, snapEnd, last_seqno);
+                delete s;
+                return ENGINE_ERANGE;
+            }
+            break;
+        }
         case DCP_SET_VBUCKET:
         case DCP_STREAM_END:
         {
+            /* No validations necessary */
             break;
         }
         default:
