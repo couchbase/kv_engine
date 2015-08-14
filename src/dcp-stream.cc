@@ -881,10 +881,11 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
                              const std::string &name, uint32_t flags,
                              uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                              uint64_t en_seqno, uint64_t vb_uuid,
-                             uint64_t snap_start_seqno, uint64_t snap_end_seqno)
+                             uint64_t snap_start_seqno, uint64_t snap_end_seqno,
+                             uint64_t vb_high_seqno)
     : Stream(name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
              snap_start_seqno, snap_end_seqno),
-      engine(e), consumer(c), last_seqno(st_seqno), cur_snapshot_start(0),
+      engine(e), consumer(c), last_seqno(vb_high_seqno), cur_snapshot_start(0),
       cur_snapshot_end(0), cur_snapshot_type(none), cur_snapshot_ack(false) {
     LockHolder lh(streamMutex);
     pushToReadyQ(new StreamRequest(vb, opaque, flags, st_seqno, en_seqno,

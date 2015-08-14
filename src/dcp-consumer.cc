@@ -179,6 +179,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     uint64_t vbucket_uuid = entry.vb_uuid;
     uint64_t snap_start_seqno = info.range.start;
     uint64_t snap_end_seqno = info.range.end;
+    uint64_t high_seqno = vb->getHighSeqno();
 
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->isActive()) {
@@ -190,7 +191,8 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     streams[vbucket] = new PassiveStream(&engine_, this, getName(), flags,
                                          new_opaque, vbucket, start_seqno,
                                          end_seqno, vbucket_uuid,
-                                         snap_start_seqno, snap_end_seqno);
+                                         snap_start_seqno, snap_end_seqno,
+                                         high_seqno);
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
 
