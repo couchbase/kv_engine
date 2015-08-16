@@ -17,6 +17,8 @@
 #pragma once
 
 #include <cstdio>
+#include <stdexcept>
+
 #include "memorymap.h"
 
 class Channel {
