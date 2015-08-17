@@ -104,9 +104,9 @@ IF (ENABLE_DTRACE)
                                    -G
                                    -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
                                    *.o
-                         WORKING_DIRECTORY ${Memcached_BINARY_DIR}/CMakeFiles/memcached.dir/daemon)
+                         WORKING_DIRECTORY ${Memcached_BINARY_DIR}/daemon/CMakeFiles/memcached.dir)
       SET_TARGET_PROPERTIES(memcached PROPERTIES LINK_FLAGS
-                            "${Memcached_BINARY_DIR}/CMakeFiles/memcached.dir/daemon/memcached_dtrace.o")
+                            "${Memcached_BINARY_DIR}/daemon/CMakeFiles/memcached.dir/memcached_dtrace.o")
 
 
    ENDIF (DTRACE_NEED_INSTUMENT)
