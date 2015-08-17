@@ -3025,6 +3025,8 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         queueDrain += vb->dirtyQueueDrain;
         queueAge += vb->getQueueAge();
         pendingWrites += vb->dirtyQueuePendingWrites;
+
+        rollbackItemCount += vb->getRollbackItemCount();
     }
 
     return false;
@@ -3191,6 +3193,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("vb_active_queue_drain",
                     activeCountVisitor.getQueueDrain(), add_stat, cookie);
+    add_casted_stat("vb_active_rollback_item_count",
+                    activeCountVisitor.getRollbackItemCount(),
+                    add_stat, cookie);
 
     add_casted_stat("vb_replica_num", replicaCountVisitor.getVBucketNumber(),
                     add_stat, cookie);
@@ -3236,6 +3241,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     replicaCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_replica_queue_drain",
                     replicaCountVisitor.getQueueDrain(), add_stat, cookie);
+    add_casted_stat("vb_replica_rollback_item_count",
+                    replicaCountVisitor.getRollbackItemCount(),
+                    add_stat, cookie);
 
     add_casted_stat("vb_pending_num",
                     pendingCountVisitor.getVBucketNumber(), add_stat, cookie);
@@ -3283,6 +3291,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     pendingCountVisitor.getQueueFill(), add_stat, cookie);
     add_casted_stat("vb_pending_queue_drain",
                     pendingCountVisitor.getQueueDrain(), add_stat, cookie);
+    add_casted_stat("vb_pending_rollback_item_count",
+                    pendingCountVisitor.getRollbackItemCount(),
+                    add_stat, cookie);
 
     add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(),
                     add_stat, cookie);
@@ -3381,6 +3392,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     replicaCountVisitor.getCacheSize() +
                     pendingCountVisitor.getCacheSize(),
                     add_stat, cookie);
+
+    add_casted_stat("rollback_item_count",
+                    activeCountVisitor.getRollbackItemCount() +
+                    replicaCountVisitor.getRollbackItemCount() +
+                    pendingCountVisitor.getRollbackItemCount(),
+                    add_stat, cookie);
+
     add_casted_stat("ep_oom_errors", stats.oom_errors, add_stat, cookie);
     add_casted_stat("ep_tmp_oom_errors", stats.tmp_oom_errors,
                     add_stat, cookie);

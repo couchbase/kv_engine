@@ -5256,6 +5256,10 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
 
     check(get_int_stat(h, h1, "curr_items") == 0,
             "All items should be rolled back");
+    checkeq(num_items, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+            "Replica rollback count does not match");
+    checkeq(num_items, get_int_stat(h, h1, "rollback_item_count"),
+            "Aggr rollback count does not match");
 
     return SUCCESS;
 }
@@ -5370,6 +5374,10 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     check(items == 40, "Got invalid amount of items");
     check(seqno == 40, "Seqno should be 40 after rollback");
     check(chk == 1, "There should only be one checkpoint item");
+    checkeq(num_items/2, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+            "Replica rollback count does not match");
+    checkeq(num_items/2, get_int_stat(h, h1, "rollback_item_count"),
+            "Aggr rollback count does not match");
 
     testHarness.destroy_cookie(cookie);
 
@@ -5378,9 +5386,9 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
 
 static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
-
+    const int num_items = 10;
     std::vector<std::string> keys;
-    for (int i = 0; i < 10; ++i) {
+    for (int i = 0; i < num_items; ++i) {
         std::stringstream ss;
         ss << "key" << i;
         std::string key(ss.str());
@@ -5394,7 +5402,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
         h1->release(h, NULL, itm);
     }
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 10,
+    check(get_int_stat(h, h1, "curr_items") == num_items,
             "Item count should've been 10");
 
     const void *cookie = testHarness.create_cookie();
@@ -5472,6 +5480,10 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
             "Item count should've been 0");
     check(get_int_stat(h, h1, "ep_rollback_count") == 1,
             "Rollback count expected to be 1");
+    checkeq(num_items, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+            "Replica rollback count does not match");
+    checkeq(num_items, get_int_stat(h, h1, "rollback_item_count"),
+            "Aggr rollback count does not match");
 
     testHarness.destroy_cookie(cookie);
 
@@ -5590,6 +5602,10 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
             "Item count should've been 100");
     check(get_int_stat(h, h1, "ep_rollback_count") == 1,
             "Rollback count expected to be 1");
+    checkeq(20, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
+            "Replica rollback count does not match");
+    checkeq(20, get_int_stat(h, h1, "rollback_item_count"),
+            "Aggr rollback count does not match");
 
     testHarness.destroy_cookie(cookie);
 

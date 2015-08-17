@@ -119,7 +119,8 @@ public:
         queueMemory(0), queueAge(0),
         queueFill(0), queueDrain(0),
         pendingWrites(0), chkPersistRemaining(0),
-        fileSpaceUsed(0), fileSize(0)
+        fileSpaceUsed(0), fileSize(0),
+        rollbackItemCount(0)
     { }
 
     bool visitBucket(RCPtr<VBucket> &vb);
@@ -173,6 +174,8 @@ public:
     size_t getFileSpaceUsed() { return fileSpaceUsed; }
     size_t getFileSize() { return fileSize; }
 
+    uint64_t getRollbackItemCount() { return rollbackItemCount; }
+
 private:
     EventuallyPersistentEngine &engine;
     vbucket_state_t desired_state;
@@ -204,6 +207,8 @@ private:
 
     size_t fileSpaceUsed;
     size_t fileSize;
+
+    uint64_t rollbackItemCount;
 };
 
 /**

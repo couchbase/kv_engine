@@ -3889,21 +3889,26 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
         return ENGINE_TMPFAIL; // Reschedule a vbucket rollback task.
     }
 
+    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    uint64_t prevHighSeqno = static_cast<uint64_t>
+                                    (vb->checkpointManager.getHighSeqno());
     if (rollbackSeqno != 0) {
         shared_ptr<Rollback> cb(new Rollback(engine));
         KVStore* rwUnderlying = vbMap.getShard(vbid)->getRWUnderlying();
         RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
 
         if (result.success) {
-            RCPtr<VBucket> vb = vbMap.getBucket(vbid);
             vb->failovers->pruneEntries(result.highSeqno);
             vb->checkpointManager.clear(vb, result.highSeqno);
             vb->setPersistedSnapshot(result.snapStartSeqno, result.snapEndSeqno);
+            vb->incrRollbackItemCount(prevHighSeqno - result.highSeqno);
             return ENGINE_SUCCESS;
         }
     }
 
     if (resetVBucket(vbid)) {
+        RCPtr<VBucket> newVb = vbMap.getBucket(vbid);
+        newVb->incrRollbackItemCount(prevHighSeqno);
         return ENGINE_SUCCESS;
     }
     return ENGINE_NOT_MY_VBUCKET;

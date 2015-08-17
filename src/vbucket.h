@@ -181,7 +181,8 @@ public:
         numHpChks(0),
         shard(kvshard),
         bFilter(NULL),
-        tempFilter(NULL)
+        tempFilter(NULL),
+        rollbackItemCount(0)
     {
         backfill.isBackfillPhase = false;
         pendingOpsStart = 0;
@@ -446,6 +447,14 @@ public:
     void addPersistenceNotification(shared_ptr<Callback<uint64_t> > cb);
     void notifySeqnoPersisted(uint64_t highseqno);
 
+    void incrRollbackItemCount(uint64_t val) {
+        rollbackItemCount.fetch_add(val, std::memory_order_relaxed);
+    }
+
+    uint64_t getRollbackItemCount(void) {
+        return rollbackItemCount.load(std::memory_order_relaxed);
+    }
+
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;
@@ -528,6 +537,8 @@ private:
      */
     Mutex persistedNotificationsMutex;
     std::list<shared_ptr<Callback<uint64_t>> > persistedNotifications;
+
+    AtomicValue<uint64_t> rollbackItemCount;
 
     static size_t chkFlushTimeout;
 

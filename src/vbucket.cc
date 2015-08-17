@@ -655,5 +655,6 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
         addStat("drift_counter", getDriftCounter(), add_stat, c);
         addStat("time_sync", time_sync_enabled ? "enabled" : "disabled",
                 add_stat, c);
+        addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
     }
 }

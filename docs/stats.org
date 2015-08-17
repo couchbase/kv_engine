@@ -372,6 +372,7 @@ For introductory information on stats within Couchbase, start with the
 | vb_active_queue_pending       | Total bytes of pending writes              |
 | vb_active_queue_fill          | Total enqueued items                       |
 | vb_active_queue_drain         | Total drained items                        |
+| vb_active_rollback_item_count | Num of items rolled back                   |
 
 *** Replica vBucket stats
 
@@ -397,6 +398,7 @@ For introductory information on stats within Couchbase, start with the
 | vb_replica_queue_pending      | Total bytes of pending writes              |
 | vb_replica_queue_fill         | Total enqueued items                       |
 | vb_replica_queue_drain        | Total drained items                        |
+| vb_replica_rollback_item_count| Num of items rolled back                   |
 
 *** Pending vBucket stats
 
@@ -422,6 +424,7 @@ For introductory information on stats within Couchbase, start with the
 | vb_pending_queue_pending      | Total bytes of pending writes              |
 | vb_pending_queue_fill         | Total enqueued items                       |
 | vb_pending_queue_drain        | Total drained items                        |
+| vb_pending_rollback_item_count| Num of items rolled back                   |
 
 
 ** vBucket detail stats
@@ -466,6 +469,7 @@ The stats below are listed for each vbucket.
 |                               | time synchronization                       |
 | time_sync                     | Indicates if time synchronization is ON/OFF|
 | uuid                          | The current vbucket uuid                   |
+| rollback_item_count           | Num of items rolled back                   |
 
 ** vBucket seqno stats
 
