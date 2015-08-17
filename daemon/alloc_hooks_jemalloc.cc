@@ -72,32 +72,38 @@ static inline void invoke_delete_hook(void* ptr) {
 
 extern "C" {
 
-MEMCACHED_PUBLIC_API void* malloc(size_t size) throw () {
+#if defined(__sun) || defined(__FreeBSD__)
+#define throwspec
+#else
+#define throwspec throw()
+#endif
+
+MEMCACHED_PUBLIC_API void* malloc(size_t size) throwspec {
     void* ptr = je_malloc(size);
     invoke_new_hook(ptr, size);
     return ptr;
 }
 
-MEMCACHED_PUBLIC_API void* calloc(size_t nmemb, size_t size) throw () {
+MEMCACHED_PUBLIC_API void* calloc(size_t nmemb, size_t size) throwspec {
     void* ptr = je_calloc(nmemb, size);
     invoke_new_hook(ptr, nmemb * size);
     return ptr;
 }
 
-MEMCACHED_PUBLIC_API void* realloc(void* ptr, size_t size) throw () {
+MEMCACHED_PUBLIC_API void* realloc(void* ptr, size_t size) throwspec {
     invoke_delete_hook(ptr);
     void* result = je_realloc(ptr, size);
     invoke_new_hook(result, size);
     return result;
 }
 
-MEMCACHED_PUBLIC_API void free(void* ptr) throw () {
+MEMCACHED_PUBLIC_API void free(void* ptr) throwspec {
     invoke_delete_hook(ptr);
     je_free(ptr);
 }
 
 #if defined(HAVE_MEMALIGN)
-MEMCACHED_PUBLIC_API void *memalign(size_t alignment, size_t size) throw () {
+MEMCACHED_PUBLIC_API void *memalign(size_t alignment, size_t size) throwspec {
     void* result = je_memalign(alignment, size);
     invoke_new_hook(result, size);
     return result;
@@ -105,11 +111,13 @@ MEMCACHED_PUBLIC_API void *memalign(size_t alignment, size_t size) throw () {
 #endif
 
 MEMCACHED_PUBLIC_API int posix_memalign(void **memptr, size_t alignment,
-                                        size_t size) throw () {
+                                        size_t size) throwspec {
     int result = je_posix_memalign(memptr, alignment, size);
     invoke_new_hook(*memptr, size);
     return result;
 }
+
+#undef throwspec
 
 } // extern "C"
 
