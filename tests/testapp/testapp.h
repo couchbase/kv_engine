@@ -46,6 +46,9 @@ extern SOCKET sock;
 extern in_port_t port;
 extern pid_t server_pid;
 
+// Set of HELLO features which are currently enabled.
+extern std::set<protocol_binary_hello_features> enabled_hello_features;
+
 // helper class for use with std::unique_ptr in managing cJSON* objects.
 struct cJSONDeleter {
   void operator()(cJSON* j) { cJSON_Delete(j); }
@@ -168,6 +171,9 @@ enum test_return store_object_w_datatype(const char *key,
 /* Populate buf with a binary command with the given parameters. */
 off_t raw_command(char* buf, size_t bufsz, uint8_t cmd, const void* key,
                   size_t keylen, const void* dta, size_t dtalen);
+
+// Enables / disables the MUTATION_SEQNO feature.
+void set_mutation_seqno_feature(bool enable);
 
 /**
  * Constructs a storage command using the give arguments into buf.

@@ -71,6 +71,8 @@ static BIO *bio = NULL;
 static BIO *ssl_bio_r = NULL;
 static BIO *ssl_bio_w = NULL;
 
+std::set<protocol_binary_hello_features> enabled_hello_features;
+
 bool memcached_verbose = false;
 
 /* static storage for the different environment variables set by
@@ -90,8 +92,6 @@ static void stop_memcached_server(void);
 static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking);
 
 static void destroy_ssl_socket();
-
-static void set_mutation_seqno_feature(bool enable);
 
 std::ostream& operator << (std::ostream& os, const Transport& t)
 {
@@ -199,6 +199,8 @@ void TestappTest::SetUp() {
     // Set ewouldblock_engine test harness to default mode.
     ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_FIRST,
                                  /*unused*/0);
+
+    enabled_hello_features.clear();
 }
 
 // per test tear-down function.
@@ -2929,39 +2931,53 @@ TEST_P(McdTestappTest, Hello) {
 
 static void set_feature(const protocol_binary_hello_features feature,
                         bool enable) {
+
+    // First update the currently enabled features.
+    if (enable) {
+        enabled_hello_features.insert(feature);
+    } else {
+        enabled_hello_features.erase(feature);
+    }
+
+    // Now send the new HELLO message to the server.
     union {
         protocol_binary_request_hello request;
         protocol_binary_response_hello response;
         char bytes[1024];
     } buffer;
     const char *useragent = "testapp";
-    uint16_t wire_feature = htons(feature);
-    size_t len = strlen(useragent);
+    const size_t agentlen = strlen(useragent);
 
-    memset(buffer.bytes, 0, sizeof(buffer));
+    // Calculate body location and populate the body.
+    char* const body_ptr = buffer.bytes + sizeof(buffer.request.message.header);
+    memcpy(body_ptr, useragent, agentlen);
+
+    size_t bodylen = agentlen;
+    for (auto feature : enabled_hello_features) {
+        const uint16_t wire_feature = htons(feature);
+        memcpy(body_ptr + bodylen,
+               reinterpret_cast<const char*>(&wire_feature), sizeof(wire_feature));
+        bodylen += sizeof(wire_feature);
+    }
+
+    // Fill in the header at the start of the buffer.
+    memset(buffer.bytes, 0, sizeof(buffer.request.message.header));
     buffer.request.message.header.request.magic = PROTOCOL_BINARY_REQ;
     buffer.request.message.header.request.opcode = PROTOCOL_BINARY_CMD_HELLO;
-    buffer.request.message.header.request.keylen = htons((uint16_t)len);
-    if (enable) {
-        buffer.request.message.header.request.bodylen = htonl((uint32_t)len + 2);
-    } else {
-        buffer.request.message.header.request.bodylen = htonl((uint32_t)len);
-    }
-    memcpy(buffer.bytes + 24, useragent, len);
-    memcpy(buffer.bytes + 24 + len, &wire_feature, 2);
+    buffer.request.message.header.request.keylen = htons((uint16_t)agentlen);
+    buffer.request.message.header.request.bodylen = htonl(bodylen);
 
     safe_send(buffer.bytes,
-              sizeof(buffer.request) + ntohl(buffer.request.message.header.request.bodylen), false);
+              sizeof(buffer.request.message.header) + bodylen, false);
 
     safe_recv(&buffer.response, sizeof(buffer.response));
-    len = ntohl(buffer.response.message.header.response.bodylen);
-    if (enable) {
-        EXPECT_EQ(2u, len);
+    const size_t response_bodylen = ntohl(buffer.response.message.header.response.bodylen);
+    EXPECT_EQ(bodylen - agentlen, response_bodylen);
+    for (auto feature : enabled_hello_features) {
+        uint16_t wire_feature;
         safe_recv(&wire_feature, sizeof(wire_feature));
         wire_feature = ntohs(wire_feature);
         EXPECT_EQ(feature, wire_feature);
-    } else {
-        EXPECT_EQ(0u, len);
     }
 }
 
@@ -2969,7 +2985,7 @@ void set_datatype_feature(bool enable) {
     set_feature(PROTOCOL_BINARY_FEATURE_DATATYPE, enable);
 }
 
-static void set_mutation_seqno_feature(bool enable) {
+void set_mutation_seqno_feature(bool enable) {
     set_feature(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO, enable);
 }
 
