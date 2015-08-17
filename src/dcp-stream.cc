@@ -999,19 +999,38 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         return ENGINE_KEY_ENOENT;
     }
 
-    if (resp->getEvent() == DCP_DELETION || resp->getEvent() == DCP_MUTATION ||
-        resp->getEvent() == DCP_EXPIRATION) {
-        MutationResponse* m = static_cast<MutationResponse*>(resp);
-        uint64_t bySeqno = m->getBySeqno();
-        if (bySeqno <= last_seqno) {
-            LOG(EXTENSION_LOG_INFO, "%s Dropping dcp mutation for vbucket %d "
-                "with opaque %ld because the byseqno given (%llu) must be "
-                "larger than %llu", consumer->logHeader(), vb_, opaque_,
-                bySeqno, last_seqno);
-            delete m;
-            return ENGINE_ERANGE;
+    switch (resp->getEvent()) {
+        case DCP_MUTATION:
+        case DCP_DELETION:
+        case DCP_EXPIRATION:
+        {
+            MutationResponse* m = static_cast<MutationResponse*>(resp);
+            uint64_t bySeqno = m->getBySeqno();
+            if (bySeqno <= last_seqno) {
+                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous (out of "
+                    "sequence) mutation received, with opaque: %ld, its "
+                    "seqno (%llu) is not greater than last received seqno "
+                    "(%llu); Dropping mutation!", consumer->logHeader(),
+                    vb_, opaque_, bySeqno, last_seqno);
+                delete m;
+                return ENGINE_ERANGE;
+            }
+            last_seqno = bySeqno;
+            break;
         }
-        last_seqno = bySeqno;
+        case DCP_SNAPSHOT_MARKER:
+        case DCP_SET_VBUCKET:
+        case DCP_STREAM_END:
+        {
+            break;
+        }
+        default:
+        {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Unknown DCP op received: %d;"
+                " Disconnecting connection..",
+                consumer->logHeader(), vb_, resp->getEvent());
+            return ENGINE_DISCONNECT;
+        }
     }
 
     buffer.messages.push(resp);
@@ -1068,7 +1087,9 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
         buffer.items--;
         buffer.bytes -= message_bytes;
         count++;
-        total_bytes_processed += message_bytes;
+        if (ret != ENGINE_ERANGE) {
+            total_bytes_processed += message_bytes;
+        }
     }
 
     processed_bytes = total_bytes_processed;
@@ -1084,6 +1105,15 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    if (mutation->getBySeqno() > cur_snapshot_end) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous mutation [sequence "
+            "number (%llu) greater than current snapshot end seqno (%llu)] "
+            "being processed; Dropping the mutation!", consumer->logHeader(),
+            vb_, mutation->getBySeqno(), cur_snapshot_end);
+        delete mutation;
+        return ENGINE_ERANGE;
     }
 
     ENGINE_ERROR_CODE ret;
@@ -1132,6 +1162,15 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
     if (!vb) {
         return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    if (deletion->getBySeqno() > cur_snapshot_end) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous deletion [sequence "
+            "number (%llu) greater than current snapshot end seqno (%llu)] "
+            "being processed; Dropping the deletion!", consumer->logHeader(),
+            vb_, deletion->getBySeqno(), cur_snapshot_end);
+        delete deletion;
+        return ENGINE_ERANGE;
     }
 
     ENGINE_ERROR_CODE ret;
