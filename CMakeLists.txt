@@ -428,3 +428,5 @@ ADD_CUSTOM_TARGET(test-valgrind
                         ep
                         ep_testsuite
                   VERBATIM)
+
+ENABLE_CODE_COVERAGE_REPORT()
