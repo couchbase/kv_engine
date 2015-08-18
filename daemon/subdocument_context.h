@@ -22,6 +22,7 @@
 #include "subdocument_traits.h"
 
 #include <cstddef>
+#include <memory>
 
 /* Struct repesenting a buffer of some known size. This is typically used to
  * refer to some existing region of memory which is owned elsewhere - i.e.
@@ -86,7 +87,7 @@ struct SubdocCmdContext : public CommandContext {
     // Temporary buffer used to hold the intermediate result document for
     // multi-path mutations. {in_doc} is then updated to point to this to use
     // as input for the next multi-path mutation.
-    std::vector<char> temp_doc;
+    std::unique_ptr<char[]> temp_doc;
 
     // CAS value of the input document. Required to ensure we only store a
     // new document which was derived from the same original input document.

@@ -625,9 +625,9 @@ static bool subdoc_operate(SubdocCmdContext* context) {
                         // permit subjson to take all the multipaths at once.
                         // For now we make a contiguous region in a temporary
                         // std::vector, and point in_doc at that.
-                        std::vector<char> intermediate_doc;
+                        std::unique_ptr<char[]> intermediate_doc;
                         try {
-                            intermediate_doc.reserve(new_doc_len);
+                            intermediate_doc.reset(new char[new_doc_len]);
                         } catch (const std::bad_alloc&) {
                             // Insufficient memory - unable to continue.
                             write_bin_packet(context->c,
@@ -635,19 +635,19 @@ static bool subdoc_operate(SubdocCmdContext* context) {
                             return false;
                         }
 
-                        // TODO-PERF: Compare against new[] + memcpy().
+                        size_t offset = 0;
                         for (auto& loc : op->result.newdoc()) {
-                            intermediate_doc.insert(intermediate_doc.end(),
-                                                    loc.at,
-                                                    loc.at + loc.length);
+                            std::memcpy(intermediate_doc.get() + offset,
+                                        loc.at, loc.length);
+                            offset += loc.length;
                         }
 
                         // Copying complete - safe to delete the old temp_doc
                         // (even if it was the source of some of the newdoc
                         // iovecs).
-                        context->temp_doc = std::move(intermediate_doc);
-                        context->in_doc = {context->temp_doc.data(),
-                                           context->temp_doc.size()};
+                        context->temp_doc.swap(intermediate_doc);
+                        context->in_doc = {context->temp_doc.get(),
+                                           new_doc_len};
 
                     } else { // lookup
                         // nothing to do.
