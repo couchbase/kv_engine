@@ -1148,10 +1148,13 @@ void validate_response_header(protocol_binary_response_no_extras *response,
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            EXPECT_TRUE(header->response.extlen == 0 ||
-                        header->response.extlen == 16);
-            EXPECT_TRUE(header->response.bodylen == 0 ||
-                        header->response.bodylen == 16);
+            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+                EXPECT_EQ(16, header->response.extlen);
+                EXPECT_EQ(16, header->response.bodylen);
+            } else {
+                EXPECT_EQ(0u, header->response.extlen);
+                EXPECT_EQ(0u, header->response.bodylen);
+            }
             EXPECT_NE(header->response.cas, 0u);
             break;
         case PROTOCOL_BINARY_CMD_FLUSH:
@@ -1166,22 +1169,26 @@ void validate_response_header(protocol_binary_response_no_extras *response,
             /* extlen/bodylen are permitted to be either zero, or 16 if
              * MUTATION_SEQNO is enabled.
              */
-            EXPECT_TRUE(header->response.extlen == 0 ||
-                        header->response.extlen == 16);
-            EXPECT_TRUE(header->response.bodylen == 0 ||
-                        header->response.bodylen == 16);
+            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+                EXPECT_EQ(16, header->response.extlen);
+                EXPECT_EQ(16, header->response.bodylen);
+            } else {
+                EXPECT_EQ(0u, header->response.extlen);
+                EXPECT_EQ(0u, header->response.bodylen);
+            }
             break;
         case PROTOCOL_BINARY_CMD_DECREMENT:
         case PROTOCOL_BINARY_CMD_INCREMENT:
             EXPECT_EQ(0, header->response.keylen);
             /* extlen is permitted to be either zero, or 16 if MUTATION_SEQNO
-             * is enabled.
-             */
-            EXPECT_TRUE(header->response.extlen == 0 ||
-                        header->response.extlen == 16);
-            /* similary, bodylen must be either 8 or 24. */
-            EXPECT_TRUE(header->response.bodylen == 8 ||
-                        header->response.bodylen == 24);
+             * is enabled. Similary, bodylen must be either 8 or 24. */
+            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+                EXPECT_EQ(16, header->response.extlen);
+                EXPECT_EQ(24, header->response.bodylen);
+            } else {
+                EXPECT_EQ(0u, header->response.extlen);
+                EXPECT_EQ(8u, header->response.bodylen);
+            }
             EXPECT_NE(0u, header->response.cas);
             break;
 
