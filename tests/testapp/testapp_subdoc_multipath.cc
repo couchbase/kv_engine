@@ -318,8 +318,13 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddCAS) {
 
     // 2. Attempt to mutate with correct CAS.
     mutation.cas = cas;
-    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+    uint64_t new_cas = expect_subdoc_cmd(mutation,
+                                         PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                         std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+
+    // CAS should have changed.
+    EXPECT_NE(cas, new_cas);
+
     // Document should have been updated.
     validate_object("dict", "{\"int\":1,\"float\":2.0,\"string\":\"value\"}");
 

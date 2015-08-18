@@ -1512,13 +1512,11 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
     validate_object("a", "[]");
 
-#if 0 // 2015-05-28 Incorrectly passes - need to report to MarkN
     // b). Insert at position '-1' is invalid.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[-1]", "3"),
-                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL, "");
     validate_object("a", "[]");
-#endif
 
     // c). MKDIR_P flag is not valid for ARRAY_INSERT
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
