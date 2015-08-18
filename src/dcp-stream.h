@@ -338,6 +338,8 @@ private:
 
     void clearBuffer();
 
+    uint32_t setDead_UNLOCKED(end_stream_status_t status);
+
     EventuallyPersistentEngine* engine;
     DcpConsumer* consumer;
     uint64_t last_seqno;

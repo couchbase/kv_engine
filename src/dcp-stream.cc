@@ -903,16 +903,21 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
 PassiveStream::~PassiveStream() {
     LockHolder lh(streamMutex);
     clear_UNLOCKED();
-    cb_assert(state_ == STREAM_DEAD);
-    cb_assert(buffer.bytes == 0);
+    if (state_ != STREAM_DEAD) {
+        setDead_UNLOCKED(END_STREAM_OK);
+    }
 }
 
-uint32_t PassiveStream::setDead(end_stream_status_t status) {
-    LockHolder lh(streamMutex);
+uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status) {
     transitionState(STREAM_DEAD);
     uint32_t unackedBytes = buffer.bytes;
     clearBuffer();
     return unackedBytes;
+}
+
+uint32_t PassiveStream::setDead(end_stream_status_t status) {
+    LockHolder lh(streamMutex);
+    return setDead_UNLOCKED(status);
 }
 
 void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
@@ -964,8 +969,11 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
 }
 
 ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
+    if(nullptr == resp) {
+        return ENGINE_EINVAL;
+    }
+
     LockHolder lh(buffer.bufMutex);
-    cb_assert(resp);
 
     if (state_ == STREAM_DEAD) {
         delete resp;
