@@ -559,7 +559,7 @@ TEST_P(McdTestappTest, SubdocExists_DictNestedCompressed) {
 //with.
 static cJSON* make_nested_dict(int nlevels) {
     cJSON* child = cJSON_CreateObject();
-    cJSON* parent;
+    cJSON* parent = nullptr;
     for (int depth = nlevels-1; depth > 0; depth--) {
         std::string name(std::to_string(depth));
         parent = cJSON_CreateObject();
@@ -617,7 +617,7 @@ TEST_P(McdTestappTest, SubdocExists_DictDeep) {
 //with.
 static cJSON* make_nested_array(int nlevels) {
     cJSON* child = cJSON_CreateArray();
-    cJSON* parent;
+    cJSON* parent = nullptr;
     for (int depth = nlevels-1; depth > 0; depth--) {
         parent = cJSON_CreateArray();
         cJSON_AddItemToArray(parent, child);
