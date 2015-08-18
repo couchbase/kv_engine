@@ -125,12 +125,11 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
     validate_response_header((protocol_binary_response_no_extras*)&receive.response,
                              expected_cmd, expected_status);
 
-    // TODO: Check extras for subdoc command and mutation / seqno (if enabled).
-
     const protocol_binary_response_header* header = &receive.response.message.header;
+
     const char* val_ptr = receive.bytes + sizeof(*header) +
                           header->response.extlen;
-    const size_t vallen = header->response.bodylen + header->response.extlen;
+    const size_t vallen = header->response.bodylen - header->response.extlen;
 
     if (!expected_value.empty() &&
         (expected_cmd != PROTOCOL_BINARY_CMD_SUBDOC_EXISTS)) {
@@ -159,8 +158,6 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
 
     validate_response_header((protocol_binary_response_no_extras*)&receive.response,
                              expected_cmd, expected_status);
-
-    // TODO: Check extras for subdoc command and mutation / seqno (if enabled).
 
     // Decode body and check against expected_results
     const auto& header = receive.response.message.header;
@@ -249,11 +246,15 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
     const auto& header = receive.response.message.header;
     const char* val_ptr = receive.bytes + sizeof(header) +
                           header.response.extlen;
-    const size_t vallen = header.response.bodylen + header.response.extlen;
+    const size_t vallen = header.response.bodylen - header.response.extlen;
     std::vector<uint8_t> value(val_ptr, val_ptr + vallen);
 
     if (expected_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        // Success - should have zero body.
+        if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+            EXPECT_EQ(16, header.response.extlen);
+        } else {
+            EXPECT_EQ(0u, header.response.extlen);
+        }
         EXPECT_EQ(0u, vallen)
             << "Incorrect value:'" << value << "'";
     } else if (expected_status == PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE) {
@@ -836,6 +837,14 @@ TEST_P(McdTestappTest, SubdocDictUpsert_SimpleRaw) {
 TEST_P(McdTestappTest, SubdocDictUpsert_SimpleCompressed) {
     test_subdoc_dict_add_simple(/*compress*/true,
                                 PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT);
+}
+
+// Test FEATURE_MUTATION_SEQNO support.
+TEST_P(McdTestappTest, SubdocDictAdd_SimpleRaw_MutationSeqno) {
+    set_mutation_seqno_feature(true);
+    test_subdoc_dict_add_simple(/*compress*/false,
+                                PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD);
+    set_mutation_seqno_feature(false);
 }
 
 void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
@@ -1533,8 +1542,7 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
     delete_object("b");
 }
 
-TEST_P(McdTestappTest, SubdocCounter_Simple)
-{
+void test_subdoc_counter_simple() {
     store_object("a", "{}", /*JSON*/true, /*compress*/false);
 
     // a). Check that empty document, empty path creates a new element.
@@ -1570,6 +1578,16 @@ TEST_P(McdTestappTest, SubdocCounter_Simple)
     EXPECT_EQ("{\"key\":-1}", result.second);
 
     delete_object("a");
+}
+
+TEST_P(McdTestappTest, SubdocCounter_Simple) {
+    test_subdoc_counter_simple();
+}
+
+TEST_P(McdTestappTest, SubdocCounter_Simple_MutationSeqno) {
+    set_mutation_seqno_feature(true);
+    test_subdoc_counter_simple();
+    set_mutation_seqno_feature(false);
 }
 
 TEST_P(McdTestappTest, SubdocCounter_InvalidNotInt)

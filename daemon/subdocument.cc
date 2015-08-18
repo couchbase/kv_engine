@@ -766,6 +766,22 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
                                   OPERATION_REPLACE, vbucket);
     switch (ret) {
     case ENGINE_SUCCESS:
+        // Record the UUID / Seqno if MUTATION_SEQNO feature is enabled so
+        // we can include it in the response.
+        if (c->isSupportsMutationExtras()) {
+            item_info info;
+            info.nvalue = 1;
+            if (!c->getBucketEngine()->get_item_info(handle, c, context->out_doc, &info)) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "%u: Subdoc: Failed to get item info",
+                                                c->getId());
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+                return ENGINE_FAILED;
+            }
+            context->vbucket_uuid = info.vbucket_uuid;
+            context->sequence_no = info.seqno;
+        }
+
         c->setCAS(new_cas);
         break;
 
@@ -790,6 +806,18 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
     return ret;
 }
 
+/* Encodes the context's mutation sequence number and vBucket UUID into the
+ * given buffer.
+ * @param descr Buffer to write to. Must be 16 bytes in size.
+ */
+static void encode_mutation_descr(SubdocCmdContext* context, char* buffer)
+{
+    mutation_descr_t descr;
+    descr.seqno = htonll(context->sequence_no);
+    descr.vbucket_uuid = htonll(context->vbucket_uuid);
+    std::memcpy(buffer, &descr, sizeof(descr));
+}
+
 /* Construct and send a response to a single-path request back to the client.
  */
 static void subdoc_single_response(SubdocCmdContext* context) {
@@ -797,6 +825,12 @@ static void subdoc_single_response(SubdocCmdContext* context) {
 
     protocol_binary_response_subdocument* rsp =
             reinterpret_cast<protocol_binary_response_subdocument*>(c->write.buf);
+
+    // Calculate extras size
+    const bool include_mutation_dscr = (c->isSupportsMutationExtras() &&
+                                        context->traits.is_mutator);
+    const size_t extlen = include_mutation_dscr ? sizeof(mutation_descr_t)
+                                                : 0;
 
     const char* value = NULL;
     size_t vallen = 0;
@@ -806,12 +840,28 @@ static void subdoc_single_response(SubdocCmdContext* context) {
         vallen = mloc.length;
     }
 
-    if (add_bin_header(c, 0, /*extlen*/0, /*keylen*/0, vallen,
+    if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
+                       /*keylen*/0, extlen + vallen,
                        PROTOCOL_BINARY_RAW_BYTES) == -1) {
         c->setState(conn_closing);
         return;
     }
     rsp->message.header.response.cas = htonll(c->getCAS());
+
+    // Add mutation descr to response buffer if requested.
+    if (include_mutation_dscr) {
+        DynamicBuffer& response_buf = c->getDynamicBuffer();
+        if (!response_buf.grow(extlen)) {
+            // Unable to form complete response.
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            return;
+        }
+        char* const extras_ptr = response_buf.getCurrent();
+        encode_mutation_descr(context, extras_ptr);
+        response_buf.moveOffset(extlen);
+
+        add_iov(c, extras_ptr, extlen);
+    }
 
     if (context->traits.response_has_value) {
         add_iov(c, value, vallen);
@@ -827,11 +877,38 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
     protocol_binary_response_subdocument* rsp =
             reinterpret_cast<protocol_binary_response_subdocument*>(c->write.buf);
 
-    // MULTI_MUTATION: On success zero-length body, on failure body
-    // indicates the status code and index of the first failing spec.
+    // MULTI_MUTATION: On success zero-length body (with optional 16byte
+    // mutation descriptor in extras).
+    // On failure body indicates the status code and index of the first failing
+    // spec.
     if (context->overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        write_bin_packet(c, context->overall_status);
-        return;
+        if (c->isSupportsMutationExtras()) {
+            DynamicBuffer& extras_buf = c->getDynamicBuffer();
+            const size_t extlen = sizeof(mutation_descr_t);
+            if (!extras_buf.grow(extlen)) {
+                // Unable to form complete response.
+                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+                return;
+            }
+
+            char* const response_extras = extras_buf.getCurrent();
+            encode_mutation_descr(context, response_extras);
+            extras_buf.moveOffset(sizeof(extlen));
+
+            // Finally send header and extras (empty body).
+            if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
+                               /*keylen*/0, extlen,
+                               PROTOCOL_BINARY_RAW_BYTES) == -1) {
+                c->setState(conn_closing);
+                return;
+            }
+            add_iov(c, reinterpret_cast<void*>(response_extras), extlen);
+
+        } else {
+            // No extras, just send respose with zero body.
+            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+            return;
+        }
     } else {
         uint16_t first_failing_status;
         uint8_t first_failing_idx = 0xff;
@@ -864,7 +941,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
         }
         rsp->message.header.response.cas = htonll(c->getCAS());
 
-        // Convert to network order.
+        // Convert body to network order and add to response buffer
         first_failing_status = htons(first_failing_status);
 
         char* const response_body = response_buf.getCurrent();

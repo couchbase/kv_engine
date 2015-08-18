@@ -328,7 +328,7 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddCAS) {
 
 // Test multi-path mutation command - create a bunch of dictionary elements
 // then delete them. (Not a very useful operation but should work).
-TEST_P(McdTestappTest, SubdocMultiMutation_DictAddDelete) {
+void test_subdoc_multi_mutation_dictadd_delete() {
     store_object("dict", "{\"count\":0,\"items\":{}}");
 
     // 1. Add a series of paths, then remove two of them.
@@ -372,4 +372,14 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddDelete) {
     validate_object("dict", "{\"count\":2,\"items\":{\"4\":4,\"5\":5}}");
 
     delete_object("dict");
+}
+
+TEST_P(McdTestappTest, SubdocMultiMutation_DictAddDelete) {
+    test_subdoc_multi_mutation_dictadd_delete();
+}
+
+TEST_P(McdTestappTest, SubdocMultiMutation_DictAddDelete_MutationSeqno) {
+    set_mutation_seqno_feature(true);
+    test_subdoc_multi_mutation_dictadd_delete();
+    set_mutation_seqno_feature(false);
 }

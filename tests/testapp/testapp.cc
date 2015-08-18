@@ -1232,9 +1232,54 @@ void validate_response_header(protocol_binary_response_no_extras *response,
             break;
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD:
         case PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT:
+        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST:
+        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST:
+        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT:
+        case PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE:
+            EXPECT_EQ(0, header->response.keylen);
+            /* extlen/bodylen are permitted to be either zero, or 16 if
+             * MUTATION_SEQNO is enabled.
+             */
+            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+                EXPECT_EQ(16, header->response.extlen);
+                EXPECT_EQ(16, header->response.bodylen);
+            } else {
+                EXPECT_EQ(0u, header->response.extlen);
+                EXPECT_EQ(0u, header->response.bodylen);
+            }
+            EXPECT_NE(0u, header->response.cas);
+            break;
+        case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
+            EXPECT_EQ(0, header->response.keylen);
+            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+                EXPECT_EQ(16, header->response.extlen);
+                EXPECT_GT(header->response.bodylen, 16);
+            } else {
+                EXPECT_EQ(0u, header->response.extlen);
+                EXPECT_NE(0u, header->response.bodylen);
+            }
+            EXPECT_NE(0u, header->response.cas);
+            break;
+
+        case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP:
             EXPECT_EQ(0, header->response.keylen);
             EXPECT_EQ(0, header->response.extlen);
-            EXPECT_EQ(0u, header->response.bodylen);
+            EXPECT_NE(0u, header->response.bodylen);
+            EXPECT_NE(0u, header->response.cas);
+            break;
+
+        case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION:
+            EXPECT_EQ(0, header->response.keylen);
+            /* extlen/bodylen are permitted to be either zero, or 16 if
+             * MUTATION_SEQNO is enabled.
+             */
+            if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
+                EXPECT_EQ(16, header->response.extlen);
+                EXPECT_EQ(16, header->response.bodylen);
+            } else {
+                EXPECT_EQ(0u, header->response.extlen);
+                EXPECT_EQ(0u, header->response.bodylen);
+            }
             EXPECT_NE(0u, header->response.cas);
             break;
         default:

@@ -101,6 +101,12 @@ struct SubdocCmdContext : public CommandContext {
     // opetation, for multi-path it's an aggregate status.
     protocol_binary_response_status overall_status;
 
+    // [Mutations only] Mutation sequence number and vBucket UUID. Only set
+    // if the calling connection has the MUTATION_SEQNO feature enabled; to be
+    // included in the response back to the client.
+    uint64_t vbucket_uuid;
+    uint64_t sequence_no;
+
     // [Mutations only] New item to store into engine. _Must_ be released
     // back to the engine using ENGINE_HANDLE_V1::release()
     item* out_doc;
