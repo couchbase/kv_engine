@@ -22,6 +22,7 @@
 #include <iostream>
 #include <getopt.h>
 #ifndef WIN32
+#include <netinet/in.h>
 #include <signal.h>
 
 #define INVALID_SOCKET -1
