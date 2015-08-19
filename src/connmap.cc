@@ -805,6 +805,22 @@ void TapConnMap::disconnect(const void *cookie) {
     }
 }
 
+bool TapConnMap::isTapConsumerConnected(uint16_t vbucket) {
+    LockHolder lh(connsLock);
+    std::list<connection_t>::iterator it;
+    for(it = all.begin(); it != all.end(); it++) {
+        // Return true if a consumer is found to be active
+        TapConsumer *tapConsumer = dynamic_cast<TapConsumer*>(it->get());
+        if (tapConsumer && tapConsumer->isConnected()) {
+            LOG(EXTENSION_LOG_DEBUG, "(vb %d) A TAP consumer "
+                "already exists for vbucket: %s",
+                vbucket, tapConsumer->logHeader());
+            return true;
+        }
+    }
+    return false;
+}
+
 bool TapConnMap::closeConnectionByName_UNLOCKED(const std::string &name) {
     bool rv = false;
     connection_t tc = findByName_UNLOCKED(name);
@@ -959,28 +975,37 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
 
 }
 
+bool DcpConnMap::isPassiveStreamConnected(uint16_t vbucket) {
+    LockHolder lh(connsLock);
+    std::list<connection_t>::iterator it;
+    for(it = all.begin(); it != all.end(); it++) {
+        DcpConsumer* dcpConsumer = dynamic_cast<DcpConsumer*>(it->get());
+        if (dcpConsumer && dcpConsumer->isStreamPresent(vbucket)) {
+                LOG(EXTENSION_LOG_DEBUG, "(vb %d) A DCP passive stream "
+                    "is already exists for the vbucket in connection: %s",
+                    vbucket, dcpConsumer->logHeader());
+                return true;
+        }
+    }
+    return false;
+}
+
 ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler* conn,
                                                uint32_t opaque,
                                                uint16_t vbucket,
                                                uint32_t flags)
 {
     cb_assert(conn);
-    LockHolder lh(connsLock);
 
     /* Check if a stream (passive) for the vbucket is already present */
-    std::list<connection_t>::iterator it;
-    for(it = all.begin(); it != all.end(); it++) {
-        DcpConsumer* dcpConsumer = dynamic_cast<DcpConsumer*>(it->get());
-        if (dcpConsumer) {
-            if (dcpConsumer->isStreamPresent(vbucket)) {
-                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Passive stream add "
-                    "failed, stream already exists in connection %s",
-                    conn->logHeader(), vbucket, dcpConsumer->logHeader());
-                return ENGINE_KEY_EEXISTS;
-            }
-        }
+    if (isPassiveStreamConnected(vbucket)) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Failing to add passive stream, "
+            "as one already exists for the vbucket!",
+            conn->logHeader(), vbucket);
+        return ENGINE_KEY_EEXISTS;
     }
 
+    LockHolder lh(connsLock);
     return conn->addStream(opaque, vbucket, flags);
 }
 

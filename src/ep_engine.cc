@@ -2547,7 +2547,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             // tap producer is no longer connected..
             return ENGINE_DISCONNECT;
         } else {
-            // Create a new tap consumer...
+            // Create a new tap consumer only if a dcp stream is
+            // not active for the vbucket
+            if (dcpConnMap_->isPassiveStreamConnected(vbucket)) {
+                LOG(EXTENSION_LOG_WARNING, "(vb %d) Failing to add a TAP "
+                    "consumer, as a DCP passive stream is still live for the "
+                    "vbucket!", vbucket);
+                return ENGINE_KEY_EEXISTS;
+            }
             connection = tapConnMap->newConsumer(cookie);
             if (connection == NULL) {
                 LOG(EXTENSION_LOG_WARNING, "Failed to create new tap consumer."
@@ -5666,8 +5673,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(
-                                                           const void* cookie,
+ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(const void* cookie,
                                                            uint32_t opaque,
                                                            uint16_t vbucket,
                                                            uint32_t flags)
@@ -5675,7 +5681,15 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(
     ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
     ConnHandler* conn = getConnHandler(cookie);
     if (conn) {
-        errCode = dcpConnMap_->addPassiveStream(conn, opaque, vbucket, flags);
+        if (tapConnMap->isTapConsumerConnected(vbucket)) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Failing to add a passive "
+                "stream, as a TAP consumer is still live for the vbucket!",
+                conn->logHeader(), vbucket);
+            errCode = ENGINE_KEY_EEXISTS;
+        } else {
+            errCode = dcpConnMap_->addPassiveStream(conn, opaque,
+                                                    vbucket, flags);
+        }
     }
     return errCode;
 }
