@@ -276,7 +276,7 @@ void ActiveStream::completeBackfill() {
     if (state_ == STREAM_BACKFILLING) {
         isBackfillTaskRunning = false;
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill complete, %d items read"
-            " from disk %d from memory, last seqno read: %ld",
+            " from disk %d from memory, last seqno read: %llu",
             producer->logHeader(), vb_, backfillItems.disk.load(),
             backfillItems.memory.load(), lastReadSeqno);
 
@@ -952,7 +952,7 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
     snap_end_seqno_ = info.range.end;
 
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Attempting to reconnect stream "
-        "with opaque %ld, start seq no %llu, end seq no %llu, snap start seqno "
+        "with opaque %u, start seq no %llu, end seq no %llu, snap start seqno "
         "%llu, and snap end seqno %llu", consumer->logHeader(), vb_, new_opaque,
         start_seqno, end_seqno_, snap_start_seqno_, snap_end_seqno_);
 
@@ -989,7 +989,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
             uint64_t bySeqno = m->getBySeqno();
             if (bySeqno <= last_seqno) {
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous (out of "
-                    "sequence) mutation received, with opaque: %ld, its "
+                    "sequence) mutation received, with opaque: %u, its "
                     "seqno (%llu) is not greater than last received seqno "
                     "(%llu); Dropping mutation!", consumer->logHeader(),
                     vb_, opaque_, bySeqno, last_seqno);
@@ -1006,7 +1006,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
             uint64_t snapEnd = s->getEndSeqno();
             if (snapStart < last_seqno && snapEnd <= last_seqno) {
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous snapshot "
-                    "marker received, with opaque: %ld, its start (%llu), and"
+                    "marker received, with opaque: %u, its start (%llu), and"
                     "end (%llu) are less than last received seqno (%llu); "
                     "Dropping marker!", consumer->logHeader(), vb_, opaque_,
                     snapStart, snapEnd, last_seqno);
