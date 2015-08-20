@@ -136,6 +136,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     uint64_t vbucket_uuid = entry.vb_uuid;
     uint64_t snap_start_seqno = info.range.start;
     uint64_t snap_end_seqno = info.range.end;
+    uint64_t high_seqno = vb->getHighSeqno();
 
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->isActive()) {
@@ -147,7 +148,8 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     streams[vbucket] = new PassiveStream(&engine_, this, getName(), flags,
                                          new_opaque, vbucket, start_seqno,
                                          end_seqno, vbucket_uuid,
-                                         snap_start_seqno, snap_end_seqno);
+                                         snap_start_seqno, snap_end_seqno,
+                                         high_seqno);
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
 
@@ -187,8 +189,14 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         LOG(EXTENSION_LOG_INFO, "%s (vb %d) End stream received with reason %d",
             logHeader(), vbucket, flags);
-        StreamEndResponse* response = new StreamEndResponse(opaque, flags,
-                                                            vbucket);
+
+        StreamEndResponse* response;
+        try {
+            response = new StreamEndResponse(opaque, flags, vbucket);
+        } catch (const std::bad_alloc&) {
+            return ENGINE_ENOMEM;
+        }
+
         err = stream->messageReceived(response);
 
         bool disable = false;
@@ -224,6 +232,12 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
         return ENGINE_DISCONNECT;
     }
 
+    if (bySeqno == 0) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid sequence number(0) "
+            "for mutation!", logHeader(), vbucket);
+        return ENGINE_EINVAL;
+    }
+
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
@@ -244,8 +258,13 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
             }
         }
 
-        MutationResponse* response = new MutationResponse(item, opaque,
-                                                          emd);
+        MutationResponse* response;
+        try {
+            response = new MutationResponse(item, opaque, emd);
+        } catch (const std::bad_alloc&) {
+            return ENGINE_ENOMEM;
+        }
+
         err = stream->messageReceived(response);
 
         bool disable = false;
@@ -276,6 +295,12 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
         return ENGINE_DISCONNECT;
     }
 
+    if (bySeqno == 0) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid sequence number(0)"
+            "for deletion!", logHeader(), vbucket);
+        return ENGINE_EINVAL;
+    }
+
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
@@ -296,8 +321,13 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
             }
         }
 
-        MutationResponse* response = new MutationResponse(item, opaque,
-                                                          emd);
+        MutationResponse* response;
+        try {
+            response = new MutationResponse(item, opaque, emd);
+        } catch (const std::bad_alloc&) {
+            return ENGINE_ENOMEM;
+        }
+
         err = stream->messageReceived(response);
 
         bool disable = false;
@@ -339,9 +369,14 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        SnapshotMarker* response = new SnapshotMarker(opaque, vbucket,
-                                                      start_seqno, end_seqno,
-                                                      flags);
+        SnapshotMarker* response;
+        try {
+            response = new SnapshotMarker(opaque, vbucket, start_seqno,
+                                          end_seqno, flags);
+        } catch (const std::bad_alloc&) {
+            return ENGINE_ENOMEM;
+        }
+
         err = stream->messageReceived(response);
 
         bool disable = false;
@@ -384,7 +419,13 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        SetVBucketState* response = new SetVBucketState(opaque, vbucket, state);
+        SetVBucketState* response;
+        try {
+            response = new SetVBucketState(opaque, vbucket, state);
+        } catch (const std::bad_alloc&) {
+            return ENGINE_ENOMEM;
+        }
+
         err = stream->messageReceived(response);
 
         bool disable = false;
@@ -544,7 +585,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
         uint8_t* body = pkt->bytes + sizeof(protocol_binary_response_header);
 
         if (status == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
-            cb_assert(bodylen == sizeof(uint64_t));
+            if (bodylen != sizeof(uint64_t)) {
+                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Received rollback "
+                    "request with incorrect bodylen of %" PRIu64 ", disconnecting",
+                    logHeader(), vbid, bodylen);
+                return ENGINE_DISCONNECT;
+            }
             uint64_t rollbackSeqno = 0;
             memcpy(&rollbackSeqno, body, sizeof(uint64_t));
             rollbackSeqno = ntohll(rollbackSeqno);

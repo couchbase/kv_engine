@@ -326,7 +326,7 @@ public:
                   const std::string &name, uint32_t flags, uint32_t opaque,
                   uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
                   uint64_t vb_uuid, uint64_t snap_start_seqno,
-                  uint64_t snap_end_seqno);
+                  uint64_t snap_end_seqno, uint64_t vb_high_seqno);
 
     ~PassiveStream();
 
@@ -362,6 +362,8 @@ private:
     void transitionState(stream_state_t newState);
 
     void clearBuffer();
+
+    uint32_t setDead_UNLOCKED(end_stream_status_t status);
 
     EventuallyPersistentEngine* engine;
     DcpConsumer* consumer;
