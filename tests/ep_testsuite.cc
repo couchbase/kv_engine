@@ -8382,7 +8382,7 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_dcp_invalid_mutation_deletion(ENGINE_HANDLE* h,
-                                                              ENGINE_HANDLE_V1* h1) {
+                                                           ENGINE_HANDLE_V1* h1) {
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state");
@@ -8416,6 +8416,53 @@ static enum test_result test_dcp_invalid_mutation_deletion(ENGINE_HANDLE* h,
                              key.length(), 10, 0, /*seqno*/ 0, 0, "", 0),
             ENGINE_EINVAL,
             "Deletion should have returned EINVAL!");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_invalid_snapshot_marker(ENGINE_HANDLE* h,
+                                                         ENGINE_HANDLE_V1* h1) {
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state");
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    std::string name("unittest");
+
+    checkeq(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)(name.c_str()),
+                         name.size()),
+            ENGINE_SUCCESS,
+            "Failed to open DCP consumer connection!");
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
+    uint32_t stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
+
+    checkeq(h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 1, 10, 300),
+            ENGINE_SUCCESS,
+            "Failed to send snapshot marker!");
+    for (int i = 1; i <= 10; i++) {
+        std::stringstream key;
+        key << "key" << i;
+        checkeq(h1->dcp.mutation(h, cookie, stream_opaque, key.str().c_str(),
+                                 key.str().length(), "value", 5, i * 3, 0, 0, 0,
+                                 i, 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
+                ENGINE_SUCCESS,
+                "Unexpected return code for mutation!");
+    }
+
+    std::string bufferItemsStr("eq_dcpq:" + name + ":stream_0_buffer_items");
+    wait_for_stat_to_be(h, h1, bufferItemsStr.c_str(), 0, "dcp");
+
+    // Invalid snapshot marker with end <= start
+    checkeq(h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 11, 8, 300),
+            ENGINE_EINVAL,
+            "Failed to send snapshot marker!");
 
     testHarness.destroy_cookie(cookie);
 
@@ -12141,6 +12188,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("dcp invalid mutation(s)/deletion(s)",
                  test_dcp_invalid_mutation_deletion,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("dcp invalid snapshot marker",
+                 test_dcp_invalid_snapshot_marker,
                  test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase("test set with item_eviction",
