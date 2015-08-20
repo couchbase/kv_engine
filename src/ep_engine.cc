@@ -3508,7 +3508,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_access_scanner_num_items", epstats.alogNumItems,
                     add_stat, cookie);
 
-    if (getConfiguration().isAccessScannerEnabled()) {
+    if (epstore->isAccessScannerEnabled()) {
         char timestr[20];
         struct tm alogTim;
         if (cb_gmtime_r((time_t *)&epstats.alogTime, &alogTim) == -1) {
