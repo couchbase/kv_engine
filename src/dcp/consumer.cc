@@ -366,6 +366,13 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
         return ENGINE_DISCONNECT;
     }
 
+    if (start_seqno > end_seqno) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid snapshot marker "
+            "received, snap_start (%" PRIu64 ") <= snap_end (%" PRIu64 ")",
+            logHeader(), vbucket, start_seqno, end_seqno);
+        return ENGINE_EINVAL;
+    }
+
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {

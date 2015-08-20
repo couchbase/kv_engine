@@ -274,7 +274,7 @@ class CompactVBucketTask : public GlobalTask {
 public:
     CompactVBucketTask(EventuallyPersistentEngine *e, const Priority &p,
                 uint16_t vbucket, compaction_ctx c, const void *ck,
-                bool completeBeforeShutdown = true) :
+                bool completeBeforeShutdown = false) :
                 GlobalTask(e, p, 0, completeBeforeShutdown),
                            vbid(vbucket), compactCtx(c), cookie(ck)
     {
@@ -304,8 +304,9 @@ class StatSnap : public GlobalTask {
 public:
     StatSnap(EventuallyPersistentEngine *e, const Priority &p,
              bool runOneTimeOnly = false, bool sleeptime = 0,
-             bool shutdown = false) :
-        GlobalTask(e, p, sleeptime, shutdown), runOnce(runOneTimeOnly) { }
+             bool completeBeforeShutdown = false) :
+        GlobalTask(e, p, sleeptime, completeBeforeShutdown),
+        runOnce(runOneTimeOnly) { }
 
     bool run();
 
@@ -324,8 +325,10 @@ private:
 class BgFetcherTask : public GlobalTask {
 public:
     BgFetcherTask(EventuallyPersistentEngine *e, BgFetcher *b,
-                  const Priority &p, bool sleeptime = 0, bool shutdown = false)
-        : GlobalTask(e, p, sleeptime, shutdown), bgfetcher(b) { }
+                  const Priority &p, bool sleeptime = 0,
+                  bool completeBeforeShutdown = false) :
+        GlobalTask(e, p, sleeptime, completeBeforeShutdown),
+        bgfetcher(b) { }
 
     bool run();
 
@@ -362,8 +365,8 @@ public:
     VKeyStatBGFetchTask(EventuallyPersistentEngine *e, const std::string &k,
                         uint16_t vbid, uint64_t s, const void *c,
                         const Priority &p, int sleeptime = 0,
-                        bool shutdown = false) :
-        GlobalTask(e, p, sleeptime, shutdown), key(k),
+                        bool completeBeforeShutdown = false) :
+        GlobalTask(e, p, sleeptime, completeBeforeShutdown), key(k),
                    vbucket(vbid), bySeqNum(s), cookie(c) { }
 
     bool run();
@@ -389,9 +392,11 @@ class BGFetchTask : public GlobalTask {
 public:
     BGFetchTask(EventuallyPersistentEngine *e, const std::string &k,
             uint16_t vbid, const void *c, bool isMeta,
-            const Priority &p, int sleeptime = 0, bool shutdown = false) :
-        GlobalTask(e, p, sleeptime, shutdown), key(k), vbucket(vbid),
-        cookie(c), metaFetch(isMeta), init(gethrtime()) { }
+            const Priority &p, int sleeptime = 0,
+            bool completeBeforeShutdown = false) :
+        GlobalTask(e, p, sleeptime, completeBeforeShutdown),
+        key(k), vbucket(vbid), cookie(c), metaFetch(isMeta),
+        init(gethrtime()) { }
 
     bool run();
 

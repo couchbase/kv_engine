@@ -145,8 +145,9 @@ private:
 
 AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
                              const Priority &p, double sleeptime,
-                             bool useStartTime)
-    : GlobalTask(&_store.getEPEngine(), p, sleeptime),
+                             bool useStartTime, bool completeBeforeShutdown)
+    : GlobalTask(&_store.getEPEngine(), p, sleeptime,
+                 completeBeforeShutdown),
       completedCount(0),
       store(_store),
       stats(st),

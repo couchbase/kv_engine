@@ -35,7 +35,8 @@ class AccessScanner : public GlobalTask {
 public:
     AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
                   const Priority &p, double sleeptime = 0,
-                  bool useStartTime = false);
+                  bool useStartTime = false,
+                  bool completeBeforeShutdown = false);
 
     bool run();
     std::string getDescription();
