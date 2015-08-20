@@ -271,6 +271,12 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
         return ENGINE_DISCONNECT;
     }
 
+    if (bySeqno == 0) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid sequence number(0) "
+            "for mutation!", logHeader(), vbucket);
+        return ENGINE_EINVAL;
+    }
+
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
@@ -323,6 +329,12 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
                                         uint16_t nmeta) {
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
+    }
+
+    if (bySeqno == 0) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid sequence number(0)"
+            "for deletion!", logHeader(), vbucket);
+        return ENGINE_EINVAL;
     }
 
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;

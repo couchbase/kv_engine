@@ -9446,6 +9446,47 @@ static enum test_result test_dcp_erroneous_marker(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_dcp_invalid_mutation_deletion(ENGINE_HANDLE* h,
+                                                              ENGINE_HANDLE_V1* h1) {
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state");
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    std::string name("err_mutations");
+
+    checkeq(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)(name.c_str()),
+                         name.size()),
+            ENGINE_SUCCESS,
+            "Failed to open DCP consumer connection!");
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
+    uint32_t  stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
+
+    // Mutation(s) or deletion(s) with seqno 0 are invalid!
+    std::string key("key");
+    std::string val("value");
+    checkeq(h1->dcp.mutation(h, cookie, stream_opaque, key.c_str(),
+                             key.length(), val.c_str(), val.length(), 10, 0, 0,
+                             0, /*seqno*/ 0, 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
+            ENGINE_EINVAL,
+            "Mutation should have returned EINVAL!");
+
+    checkeq(h1->dcp.deletion(h, cookie, stream_opaque, key.c_str(),
+                             key.length(), 10, 0, /*seqno*/ 0, 0, "", 0),
+            ENGINE_EINVAL,
+            "Deletion should have returned EINVAL!");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 extern "C" {
     static void wait_for_persistence_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
@@ -14253,7 +14294,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("dcp erroneous snapshot marker scenario", test_dcp_erroneous_marker,
                  test_setup, teardown, NULL, prepare, cleanup),
-
+        TestCase("dcp invalid mutation(s)/deletion(s)",
+                 test_dcp_invalid_mutation_deletion,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test set with item_eviction",
                  test_set_with_item_eviction, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),
