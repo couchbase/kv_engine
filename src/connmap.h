@@ -313,6 +313,8 @@ public:
 
     void disconnect(const void *cookie);
 
+    bool isTapConsumerConnected(uint16_t vbucket);
+
     void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);
 
     bool isBackfillCompleted(std::string &name);
@@ -483,6 +485,8 @@ public:
     void decAggrDcpConsumerBufferSize (size_t bufSize) {
         aggrDcpConsumerBufferSize.fetch_sub(bufSize);
     }
+
+    bool isPassiveStreamConnected(uint16_t vbucket);
 
     ENGINE_ERROR_CODE addPassiveStream(ConnHandler* conn, uint32_t opaque,
                                        uint16_t vbucket, uint32_t flags);
