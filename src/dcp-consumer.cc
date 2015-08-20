@@ -608,7 +608,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
             if (bodylen != sizeof(uint64_t)) {
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Received rollback "
                     "request with incorrect bodylen of %llu, disconnecting",
-                    bodylen);
+                    logHeader(), vbid, bodylen);
                 return ENGINE_DISCONNECT;
             }
             uint64_t rollbackSeqno = 0;
