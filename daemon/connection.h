@@ -883,6 +883,10 @@ public:
         return bucketEngine;
     };
 
+    ENGINE_HANDLE* getBucketEngineAsV0() const {
+        return reinterpret_cast<ENGINE_HANDLE*>(bucketEngine);
+    }
+
     void setBucketEngine(ENGINE_HANDLE_V1* bucketEngine) {
         Connection::bucketEngine = bucketEngine;
     };
