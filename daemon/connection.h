@@ -534,20 +534,6 @@ public:
     }
 
     /**
-     * Get the pointer to the IO Vector
-     */
-    iovec* getIov() {
-        return iov.data();
-    }
-
-    /**
-     * Reset the number of elements used in the IO Vector
-     */
-    void resetIovUsed() {
-        iovused = 0;
-    }
-
-    /**
      * Increment the number of elements used in the IO Vector
      */
     void incIovUsed() {
@@ -582,18 +568,6 @@ public:
 
     size_t getMsgused() const {
         return msgused;
-    }
-
-    void setMsgused(int msgused) {
-        Connection::msgused = msgused;
-    }
-
-    size_t getMsgcurr() const {
-        return msgcurr;
-    }
-
-    void setMsgcurr(size_t msgcurr) {
-        Connection::msgcurr = msgcurr;
     }
 
     int getMsgbytes() const {
