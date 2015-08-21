@@ -1094,3 +1094,29 @@ bool Connection::includeErrorStringInResponseBody(
         }
     }
 }
+
+bool Connection::addMsgHdr(bool reset) {
+    if (reset) {
+        msgcurr = 0;
+        msgused = 0;
+        iovused = 0;
+    }
+
+    if (!growMsglist()) {
+        return false;
+    }
+
+    struct msghdr *msg = msglist.data() + msgused;
+
+    /* this wipes msg_iovlen, msg_control, msg_controllen, and
+       msg_flags, the last 3 of which aren't defined on solaris: */
+    memset(msg, 0, sizeof(struct msghdr));
+
+    msg->msg_iov = &iov.data()[iovused];
+
+    msgbytes = 0;
+    ++msgused;
+    STATS_MAX(this, msgused_high_watermark, msgused);
+
+    return true;
+}

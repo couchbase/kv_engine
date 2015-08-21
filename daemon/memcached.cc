@@ -187,7 +187,6 @@ static void settings_init(void);
 
 /* event handling, network IO */
 static void complete_nread(Connection *c);
-static int add_msghdr(Connection *c);
 
 /** exported globals **/
 struct stats stats;
@@ -506,37 +505,6 @@ static void settings_init_relocable_files(void)
     }
 }
 
-
-/*
- * Adds a message header to a connection.
- *
- * Returns 0 on success, -1 on out-of-memory.
- */
-static int add_msghdr(Connection *c)
-{
-    struct msghdr *msg;
-
-    cb_assert(c != NULL);
-
-    if (!c->growMsglist()) {
-        return -1;
-    }
-
-    msg = c->getMsglist() + c->getMsgused();
-
-    /* this wipes msg_iovlen, msg_control, msg_controllen, and
-       msg_flags, the last 3 of which aren't defined on solaris: */
-    memset(msg, 0, sizeof(struct msghdr));
-
-    msg->msg_iov = &c->getIov()[c->getIovUsed()];
-
-    c->setMsgbytes(0);
-    c->setMsgused(c->getMsgused() + 1);
-    STATS_MAX(c, msgused_high_watermark, c->getMsgused());
-
-    return 0;
-}
-
 struct {
     cb_mutex_t mutex;
     bool disabled;
@@ -709,7 +677,7 @@ int add_iov(Connection *c, const void *buf, size_t len) {
         /* We may need to start a new msghdr if this one is full. */
         if (m->msg_iovlen == IOV_MAX ||
             (limit_to_mtu && c->getMsgbytes() >= UDP_MAX_PAYLOAD_SIZE)) {
-            if (add_msghdr(c) != 0) {
+            if (!c->addMsgHdr(false)) {
                 return -1;
             }
         }
@@ -815,10 +783,7 @@ int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_le
 
     cb_assert(c);
 
-    c->setMsgcurr(0);
-    c->setMsgused(0);
-    c->resetIovUsed();
-    if (add_msghdr(c) != 0) {
+    if (!c->addMsgHdr(true)) {
         return -1;
     }
 
@@ -1407,10 +1372,7 @@ static void ship_tap_log(Connection *c) {
     uint32_t bodylen;
     int ii = 0;
 
-    c->setMsgcurr(0);
-    c->setMsgused(0);
-    c->resetIovUsed();
-    if (add_msghdr(c) != 0) {
+    if (!c->addMsgHdr(true)) {
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%u: Failed to create output headers. Shutting down tap connection",
@@ -2635,10 +2597,7 @@ static void ship_dcp_log(Connection *c) {
     };
     ENGINE_ERROR_CODE ret;
 
-    c->setMsgcurr(0);
-    c->setMsgused(0);
-    c->resetIovUsed();
-    if (add_msghdr(c) != 0) {
+    if (!c->addMsgHdr(true)) {
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%u: Failed to create output headers. Shutting down DCP connection",
@@ -5653,10 +5612,7 @@ static int try_read_command(Connection *c) {
             return -1;
         }
 
-        c->setMsgcurr(0);
-        c->setMsgused(0);
-        c->resetIovUsed();
-        if (add_msghdr(c) != 0) {
+        if (!c->addMsgHdr(true)) {
             c->setState(conn_closing);
             return -1;
         }

@@ -605,6 +605,14 @@ public:
     }
 
     /**
+     * Adds a message header to a connection.
+     *
+     * @param reset set to true to reset all message headers
+     * @return true on success, false on out-of-memory.
+     */
+    bool addMsgHdr(bool reset);
+
+    /**
      * Release all of the items we've saved a reference to
      */
     void releaseReservedItems() {
