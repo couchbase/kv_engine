@@ -27,6 +27,31 @@ using namespace CouchbaseDirectoryUtilities;
 Mutex ForestKVStore::initLock;
 int ForestKVStore::numGlobalFiles = 0;
 
+void ForestKVStore::initForestDb() {
+    LockHolder lh(initLock);
+    if (numGlobalFiles == 0) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        fdb_status status = fdb_init(&fileConfig);
+        cb_assert(status == FDB_RESULT_SUCCESS);
+        ObjectRegistry::onSwitchThread(epe);
+    }
+    ++numGlobalFiles;
+}
+
+void ForestKVStore::shutdownForestDb() {
+   LockHolder lh(initLock);
+   if (--numGlobalFiles == 0) {
+       EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+       fdb_status status = fdb_shutdown();
+       if (status != FDB_RESULT_SUCCESS) {
+           LOG(EXTENSION_LOG_WARNING,
+               "Shutting down forestdb failed with error: %s",
+               fdb_error_msg(status));
+       }
+       ObjectRegistry::onSwitchThread(epe);
+   }
+}
+
 ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     KVStore(config), intransaction(false),
     dbname(config.getDBName()), dbFileRevNum(1) {
@@ -72,9 +97,7 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     fileConfig = fdb_get_default_config();
     kvsConfig = fdb_get_default_kvs_config();
 
-   LockHolder lh(initLock);
-   ++numGlobalFiles;
-   lh.unlock();
+    initForestDb();
 
     status = fdb_open(&dbFileHandle, dbFile.str().c_str(), &fileConfig);
     if (status != FDB_RESULT_SUCCESS) {
@@ -164,10 +187,8 @@ ForestKVStore::~ForestKVStore() {
 
    /* Close the database file instance */
    fdb_close(dbFileHandle);
-   LockHolder lh(initLock);
-   if (--numGlobalFiles == 0) {
-       fdb_shutdown();
-   }
+
+   shutdownForestDb();
 }
 
 ForestRequest::ForestRequest(const Item &it, MutationRequestCallback &cb ,bool del)

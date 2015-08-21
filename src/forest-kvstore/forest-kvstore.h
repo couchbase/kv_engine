@@ -289,6 +289,8 @@ private:
     void close();
     fdb_config getFileConfig();
     fdb_kvs_config getKVConfig();
+    void initForestDb();
+    void shutdownForestDb();
     void readVBState(uint16_t vbId);
     fdb_kvs_handle *getKvsHandle(uint16_t vbId);
     bool save2forestdb(Callback<kvstats_ctx> *cb);
