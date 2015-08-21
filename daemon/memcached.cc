@@ -654,60 +654,13 @@ void collect_timings(const Connection *c) {
     }
 }
 
+// @deprecated.. use c->addIov() instead
 int add_iov(Connection *c, const void *buf, size_t len) {
-    struct msghdr *m;
-    size_t leftover;
-    bool limit_to_mtu;
-
-    cb_assert(c != NULL);
-
-    if (len == 0) {
+    if (c->addIov(buf, len)) {
         return 0;
+    } else {
+        return -1;
     }
-
-    do {
-        m = &c->getMsglist()[c->getMsgused() - 1];
-
-        /*
-         * Limit the first payloads of TCP replies, to
-         * UDP_MAX_PAYLOAD_SIZE bytes.
-         */
-        limit_to_mtu = (1 == c->getMsgused());
-
-        /* We may need to start a new msghdr if this one is full. */
-        if (m->msg_iovlen == IOV_MAX ||
-            (limit_to_mtu && c->getMsgbytes() >= UDP_MAX_PAYLOAD_SIZE)) {
-            if (!c->addMsgHdr(false)) {
-                return -1;
-            }
-        }
-
-        if (!c->ensureIovSpace()) {
-            return -1;
-        }
-
-        /* If the fragment is too big to fit in the datagram, split it up */
-        if (limit_to_mtu && len + c->getMsgbytes() > UDP_MAX_PAYLOAD_SIZE) {
-            leftover = len + c->getMsgbytes() - UDP_MAX_PAYLOAD_SIZE;
-            len -= leftover;
-        } else {
-            leftover = 0;
-        }
-
-        m = &c->getMsglist()[c->getMsgused() - 1];
-        m->msg_iov[m->msg_iovlen].iov_base = (void *)buf;
-        m->msg_iov[m->msg_iovlen].iov_len = len;
-
-        c->setMsgbytes(c->getMsgbytes() + (int)len);
-        c->incIovUsed();
-        STATS_MAX(c, iovused_high_watermark, c->getIovUsed());
-        m->msg_iovlen++;
-
-        buf = ((char *)buf) + len;
-        len = leftover;
-    } while (leftover > 0);
-
-    return 0;
 }
 
 /**

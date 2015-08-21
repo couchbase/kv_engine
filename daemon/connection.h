@@ -534,13 +534,6 @@ public:
     }
 
     /**
-     * Increment the number of elements used in the IO Vector
-     */
-    void incIovUsed() {
-        ++iovused;
-    }
-
-    /**
      * Get the number of entries in use in the IO Vector
      */
     int getIovUsed() const {
@@ -562,22 +555,6 @@ public:
         return true;
     }
 
-    struct msghdr* getMsglist() {
-        return msglist.data();
-    }
-
-    size_t getMsgused() const {
-        return msgused;
-    }
-
-    int getMsgbytes() const {
-        return msgbytes;
-    }
-
-    void setMsgbytes(int msgbytes) {
-        Connection::msgbytes = msgbytes;
-    }
-
     /**
      * Adds a message header to a connection.
      *
@@ -585,6 +562,15 @@ public:
      * @return true on success, false on out-of-memory.
      */
     bool addMsgHdr(bool reset);
+
+    /**
+     * Add a chunk of memory to the the IO vector to send
+     *
+     * @param buf pointer to the data to send
+     * @param len number of bytes to send
+     * @return true if success, false on out-of-memory.
+     */
+    bool addIov(const void *buf, size_t len);
 
     /**
      * Release all of the items we've saved a reference to

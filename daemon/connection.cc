@@ -1120,3 +1120,58 @@ bool Connection::addMsgHdr(bool reset) {
 
     return true;
 }
+
+bool Connection::addIov(const void* buf, size_t len) {
+
+    struct msghdr *m;
+    size_t leftover;
+    bool limit_to_mtu;
+
+    if (len == 0) {
+        return true;
+    }
+
+    do {
+        m = &msglist.data()[msgused - 1];
+
+        /*
+         * Limit the first payloads of TCP replies, to
+         * UDP_MAX_PAYLOAD_SIZE bytes.
+         */
+        limit_to_mtu = (1 == msgused);
+
+        /* We may need to start a new msghdr if this one is full. */
+        if (m->msg_iovlen == IOV_MAX ||
+            (limit_to_mtu && msgbytes >= UDP_MAX_PAYLOAD_SIZE)) {
+            if (!addMsgHdr(false)) {
+                return false;
+            }
+        }
+
+        if (!ensureIovSpace()) {
+            return false;
+        }
+
+        /* If the fragment is too big to fit in the datagram, split it up */
+        if (limit_to_mtu && len + msgbytes > UDP_MAX_PAYLOAD_SIZE) {
+            leftover = len + msgbytes - UDP_MAX_PAYLOAD_SIZE;
+            len -= leftover;
+        } else {
+            leftover = 0;
+        }
+
+        m = &msglist.data()[msgused - 1];
+        m->msg_iov[m->msg_iovlen].iov_base = (void *)buf;
+        m->msg_iov[m->msg_iovlen].iov_len = len;
+
+        msgbytes += len;
+        ++iovused;
+        STATS_MAX(this, iovused_high_watermark, getIovUsed());
+        m->msg_iovlen++;
+
+        buf = ((char *)buf) + len;
+        len = leftover;
+    } while (leftover > 0);
+
+    return true;
+}
