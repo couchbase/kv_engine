@@ -512,7 +512,8 @@ bool ExecutorPool::_startWorkers(void) {
 }
 
 bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
-                                  task_type_t taskType) {
+                                  task_type_t taskType,
+                                  bool force) {
     bool unfinishedTask;
     bool retVal = false;
     std::map<size_t, TaskQpair>::iterator itr;
@@ -530,7 +531,9 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
                     uint64_t(task->getId()),
                     task->getTaskable()->getName().c_str(),
                     task->getDescription().c_str());
-                if (!task->blockShutdown) {
+                // If force flag is set during shutdown, cancel all tasks
+                // without considering the blockShutdown status of the task.
+                if (force || !task->blockShutdown) {
                     task->cancel(); // Must be idempotent
                 }
                 q->wake(task);
@@ -547,19 +550,20 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
 }
 
 bool ExecutorPool::stopTaskGroup(task_gid_t taskGID,
-                                 task_type_t taskType) {
+                                 task_type_t taskType,
+                                 bool force) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    bool rv = _stopTaskGroup(taskGID, taskType);
+    bool rv = _stopTaskGroup(taskGID, taskType, force);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
-void ExecutorPool::_unregisterTaskable(Taskable *taskable) {
+void ExecutorPool::_unregisterTaskable(Taskable *taskable, bool force) {
 
     LOG(EXTENSION_LOG_NOTICE, "Unregistering %s taskable %s",
             (numBuckets == 1)? "last" : "", taskable->getName().c_str());
 
-    _stopTaskGroup(taskable->getGID(), NO_TASK_TYPE);
+    _stopTaskGroup(taskable->getGID(), NO_TASK_TYPE, force);
 
     LockHolder lh(tMutex);
     taskOwners.erase(taskable);
@@ -607,9 +611,9 @@ void ExecutorPool::_unregisterTaskable(Taskable *taskable) {
     }
 }
 
-void ExecutorPool::unregisterTaskable(Taskable *taskable) {
+void ExecutorPool::unregisterTaskable(Taskable *taskable, bool force) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    _unregisterTaskable(taskable);
+    _unregisterTaskable(taskable, force);
     ObjectRegistry::onSwitchThread(epe);
 }
 

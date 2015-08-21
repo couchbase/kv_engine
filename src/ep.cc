@@ -462,15 +462,19 @@ bool EventuallyPersistentStore::initialize() {
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopWarmup();
     stopBgFetcher();
-    ExecutorPool::get()->stopTaskGroup(engine.getTaskable()->getGID(), NONIO_TASK_IDX);
+    ExecutorPool::get()->stopTaskGroup(engine.getTaskable()->getGID(), NONIO_TASK_IDX,
+                                       stats.forceShutdown);
 
     ExecutorPool::get()->cancel(statsSnapshotTaskId);
+
     LockHolder lh(accessScanner.mutex);
     ExecutorPool::get()->cancel(accessScanner.task);
     lh.unlock();
 
     stopFlusher();
-    ExecutorPool::get()->unregisterTaskable(engine.getTaskable());
+
+    ExecutorPool::get()->unregisterTaskable(engine.getTaskable(),
+                                            stats.forceShutdown);
 
     delete [] vb_mutexes;
     delete [] schedule_vbstate_persist;

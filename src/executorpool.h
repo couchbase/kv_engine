@@ -70,7 +70,7 @@ public:
 
     bool cancel(size_t taskId, bool eraseTask=false);
 
-    bool stopTaskGroup(task_gid_t taskGID, task_type_t qidx);
+    bool stopTaskGroup(task_gid_t taskGID, task_type_t qidx, bool force);
 
     bool wake(size_t taskId);
 
@@ -78,7 +78,7 @@ public:
 
     void registerTaskable(Taskable* taskable);
 
-    void unregisterTaskable(Taskable* taskable);
+    void unregisterTaskable(Taskable* taskable, bool force);
 
     void doWorkerStat(EventuallyPersistentEngine *engine, const void *cookie,
                       ADD_STAT add_stat);
@@ -137,8 +137,8 @@ private:
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task, task_type_t qidx);
     void _registerTaskable(Taskable* taskable);
-    void _unregisterTaskable(Taskable* taskable);
-    bool _stopTaskGroup(task_gid_t taskGID, task_type_t qidx);
+    void _unregisterTaskable(Taskable* taskable, bool force);
+    bool _stopTaskGroup(task_gid_t taskGID, task_type_t qidx, bool force);
     TaskQueue* _getTaskQueue(Taskable *t, task_type_t qidx);
     void _stopAndJoinThreads();
 
