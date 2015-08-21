@@ -32,6 +32,9 @@ enum class Protocol : uint8_t {
     Greenstack
 };
 
+const char* to_string(const Protocol& protocol);
+
+
 struct interface {
     const char *host;
     struct {

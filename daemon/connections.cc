@@ -174,6 +174,10 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
                         return NULL;
                     }
                 }
+                settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+                                                "%d: Using protocol: %s",
+                                                sfd, to_string(c->getProtocol()));
+
             }
         }
     }
