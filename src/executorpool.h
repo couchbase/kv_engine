@@ -69,7 +69,8 @@ public:
 
     bool cancel(size_t taskId, bool eraseTask=false);
 
-    bool stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx);
+    bool stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx,
+                       bool force);
 
     bool wake(size_t taskId);
 
@@ -77,7 +78,7 @@ public:
 
     void registerBucket(EventuallyPersistentEngine *engine);
 
-    void unregisterBucket(EventuallyPersistentEngine *engine);
+    void unregisterBucket(EventuallyPersistentEngine *engine, bool force);
 
     void doWorkerStat(EventuallyPersistentEngine *engine, const void *cookie,
                       ADD_STAT add_stat);
@@ -136,8 +137,8 @@ private:
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task, task_type_t qidx);
     void _registerBucket(EventuallyPersistentEngine *engine);
-    void _unregisterBucket(EventuallyPersistentEngine *engine);
-    bool _stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx);
+    void _unregisterBucket(EventuallyPersistentEngine *engine, bool force);
+    bool _stopTaskGroup(EventuallyPersistentEngine *e, task_type_t qidx, bool force);
     TaskQueue* _getTaskQueue(EventuallyPersistentEngine *e, task_type_t qidx);
 
     size_t numTaskSets; // safe to read lock-less not altered after creation

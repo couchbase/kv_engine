@@ -152,8 +152,10 @@ void Flusher::start() {
 
 void Flusher::wake(void) {
     LockHolder lh(taskMutex);
-    cb_assert(taskId > 0);
-    ExecutorPool::get()->wake(taskId);
+    // taskId becomes zero if the flusher were stopped
+    if (taskId > 0) {
+        ExecutorPool::get()->wake(taskId);
+    }
 }
 
 bool Flusher::step(GlobalTask *task) {

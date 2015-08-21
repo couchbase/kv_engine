@@ -499,7 +499,8 @@ bool ExecutorPool::_startWorkers(void) {
 }
 
 bool ExecutorPool::_stopTaskGroup(EventuallyPersistentEngine *e,
-                                  task_type_t taskType) {
+                                  task_type_t taskType,
+                                  bool force) {
     bool unfinishedTask;
     bool retVal = false;
     std::map<size_t, TaskQpair>::iterator itr;
@@ -517,7 +518,9 @@ bool ExecutorPool::_stopTaskGroup(EventuallyPersistentEngine *e,
                 (taskType == NO_TASK_TYPE || q->queueType == taskType)) {
                 LOG(EXTENSION_LOG_DEBUG, "Stopping Task id %d %s ",
                         task->getId(), task->getDescription().c_str());
-                if (!task->blockShutdown) {
+                // If force flag is set during shutdown, cancel all tasks
+                // without considering the blockShutdown status of the task.
+                if (force || !task->blockShutdown) {
                     task->cancel(); // Must be idempotent
                 }
                 q->wake(task);
@@ -537,19 +540,21 @@ bool ExecutorPool::_stopTaskGroup(EventuallyPersistentEngine *e,
 }
 
 bool ExecutorPool::stopTaskGroup(EventuallyPersistentEngine *e,
-                                 task_type_t taskType) {
+                                 task_type_t taskType,
+                                 bool force) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    bool rv = _stopTaskGroup(e, taskType);
+    bool rv = _stopTaskGroup(e, taskType, force);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
 
-void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
+void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine,
+                                     bool force) {
 
     LOG(EXTENSION_LOG_WARNING, "Unregistering %s bucket %s",
             (numBuckets == 1)? "last" : "", engine->getName());
 
-    _stopTaskGroup(engine, NO_TASK_TYPE);
+    _stopTaskGroup(engine, NO_TASK_TYPE, force);
 
     LockHolder lh(tMutex);
 
@@ -598,9 +603,10 @@ void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine) {
     }
 }
 
-void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine) {
+void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine,
+                                    bool force) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    _unregisterBucket(engine);
+    _unregisterBucket(engine, force);
     ObjectRegistry::onSwitchThread(epe);
 }
 
