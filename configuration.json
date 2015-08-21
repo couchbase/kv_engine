@@ -207,6 +207,17 @@
             "descr": "Number of seconds between expiry pager runs.",
             "type": "size_t"
         },
+        "exp_pager_initial_run_time": {
+            "default": "-1",
+            "descr": "Hour in GMT time when expiry pager can be scheduled for initial run",
+            "type": "ssize_t",
+            "validator": {
+                "range": {
+                    "max": 23,
+                    "min": -1
+                }
+            }
+        },
         "failpartialwarmup": {
             "default": "true",
             "type": "bool"

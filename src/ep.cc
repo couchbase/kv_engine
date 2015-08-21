@@ -109,6 +109,8 @@ public:
             store.setCompactionWriteQueueCap(value);
         } else if (key.compare("exp_pager_stime") == 0) {
             store.setExpiryPagerSleeptime(value);
+        } else if (key.compare("exp_pager_initial_run_time") == 0) {
+            store.setExpiryPagerTasktime(value);
         } else if (key.compare("alog_sleep_time") == 0) {
             store.setAccessScannerSleeptime(value, false);
         } else if (key.compare("alog_task_time") == 0) {
@@ -428,6 +430,8 @@ bool EventuallyPersistentStore::initialize() {
     config.addValueChangedListener("exp_pager_stime",
                                    new EPStoreValueChangeListener(*this));
     config.addValueChangedListener("exp_pager_enabled",
+                                   new EPStoreValueChangeListener(*this));
+    config.addValueChangedListener("exp_pager_initial_run_time",
                                    new EPStoreValueChangeListener(*this));
 
     ExTask htrTask = new HashtableResizerTask(this, 10);
@@ -3508,6 +3512,22 @@ void EventuallyPersistentStore::setExpiryPagerSleeptime(size_t val) {
         ExTask expTask = new ExpiredItemPager(&engine, stats,
                                               expiryPager.sleeptime);
         expiryPager.task = ExecutorPool::get()->schedule(expTask, NONIO_TASK_IDX);
+    } else {
+        LOG(EXTENSION_LOG_DEBUG, "Expiry pager disabled, "
+                                 "enabling it will make exp_pager_stime (%lu)"
+                                 "to go into effect!", val);
+    }
+}
+
+void EventuallyPersistentStore::setExpiryPagerTasktime(ssize_t val) {
+    LockHolder lh(expiryPager.mutex);
+    if (expiryPager.enabled) {
+        ExecutorPool::get()->cancel(expiryPager.task);
+        ExTask expTask = new ExpiredItemPager(&engine, stats,
+                                              expiryPager.sleeptime,
+                                              val);
+        expiryPager.task = ExecutorPool::get()->schedule(expTask,
+                                                         NONIO_TASK_IDX);
     } else {
         LOG(EXTENSION_LOG_DEBUG, "Expiry pager disabled, "
                                  "enabling it will make exp_pager_stime (%lu)"

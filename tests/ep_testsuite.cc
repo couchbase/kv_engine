@@ -2190,6 +2190,37 @@ static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
                               true, false);
     wait_for_warmup_complete(h, h1);
     cb_assert(!get_bool_stat(h, h1, "ep_exp_pager_enabled"));
+
+    // Enable expiry pager again
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "exp_pager_enabled", "true");
+
+    checkeq(get_int_stat(h, h1, "ep_exp_pager_initial_run_time"), -1,
+            "Task time should be disable upon warmup");
+
+    // Update exp_pager_initial_run_time and ensure the update is successful
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "exp_pager_initial_run_time", "3");
+    std::string expected_time = "03:00:00";
+    std::string str = get_str_stat(h, h1, "ep_expiry_pager_task_time");
+    checkeq(str.substr(11).compare(expected_time), 0, "Updated time incorrect");
+
+    // Update exp_pager_stime by 30 minutes and ensure that the update is successful
+    time_t now = time(NULL);
+    set_param(h, h1, protocol_binary_engine_param_flush, "exp_pager_stime", "1800");
+    struct tm curr = *(gmtime(&now));
+    curr.tm_min += 30;
+#ifdef _MSC_VER
+    _mkgmtime(&curr);
+#else
+    timegm(&curr);
+#endif
+    char timeStr[20];
+    strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
+    std::string targetTaskTime(timeStr);
+    str = get_str_stat(h, h1, "ep_expiry_pager_task_time");
+    checkeq(targetTaskTime.compare(str), 0, "Unexpected task time");
+
     return SUCCESS;
 }
 

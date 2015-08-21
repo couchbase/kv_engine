@@ -149,6 +149,9 @@ For introductory information on stats within Couchbase, start with the
 |                                    | has been disabled                      |
 | ep_access_scanner_last_runtime     | Number of seconds that last access     |
 |                                    | scanner task took to complete.         |
+| ep_expiry_pager_task_time          | Time of the next expiry pager task     |
+|                                    | (GMT), NOT_SCHEDULED if expiry pager   |
+|                                    | has been disabled
 | ep_items_rm_from_checkpoints       | Number of items removed from closed    |
 |                                    | unreferenced checkpoints               |
 | ep_num_value_ejects                | Number of times item values got        |
@@ -239,6 +242,8 @@ For introductory information on stats within Couchbase, start with the
 | ep_exp_pager_enabled               | True if the expiry pager is enabled    |
 | ep_exp_pager_stime                 | The time interval for purging expired  |
 |                                    | items from memory                      |
+| ep_exp_pager_initial_run_time      | An initial start time for the expiry   |
+|                                    | pager task in GMT                      |
 | ep_flushall_enabled                | True if this bucket allows the use of  |
 |                                    | the flush_all command                  |
 | ep_getl_default_timeout            | The default getl lock duration         |

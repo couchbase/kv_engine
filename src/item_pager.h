@@ -103,10 +103,7 @@ public:
      * @param stime number of seconds to wait between runs
      */
     ExpiredItemPager(EventuallyPersistentEngine *e, EPStats &st,
-                     size_t stime) :
-        GlobalTask(e, Priority::ItemPagerPriority, static_cast<double>(stime),
-        false), engine(e), stats(st), sleepTime(static_cast<double>(stime)),
-        available(true) { }
+                     size_t stime, ssize_t taskTime = -1);
 
     bool run(void);
 
@@ -115,6 +112,12 @@ public:
     }
 
 private:
+    /**
+     *  This function is to update the next expiry pager
+     *  task time, based on the current snooze time.
+     */
+    void updateExpPagerTime(double sleepSecs);
+
     EventuallyPersistentEngine *engine;
     EPStats                    &stats;
     double                     sleepTime;

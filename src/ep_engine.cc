@@ -479,6 +479,9 @@ extern "C" {
                 validate(vsize, static_cast<uint64_t>(0),
                          std::numeric_limits<uint64_t>::max());
                 e->getConfiguration().setExpPagerStime((size_t)vsize);
+            } else if (strcmp(keyz, "exp_pager_initial_run_time") == 0) {
+                checkNumeric(valz);
+                e->getConfiguration().setExpPagerInitialRunTime(v);
             } else if (strcmp(keyz, "access_scanner_enabled") == 0) {
                 if (strcmp(valz, "true") == 0) {
                     e->getConfiguration().setAccessScannerEnabled(true);
@@ -3521,6 +3524,22 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         }
     } else {
         add_casted_stat("ep_access_scanner_task_time", "NOT_SCHEDULED",
+                        add_stat, cookie);
+    }
+
+    if (epstore->isExpPagerEnabled()) {
+        char timestr[20];
+        struct tm expPagerTim;
+        if (cb_gmtime_r((time_t *)&epstats.expPagerTime, &expPagerTim) == -1) {
+            add_casted_stat("ep_expiry_pager_task_time", "UNKNOWN", add_stat,
+                            cookie);
+        } else {
+            strftime(timestr, 20, "%Y-%m-%d %H:%M:%S", &expPagerTim);
+            add_casted_stat("ep_expiry_pager_task_time", timestr, add_stat,
+                            cookie);
+        }
+    } else {
+        add_casted_stat("ep_expiry_pager_task_time", "NOT_SCHEDULED",
                         add_stat, cookie);
     }
 

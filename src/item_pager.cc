@@ -285,6 +285,50 @@ bool ItemPager::run(void) {
     return true;
 }
 
+ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
+                                   EPStats &st, size_t stime,
+                                   ssize_t taskTime)
+    : GlobalTask(e, Priority::ItemPagerPriority, static_cast<double>(stime),
+                 false),
+      engine(e),
+      stats(st),
+      sleepTime(static_cast<double>(stime)),
+      available(true) {
+
+    double initialSleep = sleepTime;
+    if (taskTime != -1) {
+        /*
+         * Ensure task start time will always be within a range of (0, 23).
+         * A validator is already in place in the configuration file.
+         */
+        size_t startTime = taskTime % 24;
+
+        /*
+         * The following logic calculates the amount of time this task
+         * needs to sleep for initially so that it would wake up at the
+         * designated task time, note that this logic kicks in only when
+         * taskTime is set to value other than -1.
+         * Otherwise this task will wake up periodically in a time
+         * specified by sleeptime.
+         */
+        time_t now = ep_abs_time(ep_current_time());
+        struct tm timeNow, timeTarget;
+        timeNow = *(gmtime(&now));
+        timeTarget = timeNow;
+        if (timeNow.tm_hour >= (int)startTime) {
+            timeTarget.tm_mday += 1;
+        }
+        timeTarget.tm_hour = startTime;
+        timeTarget.tm_min = 0;
+        timeTarget.tm_sec = 0;
+
+        initialSleep = difftime(mktime(&timeTarget), mktime(&timeNow));
+        snooze(initialSleep);
+    }
+
+    updateExpPagerTime(initialSleep);
+}
+
 bool ExpiredItemPager::run(void) {
     EventuallyPersistentStore *store = engine->getEpStore();
     if (available) {
@@ -299,5 +343,14 @@ bool ExpiredItemPager::run(void) {
                      Priority::ItemPagerPriority, 10);
     }
     snooze(sleepTime);
+    updateExpPagerTime(sleepTime);
+
     return true;
+}
+
+void ExpiredItemPager::updateExpPagerTime(double sleepSecs) {
+    struct timeval _waketime;
+    gettimeofday(&_waketime, NULL);
+    _waketime.tv_sec += sleepSecs;
+    stats.expPagerTime.store(_waketime.tv_sec);
 }

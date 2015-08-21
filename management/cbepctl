@@ -55,6 +55,9 @@ def set_param(mc, type, key, val):
     if key == 'replication_throttle_queue_cap' and val == 'infinite':
         val = '-1'
 
+    if key == 'exp_pager_initial_run_time' and val == 'disable':
+        val = '-1'
+
     if key == "mem_high_wat" or key == "mem_low_wat":
         if val.endswith("%"):
             _x_ = (val[:len(val)-1])
@@ -190,6 +193,10 @@ Available params for "set":
                                    resumed at the next defragmenter_interval).
     exp_pager_enabled            - Enable expiry pager.
     exp_pager_stime              - Expiry Pager Sleeptime.
+    exp_pager_initial_run_time   - Expiry Pager first task time (UTC)
+                                   (Range: 0 - 23, Specify 'disable' to not delay the
+                                   the expiry pager, in which case first run will be
+                                   after exp_pager_stime seconds.)
     flushall_enabled             - Enable flush operation.
     pager_active_vb_pcnt         - Percentage of active vbuckets items among
                                    all ejected items by item pager.

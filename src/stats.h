@@ -147,6 +147,7 @@ public:
         alogNumItems(0),
         alogTime(0),
         alogRuntime(0),
+        expPagerTime(0),
         isShutdown(false),
         rollbackCount(0),
         defragNumVisited(0),
@@ -454,6 +455,9 @@ public:
     AtomicValue<hrtime_t> alogTime;
     //! The number of seconds that the last access scanner task took
     AtomicValue<rel_time_t> alogRuntime;
+
+    //! The next expiry pager task schedule time (GMT)
+    AtomicValue<hrtime_t> expPagerTime;
 
     AtomicValue<bool> isShutdown;
 

@@ -726,6 +726,7 @@ public:
     void setBackfillMemoryThreshold(double threshold);
 
     void setExpiryPagerSleeptime(size_t val);
+    void setExpiryPagerTasktime(ssize_t val);
     void enableExpiryPager();
     void disableExpiryPager();
 
@@ -854,6 +855,11 @@ public:
     bool isAccessScannerEnabled() {
         LockHolder lh(accessScanner.mutex);
         return accessScanner.enabled;
+    }
+
+    bool isExpPagerEnabled() {
+        LockHolder lh(expiryPager.mutex);
+        return expiryPager.enabled;
     }
 
 protected:
