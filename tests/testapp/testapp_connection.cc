@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 #include "testapp_connection.h"
+
+#include "testapp_greenstack_connection.h"
 #include "testapp_mcbp_connection.h"
 #include "testapp_binprot.h"
 
@@ -22,6 +24,7 @@
 #include <extensions/protocol/testapp_extension.h>
 #include <gtest/gtest.h>
 #include <iostream>
+#include <libgreenstack/Greenstack.h>
 #include <memcached/protocol_binary.h>
 #include <platform/strerror.h>
 #include <sstream>
@@ -128,12 +131,10 @@ void ConnectionMap::initialize(cJSON* ports) {
 
         MemcachedConnection* connection;
         if (strcmp(protocol->valuestring, "greenstack") == 0) {
-#if 0
             // Enable when we get greenstack support
             connection = new MemcachedGreenstackConnection(portval,
                                                            family,
                                                            useSsl);
-#endif
         } else {
             connection = new MemcachedBinprotConnection(portval, family,
                                                         useSsl);
@@ -160,7 +161,8 @@ MemcachedConnection::MemcachedConnection(in_port_t port, sa_family_t family,
       protocol(protocol),
       context(nullptr),
       bio(nullptr),
-      sock(INVALID_SOCKET) {
+      sock(INVALID_SOCKET),
+      synchronous(false) {
     connect();
 }
 
@@ -337,5 +339,21 @@ void MemcachedConnection::readPlain(Frame& frame, size_t bytes) {
         } else {
             total += nr;
         }
+    }
+}
+
+void MemcachedConnection::sendFrame(const Frame& frame) {
+    if (ssl) {
+        sendFrameSsl(frame);
+    } else {
+        sendFramePlain(frame);
+    }
+}
+
+void MemcachedConnection::read(Frame& frame, size_t bytes) {
+    if (ssl) {
+        readSsl(frame, bytes);
+    } else {
+        readPlain(frame, bytes);
     }
 }

@@ -86,16 +86,23 @@ static SOCKET connect_to_server_ssl(in_port_t ssl_port);
 
 static void destroy_ssl_socket();
 
+const char* to_string(const Transport& transport) {
+    switch (transport) {
+    case Transport::Plain:
+        return "Transport::Plain";
+    case Transport::SSL:
+        return "Transport::SSL";
+    case Transport::PlainIpv6:
+        return "Transport::PlainIpv6";
+    case Transport::SslIpv6:
+        return "Transport::SslIpv6";
+    }
+    throw std::logic_error("Unknown transport");
+}
+
 std::ostream& operator << (std::ostream& os, const Transport& t)
 {
-    switch (t) {
-    case Transport::Plain:
-        os << "Transport::Plain";
-        break;
-    case Transport::SSL:
-        os << "Transport::SSL";
-        break;
-    }
+    os << to_string(t);
     return os;
 }
 
@@ -330,6 +337,32 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddItemToObject(obj, "ssl", obj_ssl);
     cJSON_AddItemToArray(array, obj);
 
+    // One interface using the greenstack protocol
+    obj = cJSON_CreateObject();
+    cJSON_AddNumberToObject(obj, "port", 0);
+    cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
+    cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
+    cJSON_AddTrueToObject(obj, "ipv4");
+    cJSON_AddTrueToObject(obj, "ipv6");
+    cJSON_AddStringToObject(obj, "host", "*");
+    cJSON_AddStringToObject(obj, "protocol", "greenstack");
+    cJSON_AddItemToArray(array, obj);
+
+    // One interface using the greenstack protocol over SSL
+    obj = cJSON_CreateObject();
+    cJSON_AddNumberToObject(obj, "port", 0);
+    cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
+    cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
+    cJSON_AddTrueToObject(obj, "ipv4");
+    cJSON_AddTrueToObject(obj, "ipv6");
+    cJSON_AddStringToObject(obj, "host", "*");
+    cJSON_AddStringToObject(obj, "protocol", "greenstack");
+    obj_ssl = cJSON_CreateObject();
+    cJSON_AddStringToObject(obj_ssl, "key", pem_path);
+    cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
+    cJSON_AddItemToObject(obj, "ssl", obj_ssl);
+    cJSON_AddItemToArray(array, obj);
+
     cJSON_AddItemToObject(root, "interfaces", array);
 
     cJSON_AddStringToObject(root, "admin", "");
@@ -520,6 +553,13 @@ void TestappTest::start_server(in_port_t* port_out,
     auto numEntries = cJSON_GetArraySize(array);
     for (int ii = 0; ii < numEntries; ++ii) {
         auto obj = cJSON_GetArrayItem(array, ii);
+
+        auto protocol = cJSON_GetObjectItem(obj, "protocol");
+        if (strcmp(protocol->valuestring, "memcached") != 0) {
+            // the new test use the connectionmap
+            continue;
+        }
+
         auto family = cJSON_GetObjectItem(obj, "family");
         if (strcmp(family->valuestring, "AF_INET") != 0) {
             // For now we don't test IPv6
@@ -2101,7 +2141,7 @@ TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
-        char bytes[1024];
+        char bytes[2048];
     } buffer;
 
     /* identity config is valid. */
@@ -2211,7 +2251,7 @@ TEST_P(McdTestappTest, Config_ValidateInterface) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
-        char bytes[1024];
+        char bytes[2048];
     } buffer;
 
     /* 'interfaces' - should be able to change max connections */

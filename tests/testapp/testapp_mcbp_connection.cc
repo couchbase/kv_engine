@@ -26,6 +26,9 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <memcached/protocol_binary.h>
+#include <array>
+#include <include/memcached/protocol_binary.h>
 
 /////////////////////////////////////////////////////////////////////////
 // SASL related functions
@@ -198,17 +201,16 @@ void MemcachedBinprotConnection::authenticate(const std::string& username,
 
 void MemcachedBinprotConnection::createBucket(const std::string& name,
                                               const std::string& config,
-                                              Greenstack::Bucket::bucket_type_t type) {
-
+                                              const Greenstack::BucketType& type) {
     std::string module;
     switch (type) {
-    case Greenstack::Bucket::Memcached:
+    case Greenstack::BucketType::Memcached:
         module.assign("default_engine.so");
         break;
-    case Greenstack::Bucket::EWouldBlock:
+    case Greenstack::BucketType::EWouldBlock:
         module.assign("ewouldblock_engine.so");
         break;
-    case Greenstack::Bucket::Couchbase:
+    case Greenstack::BucketType::Couchbase:
         module.assign("ep.so");
         break;
     default:
@@ -218,18 +220,22 @@ void MemcachedBinprotConnection::createBucket(const std::string& name,
     std::vector<uint8_t> payload;
     payload.resize(module.length() + 1 + config.length());
     memcpy(payload.data(), module.data(), module.length());
-    memcpy(payload.data() + module.length() + 1, config.data(), config.length());
+    memcpy(payload.data() + module.length() + 1, config.data(),
+           config.length());
 
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                     name.c_str(), name.length(), payload.data(), payload.size());
+                     name.c_str(), name.length(), payload.data(),
+                     payload.size());
 
     sendFrame(frame);
     recvFrame(frame);
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
 
-    if (rsp->message.header.response.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Create bucket failed: " + std::to_string(rsp->message.header.response.status));
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Create bucket failed: ", Protocol::Memcached,
+                              rsp->message.header.response.status);
     }
 }
 
@@ -241,8 +247,10 @@ void MemcachedBinprotConnection::deleteBucket(const std::string& name) {
     recvFrame(frame);
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
 
-    if (rsp->message.header.response.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Delete bucket failed: " + std::to_string(rsp->message.header.response.status));
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Delete bucket failed: ", Protocol::Memcached,
+                              rsp->message.header.response.status);
     }
 }
 
@@ -265,5 +273,252 @@ std::string MemcachedBinprotConnection::to_string() {
 }
 
 std::vector<std::string> MemcachedBinprotConnection::listBuckets() {
-    throw std::runtime_error("Not implemented for MCBP");
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_LIST_BUCKETS,
+                     nullptr, 0, nullptr, 0);
+    sendFrame(frame);
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
+
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Delete bucket failed: ", Protocol::Memcached,
+                              rsp->message.header.response.status);
+    }
+
+    std::vector<std::string> ret;
+    std::string value((char*)(rsp + 1), rsp->message.header.response.bodylen);
+    // the value contains a list of bucket names separated by space.
+    std::istringstream iss(value);
+    std::copy(std::istream_iterator<std::string>(iss),
+              std::istream_iterator<std::string>(),
+              std::back_inserter(ret));
+
+    return ret;
+}
+
+Document MemcachedBinprotConnection::get(const std::string& id,
+                                         uint16_t vbucket) {
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_GET,
+                     id.data(), id.length(), nullptr, 0);
+    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(frame.payload.data());
+    req->message.header.request.vbucket = htons(vbucket);
+    sendFrame(frame);
+
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_get*>(frame.payload.data());
+
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Failed to get: " + id, Protocol::Memcached,
+                              rsp->message.header.response.status);
+    }
+
+    Document ret;
+    ret.info.flags = ntohl(rsp->message.body.flags);
+    ret.info.cas = rsp->message.header.response.cas;
+    ret.info.id = id;
+    if (rsp->message.header.response.datatype & PROTOCOL_BINARY_DATATYPE_JSON) {
+        ret.info.datatype = Greenstack::Datatype::Json;
+    } else {
+        ret.info.datatype = Greenstack::Datatype::Raw;
+    }
+
+    if (rsp->message.header.response.datatype &
+        PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+        ret.info.compression = Greenstack::Compression::Snappy;
+    } else {
+        ret.info.compression = Greenstack::Compression::None;
+    }
+
+    ret.value.resize(rsp->message.header.response.bodylen - 4);
+    memcpy(ret.value.data(), rsp->bytes + 28, ret.value.size());
+
+    return ret;
+}
+
+MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,
+                                                uint16_t vbucket,
+                                                const Greenstack::mutation_type_t type) {
+    protocol_binary_command cmd;
+    switch (type) {
+    case Greenstack::MutationType::Add:
+        cmd = PROTOCOL_BINARY_CMD_ADD;
+        break;
+    case Greenstack::MutationType::Set:
+        cmd = PROTOCOL_BINARY_CMD_SET;
+        break;
+    case Greenstack::MutationType::Replace:
+        cmd = PROTOCOL_BINARY_CMD_REPLACE;
+        break;
+    case Greenstack::MutationType::Append:
+        cmd = PROTOCOL_BINARY_CMD_APPEND;
+        break;
+    case Greenstack::MutationType::Prepend:
+        cmd = PROTOCOL_BINARY_CMD_PREPEND;
+        break;
+
+    default:
+        throw std::runtime_error(
+            "Not implemented for MBCP: " + std::to_string(type));
+    }
+
+    Frame frame;
+    // @todo fix expirations
+    mcbp_storage_command(frame, cmd, doc.info.id, doc.value, doc.info.flags, 0);
+
+    auto* req = reinterpret_cast<protocol_binary_request_set*>(frame.payload.data());
+    if (doc.info.compression != Greenstack::Compression::None) {
+        if (doc.info.compression != Greenstack::Compression::Snappy) {
+            throw ConnectionError("Invalid compression for MCBP",
+                                  Protocol::Memcached,
+                                  PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+        }
+        req->message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+    }
+
+    if (doc.info.datatype != Greenstack::Datatype::Raw) {
+        req->message.header.request.datatype |= PROTOCOL_BINARY_DATATYPE_JSON;
+    }
+
+    req->message.header.request.cas = doc.info.cas;
+    sendFrame(frame);
+
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_set*>(frame.payload.data());
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Failed to store " + doc.info.id,
+                              Protocol::Memcached,
+                              rsp->message.header.response.status);
+    }
+
+    MutationInfo info;
+    info.cas = rsp->message.header.response.cas;
+    // @todo add the rest of the fields
+    return info;
+}
+
+void MemcachedBinprotConnection::setDatatypeSupport(bool enable) {
+    std::vector<uint16_t> feat;
+    if (enable) {
+        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_DATATYPE));
+    }
+
+    if (features[1]) {
+        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY));
+    }
+
+    if (features[2]) {
+        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO));
+    }
+
+    Frame frame;
+    mcbp_raw_command(frame,
+                     PROTOCOL_BINARY_CMD_HELLO,
+                     "mcbp", 4, feat.data(),
+                     feat.size() * 2);
+
+    sendFrame(frame);
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_set*>(frame.payload.data());
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Failed to enable features",
+                              Protocol::Memcached,
+                              rsp->message.header.response.status);
+    }
+
+    // Validate the result!
+    if ((rsp->message.header.response.bodylen & 1) != 0) {
+        throw ConnectionError("Invalid response returned", Protocol::Memcached,
+                              PROTOCOL_BINARY_RESPONSE_EINVAL);
+    }
+
+    std::vector<uint16_t> enabled;
+    enabled.resize(rsp->message.header.response.bodylen / 2);
+    memcpy(enabled.data(), (rsp + 1), rsp->message.header.response.bodylen);
+    for (auto val : enabled) {
+        val = ntohs(val);
+        switch (val) {
+        case PROTOCOL_BINARY_FEATURE_DATATYPE:
+            features[0] = true;
+            break;
+        case PROTOCOL_BINARY_FEATURE_TCPNODELAY:
+            features[1] = true;
+            break;
+        case PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO:
+            features[2] = true;
+            break;
+        default:
+            throw std::runtime_error("Unsupported version returned");
+        }
+    }
+
+    if (enable && !features[0]) {
+        throw std::runtime_error("Failed to enable datatype");
+    }
+}
+
+void MemcachedBinprotConnection::setMutationSeqnoSupport(bool enable) {
+    std::vector<uint16_t> feat;
+    if (features[0]) {
+        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_DATATYPE));
+    }
+
+    if (features[1]) {
+        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY));
+    }
+
+    if (enable) {
+        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO));
+    }
+
+    Frame frame;
+    mcbp_raw_command(frame,
+                     PROTOCOL_BINARY_CMD_HELLO,
+                     "mcbp", 4, feat.data(),
+                     feat.size() * 2);
+
+    sendFrame(frame);
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_set*>(frame.payload.data());
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Failed to enable features",
+                              Protocol::Memcached,
+                              rsp->message.header.response.status);
+    }
+
+    // Validate the result!
+    if ((rsp->message.header.response.bodylen & 1) != 0) {
+        throw ConnectionError("Invalid response returned", Protocol::Memcached,
+                              PROTOCOL_BINARY_RESPONSE_EINVAL);
+    }
+
+    std::vector<uint16_t> enabled;
+    enabled.resize(rsp->message.header.response.bodylen / 2);
+    memcpy(enabled.data(), (rsp + 1), rsp->message.header.response.bodylen);
+    for (auto val : enabled) {
+        val = ntohs(val);
+        switch (val) {
+        case PROTOCOL_BINARY_FEATURE_DATATYPE:
+            features[0] = true;
+            break;
+        case PROTOCOL_BINARY_FEATURE_TCPNODELAY:
+            features[1] = true;
+            break;
+        case PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO:
+            features[2] = true;
+            break;
+        default:
+            throw std::runtime_error("Unsupported version returned");
+        }
+    }
+
+    if (enable && !features[2]) {
+        throw std::runtime_error("Failed to enable datatype");
+    }
+
 }

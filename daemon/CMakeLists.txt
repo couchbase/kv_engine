@@ -1,3 +1,4 @@
+INCLUDE_DIRECTORIES(AFTER ${Greenstack_SOURCE_DIR/include})
 ADD_CUSTOM_COMMAND(OUTPUT
                      ${Memcached_BINARY_DIR}/default_rbac.cc
                   COMMAND
@@ -67,6 +68,8 @@ ADD_EXECUTABLE(memcached
                dynamic_buffer.h
                enginemap.cc
                enginemap.h
+               greenstack.cc
+               greenstack.h
                ioctl.cc
                ioctl.h
                log_macros.h
@@ -98,6 +101,10 @@ ADD_EXECUTABLE(memcached
                settings.h
                statemachine.cc
                statemachine.h
+               statemachine_greenstack.cc
+               statemachine_greenstack.h
+               statemachine_mcbp.cc
+               statemachine_mcbp.h
                stats.h
                subdocument.cc
                subdocument.h
@@ -133,6 +140,7 @@ ENDIF (ENABLE_DTRACE)
 TARGET_LINK_LIBRARIES(memcached
                       auditd
                       mcd_util
+                      greenstack
                       cbsasl
                       platform
                       cJSON

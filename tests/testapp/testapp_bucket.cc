@@ -15,70 +15,145 @@
  *   limitations under the License.
  */
 #include "testapp_bucket.h"
+#include "testapp_greenstack_connection.h"
 
 #include <algorithm>
 
 #ifdef WIN32
 // There is a pending bug trying to figure out why SSL fails..
-INSTANTIATE_TEST_CASE_P(PlainOrSSL,
+INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         BucketTest,
-                        ::testing::Values(Transport::Plain));
+                        ::testing::Values(TransportProtocols::PlainMcbp,
+                                          TransportProtocols::PlainGreenstack,
+                                          TransportProtocols::PlainIpv6Mcbp,
+                                          TransportProtocols::PlainIpv6Greenstack
+                                         ));
 #else
 
-INSTANTIATE_TEST_CASE_P(PlainOrSSL,
+INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         BucketTest,
-                        ::testing::Values(Transport::Plain,
-                                          Transport::SSL));
+                        ::testing::Values(TransportProtocols::PlainMcbp,
+                                          TransportProtocols::PlainGreenstack,
+                                          TransportProtocols::PlainIpv6Mcbp,
+                                          TransportProtocols::PlainIpv6Greenstack,
+                                          TransportProtocols::SslMcbp,
+                                          TransportProtocols::SslGreenstack,
+                                          TransportProtocols::SslIpv6Mcbp,
+                                          TransportProtocols::SslIpv6Greenstack
+                                         ));
 #endif
 
-MemcachedConnection& BucketTest::getConnection(const Protocol& protocol) {
+std::ostream& operator<<(std::ostream& os, const TransportProtocols& t) {
+    os << to_string(t);
+    return os;
+}
+
+const char* to_string(const TransportProtocols& transport) {
+    switch (transport) {
+    case TransportProtocols::PlainMcbp:
+        return "Mcbp";
+    case TransportProtocols::PlainGreenstack:
+        return "Greenstack";
+    case TransportProtocols::PlainIpv6Mcbp:
+        return "Mcbp-Ipv6";
+    case TransportProtocols::PlainIpv6Greenstack:
+        return "Greenstack-Ipv6";
+    case TransportProtocols::SslMcbp:
+        return "Mcbp-Ssl";
+    case TransportProtocols::SslGreenstack:
+        return "Greenstack-Ssl";
+    case TransportProtocols::SslIpv6Mcbp:
+        return "Mcbp-Ipv6-Ssl";
+    case TransportProtocols::SslIpv6Greenstack:
+        return "Greenstack-Ipv6-Ssl";
+    }
+    throw std::logic_error("Unknown transport");
+}
+
+MemcachedConnection& BucketTest::prepare(MemcachedConnection& connection) {
+    connection.reconnect();
+    auto* c = dynamic_cast<MemcachedGreenstackConnection*>(&connection);
+    if (c == nullptr) {
+        // Currently no init is needed for MCBP
+    } else {
+        c->hello("memcached_testapp", "1,0", "BucketTest");
+    }
+    return connection;
+}
+
+MemcachedConnection& BucketTest::getConnection() {
     switch (GetParam()) {
-    case Transport::Plain:
-        return connectionMap.getConnection(protocol,
-                                           false, AF_INET);
-    case Transport::SSL:
-        return connectionMap.getConnection(protocol,
-                                           true, AF_INET);
+    case TransportProtocols::PlainMcbp:
+        return prepare(connectionMap.getConnection(Protocol::Memcached,
+                                                   false, AF_INET));
+    case TransportProtocols::PlainGreenstack:
+        return prepare(connectionMap.getConnection(Protocol::Greenstack,
+                                                   false, AF_INET));
+    case TransportProtocols::PlainIpv6Mcbp:
+        return prepare(connectionMap.getConnection(Protocol::Memcached,
+                                                   false, AF_INET6));
+    case TransportProtocols::PlainIpv6Greenstack:
+        return prepare(connectionMap.getConnection(Protocol::Greenstack,
+                                                   false, AF_INET6));
+    case TransportProtocols::SslMcbp:
+        return prepare(connectionMap.getConnection(Protocol::Memcached,
+                                                   true, AF_INET));
+    case TransportProtocols::SslGreenstack:
+        return prepare(connectionMap.getConnection(Protocol::Greenstack,
+                                                   true, AF_INET));
+    case TransportProtocols::SslIpv6Mcbp:
+        return prepare(connectionMap.getConnection(Protocol::Memcached,
+                                                   true, AF_INET6));
+    case TransportProtocols::SslIpv6Greenstack:
+        return prepare(connectionMap.getConnection(Protocol::Greenstack,
+                                                   true, AF_INET6));
     }
     throw std::logic_error("Unknown transport");
 }
 
 TEST_P(BucketTest, TestNameTooLong) {
-    auto& connection = getConnection(Protocol::Memcached);
+    auto& connection = getConnection();
     std::string name;
     name.resize(101);
     std::fill(name.begin(), name.end(), 'a');
 
     try {
-        connection.createBucket(name, "", Greenstack::Bucket::Memcached);
+        connection.createBucket(name, "", Greenstack::BucketType::Memcached);
         FAIL() << "Invalid bucket name is not refused";
-    } catch (ConnectionError &error) {
-        // @todo implement remap of the error codes
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.getReason();
     }
 }
 
 TEST_P(BucketTest, TestMaxNameLength) {
-    auto& connection = getConnection(Protocol::Memcached);
+    auto& connection = getConnection();
     std::string name;
     name.resize(100);
     std::fill(name.begin(), name.end(), 'a');
 
-    EXPECT_NO_THROW(connection.createBucket(name, "", Greenstack::Bucket::Memcached));
+    EXPECT_NO_THROW(connection.createBucket(name, "",
+                                            Greenstack::BucketType::Memcached));
     EXPECT_NO_THROW(connection.deleteBucket(name));
 }
 
 TEST_P(BucketTest, TestEmptyName) {
-    auto& connection = getConnection(Protocol::Memcached);
+    auto& connection = getConnection();
+
+    if (connection.getProtocol() == Protocol::Greenstack) {
+        // libgreenstack won't allow us to send such packets
+        return;
+    }
+
     try {
-        connection.createBucket("", "", Greenstack::Bucket::Memcached);
+        connection.createBucket("", "", Greenstack::BucketType::Memcached);
         FAIL() << "Empty bucket name is not refused";
-    } catch (ConnectionError &error) {
-        // @todo implement remap of the error codes
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments()) << error.getReason();
     }
 }
 
 TEST_P(BucketTest, TestInvalidCharacters) {
-    auto& connection = getConnection(Protocol::Memcached);
+    auto& connection = getConnection();
 
     std::string name("a ");
 
@@ -102,34 +177,63 @@ TEST_P(BucketTest, TestInvalidCharacters) {
         }
 
         if (legal) {
-            EXPECT_NO_THROW(connection.createBucket(name, "", Greenstack::Bucket::Memcached));
+            EXPECT_NO_THROW(connection.createBucket(name, "",
+                                                    Greenstack::BucketType::Memcached));
             EXPECT_NO_THROW(connection.deleteBucket(name));
         } else {
             try {
-                connection.createBucket(name, "", Greenstack::Bucket::Memcached);
-                FAIL() << "I was able to create a bucket with character of value " << ii;
-            } catch (ConnectionError& ex) {
-                // @todo check the real error code
+                connection.createBucket(name, "",
+                                        Greenstack::BucketType::Memcached);
+                FAIL() <<
+                       "I was able to create a bucket with character of value " <<
+                       ii;
+            } catch (ConnectionError& error) {
+                EXPECT_TRUE(error.isInvalidArguments()) << error.getReason();
             }
         }
     }
 }
 
 TEST_P(BucketTest, TestMultipleBuckets) {
-    auto& connection = getConnection(Protocol::Memcached);
+    auto& connection = getConnection();
 
     int ii;
     try {
         for (ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
             std::string name = "bucket-" + std::to_string(ii);
-            connection.createBucket(name, "", Greenstack::Bucket::Memcached);
+            connection.createBucket(name, "", Greenstack::BucketType::Memcached);
         }
     } catch (ConnectionError& ex) {
-         FAIL() << "Failed to create more than " << ii << " buckets";
+        FAIL() << "Failed to create more than " << ii << " buckets";
     }
 
     for (--ii; ii > 0; --ii) {
         std::string name = "bucket-" + std::to_string(ii);
         EXPECT_NO_THROW(connection.deleteBucket(name));
     }
+}
+
+TEST_P(BucketTest, TestCreateBucketAlreadyExists) {
+    auto& conn = getConnection();
+    try {
+        conn.createBucket("default", "", Greenstack::BucketType::Memcached);
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isAlreadyExists()) << error.getReason();
+    }
+}
+
+TEST_P(BucketTest, TestDeleteNonexistingBucket) {
+    auto& conn = getConnection();
+    try {
+        conn.deleteBucket("ItWouldBeSadIfThisBucketExisted");
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isNotFound()) << error.getReason();
+    }
+}
+
+TEST_P(BucketTest, TestListBucket) {
+    auto& conn = getConnection();
+    auto buckets = conn.listBuckets();
+    EXPECT_EQ(1, buckets.size());
+    EXPECT_EQ(std::string("default"), buckets[0]);
 }

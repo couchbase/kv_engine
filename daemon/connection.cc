@@ -17,6 +17,9 @@
 #include "config.h"
 #include "memcached.h"
 #include "runtime.h"
+#include "statemachine_greenstack.h"
+#include "statemachine_mcbp.h"
+
 #include <exception>
 #include <utilities/protocol2text.h>
 #include <platform/strerror.h>
@@ -64,7 +67,8 @@ Connection::Connection()
       bucketIndex(0),
       bucketEngine(nullptr),
       peername("unknown"),
-      sockname("unknown") {
+      sockname("unknown"),
+      connectionState(ConnectionState::ESTABLISHED) {
     MEMCACHED_CONN_CREATE(this);
 
     memset(&event, 0, sizeof(event));
@@ -78,12 +82,15 @@ Connection::Connection()
     socketDescriptor = INVALID_SOCKET;
 }
 
-Connection::Connection(SOCKET sock, const struct listening_port &interface)
+Connection::Connection(SOCKET sock, const struct listening_port& interface)
     : socketDescriptor(sock),
       max_reqs_per_event(settings.default_reqs_per_event),
       numEvents(0),
       sasl_conn(nullptr),
-      stateMachine(interface.protocol == Protocol::Memcached ? new McbpStateMachine(conn_new_cmd) : nullptr),
+      stateMachine(
+          interface.protocol == Protocol::Memcached ?
+          std::unique_ptr<StateMachine>(new McbpStateMachine(conn_new_cmd)) :
+          std::unique_ptr<StateMachine>(new GreenstackStateMachine)),
       protocol(interface.protocol),
       admin(false),
       authenticated(false),
@@ -121,7 +128,8 @@ Connection::Connection(SOCKET sock, const struct listening_port &interface)
       bucketIndex(0),
       bucketEngine(nullptr),
       peername("unknown"),
-      sockname("unknown") {
+      sockname("unknown"),
+      connectionState(ConnectionState::ESTABLISHED) {
     MEMCACHED_CONN_CREATE(this);
 
     memset(&event, 0, sizeof(event));
@@ -400,6 +408,20 @@ const char* to_string(const Protocol& protocol) {
     }
 }
 
+const char* to_string(const ConnectionState& connectionState) {
+    switch (connectionState) {
+    case ConnectionState::ESTABLISHED:
+        return "established";
+    case ConnectionState::OPEN:
+        return "open";
+    case ConnectionState::AUTHENTICATED:
+        return "authenticated";
+    }
+
+    throw std::logic_error(
+        "Unknown connection state: " + std::to_string(int(connectionState)));
+}
+
 cJSON* Connection::toJSON() const {
     cJSON* obj = cJSON_CreateObject();
     json_add_uintptr_to_object(obj, "connection", (uintptr_t) this);
@@ -410,6 +432,9 @@ cJSON* Connection::toJSON() const {
         cJSON_AddStringToObject(obj, "protocol", to_string(getProtocol()));
         cJSON_AddStringToObject(obj, "peername", getPeername().c_str());
         cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
+        if (protocol == Protocol::Greenstack) {
+            cJSON_AddStringToObject(obj, "connection_state", to_string(connectionState));
+        }
         cJSON_AddNumberToObject(obj, "max_reqs_per_event",
                                 max_reqs_per_event);
         cJSON_AddNumberToObject(obj, "nevents", numEvents);
@@ -1239,27 +1264,29 @@ void Connection::maybeLogSlowCommand(
 
     std::chrono::milliseconds limit(500);
 
-    switch (cmd) {
-    case PROTOCOL_BINARY_CMD_COMPACT_DB:
-        // We have no idea how slow this is, but just set a 30 minute
-        // threshold for now to avoid it popping up in the logs all of
-        // the times
-        limit = std::chrono::milliseconds(1800 * 1000);
-        break;
-    case PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE:
-        // I've heard that this may be slow as well...
-        break;
-    }
-
-    if (elapsed > limit) {
-        const char *opcode = memcached_opcode_2_text(cmd);
-        char opcodetext[10];
-        if (opcode == NULL) {
-            snprintf(opcodetext, sizeof(opcodetext), "0x%0X", cmd);
-            opcode = opcodetext;
+    if (protocol == Protocol::Memcached) {
+        switch (cmd) {
+        case PROTOCOL_BINARY_CMD_COMPACT_DB:
+            // We have no idea how slow this is, but just set a 30 minute
+            // threshold for now to avoid it popping up in the logs all of
+            // the times
+            limit = std::chrono::milliseconds(1800 * 1000);
+            break;
+        case PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE:
+            // I've heard that this may be slow as well...
+            break;
         }
-        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %lu ms",
-                    getId(), opcode, (unsigned long)elapsed.count());
+
+        if (elapsed > limit) {
+            const char* opcode = memcached_opcode_2_text(cmd);
+            char opcodetext[10];
+            if (opcode == NULL) {
+                snprintf(opcodetext, sizeof(opcodetext), "0x%0X", cmd);
+                opcode = opcodetext;
+            }
+            LOG_WARNING(NULL, "%u: Slow %s operation on connection: %lu ms",
+                        getId(), opcode, (unsigned long)elapsed.count());
+        }
     }
 }
 

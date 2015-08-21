@@ -11,6 +11,12 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_bucket.h
                testapp_connection.cc
                testapp_connection.h
+               testapp_getset.cc
+               testapp_getset.h
+               testapp_greenstack.cc
+               testapp_greenstack.h
+               testapp_greenstack_connection.cc
+               testapp_greenstack_connection.h
                testapp_mcbp_connection.cc
                testapp_mcbp_connection.h
                testapp_rbac.cc
@@ -19,9 +25,19 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_shutdown.cc
                testapp_subdoc.cc
                testapp_subdoc_multipath.cc
-               testapp_subdoc_perf.cc
-	       )
-TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform dirutils gtest gtest_main ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
+               testapp_subdoc_perf.cc)
+TARGET_LINK_LIBRARIES(memcached_testapp
+                      mcd_util
+                      cbsasl
+                      greenstack
+                      cJSON
+                      platform
+                      dirutils
+                      gtest
+                      gtest_main
+                      ${SNAPPY_LIBRARIES}
+                      ${LIBEVENT_LIBRARIES}
+                      ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
 
 target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 
@@ -29,37 +45,40 @@ target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 ADD_TEST(NAME memcached-basic-unit-tests-bulk
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp
-                    --gtest_filter=*-PlainOrSSL/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*)
+                    --gtest_filter=*-PlainOrSSL/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*)
 
 ADD_TEST(NAME memcached-basic-unit-tests-require-init
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=RequireInitTest.*)
 
 # Run the Bucket tests
-ADD_TEST(NAME memcached-bucket-unit-tests-plain
+ADD_TEST(NAME memcached-bucket-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/BucketTest.*/0)
+        COMMAND memcached_testapp --gtest_filter=TransportProtocols/BucketTest.*)
 
-ADD_TEST(NAME memcached-bucket-unit-tests-ssl
+# Run the Normal get set tests
+ADD_TEST(NAME memcached-getset-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/BucketTest.*/1)
-
-
+        COMMAND memcached_testapp --gtest_filter=TransportProtocols/GetSetTest.*)
 
 # Run the unit tests for the memcached binary protocol over a plain socket
 ADD_TEST(NAME memcached-mcbp-unit-tests-plain
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/0:-*/BucketTest*)
+        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/0:-*/BucketTest*:-*Greenstack*)
 
 # Run the unit tests for the memcached binary protocol over SSL
 ADD_TEST(NAME memcached-mcbp-unit-tests-ssl
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/1:-*/BucketTest*)
+        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/1:-*/BucketTest*:-*Greenstack*)
 
 # Run the shutdown tests
 ADD_TEST(NAME memcached-shutdown-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=ShutdownTest.*)
+
+ADD_TEST(NAME memcached-greenstack-tests
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_testapp --gtest_filter=*Greenstack*)
 
 # For perf tests we also want GTest to output XML so we can plot the
 # results in Jenkins.
@@ -69,9 +88,11 @@ ADD_TEST(NAME memcached-basic-perf-tests
 
 # Test timeouts. Roughly calibrated to be 2x what the expected time is on the
 # slowest Jenkins platform/config.
+SET_TESTS_PROPERTIES(memcached-basic-perf-tests PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 30)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-require-init PROPERTIES TIMEOUT 200)
+SET_TESTS_PROPERTIES(memcached-bucket-unit-tests PROPERTIES TIMEOUT 400)
+SET_TESTS_PROPERTIES(memcached-getset-unit-tests PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-plain PROPERTIES TIMEOUT 200)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-shutdown-tests PROPERTIES TIMEOUT 60)
-SET_TESTS_PROPERTIES(memcached-basic-perf-tests PROPERTIES TIMEOUT 400)

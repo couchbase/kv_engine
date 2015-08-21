@@ -43,6 +43,7 @@
 #include "mcbp_executors.h"
 #include "memcached_openssl.h"
 #include "privileges.h"
+#include "greenstack.h"
 
 #include <platform/backtrace.h>
 #include <platform/strerror.h>
@@ -721,15 +722,20 @@ cJSON *get_bucket_details(int idx)
     return root;
 }
 
-/*
- * if we have a complete line in the buffer, process it.
- */
 static int try_read_command(Connection *c) {
-    if (c->getProtocol() == Protocol::Memcached) {
+    switch (c->getProtocol()) {
+    case Protocol::Memcached:
         return try_read_mcbp_command(c);
-    } else {
-        throw new std::logic_error("Greenstack not implemented");
+    case Protocol::Greenstack:
+        return try_read_greenstack_command(c);
+    default:
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "%d: Internal error (Illegal "
+                                            "protocol). Disconnecting client",
+                                        c->getId());
+        c->setState(conn_closing);
     }
+    return 1;
 }
 
 bool conn_listening(Connection *c)
@@ -1182,15 +1188,19 @@ bool conn_refresh_cbsasl(Connection *c) {
         return true;
     }
 
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+    if (c->getProtocol() == Protocol::Memcached) {
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            mcbp_write_response(c, NULL, 0, 0, 0);
+            break;
+        case ENGINE_DISCONNECT:
+            c->setState(conn_closing);
+            break;
+        default:
+            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        }
+    } else {
+        throw std::logic_error("Not implemented for Greenstack");
     }
 
     return true;
@@ -1209,15 +1219,19 @@ bool conn_refresh_ssl_certs(Connection *c) {
         return true;
     }
 
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+    if (c->getProtocol() == Protocol::Memcached) {
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            mcbp_write_response(c, NULL, 0, 0, 0);
+            break;
+        case ENGINE_DISCONNECT:
+            c->setState(conn_closing);
+            break;
+        default:
+            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        }
+    } else {
+        throw std::logic_error("Not implemented for Greenstack");
     }
 
     return true;
@@ -1239,15 +1253,19 @@ bool conn_flush(Connection *c) {
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
 
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
-        break;
-    case ENGINE_DISCONNECT:
-        c->setState(conn_closing);
-        break;
-    default:
+    if (c->getProtocol() == Protocol::Memcached) {
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            mcbp_write_response(c, NULL, 0, 0, 0);
+            break;
+        case ENGINE_DISCONNECT:
+            c->setState(conn_closing);
+            break;
+        default:
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        }
+    } else {
+        throw std::logic_error("Not implemented for Greenstack");
     }
 
     return true;
@@ -1257,20 +1275,24 @@ bool conn_audit_configuring(Connection *c) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        break;
-    default:
-        LOG_WARNING(c,
-                    "configuration of audit daemon failed with config file: %s",
-                    settings.audit_file);
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+    if (c->getProtocol() == Protocol::Memcached) {
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+            break;
+        default:
+            LOG_WARNING(c,
+                        "configuration of audit daemon failed with config file: %s",
+                        settings.audit_file);
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+        }
+    } else {
+        throw std::logic_error("Not implemented for Greenstack");
     }
     return true;
 }
 
-bool conn_create_bucket(Connection *c) {
+bool conn_create_bucket(Connection* c) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
@@ -1283,15 +1305,14 @@ bool conn_create_bucket(Connection *c) {
         return true;
     }
 
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
-        break;
-    case ENGINE_DISCONNECT:
+    if (ret == ENGINE_DISCONNECT) {
         c->setState(conn_closing);
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+    } else {
+        if (c->getProtocol() == Protocol::Memcached) {
+            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        } else {
+            greenstack_write_response(c, ret);
+        }
     }
 
     return true;
@@ -1310,15 +1331,14 @@ bool conn_delete_bucket(Connection *c) {
         return true;
     }
 
-    switch (ret) {
-    case ENGINE_SUCCESS:
-        mcbp_write_response(c, NULL, 0, 0, 0);
-        break;
-    case ENGINE_DISCONNECT:
+    if (ret == ENGINE_DISCONNECT) {
         c->setState(conn_closing);
-        break;
-    default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+    } else {
+        if (c->getProtocol() == Protocol::Memcached) {
+            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+        } else {
+            greenstack_write_response(c, ret);
+        }
     }
 
     return true;

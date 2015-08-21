@@ -22,6 +22,7 @@
 #include <cstring>
 #include <string>
 #include <cstdint>
+#include <libgreenstack/Opcodes.h>
 
 // @todo this needs to be refactored when we're opening up for Greenstack
 #define MAX_COMMANDS 0x100
@@ -146,6 +147,8 @@ AuthResult auth_drop_role(AuthContext *ctx);
  * @return the status of the operation
  */
 AuthResult auth_check_access(AuthContext *, uint8_t opcode);
+
+AuthResult auth_check_access(AuthContext *context, const Greenstack::Opcode& opcode);
 
 /**
  * Enable / disable privilege debugging

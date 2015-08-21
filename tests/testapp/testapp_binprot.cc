@@ -143,6 +143,23 @@ off_t mcbp_arithmetic_command(char* buf,
     return (off_t)(key_offset + keylen);
 }
 
+size_t mcbp_storage_command(Frame &frame,
+                            uint8_t cmd,
+                            const std::string &id,
+                            const std::vector<uint8_t> &value,
+                            uint32_t flags,
+                            uint32_t exp) {
+    frame.reset();
+    // A storage command consists of a 24 byte memcached header, then 4
+    // bytes flags and 4 bytes expiration time.
+    frame.payload.resize(24 + 4 + 4 + id.size() + value.size());
+    auto size = mcbp_storage_command(
+        reinterpret_cast<char*>(frame.payload.data()), frame.payload.size(),
+        cmd, id.data(), id.size(), value.data(), value.size(), flags, exp);
+    frame.payload.resize(size);
+    return size;
+}
+
 size_t mcbp_storage_command(char* buf,
                             size_t bufsz,
                             uint8_t cmd,
@@ -154,6 +171,7 @@ size_t mcbp_storage_command(char* buf,
                             uint32_t exp) {
     /* all of the storage commands use the same command layout */
     size_t key_offset;
+
     auto* request = reinterpret_cast<protocol_binary_request_set*>(buf);
     cb_assert(bufsz >= sizeof(*request) + keylen + dtalen);
 
@@ -161,14 +179,20 @@ size_t mcbp_storage_command(char* buf,
     request->message.header.request.magic = PROTOCOL_BINARY_REQ;
     request->message.header.request.opcode = cmd;
     request->message.header.request.keylen = htons((uint16_t)keylen);
-    request->message.header.request.extlen = 8;
-    request->message.header.request.bodylen = htonl(
-        (uint32_t)(keylen + 8 + dtalen));
     request->message.header.request.opaque = 0xdeadbeef;
-    request->message.body.flags = htonl(flags);
-    request->message.body.expiration = htonl(exp);
+    key_offset = sizeof(protocol_binary_request_no_extras);
 
-    key_offset = sizeof(protocol_binary_request_no_extras) + 8;
+    if (cmd != PROTOCOL_BINARY_CMD_APPEND && cmd != PROTOCOL_BINARY_CMD_PREPEND) {
+        request->message.header.request.extlen = 8;
+        request->message.header.request.bodylen = htonl(
+            (uint32_t)(keylen + 8 + dtalen));
+        request->message.body.flags = htonl(flags);
+        request->message.body.expiration = htonl(exp);
+        key_offset += 8;
+    } else {
+        request->message.header.request.bodylen = htonl(
+            (uint32_t)(keylen + dtalen));
+    }
 
     memcpy(buf + key_offset, key, keylen);
     if (dta != nullptr) {

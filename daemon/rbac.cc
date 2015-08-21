@@ -20,6 +20,8 @@
 #include "settings.h"
 #include "utilities/protocol2text.h"
 
+#include <libgreenstack/Opcodes.h>
+
 #include <strings.h>
 #include <map>
 #include <sstream>
@@ -473,6 +475,33 @@ AuthResult auth_check_access(AuthContext* context, uint8_t opcode)
             std::stringstream ss;
             ss << "Missing privilege for " << *context << ". Need "
                << memcached_opcode_2_text(opcode) << std::endl;
+            auto logger = settings.extensions.logger;
+            logger->log(EXTENSION_LOG_NOTICE, context,
+                        "%s", ss.str().c_str());
+            return AuthResult::OK;
+        } else {
+            return AuthResult::FAIL;
+        }
+    }
+}
+
+// @todo change uint16_t to correct datatype!
+AuthResult auth_check_access(AuthContext *context, const Greenstack::Opcode& opcode)
+{
+    if (context == nullptr) {
+        return AuthResult::FAIL;
+    }
+
+    // sloppy check to avoid lock contention
+    if (rbac.getGeneration() != context->getGeneration()) {
+        return AuthResult::STALE;
+    } else if (context->checkAccess(uint16_t(opcode))) {
+        return AuthResult::OK;
+    } else {
+        if (rbac.isPrivilegeDebugging()) {
+            std::stringstream ss;
+            ss << "Missing privilege for " << *context << ". Need "
+               << Greenstack::to_string(opcode) << std::endl;
             auto logger = settings.extensions.logger;
             logger->log(EXTENSION_LOG_NOTICE, context,
                         "%s", ss.str().c_str());

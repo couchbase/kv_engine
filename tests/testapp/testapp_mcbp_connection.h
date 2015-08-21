@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <array>
 #include "config.h"
 
 #include "testapp_connection.h"
@@ -23,7 +24,9 @@
 class MemcachedBinprotConnection : public MemcachedConnection {
 public:
     MemcachedBinprotConnection(in_port_t port, sa_family_t family, bool ssl)
-        : MemcachedConnection(port, family, ssl, Protocol::Memcached) { }
+        : MemcachedConnection(port, family, ssl, Protocol::Memcached) {
+        std::fill(features.begin(), features.end(), false);
+    }
 
 
     virtual std::string to_string() override;
@@ -35,12 +38,23 @@ public:
 
     virtual void createBucket(const std::string& name,
                               const std::string& config,
-                              Greenstack::Bucket::bucket_type_t type) override;
+                              const Greenstack::BucketType& type) override;
 
 
     virtual void deleteBucket(const std::string& name) override;
 
     virtual std::vector<std::string> listBuckets() override;
 
+    virtual Document get(const std::string& id, uint16_t vbucket) override;
+
+    virtual MutationInfo mutate(const Document& doc, uint16_t vbucket,
+                                const Greenstack::mutation_type_t type) override;
+
     virtual void recvFrame(Frame& frame) override;
+
+    void setDatatypeSupport(bool enable);
+
+    void setMutationSeqnoSupport(bool enable);
+
+    std::array<bool, 3> features;
 };

@@ -83,18 +83,3 @@ protected:
     TaskFunction currentTask;
 };
 
-/**
- * The state machinery for the Memcached Binary Protocol.
- */
-class McbpStateMachine : public StateMachine {
-public:
-    McbpStateMachine(TaskFunction task)
-        : StateMachine(task) {
-
-    }
-
-    virtual void setCurrentTask(Connection& connection,
-                                TaskFunction task) override;
-
-    virtual const char* getTaskName(TaskFunction task) const override;
-};

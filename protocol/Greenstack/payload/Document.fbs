@@ -1,0 +1,20 @@
+namespace Greenstack.Payload;
+
+enum compression_t : byte { None = 0, Snappy }
+enum datatype_t : byte { Raw, Json }
+
+table DocumentInfo {
+    // The document identifier
+    Id:string;
+    Flags:uint;
+    // The expiration time in ISO8601 format
+    Expiration:string;
+    Compression:compression_t;
+    Datatype : datatype_t;
+    Cas:ulong;
+}
+
+table Document {
+   Info:DocumentInfo;
+   Value:[ubyte];
+}

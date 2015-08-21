@@ -20,7 +20,9 @@
 
 #include <cJSON.h>
 #include <cstdlib>
+#include <libgreenstack/Greenstack.h>
 #include <memcached/openssl.h>
+#include <memcached/protocol_binary.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -29,19 +31,6 @@ enum class Protocol : uint8_t {
     Memcached,
     Greenstack
 };
-
-// @todo include Greenstack's header which defines the proper datatypes
-namespace Greenstack {
-    class Message;
-    namespace Bucket {
-        typedef uint8_t bucket_type_t;
-        const bucket_type_t Invalid = 0;
-        const bucket_type_t Memcached = 1;
-        const bucket_type_t Couchbase = 2;
-        const bucket_type_t EWouldBlock = 3;
-    }
-}
-
 
 /**
  * The Frame class is used to represent all of the data included in the
@@ -60,24 +49,117 @@ public:
     typedef std::vector<uint8_t>::size_type size_type;
 };
 
-class ConnectionError : public std::runtime_error {
+class DocumentInfo {
 public:
-    explicit ConnectionError(const char* what_arg)
-        : std::runtime_error(what_arg) {
-
-    }
-
-    explicit ConnectionError(const std::string what_arg)
-        : std::runtime_error(what_arg) {
-
-    }
+    std::string id;
+    uint32_t flags;
+    std::string expiration;
+    Greenstack::Compression compression;
+    Greenstack::Datatype datatype;
+    uint64_t cas;
 };
 
+class Document {
+public:
+    DocumentInfo info;
+    std::vector<uint8_t> value;
+};
+
+class MutationInfo {
+public:
+    uint64_t cas;
+    size_t size;
+    uint64_t seqno;
+    uint64_t vbucketuuid;
+};
+
+class ConnectionError : public std::runtime_error {
+public:
+    explicit ConnectionError(const char* what_arg, const Protocol& protocol_,
+                             uint16_t reason_)
+        : std::runtime_error(what_arg),
+          protocol(protocol_),
+          reason(reason_) {
+
+    }
+
+    explicit ConnectionError(const std::string what_arg,
+                             const Protocol& protocol_, uint16_t reason_)
+        : std::runtime_error(what_arg),
+          protocol(protocol_),
+          reason(reason_) {
+
+    }
+
+#ifdef WIN32
+#define NOEXCEPT
+#else
+#define NOEXCEPT noexcept
+#endif
+
+    virtual const char* what() const NOEXCEPT override {
+        std::string msg(std::runtime_error::what());
+        msg.append(" ");
+        msg.append(std::to_string(reason));
+        return msg.c_str();
+    }
+
+    uint16_t getReason() const {
+        return reason;
+    }
+
+    Protocol getProtocol() const {
+        return protocol;
+    }
+
+    bool isInvalidArguments() const {
+        if (protocol == Protocol::Memcached) {
+            return reason == PROTOCOL_BINARY_RESPONSE_EINVAL;
+        } else {
+            return reason == uint16_t(Greenstack::Status::InvalidArguments);
+        }
+    }
+
+    bool isAlreadyExists() const {
+        if (protocol == Protocol::Memcached) {
+            return reason == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+        } else {
+            return reason == uint16_t(Greenstack::Status::AlreadyExists);
+        }
+    }
+
+    bool isNotFound() const {
+        if (protocol == Protocol::Memcached) {
+            return reason == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+        } else {
+            return reason == uint16_t(Greenstack::Status::NotFound);
+        }
+    }
+
+    bool isNotStored() const {
+        if (protocol == Protocol::Memcached) {
+            return reason == PROTOCOL_BINARY_RESPONSE_NOT_STORED;
+        } else {
+            return reason == uint16_t(Greenstack::Status::NotStored);
+        }
+    }
+
+private:
+    Protocol protocol;
+    uint16_t reason;
+};
 
 /**
  * The MemcachedConnection class is an abstract class representing a
  * connection to memcached. The concrete implementations of the class
  * implements the Memcached binary protocol and Greenstack.
+ *
+ * By default a connection is set into a synchronous mode.
+ *
+ * All methods is expeted to work, and all failures is reported through
+ * exceptions. Unexpected packets / responses etc will use the ConnectionError,
+ * and other problems (like network error etc) use std::runtime_error.
+ *
  */
 class MemcachedConnection {
 public:
@@ -103,6 +185,17 @@ public:
         return protocol;
     }
 
+    bool isSynchronous() const {
+        return synchronous;
+    }
+
+    virtual void setSynchronous(bool enable) {
+        if (!enable) {
+            throw ConnectionError("Not implemented", Protocol::Memcached,
+                                  PROTOCOL_BINARY_RESPONSE_EINVAL);
+        }
+    }
+
     /**
      * Perform a SASL authentication to memcached
      *
@@ -114,29 +207,74 @@ public:
                               const std::string& password,
                               const std::string& mech) = 0;
 
+    /**
+     * Create a bucket
+     *
+     * @param name the name of the bucket
+     * @param config the buckets configuration attributes
+     * @param type the kind of bucket to create
+     */
     virtual void createBucket(const std::string& name,
                               const std::string& config,
-                              Greenstack::Bucket::bucket_type_t type) = 0;
+                              const Greenstack::BucketType& type) = 0;
 
+    /**
+     * Delete the named bucket
+     *
+     * @param name the name of the bucket
+     */
     virtual void deleteBucket(const std::string& name) = 0;
 
+    /**
+     * List all of the buckets on the server
+     *
+     * @return a vector containing all of the buckets
+     */
     virtual std::vector<std::string> listBuckets() = 0;
 
     /**
-     * Sent the given frame over this connection
-     * @throws std::runtime_error if an error occurs
+     * Fetch a document from the server
+     *
+     * @param id the name of the document
+     * @param vbucket the vbucket the document resides in
+     * @return a document object containg the information about the
+     *         document.
      */
-    virtual void sendFrame(const Frame& frame) {
-        if (ssl) {
-            sendFrameSsl(frame);
-        } else {
-            sendFramePlain(frame);
-        }
-    }
+    virtual Document get(const std::string& id, uint16_t vbucket) = 0;
 
+    /**
+     * Perform the mutation on the attached document.
+     *
+     * The method throws an exception upon errors
+     *
+     * @param doc the document to mutate
+     * @param vbucket the vbucket to operate on
+     * @param type the type of mutation to perform
+     * @return the new cas value for success
+     */
+    virtual MutationInfo mutate(const Document& doc, uint16_t vbucket,
+                                const Greenstack::mutation_type_t type) = 0;
+
+    /**
+     * Sent the given frame over this connection
+     *
+     * @param frame the frame to send to the server
+     */
+    virtual void sendFrame(const Frame& frame);
+
+    /**
+     * Receive the next frame on the connection
+     *
+     * @param frame the frame object to populate with the next frame
+     */
     virtual void recvFrame(Frame& frame) = 0;
 
-
+    /**
+     * Get a textual representation of this connection
+     *
+     * @return a textual representation of the connection including the
+     *         protocol and any special attributes
+     */
     virtual std::string to_string() = 0;
 
     void reconnect();
@@ -149,19 +287,7 @@ protected:
 
     void connect();
 
-    /**
-     * Extend the frame with the requested number of bytes
-     * and read them off the network.
-     *
-     * @throws runtime_error if an error occurs
-     */
-    void read(Frame& frame, size_t bytes) {
-        if (ssl) {
-            readSsl(frame, bytes);
-        } else {
-            readPlain(frame, bytes);
-        }
-    }
+    void read(Frame& frame, size_t bytes);
 
     void readPlain(Frame& frame, size_t bytes);
 
@@ -171,7 +297,6 @@ protected:
 
     void sendFrameSsl(const Frame& frame);
 
-
     in_port_t port;
     sa_family_t family;
     bool ssl;
@@ -179,6 +304,7 @@ protected:
     SSL_CTX* context;
     BIO* bio;
     SOCKET sock;
+    bool synchronous;
 };
 
 class ConnectionMap {

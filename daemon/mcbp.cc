@@ -79,6 +79,10 @@ void mcbp_write_response(Connection* c,
 }
 
 void mcbp_write_packet(Connection* c, protocol_binary_response_status err) {
+    if (err == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        mcbp_write_response(c, NULL, 0, 0, 0);
+        return;
+    }
     if (err == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET) {
         ENGINE_ERROR_CODE ret;
 

@@ -50,6 +50,22 @@ enum class BucketType : uint8_t {
     EWouldBlock
 };
 
+inline const char *to_string(const BucketType &type) {
+    switch (type) {
+    case BucketType::Memcached:
+        return "Memcached";
+    case BucketType::Couchstore:
+        return "Couchstore";
+    case BucketType::EWouldBlock:
+        return "EWouldBlock";
+    case BucketType::NoBucket:
+        return "No Bucket";
+    case BucketType::Unknown:
+        return "Uknown";
+    }
+    throw std::logic_error("Invalid bucket type: " + std::to_string(int(type)));
+}
+
 #define MAX_BUCKET_NAME_LENGTH 100
 
 struct engine_event_handler {

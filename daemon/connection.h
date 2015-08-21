@@ -34,6 +34,30 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <libgreenstack/Greenstack.h>
+
+/**
+ * The state of the connection.
+ */
+enum class ConnectionState : uint8_t {
+    /**
+     * Right after the connection is established we're in the established
+     * state. At this point we're waiting for the client to greet us
+     * with the HELLO command.
+     */
+    ESTABLISHED,
+    /**
+     * After receiving HELLO we're in the OPEN state. At this point we
+     * accept all commands.
+     */
+    OPEN,
+    /**
+     * After a successful SASL AUTH we're in the authenticated state. At
+     * this point we accept all commands
+     */
+    AUTHENTICATED
+};
+const char* to_string(const ConnectionState& connectionState);
 
 struct LIBEVENT_THREAD;
 class Connection;
@@ -838,6 +862,15 @@ public:
     }
 
     /**
+     * Check if the client is allowed to execute the specified opcode
+     *
+     * @param opcode the opcode in the memcached binary protocol
+     */
+    AuthResult checkAccess(const Greenstack::Opcode& opcode) const {
+        return auth_check_access(auth_context, opcode);
+    }
+
+    /**
      * Update the authentication context to operate on behalf of a given
      * role
      */
@@ -920,6 +953,28 @@ public:
 
     virtual bool isPipeConnection() {
         return false;
+    }
+
+    /**
+     * Get the state of the connection.
+     *
+     * This state is currently only used by the state machinery in Greenstack.
+     * At some point we should refactor the conneciton object to use a union
+     * for Greenstack and MemcachedBinaryProtocol (or a sub class)
+     */
+    const ConnectionState& getConnectionState() const {
+        return connectionState;
+    }
+
+    /**
+     * Set the state of the connection.
+     *
+     * This state is currently only used by the state machinery in Greenstack.
+     * At some point we should refactor the conneciton object to use a union
+     * for Greenstack and MemcachedBinaryProtocol (or a sub class)
+     */
+    void setConnectionState(const ConnectionState& connectionState) {
+        Connection::connectionState = connectionState;
     }
 
     /** Read buffer */
@@ -1159,6 +1214,9 @@ protected:
 
     /** Name of the local socket if known */
     std::string sockname;
+
+    /** The state of the connection (used by greenstack only) */
+    ConnectionState connectionState;
 };
 
 /*

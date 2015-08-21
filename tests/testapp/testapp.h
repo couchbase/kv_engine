@@ -40,10 +40,13 @@ enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
 
 enum class Transport {
     Plain,
-    SSL
+    SSL,
+    PlainIpv6,
+    SslIpv6
 };
 
 std::ostream& operator << (std::ostream& os, const Transport& t);
+const char* to_string(const Transport& transport);
 
 // Needed by subdocument tests in seperate .cc file.
 extern SOCKET sock;

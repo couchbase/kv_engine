@@ -1,0 +1,26 @@
+{
+  "threads" : 4,
+  "interfaces" :
+  [
+    {
+      "port" : 11210,
+      "backlog" : 1024,
+      "host" : "*",
+      "IPv6" : true,
+      "maxconn" : 10000,
+      "protocol" : "greenstack"
+    },
+    {
+      "port" : 11211,
+      "backlog" : 1024,
+      "host" : "*",
+      "IPv6" : true,
+      "maxconn" : 10000,
+      "protocol" : "memcached"
+    }
+  ],
+  "engine" : {
+    "module" : "default_engine.so"
+  },
+  "verbosity" : 1
+}
