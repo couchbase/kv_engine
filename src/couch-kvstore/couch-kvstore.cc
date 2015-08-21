@@ -326,7 +326,9 @@ void CouchKVStore::initialize() {
         }
 
         db = NULL;
-        removeCompactFile(dbname, id, rev);
+        if (!isReadOnly()) {
+            removeCompactFile(dbname, id, rev);
+        }
     }
 }
 
