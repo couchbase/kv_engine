@@ -1175,3 +1175,39 @@ bool Connection::addIov(const void* buf, size_t len) {
 
     return true;
 }
+
+bool Connection::growMsglist() {
+    if (msglist.size() == msgused) {
+        cb_assert(msglist.size() > 0);
+        try {
+            msglist.resize(msglist.size() * 2);
+        } catch (std::bad_alloc) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool Connection::ensureIovSpace() {
+    if (iovused < iov.size()) {
+        // There is still size in the list
+        return true;
+    }
+
+    // Try to double the size of the array
+    try {
+        iov.resize(iov.size() * 2);
+    } catch (std::bad_alloc) {
+        return false;
+    }
+
+    /* Point all the msghdr structures at the new list. */
+    size_t ii;
+    int iovnum;
+    for (ii = 0, iovnum = 0; ii < msgused; ii++) {
+        msglist[ii].msg_iov = &iov[iovnum];
+        iovnum += msglist[ii].msg_iovlen;
+    }
+
+    return true;
+}

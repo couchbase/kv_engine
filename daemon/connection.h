@@ -541,21 +541,6 @@ public:
     }
 
     /**
-     * Grow the message list if it is full
-     */
-    bool growMsglist() {
-        if (msglist.size() == msgused) {
-            cb_assert(msglist.size() > 0);
-            try {
-                msglist.resize(msglist.size() * 2);
-            } catch (std::bad_alloc) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
      * Adds a message header to a connection.
      *
      * @param reset set to true to reset all message headers
@@ -886,34 +871,6 @@ public:
         return block != 0;
     }
 
-    /**
-     * Ensures that there is room for another struct iovec in a connection's
-     * iov list.
-     */
-    bool ensureIovSpace() {
-        if (iovused < iov.size()) {
-            // There is still size in the list
-            return true;
-        }
-
-        // Try to double the size of the array
-        try {
-            iov.resize(iov.size() * 2);
-        } catch (std::bad_alloc) {
-            return false;
-        }
-
-        /* Point all the msghdr structures at the new list. */
-        size_t ii;
-        int iovnum;
-        for (ii = 0, iovnum = 0; ii < msgused; ii++) {
-            msglist[ii].msg_iov = &iov[iovnum];
-            iovnum += msglist[ii].msg_iovlen;
-        }
-
-        return true;
-    }
-
     int getBucketIndex() const {
         return bucketIndex;
     }
@@ -936,6 +893,17 @@ public:
     bool includeErrorStringInResponseBody(protocol_binary_response_status err) const;
 
 protected:
+    /**
+     * Grow the message list if it is full
+     */
+    bool growMsglist();
+
+    /**
+     * Ensures that there is room for another struct iovec in a connection's
+     * iov list.
+     */
+    bool ensureIovSpace();
+
     /**
      * Read data over the SSL connection
      *
