@@ -32,6 +32,7 @@
 #include "breakpad.h"
 #include "runtime.h"
 #include "mcaudit.h"
+#include "settings.h"
 #include "subdocument.h"
 #include "enginemap.h"
 #include "buckets.h"
@@ -6280,11 +6281,9 @@ static SOCKET new_socket(struct addrinfo *ai) {
  * Create a socket and bind it to a specific port number
  * @param interface the interface to bind to
  * @param port the port number to bind to
- * @param portnumber_file A filepointer to write the port numbers to
- *        when they are successfully added to the list of ports we
- *        listen on.
+ * @param portArray pointer a cJSON array to store all port numbers.
  */
-static int server_socket(struct interface *interf, FILE *portnumber_file) {
+static int server_socket(struct interface *interf, cJSON* portArray) {
     SOCKET sfd;
     struct addrinfo *ai;
     struct addrinfo *next;
@@ -6413,22 +6412,34 @@ static int server_socket(struct interface *interf, FILE *portnumber_file) {
                 freeaddrinfo(ai);
                 return 1;
             }
-            if (portnumber_file != NULL &&
+            if (portArray != NULL &&
                 (next->ai_addr->sa_family == AF_INET ||
                  next->ai_addr->sa_family == AF_INET6)) {
+
+                cJSON *obj = cJSON_CreateObject();
                 union {
                     struct sockaddr_in in;
                     struct sockaddr_in6 in6;
                 } my_sockaddr;
                 socklen_t len = sizeof(my_sockaddr);
                 if (getsockname(sfd, (struct sockaddr*)&my_sockaddr, &len)==0) {
-                    if (next->ai_addr->sa_family == AF_INET) {
-                        fprintf(portnumber_file, "%s INET: %u\n", "TCP",
-                                ntohs(my_sockaddr.in.sin_port));
+                    if (interf->ssl.cert != nullptr && interf->ssl.key != nullptr) {
+                        cJSON_AddTrueToObject(obj, "ssl");
                     } else {
-                        fprintf(portnumber_file, "%s INET6: %u\n", "TCP",
-                                ntohs(my_sockaddr.in6.sin6_port));
+                        cJSON_AddFalseToObject(obj, "ssl");
                     }
+                    cJSON_AddStringToObject(obj, "protocol",
+                                            to_string(interf->protocol));
+                    if (next->ai_addr->sa_family == AF_INET) {
+                        cJSON_AddStringToObject(obj, "family", "AF_INET");
+                        cJSON_AddNumberToObject(obj, "port",
+                                                ntohs(my_sockaddr.in.sin_port));
+                    } else {
+                        cJSON_AddStringToObject(obj, "family", "AF_INET6");
+                        cJSON_AddNumberToObject(obj, "port",
+                                                ntohs(my_sockaddr.in6.sin6_port));
+                    }
+                    cJSON_AddItemToArray(portArray, obj);
                 }
             }
         }
@@ -6461,10 +6472,24 @@ static int server_sockets(FILE *portnumber_file) {
     int ret = 0;
     int ii = 0;
 
+    cJSON *array = nullptr;
+    if (portnumber_file != nullptr) {
+        array = cJSON_CreateArray();
+    }
+
     for (ii = 0; ii < settings.num_interfaces; ++ii) {
         stats.listening_ports[ii].port = settings.interfaces[ii].port;
         stats.listening_ports[ii].maxconns = settings.interfaces[ii].maxconn;
-        ret |= server_socket(settings.interfaces + ii, portnumber_file);
+        ret |= server_socket(settings.interfaces + ii, array);
+    }
+
+    if (portnumber_file != nullptr) {
+        cJSON* root = cJSON_CreateObject();
+        cJSON_AddItemToObject(root, "ports", array);
+        char* ptr = cJSON_Print(root);
+        fprintf(portnumber_file, "%s\n", ptr);
+        cJSON_Free(ptr);
+        cJSON_Delete(root);
     }
 
     return ret;

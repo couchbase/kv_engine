@@ -26,6 +26,7 @@
 #include <cbsasl/cbsasl.h>
 #include "extensions/protocol/testapp_extension.h"
 #include <platform/platform.h>
+#include <fstream>
 #include "memcached/openssl.h"
 #include "programs/utilities.h"
 #include "utilities/protocol2text.h"
@@ -457,6 +458,35 @@ static bool isMemcachedAlive() {
 }
 
 /**
+ * Load and parse the content of a file into a cJSON array
+ *
+ * @param file the name of the file
+ * @return the decoded cJSON representation
+ * @throw a string if something goes wrong
+ */
+static cJSON* loadJsonFile(const std::string &file) {
+    std::ifstream myfile(file, std::ios::in | std::ios::binary);
+    if (!myfile.is_open()) {
+        std::string msg("Failed to open file: ");
+        msg.append(file);
+        throw msg;
+    }
+
+    std::string str((std::istreambuf_iterator<char>(myfile)),
+                    std::istreambuf_iterator<char>());
+
+    myfile.close();
+    cJSON *obj = cJSON_Parse(str.c_str());
+    if (obj == nullptr) {
+        std::string msg("Failed to parse file: ");
+        msg.append(file);
+        throw msg;
+    }
+
+    return obj;
+}
+
+/**
  * Function to start the server and let it listen on a random port.
  * Set <code>server_pid</code> to the pid of the process
  *
@@ -474,8 +504,6 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
 #ifdef __sun
     char coreadm[128];
 #endif
-    char buffer[80];
-
     snprintf(mcd_parent_monitor_env, sizeof(mcd_parent_monitor_env),
              "MEMCACHED_PARENT_MONITOR=%lu", (unsigned long)getpid());
     putenv(mcd_parent_monitor_env);
@@ -574,22 +602,40 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
 
     ASSERT_NE(nullptr, fp) << "Timed out after " << timeout
                            << "s waiting for memcached port file '" << filename << "' to be created.";
+    fclose(fp);
 
     *port_out = (in_port_t)-1;
     *ssl_port_out = (in_port_t)-1;
 
-    while ((fgets(buffer, sizeof(buffer), fp)) != NULL) {
-        if (strncmp(buffer, "TCP INET: ", 10) == 0) {
-            int32_t val;
-            cb_assert(safe_strtol(buffer + 10, &val));
-            if (*port_out == (in_port_t)-1) {
-                *port_out = (in_port_t)val;
-            } else {
-                *ssl_port_out = (in_port_t)val;
-            }
+    cJSON* portnumbers;
+    ASSERT_NO_THROW(portnumbers = loadJsonFile(filename));
+    ASSERT_NE(nullptr, portnumbers);
+
+    cJSON* array = cJSON_GetObjectItem(portnumbers, "ports");
+    ASSERT_NE(nullptr, array) << "ports not found in portnumber file";
+
+    auto numEntries = cJSON_GetArraySize(array);
+    for (int ii = 0; ii < numEntries; ++ii) {
+        auto obj = cJSON_GetArrayItem(array, ii);
+        auto family = cJSON_GetObjectItem(obj, "family");
+        if (strcmp(family->valuestring, "AF_INET") != 0) {
+            // For now we don't test IPv6
+            continue;
         }
+        auto ssl = cJSON_GetObjectItem(obj, "ssl");
+        ASSERT_NE(nullptr, ssl);
+        auto port = cJSON_GetObjectItem(obj, "port");
+        ASSERT_NE(nullptr, port);
+
+        in_port_t* out_port;
+        if (ssl->type == cJSON_True) {
+            out_port = ssl_port_out;
+        } else {
+            out_port = port_out;
+        }
+        *out_port = static_cast<in_port_t>(port->valueint);
     }
-    fclose(fp);
+    cJSON_Delete(portnumbers);
     EXPECT_EQ(0, remove(filename));
 }
 
