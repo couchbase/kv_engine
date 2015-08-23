@@ -306,6 +306,9 @@ void threads_initiate_bucket_deletion(void);
 inline int is_blocking(DWORD dw) {
     return (dw == WSAEWOULDBLOCK);
 }
+inline int is_interrupted(DWORD dw) {
+    return (dw == WSAEINTR);
+}
 inline int is_emfile(DWORD dw) {
     return (dw == WSAEMFILE);
 }
@@ -327,6 +330,9 @@ inline void set_econnreset(void) {
 
 inline int is_blocking(int dw) {
     return (dw == EAGAIN || dw == EWOULDBLOCK);
+}
+inline int is_interrupted(int dw) {
+    return (dw == EINTR || dw == EAGAIN);
 }
 inline int is_emfile(int dw) {
     return (dw == EMFILE);

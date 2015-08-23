@@ -307,7 +307,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "Can't listen for events on fd %d",
                                             item->sfd);
-            closesocket(item->sfd);
+            safe_close(item->sfd);
         } else {
             cb_assert(c->getThread() == nullptr);
             c->setThread(me);

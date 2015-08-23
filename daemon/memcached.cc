@@ -549,10 +549,10 @@ static void disable_listen(void) {
 void safe_close(SOCKET sfd) {
     if (sfd != INVALID_SOCKET) {
         int rval;
-        while ((rval = closesocket(sfd)) == SOCKET_ERROR &&
-               (errno == EINTR || errno == EAGAIN)) {
-            /* go ahead and retry */
-        }
+
+        do {
+            rval = evutil_closesocket(sfd);
+        } while (rval == SOCKET_ERROR && is_interrupted(GetLastNetworkError()));
 
         if (rval == SOCKET_ERROR) {
             char msg[80];
