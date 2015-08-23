@@ -313,7 +313,7 @@ inline int is_emfile(DWORD dw) {
     return (dw == WSAEMFILE);
 }
 inline int is_closed_conn(DWORD dw) {
-    return (dw == WSAENOTCONN || WSAECONNRESET);
+    return (dw == WSAENOTCONN || dw == WSAECONNRESET);
 }
 inline int is_addrinuse(DWORD dw) {
     return (dw == WSAEADDRINUSE);
