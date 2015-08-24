@@ -294,33 +294,3 @@ void BackfillManager::wakeUpTask() {
         ExecutorPool::get()->wake(managerTask->getId());
     }
 }
-
-void BackfillManager::wakeUpSnoozingBackfills(uint16_t vbid) {
-    LockHolder lh(lock);
-    std::list<std::pair<rel_time_t, DCPBackfill*> >::iterator it;
-    for (it = snoozingBackfills.begin(); it != snoozingBackfills.end(); ++it) {
-        DCPBackfill *bfill = (*it).second;
-        if (vbid == bfill->getVBucketId()) {
-            activeBackfills.push_back(bfill);
-            snoozingBackfills.erase(it);
-            ExecutorPool::get()->wake(managerTask->getId());
-            return;
-        }
-    }
-}
-
-bool BackfillManager::addIfLessThanMax(AtomicValue<uint32_t>& val,
-                                       uint32_t incr, uint32_t max) {
-    do {
-        uint32_t oldVal = val.load();
-        uint32_t newVal = oldVal + incr;
-
-        if (newVal > max) {
-            return false;
-        }
-
-        if (val.compare_exchange_strong(oldVal, newVal)) {
-            return true;
-        }
-    } while (true);
-}

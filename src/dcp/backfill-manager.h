@@ -45,12 +45,7 @@ public:
 
     void wakeUpTask();
 
-    void wakeUpSnoozingBackfills(uint16_t vbid);
-
 private:
-
-    bool addIfLessThanMax(AtomicValue<uint32_t>& val, uint32_t incr,
-                          uint32_t max);
 
     void moveToActiveQueue();
 
