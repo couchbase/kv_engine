@@ -841,6 +841,9 @@ IO and Non-IO tasks respectively:
 | vbucket_persist_high_tasks  | histogram of scheduling overhead/task    |
 |                             | runtimes for snapshot vbucket state in   |
 |                             | high priority tasks                      |
+| vbucket_persist_low_tasks   | histogram of scheduling overhead/task    |
+|                             | runtimes for snapshot vbucket state in   |
+|                             | low priority tasks                       |
 | vbucket_deletion_tasks      | histogram of scheduling overhead/task    |
 |                             | runtimes for vbucket deletion tasks      |
 | flusher_tasks               | histogram of scheduling overhead/task    |
@@ -884,6 +887,12 @@ IO and Non-IO tasks respectively:
 | conn_manager_tasks          | histogram of scheduling overhead/task    |
 |                             | runtimes for dcp/tap connection manager  |
 |                             | tasks                                    |
+| defragmenter_tasks          | histogram of scheduling overhead/task    |
+|                             | runtimes for the in-memory defragmenter  |
+|                             | tasks                                    |
+| workload_monitor_tasks      | histogram of scheduling overhead/task    |
+|                             | runtimes for the workload monitor which  |
+|                             | detects and sets the workload pattern    |
 
 ** Hash Stats
 
