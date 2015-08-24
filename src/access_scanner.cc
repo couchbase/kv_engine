@@ -42,7 +42,7 @@ public:
         cb_assert(log != NULL);
         log->open();
         if (!log->isOpen()) {
-            LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to open access log: %s",
+            LOG(EXTENSION_LOG_WARNING, "Failed to open access log: %s",
                 next.c_str());
             delete log;
             log = NULL;
@@ -108,18 +108,18 @@ public:
             }
 
             if (access(prev.c_str(), F_OK) == 0 && remove(prev.c_str()) == -1){
-                LOG(EXTENSION_LOG_WARNING, "FATAL: Failed to remove '%s': %s",
+                LOG(EXTENSION_LOG_WARNING, "Failed to remove '%s': %s",
                     prev.c_str(), strerror(errno));
                 remove(next.c_str());
             } else if (access(name.c_str(), F_OK) == 0 && rename(name.c_str(),
                                                           prev.c_str()) == -1){
                 LOG(EXTENSION_LOG_WARNING,
-                    "FATAL: Failed to rename '%s' to '%s': %s",
+                    "Failed to rename '%s' to '%s': %s",
                     name.c_str(), prev.c_str(), strerror(errno));
                 remove(next.c_str());
             } else if (rename(next.c_str(), name.c_str()) == -1) {
                 LOG(EXTENSION_LOG_WARNING,
-                    "FATAL: Failed to rename '%s' to '%s': %s",
+                    "Failed to rename '%s' to '%s': %s",
                     next.c_str(), name.c_str(), strerror(errno));
                 remove(next.c_str());
             }
