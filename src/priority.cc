@@ -95,7 +95,7 @@ const char *Priority::getTypeName(const type_id_t i) {
             case ITEM_PAGER_ID:
                 return "item_pager_tasks";
             case BACKFILL_TASK_ID:
-                return "backfill_tasks_tasks";
+                return "backfill_tasks";
             case WORKLOAD_MONITOR_TASK_ID:
                 return "workload_monitor_tasks";
             case TAP_RESUME_ID:

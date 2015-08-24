@@ -868,7 +868,7 @@ IO and Non-IO tasks respectively:
 |                             | runtimes for checkpoint stats tasks      |
 | item_pager_tasks            | histogram of scheduling overhead/task    |
 |                             | runtimes for item pager tasks            |
-| backfill_tasks_tasks        | histogram of scheduling overhead/task    |
+| backfill_tasks              | histogram of scheduling overhead/task    |
 |                             | runtimes for backfill tasks              |
 | tap_resume_tasks            | histogram of scheduling overhead/task    |
 |                             | runtimes for resume suspended tap        |
