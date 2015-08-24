@@ -268,8 +268,8 @@ backfill_status_t BackfillManager::backfill() {
 
 void BackfillManager::moveToActiveQueue() {
     // Order in below AND is important
-    if (!pendingBackfills.empty()
-        && engine->getDcpConnMap().canAddBackfillToActiveQ()) {
+    while (!pendingBackfills.empty()
+           && engine->getDcpConnMap().canAddBackfillToActiveQ()) {
         activeBackfills.push_back(pendingBackfills.front());
         pendingBackfills.pop_front();
     }
