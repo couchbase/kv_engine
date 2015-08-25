@@ -34,7 +34,7 @@ size_t DcpFlowControlManager::newConsumerConn(DcpConsumer *) {
 
 void DcpFlowControlManager::handleDisconnect(DcpConsumer *) {}
 
-bool DcpFlowControlManager::isEnabled()
+bool DcpFlowControlManager::isEnabled() const
 {
     return false;
 }
@@ -71,7 +71,7 @@ size_t DcpFlowControlManagerStatic::newConsumerConn(DcpConsumer *consumerConn)
     return engine_.getConfiguration().getDcpConnBufferSize();
 }
 
-bool DcpFlowControlManagerStatic::isEnabled()
+bool DcpFlowControlManagerStatic::isEnabled() const
 {
     return true;
 }
@@ -125,7 +125,83 @@ void DcpFlowControlManagerDynamic::handleDisconnect(DcpConsumer *consumerConn)
     aggrDcpConsumerBufferSize -= consumerConn->getFlowControlBufSize();
 }
 
-bool DcpFlowControlManagerDynamic::isEnabled()
+bool DcpFlowControlManagerDynamic::isEnabled() const
 {
     return true;
+}
+
+DcpFlowControlManagerAggressive::DcpFlowControlManagerAggressive(
+                                        EventuallyPersistentEngine &engine) :
+    DcpFlowControlManager(engine)
+{
+    dcpConnBufferSizeAggrFrac = static_cast<double>
+    (engine.getConfiguration().getDcpConnBufferSizeAggressivePerc())/100;
+}
+
+DcpFlowControlManagerAggressive::~DcpFlowControlManagerAggressive() {}
+
+size_t DcpFlowControlManagerAggressive::newConsumerConn(
+                                                    DcpConsumer *consumerConn)
+{
+    cb_assert(consumerConn);
+    /* Calculate new per conn buf size */
+    uint32_t totalConns = dcpConsumersMap.size();
+
+    size_t bufferSize = (dcpConnBufferSizeAggrFrac *
+                        engine_.getEpStats().getMaxDataSize()) /
+                        (totalConns + 1);
+
+    /* Make sure that the flow control buffer size is within a max and min
+     range */
+    setBufSizeWithinBounds(consumerConn, bufferSize);
+    LOG(EXTENSION_LOG_INFO, "%s Conn flow control buffer is %zu",
+        consumerConn->logHeader(), bufferSize);
+
+    /* resize all flow control buffers */
+    resizeBuffers(bufferSize);
+
+    /* Add this connection to the list of connections */
+    dcpConsumersMap[consumerConn->getCookie()] = consumerConn;
+
+    return bufferSize;
+}
+
+void DcpFlowControlManagerAggressive::handleDisconnect(
+                                                    DcpConsumer *consumerConn)
+{
+    size_t bufferSize = 0;
+    /* Remove this connection to the list of connections */
+    auto iter = dcpConsumersMap.find(consumerConn->getCookie());
+    /* Calculate new per conn buf size */
+    if (iter != dcpConsumersMap.end()) {
+        dcpConsumersMap.erase(iter);
+        if (dcpConsumersMap.size()) {
+            bufferSize = (dcpConnBufferSizeAggrFrac *
+                          engine_.getEpStats().getMaxDataSize()) /
+                         (dcpConsumersMap.size());
+            /* Make sure that the flow control buffer size is within a max and
+             min range */
+            setBufSizeWithinBounds(consumerConn, bufferSize);
+            LOG(EXTENSION_LOG_INFO, "%s Conn flow control buffer is %zu",
+                consumerConn->logHeader(), bufferSize);
+        }
+    }
+
+    /* Set buffer size of all existing connections to the new buf size */
+    if (bufferSize != 0) {
+        resizeBuffers(bufferSize);
+    }
+}
+
+bool DcpFlowControlManagerAggressive::isEnabled() const
+{
+    return true;
+}
+
+void DcpFlowControlManagerAggressive::resizeBuffers(size_t bufferSize)
+{
+    /* Set buffer size of all existing connections to the new buf size */
+    for (auto& iter : dcpConsumersMap) {
+        iter.second->setFlowControlBufSize(bufferSize);
+    }
 }

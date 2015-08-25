@@ -491,14 +491,15 @@
             "type": "size_t"
         },
         "dcp_flow_control_policy": {
-            "default": "dynamic",
+            "default": "aggressive",
             "descr": "Flow control policy used on consumer side buffer",
             "type": "std::string",
             "validator": {
                 "enum": [
                          "none",
                          "static",
-                         "dynamic"
+                         "dynamic",
+                         "aggressive"
                         ]
             }
         },
@@ -529,6 +530,18 @@
         "dcp_conn_buffer_size_aggr_mem_threshold": {
             "default": "10",
             "descr": "Aggr mem usage by all dcp conns (as percentage of memQuota) after which only dcp_conn_buffer_size is allocated",
+            "type": "size_t",
+            "dynamic": false,
+            "validator": {
+                "range": {
+                    "max": 20,
+                    "min": 1
+                }
+            }
+        },
+        "dcp_conn_buffer_size_aggressive_perc": {
+            "default": "5",
+            "descr": "Percentage of memQuota for all dcp consumer connection buffers in aggressive flow ctl policy",
             "type": "size_t",
             "dynamic": false,
             "validator": {

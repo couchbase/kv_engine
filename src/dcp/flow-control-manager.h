@@ -48,7 +48,7 @@ public:
     virtual void handleDisconnect(DcpConsumer *);
 
     /* Will indicate if flow control is enabled */
-    virtual bool isEnabled(void);
+    virtual bool isEnabled(void) const;
 
 protected:
     void setBufSizeWithinBounds(DcpConsumer *consumerConn, size_t &bufSize);
@@ -70,7 +70,7 @@ public:
 
     size_t newConsumerConn(DcpConsumer *consumerConn);
 
-    bool isEnabled(void);
+    bool isEnabled(void) const;
 };
 
 /**
@@ -90,11 +90,38 @@ public:
 
     void handleDisconnect(DcpConsumer *consumerConn);
 
-    bool isEnabled(void);
+    bool isEnabled(void) const;
 
 private:
     /* Total memory used by all DCP consumer buffers */
     size_t aggrDcpConsumerBufferSize;
 };
 
+/**
+ * In this policy flow control buffer sizes are always set as percentage (5%) of
+ * bucket memory quota across all flow control buffers, but within max (50MB)
+ * and a min value (10 MB). Every time a new connection is made or a disconnect
+ * happens, flow control buffer size of all other connections is changed to
+ * share an aggregate percentage(5%) of bucket memory
+ */
+class DcpFlowControlManagerAggressive : public DcpFlowControlManager {
+public:
+    DcpFlowControlManagerAggressive(EventuallyPersistentEngine &engine);
+
+    ~DcpFlowControlManagerAggressive();
+
+    size_t newConsumerConn(DcpConsumer *consumerConn);
+
+    void handleDisconnect(DcpConsumer *consumerConn);
+
+    bool isEnabled(void) const;
+
+private:
+    /* Resize all flow control buffers in dcpConsumersMap */
+    void resizeBuffers(size_t bufferSize);
+    /* All DCP Consumers with flow control buffer */
+    std::map<const void*, DcpConsumer*> dcpConsumersMap;
+    /* Fraction of memQuota for all dcp consumer connection buffers */
+    double dcpConnBufferSizeAggrFrac;
+};
 #endif  /* SRC_DCP_FLOW_CONTROL_MANAGER_H_ */

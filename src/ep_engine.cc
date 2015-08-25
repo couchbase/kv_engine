@@ -2112,6 +2112,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         dcpFlowControlManager_ = new DcpFlowControlManagerStatic(*this);
     } else if (!flowCtlPolicy.compare("dynamic")) {
         dcpFlowControlManager_ = new DcpFlowControlManagerDynamic(*this);
+    } else if (!flowCtlPolicy.compare("aggressive")) {
+        dcpFlowControlManager_ = new DcpFlowControlManagerAggressive(*this);
     } else {
         /* Flow control is not enabled */
         dcpFlowControlManager_ = new DcpFlowControlManager(*this);

@@ -3781,6 +3781,114 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_dcp_consumer_flow_control_aggressive(
+                                                        ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+    const size_t ep_max_size = 1200000000;
+    const uint32_t flow_ctl_buf_min = 10485760, flow_ctl_buf_max = 52428800;
+    const double bucketMemQuotaFraction = 0.05;
+    const int8_t max_conns = 6;
+    const void *cookie[max_conns] = {NULL};
+
+    uint32_t opaque = 0, seqno = 0, flags = 0;
+    std::string name("unittest_");
+
+    /* Create first connection */
+    name += std::to_string(0);
+    std::string stats_buffer("eq_dcpq:" + name + ":max_buffer_bytes");
+
+    std::string ep_max_size_buf(std::to_string(ep_max_size));
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
+              ep_max_size_buf.c_str());
+    checkeq(ep_max_size, (size_t)get_int_stat(h, h1, "ep_max_size"),
+            "Incorrect new size.");
+
+    /* Check the max limit */
+    cookie[0] = testHarness.create_cookie();
+    checkeq(ENGINE_SUCCESS, h1->dcp.open(h, cookie[0], opaque, seqno, flags,
+                                         (void*)name.c_str(), name.length()),
+            "Failed dcp consumer open connection.");
+    checkeq(flow_ctl_buf_max,
+            (uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
+            "Flow Control Buffer Size not equal to max");
+
+    /* Create 4 more connections */
+    for (int count = 1; count < max_conns-1; count++) {
+        cookie[count] = testHarness.create_cookie();
+        std::string name1("unittest_" + std::to_string(count));
+        stats_buffer.clear();
+        stats_buffer.append("eq_dcpq:" + name1 + ":max_buffer_bytes");
+        checkeq(ENGINE_SUCCESS, h1->dcp.open(h, cookie[count], opaque, seqno,
+                                             flags, (void*)name1.c_str(),
+                                             name1.length()),
+                "Failed dcp consumer open connection.");
+
+        for (int i = 0; i <= count; i++) {
+            /* Check if the buffer size of all connections has changed */
+            std::string name2("unittest_" + std::to_string(i));
+            stats_buffer.clear();
+            stats_buffer.append("eq_dcpq:" + name2 + ":max_buffer_bytes");
+            checkeq((uint32_t)((ep_max_size * bucketMemQuotaFraction)/
+                               (count+1)),
+                    (uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
+                    "Flow Control Buffer Size not correct");
+        }
+    }
+
+    /* Opening another connection should set the buffer size to min value */
+    cookie[max_conns-1] = testHarness.create_cookie();
+    name.clear();
+    name.append("unittest_" +std::to_string((max_conns-1)));
+    stats_buffer.clear();
+    stats_buffer.append("eq_dcpq:" + name + ":max_buffer_bytes");
+    checkeq(ENGINE_SUCCESS, h1->dcp.open(h, cookie[max_conns-1], opaque, seqno,
+                                         flags, (void*)name.c_str(),
+                                         name.length()),
+            "Failed dcp consumer open connection.");
+    checkeq(flow_ctl_buf_min,
+            (uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
+            "Flow Control Buffer Size not equal to min");
+
+    /* Disconnect connections and see if flow control buffer size of existing
+       conns increase */
+    for (int count = 0; count < max_conns/2; count++) {
+        testHarness.destroy_cookie(cookie[count]);
+    }
+    /* Wait for disconnected connections to be deleted */
+    wait_for_stat_to_be(h, h1, "ep_dcp_dead_conn_count", 0, "dcp");
+
+    /* Check if the buffer size of all connections has increased */
+    uint32_t exp_buf_size = (uint32_t)((ep_max_size * bucketMemQuotaFraction)/
+                                       ((max_conns - max_conns/2)));
+    /* Also check if we get control message indicating the flow control buffer
+       size change from the consumer connections */
+    struct dcp_message_producers* producers = get_dcp_producers();
+
+    for (int i = max_conns/2; i < max_conns; i++) {
+        /* Check if the buffer size of all connections has changed */
+        std::string name1("unittest_" + std::to_string(i));
+        stats_buffer.clear();
+        stats_buffer.append("eq_dcpq:" + name1 + ":max_buffer_bytes");
+        checkeq(exp_buf_size,
+                (uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
+                "Flow Control Buffer Size not correct");
+        checkeq(ENGINE_WANT_MORE, h1->dcp.step(h, cookie[i], producers),
+                "Pending flow control buffer change not processed");
+        checkeq((uint8_t)PROTOCOL_BINARY_CMD_DCP_CONTROL, dcp_last_op,
+                "Flow ctl buf size change control message not received");
+        check(dcp_last_key.compare("connection_buffer_size") == 0,
+              "Flow ctl buf size change control message key error");
+        checkeq((int)exp_buf_size, atoi(dcp_last_value.c_str()),
+                "Flow ctl buf size in control message not correct");
+    }
+
+    /* Disconnect remaining connections */
+    for (int count = max_conns/2; count < max_conns; count++) {
+        testHarness.destroy_cookie(cookie[count]);
+    }
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie1 = testHarness.create_cookie();
     uint32_t opaque = 0;
@@ -14675,6 +14783,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp consumer flow control dynamic",
                  test_dcp_consumer_flow_control_dynamic,
                  test_setup, teardown, "dcp_flow_control_policy=dynamic",
+                 prepare, cleanup),
+        TestCase("test dcp consumer flow control aggressive",
+                 test_dcp_consumer_flow_control_aggressive,
+                 test_setup, teardown, "dcp_flow_control_policy=aggressive",
                  prepare, cleanup),
         TestCase("test open producer", test_dcp_producer_open,
                  test_setup, teardown, NULL, prepare, cleanup),
