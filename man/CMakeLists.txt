@@ -9,10 +9,12 @@ IF (A2X_EXECUTABLE)
 
   IF (WIN32)
     INSTALL(FILES man4/memcached.json.4.pdf
-            DESTINATION doc)
+            DESTINATION doc
+            OPTIONAL)
   ELSE (WIN32)
     INSTALL(FILES man4/memcached.json.4
-            DESTINATION man/man4)
+            DESTINATION man/man4
+            OPTIONAL)
   ENDIF(WIN32)
 ELSE (A2X_EXECUTABLE)
   MESSAGE(STATUS "Can't build manual page without a2x")
