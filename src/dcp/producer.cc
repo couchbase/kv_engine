@@ -256,20 +256,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     Item* itmCpy = NULL;
     if (resp->getEvent() == DCP_MUTATION) {
         itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
-
-        /**
-         * If value compression is enabled, the producer will need
-         * to snappy-compress the document before transmitting.
-         * Compression will obviously be done only if the datatype
-         * indicates that the value isn't compressed already.
-         */
-        if (enableValueCompression) {
-            if (!itmCpy->compressValue()) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s Failed to snappy compress an uncompressed value!",
-                    logHeader());
-            }
-        }
     }
 
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
@@ -714,9 +700,24 @@ DcpResponse* DcpProducer::getNextItem() {
                 abort();
         }
 
+        if (op->getEvent() == DCP_MUTATION && enableValueCompression) {
+            /**
+             * If value compression is enabled, the producer will need
+             * to snappy-compress the document before transmitting.
+             * Compression will obviously be done only if the datatype
+             * indicates that the value isn't compressed already.
+             */
+            if (!(static_cast<MutationResponse*>(op))->getItem()->compressValue()) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s Failed to snappy compress an uncompressed value!",
+                    logHeader());
+            }
+        }
+
         if (log) {
             log->insert(op);
         }
+
         ready.push_back(vbucket);
 
         if (op->getEvent() == DCP_MUTATION || op->getEvent() == DCP_DELETION ||
