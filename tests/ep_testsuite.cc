@@ -9807,6 +9807,8 @@ static enum test_result test_dcp_persistence_seqno(ENGINE_HANDLE *h,
         cb_assert(r == 0);
     }
 
+    wait_for_flusher_to_settle(h, h1);
+
     check(seqnoPersistence(h, h1, 0, 2000) == ENGINE_SUCCESS,
           "Expected success for seqno persistence request");
 
