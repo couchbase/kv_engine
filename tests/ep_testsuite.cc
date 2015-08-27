@@ -63,17 +63,6 @@
 // away ;)
 typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
 
-template <typename T>
-static void checkeqfn(T exp, T got, const char *msg, const char *file, const int linenum) {
-    if (exp != got) {
-        std::stringstream ss;
-        ss << "Expected `" << exp << "', got `" << got << "' - " << msg;
-        abort_msg(ss.str().c_str(), file, linenum);
-    }
-}
-
-#define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
-
 #define MULTI_DISPATCHER_CONFIG \
     "ht_size=129;ht_locks=3;chk_remover_stime=1;chk_period=60"
 

@@ -22,8 +22,12 @@
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+
+#include <sstream>
 #include <string>
 #include <vector>
+
+#include "ep_test_apis.h"
 
 #define WHITESPACE_DB "whitespace sucks.db"
 
@@ -45,6 +49,17 @@ bool teardown_suite(void);
 }
 #endif
 
+
+template <typename T>
+static void checkeqfn(T exp, T got, const char *msg, const char *file, const int linenum) {
+    if (exp != got) {
+        std::stringstream ss;
+        ss << "Expected `" << exp << "', got `" << got << "' - " << msg;
+        abort_msg(ss.str().c_str(), file, linenum);
+    }
+}
+
+#define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
 
 class BaseTestCase {
 public:
