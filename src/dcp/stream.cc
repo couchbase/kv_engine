@@ -289,7 +289,7 @@ void ActiveStream::completeBackfill() {
 
     if (state_ == STREAM_BACKFILLING) {
         isBackfillTaskRunning = false;
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Backfill complete,"
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Backfill complete, "
             "%" PRIu64 " items read from disk, %" PRIu64 " from memory,"
             " last seqno read: %" PRIu64,
             producer->logHeader(), vb_, uint64_t(backfillItems.disk.load()),
