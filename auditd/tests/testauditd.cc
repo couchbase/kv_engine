@@ -16,6 +16,7 @@
  */
 #include "config.h"
 
+#include <atomic>
 #include <mutex>
 #include <condition_variable>
 #include <iostream>
@@ -133,8 +134,8 @@ static void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status) {
 }
 }
 
-size_t expectedEventProcessed;
-size_t auditEventProcessed;
+std::atomic<size_t> expectedEventProcessed;
+std::atomic<size_t> auditEventProcessed;
 
 void audit_processed_listener(void) {
     std::lock_guard<std::mutex> lock(mutex);
