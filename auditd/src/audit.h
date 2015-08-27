@@ -80,7 +80,8 @@ public:
     void clear_events_queues(void);
     void clean_up(void);
 
-    static void log_error(const AuditErrorCode return_code, const char *string);
+    static void log_error(const AuditErrorCode return_code,
+                          const std::string& string = "");
     static std::string load_file(const char *file);
 
 private:

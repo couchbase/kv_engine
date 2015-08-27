@@ -40,40 +40,36 @@ std::string Audit::hostname;
 void (*Audit::notify_io_complete)(const void *cookie,
                                   ENGINE_ERROR_CODE status);
 
-
-void Audit::log_error(const AuditErrorCode return_code, const char *string) {
+void Audit::log_error(const AuditErrorCode return_code,
+                      const std::string& string) {
     switch (return_code) {
     case AuditErrorCode::AUDIT_EXTENSION_DATA_ERROR:
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Audit: audit extension data error");
         break;
     case AuditErrorCode::FILE_OPEN_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: open error on file %s: %s",
-                    string, strerror(errno));
+                    "Audit: open error on file %s: %s", string.c_str(),
+                    strerror(errno));
         break;
     case AuditErrorCode::FILE_RENAME_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: rename error on file %s: %s",
-                    string, strerror(errno));
+                    "Audit: rename error on file %s: %s", string.c_str(),
+                    strerror(errno));
         break;
     case AuditErrorCode::FILE_REMOVE_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: remove error on file %s: %s",
-                    string, strerror(errno));
+                    "Audit: remove error on file %s: %s", string.c_str(),
+                    strerror(errno));
         break;
     case AuditErrorCode::MEMORY_ALLOCATION_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: memory allocation error: %s", string);
+                    "Audit: memory allocation error: %s", string.c_str());
         break;
     case AuditErrorCode::JSON_PARSING_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: JSON parsing error on string \"%s\"", string);
+                    "Audit: JSON parsing error on string \"%s\"",
+                    string.c_str());
         break;
     case AuditErrorCode::JSON_MISSING_DATA_ERROR:
         logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -84,9 +80,8 @@ void Audit::log_error(const AuditErrorCode return_code, const char *string) {
                     "Audit: JSON missing object error");
         break;
     case AuditErrorCode::JSON_KEY_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: JSON key \"%s\" error", string);
+                    "Audit: JSON key \"%s\" error", string.c_str());
         break;
     case AuditErrorCode::JSON_ID_ERROR:
         logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -113,22 +108,19 @@ void Audit::log_error(const AuditErrorCode return_code, const char *string) {
                     "Audit: timestamp missing error");
         break;
     case AuditErrorCode::TIMESTAMP_FORMAT_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: timestamp format error on string \"%s\"", string);
+                    "Audit: timestamp format error on string \"%s\"",
+                    string.c_str());
         break;
     case AuditErrorCode::EVENT_ID_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: eventid error");
+        logger->log(EXTENSION_LOG_WARNING, NULL, "Audit: eventid error");
         break;
     case AuditErrorCode::VERSION_ERROR:
-        logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: audit version error");
+        logger->log(EXTENSION_LOG_WARNING, NULL, "Audit: audit version error");
         break;
     case AuditErrorCode::VALIDATE_PATH_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: validate path \"%s\" error", string);
+                    "Audit: validate path \"%s\" error", string.c_str());
         break;
     case AuditErrorCode::ROTATE_INTERVAL_BELOW_MIN_ERROR:
         logger->log(EXTENSION_LOG_WARNING, NULL,
@@ -143,29 +135,26 @@ void Audit::log_error(const AuditErrorCode return_code, const char *string) {
                     "Audit: error opening audit file");
         break;
     case AuditErrorCode::SETTING_AUDITFILE_OPEN_TIME_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Audit: error: setting auditfile open time = %s",
-                    string);
+                    string.c_str());
         break;
     case AuditErrorCode::WRITING_TO_DISK_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: writing to disk error: %s", string);
+                    "Audit: writing to disk error: %s", string.c_str());
         break;
     case AuditErrorCode::WRITE_EVENT_TO_DISK_ERROR:
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Audit: error writing event to disk");
         break;
     case AuditErrorCode::UNKNOWN_EVENT_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error: unknown event %s", string);
+                    "Audit: error: unknown event %s", string.c_str());
         break;
     case AuditErrorCode::CONFIG_INPUT_ERROR:
-        if (string) {
+        if (!string.empty()) {
             logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Audit: error reading config: %s", string);
+                        "Audit: error reading config: %s", string.c_str());
         } else {
             logger->log(EXTENSION_LOG_WARNING, NULL,
                         "Audit: error reading config");
@@ -176,25 +165,27 @@ void Audit::log_error(const AuditErrorCode return_code, const char *string) {
                     "Audit: error performing configuration");
         break;
     case AuditErrorCode::MISSING_AUDIT_EVENTS_FILE_ERROR:
-        assert(string != NULL);
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Audit: error: missing audit_event.json from \"%s\"",
-                    string);
+                    string.c_str());
         break;
     case AuditErrorCode::ROTATE_INTERVAL_SIZE_TOO_BIG:
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error: rotation_size too big: %s",
-                    string);
+                    "Audit: error: rotation_size too big: %s", string.c_str());
         break;
     case AuditErrorCode::AUDIT_DIRECTORY_DONT_EXIST:
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error: %s does not exists",
-                    string);
+                    "Audit: error: %s does not exists", string.c_str());
+        break;
     case AuditErrorCode::INITIALIZATION_ERROR:
         logger->log(EXTENSION_LOG_WARNING, NULL,
-                    "Audit: error during initialization: %s", string);
+                    "Audit: error during initialization: %s", string.c_str());
+        break;
     default:
-        assert(false);
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "Audit: unknown error code:%d with string:%s",
+                    return_code, string.c_str());
+        break;
     }
 }
 
@@ -241,7 +232,7 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
             break;
 
         default:
-            log_error(AuditErrorCode::EVENT_ID_ERROR, NULL);
+            log_error(AuditErrorCode::EVENT_ID_ERROR);
             return false;
     }
     return true;
@@ -250,7 +241,7 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
 
 bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
     if (event_ptr == NULL) {
-        log_error(AuditErrorCode::JSON_MISSING_DATA_ERROR, NULL);
+        log_error(AuditErrorCode::JSON_MISSING_DATA_ERROR);
         return false;
     }
     uint32_t eventid;
@@ -258,7 +249,7 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
     EventData* eventdata;
     cJSON* values_ptr = event_ptr->child;
     if (values_ptr == NULL) {
-        log_error(AuditErrorCode::JSON_MISSING_DATA_ERROR, NULL);
+        log_error(AuditErrorCode::JSON_MISSING_DATA_ERROR);
         return false;
     }
     try {
@@ -301,7 +292,7 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
             case cJSON_Array:
                 break;
             default:
-                log_error(AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR, NULL);
+                log_error(AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR);
                 return false;
         }
         values_ptr = values_ptr->next;
@@ -311,7 +302,7 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
         eventdata->enabled = !config.is_event_disabled(eventid);
         events.insert(std::pair<uint32_t, EventData*>(eventid, eventdata));
     } else {
-        Audit::log_error(AuditErrorCode::JSON_ID_ERROR, NULL);
+        Audit::log_error(AuditErrorCode::JSON_ID_ERROR);
         return false;
     }
     return true;
@@ -320,13 +311,13 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
 
 bool Audit::process_module_data_structures(cJSON *module) {
     if (module == NULL) {
-        log_error(AuditErrorCode::JSON_MISSING_OBJECT_ERROR, NULL);
+        log_error(AuditErrorCode::JSON_MISSING_OBJECT_ERROR);
         return false;
     }
     while (module != NULL) {
         cJSON *mod_ptr = module->child;
         if (mod_ptr == NULL) {
-            log_error(AuditErrorCode::JSON_MISSING_DATA_ERROR, NULL);
+            log_error(AuditErrorCode::JSON_MISSING_DATA_ERROR);
             return false;
         }
         while (mod_ptr != NULL) {
@@ -345,7 +336,7 @@ bool Audit::process_module_data_structures(cJSON *module) {
                     }
                     break;
                 default:
-                    log_error(AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR, NULL);
+                    log_error(AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR);
                     return false;
             }
             mod_ptr = mod_ptr->next;
@@ -368,7 +359,7 @@ bool Audit::process_module_descriptor(cJSON *module_descriptor) {
                 }
                 break;
             default:
-                log_error(AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR, NULL);
+                log_error(AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR);
                 return false;
         }
         module_descriptor = module_descriptor->next;
@@ -386,7 +377,7 @@ bool Audit::configure(void) {
 
     cJSON *config_json = cJSON_Parse(configuration.c_str());
     if (config_json == NULL) {
-        log_error(AuditErrorCode::JSON_PARSING_ERROR, configuration.c_str());
+        log_error(AuditErrorCode::JSON_PARSING_ERROR, configuration);
         return false;
     }
 
@@ -400,10 +391,10 @@ bool Audit::configure(void) {
         log_error(exc.first, exc.second);
         failure = true;
     } catch (std::string &msg) {
-        log_error(AuditErrorCode::CONFIG_INPUT_ERROR, msg.c_str());
+        log_error(AuditErrorCode::CONFIG_INPUT_ERROR, msg);
         failure = true;
     } catch (...) {
-        log_error(AuditErrorCode::CONFIG_INPUT_ERROR, NULL);
+        log_error(AuditErrorCode::CONFIG_INPUT_ERROR);
         failure = true;
     }
     cJSON_Delete(config_json);
@@ -428,7 +419,7 @@ bool Audit::configure(void) {
     }
     cJSON *json_ptr = cJSON_Parse(str.c_str());
     if (json_ptr == NULL) {
-        Audit::log_error(AuditErrorCode::JSON_PARSING_ERROR, str.c_str());
+        Audit::log_error(AuditErrorCode::JSON_PARSING_ERROR, str);
         return false;
     }
     if (!process_module_descriptor(json_ptr->child)) {
