@@ -19,8 +19,10 @@
 
 #include <inttypes.h>
 #include <map>
+#include <memory>
 #include <queue>
 #include <atomic>
+
 #include <cJSON.h>
 #include "memcached/audit_interface.h"
 #include "memcached/types.h"
@@ -35,10 +37,13 @@ class Audit {
 public:
     AuditConfig config;
     std::map<uint32_t,EventData*> events;
-    std::queue<Event*> eventqueue1;
-    std::queue<Event*> eventqueue2;
-    std::queue<Event*> *filleventqueue;
-    std::queue<Event*> *processeventqueue;
+
+    // We maintain two Event queues. At any one time one will be used to accept
+    // new events, and the other will be processed. The two queues are swapped
+    // periodically.
+    std::unique_ptr<std::queue<Event*>> processeventqueue;
+    std::unique_ptr<std::queue<Event*>> filleventqueue;
+
     bool terminate_audit_daemon;
     std::string configfile;
     cb_thread_t consumer_tid;
@@ -52,9 +57,11 @@ public:
     AuditFile auditfile;
     std::atomic<uint32_t> dropped_events;
 
-    Audit(void) : dropped_events(0), max_audit_queue(50000) {
-        processeventqueue = &eventqueue1;
-        filleventqueue = &eventqueue2;
+    Audit()
+        : processeventqueue(new std::queue<Event*>()),
+          filleventqueue(new std::queue<Event*>()),
+          dropped_events(0),
+          max_audit_queue(50000) {
         cb_cond_initialize(&processeventqueue_empty);
         cb_cond_initialize(&events_arrived);
         cb_mutex_initialize(&producer_consumer_lock);

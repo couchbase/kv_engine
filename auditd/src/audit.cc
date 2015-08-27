@@ -261,13 +261,14 @@ bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
     while (values_ptr != NULL) {
         switch (values_ptr->type) {
             case cJSON_Number:
-                if (strcmp(values_ptr->string, "id") == 0) {
-                    eventid = values_ptr->valueint;
-                    assert(eventid != 0);
-                    set_eventid = true;
+                if ((strcmp(values_ptr->string, "id") != 0) ||
+                    (values_ptr->valueint == 0)) {
+                        log_error(AuditErrorCode::JSON_KEY_ERROR,
+                                  values_ptr->string);
+                        return false;
                 } else {
-                    log_error(AuditErrorCode::JSON_KEY_ERROR,values_ptr->string);
-                    return false;
+                    eventid = values_ptr->valueint;
+                    set_eventid = true;
                 }
                 break;
             case cJSON_String:
@@ -447,7 +448,9 @@ bool Audit::configure(void) {
         } else {
             if (evt->second->enabled) {
                 cJSON *payload = cJSON_CreateObject();
-                assert(payload != NULL);
+                if (payload == nullptr) {
+                    return false;
+                }
                 if (create_audit_event(AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON,
                                        payload)) {
                     cJSON_AddNumberToObject(payload, "id",
@@ -488,7 +491,6 @@ bool Audit::add_to_filleventqueue(const uint32_t event_id,
     bool res;
     Event* new_event = new Event(event_id, payload, length);
     cb_mutex_enter(&producer_consumer_lock);
-    assert(filleventqueue != NULL);
     if (filleventqueue->size() < max_audit_queue) {
         filleventqueue->push(new_event);
         cb_cond_broadcast(&events_arrived);
@@ -510,7 +512,6 @@ bool Audit::add_reconfigure_event(const void *cookie) {
     bool res;
     ConfigureEvent* new_event = new ConfigureEvent(cookie);
     cb_mutex_enter(&producer_consumer_lock);
-    assert(filleventqueue != NULL);
     if (filleventqueue->size() < max_audit_queue) {
         filleventqueue->push(new_event);
         cb_cond_broadcast(&events_arrived);
@@ -531,7 +532,6 @@ bool Audit::add_reconfigure_event(const void *cookie) {
 void Audit::clear_events_map(void) {
     typedef std::map<uint32_t, EventData*>::iterator it_type;
     for(it_type iterator = events.begin(); iterator != events.end(); iterator++) {
-        assert(iterator->second != NULL);
         delete iterator->second;
     }
     events.clear();
@@ -539,14 +539,14 @@ void Audit::clear_events_map(void) {
 
 
 void Audit::clear_events_queues(void) {
-    while(!eventqueue1.empty()) {
-        Event *event = eventqueue1.front();
-        eventqueue1.pop();
+    while(!processeventqueue->empty()) {
+        Event *event = processeventqueue->front();
+        processeventqueue->pop();
         delete event;
     }
-    while(!eventqueue2.empty()) {
-        Event *event = eventqueue2.front();
-        eventqueue2.pop();
+    while(!filleventqueue->empty()) {
+        Event *event = filleventqueue->front();
+        filleventqueue->pop();
         delete event;
     }
 }

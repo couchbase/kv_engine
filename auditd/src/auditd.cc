@@ -53,7 +53,6 @@ void audit_set_audit_processed_listener(void (*listener)(void)) {
 static void consume_events(void *arg) {
     cb_mutex_enter(&audit.producer_consumer_lock);
     while (!audit.terminate_audit_daemon) {
-        assert(audit.filleventqueue != NULL);
         if (audit.filleventqueue->empty()) {
             // wait up after 10 secs no matter what
             cb_cond_timedwait(&audit.events_arrived,
@@ -71,7 +70,6 @@ static void consume_events(void *arg) {
         cb_mutex_exit(&audit.producer_consumer_lock);
         // Now outside of the producer_consumer_lock
 
-        assert(audit.processeventqueue != NULL);
         while (!audit.processeventqueue->empty()) {
             Event *event = audit.processeventqueue->front();
             if (!event->process(audit)) {
@@ -162,18 +160,19 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
     if (config != NULL && audit.config.is_auditd_enabled()) {
         // send event to say we are shutting down the audit daemon
         cJSON *payload = cJSON_CreateObject();
-        assert(payload != NULL);
-        if (!audit.create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+        if ((payload == nullptr) ||
+            !audit.create_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
                                       payload)) {
             cJSON_Delete(payload);
             audit.clean_up();
             return AUDIT_FAILED;
         }
+
         char *content = cJSON_Print(payload);
-        assert(content != NULL);
         cJSON_Delete(payload);
 
-        if (!audit.add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+        if ((content == nullptr) ||
+            !audit.add_to_filleventqueue(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
                                          content, strlen(content))) {
             cJSON_Free(content);
             audit.clean_up();
