@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2014 Couchbase, Inc.
+ *     Copyright 2015 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -15,15 +15,15 @@
  *   limitations under the License.
  */
 
-#include <limits.h>
 #include "config.h"
+
+#include <limits.h>
 #include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <iostream>
 #include <list>
 #include <string>
-#include <assert.h>
 #include <errno.h>
 #include <getopt.h>
 #include <inttypes.h>
@@ -85,26 +85,26 @@ static cJSON *load_file(const std::string fname) {
 static void error_exit(const ReturnCode return_code, const char *string) {
     switch (return_code) {
     case USAGE_ERROR:
-        assert(string != NULL);
+        cb_assert(string != NULL);
         fprintf(stderr, "usage: %s -r PATH -i FILE -o FILE\n", string);
         break;
     case FILE_LOOKUP_ERROR:
-        assert(string != NULL);
+        cb_assert(string != NULL);
         fprintf(stderr, "lookup error on file %s: %s\n", string, strerror(errno));
         break;
     case FILE_OPEN_ERROR:
-        assert(string != NULL);
+        cb_assert(string != NULL);
         fprintf(stderr, "open error on file %s: %s\n", string, strerror(errno));
         break;
     case SPOOL_ERROR:
-        assert(string != NULL);
+        cb_assert(string != NULL);
         fprintf(stderr, "spool error on file %s: %s\n", string, strerror(errno));
         break;
     case MEMORY_ALLOCATION_ERROR:
         fprintf(stderr, "memory allocation failed: %s\n", strerror(errno));
         break;
     case STRDUP_ERROR:
-        assert(string != NULL);
+        cb_assert(string != NULL);
         fprintf(stderr, "strdup of %s failed: %s\n",string, strerror(errno));
         break;
     case CREATE_JSON_OBJECT_ERROR:
@@ -135,14 +135,14 @@ static void error_exit(const ReturnCode return_code, const char *string) {
         fprintf(stderr, "audit descriptors: missing JSON boolean\n");
         break;
     case AUDIT_DESCRIPTORS_KEY_ERROR:
-        assert(string != NULL);
+        cb_assert(string != NULL);
         fprintf(stderr, "audit descriptors: key \"%s\" error\n", string);
         break;
     case AUDIT_DESCRIPTORS_ID_ERROR:
         fprintf(stderr, "audit descriptors: eventid error\n");
         break;
     case AUDIT_DESCRIPTORS_VALUESTRING_ERROR:
-        assert(string != NULL);
+        cb_assert(string != NULL);
         fprintf(stderr, "audit descriptors: valuestring error: %s\n", string);
         break;
     case AUDIT_DESCRIPTORS_UNKNOWN_FIELD_ERROR:
@@ -176,14 +176,14 @@ static void error_exit(const ReturnCode return_code, const char *string) {
         fprintf(stderr, "module descriptor: eventid error\n");
         break;
     case MODULE_DESCRIPTOR_VALUESTRING_ERROR:
-        assert(string != NULL);
+        cb_assert(string != NULL);
         fprintf(stderr, "module descriptor: valuestring error: %s\n", string);
         break;
     case MODULE_DESCRIPTOR_UNKNOWN_FIELD_ERROR:
         fprintf(stderr, "module descriptor: unknown field\n");
         break;
     default:
-        assert(false);
+        cb_assert(false);
     }
     exit(EXIT_FAILURE);
 }
@@ -231,7 +231,7 @@ static void validate_module_descriptors(const cJSON *ptr,
                                         std::list<Module*> &modules,
                                         const std::string &srcroot,
                                         const std::string &objroot) {
-    assert(ptr != NULL);
+    cb_assert(ptr != NULL);
 
     if (ptr->type != cJSON_Object) {
         error_exit(AUDIT_DESCRIPTORS_MISSING_JSON_OBJECT_ERROR, NULL);
@@ -291,7 +291,7 @@ static void validate_modules(const std::list<Module *> &modules,
     for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
         auto mod_ptr = *iter;
         cJSON *ptr = mod_ptr->json;
-        assert(ptr != NULL);
+        cb_assert(ptr != NULL);
         if (ptr->type != cJSON_Object) {
             error_exit(MODULE_DESCRIPTOR_MISSING_JSON_OBJECT_ERROR, NULL);
         }
@@ -383,13 +383,13 @@ static void create_master_file(const std::list<Module *> &modules,
 
     for (auto iter = modules.begin(); iter != modules.end(); ++iter) {
         auto mod_ptr = *iter;;
-        assert(mod_ptr->json != NULL);
+        cb_assert(mod_ptr->json != NULL);
         cJSON_AddItemReferenceToArray(arr, mod_ptr->json);
     }
     cJSON_AddItemToObject(output_json, "modules", arr);
 
     char *data = cJSON_Print(output_json);
-    assert(data != NULL);
+    cb_assert(data != NULL);
 
     try {
         std::ofstream out(output_file);
