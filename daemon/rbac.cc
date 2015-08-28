@@ -272,7 +272,10 @@ void RBACManager::dropRole(AuthContext *ctx) {
     }
 
     UserEntryMap::iterator iter = users.find(ctx->getName());
-    cb_assert(iter != users.end());
+    if (iter == users.end()) {
+        throw std::invalid_argument("RBACManager::dropRole: unknown role '" +
+                                    ctx->getName() + "'");
+    }
     applyProfiles(ctx, iter->second.getProfiles());
     ctx->setRole("");
 }
@@ -443,6 +446,12 @@ AuthResult auth_drop_role(AuthContext* ctx)
         ret = AuthResult::OK;
     } catch (std::string) {
         ret = AuthResult::STALE;
+    } catch (std::invalid_argument& e) {
+        auto logger = settings.extensions.logger;
+        logger->log(EXTENSION_LOG_WARNING, nullptr,
+                    "auth_drop_role: Exception while dropping role: %s",
+                    e.what());
+        ret = AuthResult::FAIL;
     }
 
     return ret;

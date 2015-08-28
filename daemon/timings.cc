@@ -37,8 +37,7 @@ std::string Timings::generate(const uint8_t opcode) {
     return timings[opcode].to_string();
 }
 
-uint64_t Timings::get_aggregated_cmd_stats(const CmdStat type) {
-    uint64_t ret = 0;
+uint64_t Timings::get_aggregated_mutation_stats() {
     static uint8_t mutations[] = {
         PROTOCOL_BINARY_CMD_ADD,
         PROTOCOL_BINARY_CMD_ADDQ,
@@ -60,6 +59,15 @@ uint64_t Timings::get_aggregated_cmd_stats(const CmdStat type) {
         PROTOCOL_BINARY_CMD_SETQ,
         PROTOCOL_BINARY_CMD_TOUCH,
         PROTOCOL_BINARY_CMD_INVALID};
+
+    uint64_t ret = 0;
+    for (auto cmd : mutations) {
+        ret += timings[cmd].get_total();
+    }
+    return ret;
+}
+
+uint64_t Timings::get_aggregated_retrival_stats() {
     static uint8_t retrival[] = {
         PROTOCOL_BINARY_CMD_GAT,
         PROTOCOL_BINARY_CMD_GATQ,
@@ -72,27 +80,9 @@ uint64_t Timings::get_aggregated_cmd_stats(const CmdStat type) {
         PROTOCOL_BINARY_CMD_GET_REPLICA,
         PROTOCOL_BINARY_CMD_INVALID };
 
-    uint8_t *ids;
-
-    switch (type) {
-    case CmdStat::TOTAL_MUTATION:
-        ids = mutations;
-        break;
-    case CmdStat::TOTAL_RETRIVAL:
-        ids = retrival;
-        break;
-    default:
-        // the compiler don't know that the assert will cause
-        // the program to crash, so it'll emit a warning that
-        // ids may be used without being initialized
-        ids = nullptr;
-        cb_assert(false);
+    uint64_t ret = 0;
+    for (auto cmd : retrival) {
+        ret += timings[cmd].get_total();
     }
-
-    while (*ids != PROTOCOL_BINARY_CMD_INVALID) {
-        ret += timings[*ids].get_total();
-        ++ids;
-    }
-
     return ret;
 }

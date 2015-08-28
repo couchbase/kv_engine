@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2014 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -133,7 +133,15 @@ void run_event_loop(Connection * c) {
         conn_loan_buffers(c);
     }
 
-    c->runStateMachinery();
+    try {
+        c->runStateMachinery();
+    } catch (std::invalid_argument& e) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "%d: exception occurred in runloop "
+                                        "- closing connection: %s",
+                                        c->getId(), e.what());
+        c->setState(conn_closing);
+    }
 
     if (!is_listen_thread()) {
         conn_return_buffers(c);

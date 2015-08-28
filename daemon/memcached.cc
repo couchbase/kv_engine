@@ -291,28 +291,37 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
                        const void *cookie)
 {
-    const Connection * connection = reinterpret_cast<const Connection *>(cookie); /* May not be true, but... */
-    struct engine_event_handler *h = NULL;
+    struct engine_event_handler *h = nullptr;
 
     switch (type) {
         /*
          * The following events operates on a connection which is passed in
          * as the cookie.
          */
-    case ON_DISCONNECT:
+    case ON_DISCONNECT: {
+        const Connection * connection = reinterpret_cast<const Connection *>(cookie);
         cb_assert(connection);
         cb_assert(connection->getBucketIndex() != -1);
         h = all_buckets[connection->getBucketIndex()].engine_event_handlers[type];
         break;
+    }
     case ON_LOG_LEVEL:
-        cb_assert(cookie == NULL);
+        if (cookie != nullptr) {
+            throw std::invalid_argument("perform_callbacks: cookie "
+                "(which is " +
+                std::to_string(reinterpret_cast<uintptr_t>(cookie)) +
+                ") should be NULL for ON_LOG_LEVEL");
+        }
         h = engine_event_handlers[type];
         break;
+
     default:
-        cb_assert(false /* Unknown event */);
+        throw std::invalid_argument("perform_callbacks: type "
+                "(which is " + std::to_string(type) +
+                "is not a valid ENGINE_EVENT_TYPE");
     }
 
-    while (h) {
+    while (h != nullptr) {
         h->cb(cookie, type, data, h->cb_data);
         h = h->next;
     }
@@ -353,7 +362,9 @@ static void register_callback(ENGINE_HANDLE *eh,
         engine_event_handlers[type] = h;
         break;
     default:
-        cb_assert(false /* Unknown event */);
+        throw std::invalid_argument("register_callback: type (which is " +
+                                    std::to_string(type) +
+                                    ") is not a valid ENGINE_EVENT_TYPE");
     }
 }
 
@@ -5261,8 +5272,8 @@ static void server_stats(ADD_STAT add_stat_callback, Connection *c) {
     add_stat(c, add_stat_callback, "cmd_flush", thread_stats.cmd_flush);
     // index 0 contains the aggregated timings for all buckets
     auto &timings = all_buckets[0].timings;
-    uint64_t total_mutations = timings.get_aggregated_cmd_stats(CmdStat::TOTAL_MUTATION);
-    uint64_t total_retrivals = timings.get_aggregated_cmd_stats(CmdStat::TOTAL_RETRIVAL);
+    uint64_t total_mutations = timings.get_aggregated_mutation_stats();
+    uint64_t total_retrivals = timings.get_aggregated_retrival_stats();
     uint64_t total_ops = total_retrivals + total_mutations;
     add_stat(c, add_stat_callback, "cmd_total_sets", total_mutations);
     add_stat(c, add_stat_callback, "cmd_total_gets", total_retrivals);

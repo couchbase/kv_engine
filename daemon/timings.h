@@ -24,18 +24,14 @@
 
 #define MAX_NUM_OPCODES 0x100
 
-enum class CmdStat : uint8_t {
-    TOTAL_MUTATION,
-    TOTAL_RETRIVAL
-};
-
 class Timings {
 public:
     Timings(void);
     void reset(void);
     void collect(const uint8_t opcode, const hrtime_t nsec);
     std::string generate(const uint8_t opcode);
-    uint64_t get_aggregated_cmd_stats(const CmdStat type);
+    uint64_t get_aggregated_mutation_stats();
+    uint64_t get_aggregated_retrival_stats();
 
 private:
     std::array<CommandTimings, MAX_NUM_OPCODES> timings;
