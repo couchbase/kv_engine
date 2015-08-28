@@ -58,11 +58,6 @@
 #define IOCTL_KEY_LENGTH 128
 #define IOCTL_VAL_LENGTH 128
 
-enum class bin_substates {
-    bin_no_state,
-    bin_reading_packet
-};
-
 #define MAX_VERBOSITY_LEVEL 2
 
 struct engine_event_handler {

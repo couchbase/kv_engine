@@ -477,14 +477,6 @@ public:
         Connection::sasl_conn = sasl_conn;
     }
 
-    const bin_substates& getSubstate() const {
-        return substate;
-    }
-
-    void setSubstate(const bin_substates& substate) {
-        Connection::substate = substate;
-    }
-
     const net_buf& getRead() const {
         return read;
     }
@@ -953,9 +945,6 @@ private:
 
     /** The current state we're in */
     STATE_FUNC state;
-
-    /** The current substate we're in */
-    bin_substates substate;
 
     /** The protocol used by the connection */
     Protocol protocol;

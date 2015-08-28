@@ -27,7 +27,6 @@ Connection::Connection()
       numEvents(0),
       sasl_conn(nullptr),
       state(conn_immediate_close),
-      substate(bin_substates::bin_no_state),
       protocol(Protocol::Memcached),
       admin(false),
       authenticated(false),
@@ -323,16 +322,6 @@ bool Connection::setTcpNoDelay(bool enable) {
     return true;
 }
 
-
-static const char* substate_text(bin_substates state) {
-    switch (state) {
-    case bin_substates::bin_no_state: return "bin_no_state";
-    case bin_substates::bin_reading_packet: return "bin_reading_packet";
-    default:
-        return "illegal";
-    }
-}
-
 /* cJSON uses double for all numbers, so only has 53 bits of precision.
  * Therefore encode 64bit integers as string.
  */
@@ -391,8 +380,6 @@ cJSON* Connection::toJSON() const {
             cJSON* state = cJSON_CreateArray();
             cJSON_AddItemToArray(state,
                                  cJSON_CreateString(state_text(getState())));
-            cJSON_AddItemToArray(state,
-                                 cJSON_CreateString(substate_text(substate)));
             cJSON_AddItemToObject(obj, "state", state);
         }
         json_add_bool_to_object(obj, "registered_in_libevent",

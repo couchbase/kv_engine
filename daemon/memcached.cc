@@ -1125,12 +1125,9 @@ static void append_stats(const char *key, const uint16_t klen,
     append_bin_stats(key, klen, val, vlen, c);
 }
 
-static void bin_read_chunk(Connection *c,
-                           bin_substates next_substate,
-                           uint32_t chunk) {
+static void bin_read_chunk(Connection *c, uint32_t chunk) {
     ptrdiff_t offset;
     cb_assert(c);
-    c->setSubstate(next_substate);
     c->setRlbytes(chunk);
 
     /* Ok... do we have room for everything in our buffer? */
@@ -5059,8 +5056,7 @@ static void dispatch_bin_command(Connection *c) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         c->setWriteAndGo(conn_closing);
     } else {
-        bin_read_chunk(c, bin_substates::bin_reading_packet,
-                       c->binary_header.request.bodylen);
+        bin_read_chunk(c, c->binary_header.request.bodylen);
     }
 }
 
@@ -5136,33 +5132,24 @@ static void complete_nread(Connection *c) {
     cb_assert(c != NULL);
     cb_assert(c->getCmd() >= 0);
 
-    switch(c->getSubstate()) {
-    case bin_substates::bin_reading_packet:
-        if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {
-            RESPONSE_HANDLER handler;
-            handler = response_handlers[c->binary_header.request.opcode];
-            if (handler) {
-                handler(c);
-            } else {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                       "%u: Unsupported response packet received: %u",
-                        c->getId(), (unsigned int)c->binary_header.request.opcode);
-                c->setState(conn_closing);
-            }
+    if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {
+        RESPONSE_HANDLER handler;
+        handler = response_handlers[c->binary_header.request.opcode];
+        if (handler) {
+            handler(c);
         } else {
-            process_bin_packet(c);
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                   "%u: Unsupported response packet received: %u",
+                    c->getId(), (unsigned int)c->binary_header.request.opcode);
+            c->setState(conn_closing);
         }
-        break;
-    default:
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                "Not handling substate %d\n", c->getSubstate());
-        abort();
+    } else {
+        process_bin_packet(c);
     }
 }
 
 static void reset_cmd_handler(Connection *c) {
     c->setCmd(-1);
-    c->setSubstate(bin_substates::bin_no_state);
     if(c->getItem() != nullptr) {
         c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
         c->setItem(nullptr);
