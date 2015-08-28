@@ -1335,11 +1335,9 @@ static void ship_tap_log(Connection *c) {
     int ii = 0;
 
     if (!c->addMsgHdr(true)) {
-        if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%u: Failed to create output headers. Shutting down tap connection",
-                                            c->getId());
-        }
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "%u: Failed to create output headers. Shutting down tap connection",
+                                        c->getId());
         c->setState(conn_closing);
         return ;
     }
@@ -1630,7 +1628,12 @@ static void ship_tap_log(Connection *c) {
             }
             break;
         default:
-            abort();
+            settings.extensions.logger->log(
+                    EXTENSION_LOG_WARNING, c,
+                    "%u: ship_tap_log: event (which is %d) is not a valid "
+                    "tap_event_t - closing connection", event);
+            c->setState(conn_closing);
+            return;
         }
     } while (more_data);
 
@@ -4086,7 +4089,12 @@ static void get_executor(Connection *c, void *packet)
         c->setNoReply(false);
         break;
     default:
-        abort();
+        settings.extensions.logger->log(
+                EXTENSION_LOG_WARNING, c,
+                "%u: get_executor: cmd (which is %d) is not a valid GET "
+                "variant - closing connection", c->getCmd());
+        c->setState(conn_closing);
+        return;
     }
 
     process_bin_get(c);
@@ -4254,7 +4262,12 @@ static void arithmetic_executor(Connection *c, void *packet)
         c->setNoReply(false);
         break;
     default:
-        abort();
+        settings.extensions.logger->log(
+                EXTENSION_LOG_WARNING, c,
+                "%u: arithmetic_executor: cmd (which is %d) is not a valid "
+                "ARITHMETIC variant - closing connection", c->getCmd());
+        c->setState(conn_closing);
+        return;
     }
 
     if (req->message.header.request.cas != 0) {
@@ -4386,7 +4399,12 @@ static void arithmetic_executor(Connection *c, void *packet)
         c->setEwouldblock(true);
         break;
     default:
-        abort();
+        settings.extensions.logger->log(
+                EXTENSION_LOG_WARNING, c,
+                "%u: arithmetic_executor: unexpected response (0x%x) "
+                "from engine->arithmetic()", ret);
+        c->setState(conn_closing);
+        break;
     }
 }
 
@@ -4645,16 +4663,20 @@ static void assume_role_executor(Connection *c, void *packet)
     switch (err) {
     case AuthResult::FAIL:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-        break;
+        return;
     case AuthResult::OK:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        break;
+        return;
     case AuthResult::STALE:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
-        break;
-    default:
-        abort();
+        return;
     }
+
+    settings.extensions.logger->log(
+            EXTENSION_LOG_WARNING, c,
+            "%u: assume_role_executor: err (which is %d) is not a valid "
+            "AuthResult - closing connection", err);
+    c->setState(conn_closing);
 }
 
 static void audit_put_executor(Connection *c, void *packet) {
@@ -4953,7 +4975,8 @@ static void process_bin_packet(Connection *c) {
     bin_package_validate validator = validators[opcode];
     bin_package_execute executor = executors[opcode];
 
-    switch (c->checkAccess(opcode)) {
+    AuthResult res = c->checkAccess(opcode);
+    switch (res) {
     case AuthResult::FAIL:
         /* @TODO Should go to audit */
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -4962,7 +4985,7 @@ static void process_bin_packet(Connection *c) {
                                         c->getSockname().c_str(),
                                         memcached_opcode_2_text(opcode));
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
-        break;
+        return;
     case AuthResult::OK:
         if (validator != NULL) {
             protocol_binary_response_status result = validator(packet);
@@ -4973,7 +4996,7 @@ static void process_bin_packet(Connection *c) {
                      c->getId(), memcached_opcode_2_text(opcode), result);
 
                 write_bin_packet(c, result);
-                break;
+                return;
             }
         }
 
@@ -4982,13 +5005,17 @@ static void process_bin_packet(Connection *c) {
         } else {
             process_bin_unknown_packet(c);
         }
-        break;
+        return;
     case AuthResult::STALE:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
-        break;
-    default:
-        abort();
+        return;
     }
+
+    settings.extensions.logger->log(
+            EXTENSION_LOG_WARNING, c,
+            "%u: process_bin_packet: res (which is %d) is not a valid "
+            "AuthResult - closing connection", res);
+    c->setState(conn_closing);
 }
 
 static CB_INLINE bool is_initialized(Connection *c, uint8_t opcode)
@@ -6707,16 +6734,20 @@ static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {
     switch (priority) {
     case CONN_PRIORITY_HIGH:
         c->setMaxReqsPerEvent(settings.reqs_per_event_high_priority);
-        break;
+        return;
     case CONN_PRIORITY_MED:
         c->setMaxReqsPerEvent(settings.reqs_per_event_med_priority);
-        break;
+        return;
     case CONN_PRIORITY_LOW:
         c->setMaxReqsPerEvent(settings.reqs_per_event_low_priority);
-        break;
-    default:
-        abort();
+        return;
     }
+
+    settings.extensions.logger->log(
+            EXTENSION_LOG_WARNING, c,
+            "%u: cookie_set_priority: priority (which is %d) is not a valid "
+            "CONN_PRIORITY - closing connection", priority);
+    c->setState(conn_closing);
 }
 
 static void count_eviction(const void *cookie, const void *key, const int nkey) {
@@ -6832,13 +6863,8 @@ static void unregister_extension(extension_type_t type, void *extension)
     case EXTENSION_BINARY_PROTOCOL:
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "You can't unregister a binary command handler!");
-        abort();
         break;
-
-    default:
-        ;
     }
-
 }
 
 /**

@@ -182,8 +182,11 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
                break;
             default:
                /* You need to fix your code!!! */
-               abort();
+               fprintf(error, "ERROR: Invalid datatype %d for Key: <%s>\n",
+                       items[ii].datatype, key);
+               ret = -1;
             }
+
             if (ret == -1) {
                if (error != NULL) {
                   fprintf(error, "Invalid entry, Key: <%s> Value: <%s>\n",

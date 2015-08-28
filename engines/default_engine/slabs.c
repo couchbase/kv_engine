@@ -421,7 +421,7 @@ void slabs_adjust_mem_requested(struct default_engine *engine, unsigned int id, 
         logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Internal error! Invalid slab class\n");
-        abort();
+        cb_assert(false);
     }
 
     p = &engine->slabs.slabclass[id];
