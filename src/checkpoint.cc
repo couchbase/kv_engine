@@ -104,7 +104,7 @@ bool Checkpoint::keyExists(const std::string &key) {
 
 queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                                      CheckpointManager *checkpointManager) {
-    assert (checkpointState == CHECKPOINT_OPEN);
+    cb_assert(checkpointState == CHECKPOINT_OPEN);
     queue_dirty_t rv;
 
     checkpoint_index::iterator it = keyIndex.find(qi->getKey());

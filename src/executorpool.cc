@@ -568,7 +568,7 @@ void ExecutorPool::_unregisterTaskable(Taskable *taskable, bool force) {
     LockHolder lh(tMutex);
     taskOwners.erase(taskable);
     if (!(--numBuckets)) {
-        assert (!taskLocator.size());
+        cb_assert(!taskLocator.size());
         for (unsigned int idx = 0; idx < numTaskSets; idx++) {
             TaskQueue *sleepQ = getSleepQ(idx);
             size_t wakeAll = threadQ.size();
