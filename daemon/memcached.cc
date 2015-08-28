@@ -305,7 +305,7 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
         h = all_buckets[connection->getBucketIndex()].engine_event_handlers[type];
         break;
     case ON_LOG_LEVEL:
-        assert(cookie == NULL);
+        cb_assert(cookie == NULL);
         h = engine_event_handlers[type];
         break;
     default:

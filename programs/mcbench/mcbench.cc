@@ -32,7 +32,6 @@
 #include <vector>
 #include <iostream>
 #include <stdint.h>
-#include <cassert>
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -200,7 +199,7 @@ protected:
             while (size > 24) {
                 protocol_binary_response_no_extras *res;
                 res = reinterpret_cast<protocol_binary_response_no_extras *>(curr);
-                assert(res->message.header.response.magic == 0x81);
+                cb_assert(res->message.header.response.magic == 0x81);
                 uint32_t bodylen = ntohl(res->message.header.response.bodylen);
 
                 if (size < (24 + bodylen)) {

@@ -110,4 +110,11 @@ typedef int SOCKET;
 #define PRODUCT_VERSION "${PRODUCT_VERSION}"
 #define DESTINATION_ROOT "${CMAKE_INSTALL_PREFIX}"
 
-#endif
+/* We don't use assert() for two main reasons:
+ * 1) It's disabled on non-debug builds, which we don't want.
+ * 2) cb_assert() prints extra info (backtraces).
+ */
+#undef assert
+#define assert #error "assert() is forbidden. Use cb_assert() from <platform/cbassert.h instead."
+
+#endif //CONFIG_H

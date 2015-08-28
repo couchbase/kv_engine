@@ -3,7 +3,6 @@
 #undef NDEBUG
 #include "tap_mock_engine.h"
 
-#include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <map>

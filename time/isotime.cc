@@ -20,7 +20,6 @@
 #include <sstream>
 #include <stdlib.h>
 #include <strings.h>
-#include <cassert>
 #include <cstring>
 
 #include <memcached/isotime.h>

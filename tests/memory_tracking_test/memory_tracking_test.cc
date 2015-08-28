@@ -16,8 +16,8 @@
  */
 
 #include "config.h"
+
 #include <atomic>
-#include <cassert>
 #if defined(HAVE_MEMALIGN)
 #include <malloc.h>
 #endif
@@ -50,9 +50,9 @@ extern "C" {
 
         // Test new & delete //////////////////////////////////////////////////
         p = new char();
-        assert(alloc_size > 0);
+        cb_assert(alloc_size > 0);
         delete p;
-        assert(alloc_size == 0);
+        cb_assert(alloc_size == 0);
 
         // Test new[] & delete[] //////////////////////////////////////////////
         p = new char[100];

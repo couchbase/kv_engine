@@ -35,7 +35,6 @@
 #include <cstring>
 #include <iostream>
 #include <string>
-#include <cassert>
 
 #ifdef WIN32
 #include <windows.h>
@@ -59,6 +58,7 @@
 #include <list>
 
 #include <memcached/protocol_binary.h>
+#include <platform/cbassert.h>
 #include <platform/dirutils.h>
 #include <utilities/protocol2text.h>
 
@@ -315,7 +315,7 @@ void packetIpv4(const std::string& cachedir, Pcap::Packet& packet) {
     uint8_t ihl = *ptr & 0x0f;
     uint8_t* payload = ptr + (ihl * 4);
 
-    assert((*ptr & 0xf0) == 0x40);
+    cb_assert((*ptr & 0xf0) == 0x40);
 
     packet.ip = ptr;
     packet.tcp = payload;
@@ -496,7 +496,7 @@ public:
             if (end < start) {
                 return;
             }
-            assert(start <= end);
+            cb_assert(start <= end);
             collect(a->root[1], end - start);
 
             if (packetdump) {

@@ -272,7 +272,7 @@ void RBACManager::dropRole(AuthContext *ctx) {
     }
 
     UserEntryMap::iterator iter = users.find(ctx->getName());
-    assert(iter != users.end());
+    cb_assert(iter != users.end());
     applyProfiles(ctx, iter->second.getProfiles());
     ctx->setRole("");
 }

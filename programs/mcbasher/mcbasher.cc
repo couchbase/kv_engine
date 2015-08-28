@@ -15,7 +15,6 @@
 #include <string>
 #include <string.h>
 #include <list>
-#include <cassert>
 #include <sys/types.h>
 #include <unistd.h>
 #include <fcntl.h>

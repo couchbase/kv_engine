@@ -21,7 +21,6 @@
 #include <iostream>
 #include <sstream>
 #include <stdlib.h>
-#include <cassert>
 
 static char env[80];
 
