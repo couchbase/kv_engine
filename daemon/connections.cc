@@ -18,6 +18,7 @@
 #include "connections.h"
 #include "runtime.h"
 #include "utilities/protocol2text.h"
+#include "settings.h"
 
 #include <cJSON.h>
 #include <list>
@@ -311,6 +312,33 @@ void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) 
         }
     }
 }
+
+
+#ifndef WIN32
+/**
+ * NOTE: This is <b>not</b> intended to be called during normal situation,
+ * but in the case where we've been exhausting all connections to memcached
+ * we need a way to be able to dump the connection states in order to search
+ * for a bug.
+ */
+void dump_connection_stat_signal_handler(evutil_socket_t, short, void *) {
+    std::lock_guard<std::mutex> lock(connections.mutex);
+    for (auto *c : connections.conns) {
+        try {
+            cJSON* json = c->toJSON();
+            char* info = cJSON_PrintUnformatted(json);
+            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                                            "Connection: %s", info);
+            cJSON_Free(info);
+            cJSON_Delete(json);
+        } catch (const std::bad_alloc&) {
+            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                                            "Failed to allocate memory to dump info for %u",
+                                            c->getId());
+        }
+    }
+}
+#endif
 
 /** Internal functions *******************************************************/
 

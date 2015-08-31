@@ -6524,7 +6524,15 @@ static int server_sockets(FILE *portnumber_file) {
     return ret;
 }
 
-#ifndef WIN32
+#ifdef WIN32
+// Unfortunately we don't have signal handlers on windows
+static bool install_signal_handlers() {
+    return true;
+}
+
+static void release_signal_handlers() {
+}
+#else
 
 #ifndef HAVE_SIGIGNORE
 static int sigignore(int sig) {
@@ -6539,39 +6547,70 @@ static int sigignore(int sig) {
 }
 #endif /* !HAVE_SIGIGNORE */
 
+
 static void sigterm_handler(evutil_socket_t, short, void *) {
     shutdown_server();
 }
-#endif
 
-#ifndef WIN32
-// SIGTERM and SIGINT event structures.
-static struct event *term_event;
-static struct event *int_event;
-#endif
+static struct event* sigusr1_event;
+static struct event* sigterm_event;
+static struct event* sigint_event;
 
-static int install_sigterm_handler(void) {
-#ifndef WIN32
-    term_event = evsignal_new(main_base, SIGTERM, sigterm_handler, NULL);
-    if (term_event == NULL || event_add(term_event, NULL) < 0) {
-        return -1;
+static bool install_signal_handlers() {
+    // SIGUSR1 - Used to dump connection stats
+    sigusr1_event = evsignal_new(main_base, SIGUSR1,
+                                 dump_connection_stat_signal_handler,
+                                 nullptr);
+    if (sigusr1_event == nullptr) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
+                                        "Failed to allocate SIGUSR1 handler");
+        return false;
     }
 
-    int_event = evsignal_new(main_base, SIGINT, sigterm_handler, NULL);
-    if (int_event == NULL || event_add(int_event, NULL) < 0) {
-        return -1;
+    if (event_add(sigusr1_event, nullptr) < 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
+                                        "Failed to install SIGUSR1 handler");
+        return false;
+
     }
-#endif
 
-    return 0;
+    // SIGTERM - Used to shut down memcached cleanly
+    sigterm_event = evsignal_new(main_base, SIGTERM, sigterm_handler, NULL);
+    if (sigterm_event == NULL) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
+                                        "Failed to allocate SIGTERM handler");
+        return false;
+    }
+
+    if (event_add(sigterm_event, NULL) < 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
+                                        "Failed to install SIGTERM handler");
+        return false;
+    }
+
+    // SIGINT - Used to shut down memcached cleanly
+    sigint_event = evsignal_new(main_base, SIGINT, sigterm_handler, NULL);
+    if (sigint_event == NULL) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
+                                        "Failed to allocate SIGINT handler");
+        return false;
+    }
+
+    if (event_add(sigint_event, NULL) < 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
+                                        "Failed to install SIGINT handler");
+        return false;
+    }
+
+    return true;
 }
 
-static void shutdown_sigterm_handler() {
-#ifndef WIN32
-    event_free(int_event);
-    event_free(term_event);
-#endif
+static void release_signal_handlers() {
+    event_free(sigusr1_event);
+    event_free(sigint_event);
+    event_free(sigterm_event);
 }
+#endif
 
 const char* get_server_version(void) {
     if (strlen(PRODUCT_VERSION) == 0) {
@@ -7841,10 +7880,9 @@ int main (int argc, char **argv) {
     /* initialize main thread libevent instance */
     main_base = event_base_new();
 
-    /* Initialize SIGINT/SIGTERM handler (requires libevent). */
-    if (install_sigterm_handler() != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to install SIGTERM handler\n");
+    /* Initialize signal handlers (requires libevent). */
+    if (!install_signal_handlers()) {
+        // error already printed!
         exit(EXIT_FAILURE);
     }
 
@@ -7931,7 +7969,8 @@ int main (int argc, char **argv) {
         free(stats.listening_ports);
     }
 
-    shutdown_sigterm_handler();
+    release_signal_handlers();
+
     event_base_free(main_base);
     cbsasl_server_term();
     destroy_connections();
