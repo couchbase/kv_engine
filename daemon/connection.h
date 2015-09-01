@@ -890,11 +890,6 @@ public:
 
 protected:
     /**
-     * Grow the message list if it is full
-     */
-    bool growMsglist();
-
-    /**
      * Ensures that there is room for another struct iovec in a connection's
      * iov list.
      */
@@ -999,8 +994,6 @@ private:
 
     /** The message list being used for transfer */
     std::vector<struct msghdr> msglist;
-    /** number of elements used in msglist[] */
-    size_t msgused;
     /** element in msglist[] being transmitted now */
     size_t msgcurr;
     /** number of bytes in current msg */

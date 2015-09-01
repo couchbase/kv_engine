@@ -40,8 +40,7 @@ Connection::Connection()
       item(nullptr),
       iov(IOV_LIST_INITIAL),
       iovused(0),
-      msglist(MSG_LIST_INITIAL),
-      msgused(0),
+      msglist(),
       msgcurr(0),
       msgbytes(0),
       noreply(false),
@@ -74,6 +73,7 @@ Connection::Connection()
     memset(&ssl, 0, sizeof(ssl));
     memset(&binary_header, 0, sizeof(binary_header));
 
+    msglist.reserve(MSG_LIST_INITIAL);
     state = conn_immediate_close;
     socketDescriptor = INVALID_SOCKET;
 }
@@ -422,8 +422,8 @@ cJSON* Connection::toJSON() const {
         }
         {
             cJSON* msg = cJSON_CreateObject();
-            cJSON_AddNumberToObject(msg, "size", msglist.size());
-            cJSON_AddNumberToObject(msg, "used", msgused);
+            cJSON_AddNumberToObject(msg, "size", msglist.capacity());
+            cJSON_AddNumberToObject(msg, "used", msglist.size());
             cJSON_AddNumberToObject(msg, "curr", msgcurr);
             cJSON_AddNumberToObject(msg, "bytes", msgbytes);
 
@@ -646,13 +646,13 @@ int Connection::sendmsg(struct msghdr* m) {
 }
 
 Connection::TransmitResult Connection::transmit() {
-    while (msgcurr < msgused &&
+    while (msgcurr < msglist.size() &&
            msglist[msgcurr].msg_iovlen == 0) {
         /* Finished writing the current msg; advance to the next. */
         msgcurr++;
     }
 
-    if (msgcurr < msgused) {
+    if (msgcurr < msglist.size()) {
         ssize_t res;
         struct msghdr *m = &msglist[msgcurr];
 
@@ -1085,32 +1085,32 @@ bool Connection::includeErrorStringInResponseBody(
 bool Connection::addMsgHdr(bool reset) {
     if (reset) {
         msgcurr = 0;
-        msgused = 0;
+        msglist.clear();
         iovused = 0;
     }
 
-    if (!growMsglist()) {
+    try {
+        msglist.emplace_back();
+    } catch (std::bad_alloc&) {
         return false;
     }
 
-    struct msghdr *msg = msglist.data() + msgused;
+    struct msghdr& msg = msglist.back();
 
     /* this wipes msg_iovlen, msg_control, msg_controllen, and
        msg_flags, the last 3 of which aren't defined on solaris: */
-    memset(msg, 0, sizeof(struct msghdr));
+    memset(&msg, 0, sizeof(struct msghdr));
 
-    msg->msg_iov = &iov.data()[iovused];
+    msg.msg_iov = &iov.data()[iovused];
 
     msgbytes = 0;
-    ++msgused;
-    STATS_MAX(this, msgused_high_watermark, msgused);
+    STATS_MAX(this, msgused_high_watermark, msglist.size());
 
     return true;
 }
 
 bool Connection::addIov(const void* buf, size_t len) {
 
-    struct msghdr *m;
     size_t leftover;
     bool limit_to_mtu;
 
@@ -1119,13 +1119,13 @@ bool Connection::addIov(const void* buf, size_t len) {
     }
 
     do {
-        m = &msglist.data()[msgused - 1];
+        struct msghdr* m = &msglist.back();
 
         /*
          * Limit the first payloads of TCP replies, to
          * UDP_MAX_PAYLOAD_SIZE bytes.
          */
-        limit_to_mtu = (1 == msgused);
+        limit_to_mtu = (1 == msglist.size());
 
         /* We may need to start a new msghdr if this one is full. */
         if (m->msg_iovlen == IOV_MAX ||
@@ -1147,7 +1147,9 @@ bool Connection::addIov(const void* buf, size_t len) {
             leftover = 0;
         }
 
-        m = &msglist.data()[msgused - 1];
+        // Update 'm' as we may have added an additional msghdr
+        m = &msglist.back();
+
         m->msg_iov[m->msg_iovlen].iov_base = (void *)buf;
         m->msg_iov[m->msg_iovlen].iov_len = len;
 
@@ -1160,18 +1162,6 @@ bool Connection::addIov(const void* buf, size_t len) {
         len = leftover;
     } while (leftover > 0);
 
-    return true;
-}
-
-bool Connection::growMsglist() {
-    if (msglist.size() == msgused) {
-        cb_assert(msglist.size() > 0);
-        try {
-            msglist.resize(msglist.size() * 2);
-        } catch (std::bad_alloc) {
-            return false;
-        }
-    }
     return true;
 }
 
@@ -1191,7 +1181,7 @@ bool Connection::ensureIovSpace() {
     /* Point all the msghdr structures at the new list. */
     size_t ii;
     int iovnum;
-    for (ii = 0, iovnum = 0; ii < msgused; ii++) {
+    for (ii = 0, iovnum = 0; ii < msglist.size(); ii++) {
         msglist[ii].msg_iov = &iov[iovnum];
         iovnum += msglist[ii].msg_iovlen;
     }
