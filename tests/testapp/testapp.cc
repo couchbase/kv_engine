@@ -453,7 +453,15 @@ static bool isMemcachedAlive() {
     // GetExitCodeProcessed failed for some reason...
     return true;
 #else
-    return waitpid(server_pid, 0, WNOHANG) == 0;
+    int status;
+    pid_t ret;
+    if ((ret = waitpid(server_pid, &status, WNOHANG)) == -1) {
+        perror("waitpid failed");
+        fprintf(stderr, "\twith server_pid=%d\n", server_pid);
+        return false;
+    } else {
+        return ret == 0;
+    }
 #endif
 }
 
