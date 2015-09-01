@@ -172,6 +172,8 @@ private:
 
     bool enableValueCompression;
 
+    bool supportsCursorDropping;
+
     rel_time_t lastSendTime;
     BufferLog* log;
     BackfillManager* backfillMgr;

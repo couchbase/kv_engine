@@ -129,6 +129,8 @@ private:
 
     ENGINE_ERROR_CODE handleValueCompression(struct dcp_message_producers* producers);
 
+    ENGINE_ERROR_CODE supportCursorDropping(struct dcp_message_producers* producers);
+
     uint64_t opaqueCounter;
     size_t processerTaskId;
     AtomicValue<bool> itemsToProcess;
@@ -148,6 +150,7 @@ private:
     bool pendingSetPriority;
     bool pendingEnableExtMetaData;
     bool pendingEnableValueCompression;
+    bool pendingSupportCursorDropping;
 
     FlowControl flowControl;
 
@@ -157,6 +160,7 @@ private:
     static const std::string priorityCtrlMsg;
     static const std::string extMetadataCtrlMsg;
     static const std::string valueCompressionCtrlMsg;
+    static const std::string cursorDroppingCtrlMsg;
 };
 
 /*

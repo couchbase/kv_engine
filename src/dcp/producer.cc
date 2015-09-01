@@ -79,6 +79,16 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     enableExtMetaData = false;
     enableValueCompression = false;
 
+    // Cursor dropping is disabled for replication connections by default,
+    // but will be enabled through a control message to support backward
+    // compatibility. For all other type of DCP connections, cursor dropping
+    // will be enabled by default.
+    if (name.find("replication") < name.length()) {
+        supportsCursorDropping = false;
+    } else {
+        supportsCursorDropping = true;
+    }
+
     backfillMgr = new BackfillManager(&engine_, this);
 }
 
@@ -420,6 +430,12 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             enableValueCompression = false;
         }
         return ENGINE_SUCCESS;
+    } else if (strncmp(param, "supports_cursor_dropping", nkey) == 0) {
+        if (valueStr == "true") {
+            supportsCursorDropping = true;
+        } else {
+            supportsCursorDropping = false;
+        }
     } else if (strncmp(param, "set_noop_interval", nkey) == 0) {
         if (parseUint32(valueStr.c_str(), &noopCtx.noopInterval)) {
             return ENGINE_SUCCESS;
@@ -553,6 +569,9 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("enable_value_compression",
             enableValueCompression ? "enabled" : "disabled",
             add_stat, c);
+    addStat("cursor_dropping",
+            supportsCursorDropping ? "ELIGIBLE" : "NOT_ELIGIBLE",
+            add_stat, c);
 
     if (backfillMgr) {
         backfillMgr->addStats(this, add_stat, c);
@@ -624,14 +643,16 @@ void DcpProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
 bool DcpProducer::closeSlowStream(uint16_t vbid,
                                   const std::string &name) {
     LockHolder lh(queueLock);
-    std::map<uint16_t, stream_t>::iterator it = streams.find(vbid);
-    if (it != streams.end()) {
-        if (it->second->getName().compare(name) == 0) {
-            LOG(EXTENSION_LOG_NOTICE, "%s Producer is closing stream "
-                "for vbucket %d, stream name '%s' because it seems to be SLOW",
-                logHeader(), vbid, name.c_str());
-            it->second->setDead(END_STREAM_SLOW);
-            return true;
+    if (supportsCursorDropping) {
+        std::map<uint16_t, stream_t>::iterator it = streams.find(vbid);
+        if (it != streams.end()) {
+            if (it->second->getName().compare(name) == 0) {
+                LOG(EXTENSION_LOG_NOTICE, "%s Producer is closing stream "
+                    "for vbucket %d, stream name '%s' because it seems to be SLOW",
+                    logHeader(), vbid, name.c_str());
+                it->second->setDead(END_STREAM_SLOW);
+                return true;
+            }
         }
     }
     return false;

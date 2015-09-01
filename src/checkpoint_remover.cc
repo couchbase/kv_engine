@@ -119,10 +119,12 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
                     std::vector<std::string>::iterator itr = cursors.begin();
                     for (; itr != cursors.end(); ++itr) {
                         if (memoryCleared < amountOfMemoryToClear) {
-                            engine->getDcpConnMap().closeSlowStream(vbid, *itr);
-                            ++stats.cursorsDropped;
-                            memoryCleared +=
+                            if (engine->getDcpConnMap().closeSlowStream(vbid,
+                                                                        *itr)) {
+                                ++stats.cursorsDropped;
+                                memoryCleared +=
                                       vb->getChkMgrMemUsageOfUnrefCheckpoints();
+                            }
                         } else {
                             break;
                         }

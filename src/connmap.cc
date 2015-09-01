@@ -1057,9 +1057,8 @@ void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
     }
 }
 
-void DcpConnMap::closeSlowStream(uint16_t vbid,
+bool DcpConnMap::closeSlowStream(uint16_t vbid,
                                  const std::string &name) {
-
     size_t lock_num = vbid % vbConnLockNum;
     SpinLockHolder lh(&vbConnLocks[lock_num]);
     std::list<connection_t> &vb_conns = vbConns[vbid];
@@ -1067,10 +1066,11 @@ void DcpConnMap::closeSlowStream(uint16_t vbid,
     std::list<connection_t>::iterator itr = vb_conns.begin();
     for (; itr != vb_conns.end(); ++itr) {
         DcpProducer* producer = static_cast<DcpProducer*> ((*itr).get());
-        if (producer->closeSlowStream(vbid, name)) {
-            return;
+        if (producer && producer->closeSlowStream(vbid, name)) {
+            return true;
         }
     }
+    return false;
 }
 
 void DcpConnMap::closeAllStreams_UNLOCKED() {

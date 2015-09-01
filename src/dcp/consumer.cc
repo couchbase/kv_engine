@@ -30,6 +30,7 @@ const std::string DcpConsumer::connBufferCtrlMsg = "connection_buffer_size";
 const std::string DcpConsumer::priorityCtrlMsg = "set_priority";
 const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
 const std::string DcpConsumer::valueCompressionCtrlMsg = "enable_value_compression";
+const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping";
 
 class Processer : public GlobalTask {
 public:
@@ -93,6 +94,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
     pendingEnableValueCompression = config.isDcpValueCompressionEnabled();
+    pendingSupportCursorDropping = true;
 
     ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
     processerTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
@@ -489,6 +491,13 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
     }
 
     if ((ret = handleValueCompression(producers)) != ENGINE_FAILED) {
+        if (ret == ENGINE_SUCCESS) {
+            ret = ENGINE_WANT_MORE;
+        }
+        return ret;
+    }
+
+    if ((ret = supportCursorDropping(producers)) != ENGINE_FAILED) {
         if (ret == ENGINE_SUCCESS) {
             ret = ENGINE_WANT_MORE;
         }
@@ -918,6 +927,24 @@ ENGINE_ERROR_CODE DcpConsumer::handleValueCompression(struct dcp_message_produce
                                  val.c_str(), val.size());
         ObjectRegistry::onSwitchThread(epe);
         pendingEnableValueCompression = false;
+        return ret;
+    }
+
+    return ENGINE_FAILED;
+}
+
+ENGINE_ERROR_CODE DcpConsumer::supportCursorDropping(struct dcp_message_producers* producers) {
+    if (pendingSupportCursorDropping) {
+        ENGINE_ERROR_CODE ret;
+        uint32_t opaque = ++opaqueCounter;
+        std::string val("true");
+        EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+        ret = producers->control(getCookie(), opaque,
+                                 cursorDroppingCtrlMsg.c_str(),
+                                 cursorDroppingCtrlMsg.size(),
+                                 val.c_str(), val.size());
+        ObjectRegistry::onSwitchThread(epe);
+        pendingSupportCursorDropping = false;
         return ret;
     }
 
