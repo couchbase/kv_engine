@@ -7312,6 +7312,7 @@ static void cleanup_buckets(void) {
 
         if (bucket.state == BucketState::Ready) {
             bucket.engine->destroy(v1_handle_2_handle(bucket.engine), false);
+            delete bucket.topkeys;
         }
 
         delete []bucket.stats;
