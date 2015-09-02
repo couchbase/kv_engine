@@ -860,11 +860,11 @@ static void subdoc_single_response(SubdocCmdContext* context) {
         encode_mutation_descr(context, extras_ptr);
         response_buf.moveOffset(extlen);
 
-        add_iov(c, extras_ptr, extlen);
+        c->addIov(extras_ptr, extlen);
     }
 
     if (context->traits.response_has_value) {
-        add_iov(c, value, vallen);
+        c->addIov(value, vallen);
     }
 
     c->setState(conn_mwrite);
@@ -902,7 +902,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
                 c->setState(conn_closing);
                 return;
             }
-            add_iov(c, reinterpret_cast<void*>(response_extras), extlen);
+            c->addIov(reinterpret_cast<void*>(response_extras), extlen);
 
         } else {
             // No extras, just send respose with zero body.
@@ -950,7 +950,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
         std::memcpy(response_body + sizeof(first_failing_status),
                     &first_failing_idx, sizeof(first_failing_idx));
 
-        add_iov(c, reinterpret_cast<void*>(response_body), response_bodylen);
+        c->addIov(reinterpret_cast<void*>(response_body), response_bodylen);
     }
     c->setState(conn_mwrite);
 }
@@ -1008,10 +1008,10 @@ static void subdoc_multi_lookup_response(SubdocCmdContext* context) {
         }
         *reinterpret_cast<uint32_t*>(header + sizeof(uint16_t)) = result_len;
 
-        add_iov(c, reinterpret_cast<void*>(header), header_sz);
+        c->addIov(reinterpret_cast<void*>(header), header_sz);
 
         if (result_len != 0) {
-            add_iov(c, mloc.at, mloc.length);
+            c->addIov(mloc.at, mloc.length);
         }
         response_buf.moveOffset(header_sz);
     }

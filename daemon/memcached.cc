@@ -666,15 +666,6 @@ void collect_timings(const Connection *c) {
     }
 }
 
-// @deprecated.. use c->addIov() instead
-int add_iov(Connection *c, const void *buf, size_t len) {
-    if (c->addIov(buf, len)) {
-        return 0;
-    } else {
-        return -1;
-    }
-}
-
 /**
  * get a pointer to the start of the request struct for the current command
  */
@@ -777,7 +768,7 @@ int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_le
         }
     }
 
-    return add_iov(c, c->write.buf, sizeof(header->response));
+    return c->addIov(c->write.buf, sizeof(header->response)) ? 0 : -1;
 }
 
 protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE e) {
@@ -885,7 +876,7 @@ void write_bin_packet(Connection *c, protocol_binary_response_status err) {
 
         add_bin_header(c, err, 0, 0, len, PROTOCOL_BINARY_RAW_BYTES);
         if (errtext) {
-            add_iov(c, errtext, len);
+            c->addIov(errtext, len);
         }
         c->setState(conn_mwrite);
         c->setWriteAndGo(conn_new_cmd);
@@ -905,7 +896,7 @@ static void write_bin_response(Connection *c, const void *d, int extlen, int key
             c->setState(conn_closing);
             return;
         }
-        add_iov(c, d, dlen);
+        c->addIov(d, dlen);
         c->setState(conn_mwrite);
         c->setWriteAndGo(conn_new_cmd);
     } else {
@@ -1018,15 +1009,15 @@ static void process_bin_get(Connection *c) {
 
             /* add the flags */
             rsp->message.body.flags = info.info.flags;
-            add_iov(c, &rsp->message.body, sizeof(rsp->message.body));
+            c->addIov(&rsp->message.body, sizeof(rsp->message.body));
 
             if ((c->getCmd() == PROTOCOL_BINARY_CMD_GETK) ||
                 (c->getCmd() == PROTOCOL_BINARY_CMD_GETKQ)) {
-                add_iov(c, info.info.key, nkey);
+                c->addIov(info.info.key, nkey);
             }
 
             for (ii = 0; ii < info.info.nvalue; ++ii) {
-                add_iov(c, info.info.value[ii].iov_base,
+                c->addIov(info.info.value[ii].iov_base,
                         info.info.value[ii].iov_len);
             }
             c->setState(conn_mwrite);
@@ -1053,7 +1044,7 @@ static void process_bin_get(Connection *c) {
                     return;
                 }
                 memcpy(ofs, key, nkey);
-                add_iov(c, ofs, nkey);
+                c->addIov(ofs, nkey);
                 c->setState(conn_mwrite);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
@@ -1391,7 +1382,7 @@ static void ship_tap_log(Connection *c) {
             msg.noop.message.header.request.extlen = 0;
             msg.noop.message.header.request.bodylen = htonl(0);
             memcpy(c->write.curr, msg.noop.bytes, sizeof(msg.noop.bytes));
-            add_iov(c, c->write.curr, sizeof(msg.noop.bytes));
+            c->addIov(c->write.curr, sizeof(msg.noop.bytes));
             c->write.curr += sizeof(msg.noop.bytes);
             c->write.bytes += sizeof(msg.noop.bytes);
             break;
@@ -1487,18 +1478,18 @@ static void ship_tap_log(Connection *c) {
             msg.mutation.message.body.tap.flags = htons(tap_flags);
             memcpy(c->write.curr, msg.mutation.bytes, sizeof(msg.mutation.bytes));
 
-            add_iov(c, c->write.curr, sizeof(msg.mutation.bytes));
+            c->addIov(c->write.curr, sizeof(msg.mutation.bytes));
             c->write.curr += sizeof(msg.mutation.bytes);
             c->write.bytes += sizeof(msg.mutation.bytes);
 
             if (nengine > 0) {
                 memcpy(c->write.curr, engine, nengine);
-                add_iov(c, c->write.curr, nengine);
+                c->addIov(c->write.curr, nengine);
                 c->write.curr += nengine;
                 c->write.bytes += nengine;
             }
 
-            add_iov(c, info.info.key, info.info.nkey);
+            c->addIov(info.info.key, info.info.nkey);
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
                 if (inflate) {
                     char *buf = reinterpret_cast<char*>(malloc(inflated_length));
@@ -1523,7 +1514,7 @@ static void ship_tap_log(Connection *c) {
                             c->setState(conn_closing);
                             return;
                         }
-                        add_iov(c, buf, inflated_length);
+                        c->addIov(buf, inflated_length);
                     } else {
                         free(buf);
                         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -1535,7 +1526,7 @@ static void ship_tap_log(Connection *c) {
                 } else {
                     int xx;
                     for (xx = 0; xx < info.info.nvalue; ++xx) {
-                        add_iov(c, info.info.value[xx].iov_base,
+                        c->addIov(info.info.value[xx].iov_base,
                                 info.info.value[xx].iov_len);
                     }
                 }
@@ -1571,22 +1562,22 @@ static void ship_tap_log(Connection *c) {
             msg.del.message.header.request.bodylen = htonl(bodylen);
 
             memcpy(c->write.curr, msg.del.bytes, sizeof(msg.del.bytes));
-            add_iov(c, c->write.curr, sizeof(msg.del.bytes));
+            c->addIov(c->write.curr, sizeof(msg.del.bytes));
             c->write.curr += sizeof(msg.del.bytes);
             c->write.bytes += sizeof(msg.del.bytes);
 
             if (nengine > 0) {
                 memcpy(c->write.curr, engine, nengine);
-                add_iov(c, c->write.curr, nengine);
+                c->addIov(c->write.curr, nengine);
                 c->write.curr += nengine;
                 c->write.bytes += nengine;
             }
 
-            add_iov(c, info.info.key, info.info.nkey);
+            c->addIov(info.info.key, info.info.nkey);
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
                 int xx;
                 for (xx = 0; xx < info.info.nvalue; ++xx) {
-                    add_iov(c, info.info.value[xx].iov_base,
+                    c->addIov(info.info.value[xx].iov_base,
                             info.info.value[xx].iov_len);
                 }
             }
@@ -1617,12 +1608,12 @@ static void ship_tap_log(Connection *c) {
 
             msg.flush.message.header.request.bodylen = htonl(8 + nengine);
             memcpy(c->write.curr, msg.flush.bytes, sizeof(msg.flush.bytes));
-            add_iov(c, c->write.curr, sizeof(msg.flush.bytes));
+            c->addIov(c->write.curr, sizeof(msg.flush.bytes));
             c->write.curr += sizeof(msg.flush.bytes);
             c->write.bytes += sizeof(msg.flush.bytes);
             if (nengine > 0) {
                 memcpy(c->write.curr, engine, nengine);
-                add_iov(c, c->write.curr, nengine);
+                c->addIov(c->write.curr, nengine);
                 c->write.curr += nengine;
                 c->write.bytes += nengine;
             }
@@ -2018,7 +2009,7 @@ static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void *cookie,
     packet.message.header.request.vbucket = htons(vbucket);
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2059,7 +2050,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(const void *cookie,
     packet.message.body.snap_end_seqno = ntohll(snap_end_seqno);
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2089,7 +2080,7 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void *cookie,
     packet.message.body.opaque = ntohl(dialogopaque);
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2117,7 +2108,7 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(const void *cookie,
     packet.message.header.response.opaque = opaque;
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2145,7 +2136,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(const void *cook
     packet.message.header.response.opaque = opaque;
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2175,7 +2166,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(const void *cookie,
     packet.message.body.flags = ntohl(flags);
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2209,7 +2200,7 @@ static ENGINE_ERROR_CODE dcp_message_marker(const void *cookie,
     packet.message.body.flags = htonl(flags);
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2273,16 +2264,16 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     packet.message.body.nru = nru;
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
-    add_iov(c, info.info.key, info.info.nkey);
+    c->addIov(info.info.key, info.info.nkey);
     for (xx = 0; xx < info.info.nvalue; ++xx) {
-        add_iov(c, info.info.value[xx].iov_base, info.info.value[xx].iov_len);
+        c->addIov(info.info.value[xx].iov_base, info.info.value[xx].iov_len);
     }
 
     memcpy(c->write.curr, meta, nmeta);
-    add_iov(c, c->write.curr, nmeta);
+    c->addIov(c->write.curr, nmeta);
     c->write.curr += nmeta;
     c->write.bytes += nmeta;
 
@@ -2319,7 +2310,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion(const void* cookie,
     packet.message.body.rev_seqno = htonll(rev_seqno);
     packet.message.body.nmeta = htons(nmeta);
 
-    add_iov(c, c->write.curr, sizeof(packet.bytes) + nkey + nmeta);
+    c->addIov(c->write.curr, sizeof(packet.bytes) + nkey + nmeta);
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
@@ -2364,7 +2355,7 @@ static ENGINE_ERROR_CODE dcp_message_expiration(const void* cookie,
     packet.message.body.rev_seqno = htonll(rev_seqno);
     packet.message.body.nmeta = htons(nmeta);
 
-    add_iov(c, c->write.curr, sizeof(packet.bytes) + nkey + nmeta);
+    c->addIov(c->write.curr, sizeof(packet.bytes) + nkey + nmeta);
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
@@ -2397,7 +2388,7 @@ static ENGINE_ERROR_CODE dcp_message_flush(const void* cookie,
     packet.message.header.request.vbucket = htons(vbucket);
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2443,7 +2434,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
     }
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2467,7 +2458,7 @@ static ENGINE_ERROR_CODE dcp_message_noop(const void* cookie,
     packet.message.header.request.opaque = opaque;
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2497,7 +2488,7 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* cookie,
     packet.message.body.buffer_bytes = ntohl(buffer_bytes);
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
-    add_iov(c, c->write.curr, sizeof(packet.bytes));
+    c->addIov(c->write.curr, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
 
@@ -2526,7 +2517,7 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* cookie,
     packet.message.header.request.keylen = ntohs(nkey);
     packet.message.header.request.bodylen = ntohl(nvalue + nkey);
 
-    add_iov(c, c->write.curr, sizeof(packet.bytes) + nkey + nvalue);
+    c->addIov(c->write.curr, sizeof(packet.bytes) + nkey + nvalue);
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
     c->write.curr += sizeof(packet.bytes);
     c->write.bytes += sizeof(packet.bytes);
@@ -3649,7 +3640,7 @@ static void sasl_auth_executor(Connection *c, void *packet)
             c->setState(conn_closing);
             return;
         }
-        add_iov(c, out, outlen);
+        c->addIov(out, outlen);
         c->setState(conn_mwrite);
         c->setWriteAndGo(conn_new_cmd);
         break;
@@ -5935,7 +5926,7 @@ bool conn_write(Connection *c) {
      * list for TCP).
      */
     if (c->getIovUsed() == 0) {
-        if (add_iov(c, c->write.curr, c->write.bytes) != 0) {
+        if (!c->addIov(c->write.curr, c->write.bytes)) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "Couldn't build response, closing connection");
             c->setState(conn_closing);
