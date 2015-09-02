@@ -209,8 +209,6 @@ static bool get_protocol_value(cJSON *i, const char *key,
         return false;
     }
 
-    cb_assert(string);
-
     bool ret = true;
     if (strcasecmp(string, "memcached") == 0) {
         *protocol = Protocol::Memcached;

@@ -85,7 +85,7 @@ Connection::~Connection() {
     free(read.buf);
     free(write.buf);
 
-    cb_assert(reservedItems.empty());
+    releaseReservedItems();
     for (auto* ptr : temp_alloc) {
         free(ptr);
     }
@@ -240,7 +240,14 @@ void Connection::resolveConnectionName(bool listening) {
 }
 
 bool Connection::unregisterEvent() {
-    cb_assert(registered_in_libevent);
+    if (!registered_in_libevent) {
+        settings.extensions.logger->log
+            (EXTENSION_LOG_WARNING, NULL,
+             "Connection::unregisterEvent: Not registered in libevent - "
+             "ignoring unregister attempt");
+        return false;
+    }
+
     cb_assert(socketDescriptor != INVALID_SOCKET);
 
     if (event_del(&event) == -1) {
@@ -255,7 +262,14 @@ bool Connection::unregisterEvent() {
 }
 
 bool Connection::registerEvent() {
-    cb_assert(!registered_in_libevent);
+    if (registered_in_libevent) {
+        settings.extensions.logger->log
+            (EXTENSION_LOG_WARNING, NULL,
+             "Connection::registerEvent: Already registered in libevent - "
+             "ignoring register attempt");
+        return false;
+    }
+
     cb_assert(socketDescriptor != INVALID_SOCKET);
 
     if (event_add(&event, NULL) == -1) {

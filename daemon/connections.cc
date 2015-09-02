@@ -238,7 +238,9 @@ void conn_cleanup_engine_allocations(Connection * c) {
 }
 
 static void conn_cleanup(Connection *c) {
-    cb_assert(c != NULL);
+    if (c == nullptr) {
+        throw std::invalid_argument("conn_cleanup: 'c' must be non-NULL");
+    }
     c->setAdmin(false);
 
     c->releaseTempAlloc();
@@ -266,12 +268,22 @@ static void conn_cleanup(Connection *c) {
 }
 
 void conn_close(Connection *c) {
-    cb_assert(c != NULL);
-    cb_assert(c->isSocketClosed());
-    cb_assert(c->getState() == conn_immediate_close);
+    if (c == nullptr) {
+        throw std::invalid_argument("conn_close: 'c' must be non-NULL");
+    }
+    if (!c->isSocketClosed()) {
+        throw std::logic_error("conn_cleanup: socketDescriptor must be closed");
+    }
+    if (c->getState() != conn_immediate_close) {
+        throw std::logic_error("conn_cleanup: Connection:state (which is " +
+                               std::string(c->getStateName()) +
+                               ") must be conn_immediate_close");
+    }
 
     auto thread = c->getThread();
-    cb_assert(thread != nullptr);
+    if (thread == nullptr) {
+        std::logic_error("conn_close: unable to obtain non-NULL thread from connection");
+    }
     /* remove from pending-io list */
     if (settings.verbose > 1 && list_contains(thread->pending_io, c)) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
@@ -281,7 +293,10 @@ void conn_close(Connection *c) {
 
     conn_cleanup(c);
 
-    cb_assert(c->getThread() == nullptr);
+
+    if (thread != nullptr) {
+        std::logic_error("conn_close: failed to disassociate connection from thread");
+    }
     c->setState(conn_destroyed);
 }
 

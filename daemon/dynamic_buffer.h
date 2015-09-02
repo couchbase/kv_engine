@@ -17,6 +17,8 @@
 #pragma once
 
 #include <cstdlib>
+#include <stdexcept>
+#include <string>
 
 class DynamicBuffer {
 public:
@@ -74,7 +76,11 @@ public:
     void moveOffset(size_t num) {
         offset += num;
         // Validate that we've not run over the buffer size
-        cb_assert(offset <= size);
+        if (offset > size) {
+            throw std::out_of_range("DynamicBuffer::moveOffset: offset (" +
+                                    std::to_string(offset) + ") > size (" +
+                                    std::to_string(size) + ")");
+        }
     }
 
     /**
