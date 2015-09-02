@@ -58,6 +58,8 @@
 #include <JSON_checker.h>
 #include <engines/default_engine.h>
 #include <vector>
+#include <algorithm>
+
 // MB-14649: log crashing on windows..
 #include <math.h>
 
@@ -495,19 +497,22 @@ static void settings_init(void) {
 static void settings_init_relocable_files(void)
 {
     const char *root = DESTINATION_ROOT;
-    const char sep = DIRECTORY_SEPARATOR_CHARACTER;
 
     if (settings.root) {
         root = settings.root;
     }
 
     if (settings.rbac_file == NULL) {
-        char fname[PATH_MAX];
-        sprintf(fname, "%s%cetc%csecurity%crbac.json", root,
-                sep, sep, sep);
-        FILE *fp = fopen(fname, "r");
+        std::string fname(root);
+        fname.append("/etc/security/rbac.json");
+#ifdef WIN32
+        // Make sure that the path is in windows format
+        std::replace(fname.begin(), fname.end(), '/', '\\');
+#endif
+
+        FILE *fp = fopen(fname.c_str(), "r");
         if (fp != NULL) {
-            settings.rbac_file = strdup(fname);
+            settings.rbac_file = strdup(fname.c_str());
             fclose(fp);
         }
     }
@@ -7868,19 +7873,19 @@ int main (int argc, char **argv) {
     /* create the listening socket, bind it, and init */
     {
         const char *portnumber_filename = getenv("MEMCACHED_PORT_FILENAME");
-        char temp_portnumber_filename[PATH_MAX];
-        FILE *portnumber_file = NULL;
+        std::string temp_portnumber_filename;
+        FILE *portnumber_file = nullptr;
 
-        if (portnumber_filename != NULL) {
-            snprintf(temp_portnumber_filename,
-                     sizeof(temp_portnumber_filename),
-                     "%s.lck", portnumber_filename);
+        if (portnumber_filename != nullptr) {
+            temp_portnumber_filename.assign(portnumber_filename);
+            temp_portnumber_filename.append(".lck");
 
-            portnumber_file = fopen(temp_portnumber_filename, "a");
-            if (portnumber_file == NULL) {
+            portnumber_file = fopen(temp_portnumber_filename.c_str(), "a");
+            if (portnumber_file == nullptr) {
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Failed to open \"%s\": %s\n",
-                        temp_portnumber_filename, strerror(errno));
+                        "Failed to open \"%s\": %s",
+                        temp_portnumber_filename.c_str(), strerror(errno));
+                exit(EX_OSERR);
             }
         }
 
@@ -7890,7 +7895,7 @@ int main (int argc, char **argv) {
 
         if (portnumber_file) {
             fclose(portnumber_file);
-            rename(temp_portnumber_filename, portnumber_filename);
+            rename(temp_portnumber_filename.c_str(), portnumber_filename);
         }
     }
 
