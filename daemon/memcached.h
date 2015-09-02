@@ -174,7 +174,6 @@ void STATS_UNLOCK(void);
 void threadlocal_stats_reset(struct thread_stats *thread_stats);
 
 void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status);
-const char *state_text(STATE_FUNC state);
 void safe_close(SOCKET sfd);
 
 

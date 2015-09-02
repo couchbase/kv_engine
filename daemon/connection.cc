@@ -110,8 +110,8 @@ void Connection::setState(STATE_FUNC next_state) {
             || state == conn_setup_tap_stream) {
             settings.extensions.logger->log(EXTENSION_LOG_DETAIL, this,
                                             "%u: going from %s to %s\n",
-                                            getId(), state_text(state),
-                                            state_text(next_state));
+                                            getId(), getStateName(state),
+                                            getStateName(next_state));
         }
 
         if (next_state == conn_write || next_state == conn_mwrite) {
@@ -126,12 +126,56 @@ void Connection::setState(STATE_FUNC next_state) {
     }
 }
 
+const char* Connection::getStateName(STATE_FUNC state) {
+    if (state == conn_listening) {
+        return "conn_listening";
+    } else if (state == conn_new_cmd) {
+        return "conn_new_cmd";
+    } else if (state == conn_waiting) {
+        return "conn_waiting";
+    } else if (state == conn_read) {
+        return "conn_read";
+    } else if (state == conn_parse_cmd) {
+        return "conn_parse_cmd";
+    } else if (state == conn_write) {
+        return "conn_write";
+    } else if (state == conn_nread) {
+        return "conn_nread";
+    } else if (state == conn_closing) {
+        return "conn_closing";
+    } else if (state == conn_mwrite) {
+        return "conn_mwrite";
+    } else if (state == conn_ship_log) {
+        return "conn_ship_log";
+    } else if (state == conn_setup_tap_stream) {
+        return "conn_setup_tap_stream";
+    } else if (state == conn_pending_close) {
+        return "conn_pending_close";
+    } else if (state == conn_immediate_close) {
+        return "conn_immediate_close";
+    } else if (state == conn_refresh_cbsasl) {
+        return "conn_refresh_cbsasl";
+    } else if (state == conn_refresh_ssl_certs) {
+        return "conn_refresh_ssl_cert";
+    } else if (state == conn_flush) {
+        return "conn_flush";
+    } else if (state == conn_audit_configuring) {
+        return "conn_audit_configuring";
+    } else if (state == conn_create_bucket) {
+        return "conn_create_bucket";
+    } else if (state == conn_delete_bucket) {
+        return "conn_delete_bucket";
+    } else {
+        return "Unknown";
+    }
+}
+
 void Connection::runStateMachinery() {
     do {
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
                                             "%u - Running task: (%s)",
-                                            getId(), state_text(state));
+                                            getId(), getStateName(state));
         }
     } while (state(this));
 }
@@ -379,7 +423,7 @@ cJSON* Connection::toJSON() const {
         {
             cJSON* state = cJSON_CreateArray();
             cJSON_AddItemToArray(state,
-                                 cJSON_CreateString(state_text(getState())));
+                                 cJSON_CreateString(getStateName(getState())));
             cJSON_AddItemToObject(obj, "state", state);
         }
         json_add_bool_to_object(obj, "registered_in_libevent",

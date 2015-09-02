@@ -575,53 +575,6 @@ void safe_close(SOCKET sfd) {
     }
 }
 
-/**
- * Convert a state name to a human readable form.
- */
-const char *state_text(STATE_FUNC state) {
-    if (state == conn_listening) {
-        return "conn_listening";
-    } else if (state == conn_new_cmd) {
-        return "conn_new_cmd";
-    } else if (state == conn_waiting) {
-        return "conn_waiting";
-    } else if (state == conn_read) {
-        return "conn_read";
-    } else if (state == conn_parse_cmd) {
-        return "conn_parse_cmd";
-    } else if (state == conn_write) {
-        return "conn_write";
-    } else if (state == conn_nread) {
-        return "conn_nread";
-    } else if (state == conn_closing) {
-        return "conn_closing";
-    } else if (state == conn_mwrite) {
-        return "conn_mwrite";
-    } else if (state == conn_ship_log) {
-        return "conn_ship_log";
-    } else if (state == conn_setup_tap_stream) {
-        return "conn_setup_tap_stream";
-    } else if (state == conn_pending_close) {
-        return "conn_pending_close";
-    } else if (state == conn_immediate_close) {
-        return "conn_immediate_close";
-    } else if (state == conn_refresh_cbsasl) {
-        return "conn_refresh_cbsasl";
-    } else if (state == conn_refresh_ssl_certs) {
-        return "conn_refresh_ssl_cert";
-    } else if (state == conn_flush) {
-        return "conn_flush";
-    } else if (state == conn_audit_configuring) {
-        return "conn_audit_configuring";
-    } else if (state == conn_create_bucket) {
-        return "conn_create_bucket";
-    } else if (state == conn_delete_bucket) {
-        return "conn_delete_bucket";
-    } else {
-        return "Unknown";
-    }
-}
-
 static bucket_id_t get_bucket_id(const void *cookie) {
     /* @todo fix this. Currently we're using the index as the id,
      * but this should be changed to be a uniqe ID that won't be

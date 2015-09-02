@@ -227,6 +227,13 @@ public:
     }
 
     /**
+     * Get the name of the current state
+     */
+    const char* getStateName() const {
+        return getStateName(state);
+    }
+
+    /**
      * Run the state machinery
      */
     void runStateMachinery();
@@ -889,6 +896,12 @@ public:
     bool includeErrorStringInResponseBody(protocol_binary_response_status err) const;
 
 protected:
+
+    /*
+     * Returns the name of the specified state function.
+     */
+    static const char* getStateName(STATE_FUNC state);
+
     /**
      * Ensures that there is room for another struct iovec in a connection's
      * iov list.
