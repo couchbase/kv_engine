@@ -5489,46 +5489,6 @@ static enum test_result test_dcp_add_stream_exists(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_add_stream_on_tap_rcvr(ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
-
-    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
-          "Failed to set vbucket state.");
-
-    const void *cookie1 = testHarness.create_cookie();
-    char eng_specific[9];
-    memset(eng_specific, 0, sizeof(eng_specific));
-    std::string key("key");
-    std::string val("value");
-    /* Creating a tap consumer */
-    checkeq(h1->tap_notify(h, cookie1, eng_specific, sizeof(eng_specific),
-                           1, 0, TAP_MUTATION, 1, key.c_str(), key.length(),
-                           828, 0, 0, PROTOCOL_BINARY_RAW_BYTES, val.c_str(),
-                           val.length(), 0),
-            ENGINE_SUCCESS,
-            "Failed tap_notify!");
-
-    const void *cookie2 = testHarness.create_cookie();
-    uint32_t opaque = 0xFFFF0000;
-    uint32_t flags = 0;
-    const char *name = "unittest";
-    uint16_t nname = strlen(name);
-
-    /* Open DCP consumer connection */
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie2, opaque, 0, flags, (void*)name, nname),
-            "Failed dcp consumer open connection.");
-
-    /* Send add stream to consumer */
-    checkeq(ENGINE_KEY_EEXISTS,
-            h1->dcp.add_stream(h, cookie2, ++opaque, 0, 0),
-            "Add stream request should've failed!");
-
-    testHarness.destroy_cookie(cookie1);
-    testHarness.destroy_cookie(cookie2);
-    return SUCCESS;
-}
-
 static enum test_result test_add_tap_rcvr_on_dcp_stream(ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
 
@@ -14379,9 +14339,6 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown,
                  "dcp_enable_flow_control=true;dcp_enable_noop=false", prepare,
                  cleanup),
-        TestCase("test add dcp stream with existing tap consumer",
-                 test_dcp_add_stream_on_tap_rcvr,
-                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add tap consumer with existing dcp stream",
                  test_add_tap_rcvr_on_dcp_stream,
                  test_setup, teardown, NULL, prepare, cleanup),
