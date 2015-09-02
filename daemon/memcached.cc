@@ -86,7 +86,6 @@ static ENGINE_HANDLE* v1_handle_2_handle(ENGINE_HANDLE_V1* v1) {
     return reinterpret_cast<ENGINE_HANDLE*>(v1);
 }
 
-
 const char* getBucketName(const Connection* c) {
     return all_buckets[c->getBucketIndex()].name;
 }
@@ -94,53 +93,54 @@ const char* getBucketName(const Connection* c) {
 /* Wrap the engine interface ! */
 
 void bucket_item_set_cas(Connection *c, item *it, uint64_t cas) {
-    c->getBucketEngine()->item_set_cas(v1_handle_2_handle(c->getBucketEngine()),
-                                   c, it, cas);
+    c->getBucketEngine()->item_set_cas(c->getBucketEngineAsV0(), c, it, cas);
 }
 
 void bucket_reset_stats(Connection *c) {
-    c->getBucketEngine()->reset_stats(v1_handle_2_handle(c->getBucketEngine()), c);
+    c->getBucketEngine()->reset_stats(c->getBucketEngineAsV0(), c);
 }
 
 ENGINE_ERROR_CODE bucket_get_engine_vb_map(Connection *c,
                                            engine_get_vb_map_cb callback) {
-    return c->getBucketEngine()->get_engine_vb_map(v1_handle_2_handle(c->getBucketEngine()),
-                                               c, callback);
+    return c->getBucketEngine()->get_engine_vb_map(c->getBucketEngineAsV0(),
+                                                   c, callback);
 }
 
-static bool bucket_get_item_info(Connection *c, const item* item, item_info *item_info) {
-    return c->getBucketEngine()->get_item_info(v1_handle_2_handle(c->getBucketEngine()),
-                                           c, item, item_info);
+static bool bucket_get_item_info(Connection *c, const item* item_,
+                                 item_info *item_info_) {
+    return c->getBucketEngine()->get_item_info(c->getBucketEngineAsV0(),
+                                           c, item_, item_info_);
 }
 
-static bool bucket_set_item_info(Connection *c, item* item, const item_info *item_info) {
-    return c->getBucketEngine()->set_item_info(v1_handle_2_handle(c->getBucketEngine()),
-                                           c, item, item_info);
+static bool bucket_set_item_info(Connection *c, item* item_,
+                                 const item_info *item_info_) {
+    return c->getBucketEngine()->set_item_info(c->getBucketEngineAsV0(),
+                                               c, item_, item_info_);
 }
 
-static ENGINE_ERROR_CODE bucket_store(Connection *c,
-                               item* item,
-                               uint64_t *cas,
-                               ENGINE_STORE_OPERATION operation,
-                               uint16_t vbucket) {
-    return c->getBucketEngine()->store(v1_handle_2_handle(c->getBucketEngine()), c, item,
-                                   cas, operation, vbucket);
+static ENGINE_ERROR_CODE bucket_store(Connection* c,
+                                      item* item_,
+                                      uint64_t* cas,
+                                      ENGINE_STORE_OPERATION operation,
+                                      uint16_t vbucket) {
+    return c->getBucketEngine()->store(c->getBucketEngineAsV0(), c, item_,
+                                       cas, operation, vbucket);
 }
 
 static ENGINE_ERROR_CODE bucket_get(Connection *c,
-                             item** item,
+                             item** item_,
                              const void* key,
                              const int nkey,
                              uint16_t vbucket) {
-    return c->getBucketEngine()->get(v1_handle_2_handle(c->getBucketEngine()), c, item,
-                                 key, nkey, vbucket);
+    return c->getBucketEngine()->get(c->getBucketEngineAsV0(), c, item_,
+                                     key, nkey, vbucket);
 }
 
-ENGINE_ERROR_CODE bucket_unknown_command(Connection *c,
-                                         protocol_binary_request_header *request,
+ENGINE_ERROR_CODE bucket_unknown_command(Connection* c,
+                                         protocol_binary_request_header* request,
                                          ADD_RESPONSE response) {
-    return c->getBucketEngine()->unknown_command(v1_handle_2_handle(c->getBucketEngine()), c,
-                                             request, response);
+    return c->getBucketEngine()->unknown_command(c->getBucketEngineAsV0(), c,
+                                                 request, response);
 }
 
 static void shutdown_server(void);
@@ -967,7 +967,7 @@ static void process_bin_get(Connection *c) {
         STATS_HIT(c, get, key, nkey);
 
         if (!bucket_get_item_info(c, it, &info.info)) {
-            c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, it);
+            c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%u: Failed to get item info",
                                             c->getId());
@@ -1004,7 +1004,7 @@ static void process_bin_get(Connection *c) {
                                                PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                                info.info.cas, c)) {
                 write_and_free(c, &c->getDynamicBuffer());
-                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, it);
+                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
             } else {
                 write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             }
@@ -1187,7 +1187,7 @@ static void handle_binary_protocol_error(Connection *c) {
 }
 
 static bool authenticated(Connection *c) {
-    bool rv = false;
+    bool rv;
 
     switch (c->getCmd()) {
     case PROTOCOL_BINARY_CMD_SASL_LIST_MECHS: /* FALLTHROUGH */
@@ -1371,7 +1371,7 @@ static void ship_tap_log(Connection *c) {
             break;
         }
 
-        event = tap_iterator(v1_handle_2_handle(c->getBucketEngine()), c, &it,
+        event = tap_iterator(c->getBucketEngineAsV0(), c, &it,
                              &engine, &nengine, &ttl,
                              &tap_flags, &seqno, &vbucket);
         memset(&msg, 0, sizeof(msg));
@@ -1402,7 +1402,7 @@ static void ship_tap_log(Connection *c) {
         case TAP_CHECKPOINT_END:
         case TAP_MUTATION:
             if (!bucket_get_item_info(c, it, &info.info)) {
-                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, it);
+                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Failed to get item info",
                                                 c->getId());
@@ -1410,7 +1410,7 @@ static void ship_tap_log(Connection *c) {
             }
 
             if (!c->reserveItem(it)) {
-                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, it);
+                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Failed to grow item array",
                                                 c->getId());
@@ -1512,8 +1512,8 @@ static void ship_tap_log(Connection *c) {
                         return;
                     }
                     const char *body = reinterpret_cast<const char*>(info.info.value[0].iov_base);
-                    size_t bodylen = info.info.value[0].iov_len;
-                    if (snappy_uncompress(body, bodylen,
+                    size_t input_length = info.info.value[0].iov_len;
+                    if (snappy_uncompress(body, input_length,
                                           buf, &inflated_length) == SNAPPY_OK) {
                         if (!c->pushTempAlloc(buf)) {
                             free(buf);
@@ -1545,7 +1545,7 @@ static void ship_tap_log(Connection *c) {
         case TAP_DELETION:
             /* This is a delete */
             if (!bucket_get_item_info(c, it, &info.info)) {
-                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, it);
+                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Failed to get item info",
                                                 c->getId());
@@ -1553,7 +1553,7 @@ static void ship_tap_log(Connection *c) {
             }
 
             if (!c->reserveItem(it)) {
-                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, it);
+                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Failed to grow item array",
                                                 c->getId());
@@ -1713,7 +1713,7 @@ static void process_bin_unknown_packet(Connection *c) {
     if (ret == ENGINE_SUCCESS) {
         struct request_lookup *rq = request_handlers + c->binary_header.request.opcode;
         ret = rq->callback(rq->descriptor,
-                           v1_handle_2_handle(c->getBucketEngine()), c, req,
+                           c->getBucketEngineAsV0(), c, req,
                            binary_response_handler);
     }
 
@@ -1846,7 +1846,7 @@ static void process_bin_tap_connect(Connection *c) {
                                         c->getId(), buffer);
     }
 
-    iterator = c->getBucketEngine()->get_tap_iterator(v1_handle_2_handle(c->getBucketEngine()),
+    iterator = c->getBucketEngine()->get_tap_iterator(c->getBucketEngineAsV0(),
                                                   c, key,
                                                   c->binary_header.request.keylen,
                                                   flags, data, ndata);
@@ -1929,7 +1929,7 @@ static void process_bin_tap_packet(tap_event_t event, Connection *c) {
                 }
             }
 
-            ret = c->getBucketEngine()->tap_notify(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->tap_notify(c->getBucketEngineAsV0(), c,
                                                engine_specific, nengine,
                                                ttl - 1, tap_flags,
                                                event, seqno,
@@ -1973,7 +1973,7 @@ static void process_bin_tap_ack(Connection *c) {
     key = packet + sizeof(rsp->bytes);
 
     if (c->getBucketEngine()->tap_notify != NULL) {
-        ret = c->getBucketEngine()->tap_notify(v1_handle_2_handle(c->getBucketEngine()), c, NULL, 0,
+        ret = c->getBucketEngine()->tap_notify(c->getBucketEngineAsV0(), c, NULL, 0,
                                            0, status,
                                            TAP_ACK, seqno, key,
                                            c->binary_header.request.keylen, 0, 0,
@@ -2240,14 +2240,14 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     info.info.nvalue = IOV_MAX;
 
     if (!bucket_get_item_info(c, it, &info.info)) {
-        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, it);
+        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%u: Failed to get item info", c->getId());
         return ENGINE_FAILED;
     }
 
     if (!c->reserveItem(it)) {
-        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, it);
+        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%u: Failed to grow item array",
                                         c->getId());
@@ -2575,7 +2575,7 @@ static void ship_dcp_log(Connection *c) {
     c->write.bytes = 0;
     c->write.curr = c->write.buf;
     c->setEwouldblock(false);
-    ret = c->getBucketEngine()->dcp.step(v1_handle_2_handle(c->getBucketEngine()), c, &producers);
+    ret = c->getBucketEngine()->dcp.step(c->getBucketEngineAsV0(), c, &producers);
     if (ret == ENGINE_SUCCESS) {
         /* the engine don't have more data to send at this moment */
         c->setEwouldblock(true);
@@ -2699,7 +2699,7 @@ static void dcp_open_executor(Connection *c, void *packet)
         c->setSupportsDatatype(true);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.open(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.open(c->getBucketEngineAsV0(), c,
                                              req->message.header.request.opaque,
                                              ntohl(req->message.body.seqno),
                                              ntohl(req->message.body.flags),
@@ -2739,7 +2739,7 @@ static void dcp_add_stream_executor(Connection *c, void *packet)
         c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.add_stream(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.add_stream(c->getBucketEngineAsV0(), c,
                                                    req->message.header.request.opaque,
                                                    ntohs(req->message.header.request.vbucket),
                                                    ntohl(req->message.body.flags));
@@ -2778,7 +2778,7 @@ static void dcp_close_stream_executor(Connection *c, void *packet)
         if (ret == ENGINE_SUCCESS) {
             uint16_t vbucket = ntohs(req->message.header.request.vbucket);
             uint32_t opaque = ntohl(req->message.header.request.opaque);
-            ret = c->getBucketEngine()->dcp.close_stream(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.close_stream(c->getBucketEngineAsV0(), c,
                                                        opaque, vbucket);
         }
 
@@ -2841,7 +2841,7 @@ static void dcp_get_failover_log_executor(Connection *c, void *packet) {
         c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.get_failover_log(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.get_failover_log(c->getBucketEngineAsV0(), c,
                                                          req->message.header.request.opaque,
                                                          ntohs(req->message.header.request.vbucket),
                                                          add_failover_log);
@@ -2892,7 +2892,7 @@ static void dcp_stream_req_executor(Connection *c, void *packet)
         cb_assert(ret != ENGINE_ROLLBACK);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.stream_req(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.stream_req(c->getBucketEngineAsV0(), c,
                                                    flags,
                                                    c->binary_header.request.opaque,
                                                    c->binary_header.request.vbucket,
@@ -2953,7 +2953,7 @@ static void dcp_stream_end_executor(Connection *c, void *packet)
         c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.stream_end(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.stream_end(c->getBucketEngineAsV0(), c,
                                                      req->message.header.request.opaque,
                                                      ntohs(req->message.header.request.vbucket),
                                                      ntohl(req->message.body.flags));
@@ -2996,7 +2996,7 @@ static void dcp_snapshot_marker_executor(Connection *c, void *packet)
         c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.snapshot_marker(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.snapshot_marker(c->getBucketEngineAsV0(), c,
                                                           opaque, vbucket,
                                                           start_seqno,
                                                           end_seqno, flags);
@@ -3048,7 +3048,7 @@ static void dcp_mutation_executor(Connection *c, void *packet)
             uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey
                 - req->message.header.request.extlen - nmeta;
 
-            ret = c->getBucketEngine()->dcp.mutation(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.mutation(c->getBucketEngineAsV0(), c,
                                                  req->message.header.request.opaque,
                                                  key, nkey, value, nvalue, cas, vbucket,
                                                  flags, datatype, by_seqno, rev_seqno,
@@ -3096,7 +3096,7 @@ static void dcp_deletion_executor(Connection *c, void *packet)
             uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
             uint16_t nmeta = ntohs(req->message.body.nmeta);
 
-            ret = c->getBucketEngine()->dcp.deletion(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.deletion(c->getBucketEngineAsV0(), c,
                                                  req->message.header.request.opaque,
                                                  key, nkey, cas, vbucket,
                                                  by_seqno, rev_seqno, key + nkey, nmeta);
@@ -3141,7 +3141,7 @@ static void dcp_expiration_executor(Connection *c, void *packet)
             uint64_t rev_seqno = ntohll(req->message.body.rev_seqno);
             uint16_t nmeta = ntohs(req->message.body.nmeta);
 
-            ret = c->getBucketEngine()->dcp.expiration(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.expiration(c->getBucketEngineAsV0(), c,
                                                    req->message.header.request.opaque,
                                                    key, nkey, cas, vbucket,
                                                    by_seqno, rev_seqno, key + nkey, nmeta);
@@ -3178,7 +3178,7 @@ static void dcp_flush_executor(Connection *c, void *packet)
         c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.flush(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.flush(c->getBucketEngineAsV0(), c,
                                               req->message.header.request.opaque,
                                               ntohs(req->message.header.request.vbucket));
         }
@@ -3215,7 +3215,7 @@ static void dcp_set_vbucket_state_executor(Connection *c, void *packet)
 
         if (ret == ENGINE_SUCCESS) {
             vbucket_state_t state = (vbucket_state_t)req->message.body.state;
-            ret = c->getBucketEngine()->dcp.set_vbucket_state(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.set_vbucket_state(c->getBucketEngineAsV0(), c,
                                                           c->binary_header.request.opaque,
                                                           c->binary_header.request.vbucket,
                                                           state);
@@ -3252,7 +3252,7 @@ static void dcp_noop_executor(Connection *c, void *packet)
         c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.noop(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.noop(c->getBucketEngineAsV0(), c,
                                              c->binary_header.request.opaque);
         }
 
@@ -3289,7 +3289,7 @@ static void dcp_buffer_acknowledgement_executor(Connection *c, void *packet)
         if (ret == ENGINE_SUCCESS) {
             uint32_t bbytes;
             memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
-            ret = c->getBucketEngine()->dcp.buffer_acknowledgement(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.buffer_acknowledgement(c->getBucketEngineAsV0(), c,
                                                                c->binary_header.request.opaque,
                                                                c->binary_header.request.vbucket,
                                                                ntohl(bbytes));
@@ -3329,7 +3329,7 @@ static void dcp_control_executor(Connection *c, void *packet)
             uint16_t nkey = ntohs(req->message.header.request.keylen);
             const uint8_t *value = key + nkey;
             uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
-            ret = c->getBucketEngine()->dcp.control(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->dcp.control(c->getBucketEngineAsV0(), c,
                                                   c->binary_header.request.opaque,
                                                   key, nkey, value, nvalue);
         }
@@ -3719,7 +3719,7 @@ static void flush_executor(Connection *c, void *packet)
                                         (long)exptime);
     }
 
-    ret = c->getBucketEngine()->flush(v1_handle_2_handle(c->getBucketEngine()), c, exptime);
+    ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c, exptime);
     switch (ret) {
     case ENGINE_SUCCESS:
         get_thread_stats(c)->cmd_flush++;
@@ -3772,7 +3772,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
 
         if (ret == ENGINE_SUCCESS) {
             rel_time_t expiration = ntohl(req->message.body.expiration);
-            ret = c->getBucketEngine()->allocate(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(), c,
                                              &it, key, nkey, vlen,
                                              req->message.body.flags,
                                              expiration,
@@ -3796,7 +3796,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
 
         bucket_item_set_cas(c, it, ntohll(req->message.header.request.cas));
         if (!bucket_get_item_info(c, it, &info.info)) {
-            c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, it);
+            c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
@@ -3833,7 +3833,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
         if (c->isSupportsMutationExtras()) {
             info.info.nvalue = 1;
             if (!bucket_get_item_info(c, c->getItem(), &info.info)) {
-                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
+                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, c->getItem());
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Failed to get item info",
                                                 c->getId());
@@ -3888,7 +3888,7 @@ static void add_set_replace_executor(Connection *c, void *packet,
 
     if (!c->isEwouldblock()) {
         /* release the c->item reference */
-        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
+        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, c->getItem());
         c->setItem(nullptr);
     }
 }
@@ -3950,7 +3950,7 @@ static void append_prepend_executor(Connection *c,
         item *it;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->allocate(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(), c,
                                                &it, key, nkey,
                                                vlen, 0, 0,
                                                req->message.header.request.datatype);
@@ -3972,7 +3972,7 @@ static void append_prepend_executor(Connection *c,
 
         bucket_item_set_cas(c, it, ntohll(req->message.header.request.cas));
         if (!bucket_get_item_info(c, it, &info.info)) {
-            c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, it);
+            c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
             write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
@@ -4011,7 +4011,7 @@ static void append_prepend_executor(Connection *c,
         if (c->isSupportsMutationExtras()) {
             info.info.nvalue = 1;
             if (!bucket_get_item_info(c, c->getItem(), &info.info)) {
-                c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
+                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, c->getItem());
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Failed to get item info",
                                                 c->getId());
@@ -4041,7 +4041,7 @@ static void append_prepend_executor(Connection *c,
 
     if (!c->isEwouldblock()) {
         /* release the c->item reference */
-        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
+        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, c->getItem());
         c->setItem(nullptr);
     }
 }
@@ -4136,7 +4136,7 @@ static void stat_executor(Connection *c, void *packet)
     if (ret == ENGINE_SUCCESS) {
         if (nkey == 0) {
             /* request all statistics */
-            ret = c->getBucketEngine()->get_stats(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(), c,
                                               NULL, 0, append_stats);
             if (ret == ENGINE_SUCCESS) {
                 server_stats(&append_stats, c);
@@ -4193,7 +4193,7 @@ static void stat_executor(Connection *c, void *packet)
             cJSON_Delete(topkeys_doc);
 
         } else {
-            ret = c->getBucketEngine()->get_stats(v1_handle_2_handle(c->getBucketEngine()), c,
+            ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(), c,
                                                 subcommand, (int)nkey,
                                                 append_stats);
         }
@@ -4304,7 +4304,7 @@ static void arithmetic_executor(Connection *c, void *packet)
 
     item* item = NULL;
     if (ret == ENGINE_SUCCESS) {
-        ret = c->getBucketEngine()->arithmetic(v1_handle_2_handle(c->getBucketEngine()),
+        ret = c->getBucketEngine()->arithmetic(c->getBucketEngineAsV0(),
                                              c, key, (int)nkey, incr,
                                              req->message.body.expiration != 0xffffffff,
                                              delta, initial, expiration,
@@ -4321,7 +4321,7 @@ static void arithmetic_executor(Connection *c, void *packet)
         item_info info;
         info.nvalue = 1;
         if (!bucket_get_item_info(c, item, &info)) {
-            c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, item);
+            c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, item);
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "%u: Failed to get item info",
                                             c->getId());
@@ -4352,7 +4352,7 @@ static void arithmetic_executor(Connection *c, void *packet)
         }
 
         /* No further need for item; release it. */
-        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, item);
+        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, item);
 
         if (incr) {
             STATS_INCR(c, incr_hits, key, nkey);
@@ -5112,7 +5112,7 @@ static void process_bin_delete(Connection *c) {
 
     mutation_descr_t mut_info;
     if (ret == ENGINE_SUCCESS) {
-        ret = c->getBucketEngine()->remove(v1_handle_2_handle(c->getBucketEngine()), c, key, nkey,
+        ret = c->getBucketEngine()->remove(c->getBucketEngineAsV0(), c, key, nkey,
                                        &cas, c->binary_header.request.vbucket,
                                        &mut_info);
     }
@@ -5178,7 +5178,7 @@ static void complete_nread(Connection *c) {
 static void reset_cmd_handler(Connection *c) {
     c->setCmd(-1);
     if(c->getItem() != nullptr) {
-        c->getBucketEngine()->release(v1_handle_2_handle(c->getBucketEngine()), c, c->getItem());
+        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, c->getItem());
         c->setItem(nullptr);
     }
 
@@ -6435,7 +6435,7 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
         }
 
         if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) == SOCKET_ERROR) {
-            auto error = GetLastNetworkError();
+            error = GetLastNetworkError();
             if (!is_addrinuse(error)) {
                 log_errcode_error(EXTENSION_LOG_WARNING, NULL,
                                   "bind(): %s", error);
@@ -6750,7 +6750,7 @@ static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {
     c->setState(conn_closing);
 }
 
-static void count_eviction(const void *cookie, const void *key, const int nkey) {
+static void count_eviction(const void *cookie, const void *key, int nkey) {
     (void)cookie;
     (void)key;
     (void)nkey;
@@ -7055,7 +7055,7 @@ static void process_bin_dcp_response(Connection *c) {
             (c->read.curr - (c->binary_header.request.bodylen +
                              sizeof(c->binary_header)));
         ret = c->getBucketEngine()->dcp.response_handler
-                (v1_handle_2_handle(c->getBucketEngine()), c, header);
+                (c->getBucketEngineAsV0(), c, header);
     }
 
     if (ret == ENGINE_DISCONNECT) {
@@ -7610,7 +7610,7 @@ static void set_max_filehandles(void) {
         exit(EX_OSERR);
     } else {
         const rlim_t maxfiles = settings.maxconns + (3 * (settings.num_threads + 2));
-        int syslimit = rlim.rlim_cur;
+        rlim_t syslimit = rlim.rlim_cur;
         if (rlim.rlim_cur < maxfiles) {
             rlim.rlim_cur = maxfiles;
         }
