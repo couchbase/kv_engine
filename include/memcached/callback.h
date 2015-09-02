@@ -13,11 +13,11 @@ extern "C" {
      * changes in the server.
      */
     typedef enum {
-        ON_DISCONNECT = 1, /**< A connection was terminated. */
-        ON_LOG_LEVEL = 3 /**< Changed log level */
+        ON_DISCONNECT = 0, /**< A connection was terminated. */
+        ON_LOG_LEVEL = 1 /**< Changed log level */
     } ENGINE_EVENT_TYPE;
 
-    #define MAX_ENGINE_EVENT_TYPE 5
+    #define MAX_ENGINE_EVENT_TYPE 2
 
     /**
      * Callback for server events.

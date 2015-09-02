@@ -59,12 +59,6 @@
 
 #define MAX_VERBOSITY_LEVEL 2
 
-struct engine_event_handler {
-    EVENT_CALLBACK cb;
-    const void *cb_data;
-    struct engine_event_handler *next;
-};
-
 extern struct stats stats;
 
 enum class ThreadType {

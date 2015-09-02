@@ -17,7 +17,10 @@
 #pragma once
 
 #include <memcached/engine.h>
+#include <array>
 #include <cstring>
+#include <vector>
+
 #include "timings.h"
 #include "topkeys.h"
 
@@ -49,7 +52,14 @@ enum class BucketType : uint8_t {
 
 #define MAX_BUCKET_NAME_LENGTH 100
 
-struct engine_event_handler;
+struct engine_event_handler {
+    EVENT_CALLBACK cb;
+    const void *cb_data;
+};
+
+// Set of engine event handlers, one per event type.
+typedef std::array<std::vector<struct engine_event_handler>,
+                   MAX_ENGINE_EVENT_TYPE + 1> engine_event_handler_array_t;
 
 class Bucket {
 public:
@@ -61,7 +71,6 @@ public:
           topkeys(nullptr)
     {
         std::memset(name, 0, sizeof(name));
-        std::memset(engine_event_handlers, 0, sizeof(engine_event_handlers));
         cb_mutex_initialize(&mutex);
         cb_cond_initialize(&cond);
     }
@@ -99,9 +108,9 @@ public:
     char name[MAX_BUCKET_NAME_LENGTH + 1];
 
     /**
-     * The array of registered event handlers
+     * An array of registered event handler vectors, one for each type.
      */
-    struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
+    engine_event_handler_array_t engine_event_handlers;
 
     /**
      * @todo add properties!

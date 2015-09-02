@@ -197,7 +197,7 @@ struct settings settings;
 Connection *listen_conn = NULL;
 static struct event_base *main_base;
 
-static struct engine_event_handler *engine_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
+static engine_event_handler_array_t engine_event_handlers;
 
 /*
  * MB-12470 requests an easy way to see when (some of) the statistics
@@ -291,8 +291,6 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
                        const void *cookie)
 {
-    struct engine_event_handler *h = nullptr;
-
     switch (type) {
         /*
          * The following events operates on a connection which is passed in
@@ -300,9 +298,19 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
          */
     case ON_DISCONNECT: {
         const Connection * connection = reinterpret_cast<const Connection *>(cookie);
-        cb_assert(connection);
-        cb_assert(connection->getBucketIndex() != -1);
-        h = all_buckets[connection->getBucketIndex()].engine_event_handlers[type];
+        if (connection == nullptr) {
+            throw std::invalid_argument("perform_callbacks: cookie is NULL");
+        }
+        const auto bucket_idx = connection->getBucketIndex();
+        if (bucket_idx == -1) {
+            throw std::logic_error("perform_callbacks: connection (which is " +
+                        std::to_string(connection->getId()) + ") cannot be "
+                        "disconnected as it is not associated with a bucket");
+        }
+
+        for (auto& handler : all_buckets[bucket_idx].engine_event_handlers[type]) {
+            handler.cb(cookie, ON_DISCONNECT, data, handler.cb_data);
+        }
         break;
     }
     case ON_LOG_LEVEL:
@@ -312,18 +320,15 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
                 std::to_string(reinterpret_cast<uintptr_t>(cookie)) +
                 ") should be NULL for ON_LOG_LEVEL");
         }
-        h = engine_event_handlers[type];
+        for (auto& handler : engine_event_handlers[type]) {
+            handler.cb(cookie, ON_LOG_LEVEL, data, handler.cb_data);
+        }
         break;
 
     default:
         throw std::invalid_argument("perform_callbacks: type "
                 "(which is " + std::to_string(type) +
                 "is not a valid ENGINE_EVENT_TYPE");
-    }
-
-    while (h != nullptr) {
-        h->cb(cookie, type, data, h->cb_data);
-        h = h->next;
     }
 }
 
@@ -332,35 +337,36 @@ static void register_callback(ENGINE_HANDLE *eh,
                               EVENT_CALLBACK cb,
                               const void *cb_data)
 {
-    int idx;
-    engine_event_handler* h =
-            reinterpret_cast<engine_event_handler*>(calloc(sizeof(*h), 1));
-
-    cb_assert(h);
-    h->cb = cb;
-    h->cb_data = cb_data;
-
     switch (type) {
     /*
      * The following events operates on a connection which is passed in
      * as the cookie.
      */
     case ON_DISCONNECT:
-        cb_assert(eh);
+        if (eh == nullptr) {
+            throw std::invalid_argument("register_callback: 'eh' must be non-NULL");
+        }
+        int idx;
         for (idx = 0; idx < settings.max_buckets; ++idx) {
             if ((void *)eh == (void *)all_buckets[idx].engine) {
                 break;
             }
         }
-        cb_assert(idx < settings.max_buckets);
-        h->next = all_buckets[idx].engine_event_handlers[type];
-        all_buckets[idx].engine_event_handlers[type] = h;
+        if (idx == settings.max_buckets) {
+            throw std::invalid_argument("register_callback: eh (which is" +
+                    std::to_string(reinterpret_cast<uintptr_t>(eh)) +
+                    ") is not a engine associated with a bucket");
+        }
+        all_buckets[idx].engine_event_handlers[type].push_back({cb, cb_data});
         break;
+
     case ON_LOG_LEVEL:
-        cb_assert(eh == NULL);
-        h->next = engine_event_handlers[type];
-        engine_event_handlers[type] = h;
+        if (eh != nullptr) {
+            throw std::invalid_argument("register_callback: 'eh' must be NULL");
+        }
+        engine_event_handlers[type].push_back({cb, cb_data});
         break;
+
     default:
         throw std::invalid_argument("register_callback: type (which is " +
                                     std::to_string(type) +
@@ -371,24 +377,14 @@ static void register_callback(ENGINE_HANDLE *eh,
 static void free_callbacks() {
     // free per-bucket callbacks.
     for (int idx = 0; idx < settings.max_buckets; ++idx) {
-        for (int type = 0; type < MAX_ENGINE_EVENT_TYPE; type++) {
-            engine_event_handler* h = all_buckets[idx].engine_event_handlers[type];
-            while (h != NULL) {
-                engine_event_handler* tmp = h;
-                h = h->next;
-                free(tmp);
-            }
+        for (auto& type_vec : all_buckets[idx].engine_event_handlers) {
+            type_vec.clear();
         }
     }
 
     // free global callbacks
-    for (int type = 0; type < MAX_ENGINE_EVENT_TYPE; type++) {
-        engine_event_handler* h = engine_event_handlers[type];
-        while (h != NULL) {
-            engine_event_handler* tmp = h;
-            h = h->next;
-            free(tmp);
-        }
+    for (auto& type_vec : engine_event_handlers) {
+        type_vec.clear();
     }
 }
 
