@@ -805,22 +805,6 @@ void TapConnMap::disconnect(const void *cookie) {
     }
 }
 
-bool TapConnMap::isTapConsumerConnected(uint16_t vbucket) {
-    LockHolder lh(connsLock);
-    std::list<connection_t>::iterator it;
-    for(it = all.begin(); it != all.end(); it++) {
-        // Return true if a consumer is found to be active
-        TapConsumer *tapConsumer = dynamic_cast<TapConsumer*>(it->get());
-        if (tapConsumer && tapConsumer->isConnected()) {
-            LOG(EXTENSION_LOG_DEBUG, "(vb %d) A TAP consumer "
-                "already exists for vbucket: %s",
-                vbucket, tapConsumer->logHeader());
-            return true;
-        }
-    }
-    return false;
-}
-
 bool TapConnMap::closeConnectionByName_UNLOCKED(const std::string &name) {
     bool rv = false;
     connection_t tc = findByName_UNLOCKED(name);

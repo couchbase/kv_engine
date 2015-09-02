@@ -312,8 +312,6 @@ public:
 
     void disconnect(const void *cookie);
 
-    bool isTapConsumerConnected(uint16_t vbucket);
-
     void scheduleBackfill(const std::set<uint16_t> &backfillVBuckets);
 
     bool isBackfillCompleted(std::string &name);
