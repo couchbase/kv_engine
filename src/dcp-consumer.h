@@ -116,6 +116,7 @@ private:
     ENGINE_ERROR_CODE handlePriority(struct dcp_message_producers* producers);
 
     ENGINE_ERROR_CODE handleExtMetaData(struct dcp_message_producers* producers);
+    inline bool isBufferSufficientlyDrained(uint32_t ackable_bytes);
 
     uint64_t opaqueCounter;
     size_t processTaskId;
