@@ -4921,6 +4921,15 @@ static int invalid_datatype(Connection *c) {
     }
 }
 
+static protocol_binary_response_status validate_bin_header(Connection* c) {
+    if (c->binary_header.request.bodylen >=
+        (c->binary_header.request.keylen + c->binary_header.request.extlen)) {
+        return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    } else {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+}
+
 static void process_bin_packet(Connection *c) {
 
     char *packet = (c->read.curr - (c->binary_header.request.bodylen +
@@ -4942,18 +4951,19 @@ static void process_bin_packet(Connection *c) {
                                         memcached_opcode_2_text(opcode));
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
         return;
-    case AuthResult::OK:
-        if (validator != NULL) {
-            protocol_binary_response_status result = validator(packet);
-            if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-                settings.extensions.logger->log
+    case AuthResult::OK: {
+        protocol_binary_response_status result = validate_bin_header(c);
+        if (validator != NULL && result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            result = validator(packet);
+        }
+
+        if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            settings.extensions.logger->log
                     (EXTENSION_LOG_WARNING, c,
                      "%u: Invalid format for specified for %s - %d",
                      c->getId(), memcached_opcode_2_text(opcode), result);
-
-                write_bin_packet(c, result);
-                return;
-            }
+            write_bin_packet(c, result);
+            return;
         }
 
         if (executor != NULL) {
@@ -4962,6 +4972,7 @@ static void process_bin_packet(Connection *c) {
             process_bin_unknown_packet(c);
         }
         return;
+    }
     case AuthResult::STALE:
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
         return;
