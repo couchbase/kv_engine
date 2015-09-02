@@ -17,7 +17,7 @@
 #pragma once
 
 #include <cstdint>
-#include "stats_counter.h"
+#include <relaxed_atomic.h>
 
 /**
  * Stats stored per-thread.
@@ -96,45 +96,45 @@ struct thread_stats {
         }
     }
 
-    StatsCounter<uint64_t> cmd_get;
-    StatsCounter<uint64_t> get_hits;
-    StatsCounter<uint64_t> get_misses;
-    StatsCounter<uint64_t> cmd_set;
-    StatsCounter<uint64_t> delete_hits;
-    StatsCounter<uint64_t> cas_hits;
-    StatsCounter<uint64_t> cas_badval;
-    StatsCounter<uint64_t> delete_misses;
-    StatsCounter<uint64_t> incr_misses;
-    StatsCounter<uint64_t> decr_misses;
-    StatsCounter<uint64_t> incr_hits;
-    StatsCounter<uint64_t> decr_hits;
-    StatsCounter<uint64_t> cas_misses;
-    StatsCounter<uint64_t> bytes_read;
-    StatsCounter<uint64_t> bytes_written;
-    StatsCounter<uint64_t> cmd_flush;
-    StatsCounter<uint64_t> conn_yields; /* # of yields for connections (-R option)*/
-    StatsCounter<uint64_t> auth_cmds;
-    StatsCounter<uint64_t> auth_errors;
+    Couchbase::RelaxedAtomic<uint64_t> cmd_get;
+    Couchbase::RelaxedAtomic<uint64_t> get_hits;
+    Couchbase::RelaxedAtomic<uint64_t> get_misses;
+    Couchbase::RelaxedAtomic<uint64_t> cmd_set;
+    Couchbase::RelaxedAtomic<uint64_t> delete_hits;
+    Couchbase::RelaxedAtomic<uint64_t> cas_hits;
+    Couchbase::RelaxedAtomic<uint64_t> cas_badval;
+    Couchbase::RelaxedAtomic<uint64_t> delete_misses;
+    Couchbase::RelaxedAtomic<uint64_t> incr_misses;
+    Couchbase::RelaxedAtomic<uint64_t> decr_misses;
+    Couchbase::RelaxedAtomic<uint64_t> incr_hits;
+    Couchbase::RelaxedAtomic<uint64_t> decr_hits;
+    Couchbase::RelaxedAtomic<uint64_t> cas_misses;
+    Couchbase::RelaxedAtomic<uint64_t> bytes_read;
+    Couchbase::RelaxedAtomic<uint64_t> bytes_written;
+    Couchbase::RelaxedAtomic<uint64_t> cmd_flush;
+    Couchbase::RelaxedAtomic<uint64_t> conn_yields; /* # of yields for connections (-R option)*/
+    Couchbase::RelaxedAtomic<uint64_t> auth_cmds;
+    Couchbase::RelaxedAtomic<uint64_t> auth_errors;
     /* # of read buffers allocated. */
-    StatsCounter<uint64_t> rbufs_allocated;
+    Couchbase::RelaxedAtomic<uint64_t> rbufs_allocated;
     /* # of read buffers which could be loaned (and hence didn't need to be allocated). */
-    StatsCounter<uint64_t> rbufs_loaned;
+    Couchbase::RelaxedAtomic<uint64_t> rbufs_loaned;
     /* # of read buffers which already existed (with partial data) on the connection
        (and hence didn't need to be allocated). */
-    StatsCounter<uint64_t> rbufs_existing;
+    Couchbase::RelaxedAtomic<uint64_t> rbufs_existing;
     /* # of write buffers allocated. */
-    StatsCounter<uint64_t> wbufs_allocated;
+    Couchbase::RelaxedAtomic<uint64_t> wbufs_allocated;
     /* # of write buffers which could be loaned (and hence didn't need to be allocated). */
-    StatsCounter<uint64_t> wbufs_loaned;
+    Couchbase::RelaxedAtomic<uint64_t> wbufs_loaned;
 
     // Right now we're protecting both the "high watermark" variables
     // between the same mutex
     std::mutex mutex;
 
     /* Highest value iovsize has got to */
-    StatsCounter<int> iovused_high_watermark;
+    Couchbase::RelaxedAtomic<int> iovused_high_watermark;
     /* High value Connection->msgused has got to */
-    StatsCounter<int> msgused_high_watermark;
+    Couchbase::RelaxedAtomic<int> msgused_high_watermark;
 };
 
 /**
@@ -151,19 +151,19 @@ struct listening_port {
  */
 struct stats {
     /** Number of connections used by the server itself (listen ports etc). */
-    StatsCounter<unsigned int> daemon_conns;
+    Couchbase::RelaxedAtomic<unsigned int> daemon_conns;
 
     /** The current number of connections to the server */
     std::atomic<unsigned int> curr_conns;
 
     /** The total number of connections to the server since start (or reset) */
-    StatsCounter<unsigned int> total_conns;
+    Couchbase::RelaxedAtomic<unsigned int> total_conns;
 
     /** The current number of allocated connection objects */
-    StatsCounter<unsigned int> conn_structs;
+    Couchbase::RelaxedAtomic<unsigned int> conn_structs;
 
     /** The number of times I reject a client */
-    StatsCounter<uint64_t> rejected_conns;
+    Couchbase::RelaxedAtomic<uint64_t> rejected_conns;
 
     // TODO[C++]: convert listening_ports to std::vector.
     struct listening_port *listening_ports;

@@ -23,7 +23,6 @@
 #include "rbac.h"
 #include "settings.h"
 
-#include "stats_counter.h"
 #include "dynamic_buffer.h"
 
 

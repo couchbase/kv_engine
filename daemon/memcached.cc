@@ -1302,14 +1302,14 @@ bool binary_response_handler(const void *key, uint16_t keylen,
  * to be in the threadlocal struct right now...
  */
 struct tap_cmd_stats {
-    StatsCounter<uint64_t> connect;
-    StatsCounter<uint64_t> mutation;
-    StatsCounter<uint64_t> checkpoint_start;
-    StatsCounter<uint64_t> checkpoint_end;
-    StatsCounter<uint64_t> del;
-    StatsCounter<uint64_t> flush;
-    StatsCounter<uint64_t> opaque;
-    StatsCounter<uint64_t> vbucket_set;
+    Couchbase::RelaxedAtomic<uint64_t> connect;
+    Couchbase::RelaxedAtomic<uint64_t> mutation;
+    Couchbase::RelaxedAtomic<uint64_t> checkpoint_start;
+    Couchbase::RelaxedAtomic<uint64_t> checkpoint_end;
+    Couchbase::RelaxedAtomic<uint64_t> del;
+    Couchbase::RelaxedAtomic<uint64_t> flush;
+    Couchbase::RelaxedAtomic<uint64_t> opaque;
+    Couchbase::RelaxedAtomic<uint64_t> vbucket_set;
 };
 
 struct tap_stats {
