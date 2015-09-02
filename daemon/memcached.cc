@@ -156,7 +156,7 @@ static cb_mutex_t stats_lock;
 static struct session_cas {
     uint64_t value;
     uint64_t ctr;
-    cb_mutex_t mutex;
+    std::mutex mutex;
 } session_cas;
 
 void STATS_LOCK() {
@@ -4461,22 +4461,25 @@ static void set_ctrl_token_executor(Connection *c, void *packet)
     auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(packet);
     uint64_t old_cas = ntohll(req->message.header.request.cas);
     uint16_t ret = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+    uint64_t cas_return;
 
-    cb_mutex_enter(&(session_cas.mutex));
-    if (session_cas.ctr > 0) {
-        ret = PROTOCOL_BINARY_RESPONSE_EBUSY;
-    } else {
-        if (old_cas == session_cas.value || old_cas == 0) {
-            session_cas.value = ntohll(req->message.body.new_cas);
+    {
+        std::lock_guard<std::mutex> lock(session_cas.mutex);
+
+        if (session_cas.ctr > 0) {
+            ret = PROTOCOL_BINARY_RESPONSE_EBUSY;
         } else {
-            ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+            if (old_cas == session_cas.value || old_cas == 0) {
+                session_cas.value = ntohll(req->message.body.new_cas);
+            } else {
+                ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+            }
         }
+        cas_return = session_cas.value;
     }
-
     binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            ret, session_cas.value, c);
-    cb_mutex_exit(&(session_cas.mutex));
+                            ret, cas_return, c);
 
     write_and_free(c, &c->getDynamicBuffer());
 }
@@ -4484,12 +4487,15 @@ static void set_ctrl_token_executor(Connection *c, void *packet)
 static void get_ctrl_token_executor(Connection *c, void *packet)
 {
     (void)packet;
-    cb_mutex_enter(&(session_cas.mutex));
+    uint64_t cas;
+    {
+        std::lock_guard<std::mutex> lock(session_cas.mutex);
+        cas = session_cas.value;
+    }
     binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                            session_cas.value, c);
-    cb_mutex_exit(&(session_cas.mutex));
+                            cas, c);
     write_and_free(c, &c->getDynamicBuffer());
 }
 
@@ -4499,9 +4505,10 @@ static void init_complete_executor(Connection *c, void *packet)
     uint64_t cas = ntohll(init->message.header.request.cas);;
     bool stale;
 
-    cb_mutex_enter(&(session_cas.mutex));
-    stale = (session_cas.value != cas);
-    cb_mutex_exit(&(session_cas.mutex));
+    {
+        std::lock_guard<std::mutex> lock(session_cas.mutex);
+        stale = (session_cas.value != cas);
+    }
 
     if (stale) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
@@ -4827,9 +4834,10 @@ static void shutdown_executor(Connection *c, void *packet)
     uint64_t cas = ntohll(req->message.header.request.cas);
     bool ok;
 
-    cb_mutex_enter(&(session_cas.mutex));
-    ok = session_cas.value == cas;
-    cb_mutex_exit(&(session_cas.mutex));
+    {
+        std::lock_guard<std::mutex> lock(session_cas.mutex);
+        ok = session_cas.value == cas;
+    }
 
     if (ok) {
         shutdown_server();
@@ -6657,7 +6665,7 @@ static uint8_t get_opcode_if_ewouldblock_set(const void *cookie) {
 
 static bool validate_session_cas(const uint64_t cas) {
     bool ret = true;
-    cb_mutex_enter(&(session_cas.mutex));
+    std::lock_guard<std::mutex> lock(session_cas.mutex);
     if (cas != 0) {
         if (session_cas.value != cas) {
             ret = false;
@@ -6667,15 +6675,13 @@ static bool validate_session_cas(const uint64_t cas) {
     } else {
         session_cas.ctr++;
     }
-    cb_mutex_exit(&(session_cas.mutex));
     return ret;
 }
 
 static void decrement_session_ctr(void) {
-    cb_mutex_enter(&(session_cas.mutex));
+    std::lock_guard<std::mutex> lock(session_cas.mutex);
     cb_assert(session_cas.ctr != 0);
     session_cas.ctr--;
-    cb_mutex_exit(&(session_cas.mutex));
 }
 
 static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {
@@ -7739,7 +7745,6 @@ int main (int argc, char **argv) {
     /* Initialize global variables */
     cb_mutex_initialize(&listen_state.mutex);
     cb_mutex_initialize(&stats_lock);
-    cb_mutex_initialize(&session_cas.mutex);
 
     session_cas.value = 0xdeadbeef;
     session_cas.ctr = 0;
