@@ -22,20 +22,12 @@
 
 #include <memcached/protocol_binary.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+typedef protocol_binary_response_status (*mcbp_package_validate)(void *packet);
 
-    typedef protocol_binary_response_status (*mcbp_package_validate)(void *packet);
-
-    /**
-     * Get the memcached binary protocol validators
-     *
-     * @return the array of 0x100 entries for the package
-     *         validators
-     */
-    mcbp_package_validate *get_mcbp_validators(void);
-
-#ifdef __cplusplus
-}
-#endif
+/**
+ * Get the memcached binary protocol validators
+ *
+ * @return the array of 0x100 entries for the package
+ *         validators
+ */
+mcbp_package_validate *get_mcbp_validators(void);
