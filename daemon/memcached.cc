@@ -691,7 +691,9 @@ int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_le
                    uint32_t body_len, uint8_t datatype) {
     protocol_binary_response_header* header;
 
-    cb_assert(c);
+    if (c == nullptr) {
+        throw std::invalid_argument("add_bin_header: 'c' must be non-NULL");
+    }
 
     if (!c->addMsgHdr(true)) {
         return -1;
@@ -869,9 +871,10 @@ static void write_bin_response(Connection *c, const void *d, int extlen, int key
 void update_topkeys(const char *key, size_t nkey, Connection *c) {
 
     if (topkey_commands[c->binary_header.request.opcode]) {
-        cb_assert(all_buckets[c->getBucketIndex()].topkeys != nullptr);
-        all_buckets[c->getBucketIndex()].topkeys->updateKey(key, nkey,
-                                                      mc_time_get_current_time());
+        if (all_buckets[c->getBucketIndex()].topkeys != nullptr) {
+            all_buckets[c->getBucketIndex()].topkeys->updateKey(key, nkey,
+                                                                mc_time_get_current_time());
+        }
     }
 }
 
@@ -1072,7 +1075,6 @@ static void append_stats(const char *key, const uint16_t klen,
 
 static void bin_read_chunk(Connection *c, uint32_t chunk) {
     ptrdiff_t offset;
-    cb_assert(c);
     c->setRlbytes(chunk);
 
     /* Ok... do we have room for everything in our buffer? */
@@ -1825,7 +1827,6 @@ static void process_bin_tap_packet(tap_event_t event, Connection *c) {
     uint32_t ndata;
     ENGINE_ERROR_CODE ret;
 
-    cb_assert(c != NULL);
     packet = (c->read.curr - (c->binary_header.request.bodylen +
                                 sizeof(c->binary_header)));
     auto* tap = reinterpret_cast<protocol_binary_request_tap_no_extras*>(packet);
@@ -1910,7 +1911,6 @@ static void process_bin_tap_ack(Connection *c) {
     char *key;
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
-    cb_assert(c != NULL);
     packet = (c->read.curr - (c->binary_header.request.bodylen + sizeof(c->binary_header)));
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(packet);
     seqno = ntohl(rsp->message.header.response.opaque);
@@ -1937,7 +1937,6 @@ static void process_bin_tap_ack(Connection *c) {
  * We received a noop response.. just ignore it
  */
 static void process_bin_noop_response(Connection *c) {
-    cb_assert(c != NULL);
     c->setState(conn_new_cmd);
 }
 
@@ -2834,7 +2833,15 @@ static void dcp_stream_req_executor(Connection *c, void *packet)
         c->setAiostat(ENGINE_SUCCESS);
         c->setEwouldblock(false);
 
-        cb_assert(ret != ENGINE_ROLLBACK);
+        if (ret == ENGINE_ROLLBACK) {
+            settings.extensions.logger->log
+                (EXTENSION_LOG_WARNING, c,
+                 "%u: dcp_stream_req_executor: Unexpected AIO stat result "
+                 "ROLLBACK. Shutting down DCP connection",
+                 c->getId());
+            c->setState(conn_closing);
+            return;
+        }
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->getBucketEngine()->dcp.stream_req(c->getBucketEngineAsV0(), c,
@@ -4189,10 +4196,6 @@ static void arithmetic_executor(Connection *c, void *packet)
 
     (void)packet;
 
-
-    cb_assert(c != NULL);
-
-
     switch (c->getCmd()) {
     case PROTOCOL_BINARY_CMD_INCREMENTQ:
         c->setNoReply(true);
@@ -5048,8 +5051,6 @@ static void process_bin_delete(Connection *c) {
     size_t nkey = c->binary_header.request.keylen;
     uint64_t cas = ntohll(req->message.header.request.cas);
 
-    cb_assert(c != NULL);
-
     if (settings.verbose > 1) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
@@ -5109,7 +5110,6 @@ static void process_bin_delete(Connection *c) {
 }
 
 static void complete_nread(Connection *c) {
-    cb_assert(c != NULL);
     cb_assert(c->getCmd() >= 0);
 
     if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {
@@ -5331,7 +5331,10 @@ static void server_stats(ADD_STAT add_stat_callback, Connection *c) {
 
 static void process_stat_settings(ADD_STAT add_stat_callback, void *c) {
     int ii;
-    cb_assert(add_stat_callback);
+    if (add_stat_callback == nullptr) {
+        throw std::invalid_argument("process_stat_settings: "
+                        "add_stat_callback must be non-NULL");
+    }
     add_stat(c, add_stat_callback, "maxconns", settings.maxconns);
 
     for (ii = 0; ii < settings.num_interfaces; ++ii) {
@@ -5430,6 +5433,9 @@ static cJSON *get_bucket_details(int idx)
     cJSON *root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "index", idx);
     switch (copy.state) {
+    case BucketState::None:
+        cJSON_AddStringToObject(root, "state", "none");
+        break;
     case BucketState::Creating:
         cJSON_AddStringToObject(root, "state", "creating");
         break;
@@ -5445,14 +5451,15 @@ static cJSON *get_bucket_details(int idx)
     case BucketState::Destroying:
         cJSON_AddStringToObject(root, "state", "destroying");
         break;
-    default:
-        cb_assert(false);
     }
 
     cJSON_AddNumberToObject(root, "clients", copy.clients);
     cJSON_AddStringToObject(root, "name", copy.name);
 
     switch (copy.type) {
+    case BucketType::Unknown:
+        cJSON_AddStringToObject(root, "type", "<<unknown>>");
+        break;
     case BucketType::NoBucket:
         cJSON_AddStringToObject(root, "type", "no bucket");
         break;
@@ -5465,8 +5472,6 @@ static cJSON *get_bucket_details(int idx)
     case BucketType::EWouldBlock:
         cJSON_AddStringToObject(root, "type", "ewouldblock");
         break;
-    default:
-        cb_assert(false);
     }
 
     return root;
@@ -5501,7 +5506,6 @@ static void process_bucket_details(Connection *c)
  * if we have a complete line in the buffer, process it.
  */
 static int try_read_command(Connection *c) {
-    cb_assert(c != NULL);
     cb_assert(c->read.curr <= (c->read.buf + c->read.size));
     cb_assert(c->read.bytes > 0);
 
@@ -5928,7 +5932,9 @@ bool conn_mwrite(Connection *c) {
 }
 
 bool conn_pending_close(Connection *c) {
-    cb_assert(c->isSocketClosed());
+    if (c->isSocketClosed() == false) {
+        throw std::logic_error("conn_pending_close: socketDescriptor must be closed");
+    }
     settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
                                     "Awaiting clients to release the cookie (pending close for %p)",
                                     (void*)c);
@@ -5948,7 +5954,9 @@ bool conn_pending_close(Connection *c) {
 
 bool conn_immediate_close(Connection *c) {
     struct listening_port *port_instance;
-    cb_assert(c->isSocketClosed());
+    if (c->isSocketClosed() == false) {
+        throw std::logic_error("conn_immediate_close: socketDescriptor must be closed");
+    }
     settings.extensions.logger->log(EXTENSION_LOG_DETAIL, c,
                                     "Releasing connection %p",
                                     c);
@@ -6001,7 +6009,13 @@ bool conn_refresh_cbsasl(Connection *c) {
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
 
-    cb_assert(ret != ENGINE_EWOULDBLOCK);
+    if (ret == ENGINE_EWOULDBLOCK) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                 "conn_refresh_cbsasl: Unexpected AIO stat result "
+                 "EWOULDBLOCK. Shutting down connection");
+        c->setState(conn_closing);
+        return true;
+    }
 
     switch (ret) {
     case ENGINE_SUCCESS:
@@ -6022,7 +6036,13 @@ bool conn_refresh_ssl_certs(Connection *c) {
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
 
-    cb_assert(ret != ENGINE_EWOULDBLOCK);
+    if (ret == ENGINE_EWOULDBLOCK) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                 "conn_refresh_ssl_certs: Unexpected AIO stat result "
+                 "EWOULDBLOCK. Shutting down connection");
+        c->setState(conn_closing);
+        return true;
+    }
 
     switch (ret) {
     case ENGINE_SUCCESS:
@@ -6092,7 +6112,13 @@ bool conn_create_bucket(Connection *c) {
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
 
-    cb_assert(ret != ENGINE_EWOULDBLOCK);
+    if (ret == ENGINE_EWOULDBLOCK) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                 "conn_create_bucket: Unexpected AIO stat result "
+                 "EWOULDBLOCK. Shutting down connection");
+        c->setState(conn_closing);
+        return true;
+    }
 
     switch (ret) {
     case ENGINE_SUCCESS:
@@ -6113,7 +6139,13 @@ bool conn_delete_bucket(Connection *c) {
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
 
-    cb_assert(ret != ENGINE_EWOULDBLOCK);
+    if (ret == ENGINE_EWOULDBLOCK) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                 "conn_delete_bucket: Unexpected AIO stat result "
+                 "EWOULDBLOCK. Shutting down connection");
+        c->setState(conn_closing);
+        return true;
+    }
 
     switch (ret) {
     case ENGINE_SUCCESS:
@@ -6133,7 +6165,12 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     Connection *c = reinterpret_cast<Connection *>(arg);
     LIBEVENT_THREAD *thr;
 
-    cb_assert(c != NULL);
+    if (c == nullptr) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "event_handler: connection must be "
+                                        "non-NULL");
+        return;
+    }
 
     if (memcached_shutdown) {
         c->eventBaseLoopbreak();
@@ -6645,11 +6682,13 @@ static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {
 }
 
 static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
+    if (cookie == nullptr) {
+        throw std::invalid_argument("release_cookie: 'cookie' must be non-NULL");
+    }
     Connection *c = (Connection *)cookie;
     int notify;
     LIBEVENT_THREAD *thr;
 
-    cb_assert(c);
     thr = c->getThread();
     cb_assert(thr);
     LOCK_THREAD(thr);
@@ -6676,11 +6715,17 @@ static bool cookie_is_admin(const void *cookie) {
     if (settings.disable_admin) {
         return true;
     }
-    cb_assert(cookie);
+    if (cookie == nullptr) {
+        throw std::invalid_argument("cookie_is_admin: 'cookie' must be non-NULL");
+    }
     return reinterpret_cast<const Connection *>(cookie)->isAdmin();
 }
 
 static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {
+    if (cookie == nullptr) {
+        throw std::invalid_argument("cookie_set_priority: 'cookie' must be non-NULL");
+    }
+
     Connection * c = (Connection *)cookie;
     switch (priority) {
     case CONN_PRIORITY_HIGH:
