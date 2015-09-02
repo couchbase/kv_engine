@@ -4420,6 +4420,12 @@ static void sasl_auth_executor(conn *c, void *packet)
         return;
     }
 
+    if (vlen < 0) {
+        /* illegal inputs */
+        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        return;
+    }
+
     memcpy(mech, req->bytes + sizeof(req->bytes), nkey);
     mech[nkey] = '\0';
 
