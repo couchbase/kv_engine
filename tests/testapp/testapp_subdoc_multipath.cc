@@ -92,12 +92,15 @@ TEST_P(McdTestappTest, SubdocMultiLookup_GetMulti)
     SubdocMultiLookupCmd lookup;
     lookup.key = "dict";
     std::vector<SubdocMultiLookupResult> expected;
-    for (int ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++) {
+    for (int ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++)
+    {
+        std::string key("key_" + std::to_string(ii));
+        std::string value("\"value_" + std::to_string(ii) + '"');
         lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_GET,
-                                SUBDOC_FLAG_NONE,
-                                "key_" + std::to_string(ii)});
+                                SUBDOC_FLAG_NONE, key});
+
         expected.push_back({PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                           "\"value_" + std::to_string(ii) + '"'});
+                            value});
     }
     expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUCCESS, expected);
 
@@ -150,9 +153,10 @@ TEST_P(McdTestappTest, SubdocMultiLookup_ExistsMulti)
     lookup.key = "dict";
     std::vector<SubdocMultiLookupResult> expected;
     for (int ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++) {
+        std::string key("key_" + std::to_string(ii));
+
         lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
-                                SUBDOC_FLAG_NONE,
-                                "key_" + std::to_string(ii)});
+                                SUBDOC_FLAG_NONE, key });
         expected.push_back({PROTOCOL_BINARY_RESPONSE_SUCCESS, ""});
     }
     expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUCCESS, expected);
@@ -219,10 +223,11 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddMax)
     SubdocMultiMutationCmd mutation;
     mutation.key = "dict";
     for (int ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++) {
+        std::string key("key_" + std::to_string(ii));
+        std::string value("\"value_" + std::to_string(ii) + '"');
+
         mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
-                                  SUBDOC_FLAG_NONE,
-                                  "key_" + std::to_string(ii),
-                                  "\"value_" + std::to_string(ii) + '"'});
+                                  SUBDOC_FLAG_NONE, key, value});
     }
     expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
                       std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
