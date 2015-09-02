@@ -1,5 +1,5 @@
 ADD_EXECUTABLE(cbsasl_pwfile_test pwfile_test.c
-  ${Memcached_SOURCE_DIR}/cbsasl/pwfile.c
+  ${Memcached_SOURCE_DIR}/cbsasl/pwfile.cc
   ${Memcached_SOURCE_DIR}/cbsasl/pwfile.h
   ${Memcached_SOURCE_DIR}/cbsasl/hash.c
   ${Memcached_SOURCE_DIR}/cbsasl/hash.h)

@@ -19,19 +19,23 @@
 
 #include "cbsasl/cbsasl.h"
 
-typedef struct user_db_entry {
-    char *username;
-    char *password;
-    char *config;
-    struct user_db_entry *next;
-} user_db_entry_t;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-char *find_pw(const char *u, char **cfg);
+/**
+ * Searches for a password entry for the specified user. On success, returns
+ * the user's password. On failure
+ * returns NULL.
+ */
+const char *find_pw(const char *user);
 
 cbsasl_error_t load_user_db(void);
 
 void free_user_ht(void);
-void pwfile_init(void);
-void pwfile_term(void);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
 
 #endif /*  SRC_PWFILE_H_ */

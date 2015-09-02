@@ -142,7 +142,7 @@ LIST(APPEND CBSASL_SOURCES
   ${Memcached_SOURCE_DIR}/cbsasl/hash.h
   ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.c
   ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.h
-  ${Memcached_SOURCE_DIR}/cbsasl/pwfile.c
+  ${Memcached_SOURCE_DIR}/cbsasl/pwfile.cc
   ${Memcached_SOURCE_DIR}/cbsasl/pwfile.h
   ${Memcached_SOURCE_DIR}/cbsasl/server.c
   ${Memcached_SOURCE_DIR}/cbsasl/strcmp.c

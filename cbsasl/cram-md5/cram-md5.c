@@ -51,8 +51,7 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
 {
     unsigned int userlen;
     char *user;
-    char *cfg;
-    char *pass;
+    const char *pass;
     unsigned char digest[DIGEST_LENGTH];
     char md5string[DIGEST_LENGTH * 2];
 
@@ -66,7 +65,7 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
     user[userlen] = '\0';
     conn->c.server.username = user;
 
-    pass = find_pw(user, &cfg);
+    pass = find_pw(user);
     if (pass == NULL) {
         return CBSASL_NOUSER;
     }
@@ -85,7 +84,6 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
         return CBSASL_PWERR;
     }
 
-    conn->c.server.config = strdup(cfg);
     *output = NULL;
     *outputlen = 0;
     return CBSASL_OK;

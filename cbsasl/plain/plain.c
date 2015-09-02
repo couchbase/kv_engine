@@ -48,11 +48,10 @@ cbsasl_error_t plain_server_step(cbsasl_conn_t *conn,
     }
 
     {
-        char *cfg = NULL;
         size_t pwlen = 0;
         const char *username = input + inputpos;
         const char *password = NULL;
-        char *stored_password;
+        const char *stored_password;
         size_t stored_pwlen;
         while (inputpos < inputlen && input[inputpos] != '\0') {
             inputpos++;
@@ -70,7 +69,7 @@ cbsasl_error_t plain_server_step(cbsasl_conn_t *conn,
         }
 
         conn->c.server.username = strdup(username);
-        if ((stored_password = find_pw(username, &cfg)) == NULL) {
+        if ((stored_password = find_pw(username)) == NULL) {
             return CBSASL_NOUSER;
         }
 
@@ -79,8 +78,6 @@ cbsasl_error_t plain_server_step(cbsasl_conn_t *conn,
                                   stored_password, stored_pwlen) != 0) {
             return CBSASL_PWERR;
         }
-
-        conn->c.server.config = strdup(cfg);
     }
 
     *output = NULL;

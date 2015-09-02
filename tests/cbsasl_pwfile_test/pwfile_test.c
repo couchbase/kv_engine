@@ -35,20 +35,29 @@ static void remove_pw_file()
 
 static void test_pwfile()
 {
-    char *cfg;
-    char *password;
+    const char *password;
 
-    pwfile_init();
     create_pw_file();
     cb_assert(load_user_db() == CBSASL_OK);
-    password = find_pw(user1, &cfg);
+    password = find_pw(user1);
     cb_assert(strncmp(password, pass1, strlen(pass1)) == 0);
 
-    password = find_pw(user2, &cfg);
+    password = find_pw(user2);
     cb_assert(strncmp(password, pass2, strlen(pass2)) == 0);
 
-    password = find_pw(user3, &cfg);
+    password = find_pw(user3);
     cb_assert(strncmp(password, pass3, strlen(pass3)) == 0);
+
+    password = find_pw("non_existant_user");
+    cb_assert(password == NULL);
+
+    // Test with a username which is a superset of a valid user.
+    password = find_pw("mikewied ");
+    cb_assert(password == NULL);
+
+    // Test with a username which is a subset of a valid user.
+    password = find_pw("mikew");
+    cb_assert(password == NULL);
 
     remove_pw_file();
 }

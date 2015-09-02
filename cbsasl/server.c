@@ -44,14 +44,12 @@ cbsasl_error_t cbsasl_server_init(void)
     if (cb_rand_open(&randgen) != 0) {
         return CBSASL_FAIL;
     }
-    pwfile_init();
     return load_user_db();
 }
 
 CBSASL_PUBLIC_API
 cbsasl_error_t cbsasl_server_term(void)
 {
-    pwfile_term();
     return cb_rand_close(randgen) == 0 ? CBSASL_OK : CBSASL_FAIL;
 }
 
