@@ -566,6 +566,10 @@ extern "C" {
                 checkNumeric(valz);
                 validate(v, 1, std::numeric_limits<int>::max());
                 e->getConfiguration().setCompactionWriteQueueCap(v);
+            } else if (strcmp(keyz, "dcp_min_compression_ratio") == 0) {
+                float val = atof(valz);
+                validate(val, (float)0.0, std::numeric_limits<float>::max());
+                e->getConfiguration().setDcpMinCompressionRatio(val);
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -6303,6 +6307,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                         cookie);
+}
+
+void EventuallyPersistentEngine::updateDcpMinCompressionRatio(float value) {
+    if (dcpConnMap_) {
+        dcpConnMap_->updateMinCompressionRatioForProducers(value);
+    }
 }
 
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {

@@ -413,7 +413,7 @@ public:
     }
 
     /* Snappy compress value and update datatype */
-    bool compressValue() {
+    bool compressValue(float minCompressionRatio = 1.0) {
         uint8_t datatype = getDataType();
         if (datatype == PROTOCOL_BINARY_RAW_BYTES ||
             datatype == PROTOCOL_BINARY_DATATYPE_JSON) {
@@ -423,13 +423,10 @@ public:
             snap_ret_t ret = doSnappyCompress(getData(), getNBytes(),
                                               output);
             if (ret == SNAP_SUCCESS) {
-                if (datatype == PROTOCOL_BINARY_RAW_BYTES) {
-                    if (output.len >= getNBytes()) {
-                        // No point doing the compression if the compressed
-                        // value's length, is equal to or greater than the
-                        // original length.
-                        return true;
-                    }
+                if (output.len > minCompressionRatio * getNBytes()) {
+                    // No point doing the compression if the desired
+                    // compression ratio isn't achieved.
+                    return true;
                 }
                 setData(output.buf.get(), output.len,
                         (uint8_t *)(getExtMeta()),

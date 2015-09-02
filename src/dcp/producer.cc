@@ -707,7 +707,9 @@ DcpResponse* DcpProducer::getNextItem() {
              * Compression will obviously be done only if the datatype
              * indicates that the value isn't compressed already.
              */
-            if (!(static_cast<MutationResponse*>(op))->getItem()->compressValue()) {
+            if (!(static_cast<MutationResponse*>(op))->
+                    getItem()->compressValue(
+                        engine_.getDcpConnMap().getMinCompressionRatio())) {
                 LOG(EXTENSION_LOG_WARNING,
                     "%s Failed to snappy compress an uncompressed value!",
                     logHeader());

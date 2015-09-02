@@ -563,6 +563,11 @@
             "dynamic": false,
             "type": "bool"
         },
+        "dcp_min_compression_ratio": {
+            "default": "0.85",
+            "desr": "Compression ratio to be achieved above which producer will ship documents as is",
+            "type": "float"
+        },
         "dcp_noop_interval": {
             "default": "180",
             "descr": "Number of seconds between a noop",

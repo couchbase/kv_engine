@@ -181,6 +181,12 @@ Available params for "set":
     compaction_write_queue_cap   - Disk write queue threshold after which compaction
                                    tasks will be made to snooze, if there are already
                                    pending compaction tasks.
+    dcp_min_compression_ratio    - Minimum compression ratio of compressed doc against
+                                   the original doc. If compressed doc is greater than
+                                   this percentage of the original doc, then the doc
+                                   will be shipped as is by the DCP producer if value
+                                   compression is enabled by the DCP consumer. Applies
+                                   to all producers (Ideal range: 0.0 - 1.0)
     defragmenter_enabled         - Enable or disable the defragmenter
                                    (true/false).
     defragmenter_interval        - How often defragmenter task should be run

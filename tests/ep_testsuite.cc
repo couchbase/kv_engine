@@ -4690,6 +4690,16 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
 static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
 
+    check(get_float_stat(h, h1, "ep_dcp_min_compression_ratio") ==
+          (float)0.85, "Unexpected dcp_min_compression_ratio");
+
+    // Set dcp_min_compression_ratio to infinite, which means
+    // a DCP producer would ship the doc no matter what the
+    // achieved compressed length is.
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "dcp_min_compression_ratio",
+              std::to_string(std::numeric_limits<float>::max()).c_str());
+
     item *i = NULL;
     std::string originalValue("{\"FOO\":\"BAR\"}");
 
@@ -14824,7 +14834,8 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;max_size=26214400", prepare, cleanup),
         TestCase("test dcp value compression",
                  test_dcp_value_compression, test_setup, teardown,
-                 "dcp_value_compression_enabled=true", prepare, cleanup),
+                 "dcp_value_compression_enabled=true",
+                 prepare, cleanup),
         TestCase("test dcp stream takeover", test_dcp_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test dcp stream takeover no items", test_dcp_takeover_no_items,

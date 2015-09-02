@@ -155,6 +155,8 @@ public:
     virtual void floatValueChanged(const std::string &key, float value) {
         if (key.compare("bfilter_residency_threshold") == 0) {
             store.setBfiltersResidencyThreshold(value);
+        } else if (key.compare("dcp_min_compression_ratio") == 0) {
+            store.getEPEngine().updateDcpMinCompressionRatio(value);
         }
     }
 
@@ -382,6 +384,9 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     compactionWriteQueueCap = config.getCompactionWriteQueueCap();
     config.addValueChangedListener("compaction_write_queue_cap",
+                                   new EPStoreValueChangeListener(*this));
+
+    config.addValueChangedListener("dcp_min_compression_ratio",
                                    new EPStoreValueChangeListener(*this));
 
     const std::string &policy = config.getItemEvictionPolicy();

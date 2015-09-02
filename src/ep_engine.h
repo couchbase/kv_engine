@@ -823,6 +823,8 @@ public:
                                         protocol_binary_request_header *request,
                                         ADD_RESPONSE response);
 
+    void updateDcpMinCompressionRatio(float value);
+
     EpEngineTaskable* getTaskable() {
         return &taskable;
     }

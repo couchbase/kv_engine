@@ -948,6 +948,8 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e) {
     numActiveSnoozingBackfills = 0;
     updateMaxActiveSnoozingBackfills(engine.getEpStats().getMaxDataSize());
+    minCompressionRatioForProducer.store(
+                    engine.getConfiguration().getDcpMinCompressionRatio());
 }
 
 
@@ -1270,4 +1272,12 @@ void DcpConnMap::addStats(ADD_STAT add_stat, const void *c)
     LockHolder lh(connsLock);
     add_casted_stat("ep_dcp_dead_conn_count", deadConnections.size(), add_stat,
                     c);
+}
+
+void DcpConnMap::updateMinCompressionRatioForProducers(float value) {
+    minCompressionRatioForProducer.store(value);
+}
+
+float DcpConnMap::getMinCompressionRatio() {
+    return minCompressionRatioForProducer.load();
 }
