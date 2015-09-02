@@ -30,7 +30,10 @@ public:
     ItemResidentCallback(hrtime_t token, const std::string &n,
                          TapConnMap &cm, EventuallyPersistentEngine* e)
     : connToken(token), tapConnName(n), connMap(cm), engine(e) {
-        cb_assert(engine);
+        if (engine == nullptr) {
+            throw std::invalid_argument("ItemResidentCallback: engine must "
+                            "be non-NULL");
+        }
     }
 
     void callback(CacheLookup &lookup);
@@ -85,7 +88,13 @@ private:
 };
 
 void BackfillDiskCallback::callback(GetValue &gv) {
-    cb_assert(gv.getValue());
+    if (gv.getValue() == nullptr) {
+        LOG(EXTENSION_LOG_WARNING,
+        "BackfillDiskCallback::callback: gv must be non-NULL."
+        "Ignoring callback for tapConnName:%s",
+        tapConnName.c_str());
+        return;
+    }
     CompletedBGFetchTapOperation tapop(connToken,
                                        gv.getValue()->getVBucketId(), true);
     // if the tap connection is closed, then free an Item instance

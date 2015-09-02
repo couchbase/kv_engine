@@ -83,7 +83,12 @@ Checkpoint::~Checkpoint() {
         "Checkpoint %" PRIu64 " for vbucket %d is purged from memory",
         checkpointId, vbucketId);
     stats.memOverhead.fetch_sub(memorySize());
-    cb_assert(stats.memOverhead.load() < GIGANTOR);
+    if (stats.memOverhead.load() >= GIGANTOR) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Checkpoint::~Checkpoint: stats.memOverhead (which is %" PRId64
+            ") is greater than %" PRId64, uint64_t(stats.memOverhead.load()),
+            uint64_t(GIGANTOR));
+    }
 }
 
 void Checkpoint::setState(checkpoint_state state) {
@@ -104,7 +109,11 @@ bool Checkpoint::keyExists(const std::string &key) {
 
 queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                                      CheckpointManager *checkpointManager) {
-    cb_assert(checkpointState == CHECKPOINT_OPEN);
+    if (checkpointState != CHECKPOINT_OPEN) {
+        throw std::logic_error("Checkpoint::queueDirty: checkpointState "
+                        "(which is" + std::to_string(checkpointState) +
+                        ") is not OPEN");
+    }
     queue_dirty_t rv;
 
     checkpoint_index::iterator it = keyIndex.find(qi->getKey());
@@ -164,7 +173,12 @@ queue_dirty_t Checkpoint::queueDirty(const queued_item &qi,
                                   sizeof(queued_item);
             memOverhead += newEntrySize;
             stats.memOverhead.fetch_add(newEntrySize);
-            cb_assert(stats.memOverhead.load() < GIGANTOR);
+            if (stats.memOverhead.load() >= GIGANTOR) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "Checkpoint::queueDirty: stats.memOverhead (which is %" PRId64
+                    ") is greater than %" PRId64, uint64_t(stats.memOverhead.load()),
+                    uint64_t(GIGANTOR));
+            }
         }
     }
 
@@ -231,7 +245,10 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
 
     memOverhead += newEntryMemOverhead;
     stats.memOverhead.fetch_add(newEntryMemOverhead);
-    cb_assert(stats.memOverhead.load() < GIGANTOR);
+    LOG(EXTENSION_LOG_WARNING,
+        "Checkpoint::mergePrevCheckpoint: stats.memOverhead (which is %" PRId64
+        ") is greater than %" PRId64, uint64_t(stats.memOverhead.load()),
+        uint64_t(GIGANTOR));
     return numNewItems;
 }
 
@@ -419,8 +436,18 @@ bool CheckpointManager::registerCursor(const std::string &name,
 CursorRegResult CheckpointManager::registerCursorBySeqno(const std::string &name,
                                                          uint64_t startBySeqno) {
     LockHolder lh(queueLock);
-    cb_assert(!checkpointList.empty());
-    cb_assert(checkpointList.back()->getHighSeqno() >= startBySeqno);
+    if (checkpointList.empty()) {
+        throw std::logic_error("CheckpointManager::registerCursorBySeqno: "
+                        "checkpointList is empty");
+    }
+    if (checkpointList.back()->getHighSeqno() < startBySeqno) {
+        throw std::invalid_argument("CheckpointManager::registerCursorBySeqno:"
+                        " startBySeqno (which is " +
+                        std::to_string(startBySeqno) + ") is less than last "
+                        "checkpoint highSeqno (which is " +
+                        std::to_string(checkpointList.back()->getHighSeqno()) +
+                        ")");
+    }
 
     removeCursor_UNLOCKED(name);
 
@@ -482,7 +509,10 @@ CursorRegResult CheckpointManager::registerCursorBySeqno(const std::string &name
 bool CheckpointManager::registerCursor_UNLOCKED(const std::string &name,
                                                 uint64_t checkpointId,
                                                 bool alwaysFromBeginning) {
-    cb_assert(!checkpointList.empty());
+    if (checkpointList.empty()) {
+        throw std::logic_error("CheckpointManager::registerCursor_UNLOCKED: "
+                        "checkpointList is empty");
+    }
 
     bool resetOnCollapse = true;
     if (name.compare(pCursorName) == 0) {
@@ -522,7 +552,12 @@ bool CheckpointManager::registerCursor_UNLOCKED(const std::string &name,
             "Set the cursor with the name \"%s\" to checkpoint %" PRIu64 ".\n",
             checkpointId, vbucketId, name.c_str(), (*it)->getId());
 
-        cb_assert(it != checkpointList.end());
+        if (it == checkpointList.end()) {
+            throw std::logic_error("CheckpointManager::registerCursor_UNLOCKED: "
+                            "failed to find checkpoint with "
+                            "Id >= pCursorPreCheckpointId (which is" +
+                            std::to_string(pCursorPreCheckpointId) + ")");
+        }
 
         size_t offset = 0;
         std::list<Checkpoint*>::iterator pos = checkpointList.begin();
@@ -655,7 +690,10 @@ size_t CheckpointManager::removeClosedUnrefCheckpoints(
 
     // This function is executed periodically by the non-IO dispatcher.
     LockHolder lh(queueLock);
-    cb_assert(vbucket);
+    if (!vbucket) {
+        throw std::invalid_argument("CheckpointManager::removeCloseUnrefCheckpoints:"
+                        " vbucket must be non-NULL");
+    }
     uint64_t oldCheckpointId = 0;
     bool canCreateNewCheckpoint = false;
     if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
@@ -875,8 +913,10 @@ std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
 bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
                                    bool genSeqno) {
     LockHolder lh(queueLock);
-
-    cb_assert(vb);
+    if (!vb) {
+        throw std::invalid_argument("CheckpointManager::queueDirty: vb must "
+                        "be non-NULL");
+    }
     bool canCreateNewCheckpoint = false;
     if (checkpointList.size() < checkpointConfig.getMaxCheckpoints() ||
         (checkpointList.size() == checkpointConfig.getMaxCheckpoints() &&
@@ -892,15 +932,22 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
         if (vb->getState() == vbucket_state_active) {
             addNewCheckpoint_UNLOCKED(checkpointList.back()->getId() + 1);
         } else {
-            LOG(EXTENSION_LOG_WARNING, "Checkpoint closed in queueDirty()!"
-                "This is not expected. vb %d, vb state %d, lastBySeqno %" PRId64
-                ", genSeqno: %d",
-                vb->getId(), vb->getState(), lastBySeqno, genSeqno);
-            cb_assert(false);
+            throw std::logic_error("CheckpointManager::queueDirty: vBucket "
+                    "state (which is " +
+                    std::string(VBucket::toString(vb->getState())) +
+                    ") is not active. This is not expected. vb:" +
+                    std::to_string(vb->getId()) +
+                    " lastBySeqno:" + std::to_string(lastBySeqno) +
+                    " genSeqno:" + std::to_string(genSeqno));
         }
     }
 
-    cb_assert(checkpointList.back()->getState() == CHECKPOINT_OPEN);
+    if (checkpointList.back()->getState() != CHECKPOINT_OPEN) {
+        throw std::logic_error(
+                "Checkpoint::queueDirty: current checkpointState (which is" +
+                std::to_string(checkpointList.back()->getState()) +
+                ") is not OPEN");
+    }
 
     if (genSeqno) {
         qi->setBySeqno(++lastBySeqno);
@@ -912,11 +959,13 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
     uint64_t en = checkpointList.back()->getSnapshotEndSeqno();
     if (!(st <= static_cast<uint64_t>(lastBySeqno) &&
           static_cast<uint64_t>(lastBySeqno) <= en)) {
-        LOG(EXTENSION_LOG_WARNING, "lastBySeqno not in snapshot range "
-            "vb %d, vb state %d, snapshotstart %" PRIu64
-            ", lastBySeqno %" PRId64 ", snapshotend %" PRIu64 " genSeqno: %d",
-            vb->getId(), vb->getState(), st, lastBySeqno, en, genSeqno);
-        cb_assert(false);
+        throw std::logic_error("CheckpointManager::queueDirty: lastBySeqno "
+                "not in snapshot range. vb:" + std::to_string(vb->getId()) +
+                " state:" + std::string(VBucket::toString(vb->getState())) +
+                " snapshotStart:" + std::to_string(st) +
+                " lastBySeqno:" + std::to_string(lastBySeqno) +
+                " snapshotEnd:" + std::to_string(en) +
+                " genSeqno:" + std::to_string(genSeqno));
     }
 
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
@@ -1205,7 +1254,10 @@ void CheckpointManager::setBackfillPhase(uint64_t start, uint64_t end) {
 void CheckpointManager::createSnapshot(uint64_t snapStartSeqno,
                                        uint64_t snapEndSeqno) {
     LockHolder lh(queueLock);
-    cb_assert(!checkpointList.empty());
+    if (checkpointList.empty()) {
+        throw std::logic_error("CheckpointManager::createSnapshot: "
+                        "checkpointList is empty");
+    }
 
     size_t lastChkId = checkpointList.back()->getId();
 
@@ -1225,7 +1277,10 @@ void CheckpointManager::createSnapshot(uint64_t snapStartSeqno,
 
 void CheckpointManager::resetSnapshotRange() {
     LockHolder lh(queueLock);
-    cb_assert(!checkpointList.empty());
+    if (checkpointList.empty()) {
+        throw std::logic_error("CheckpointManager::resetSnapshotRange: "
+                        "checkpointList is empty");
+    }
 
     // Update snapshot_start and snapshot_end only if the open
     // checkpoint has no items, otherwise just set the
@@ -1245,7 +1300,10 @@ void CheckpointManager::resetSnapshotRange() {
 
 snapshot_info_t CheckpointManager::getSnapshotInfo() {
     LockHolder lh(queueLock);
-    cb_assert(!checkpointList.empty());
+    if (checkpointList.empty()) {
+        throw std::logic_error("CheckpointManager::getSnapshotInfo: "
+                        "checkpointList is empty");
+    }
 
     snapshot_info_t info;
     info.range.start = checkpointList.back()->getSnapshotStartSeqno();
@@ -1345,7 +1403,10 @@ void CheckpointManager::checkAndAddNewCheckpoint(uint64_t id,
 }
 
 void CheckpointManager::collapseCheckpoints(uint64_t id) {
-    cb_assert(!checkpointList.empty());
+    if (checkpointList.empty()) {
+        throw std::logic_error("CheckpointManager::collapseCheckpoints: "
+                        "checkpointList is empty");
+    }
 
     std::map<std::string, std::pair<uint64_t, bool> > cursorMap;
     cursor_index::iterator itr;
@@ -1378,7 +1439,12 @@ void CheckpointManager::collapseCheckpoints(uint64_t id) {
     if (checkpointList.size() > 1) {
         checkpointList.erase(checkpointList.begin(), --checkpointList.end());
     }
-    cb_assert(checkpointList.size() == 1);
+
+    if (checkpointList.size() != 1) {
+        throw std::logic_error("CheckpointManager::collapseCheckpoints: "
+                "checkpointList.size (which is" +
+                std::to_string(checkpointList.size()) + " is not 1");
+    }
 
     if (checkpointList.back()->getState() == CHECKPOINT_CLOSED) {
         checkpointList.back()->popBackCheckpointEndItem();
@@ -1462,23 +1528,30 @@ bool CheckpointManager::hasNext(const std::string &name) {
 
 queued_item CheckpointManager::createCheckpointItem(uint64_t id, uint16_t vbid,
                                           enum queue_operation checkpoint_op) {
-    cb_assert(checkpoint_op == queue_op_checkpoint_start ||
-           checkpoint_op == queue_op_checkpoint_end ||
-           checkpoint_op == queue_op_empty);
-
     uint64_t bySeqno;
-    std::stringstream key;
-    if (checkpoint_op == queue_op_checkpoint_start) {
-        key << "checkpoint_start";
+    std::string key;
+
+    switch (checkpoint_op) {
+    case queue_op_checkpoint_start:
+        key = "checkpoint_start";
         bySeqno = lastBySeqno + 1;
-    } else if (checkpoint_op == queue_op_empty) {
-        key << "dummy_key";
+        break;
+    case queue_op_checkpoint_end:
+        key = "checkpoint_end";
         bySeqno = lastBySeqno;
-    } else {
-        key << "checkpoint_end";
+        break;
+    case queue_op_empty:
+        key = "dummy_key";
         bySeqno = lastBySeqno;
+        break;
+    default:
+        throw std::invalid_argument("CheckpointManager::createCheckpointItem:"
+                        "checkpoint_op (which is " +
+                        std::to_string(checkpoint_op) +
+                        ") is not a valid item to create");
     }
-    queued_item qi(new Item(key.str(), vbid, checkpoint_op, id, bySeqno));
+
+    queued_item qi(new Item(key, vbid, checkpoint_op, id, bySeqno));
     return qi;
 }
 

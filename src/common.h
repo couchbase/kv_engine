@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -127,7 +127,10 @@ inline bool is_max_tv(struct timeval &tv) {
 }
 
 inline bool parseUint16(const char *in, uint16_t *out) {
-    cb_assert(out != NULL);
+    if (out == nullptr) {
+        return false;
+    }
+
     errno = 0;
     *out = 0;
     char *endptr;
@@ -144,8 +147,9 @@ inline bool parseUint16(const char *in, uint16_t *out) {
 
 inline bool parseUint32(const char *str, uint32_t *out) {
     char *endptr = NULL;
-    cb_assert(out);
-    cb_assert(str);
+    if (out == nullptr || str == nullptr) {
+        return false;
+    }
     *out = 0;
     errno = 0;
 
@@ -171,7 +175,9 @@ inline bool parseUint32(const char *str, uint32_t *out) {
 }
 
 inline bool parseInt64(const char *str, int64_t *out) {
-    cb_assert(out != NULL);
+    if (out == nullptr) {
+        return false;
+    }
     errno = 0;
     *out = 0;
     char *endptr;
@@ -191,7 +197,9 @@ inline bool parseInt64(const char *str, int64_t *out) {
 
 #define xisspace(c) isspace((unsigned char)c)
 inline bool parseUint64(const char *str, uint64_t *out) {
-    cb_assert(out != NULL);
+    if (out == nullptr) {
+        return false;
+    }
     errno = 0;
     *out = 0;
     char *endptr;

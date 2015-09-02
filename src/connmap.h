@@ -378,7 +378,12 @@ public:
         connection_t tc = findByName_UNLOCKED(name);
         if (tc.get()) {
             TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-            cb_assert(tp != NULL);
+            if (tp == nullptr) {
+                throw std::logic_error(
+                        "TapConnMap::performOp: name (which is " + name +
+                        ") refers to a connection_t which is not a TapProducer. "
+                        "Connection logHeader is '" + tc.get()->logHeader() + "'");
+            }
             tapop.perform(tp, arg);
             lh.unlock();
             notifyPausedConnection(tp, false);

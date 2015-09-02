@@ -395,7 +395,9 @@ TapProducer *TapConnMap::newProducer(const void* cookie,
 
     if (producer != NULL) {
         const void *old_cookie = producer->getCookie();
-        cb_assert(old_cookie);
+        if (old_cookie == NULL) {
+            throw std::logic_error("TapConnMap::newProducer: current producer cookie is NULL");
+        }
         map_.erase(old_cookie);
 
         if (tapKeepAlive == 0 || (producer->mayCompleteDumpOrTakeover() && producer->idle())) {
@@ -563,7 +565,12 @@ bool TapConnMap::setEvents(const std::string &name, std::list<queued_item> *q) {
     connection_t tc = findByName_UNLOCKED(name);
     if (tc.get()) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-        cb_assert(tp);
+        if (tp == nullptr) {
+            throw std::logic_error(
+                    "TapConnMap::setEvents: name (which is " + name +
+                    ") refers to a connection_t which is not a TapProducer. "
+                    "Connection logHeader is '" + tc.get()->logHeader() + "'");
+        }
         found = true;
         tp->appendQueue(q);
         lh.unlock();
@@ -580,7 +587,12 @@ void TapConnMap::incrBackfillRemaining(const std::string &name,
     connection_t tc = findByName_UNLOCKED(name);
     if (tc.get()) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-        cb_assert(tp);
+        if (tp == nullptr) {
+            throw std::logic_error(
+                    "TapConnMap::incrBackfillRemaining: name (which is " + name +
+                    ") refers to a connection_t which is not a TapProducer. "
+                    "Connection logHeader is '" + tc.get()->logHeader() + "'");
+        }
         tp->incrBackfillRemaining(num_backfill_items);
     }
 }
@@ -592,7 +604,12 @@ ssize_t TapConnMap::backfillQueueDepth(const std::string &name) {
     connection_t tc = findByName_UNLOCKED(name);
     if (tc.get()) {
         TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-        cb_assert(tp);
+        if (tp == nullptr) {
+            throw std::logic_error(
+                    "TapConnMap::backfillQueueDepth: name (which is " + name +
+                    ") refers to a connection_t which is not a TapProducer. "
+                    "Connection logHeader is '" + tc.get()->logHeader() + "'");
+        }
         rv = tp->getBackfillQueueSize();
     }
 

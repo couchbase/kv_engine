@@ -97,12 +97,8 @@ std::string BloomFilter::getStatusString() {
             return "COMPACTING";
         case BFILTER_ENABLED:
             return "ENABLED";
-        default:
-            // Fix warining:
-            //  control reaches end of non-void function [-Wreturn-type]
-            cb_assert(false);
-            return "UNKNOWN";
     }
+    return "UNKNOWN";
 }
 
 void BloomFilter::addKey(const char *key, size_t keylen) {
