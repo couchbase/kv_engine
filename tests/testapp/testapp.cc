@@ -1933,82 +1933,28 @@ TEST_P(McdTestappTest, Version) {
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
-static enum test_return test_flush_impl(const char *key, uint8_t cmd) {
+static void test_flush_impl(const std::string &key, uint8_t cmd) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, receive;
-    int ii;
 
-    size_t len;
-    {
-        SCOPED_TRACE("flush_impl: timed flush");
-        len = storage_command(send.bytes, sizeof(send.bytes),
-                              PROTOCOL_BINARY_CMD_ADD, key, strlen(key), NULL,
-                              0, 0, 0);
-        safe_send(send.bytes, len, false);
+    store_object(key.c_str(), "world");
+    size_t len = flush_command(send.bytes, sizeof(send.bytes), cmd, 0, false);
+    safe_send(send.bytes, len, false);
+    if (cmd == PROTOCOL_BINARY_CMD_FLUSH) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_ADD,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        len = flush_command(send.bytes, sizeof(send.bytes), cmd, 2, true);
-        safe_send(send.bytes, len, false);
-        if (cmd == PROTOCOL_BINARY_CMD_FLUSH) {
-            safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-            validate_response_header(&receive.response, cmd,
-                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        }
-
-        len = raw_command(send.bytes, sizeof(send.bytes),
-                          PROTOCOL_BINARY_CMD_GET, key, strlen(key), NULL, 0);
-        safe_send(send.bytes, len, false);
-        safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
+        validate_response_header(&receive.response, cmd,
                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
-    {
-        SCOPED_TRACE("flush_impl: GET 2");
-#ifdef WIN32
-        Sleep(3000);
-#else
-        sleep(3);
-#endif
-        safe_send(send.bytes, len, false);
-        safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
-                                 PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-    }
-
-    for (ii = 0; ii < 2; ++ii) {
-        SCOPED_TRACE("flush_impl: ADD[post flush] iteration " +
-                     std::to_string(ii));
-        len = storage_command(send.bytes, sizeof(send.bytes),
-                              PROTOCOL_BINARY_CMD_ADD, key, strlen(key), NULL,
-                              0, 0, 0);
-        safe_send(send.bytes, len, false);
-        safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_ADD,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        len = flush_command(send.bytes, sizeof(send.bytes), cmd, 0, ii == 0);
-        safe_send(send.bytes, len, false);
-        if (cmd == PROTOCOL_BINARY_CMD_FLUSH) {
-            safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-            validate_response_header(&receive.response, cmd,
-                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        }
-
-        len = raw_command(send.bytes, sizeof(send.bytes),
-                          PROTOCOL_BINARY_CMD_GET, key, strlen(key), NULL, 0);
-        safe_send(send.bytes, len, false);
-        safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-        validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
-                                 PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-    }
-
-    return TEST_PASS;
+    len = raw_command(send.bytes, sizeof(send.bytes),
+                      PROTOCOL_BINARY_CMD_GET, key.c_str(), key.length(), NULL, 0);
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
+                             PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
 }
 
 TEST_P(McdTestappTest, Flush) {
@@ -2017,6 +1963,74 @@ TEST_P(McdTestappTest, Flush) {
 
 TEST_P(McdTestappTest, FlushQ) {
     test_flush_impl("test_flushq", PROTOCOL_BINARY_CMD_FLUSHQ);
+}
+
+static void test_flush_with_extlen_impl(const std::string &key, uint8_t cmd) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } send, receive;
+
+    store_object(key.c_str(), "world");
+    size_t len = flush_command(send.bytes, sizeof(send.bytes), cmd, 0, true);
+    safe_send(send.bytes, len, false);
+    if (cmd == PROTOCOL_BINARY_CMD_FLUSH) {
+        safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+        validate_response_header(&receive.response, cmd,
+                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    len = raw_command(send.bytes, sizeof(send.bytes),
+                      PROTOCOL_BINARY_CMD_GET, key.c_str(), key.length(),
+                      NULL, 0);
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
+                             PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+}
+
+TEST_P(McdTestappTest, FlushWithExtlen) {
+    test_flush_with_extlen_impl("test_flush_extlen", PROTOCOL_BINARY_CMD_FLUSH);
+}
+
+TEST_P(McdTestappTest, FlushQWithExtlen) {
+    test_flush_with_extlen_impl("test_flushq_extlen", PROTOCOL_BINARY_CMD_FLUSHQ);
+}
+
+TEST_P(McdTestappTest, DelayedFlushNotSupported) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } send, receive;
+    std::string key("DelayedFlushNotSupported");
+    store_object(key.c_str(), "world");
+
+    size_t len = flush_command(send.bytes, sizeof(send.bytes),
+                        PROTOCOL_BINARY_CMD_FLUSH, 2, true);
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_FLUSH,
+                             PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+
+    len = flush_command(send.bytes, sizeof(send.bytes),
+                        PROTOCOL_BINARY_CMD_FLUSHQ, 2, true);
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_FLUSHQ,
+                             PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+
+    // Verify that the key is still there!
+    len = raw_command(send.bytes, sizeof(send.bytes),
+                      PROTOCOL_BINARY_CMD_GET, key.c_str(), key.length(),
+                      NULL, 0);
+    safe_send(send.bytes, len, false);
+    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_GET,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    delete_object(key.c_str());
 }
 
 TEST_P(McdTestappTest, CAS) {

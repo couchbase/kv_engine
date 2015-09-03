@@ -473,7 +473,15 @@ namespace BinaryProtocolValidator {
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_FLUSH));
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(PROTOCOL_BINARY_CMD_FLUSHQ));
     }
-
+    TEST_F(FlushValidatorTest, CorrectMessageWithUnsupportedTime) {
+        request.message.header.request.extlen = 4;
+        request.message.header.request.bodylen = htonl(4);
+        request.message.body.expiration = 1;
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+                  validate(PROTOCOL_BINARY_CMD_FLUSH));
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+                  validate(PROTOCOL_BINARY_CMD_FLUSHQ));
+    }
     TEST_F(FlushValidatorTest, InvalidMagic) {
         request.message.header.request.magic = 0;
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(PROTOCOL_BINARY_CMD_FLUSH));

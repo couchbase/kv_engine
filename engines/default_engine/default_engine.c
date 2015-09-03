@@ -447,7 +447,8 @@ static ENGINE_ERROR_CODE default_arithmetic(ENGINE_HANDLE* handle,
 
 static ENGINE_ERROR_CODE default_flush(ENGINE_HANDLE* handle,
                                        const void* cookie, time_t when) {
-   item_flush_expired(get_handle(handle), when);
+   (void)when;
+   item_flush_expired(get_handle(handle));
 
    return ENGINE_SUCCESS;
 }

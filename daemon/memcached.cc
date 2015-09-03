@@ -3651,27 +3651,17 @@ static void noop_executor(Connection *c, void *packet)
     write_bin_response(c, NULL, 0, 0, 0);
 }
 
-static void flush_executor(Connection *c, void *packet)
+static void flush_executor(Connection *c, void *)
 {
     ENGINE_ERROR_CODE ret;
-    time_t exptime = 0;
-    auto* req = reinterpret_cast<protocol_binary_request_flush*>(packet);
-
     if (c->getCmd() == PROTOCOL_BINARY_CMD_FLUSHQ) {
         c->setNoReply(true);
     }
 
-    if (c->binary_header.request.extlen == sizeof(req->message.body)) {
-        exptime = ntohl(req->message.body.expiration);
-    }
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                                    "%u: flush", c->getId());
 
-    if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "%u: flush %ld", c->getId(),
-                                        (long)exptime);
-    }
-
-    ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c, exptime);
+    ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c, 0);
     switch (ret) {
     case ENGINE_SUCCESS:
         audit_bucket_flush(c, all_buckets[c->getBucketIndex()].name);

@@ -911,17 +911,10 @@ hash_item *touch_item(struct default_engine *engine,
 /*
  * Flushes expired items after a flush_all call
  */
-void item_flush_expired(struct default_engine *engine, time_t when) {
+void item_flush_expired(struct default_engine *engine) {
     cb_mutex_enter(&engine->items.lock);
 
-    rel_time_t now;
-
-    if (when == 0) {
-        now = engine->server.core->get_current_time();
-    } else {
-        now = engine->server.core->realtime(when);
-    }
-
+    rel_time_t now = engine->server.core->get_current_time();
     if (now > engine->config.oldest_live) {
         engine->config.oldest_live = now - 1;
     }

@@ -415,6 +415,14 @@ static protocol_binary_response_status flush_validator(void *packet)
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
 
+    if (extlen == 4) {
+        // We don't support delayed flush anymore
+        auto *req = reinterpret_cast<protocol_binary_request_flush*>(packet);
+        if (req->message.body.expiration != 0) {
+            return PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED;
+        }
+    }
+
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.keylen != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES ||
