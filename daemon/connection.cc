@@ -60,11 +60,11 @@ Connection::Connection()
       tap_iterator(nullptr),
       dcp(false),
       commandContext(nullptr),
-      peername("unknown"),
-      sockname("unknown"),
       auth_context(nullptr),
       bucketIndex(0),
-      bucketEngine(nullptr) {
+      bucketEngine(nullptr),
+      peername("unknown"),
+      sockname("unknown") {
     MEMCACHED_CONN_CREATE(this);
 
     memset(&event, 0, sizeof(event));
@@ -117,11 +117,11 @@ Connection::Connection(SOCKET sock, const struct listening_port &interface)
       tap_iterator(nullptr),
       dcp(false),
       commandContext(nullptr),
-      peername("unknown"),
-      sockname("unknown"),
       auth_context(nullptr),
       bucketIndex(0),
-      bucketEngine(nullptr) {
+      bucketEngine(nullptr),
+      peername("unknown"),
+      sockname("unknown") {
     MEMCACHED_CONN_CREATE(this);
 
     memset(&event, 0, sizeof(event));
@@ -650,20 +650,19 @@ int Connection::recv(char* dest, size_t nbytes) {
             res = sslRead(dest, nbytes);
         }
     } else {
-#ifdef WIN32
-        res = ::recv(socketDescriptor, dest, (int)nbytes, 0);
-#else
-        res = (int)::recv(socketDescriptor, dest, nbytes, 0);
-#endif
+        if (isPipeConnection()) {
+            res = (int)::read(socketDescriptor, dest, nbytes);
+        } else {
+            res = (int)::recv(socketDescriptor, dest, nbytes, 0);
+        }
     }
 
     return res;
 }
 
 int Connection::sendmsg(struct msghdr* m) {
-    int res;
+    int res = 0;
     if (ssl.isEnabled()) {
-        res = 0;
         for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
             int n = sslWrite(reinterpret_cast<char*>(m->msg_iov[ii].iov_base),
                              m->msg_iov[ii].iov_len);
@@ -680,7 +679,17 @@ int Connection::sendmsg(struct msghdr* m) {
         ssl.drainBioSendPipe(socketDescriptor);
         return res;
     } else {
-        res = ::sendmsg(socketDescriptor, m, 0);
+        if (isPipeConnection()) {
+            // Windows and POSIX safe, manually write the scatter/gather
+            for (size_t ii = 0; ii < size_t(m->msg_iovlen); ii++) {
+                res = ::write(fileno(stdout),
+                              m->msg_iov[ii].iov_base,
+                              m->msg_iov[ii].iov_len);
+            }
+        }
+        else {
+            res = ::sendmsg(socketDescriptor, m, 0);
+        }
     }
 
     return res;
@@ -809,7 +818,8 @@ Connection::TryReadResult Connection::tryReadNetwork() {
             }
         }
         if (res == 0) {
-            return TryReadResult::SocketError;
+            return isPipeConnection() ?
+                   TryReadResult::NoDataReceived : TryReadResult::SocketError;
         }
         if (res == -1) {
             auto error = GetLastNetworkError();
@@ -1250,5 +1260,16 @@ void Connection::maybeLogSlowCommand(
         }
         LOG_WARNING(NULL, "%u: Slow %s operation on connection: %lu ms",
                     getId(), opcode, (unsigned long)elapsed.count());
+    }
+}
+
+PipeConnection::PipeConnection() {
+    peername = "pipe";
+    sockname = "pipe";
+}
+
+PipeConnection::~PipeConnection() {
+    if (settings.exit_on_connection_close) {
+        exit(0);
     }
 }

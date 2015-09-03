@@ -122,6 +122,18 @@ struct settings {
      */
     int topkeys_size;
 
+
+    /**
+     * Listen on stdin (reply to stdout)
+     */
+    bool stdin_listen;
+
+    /**
+     * When *any* connection closes, terminate the process.
+     * Intended for afl-fuzz runs.
+     */
+    bool exit_on_connection_close;
+
     /* flags for each of the above config options, indicating if they were
      * specified in a parsed config file.
      */
@@ -147,6 +159,8 @@ struct settings {
         bool require_init;
         bool ssl_cipher_list;
         bool topkeys_size;
+        bool stdin_listen;
+        bool exit_on_connection_close;
     } has;
     /*************************************************************************
      * These settings are not exposed to the user, and are either derived from

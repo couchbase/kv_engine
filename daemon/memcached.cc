@@ -910,7 +910,12 @@ bool conn_read(Connection *c) {
 
     switch (c->tryReadNetwork()) {
     case Connection::TryReadResult::NoDataReceived:
-        c->setState(conn_waiting);
+        if (settings.exit_on_connection_close) {
+            // No more data, proceed to close which will exit the process
+            c->setState(conn_closing);
+        } else {
+            c->setState(conn_waiting);
+        }
         break;
     case Connection::TryReadResult::DataReceived:
         c->setState(conn_parse_cmd);
@@ -965,7 +970,12 @@ bool conn_new_cmd(Connection *c) {
          * the other end so that they'll _have_ to wait for a write event.
          */
         if (c->havePendingInputData() || c->isDCP() || c->isTAP()) {
-            if (!c->updateEvent(EV_WRITE | EV_PERSIST)) {
+            short flags = EV_WRITE | EV_PERSIST;
+            // pipe requires EV_READ forcing to ensure we can read until EOF
+            if (c->isPipeConnection()) {
+                flags |= EV_READ;
+            }
+            if (!c->updateEvent(flags)) {
                 c->setState(conn_closing);
                 return true;
             }
@@ -1118,8 +1128,12 @@ bool conn_immediate_close(Connection *c) {
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
         port_instance = get_listening_port_instance(c->getParentPort());
-        cb_assert(port_instance);
+        if (port_instance) {
         --port_instance->curr_conns;
+        } else if(!c->isPipeConnection()) {
+            throw std::logic_error("null port_instance and connection "
+                                   "is not a pipe");
+        }
     }
 
     perform_callbacks(ON_DISCONNECT, NULL, c);
@@ -1734,6 +1748,10 @@ static int server_sockets(FILE *portnumber_file) {
         fprintf(portnumber_file, "%s\n", ptr);
         cJSON_Free(ptr);
         cJSON_Delete(root);
+    }
+
+    if (settings.stdin_listen) {
+        dispatch_conn_new(fileno(stdin), 0);
     }
 
     return ret;

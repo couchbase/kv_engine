@@ -53,6 +53,7 @@ static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
                                       struct net_buf *conn_buf);
 static void conn_destructor(Connection *c);
 static Connection *allocate_connection(SOCKET sfd, const struct listening_port *interface = nullptr);
+static Connection *allocate_pipe_connection(int fd);
 static void release_connection(Connection *c);
 
 /** External functions *******************************************************/
@@ -257,6 +258,32 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
     }
 
     return c;
+}
+
+/*
+    Pipe input
+*/
+Connection* conn_pipe_new(const int fd,
+                          struct event_base *base,
+                          LIBEVENT_THREAD* thread) {
+    Connection *c = allocate_pipe_connection(fd);
+
+    c->setAuthContext(auth_create(NULL, "pipe", "pipe"));
+
+    if (!c->initializeEvent(base)) {
+        cb_assert(c->getThread() == nullptr);
+        release_connection(c);
+        return NULL;
+    }
+
+    stats.total_conns++;
+    c->incrementRefcount();
+    c->setThread(thread);
+    associate_initial_bucket(c);
+    MEMCACHED_CONN_ALLOCATE(c->getId());
+
+    return c;
+
 }
 
 void conn_cleanup_engine_allocations(Connection * c) {
@@ -479,6 +506,30 @@ static Connection *allocate_connection(SOCKET sfd,
         delete ret;
         return NULL;
     }
+}
+
+/**
+ * Allocate a PipeConnection and add it to the conections list.
+ *
+ * Returns a pointer to the newly-allocated Connection else NULL if failed.
+ */
+static Connection *allocate_pipe_connection(int fd) {
+    Connection *ret;
+
+    try {
+        ret = new PipeConnection;
+    } catch (std::bad_alloc) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Failed to allocate memory for PipeConnection");
+        return NULL;
+    }
+    ret->setSocketDescriptor(fd);
+    stats.conn_structs++;
+
+    std::lock_guard<std::mutex> lock(connections.mutex);
+    connections.conns.push_back(ret);
+
+    return ret;
 }
 
 /** Release a connection; removing it from the connection list management

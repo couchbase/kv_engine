@@ -717,6 +717,56 @@ static bool get_datatype(cJSON *o, struct settings *settings,
     }
 }
 
+static bool get_stdin_listen(cJSON *o, struct settings *settings,
+                                 char **error_msg) {
+    if (get_bool_value(o, o->string, &settings->stdin_listen, error_msg)) {
+        settings->has.stdin_listen = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static bool dyna_reconfig_stdin_listen(const struct settings *new_settings,
+                                       cJSON* errors) {
+    /* stdin_listen isn't dynamic */
+    if (!new_settings->has.stdin_listen) {
+        return true;
+    }
+    if (new_settings->stdin_listen == settings.stdin_listen) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'stdin_listen' is not a dynamic setting."));
+        return false;
+    }
+}
+
+static bool get_exit_on_connection_close(cJSON *o, struct settings *settings,
+                                         char **error_msg) {
+    if (get_bool_value(o, o->string, &settings->exit_on_connection_close, error_msg)) {
+        settings->has.exit_on_connection_close = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static bool dyna_reconfig_exit_on_connection_close(const struct settings *new_settings,
+                                                   cJSON* errors) {
+    /* exit_on_connection_close isn't dynamic */
+    if (!new_settings->has.exit_on_connection_close) {
+        return true;
+    }
+    if (new_settings->exit_on_connection_close == settings.exit_on_connection_close) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'exit_on_connection_close' is not a dynamic setting."));
+        return false;
+    }
+}
+
 static bool parse_breakpad(cJSON *o, struct settings *settings,
                            char** error_msg) {
     if (o->type != cJSON_Object) {
@@ -1374,6 +1424,8 @@ struct {
       dyna_reconfig_ssl_cipher_list },
     { "breakpad", parse_breakpad, dyna_validate_breakpad, dyna_reconfig_breakpad },
     { "max_packet_size", get_max_packet_size, dyna_validate_max_packet_size, NULL},
+    { "stdin_listen", get_stdin_listen, dyna_reconfig_stdin_listen, NULL},
+    { "exit_on_connection_close", get_exit_on_connection_close, dyna_reconfig_exit_on_connection_close, NULL},
     { NULL, NULL, NULL, NULL }
 };
 

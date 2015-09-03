@@ -248,6 +248,23 @@ try to spool up a 4GB packet. When a packet is received on the
 network with a body bigger than this threshold EINVAL is returned
 to the client and the client is disconnected.
 
+=== stdin_listen
+
+The *stdin_listen* attribute is a boolean value that makes memcached
+listen to stdin (as well as the defined ports).
+Development only feature as it forces libevent to avoid epoll.
+
+=== exit_on_connection_close
+
+The *exit_on_connection_close* attribute is a boolean value that makes
+memcached exit with exit code 0 whenever a connection close.
+
+This is required for afl-fuzz as it expects the
+process to exit cleanly when a test is complete.
+
+So when memcached reads 0 bytes (EOF) from stdin it will close
+the connection and in turn exit(0).
+
 == EXAMPLES
 
 A Sample memcached.json:
