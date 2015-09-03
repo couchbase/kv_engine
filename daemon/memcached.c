@@ -1998,7 +1998,7 @@ static void process_bin_sasl_auth(conn *c) {
     nkey = c->binary_header.request.keylen;
     vlen = c->binary_header.request.bodylen - nkey;
 
-    if (nkey > MAX_SASL_MECH_LEN) {
+    if (nkey > MAX_SASL_MECH_LEN || vlen < 0) {
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, vlen);
         c->write_and_go = conn_swallow;
         return;
