@@ -849,6 +849,17 @@ static protocol_binary_response_status null_validator(void *) {
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
+static protocol_binary_response_status tap_validator(void *packet) {
+    auto req = static_cast<protocol_binary_request_tap_no_extras *>(packet);
+    auto bodylen = ntohl(req->message.header.request.bodylen);
+    auto enginelen = ntohs(req->message.body.tap.enginespecific_length);
+    if (sizeof(req->message.body) > bodylen ||
+        enginelen > bodylen) {
+        return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
+}
+
 static void initialize() {
     validators.reserve(0x100);
     for (int ii = 0; ii < 0x100; ++ii) {
@@ -936,4 +947,11 @@ static void initialize() {
     validators[PROTOCOL_BINARY_CMD_DELETE_BUCKET] = delete_bucket_validator;
     validators[PROTOCOL_BINARY_CMD_SELECT_BUCKET] = select_bucket_validator;
     validators[PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS] = get_all_vb_seqnos_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_MUTATION] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_DELETE] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_FLUSH] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = tap_validator;
 }
