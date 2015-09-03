@@ -1985,9 +1985,9 @@ static enum test_return test_flush_impl(const char *key, uint8_t cmd) {
     {
         SCOPED_TRACE("flush_impl: GET 2");
 #ifdef WIN32
-        Sleep(2000);
+        Sleep(3000);
 #else
-        sleep(2);
+        sleep(3);
 #endif
         safe_send(send.bytes, len, false);
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
