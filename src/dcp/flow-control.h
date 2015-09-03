@@ -46,10 +46,14 @@ public:
 
     void setFlowControlBufSize(uint32_t newSize);
 
+    bool isBufferSufficientlyDrained();
+
     void addStats(ADD_STAT add_stat, const void *c);
 
 private:
     void setBufSizeWithinBounds(size_t &bufSize);
+
+    bool isBufferSufficientlyDrained_UNLOCKED(uint32_t ackable_bytes);
 
     /* Associated consumer connection handler */
     DcpConsumer* consumerConn;

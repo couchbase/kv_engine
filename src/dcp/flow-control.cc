@@ -64,7 +64,7 @@ ENGINE_ERROR_CODE FlowControl::handleFlowCtl(
                                      buf_size.length());
             ObjectRegistry::onSwitchThread(epe);
             return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
-        } else if (ackable_bytes > (bufferSize * .2)) {
+        } else if (isBufferSufficientlyDrained_UNLOCKED(ackable_bytes)) {
             lh.unlock();
             /* Send a buffer ack when at least 20% of the buffer is drained */
             uint64_t opaque = consumerConn->incrOpaqueCounter();
@@ -116,6 +116,15 @@ void FlowControl::setFlowControlBufSize(uint32_t newSize)
         bufferSize = newSize;
         pendingControl = true;
     }
+}
+
+bool FlowControl::isBufferSufficientlyDrained() {
+    SpinLockHolder lh(&bufferSizeLock);
+    return isBufferSufficientlyDrained_UNLOCKED(freedBytes.load());
+}
+
+bool FlowControl::isBufferSufficientlyDrained_UNLOCKED(uint32_t ackable_bytes) {
+    return ackable_bytes > (bufferSize * .2);
 }
 
 void FlowControl::addStats(ADD_STAT add_stat, const void *c)

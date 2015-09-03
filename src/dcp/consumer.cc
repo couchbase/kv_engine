@@ -721,6 +721,13 @@ process_items_error_t DcpConsumer::processBufferedItems() {
         } while (bytes_processed > 0 && process_ret != cannot_process);
     }
 
+    if (flowControl.isBufferSufficientlyDrained()) {
+        /* Notify memcached to get flow control buffer ack out. We cannot wait
+           till the ConnManager daemon task notifies the memcached as it would
+           cause delay in buffer ack being sent out to the producer */
+        engine_.getDcpConnMap().notifyPausedConnection(this, false);
+    }
+
     if (process_ret == all_processed && itemsToProcess.load()) {
         return more_to_process;
     }

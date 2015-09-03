@@ -6190,15 +6190,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(const void* cookie,
     ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
     ConnHandler* conn = getConnHandler(cookie);
     if (conn) {
-        if (tapConnMap->isTapConsumerConnected(vbucket)) {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Failing to add a passive "
-                "stream, as a TAP consumer is still live for the vbucket!",
-                conn->logHeader(), vbucket);
-            errCode = ENGINE_KEY_EEXISTS;
-        } else {
-            errCode = dcpConnMap_->addPassiveStream(conn, opaque,
-                                                    vbucket, flags);
-        }
+        errCode = dcpConnMap_->addPassiveStream(conn, opaque, vbucket, flags);
     }
     return errCode;
 }
