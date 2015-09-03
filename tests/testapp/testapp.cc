@@ -442,29 +442,6 @@ static int write_config_to_file(const char* config, const char *fname) {
     return 0;
 }
 
-static bool isMemcachedAlive() {
-#ifdef WIN32
-    DWORD status;
-    if (GetExitCodeProcess(server_pid, &status)) {
-        if (status != STILL_ACTIVE) {
-            return false;
-        }
-    }
-    // GetExitCodeProcessed failed for some reason...
-    return true;
-#else
-    int status;
-    pid_t ret;
-    if ((ret = waitpid(server_pid, &status, WNOHANG)) == -1) {
-        perror("waitpid failed");
-        fprintf(stderr, "\twith server_pid=%d\n", server_pid);
-        return false;
-    } else {
-        return ret == 0;
-    }
-#endif
-}
-
 /**
  * Load and parse the content of a file into a cJSON array
  *
@@ -599,13 +576,22 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
     const time_t deadline = time(NULL) + timeout;
     // Wait up to timeout seconds for the port file to be created.
     do {
+        usleep(50);
         fp = fopen(filename, "r");
         if (fp != nullptr) {
             break;
         }
 
-        usleep(10);
-        ASSERT_TRUE(isMemcachedAlive());
+#ifdef WIN32
+        DWORD status;
+        ASSERT_TRUE(GetExitCodeProcess(server_pid, &status));
+        ASSERT_EQ(STILL_ACTIVE, status);
+#else
+        int status;
+        pid_t ret = waitpid(server_pid, &status, WNOHANG);
+        ASSERT_EQ(0, ret) << " waitpid returned " << ret << " errno: "
+                          << strerror(errno);
+#endif
     } while (time(NULL) < deadline);
 
     ASSERT_NE(nullptr, fp) << "Timed out after " << timeout
