@@ -4053,6 +4053,17 @@ static int get_ctrl_token_validator(void *packet)
     return 0;
 }
 
+static int tap_validator(void *packet)
+{
+    protocol_binary_request_tap_no_extras *req = packet;
+    uint32_t bodylen = ntohl(req->message.header.request.bodylen);
+    uint16_t enginelen = ntohs(req->message.body.tap.enginespecific_length);
+    if (enginelen > bodylen) {
+        return -1;
+    }
+    return 0;
+}
+
 /*******************************************************************************
  *                         DCP packet executors                                *
  ******************************************************************************/
@@ -5343,6 +5354,13 @@ static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN] = set_ctrl_token_validator;
     validators[PROTOCOL_BINARY_CMD_GET_CTRL_TOKEN] = get_ctrl_token_validator;
     validators[PROTOCOL_BINARY_CMD_IOCTL_GET] = get_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_MUTATION] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_DELETE] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_FLUSH] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = tap_validator;
+    validators[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = tap_validator;
 
     executors[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_executor;
     executors[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_executor;
