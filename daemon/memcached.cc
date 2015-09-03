@@ -5169,25 +5169,25 @@ void write_and_free(Connection *c, DynamicBuffer* buf) {
 
 template <typename T>
 void add_stat(const void *cookie, ADD_STAT add_stat_callback,
-              const std::string &name, const T &val) {
+              const char* name, const T &val) {
     std::string value = std::to_string(val);
-    add_stat_callback(name.c_str(), uint16_t(name.length()),
+    add_stat_callback(name, uint16_t(strlen(name)),
                       value.c_str(), uint32_t(value.length()), cookie);
 }
 
 void add_stat(const void *cookie, ADD_STAT add_stat_callback,
-              const std::string &name, const std::string &value) {
-    add_stat_callback(name.c_str(), uint16_t(name.length()),
+              const char* name, const std::string &value) {
+    add_stat_callback(name, uint16_t(strlen(name)),
                       value.c_str(), uint32_t(value.length()), cookie);
 }
 
 void add_stat(const void *cookie, ADD_STAT add_stat_callback,
-              const std::string &name, const char *value) {
+              const char* name, const char *value) {
     add_stat(cookie, add_stat_callback, name, std::string(value));
 }
 
 void add_stat(const void *cookie, ADD_STAT add_stat_callback,
-              const std::string &name, const bool value) {
+              const char* name, const bool value) {
     if (value) {
         add_stat(cookie, add_stat_callback, name, "true");
     } else {
@@ -5223,9 +5223,9 @@ static void server_stats(ADD_STAT add_stat_callback, Connection *c) {
                 stats.curr_conns.load(std::memory_order_relaxed));
     for (auto &instance : stats.listening_ports) {
         std::string key = "max_conns_on_port_" + std::to_string(instance.port);
-        add_stat(c, add_stat_callback, key, instance.maxconns);
+        add_stat(c, add_stat_callback, key.c_str(), instance.maxconns);
         key = "curr_conns_on_port_" + std::to_string(instance.port);
-        add_stat(c, add_stat_callback, key, instance.curr_conns);
+        add_stat(c, add_stat_callback, key.c_str(), instance.curr_conns);
     }
     add_stat(c, add_stat_callback, "total_connections", stats.total_conns);
     add_stat(c, add_stat_callback, "connection_structures",
