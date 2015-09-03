@@ -912,36 +912,38 @@ hash_item *touch_item(struct default_engine *engine,
  * Flushes expired items after a flush_all call
  */
 void item_flush_expired(struct default_engine *engine, time_t when) {
-    int i;
-    hash_item *iter, *next;
-
     cb_mutex_enter(&engine->items.lock);
 
+    rel_time_t now;
+
     if (when == 0) {
-        engine->config.oldest_live = engine->server.core->get_current_time() - 1;
+        now = engine->server.core->get_current_time();
     } else {
-        engine->config.oldest_live = engine->server.core->realtime(when) - 1;
+        now = engine->server.core->realtime(when);
     }
 
-    if (engine->config.oldest_live != 0) {
-        for (i = 0; i < POWER_LARGEST; i++) {
-            /*
-             * The LRU is sorted in decreasing time order, and an item's
-             * timestamp is never newer than its last access time, so we
-             * only need to walk back until we hit an item older than the
-             * oldest_live time.
-             * The oldest_live checking will auto-expire the remaining items.
-             */
-            for (iter = engine->items.heads[i]; iter != NULL; iter = next) {
-                if (iter->time >= engine->config.oldest_live) {
-                    next = iter->next;
-                    if ((iter->iflag & ITEM_SLABBED) == 0) {
-                        do_item_unlink(engine, iter);
-                    }
-                } else {
-                    /* We've hit the first old item. Continue to the next queue. */
-                    break;
+    if (now > engine->config.oldest_live) {
+        engine->config.oldest_live = now - 1;
+    }
+
+    for (int ii = 0; ii < POWER_LARGEST; ii++) {
+        hash_item *iter, *next;
+        /*
+         * The LRU is sorted in decreasing time order, and an item's
+         * timestamp is never newer than its last access time, so we
+         * only need to walk back until we hit an item older than the
+         * oldest_live time.
+         * The oldest_live checking will auto-expire the remaining items.
+         */
+        for (iter = engine->items.heads[ii]; iter != NULL; iter = next) {
+            if (iter->time >= engine->config.oldest_live) {
+                next = iter->next;
+                if ((iter->iflag & ITEM_SLABBED) == 0) {
+                    do_item_unlink(engine, iter);
                 }
+            } else {
+                /* We've hit the first old item. Continue to the next queue. */
+                break;
             }
         }
     }
