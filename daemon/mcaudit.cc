@@ -72,6 +72,15 @@ void audit_auth_failure(const Connection *c, const char *reason)
              "Failed to send AUTH FAILED audit event");
 }
 
+void audit_bucket_flush(const Connection *c, const char *bucket) {
+    cJSON *root = create_memcached_audit_object(c);
+    cJSON_AddStringToObject(root, "bucket", bucket);
+
+    do_audit(c, MEMCACHED_AUDIT_BUCKET_FLUSH, root,
+             "Failed to send BUCKET_FLUSH audit event");
+}
+
+
 void audit_dcp_open(const Connection *c)
 {
     if (c->isAdmin()) {

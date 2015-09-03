@@ -3674,6 +3674,7 @@ static void flush_executor(Connection *c, void *packet)
     ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c, exptime);
     switch (ret) {
     case ENGINE_SUCCESS:
+        audit_bucket_flush(c, all_buckets[c->getBucketIndex()].name);
         get_thread_stats(c)->cmd_flush++;
         write_bin_response(c, NULL, 0, 0, 0);
         break;

@@ -37,6 +37,24 @@
                       "peername" : "",
                       "sockname" : ""
                    }
-                }
+                }, {
+        "id" : 20482,
+        "name" : "bucket flush",
+        "description" : "Flushed the content of a bucket",
+        "sync" : false,
+        "enabled" : true,
+        "mandatory_fields" : {
+          "timestamp" : "",
+          "real_userid" : {
+            "source" : "",
+            "user" : ""
+          },
+          "bucket" : ""
+        },
+        "optional_fields" : {
+          "peername" : "",
+          "sockname" : ""
+        }
+      }
                ]
 }

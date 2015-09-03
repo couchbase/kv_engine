@@ -29,6 +29,13 @@ extern "C" {
     void audit_auth_failure(const Connection *c, const char *reason);
 
     /**
+     * Send an audit event for bucket flush
+     * @param c the connection performing the operation
+     * @param bucket the name of the bucket
+     */
+    void audit_bucket_flush(const Connection *c, const char *bucket);
+
+    /**
      * Send an audit event for a DCP Open
      *
      * param c the connection object performing DCP Open
