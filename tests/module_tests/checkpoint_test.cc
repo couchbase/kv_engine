@@ -23,10 +23,11 @@
 #include <set>
 #include <vector>
 
-#include "assert.h"
 #include "checkpoint.h"
 #include "stats.h"
 #include "vbucket.h"
+
+#include <gtest/gtest.h>
 
 #ifdef _MSC_VER
 #define alarm(a)
@@ -44,8 +45,11 @@
 #define NUM_ITEMS 50000
 #endif
 
-EPStats global_stats;
-CheckpointConfig checkpoint_config;
+class CheckpointTest : public ::testing::Test {
+protected:
+    EPStats global_stats;
+    CheckpointConfig checkpoint_config;
+};
 
 struct thread_args {
     SyncObject *mutex;
@@ -108,13 +112,14 @@ static void launch_persistence_thread(void *arg) {
             // these. Anything else will be considered an error.
             for(size_t i = itemPos + 1; i < items.size(); ++i) {
                 queued_item qi = items.at(i);
-                cb_assert(queue_op_checkpoint_start == qi->getOperation() ||
-                       queue_op_checkpoint_end == qi->getOperation());
+                EXPECT_TRUE(queue_op_checkpoint_start == qi->getOperation() ||
+                            queue_op_checkpoint_end == qi->getOperation())
+                    << "Unexpected operation:" << qi->getOperation();
             }
             break;
         }
     }
-    cb_assert(flush == true);
+    EXPECT_TRUE(flush);
 }
 
 static void launch_tap_client_thread(void *arg) {
@@ -137,7 +142,7 @@ static void launch_tap_client_thread(void *arg) {
             break;
         }
     }
-    cb_assert(flush == true);
+    EXPECT_TRUE(flush);
 }
 
 static void launch_checkpoint_cleanup_thread(void *arg) {
@@ -178,7 +183,7 @@ static void launch_set_thread(void *arg) {
 }
 }
 
-void basic_chk_test() {
+TEST_F(CheckpointTest, basic_chk_test) {
     HashTable::setDefaultNumBuckets(5);
     HashTable::setDefaultNumLocks(1);
     shared_ptr<Callback<uint16_t> > cb(new DummyCB());
@@ -225,20 +230,20 @@ void basic_chk_test() {
     alarm(60);
 
     rc = cb_create_thread(&persistence_thread, launch_persistence_thread, &t_args, 0);
-    cb_assert(rc == 0);
+    EXPECT_EQ(0, rc);
 
     rc = cb_create_thread(&checkpoint_cleanup_thread,
                         launch_checkpoint_cleanup_thread, &t_args, 0);
-    cb_assert(rc == 0);
+    EXPECT_EQ(0, rc);
 
     for (i = 0; i < NUM_TAP_THREADS; ++i) {
         rc = cb_create_thread(&tap_threads[i], launch_tap_client_thread, &tap_t_args[i], 0);
-        cb_assert(rc == 0);
+        EXPECT_EQ(0, rc);
     }
 
     for (i = 0; i < NUM_SET_THREADS; ++i) {
         rc = cb_create_thread(&set_threads[i], launch_set_thread, &t_args, 0);
-        cb_assert(rc == 0);
+        EXPECT_EQ(0, rc);
     }
 
     // Wait for all threads to reach the starting gate
@@ -254,7 +259,7 @@ void basic_chk_test() {
 
     for (i = 0; i < NUM_SET_THREADS; ++i) {
         rc = cb_join_thread(set_threads[i]);
-        cb_assert(rc == 0);
+        EXPECT_EQ(0, rc);
     }
 
     // Push the flush command into the queue so that all other threads can be terminated.
@@ -263,18 +268,18 @@ void basic_chk_test() {
     checkpoint_manager->queueDirty(vbucket, qi, true);
 
     rc = cb_join_thread(persistence_thread);
-    cb_assert(rc == 0);
+    EXPECT_EQ(0, rc);
 
     for (i = 0; i < NUM_TAP_THREADS; ++i) {
         rc = cb_join_thread(tap_threads[i]);
-        cb_assert(rc == 0);
+        EXPECT_EQ(0, rc);
         std::stringstream name;
         name << "tap-client-" << i;
         checkpoint_manager->removeCursor(name.str());
     }
 
     rc = cb_join_thread(checkpoint_cleanup_thread);
-    cb_assert(rc == 0);
+    EXPECT_EQ(0, rc);
 
     delete checkpoint_manager;
     delete gate;
@@ -282,7 +287,7 @@ void basic_chk_test() {
     delete counter;
 }
 
-void test_reset_checkpoint_id() {
+TEST_F(CheckpointTest, reset_checkpoint_id) {
     shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
                                        checkpoint_config, NULL, 0, 0, 0, NULL,
@@ -311,26 +316,26 @@ void test_reset_checkpoint_id() {
         if (qi->getOperation() != queue_op_checkpoint_start &&
             qi->getOperation() != queue_op_checkpoint_end) {
             size_t mid = qi->getBySeqno();
-            cb_assert(mid > lastMutationId);
+            EXPECT_GT(mid, lastMutationId);
             lastMutationId = qi->getBySeqno();
         }
         if (itemPos == 0 || itemPos == (items.size() - 1)) {
-            cb_assert(qi->getOperation() == queue_op_checkpoint_start);
+            EXPECT_EQ(queue_op_checkpoint_start, qi->getOperation()) << "For itemPos:" << itemPos;
         } else if (itemPos == (items.size() - 2)) {
-            cb_assert(qi->getOperation() == queue_op_checkpoint_end);
+            EXPECT_EQ(queue_op_checkpoint_end, qi->getOperation()) << "For itemPos:" << itemPos;
             chk++;
         } else {
-            cb_assert(qi->getOperation() == queue_op_set);
+            EXPECT_EQ(queue_op_set, qi->getOperation()) << "For itemPos:" << itemPos;
         }
     }
-    cb_assert(items.size() == 13);
+    EXPECT_EQ(13, items.size());
     items.clear();
 
     chk = 1;
     lastMutationId = 0;
     manager->checkAndAddNewCheckpoint(1, vbucket);
     manager->getAllItemsForCursor(cursor, items);
-    cb_assert(items.size() == 0);
+    EXPECT_EQ(0, items.size());
 
     delete manager;
 }
@@ -339,8 +344,8 @@ void test_reset_checkpoint_id() {
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
 int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    ::testing::InitGoogleTest(&argc, argv);
     putenv(allow_no_stats_env);
-    basic_chk_test();
-    test_reset_checkpoint_id();
+
+    return RUN_ALL_TESTS();
 }

@@ -25,6 +25,9 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${ForestDB_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_BINARY_DIR})
 
+INCLUDE_DIRECTORIES(AFTER
+                    ${gtest_SOURCE_DIR}/include)
+
 CHECK_INCLUDE_FILES("alloca.h" HAVE_ALLOCA_H)
 CHECK_INCLUDE_FILES("arpa/inet.h" HAVE_ARPA_INET_H)
 CHECK_INCLUDE_FILES("unistd.h" HAVE_UNISTD_H)
@@ -204,7 +207,7 @@ ADD_EXECUTABLE(ep-engine_checkpoint_test
   src/vbucket.cc
   tests/module_tests/test_memory_tracker.cc
   ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_checkpoint_test ${SNAPPY_LIBRARIES} cJSON platform)
+TARGET_LINK_LIBRARIES(ep-engine_checkpoint_test gtest ${SNAPPY_LIBRARIES} cJSON platform)
 
 ADD_EXECUTABLE(ep-engine_chunk_creation_test
   tests/module_tests/chunk_creation_test.cc)
