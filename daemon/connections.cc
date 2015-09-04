@@ -293,8 +293,7 @@ void conn_close(Connection *c) {
 
     conn_cleanup(c);
 
-
-    if (thread != nullptr) {
+    if (c->getThread() != nullptr) {
         std::logic_error("conn_close: failed to disassociate connection from thread");
     }
     c->setState(conn_destroyed);
