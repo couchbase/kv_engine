@@ -724,6 +724,16 @@ public:
           enableChkMerge(false)
     { /* empty */ }
 
+    CheckpointConfig(rel_time_t period, size_t max_items, size_t max_ckpts,
+                     bool item_based_new_ckpt, bool keep_closed_ckpts,
+                     bool enable_ckpt_merge)
+        : checkpointPeriod(period),
+          checkpointMaxItems(max_items),
+          maxCheckpoints(max_ckpts),
+          itemNumBasedNewCheckpoint(item_based_new_ckpt),
+          keepClosedCheckpoints(keep_closed_ckpts),
+          enableChkMerge(enable_ckpt_merge) {}
+
     CheckpointConfig(EventuallyPersistentEngine &e);
 
     rel_time_t getCheckpointPeriod() const {

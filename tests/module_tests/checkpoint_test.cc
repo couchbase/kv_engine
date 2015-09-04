@@ -45,12 +45,6 @@
 #define NUM_ITEMS 50000
 #endif
 
-class CheckpointTest : public ::testing::Test {
-protected:
-    EPStats global_stats;
-    CheckpointConfig checkpoint_config;
-};
-
 struct thread_args {
     SyncObject *mutex;
     SyncObject *gate;
@@ -81,6 +75,36 @@ public:
     void callback(uint16_t &dummy) {
         (void) dummy;
     }
+};
+
+// Test fixture for Checkpoint tests. Once constructed provides a checkpoint
+// manager and single vBucket (VBID 0).
+class CheckpointTest : public ::testing::Test {
+protected:
+    CheckpointTest()
+        : callback(new DummyCB()),
+          vbucket(new VBucket(0, vbucket_state_active, global_stats,
+                              checkpoint_config, /*kvshard*/NULL,
+                              /*lastSeqno*/1000, /*lastSnapStart*/0,
+                              /*lastSnapEnd*/0, /*table*/NULL,
+                              callback)) {
+        createManager();
+    }
+
+    void createManager() {
+        manager.reset(new CheckpointManager(global_stats, vbucket->getId(),
+                                            checkpoint_config,
+                                            /*lastSeqno*/1000,
+                                            /*lastSnapStart*/0,/*lastSnapEnd*/0,
+                                            callback));
+    }
+
+    EPStats global_stats;
+    CheckpointConfig checkpoint_config;
+
+    shared_ptr<Callback<uint16_t> > callback;
+    RCPtr<VBucket> vbucket;
+    std::unique_ptr<CheckpointManager> manager;
 };
 
 static void launch_persistence_thread(void *arg) {
@@ -338,6 +362,168 @@ TEST_F(CheckpointTest, reset_checkpoint_id) {
     EXPECT_EQ(0, items.size());
 
     delete manager;
+}
+
+// Sanity check test fixture
+TEST_F(CheckpointTest, CheckFixture) {
+
+    // Should intially have a single cursor (persistence).
+    EXPECT_EQ(1, manager->getNumOfCursors());
+    EXPECT_EQ(1, manager->getNumOpenChkItems());
+    for (auto& cursor : manager->getCursorNames()) {
+        EXPECT_EQ(CheckpointManager::pCursorName, cursor);
+    }
+    // Should initially be zero items to persist.
+    EXPECT_EQ(0, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+}
+
+// Basic test of a single, open checkpoint.
+TEST_F(CheckpointTest, OneOpenCkpt) {
+
+    // Queue a set operation.
+    queued_item qi(new Item("key1", vbucket->getId(), queue_op_set,
+                            /*revSeq*/20, /*bySeq*/0));
+
+    // No set_ops in queue, expect queueDirty to return true (increase
+    // persistence queue size).
+    EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+    EXPECT_EQ(1, manager->getNumCheckpoints());  // Single open checkpoint.
+    EXPECT_EQ(2, manager->getNumOpenChkItems()); // 1x op_checkpoint_start, 1x op_set
+    EXPECT_EQ(1001, qi->getBySeqno());
+    EXPECT_EQ(20, qi->getRevSeqno());
+    EXPECT_EQ(1, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+
+    // Adding the same key again shouldn't increase the size.
+    queued_item qi2(new Item("key1", vbucket->getId(), queue_op_set,
+                            /*revSeq*/21, /*bySeq*/0));
+    EXPECT_FALSE(manager->queueDirty(vbucket, qi2, true));
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getNumOpenChkItems());
+    EXPECT_EQ(1002, qi2->getBySeqno());
+    EXPECT_EQ(21, qi2->getRevSeqno());
+    EXPECT_EQ(1, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+
+    // Adding a different key should increase size.
+    queued_item qi3(new Item("key2", vbucket->getId(), queue_op_set,
+                            /*revSeq*/0, /*bySeq*/0));
+    EXPECT_TRUE(manager->queueDirty(vbucket, qi3, true));
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(3, manager->getNumOpenChkItems());
+    EXPECT_EQ(1003, qi3->getBySeqno());
+    EXPECT_EQ(0, qi3->getRevSeqno());
+    EXPECT_EQ(2, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+}
+
+// Test with one open and one closed checkpoint.
+TEST_F(CheckpointTest, OneOpenOneClosed) {
+
+    // Add some items to the initial (open) checkpoint.
+    for (auto i : {1,2}) {
+        queued_item qi(new Item("key" + std::to_string(i), vbucket->getId(),
+                                queue_op_set, /*revSeq*/0, /*bySeq*/0));
+        EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+    }
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(3, manager->getNumOpenChkItems()); // 1x op_checkpoint_start, 2x op_set
+    EXPECT_EQ(3, manager->getNumItems());
+    const uint64_t ckpt_id1 = manager->getOpenCheckpointId();
+
+    // Create a new checkpoint (closing the current open one).
+    const uint64_t ckpt_id2 = manager->createNewCheckpoint();
+    EXPECT_NE(ckpt_id1, ckpt_id2) << "New checkpoint ID should differ from old";
+    EXPECT_EQ(ckpt_id1, manager->getLastClosedCheckpointId());
+    EXPECT_EQ(1, manager->getNumOpenChkItems()); // 1x op_checkpoint_start
+
+    // Add some items to the newly-opened checkpoint (note same keys as 1st
+    // ckpt).
+    for (auto ii : {1,2}) {
+        queued_item qi(new Item("key" + std::to_string(ii), vbucket->getId(),
+                                queue_op_set, /*revSeq*/1, /*bySeq*/0));
+        EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+    }
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+    EXPECT_EQ(3, manager->getNumOpenChkItems()); // 1x op_checkpoint_start, 2x op_set
+    EXPECT_EQ(3 + 4,
+              manager->getNumItems()); // open items + 1x op_ckpt_start, 2x op_set, 1x op_ckpt_end
+
+    // Examine the items - should be 2 lots of two keys.
+    EXPECT_EQ(4, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+}
+
+// Test the automatic creation of checkpoints based on the number of items.
+TEST_F(CheckpointTest, ItemBasedCheckpointCreation) {
+
+    // Size down the default number of items to create a new checkpoint and
+    // recreate the manager
+    checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
+                                         MIN_CHECKPOINT_ITEMS,
+                                         /*numCheckpoints*/2,
+                                         /*itemBased*/true,
+                                         /*keepClosed*/false,
+                                         /*enableMerge*/false);
+    createManager();
+
+    // Sanity check initial state.
+    EXPECT_EQ(1, manager->getNumOfCursors());
+    EXPECT_EQ(1, manager->getNumOpenChkItems());
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+
+    // Create one less than the number required to create a new checkpoint.
+    queued_item qi;
+    for (unsigned int ii = 0; ii < MIN_CHECKPOINT_ITEMS; ii++) {
+        EXPECT_EQ(ii + 1, manager->getNumOpenChkItems()); /* +1 for op_ckpt_start */
+
+        qi.reset(new Item("key" + std::to_string(ii), vbucket->getId(),
+                          queue_op_set, /*revSeq*/0, /*bySeq*/0));
+        EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+        EXPECT_EQ(1, manager->getNumCheckpoints());
+
+    }
+
+    // Add one more - should create a new checkpoint.
+    qi.reset(new Item("key_epoch", vbucket->getId(), queue_op_set, /*revSeq*/0,
+                      /*bySeq*/0));
+    EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getNumOpenChkItems()); // 1x op_ckpt_start, 1x op_set
+
+    // Fill up this checkpoint also - note loop for MIN_CHECKPOINT_ITEMS - 1
+    for (unsigned int ii = 0; ii < MIN_CHECKPOINT_ITEMS - 1; ii++) {
+        EXPECT_EQ(ii + 2, manager->getNumOpenChkItems()); /* +2 op_ckpt_start, key_epoch */
+
+        qi.reset(new Item("key" + std::to_string(ii), vbucket->getId(),
+                                queue_op_set, /*revSeq*/1, /*bySeq*/0));
+        EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+        EXPECT_EQ(2, manager->getNumCheckpoints());
+    }
+
+    // Add one more - as we have hit maximum checkpoints should *not* create a
+    // new one.
+    qi.reset(new Item("key_epoch2", vbucket->getId(), queue_op_set,
+                      /*revSeq*/1, /*bySeq*/0));
+    EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+    EXPECT_EQ(12, // 1x op_ckpt_start, 1x key_epoch, 9x key_X, 1x key_epoch2
+              manager->getNumOpenChkItems());
+
+    // Fetch the items associated with the persistence cursor. This
+    // moves the single cursor registered outside of the initial checkpoint,
+    // allowing a new open checkpoint to be created.
+    EXPECT_EQ(1, manager->getNumOfCursors());
+    snapshot_range_t range;
+    std::vector<queued_item> items;
+    range = manager->getAllItemsForCursor(CheckpointManager::pCursorName,
+                                         items);
+    // Should still have the same number of checkpoints and open items.
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+    EXPECT_EQ(12, manager->getNumOpenChkItems());
+
+    // But adding a new item will create a new one.
+    qi.reset(new Item("key_epoch3", vbucket->getId(), queue_op_set,
+                      /*revSeq*/1, /*bySeq*/0));
+    EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+    EXPECT_EQ(3, manager->getNumCheckpoints());
+    EXPECT_EQ(2, manager->getNumOpenChkItems()); // 1x op_ckpt_start, 1x op_set
 }
 
 /* static storage for environment variable set by putenv(). */
