@@ -150,8 +150,8 @@ static void shutdown_server(void);
 
 std::atomic<bool> memcached_shutdown;
 
-/* Lock for global stats */
-static cb_mutex_t stats_lock;
+/* Mutex for global stats */
+std::mutex stats_mutex;
 
 /**
  * Structure to save ns_server's session cas token.
@@ -161,14 +161,6 @@ static struct session_cas {
     uint64_t ctr;
     std::mutex mutex;
 } session_cas;
-
-void STATS_LOCK() {
-    cb_mutex_enter(&stats_lock);
-}
-
-void STATS_UNLOCK() {
-    cb_mutex_exit(&stats_lock);
-}
 
 /*
  * forward declarations
@@ -409,9 +401,10 @@ struct thread_stats *get_thread_stats(Connection *c) {
 
 static void stats_reset(const void *cookie) {
     auto *conn = (Connection *)cookie;
-    STATS_LOCK();
-    set_stats_reset_time();
-    STATS_UNLOCK();
+    {
+        std::lock_guard<std::mutex> guard(stats_mutex);
+        set_stats_reset_time();
+    }
     stats.total_conns.reset();
     stats.rejected_conns.reset();
     threadlocal_stats_reset(all_buckets[conn->getBucketIndex()].stats);
@@ -5207,68 +5200,69 @@ static void server_stats(ADD_STAT add_stat_callback, Connection *c) {
     struct thread_stats thread_stats;
     thread_stats.aggregate(all_buckets[c->getBucketIndex()].stats, settings.num_threads);
 
-    STATS_LOCK();
+    {
+        std::lock_guard<std::mutex> guard(stats_mutex);
 
-    add_stat(c, add_stat_callback, "pid", pid);
-    add_stat(c, add_stat_callback, "uptime", now);
-    add_stat(c, add_stat_callback, "stat_reset", (const char*)reset_stats_time);
-    add_stat(c, add_stat_callback, "time", mc_time_convert_to_abs_time(now));
-    add_stat(c, add_stat_callback, "version", get_server_version());
-    add_stat(c, add_stat_callback, "memcached_version", MEMCACHED_VERSION);
-    add_stat(c, add_stat_callback, "libevent", event_get_version());
-    add_stat(c, add_stat_callback, "pointer_size", (8 * sizeof(void *)));
+        add_stat(c, add_stat_callback, "pid", pid);
+        add_stat(c, add_stat_callback, "uptime", now);
+        add_stat(c, add_stat_callback, "stat_reset", (const char*)reset_stats_time);
+        add_stat(c, add_stat_callback, "time", mc_time_convert_to_abs_time(now));
+        add_stat(c, add_stat_callback, "version", get_server_version());
+        add_stat(c, add_stat_callback, "memcached_version", MEMCACHED_VERSION);
+        add_stat(c, add_stat_callback, "libevent", event_get_version());
+        add_stat(c, add_stat_callback, "pointer_size", (8 * sizeof(void *)));
 
-    add_stat(c, add_stat_callback, "daemon_connections", stats.daemon_conns);
-    add_stat(c, add_stat_callback, "curr_connections",
-                stats.curr_conns.load(std::memory_order_relaxed));
-    for (auto &instance : stats.listening_ports) {
-        std::string key = "max_conns_on_port_" + std::to_string(instance.port);
-        add_stat(c, add_stat_callback, key.c_str(), instance.maxconns);
-        key = "curr_conns_on_port_" + std::to_string(instance.port);
-        add_stat(c, add_stat_callback, key.c_str(), instance.curr_conns);
+        add_stat(c, add_stat_callback, "daemon_connections", stats.daemon_conns);
+        add_stat(c, add_stat_callback, "curr_connections",
+                 stats.curr_conns.load(std::memory_order_relaxed));
+        for (auto &instance : stats.listening_ports) {
+            std::string key = "max_conns_on_port_" + std::to_string(instance.port);
+            add_stat(c, add_stat_callback, key.c_str(), instance.maxconns);
+            key = "curr_conns_on_port_" + std::to_string(instance.port);
+            add_stat(c, add_stat_callback, key.c_str(), instance.curr_conns);
+        }
+        add_stat(c, add_stat_callback, "total_connections", stats.total_conns);
+        add_stat(c, add_stat_callback, "connection_structures",
+                 stats.conn_structs);
+        add_stat(c, add_stat_callback, "cmd_get", thread_stats.cmd_get);
+        add_stat(c, add_stat_callback, "cmd_set", thread_stats.cmd_set);
+        add_stat(c, add_stat_callback, "cmd_flush", thread_stats.cmd_flush);
+        // index 0 contains the aggregated timings for all buckets
+        auto &timings = all_buckets[0].timings;
+        uint64_t total_mutations = timings.get_aggregated_mutation_stats();
+        uint64_t total_retrivals = timings.get_aggregated_retrival_stats();
+        uint64_t total_ops = total_retrivals + total_mutations;
+        add_stat(c, add_stat_callback, "cmd_total_sets", total_mutations);
+        add_stat(c, add_stat_callback, "cmd_total_gets", total_retrivals);
+        add_stat(c, add_stat_callback, "cmd_total_ops", total_ops);
+        add_stat(c, add_stat_callback, "auth_cmds", thread_stats.auth_cmds);
+        add_stat(c, add_stat_callback, "auth_errors", thread_stats.auth_errors);
+        add_stat(c, add_stat_callback, "get_hits", thread_stats.get_hits);
+        add_stat(c, add_stat_callback, "get_misses", thread_stats.get_misses);
+        add_stat(c, add_stat_callback, "delete_misses", thread_stats.delete_misses);
+        add_stat(c, add_stat_callback, "delete_hits", thread_stats.delete_hits);
+        add_stat(c, add_stat_callback, "incr_misses", thread_stats.incr_misses);
+        add_stat(c, add_stat_callback, "incr_hits", thread_stats.incr_hits);
+        add_stat(c, add_stat_callback, "decr_misses", thread_stats.decr_misses);
+        add_stat(c, add_stat_callback, "decr_hits", thread_stats.decr_hits);
+        add_stat(c, add_stat_callback, "cas_misses", thread_stats.cas_misses);
+        add_stat(c, add_stat_callback, "cas_hits", thread_stats.cas_hits);
+        add_stat(c, add_stat_callback, "cas_badval", thread_stats.cas_badval);
+        add_stat(c, add_stat_callback, "bytes_read", thread_stats.bytes_read);
+        add_stat(c, add_stat_callback, "bytes_written", thread_stats.bytes_written);
+        add_stat(c, add_stat_callback, "accepting_conns", is_listen_disabled() ? 0 : 1);
+        add_stat(c, add_stat_callback, "listen_disabled_num", get_listen_disabled_num());
+        add_stat(c, add_stat_callback, "rejected_conns", stats.rejected_conns);
+        add_stat(c, add_stat_callback, "threads", settings.num_threads);
+        add_stat(c, add_stat_callback, "conn_yields", thread_stats.conn_yields);
+        add_stat(c, add_stat_callback, "rbufs_allocated", thread_stats.rbufs_allocated);
+        add_stat(c, add_stat_callback, "rbufs_loaned", thread_stats.rbufs_loaned);
+        add_stat(c, add_stat_callback, "rbufs_existing", thread_stats.rbufs_existing);
+        add_stat(c, add_stat_callback, "wbufs_allocated", thread_stats.wbufs_allocated);
+        add_stat(c, add_stat_callback, "wbufs_loaned", thread_stats.wbufs_loaned);
+        add_stat(c, add_stat_callback, "iovused_high_watermark", thread_stats.iovused_high_watermark);
+        add_stat(c, add_stat_callback, "msgused_high_watermark", thread_stats.msgused_high_watermark);
     }
-    add_stat(c, add_stat_callback, "total_connections", stats.total_conns);
-    add_stat(c, add_stat_callback, "connection_structures",
-                stats.conn_structs);
-    add_stat(c, add_stat_callback, "cmd_get", thread_stats.cmd_get);
-    add_stat(c, add_stat_callback, "cmd_set", thread_stats.cmd_set);
-    add_stat(c, add_stat_callback, "cmd_flush", thread_stats.cmd_flush);
-    // index 0 contains the aggregated timings for all buckets
-    auto &timings = all_buckets[0].timings;
-    uint64_t total_mutations = timings.get_aggregated_mutation_stats();
-    uint64_t total_retrivals = timings.get_aggregated_retrival_stats();
-    uint64_t total_ops = total_retrivals + total_mutations;
-    add_stat(c, add_stat_callback, "cmd_total_sets", total_mutations);
-    add_stat(c, add_stat_callback, "cmd_total_gets", total_retrivals);
-    add_stat(c, add_stat_callback, "cmd_total_ops", total_ops);
-    add_stat(c, add_stat_callback, "auth_cmds", thread_stats.auth_cmds);
-    add_stat(c, add_stat_callback, "auth_errors", thread_stats.auth_errors);
-    add_stat(c, add_stat_callback, "get_hits", thread_stats.get_hits);
-    add_stat(c, add_stat_callback, "get_misses", thread_stats.get_misses);
-    add_stat(c, add_stat_callback, "delete_misses", thread_stats.delete_misses);
-    add_stat(c, add_stat_callback, "delete_hits", thread_stats.delete_hits);
-    add_stat(c, add_stat_callback, "incr_misses", thread_stats.incr_misses);
-    add_stat(c, add_stat_callback, "incr_hits", thread_stats.incr_hits);
-    add_stat(c, add_stat_callback, "decr_misses", thread_stats.decr_misses);
-    add_stat(c, add_stat_callback, "decr_hits", thread_stats.decr_hits);
-    add_stat(c, add_stat_callback, "cas_misses", thread_stats.cas_misses);
-    add_stat(c, add_stat_callback, "cas_hits", thread_stats.cas_hits);
-    add_stat(c, add_stat_callback, "cas_badval", thread_stats.cas_badval);
-    add_stat(c, add_stat_callback, "bytes_read", thread_stats.bytes_read);
-    add_stat(c, add_stat_callback, "bytes_written", thread_stats.bytes_written);
-    add_stat(c, add_stat_callback, "accepting_conns", is_listen_disabled() ? 0 : 1);
-    add_stat(c, add_stat_callback, "listen_disabled_num", get_listen_disabled_num());
-    add_stat(c, add_stat_callback, "rejected_conns", stats.rejected_conns);
-    add_stat(c, add_stat_callback, "threads", settings.num_threads);
-    add_stat(c, add_stat_callback, "conn_yields", thread_stats.conn_yields);
-    add_stat(c, add_stat_callback, "rbufs_allocated", thread_stats.rbufs_allocated);
-    add_stat(c, add_stat_callback, "rbufs_loaned", thread_stats.rbufs_loaned);
-    add_stat(c, add_stat_callback, "rbufs_existing", thread_stats.rbufs_existing);
-    add_stat(c, add_stat_callback, "wbufs_allocated", thread_stats.wbufs_allocated);
-    add_stat(c, add_stat_callback, "wbufs_loaned", thread_stats.wbufs_loaned);
-    add_stat(c, add_stat_callback, "iovused_high_watermark", thread_stats.iovused_high_watermark);
-    add_stat(c, add_stat_callback, "msgused_high_watermark", thread_stats.msgused_high_watermark);
-    STATS_UNLOCK();
 
     /*
      * Add tap stats (only if non-zero)
@@ -5611,16 +5605,18 @@ bool conn_listening(Connection *c)
     }
 
     curr_conns = stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
-    STATS_LOCK();
-    port_instance = get_listening_port_instance(c->getParentPort());
-    cb_assert(port_instance);
-    port_conns = ++port_instance->curr_conns;
-    STATS_UNLOCK();
+    {
+        std::lock_guard<std::mutex> guard(stats_mutex);
+        port_instance = get_listening_port_instance(c->getParentPort());
+        cb_assert(port_instance);
+        port_conns = ++port_instance->curr_conns;
+    }
 
     if (curr_conns >= settings.maxconns || port_conns >= port_instance->maxconns) {
-        STATS_LOCK();
-        --port_instance->curr_conns;
-        STATS_UNLOCK();
+        {
+            std::lock_guard<std::mutex> guard(stats_mutex);
+            --port_instance->curr_conns;
+        }
         stats.rejected_conns++;
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
             "Too many open connections. Current/Limit for port %d: %d/%d; "
@@ -5633,9 +5629,10 @@ bool conn_listening(Connection *c)
     }
 
     if (evutil_make_socket_nonblocking(sfd) == -1) {
-        STATS_LOCK();
-        --port_instance->curr_conns;
-        STATS_UNLOCK();
+        {
+            std::lock_guard<std::mutex> guard(stats_mutex);
+            --port_instance->curr_conns;
+        }
         safe_close(sfd);
         return false;
     }
@@ -5956,11 +5953,12 @@ bool conn_immediate_close(Connection *c) {
                                     "Releasing connection %p",
                                     c);
 
-    STATS_LOCK();
-    port_instance = get_listening_port_instance(c->getParentPort());
-    cb_assert(port_instance);
-    --port_instance->curr_conns;
-    STATS_UNLOCK();
+    {
+        std::lock_guard<std::mutex> guard(stats_mutex);
+        port_instance = get_listening_port_instance(c->getParentPort());
+        cb_assert(port_instance);
+        --port_instance->curr_conns;
+    }
 
     perform_callbacks(ON_DISCONNECT, NULL, c);
     disassociate_bucket(c);
@@ -7793,7 +7791,6 @@ int main (int argc, char **argv) {
 
     /* Initialize global variables */
     cb_mutex_initialize(&listen_state.mutex);
-    cb_mutex_initialize(&stats_lock);
 
     session_cas.value = 0xdeadbeef;
     session_cas.ctr = 0;
