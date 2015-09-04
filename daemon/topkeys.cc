@@ -43,8 +43,8 @@ TopKeys::Shard& TopKeys::getShard(const std::string& key) {
 }
 
 
-topkey_item_t* TopKeys::Shard::getOrCreate(const std::string& key,
-                                           const rel_time_t ct) {
+bool TopKeys::Shard::updateKey(const std::string& key,
+                               const rel_time_t ct) {
     try {
         std::lock_guard<std::mutex> lock(mutex);
         auto result = hash.emplace(std::make_pair(key, rel_time_t(ct)));
@@ -69,9 +69,13 @@ topkey_item_t* TopKeys::Shard::getOrCreate(const std::string& key,
             list.splice(list.begin(), list, it);
         }
 
-        return &result.first->second;
+        // Have a valid key - update it.
+        result.first->second.ti_access_count++;
+        return true;
+
     } catch (const std::bad_alloc&) {
-        return nullptr;
+        // Failed to update.
+        return false;
     }
 }
 
@@ -81,10 +85,7 @@ void TopKeys::updateKey(const void *key, size_t nkey,
     cb_assert(nkey > 0);
 
     std::string key_str(reinterpret_cast<const char*>(key), nkey);
-    topkey_item_t* tmp = getShard(key_str).getOrCreate(key_str, operation_time);
-    if (tmp != NULL) {
-        tmp->ti_access_count++;
-    }
+    getShard(key_str).updateKey(key_str, operation_time);
 }
 
 struct tk_context {

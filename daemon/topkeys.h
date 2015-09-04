@@ -87,13 +87,14 @@ private:
             max_keys = mkeys;
         }
 
-        // Returns a topkey_item for the specified key and operation time.
+        // Updates the topkey 'ranking' for the specified key.
         // If the item does not exist it will be created (with it's creation
-        // time set to operation_time), otherwise an existing item will be
-        // returned.
-        // If insufficient memory to create a new item, returns nullptr.
-        topkey_item_t *getOrCreate(const std::string& key,
-                                   rel_time_t operation_time);
+        // time set to operation_time), otherwise the existing item will be
+        // updated.
+        // On success returns true, If insufficient memory to create a
+        // new item, returns false.
+        bool updateKey(const std::string& key,
+                       rel_time_t operation_time);
 
         typedef void (*iterfunc_t)(const std::string& key,
                                    const topkey_item_t& it,
