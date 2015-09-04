@@ -9,6 +9,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <JSON_checker.h>
 
 #include "config_util.h"
 
@@ -107,7 +108,11 @@ config_error_t config_load_file(const char *file, cJSON **json)
     fclose(fp);
     data[st.st_size] = 0;
 
-    *json = cJSON_Parse(data);
+    *json = NULL;
+    if (checkUTF8JSON((unsigned char*)data, st.st_size)) {
+        *json = cJSON_Parse(data);
+    }
+
     free(data);
     if (*json == NULL) {
         return CONFIG_PARSE_ERROR;

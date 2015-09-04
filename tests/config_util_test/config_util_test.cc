@@ -134,6 +134,24 @@ TEST(ConfigUtil, ParseError)
    EXPECT_EQ(0, remove("config_test"));
 }
 
+TEST(ConfigUtil, ParseErrorTrunctatedInput)
+{
+    cJSON *ptr;
+    config_error_t err;
+    FILE *fp = fopen("config_test", "w");
+
+    ASSERT_NE(nullptr, fp)
+        << "Failed to create file \"config_test\": " << strerror(errno);
+
+    fprintf(fp, "{ \"foo\" : ");
+    fclose(fp);
+
+    err = config_load_file("config_test", &ptr);
+
+    EXPECT_EQ(CONFIG_PARSE_ERROR, err);
+    EXPECT_EQ(0, remove("config_test"));
+}
+
 TEST(ConfigUtil, ParseSuccess)
 {
    cJSON *ptr = NULL;
