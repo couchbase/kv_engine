@@ -859,16 +859,18 @@ static bool safe_recv(void *buf, size_t len) {
         ssize_t nr = phase_recv(((char*)buf) + offset, len - offset);
 
         if (nr == -1) {
-            if (errno != EINTR) {
-                fprintf(stderr, "Failed to read: %s\n", phase_get_errno());
-                abort();
-            }
+            EXPECT_EQ(EINTR, errno) << "Failed to read: " << phase_get_errno();
         } else {
             if (nr == 0 && allow_closed_read) {
                 return false;
             }
-            cb_assert(nr != 0);
+            EXPECT_NE(0u, nr);
             offset += nr;
+        }
+
+        // Give up if we encountered an error.
+        if (::testing::Test::HasFailure()) {
+            return false;
         }
     } while (offset < len);
 
@@ -891,7 +893,11 @@ bool safe_recv_packet(void *buf, size_t size) {
     len = sizeof(*response);
     char* ptr = reinterpret_cast<char*>(buf);
     ptr += len;
-    cb_assert(size >= (sizeof(*response) + response->message.header.response.bodylen));
+    EXPECT_GE(size, sizeof(*response) + response->message.header.response.bodylen);
+    if (::testing::Test::HasFailure()) {
+        return false;
+    }
+
     if (!safe_recv(ptr, response->message.header.response.bodylen)) {
         return false;
     }
@@ -3057,7 +3063,8 @@ TEST_P(McdTestappTest, MB_10114) {
         safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     } while (receive.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    cb_assert(receive.response.message.header.response.status == PROTOCOL_BINARY_RESPONSE_E2BIG);
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_E2BIG,
+              receive.response.message.header.response.status);
 
     /* We should be able to delete it */
     len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
@@ -3665,9 +3672,13 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
     context.secret->len = (unsigned long)strlen(password);
 
     err = cbsasl_client_new(NULL, NULL, NULL, NULL, sasl_callbacks, 0, &client);
-    cb_assert(err == CBSASL_OK);
+    EXPECT_EQ(CBSASL_OK, err);
     err = cbsasl_client_start(client, mech.c_str(), NULL, &data, &len, &chosenmech);
-    cb_assert(err == CBSASL_OK);
+    EXPECT_EQ(CBSASL_OK, err);
+    if (::testing::Test::HasFailure()) {
+        // Can't continue if we didn't suceed in starting SASL auth.
+        return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+    }
 
     union {
         protocol_binary_request_no_extras request;
@@ -3777,7 +3788,10 @@ int get_topkeys_legacy_value(const std::string& wanted_key) {
     // parse at the end.
     std::string value;
     while (true) {
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        if (!safe_recv_packet(buffer.bytes, sizeof(buffer.bytes))) {
+            ADD_FAILURE() << "Failed to receive topkeys packet";
+            return -1;
+        }
         mcbp_validate_response_header(&buffer.response,
                                       PROTOCOL_BINARY_CMD_STAT,
                                       PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -3802,7 +3816,7 @@ int get_topkeys_legacy_value(const std::string& wanted_key) {
             const size_t val_len(buffer.response.message.header.response.bodylen -
                                  key_len -
                                  buffer.response.message.header.response.extlen);
-            EXPECT_GT(val_len, 0);
+            EXPECT_GT(val_len, 0u);
             value = std::string(val_ptr, val_len);
         }
     };
@@ -3849,7 +3863,10 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
     safe_send(buffer.bytes, len, false);
 
     // Expect 1 valid packet followed by 1 null
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    if (!safe_recv_packet(buffer.bytes, sizeof(buffer.bytes))) {
+        ADD_FAILURE() << "Failed to recv topkeys_json response";
+        return false;
+    }
     mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_STAT,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
@@ -3861,7 +3878,7 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
     const size_t vallen(buffer.response.message.header.response.bodylen -
                         buffer.response.message.header.response.keylen -
                         buffer.response.message.header.response.extlen);
-    EXPECT_GT(vallen, 0);
+    EXPECT_GT(vallen, 0u);
     const std::string value(val_ptr, vallen);
 
     // Consume NULL stats packet.
@@ -3873,8 +3890,10 @@ bool get_topkeys_json_value(const std::string& key, int& count) {
     // Check for response string
 
     cJSON* json_value = cJSON_Parse(value.c_str());
-    EXPECT_NE(nullptr, json_value)
-        << "Failed to parse response string '" << value << "' to JSON";
+    if (json_value == nullptr) {
+        ADD_FAILURE() << "Failed to parse response string '" << value << "' to JSON";
+        return false;
+    }
 
     cJSON* topkeys = cJSON_GetObjectItem(json_value, "topkeys");
     EXPECT_NE(nullptr, topkeys);

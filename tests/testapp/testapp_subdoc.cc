@@ -120,7 +120,10 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
         char bytes[1024];
     } receive;
 
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    if (!safe_recv_packet(receive.bytes, sizeof(receive.bytes))) {
+        ADD_FAILURE() << "Failed to recv subdoc response";
+        return -1;
+    }
 
     mcbp_validate_response_header(
         (protocol_binary_response_no_extras*)&receive.response,
