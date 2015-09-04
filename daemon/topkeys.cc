@@ -84,8 +84,12 @@ void TopKeys::updateKey(const void *key, size_t nkey,
     cb_assert(key);
     cb_assert(nkey > 0);
 
-    std::string key_str(reinterpret_cast<const char*>(key), nkey);
-    getShard(key_str).updateKey(key_str, operation_time);
+    try {
+        std::string key_str(reinterpret_cast<const char*>(key), nkey);
+        getShard(key_str).updateKey(key_str, operation_time);
+    } catch (std::bad_alloc) {
+        // Failed to increment topkeys, continue...
+    }
 }
 
 struct tk_context {

@@ -90,11 +90,11 @@ static SubdocCmdContext*
 subdoc_create_context(Connection*c, const SubdocCmdTraits traits,
                       const void* packet, const_sized_buffer value) {
 
-    auto* context = new SubdocCmdContext(c, traits);
+    try {
+        auto* context = new SubdocCmdContext(c, traits);
 
-    switch (traits.path) {
-    case SubdocPath::SINGLE:
-        {
+        switch (traits.path) {
+        case SubdocPath::SINGLE: {
             const protocol_binary_request_subdocument *req =
                     reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
 
@@ -135,8 +135,7 @@ subdoc_create_context(Connection*c, const SubdocCmdTraits traits,
             break;
         }
 
-    case SubdocPath::MULTI:
-        {
+        case SubdocPath::MULTI: {
             // Decode each of lookup specs from the value into our command context.
             size_t offset = 0;
 
@@ -192,10 +191,11 @@ subdoc_create_context(Connection*c, const SubdocCmdTraits traits,
                 subdoc_print_command(c, mcbp_cmd, key, keylen,
                                      path, strlen(path), value.buf, value.len);
             }
-        }
+        }}
+        return context;
+    } catch (std::bad_alloc&) {
+        return nullptr;
     }
-
-    return context;
 }
 
 /* Main function which handles execution of all sub-document
@@ -491,7 +491,14 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
     }
 
     auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
-    cb_assert(context != NULL);
+    if (context == nullptr) {
+        settings.extensions.logger->log
+            (EXTENSION_LOG_WARNING, c,
+             "subdoc_fetch: Failed to allocate context - closing connection");
+        c->setState(conn_closing);
+        return false;
+    }
+
 
     if (context->in_doc.buf == nullptr) {
         // Retrieve the item_info the engine, and if necessary

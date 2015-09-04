@@ -388,25 +388,26 @@ AuthContext* auth_create(const char* user,
                          const char *local)
 {
     AuthContext *ret;
-    std::string connection;
-    if (peer) {
-        std::stringstream ss;
-        ss << peer << " => " << local;
-        connection.assign(ss.str());
-    }
-
-    if (user == nullptr) {
-        ret = rbac.createAuthContext("*", connection);
-    } else {
-        ret = rbac.createAuthContext(user, connection);
-        if (ret == nullptr) {
-            // No entry for the explicit user.. do we have a "wild card"
-            // entry?
-            ret = rbac.createAuthContext("*", connection);
+    try {
+        std::string connection;
+        if (peer) {
+            connection = std::string(peer) + " => " + local;
         }
-    }
 
-    return ret;
+        if (user == nullptr) {
+            ret = rbac.createAuthContext("*", connection);
+        } else {
+            ret = rbac.createAuthContext(user, connection);
+            if (ret == nullptr) {
+                // No entry for the explicit user.. do we have a "wild card"
+                // entry?
+                ret = rbac.createAuthContext("*", connection);
+            }
+        }
+        return ret;
+    } catch (std::bad_alloc&) {
+        return nullptr;
+    }
 }
 
 void auth_destroy(AuthContext* context)

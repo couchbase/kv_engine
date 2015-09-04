@@ -458,24 +458,22 @@ static void conn_destructor(Connection *c) {
  *  else NULL.
  */
 static Connection *allocate_connection(SOCKET sfd) {
-    Connection *ret;
+    Connection *ret = nullptr;
 
     try {
         ret = new Connection;
+        ret->setSocketDescriptor(sfd);
+        stats.conn_structs++;
+
+        std::lock_guard<std::mutex> lock(connections.mutex);
+        connections.conns.push_back(ret);
+        return ret;
     } catch (std::bad_alloc) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Failed to allocate memory for connection");
+        delete ret;
         return NULL;
     }
-    ret->setSocketDescriptor(sfd);
-    stats.conn_structs++;
-
-    {
-        std::lock_guard<std::mutex> lock(connections.mutex);
-        connections.conns.push_back(ret);
-    }
-
-    return ret;
 }
 
 /** Release a connection; removing it from the connection list management

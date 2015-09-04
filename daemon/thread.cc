@@ -109,22 +109,6 @@ static void cq_push(CQ *cq, CQ_ITEM *item) {
 }
 
 /*
- * Returns a fresh connection queue item.
- */
-static CQ_ITEM *cqi_new(void) {
-    return reinterpret_cast<CQ_ITEM*>(malloc(sizeof(CQ_ITEM)));
-}
-
-
-/*
- * Frees a connection queue item.
- */
-static void cqi_free(CQ_ITEM *item) {
-    free(item);
-}
-
-
-/*
  * Creates a worker thread.
  */
 static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
@@ -335,7 +319,7 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
             cb_assert(c->getThread() == nullptr);
             c->setThread(me);
         }
-        cqi_free(item);
+        delete item;
     }
 
     LOCK_THREAD(me);
@@ -478,16 +462,27 @@ static int last_thread = -1;
  */
 void dispatch_conn_new(SOCKET sfd, int parent_port,
                        STATE_FUNC init_state) {
-    CQ_ITEM *item = cqi_new();
+    CQ_ITEM *item = nullptr;
+    try {
+        item = new CQ_ITEM();
+
+        item->sfd = sfd;
+        item->parent_port = parent_port;
+        item->init_state = init_state;
+    } catch (std::bad_alloc& e) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
+            "dispatch_conn_new: Failed to dispatch new connection: %s",
+             e.what());
+        delete item;
+        close(sfd);
+        return;
+    }
+
     int tid = (last_thread + 1) % settings.num_threads;
 
     LIBEVENT_THREAD *thread = threads + tid;
 
     last_thread = tid;
-
-    item->sfd = sfd;
-    item->parent_port = parent_port;
-    item->init_state = init_state;
 
     cq_push(thread->new_conn_queue, item);
 
@@ -593,7 +588,7 @@ void threads_cleanup(void)
 
         while ((it = cq_pop(threads[ii].new_conn_queue)) != NULL) {
             safe_close(it->sfd);
-            cqi_free(it);
+            delete it;
         }
         free(threads[ii].new_conn_queue);
         free(threads[ii].read.buf);
