@@ -31,7 +31,7 @@ static int do_item_replace(struct default_engine *engine,
                             hash_item *it, hash_item *new_it);
 static void item_free(struct default_engine *engine, hash_item *it);
 
-static void hash_key_create(hash_key* hkey,
+static bool hash_key_create(hash_key* hkey,
                             const void* key,
                             const size_t nkey,
                             struct default_engine* engine,
@@ -748,7 +748,9 @@ hash_item *item_alloc(struct default_engine *engine,
                       uint8_t datatype) {
     hash_item *it;
     hash_key hkey;
-    hash_key_create(&hkey, key, nkey, engine, cookie);
+    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+        return NULL;
+    }
     cb_mutex_enter(&engine->items.lock);
     it = do_item_alloc(engine, &hkey, flags, exptime, nbytes, cookie, datatype);
     cb_mutex_exit(&engine->items.lock);
@@ -766,7 +768,9 @@ hash_item *item_get(struct default_engine *engine,
                     const size_t nkey) {
     hash_item *it;
     hash_key hkey;
-    hash_key_create(&hkey, key, nkey, engine, cookie);
+    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+        return NULL;
+    }
     cb_mutex_enter(&engine->items.lock);
     it = do_item_get(engine, &hkey);
     cb_mutex_exit(&engine->items.lock);
@@ -852,7 +856,9 @@ ENGINE_ERROR_CODE arithmetic(struct default_engine *engine,
 {
     ENGINE_ERROR_CODE ret;
     hash_key hkey;
-    hash_key_create(&hkey, key, nkey, engine, cookie);
+    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+        return ENGINE_ENOMEM;
+    }
     cb_mutex_enter(&engine->items.lock);
     ret = do_arithmetic(engine, cookie, &hkey, increment,
                         create, delta, initial, exptime, item,
@@ -900,7 +906,9 @@ hash_item *touch_item(struct default_engine *engine,
 {
     hash_item *ret;
     hash_key hkey;
-    hash_key_create(&hkey, key, nkey, engine, cookie);
+    if (!hash_key_create(&hkey, key, nkey, engine, cookie)) {
+        return NULL;
+    }
     cb_mutex_enter(&engine->items.lock);
     ret = do_touch_item(engine, &hkey, exptime);
     cb_mutex_exit(&engine->items.lock);
@@ -1309,7 +1317,7 @@ ENGINE_ERROR_CODE item_dcp_step(struct default_engine *engine,
     return ret;
 }
 
-static void hash_key_create(hash_key* hkey,
+static bool hash_key_create(hash_key* hkey,
                             const void* key,
                             const size_t nkey,
                             struct default_engine* engine,
@@ -1318,12 +1326,16 @@ static void hash_key_create(hash_key* hkey,
     int hash_key_len = sizeof(bucket_id_t) + nkey;
     if (nkey > sizeof(hkey->key_storage.client_key)) {
         hkey->header.full_key = malloc(hash_key_len);
+        if (hkey->header.full_key == NULL) {
+            return false;
+        }
     } else {
         hkey->header.full_key = (hash_key_data*)&hkey->key_storage;
     }
     hash_key_set_len(hkey, hash_key_len);
     hash_key_set_bucket_index(hkey, engine->bucket_id);
     hash_key_set_client_key(hkey, key, nkey);
+    return true;
 }
 
 static void hash_key_destroy(hash_key* hkey) {
