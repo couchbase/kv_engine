@@ -86,7 +86,7 @@ private:
     enum class Cmd { NONE, GET_INFO, ALLOCATE, REMOVE, GET, STORE, ARITHMETIC,
                      FLUSH, GET_STATS, UNKNOWN_COMMAND };
 
-    std::string to_string(Cmd cmd);
+    const char* to_string(Cmd cmd);
 
 public:
     EWB_Engine(GET_SERVER_API gsa_);
@@ -117,7 +117,7 @@ public:
             auto logger = gsa()->log->get_logger();
             logger->log(EXTENSION_LOG_DEBUG, NULL,
                         "EWB_Engine: injecting error:%d for cmd:%s",
-                        err, to_string(cmd).c_str());
+                        err, to_string(cmd));
 
             if (err == ENGINE_EWOULDBLOCK) {
                 // The server expects that if EWOULDBLOCK is returned then the
@@ -375,20 +375,25 @@ public:
                          PROTOCOL_BINARY_RESPONSE_EINVAL, /*cas*/0, cookie);
                 return ENGINE_FAILED;
             } else {
-                logger->log(EXTENSION_LOG_DEBUG, NULL,
-                            "EWB_Engine::unknown_command(): Setting EWB mode to "
-                            "%s for cookie %d", new_mode->to_string().c_str(),
-                            cookie);
+                try {
+                    logger->log(EXTENSION_LOG_DEBUG, NULL,
+                                "EWB_Engine::unknown_command(): Setting EWB mode to "
+                                "%s for cookie %d", new_mode->to_string().c_str(),
+                                cookie);
 
-                {
-                    std::lock_guard<std::mutex> guard(ewb->cookie_map_mutex);
-                    ewb->cookie_map.erase(cookie);
-                    ewb->cookie_map[cookie] = new_mode;
+                    {
+                        std::lock_guard<std::mutex> guard(ewb->cookie_map_mutex);
+                        ewb->cookie_map.erase(cookie);
+                        ewb->cookie_map[cookie] = new_mode;
+                    }
+
+                    response(nullptr, 0, nullptr, 0, nullptr, 0,
+                             PROTOCOL_BINARY_RAW_BYTES,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
+                    return ENGINE_SUCCESS;
+                } catch (std::bad_alloc&) {
+                    return ENGINE_ENOMEM;
                 }
-                response(nullptr, 0, nullptr, 0, nullptr, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
-                return ENGINE_SUCCESS;
             }
         } else {
             ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
@@ -671,27 +676,40 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
         return ENGINE_ENOTSUP;
     }
 
-    EWB_Engine* engine = new EWB_Engine(gsa);
+    try {
+        EWB_Engine* engine = new EWB_Engine(gsa);
+        *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
+        return ENGINE_SUCCESS;
 
-    *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
-    return ENGINE_SUCCESS;
+    } catch (std::exception& e) {
+        auto logger = gsa()->log->get_logger();
+        logger->log(EXTENSION_LOG_WARNING, NULL,
+                    "EWB_Engine: failed to create engine: %s", e.what());
+        return ENGINE_FAILED;
+    }
+
 }
 
 void destroy_engine(void) {
     // nothing todo.
 }
 
-std::string EWB_Engine::to_string(const Cmd cmd) {
-    const std::map<Cmd, std::string> names({
-        {Cmd::NONE, "NONE"},
-        {Cmd::GET_INFO, "GET_INFO"},
-        {Cmd::ALLOCATE, "ALLOCATE"},
-        {Cmd::REMOVE, "REMOVE"},
-        {Cmd::GET, "GET"},
-        {Cmd::STORE, "STORE"},
-        {Cmd::ARITHMETIC, "ARITHMETIC"},
-        {Cmd::FLUSH, "FLUSH"},
-        {Cmd::GET_STATS, "GET_STATS"},
-        {Cmd::UNKNOWN_COMMAND, "UNKNOWN_COMMAND"}});
-    return names.at(cmd);
+const char* EWB_Engine::to_string(const Cmd cmd) {
+    const char* names[] = {
+        "NONE",
+        "GET_INFO",
+        "ALLOCATE",
+        "REMOVE",
+        "GET",
+        "STORE",
+        "ARITHMETIC",
+        "FLUSH",
+        "GET_STATS",
+        "UNKNOWN_COMMAND",
+    };
+    if (cmd > Cmd::UNKNOWN_COMMAND) {
+        return "";
+    } else {
+        return names[int(cmd)];
+    }
 }
