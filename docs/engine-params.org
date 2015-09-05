@@ -99,6 +99,12 @@ memcached like this:
 | compaction_write_queue_cap     | int    | The maximum size of the disk write queue   |
 |                                |        | after which compaction tasks would snooze, |
 |                                |        | if there are already pending tasks.        |
+| dcp_min_compression_ratio      | float  | Minimum compression ratio for compressed   |
+|                                |        | doc against original doc. If compressed doc|
+|                                |        | is greater than this percentage of the     |
+|                                |        | original doc, then the doc will be shipped |
+|                                |        | as is by the DCP producer if value         |
+|                                |        | compression were enabled by the consumer.  |
 | replication_throttle_queue_cap | int    | The maximum size of the disk write queue   |
 |                                |        | to throttle down tap-based replication. -1 |
 |                                |        | means don't throttle.                      |
