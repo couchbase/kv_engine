@@ -584,7 +584,8 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
         }
 
         if (v) {
-            if (v->isTempInitialItem() && policy == FULL_EVICTION) {
+            if (v->isTempInitialItem() && policy == FULL_EVICTION
+                && maybeKeyExists) {
                 // Need to figure out if an item exists on disk
                 return ADD_BG_FETCH;
             }
