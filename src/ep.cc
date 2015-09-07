@@ -802,8 +802,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     bool cas_op = (itm.getCas() != 0);
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
-    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
-                                          false);
+    StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num,
+                                          /*wantsDeleted*/true,
+                                          /*trackReference*/false);
     if (v && v->isLocked(ep_current_time()) &&
         (vb->getState() == vbucket_state_replica ||
          vb->getState() == vbucket_state_pending)) {
@@ -811,9 +812,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     }
 
     bool maybeKeyExists = true;
-    // Check Bloomfilter's prediction if in full eviction policy
-    // and for a CAS operation only.
-    if (eviction_policy == FULL_EVICTION && itm.getCas() != 0) {
+    // If we didn't find a valid item, check Bloomfilter's prediction if in
+    // full eviction policy and for a CAS operation.
+    if ((v == nullptr || v->isTempInitialItem()) &&
+        (eviction_policy == FULL_EVICTION) &&
+        (itm.getCas() != 0)) {
         // Check Bloomfilter's prediction
         if (!vb->maybeKeyExistsInFilter(itm.getKey())) {
             maybeKeyExists = false;
@@ -899,7 +902,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
                                           false);
 
     bool maybeKeyExists = true;
-    if (eviction_policy == FULL_EVICTION) {
+    if ((v == nullptr || v->isTempInitialItem()) &&
+        (eviction_policy == FULL_EVICTION)) {
         // Check bloomfilter's prediction
         if (!vb->maybeKeyExistsInFilter(itm.getKey())) {
             maybeKeyExists = false;
