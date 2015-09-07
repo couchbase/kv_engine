@@ -24,6 +24,8 @@
 
 #include "subdoc_encoder.h"
 
+#include <iterator>
+
 std::vector<char> SubdocMultiLookupCmd::encode() const {
     std::vector<char> request;
 
