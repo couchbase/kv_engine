@@ -237,6 +237,15 @@ static void setup_thread(LIBEVENT_THREAD *me) {
 
     // Initialize threads' sub-document parser / handler
     me->subdoc_op = subdoc_op_alloc();
+
+    try {
+        me->validator = new JSON_checker::Validator();
+    } catch (const std::bad_alloc&) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "Failed to allocate memory for "
+                                            "JSON validator");
+        exit(EXIT_FAILURE);
+    }
 }
 
 /*
@@ -589,6 +598,7 @@ void threads_cleanup(void)
         free(threads[ii].read.buf);
         free(threads[ii].write.buf);
         subdoc_op_free(threads[ii].subdoc_op);
+        delete threads[ii].validator;
     }
 
     free(thread_ids);

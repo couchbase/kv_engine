@@ -1807,9 +1807,16 @@ static void process_bin_tap_packet(tap_event_t event, Connection *c) {
         if (ret == ENGINE_SUCCESS) {
             uint8_t datatype = c->binary_header.request.datatype;
             if (event == TAP_MUTATION && !c->isSupportsDatatype()) {
-                if (checkUTF8JSON(reinterpret_cast<unsigned char*>(data),
-                                  ndata)) {
-                    datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+                auto* validator = c->getThread()->validator;
+                try {
+                    if (validator->validate(reinterpret_cast<uint8_t*>(data),
+                                            ndata)) {
+                        datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+                    }
+                } catch (std::bad_alloc&) {
+                    // @todo send ENOMEM
+                    c->setState(conn_closing);
+                    return;
                 }
             }
 
@@ -3675,14 +3682,26 @@ static void add_set_replace_executor(Connection *c, void *packet,
         memcpy(info.info.value[0].iov_base, key + nkey, vlen);
 
         if (!c->isSupportsDatatype()) {
-            if (checkUTF8JSON(reinterpret_cast<unsigned char*>(info.info.value[0].iov_base),
-                              info.info.value[0].iov_len)) {
-                info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-                if (!bucket_set_item_info(c, it, &info.info)) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                            "%u: Failed to set item info",
-                            c->getId());
+            auto* validator = c->getThread()->validator;
+
+            try {
+                auto* ptr = reinterpret_cast<uint8_t*>(info.info.value[0].iov_base);
+                if (validator->validate(ptr, info.info.value[0].iov_len)) {
+                    info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+                    if (!bucket_set_item_info(c, it, &info.info)) {
+                        settings.extensions.logger->log(EXTENSION_LOG_WARNING,
+                                                        c,
+                                                        "%u: Failed to set item info",
+                                                        c->getId());
+                    }
                 }
+            } catch (std::bad_alloc&) {
+                // @todo return error message back to client
+                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c,
+                                              c->getItem());
+                c->setItem(nullptr);
+                c->setState(conn_closing);
+                return;
             }
         }
     }
@@ -3851,18 +3870,25 @@ static void append_prepend_executor(Connection *c,
         memcpy(info.info.value[0].iov_base, key + nkey, vlen);
 
         if (!c->isSupportsDatatype()) {
-            if (checkUTF8JSON(reinterpret_cast<unsigned char*>(info.info.value[0].iov_base),
-                              info.info.value[0].iov_len)) {
-                info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-                if (!bucket_set_item_info(c, it, &info.info)) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+            auto* validator = c->getThread()->validator;
+            try {
+                auto* ptr = reinterpret_cast<uint8_t*>(info.info.value[0].iov_base);
+                if (validator->validate(ptr, info.info.value[0].iov_len)) {
+                    info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+                    if (!bucket_set_item_info(c, it, &info.info)) {
+                        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                             "%u: Failed to set item info",
                             c->getId());
+                    }
                 }
+            } catch (std::bad_alloc&) {
+                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, c->getItem());
+                c->setItem(nullptr);
+                c->setState(conn_closing);
+                return;
             }
         }
         update_topkeys(key, nkey, c);
-
     }
 
     if (ret == ENGINE_SUCCESS) {

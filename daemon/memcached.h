@@ -19,6 +19,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/engine.h>
 #include <memcached/extension.h>
+#include <JSON_checker.h>
 
 #include "rbac.h"
 #include "settings.h"
@@ -109,6 +110,8 @@ typedef struct {
      * client to disconnect.
      */
     int deleting_buckets;
+
+    JSON_checker::Validator *validator;
 } LIBEVENT_THREAD;
 
 #define LOCK_THREAD(t)                          \
