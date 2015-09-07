@@ -589,8 +589,12 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
 #else
         int status;
         pid_t ret = waitpid(server_pid, &status, WNOHANG);
-        ASSERT_EQ(0, ret) << " waitpid returned " << ret << " errno: "
-                          << strerror(errno);
+
+        EXPECT_NE(static_cast<pid_t>(-1), ret)
+            << "waitpid() failed with: " << strerror(errno);
+        EXPECT_NE(server_pid, ret)
+            << "The server exited with code: " << status;
+        ASSERT_EQ(0, ret) << "The server isn't running..";
 #endif
     } while (time(NULL) < deadline);
 
