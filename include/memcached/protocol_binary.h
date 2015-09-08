@@ -614,6 +614,10 @@ extern "C"
         struct {
             protocol_binary_request_header header;
             struct {
+                /*
+                 * Specifying a non-null expiration time is no longer
+                 * supported
+                 */
                 uint32_t expiration;
             } body;
         } message;
