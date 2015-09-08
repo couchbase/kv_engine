@@ -313,7 +313,7 @@ public:
 
     /** Is the current event a writeevent? */
     bool isWriteEvent() const {
-        return currentEvent & EV_READ;
+        return currentEvent & EV_WRITE;
     }
 
     /** Is the connection authorized with admin privileges? */
