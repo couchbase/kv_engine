@@ -83,12 +83,6 @@ public:
     virtual void complete() {
         update();
 
-        if (stateFinalizer) {
-            if (++(as->completedCount) == store.getVBuckets().getNumShards()) {
-                *stateFinalizer = true;
-            }
-        }
-
         if (log != NULL) {
             size_t num_items = log->itemsLogged[ML_NEW];
             log->commit1();
@@ -104,6 +98,12 @@ public:
                 LOG(EXTENSION_LOG_INFO, "The new access log is empty. "
                     "Delete it without replacing the current access log...\n");
                 remove(next.c_str());
+                if (stateFinalizer) {
+                    if (++(as->completedCount) ==
+                                        store.getVBuckets().getNumShards()) {
+                        *stateFinalizer = true;
+                    }
+                }
                 return;
             }
 
@@ -122,6 +122,12 @@ public:
                     "Failed to rename '%s' to '%s': %s",
                     next.c_str(), name.c_str(), strerror(errno));
                 remove(next.c_str());
+            }
+        }
+
+        if (stateFinalizer) {
+            if (++(as->completedCount) == store.getVBuckets().getNumShards()) {
+                *stateFinalizer = true;
             }
         }
     }
@@ -154,10 +160,12 @@ AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
       sleepTime(sleeptime),
       available(true) {
 
+    Configuration &conf = store.getEPEngine().getConfiguration();
+    residentRatioThreshold = conf.getAlogResidentRatioThreshold();
+    alogPath = conf.getAlogPath();
     double initialSleep = sleeptime;
     if (useStartTime) {
-        size_t startTime =
-            store.getEPEngine().getConfiguration().getAlogTaskTime();
+        size_t startTime = conf.getAlogTaskTime();
 
         /*
          * Ensure startTime will always be within a range of (0, 23).
@@ -196,14 +204,45 @@ bool AccessScanner::run() {
         available = false;
         store.resetAccessScannerTasktime();
         completedCount = 0;
+
+        bool deleteAccessLogFiles = false;
+        /* Get the resident ratio */
+        VBucketCountAggregator aggregator;
+        VBucketCountVisitor activeCountVisitor(store.getEPEngine(),
+                                               vbucket_state_active);
+        aggregator.addVisitor(&activeCountVisitor);
+        VBucketCountVisitor replicaCountVisitor(store.getEPEngine(),
+                                                vbucket_state_replica);
+        aggregator.addVisitor(&replicaCountVisitor);
+
+        store.visit(aggregator);
+
+        /* If the resident ratio is greater than 95% we do not want to generate
+         access log and also we want to delete previously existing access log
+         files*/
+        if ((activeCountVisitor.getMemResidentPer() > residentRatioThreshold) &&
+            (replicaCountVisitor.getMemResidentPer() > residentRatioThreshold))
+        {
+            deleteAccessLogFiles = true;
+        }
         for (size_t i = 0; i < store.getVBuckets().getNumShards(); i++) {
-            shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store,
-                                             stats, i, &available, this));
-            shared_ptr<VBucketVisitor> vbv(pv);
-            ExTask task = new VBucketVisitorTask(&store, vbv, i,
-                                                 "Item Access Scanner",
-                                                 sleepTime, true);
-            ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+            if (deleteAccessLogFiles) {
+                std::string name(alogPath + "." + std::to_string(i));
+                std::string prev(name + ".old");
+                /* Remove .old shard access log file */
+                deleteAlogFile(prev);
+                /* Remove shard access log file */
+                deleteAlogFile(name);
+                stats.accessScannerSkips++;
+            } else {
+                shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store,
+                                                 stats, i, &available, this));
+                shared_ptr<VBucketVisitor> vbv(pv);
+                ExTask task = new VBucketVisitorTask(&store, vbv, i,
+                                                     "Item Access Scanner",
+                                                     sleepTime, true);
+                ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
+            }
         }
     }
     snooze(sleepTime);
@@ -221,4 +260,11 @@ void AccessScanner::updateAlogTime(double sleepSecs) {
 
 std::string AccessScanner::getDescription() {
     return std::string("Generating access log");
+}
+
+void AccessScanner::deleteAlogFile(const std::string& fileName) {
+    if (access(fileName.c_str(), F_OK) == 0 && remove(fileName.c_str()) == -1) {
+        LOG(EXTENSION_LOG_WARNING, "Failed to remove '%s': %s",
+            fileName.c_str(), strerror(errno));
+    }
 }

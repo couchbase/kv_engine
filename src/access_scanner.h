@@ -44,11 +44,14 @@ public:
 
 private:
     void updateAlogTime(double sleepSecs);
+    void deleteAlogFile(const std::string& fileName);
 
     EventuallyPersistentStore &store;
     EPStats &stats;
     double sleepTime;
+    std::string alogPath;
     bool available;
+    uint8_t residentRatioThreshold;
 };
 
 #endif  // SRC_ACCESS_SCANNER_H_

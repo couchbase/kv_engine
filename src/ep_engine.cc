@@ -570,6 +570,8 @@ extern "C" {
                 float val = atof(valz);
                 validate(val, (float)0.0, std::numeric_limits<float>::max());
                 e->getConfiguration().setDcpMinCompressionRatio(val);
+            } else if (strcmp(keyz, "access_scanner_run") == 0) {
+                e->runAccessScannerTask();
             } else {
                 *msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
@@ -3048,28 +3050,19 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
     return false;
 }
 
-/**
- * A container class holding VBucketCountVisitors to aggregate stats for
- * different vbucket states.
- */
-class VBucketCountAggregator : public VBucketVisitor  {
-public:
-    bool visitBucket(RCPtr<VBucket> &vb)  {
-        std::map<vbucket_state_t, VBucketCountVisitor*>::iterator it;
-        it = visitorMap.find(vb->getState());
-        if ( it != visitorMap.end() ) {
-            it->second->visitBucket(vb);
-        }
-
-        return false;
+bool VBucketCountAggregator::visitBucket(RCPtr<VBucket> &vb) {
+    std::map<vbucket_state_t, VBucketCountVisitor*>::iterator it;
+    it = visitorMap.find(vb->getState());
+    if ( it != visitorMap.end() ) {
+        it->second->visitBucket(vb);
     }
 
-    void addVisitor(VBucketCountVisitor* visitor)  {
-        visitorMap[visitor->getVBucketState()] = visitor;
-    }
-private:
-    std::map<vbucket_state_t, VBucketCountVisitor*> visitorMap;
-};
+    return false;
+}
+
+void VBucketCountAggregator::addVisitor(VBucketCountVisitor* visitor) {
+    visitorMap[visitor->getVBucketState()] = visitor;
+}
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                                                            ADD_STAT add_stat) {
@@ -3512,6 +3505,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     add_stat, cookie);
     add_casted_stat("ep_num_access_scanner_runs", epstats.alogRuns,
                     add_stat, cookie);
+    add_casted_stat("ep_num_access_scanner_skips",
+                    epstats.accessScannerSkips, add_stat, cookie);
     add_casted_stat("ep_access_scanner_last_runtime", epstats.alogRuntime,
                     add_stat, cookie);
     add_casted_stat("ep_access_scanner_num_items", epstats.alogNumItems,
@@ -4522,6 +4517,10 @@ void EventuallyPersistentEngine::addLookupAllKeys(const void *cookie,
 
 void EventuallyPersistentEngine::runDefragmenterTask(void) {
     epstore->runDefragmenterTask();
+}
+
+void EventuallyPersistentEngine::runAccessScannerTask(void) {
+    epstore->runAccessScannerTask();
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,

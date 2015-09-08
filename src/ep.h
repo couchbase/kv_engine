@@ -827,6 +827,8 @@ public:
 
     void runDefragmenterTask();
 
+    void runAccessScannerTask();
+
     void setCompactionWriteQueueCap(size_t to) {
         compactionWriteQueueCap = to;
     }

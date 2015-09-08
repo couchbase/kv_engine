@@ -98,7 +98,6 @@ private:
     EventuallyPersistentEngine* myEngine;
 };
 
-
 /**
  * Vbucket visitor that counts active vbuckets.
  */
@@ -209,6 +208,19 @@ private:
     size_t fileSize;
 
     uint64_t rollbackItemCount;
+};
+
+/**
+ * A container class holding VBucketCountVisitors to aggregate stats for
+ * different vbucket states.
+ */
+class VBucketCountAggregator : public VBucketVisitor  {
+public:
+    bool visitBucket(RCPtr<VBucket> &vb);
+
+    void addVisitor(VBucketCountVisitor* visitor);
+private:
+    std::map<vbucket_state_t, VBucketCountVisitor*> visitorMap;
 };
 
 /**
@@ -801,6 +813,12 @@ public:
      * testing.
      */
     void runDefragmenterTask(void);
+
+    /*
+     * Explicitly trigger the AccessScanner task. Provided to facilitate
+     * testing.
+     */
+    void runAccessScannerTask(void);
 
     /**
      * Get a (sloppy) list of the sequence numbers for all of the vbuckets

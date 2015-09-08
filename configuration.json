@@ -39,6 +39,18 @@
                 }
             }
         },
+        "alog_resident_ratio_threshold": {
+            "default": "95",
+            "desr": "Resident ratio percentage above which we do not generate access log",
+            "dynamic": false,
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100,
+                    "min": 0
+                }
+            }
+        },
         "backend": {
             "default": "couchdb",
             "dynamic": false,

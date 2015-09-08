@@ -121,6 +121,8 @@ memcached like this:
 | alog_sleep_time                | int    | Interval of access scanner task in (min)   |
 | alog_task_time                 | int    | Hour (0~23) in GMT time at which access    |
 |                                |        | scanner will be scheduled to run.          |
+| alog_resident_ratio_threshold  | int    | Resident ratio percentage above which we   |
+|                                |        | do not generate access log.                |
 | pager_active_vb_pcnt           | int    | Percentage of active vbucket items among   |
 |                                |        | all evicted items by item pager.           |
 | warmup_min_memory_threshold    | int    | Memory threshold (%) during warmup to      |

@@ -142,6 +142,8 @@ For introductory information on stats within Couchbase, start with the
 |                                    | memory/disk                            |
 | ep_num_access_scanner_runs         | Number of times we ran accesss scanner |
 |                                    | to snapshot working set                |
+| ep_num_access_scanner_skips        | Number of times accesss scanner task   |
+|                                    | decided not to generate access log     |
 | ep_access_scanner_num_items        | Number of items that last access       |
 |                                    | scanner task swept to access log.      |
 | ep_access_scanner_task_time        | Time of the next access scanner task   |

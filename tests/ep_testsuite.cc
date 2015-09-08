@@ -8471,7 +8471,6 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
 
 static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
-
     // Check access scanner is enabled and alog_task_time is at default
     cb_assert(get_bool_stat(h, h1, "ep_access_scanner_enabled"));
     cb_assert(get_int_stat(h, h1, "ep_alog_task_time") == 2);
@@ -8502,6 +8501,67 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
     std::string targetTaskTime(timeStr);
     str = get_str_stat(h, h1, "ep_access_scanner_task_time");
     checkeq(targetTaskTime.compare(str), 0, "Unexpected task time");
+
+    return SUCCESS;
+}
+
+static enum test_result test_access_scanner(ENGINE_HANDLE *h,
+                                            ENGINE_HANDLE_V1 *h1) {
+    const int num_shards = get_int_stat(h, h1, "ep_workload:num_shards",
+                                        "workload");
+    int access_scanner_skips = 0, alog_runs = 0;
+    std::string name("/tmp/epaccess.log.0");
+    std::string prev(name + ".old");
+
+    /* Get the resident ratio down to below 90% */
+    int num_items = 0;
+    while(get_int_stat(h, h1, "vb_active_perc_mem_resident") > 94) {
+        item *itm = NULL;
+        std::string key("key" + std::to_string(num_items));
+        ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
+                                      key.c_str(), "somevalue", &itm);
+        if (ret == ENGINE_SUCCESS) {
+            num_items++;
+        }
+        h1->release(h, NULL, itm);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong number of items");
+    int num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
+    cb_assert(num_non_resident >= ((float)(6/100) * num_items));
+
+    /* Run access scanner task twice and expect it to generate access log */
+    for(int i = 0; i < 2; i++) {
+        alog_runs = get_int_stat(h, h1, "ep_num_access_scanner_runs");
+        check(set_param(h, h1, protocol_binary_engine_param_flush,
+                        "access_scanner_run", "true"),
+              "Failed to trigger access scanner");
+        wait_for_stat_to_be(h, h1, "ep_num_access_scanner_runs",
+                            alog_runs + num_shards);
+    }
+
+    /* This time since resident ratio is < 90% access log should be generated */
+    checkeq(0, access(name.c_str(), F_OK), "access log file should exist");
+    checkeq(0, access(prev.c_str(), F_OK), ".old access log file should exist");
+
+    /* Increase resident ratio by deleting items */
+    vbucketDelete(h, h1, 0);
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set VB0 state.");
+
+    /* Run access scanner task once */
+    access_scanner_skips = get_int_stat(h, h1, "ep_num_access_scanner_skips");
+    check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "access_scanner_run", "true"),
+          "Failed to trigger access scanner");
+    wait_for_stat_to_be(h, h1, "ep_num_access_scanner_skips",
+                        access_scanner_skips + num_shards);
+
+    /* Access log files should be removed because resident ratio > 95% */
+    checkeq(-1, access(prev.c_str(), F_OK),
+            ".old access log file should not exist");
+    checkeq(-1, access(name.c_str(), F_OK), "access log file should not exist");
 
     return SUCCESS;
 }
@@ -14286,6 +14346,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test access scanner settings", test_access_scanner_settings,
                  test_setup, teardown, "alog_path=/tmp/epaccess.log",
                  prepare, cleanup),
+        TestCase("test access scanner", test_access_scanner, test_setup,
+                 teardown, "alog_path=/tmp/epaccess.log;chk_remover_stime=1;"
+                 "max_size=2621440", prepare, cleanup),
 
         // Stats tests
         TestCase("item stats", test_item_stats, test_setup, teardown, NULL,

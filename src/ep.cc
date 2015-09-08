@@ -3947,6 +3947,10 @@ void EventuallyPersistentStore::runDefragmenterTask() {
     defragmenterTask->run();
 }
 
+void EventuallyPersistentStore::runAccessScannerTask() {
+    ExecutorPool::get()->wake(accessScanner.task);
+}
+
 void EventuallyPersistentStore::setCursorDroppingLowerUpperThresholds(
                                                             size_t maxSize) {
     Configuration &config = engine.getConfiguration();

@@ -144,6 +144,7 @@ public:
         numOpsGetMetaOnSetWithMeta(0),
         mlogCompactorRuns(0),
         alogRuns(0),
+        accessScannerSkips(0),
         alogNumItems(0),
         alogTime(0),
         alogRuntime(0),
@@ -447,8 +448,10 @@ public:
 
     //! The number of tiems the mutation log compactor is exectued
     AtomicValue<size_t> mlogCompactorRuns;
-    //! The number of tiems the access scanner runs
+    //! The number of times the access scanner runs
     AtomicValue<size_t> alogRuns;
+    //! The number of times the access scanner skips generating access log
+    AtomicValue<size_t> accessScannerSkips;
     //! The number of items that last access scanner task swept to log
     AtomicValue<size_t> alogNumItems;
     //! The next access scanner task schedule time (GMT)
@@ -592,6 +595,7 @@ public:
 
         mlogCompactorRuns.store(0);
         alogRuns.store(0);
+        accessScannerSkips.store(0),
         defragNumVisited.store(0),
         defragNumMoved.store(0);
 
