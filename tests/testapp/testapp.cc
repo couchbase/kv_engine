@@ -593,7 +593,12 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
         EXPECT_NE(static_cast<pid_t>(-1), ret)
             << "waitpid() failed with: " << strerror(errno);
         EXPECT_NE(server_pid, ret)
-            << "The server exited with code: " << status;
+            << "waitpid status     : " << status << std::endl
+            << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
+            << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl
+            << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
+            << "WTERMSIG(status)   : " << WTERMSIG(status) << std::endl
+            << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
         ASSERT_EQ(0, ret) << "The server isn't running..";
 #endif
     } while (time(NULL) < deadline);
