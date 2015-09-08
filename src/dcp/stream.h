@@ -216,6 +216,8 @@ public:
 
     size_t getItemsRemaining();
 
+    uint64_t getLastSentSeqno();
+
     const char* logHeader();
 
 private:

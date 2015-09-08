@@ -4670,8 +4670,9 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     start_persistence(h, h1);
+    std::string name("unittest");
 
-    dcp_stream(h, h1,"unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0, i,
+    dcp_stream(h, h1, name.c_str(), cookie, 0, 0, 0, end, vb_uuid, 0, 0, i,
                0, 1, 0, false, false, 0, true, NULL, true);
 
     check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
@@ -4679,6 +4680,13 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
 
     if (get_int_stat(h, h1, "ep_cursors_dropped") > 0) {
         check(dcp_last_flags == 4, "Last DCP flag not END_STREAM_SLOW");
+        // Also ensure the status of the active stream for the vbucket
+        // shows as "temporarily_disconnected", in vbtakeover stats.
+        std::string stats_takeover("dcp-vbtakeover 0 " + name);
+        std::string status = get_str_stat(h, h1, "status",
+                                          stats_takeover.c_str());
+        checkeq(status.compare("temporarily_disconnected"), 0,
+                "Unexpected status");
     } else {
         check(dcp_last_flags == 0, "Last DCP flag not END_STREAM_OK");
     }

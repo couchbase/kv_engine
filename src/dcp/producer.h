@@ -90,6 +90,12 @@ public:
 
     void addTakeoverStats(ADD_STAT add_stat, const void* c, uint16_t vbid);
 
+    // This function adds takeover (TO) stats and returns true if an entry
+    // was found in the map that holds the vbucket information for streams
+    // that were closed by the checkpoint remover's cursor dropped.
+    bool addTOStatsIfStreamTempDisconnected(ADD_STAT add_stat, const void* c,
+                                            uint16_t vbid);
+
     void aggregateQueueStats(ConnCounter* aggregator);
 
     void setDisconnect(bool disconnect);
@@ -184,6 +190,14 @@ private:
     AtomicValue<size_t> ackedBytes;
 
     static const uint32_t defaultNoopInerval;
+
+    /**
+     * This map holds the vbucket id, and the last sent seqno
+     * information for streams that have been dropped by the
+     * checkpoint remover's cursor dropper, which are awaiting
+     * reconnection.
+     */
+    std::map<uint16_t, uint64_t> tempDroppedStreams;
 };
 
 #endif  // SRC_DCP_PRODUCER_H_

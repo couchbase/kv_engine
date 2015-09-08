@@ -807,6 +807,10 @@ size_t ActiveStream::getItemsRemaining() {
     return 0;
 }
 
+uint64_t ActiveStream::getLastSentSeqno() {
+    return lastSentSeqno;
+}
+
 ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId,
                                                         uint8_t conflictResMode)
 {

@@ -198,6 +198,15 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return rv;
     }
 
+    // Check if the stream request is for a vbucket whose cursor
+    // was dropped earlier, in which case the vbucket's entry will
+    // need to be removed from the map.
+    std::map<uint16_t, uint64_t>::iterator it;
+    it = tempDroppedStreams.find(vbucket);
+    if (it != tempDroppedStreams.end()) {
+        tempDroppedStreams.erase(it);
+    }
+
     if (notifyOnly) {
         streams[vbucket] = new NotifierStream(&engine_, this, getName(), flags,
                                               opaque, vbucket, notifySeqno,
@@ -601,10 +610,46 @@ void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
         if (s && s->getType() == STREAM_ACTIVE) {
             ActiveStream* as = static_cast<ActiveStream*>(s);
             if (as) {
+                if (as->getState() == STREAM_DEAD &&
+                    addTOStatsIfStreamTempDisconnected(add_stat, c, vbid)) {
+                    return;
+                }
                 as->addTakeoverStats(add_stat, c);
             }
+        } else {
+            addTOStatsIfStreamTempDisconnected(add_stat, c, vbid);
         }
     }
+}
+
+bool DcpProducer::addTOStatsIfStreamTempDisconnected(ADD_STAT add_stat,
+                                                     const void *c,
+                                                     uint16_t vbid) {
+    /**
+     * Check if the vbucket whose stream is being looked up
+     * was closed by the checkpoint remover's cursor dropper,
+     * in which case there would be a reconnection soon.
+     * Stats will reflect an approximate estimate.
+     */
+    std::map<uint16_t, uint64_t>::iterator it;
+    it = tempDroppedStreams.find(vbid);
+    if (it != tempDroppedStreams.end()) {
+        RCPtr<VBucket> vb = engine_.getVBucket(vbid);
+        if (!vb) {
+            tempDroppedStreams.erase(it);
+            return false;
+        }
+        uint64_t estimateRemaining =
+                static_cast<uint64_t>(vb->getHighSeqno()) - it->second;
+        add_casted_stat("status", "temporarily_disconnected",
+                add_stat, c);
+        add_casted_stat("estimate", estimateRemaining,
+                add_stat, c);
+        add_casted_stat("backfillRemaining", estimateRemaining,
+                add_stat, c);
+        return true;
+    }
+    return false;
 }
 
 void DcpProducer::aggregateQueueStats(ConnCounter* aggregator) {
@@ -647,11 +692,20 @@ bool DcpProducer::closeSlowStream(uint16_t vbid,
         std::map<uint16_t, stream_t>::iterator it = streams.find(vbid);
         if (it != streams.end()) {
             if (it->second->getName().compare(name) == 0) {
-                LOG(EXTENSION_LOG_NOTICE, "%s Producer is closing stream "
-                    "for vbucket %d, stream name '%s' because it seems to be SLOW",
-                    logHeader(), vbid, name.c_str());
-                it->second->setDead(END_STREAM_SLOW);
-                return true;
+                ActiveStream* as = static_cast<ActiveStream*>(it->second.get());
+                if (as) {
+                    LOG(EXTENSION_LOG_NOTICE, "%s Producer is closing stream "
+                            "for vbucket %d, stream name '%s' because it seems "
+                            "to be SLOW", logHeader(), vbid, name.c_str());
+                    /**
+                     * Add vbucket id, last sent seqno information to
+                     * tempDroppedStreams, the entry will be removed
+                     * upon a reconnection.
+                     */
+                    tempDroppedStreams[vbid] = as->getLastSentSeqno();
+                    as->setDead(END_STREAM_SLOW);
+                    return true;
+                }
             }
         }
     }
