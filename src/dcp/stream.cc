@@ -479,7 +479,6 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
         add_casted_stat("status", "completed", add_stat, cookie);
         add_casted_stat("estimate", 0, add_stat, cookie);
         add_casted_stat("backfillRemaining", 0, add_stat, cookie);
-        add_casted_stat("estimate", 0, add_stat, cookie);
         return;
     }
 
