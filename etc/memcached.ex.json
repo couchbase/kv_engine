@@ -57,10 +57,6 @@
             "config" : "cyclesize=10485760;sleeptime=19;filename=data/n_0/logs/memcached.log"
         }
     ],
-    "engine" : {
-        "module" : "bucket_engine.so",
-        "config" : "admin=_admin;default_bucket_name=default;auto_create=false"
-    },
     "require_sasl" : false,
     "default_reqs_per_event" : 20,
     "reqs_per_event_high_priority" : 40,
