@@ -669,7 +669,7 @@ static enum test_result perf_dcp_latency_and_bandwidth(ENGINE_HANDLE *h,
     struct Ret_vals rv2(ha2, item_count);
     iterations.push_back(rv2);
 
-    for (int i = 0; i < iterations.size(); ++i) {
+    for (size_t i = 0; i < iterations.size(); ++i) {
         std::vector<hrtime_t> timings;
         cb_thread_t loader_thread, dcp_thread;
         struct Handle_args load_ha(iterations[i].ha);
