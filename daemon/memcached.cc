@@ -398,8 +398,7 @@ static void stats_init(void) {
     stats.rejected_conns.reset();
     stats.curr_conns.store(0, std::memory_order_relaxed);
 
-    stats.listening_ports= reinterpret_cast<listening_port*>
-        (calloc(settings.num_interfaces, sizeof(struct listening_port)));
+    stats.listening_ports.resize(settings.num_interfaces);
 }
 
 struct thread_stats *get_thread_stats(Connection *c) {
@@ -7973,11 +7972,6 @@ int main (int argc, char **argv) {
     cleanup_buckets();
 
     threads_cleanup();
-
-    /* Free the memory used by listening_port structure */
-    if (stats.listening_ports) {
-        free(stats.listening_ports);
-    }
 
     release_signal_handlers();
 

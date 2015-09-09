@@ -165,8 +165,7 @@ struct stats {
     /** The number of times I reject a client */
     Couchbase::RelaxedAtomic<uint64_t> rejected_conns;
 
-    // TODO[C++]: convert listening_ports to std::vector.
-    struct listening_port *listening_ports;
+    std::vector<listening_port> listening_ports;
 };
 
 
