@@ -37,6 +37,7 @@
 #include "enginemap.h"
 #include "buckets.h"
 #include "topkeys.h"
+#include "stats.h"
 
 #include <platform/strerror.h>
 
@@ -397,8 +398,6 @@ static void stats_init(void) {
     stats.daemon_conns.reset();
     stats.rejected_conns.reset();
     stats.curr_conns.store(0, std::memory_order_relaxed);
-
-    stats.listening_ports.resize(settings.num_interfaces);
 }
 
 struct thread_stats *get_thread_stats(Connection *c) {
@@ -5222,15 +5221,11 @@ static void server_stats(ADD_STAT add_stat_callback, Connection *c) {
     add_stat(c, add_stat_callback, "daemon_connections", stats.daemon_conns);
     add_stat(c, add_stat_callback, "curr_connections",
                 stats.curr_conns.load(std::memory_order_relaxed));
-    for (int ii = 0; ii < settings.num_interfaces; ++ii) {
-        std::string key = "max_conns_on_port_" +
-                std::to_string(stats.listening_ports[ii].port);
-        add_stat(c, add_stat_callback, key,
-                 stats.listening_ports[ii].maxconns);
-        key = "curr_conns_on_port_" +
-                std::to_string(stats.listening_ports[ii].port);
-        add_stat(c, add_stat_callback, key,
-                 stats.listening_ports[ii].curr_conns);
+    for (auto &instance : stats.listening_ports) {
+        std::string key = "max_conns_on_port_" + std::to_string(instance.port);
+        add_stat(c, add_stat_callback, key, instance.maxconns);
+        key = "curr_conns_on_port_" + std::to_string(instance.port);
+        add_stat(c, add_stat_callback, key, instance.curr_conns);
     }
     add_stat(c, add_stat_callback, "total_connections", stats.total_conns);
     add_stat(c, add_stat_callback, "connection_structures",
@@ -5331,44 +5326,43 @@ static void server_stats(ADD_STAT add_stat_callback, Connection *c) {
 }
 
 static void process_stat_settings(ADD_STAT add_stat_callback, void *c) {
-    int ii;
     if (add_stat_callback == nullptr) {
         throw std::invalid_argument("process_stat_settings: "
                         "add_stat_callback must be non-NULL");
     }
     add_stat(c, add_stat_callback, "maxconns", settings.maxconns);
 
-    for (ii = 0; ii < settings.num_interfaces; ++ii) {
+    for (auto& ifce : stats.listening_ports) {
         char interface[1024];
         int offset;
-        if (settings.interfaces[ii].host == NULL) {
-            offset = sprintf(interface, "interface-*:%u", settings.interfaces[ii].port);
+        if (ifce.host.empty()) {
+            offset = sprintf(interface, "interface-*:%u", ifce.port);
         } else {
             offset = snprintf(interface, sizeof(interface), "interface-%s:%u",
-                              settings.interfaces[ii].host,
-                              settings.interfaces[ii].port);
+                              ifce.host.c_str(),
+                              ifce.port);
         }
 
         snprintf(interface + offset, sizeof(interface) - offset, "-maxconn");
-        add_stat(c, add_stat_callback, interface, settings.interfaces[ii].maxconn);
+        add_stat(c, add_stat_callback, interface, ifce.maxconns);
         snprintf(interface + offset, sizeof(interface) - offset, "-backlog");
-        add_stat(c, add_stat_callback, interface, settings.interfaces[ii].backlog);
+        add_stat(c, add_stat_callback, interface, ifce.backlog);
         snprintf(interface + offset, sizeof(interface) - offset, "-ipv4");
-        add_stat(c, add_stat_callback, interface, settings.interfaces[ii].ipv4);
+        add_stat(c, add_stat_callback, interface, ifce.ipv4);
         snprintf(interface + offset, sizeof(interface) - offset, "-ipv6");
-        add_stat(c, add_stat_callback, interface, settings.interfaces[ii].ipv6);
+        add_stat(c, add_stat_callback, interface, ifce.ipv6);
 
         snprintf(interface + offset, sizeof(interface) - offset,
                  "-tcp_nodelay");
-        add_stat(c, add_stat_callback, interface, settings.interfaces[ii].tcp_nodelay);
+        add_stat(c, add_stat_callback, interface, ifce.tcp_nodelay);
 
-        if (settings.interfaces[ii].ssl.key) {
+        if (ifce.ssl.enabled) {
             snprintf(interface + offset, sizeof(interface) - offset,
                      "-ssl-pkey");
-            add_stat(c, add_stat_callback, interface, settings.interfaces[ii].ssl.key);
+            add_stat(c, add_stat_callback, interface, ifce.ssl.key);
             snprintf(interface + offset, sizeof(interface) - offset,
                      "-ssl-cert");
-            add_stat(c, add_stat_callback, interface, settings.interfaces[ii].ssl.cert);
+            add_stat(c, add_stat_callback, interface, ifce.ssl.cert);
         } else {
             snprintf(interface + offset, sizeof(interface) - offset,
                      "-ssl");
@@ -6312,6 +6306,60 @@ static SOCKET new_socket(struct addrinfo *ai) {
 }
 
 /**
+ * Add a port to the list of interfaces we're listening to.
+ *
+ * We're supporting binding to the port number "0" to have the operating
+ * system pick an available port we may use (and we'll report it back to
+ * the user through the portnumber file.). If we have knowledge of the port,
+ * update the port descriptor (ip4/ip6), if not go ahead and create a new entry
+ *
+ * @param interf the interface description used to create the port
+ * @param port the port number in use
+ * @param family the address family for the port
+ */
+static void add_listening_port(struct interface *interf, in_port_t port, sa_family_t family) {
+    auto *descr = get_listening_port_instance(port);
+
+    if (descr == nullptr) {
+        listening_port newport;
+
+        newport.port = port;
+        newport.curr_conns = 1;
+        newport.maxconns = interf->maxconn;
+
+        if (interf->host != nullptr) {
+            newport.host = interf->host;
+        }
+        if (interf->ssl.key == nullptr || interf->ssl.cert == nullptr) {
+            newport.ssl.enabled = false;
+        } else {
+            newport.ssl.enabled = true;
+            newport.ssl.key = interf->ssl.key;
+            newport.ssl.cert = interf->ssl.cert;
+        }
+        newport.backlog = interf->backlog;
+
+        if (family == AF_INET) {
+            newport.ipv4 = true;
+        } else if (family == AF_INET6) {
+            newport.ipv6 = true;
+        }
+
+        newport.tcp_nodelay = interf->tcp_nodelay;
+        newport.protocol = interf->protocol;
+
+        stats.listening_ports.push_back(newport);
+    } else {
+        if (family == AF_INET) {
+            descr->ipv4 = true;
+        } else if (family == AF_INET6) {
+            descr->ipv6 = true;
+        }
+        ++descr->curr_conns;
+    }
+}
+
+/**
  * Create a socket and bind it to a specific port number
  * @param interface the interface to bind to
  * @param port the port number to bind to
@@ -6376,7 +6424,6 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
         const void* flags_ptr = reinterpret_cast<const void*>(&flags);
 #endif
 
-        struct listening_port *port_instance;
         Connection *listen_conn_add;
         if ((sfd = new_socket(next)) == INVALID_SOCKET) {
             /* getaddrinfo can return "junk" addresses,
@@ -6425,6 +6472,7 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
             }
         }
 
+        in_port_t listenport = 0;
         if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) == SOCKET_ERROR) {
             error = GetLastNetworkError();
             if (!is_addrinuse(error)) {
@@ -6446,39 +6494,48 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
                 freeaddrinfo(ai);
                 return 1;
             }
-            if (portArray != NULL &&
-                (next->ai_addr->sa_family == AF_INET ||
-                 next->ai_addr->sa_family == AF_INET6)) {
 
-                cJSON *obj = cJSON_CreateObject();
+            if (next->ai_addr->sa_family == AF_INET ||
+                 next->ai_addr->sa_family == AF_INET6) {
                 union {
                     struct sockaddr_in in;
                     struct sockaddr_in6 in6;
                 } my_sockaddr;
                 socklen_t len = sizeof(my_sockaddr);
                 if (getsockname(sfd, (struct sockaddr*)&my_sockaddr, &len)==0) {
-                    if (interf->ssl.cert != nullptr && interf->ssl.key != nullptr) {
-                        cJSON_AddTrueToObject(obj, "ssl");
+                    if (portArray) {
+                        cJSON *obj = cJSON_CreateObject();
+                        if (interf->ssl.cert != nullptr && interf->ssl.key != nullptr) {
+                            cJSON_AddTrueToObject(obj, "ssl");
+                        } else {
+                            cJSON_AddFalseToObject(obj, "ssl");
+                        }
+                        cJSON_AddStringToObject(obj, "protocol",
+                                                to_string(interf->protocol));
+                        if (next->ai_addr->sa_family == AF_INET) {
+                            cJSON_AddStringToObject(obj, "family", "AF_INET");
+                            cJSON_AddNumberToObject(obj, "port",
+                                                    ntohs(my_sockaddr.in.sin_port));
+                            listenport = ntohs(my_sockaddr.in.sin_port);
+                        } else {
+                            cJSON_AddStringToObject(obj, "family", "AF_INET6");
+                            cJSON_AddNumberToObject(obj, "port",
+                                                    ntohs(my_sockaddr.in6.sin6_port));
+                            listenport = ntohs(my_sockaddr.in6.sin6_port);
+                        }
+                        cJSON_AddItemToArray(portArray, obj);
                     } else {
-                        cJSON_AddFalseToObject(obj, "ssl");
+                        if (next->ai_addr->sa_family == AF_INET) {
+                            listenport = ntohs(my_sockaddr.in.sin_port);
+                        } else {
+                            listenport = ntohs(my_sockaddr.in6.sin6_port);
+                        }
                     }
-                    cJSON_AddStringToObject(obj, "protocol",
-                                            to_string(interf->protocol));
-                    if (next->ai_addr->sa_family == AF_INET) {
-                        cJSON_AddStringToObject(obj, "family", "AF_INET");
-                        cJSON_AddNumberToObject(obj, "port",
-                                                ntohs(my_sockaddr.in.sin_port));
-                    } else {
-                        cJSON_AddStringToObject(obj, "family", "AF_INET6");
-                        cJSON_AddNumberToObject(obj, "port",
-                                                ntohs(my_sockaddr.in6.sin6_port));
-                    }
-                    cJSON_AddItemToArray(portArray, obj);
                 }
             }
         }
 
-        if (!(listen_conn_add = conn_new(sfd, interf->port, conn_listening,
+        if (!(listen_conn_add = conn_new(sfd, listenport, conn_listening,
                                          main_base))) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "failed to create listening connection\n");
@@ -6489,11 +6546,7 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
 
         stats.daemon_conns++;
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
-        STATS_LOCK();
-        port_instance = get_listening_port_instance(interf->port);
-        cb_assert(port_instance);
-        ++port_instance->curr_conns;
-        STATS_UNLOCK();
+        add_listening_port(interf, listenport, next->ai_addr->sa_family);
     }
 
     freeaddrinfo(ai);
@@ -6503,17 +6556,13 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
 }
 
 static int server_sockets(FILE *portnumber_file) {
-    int ret = 0;
-    int ii = 0;
-
     cJSON *array = nullptr;
     if (portnumber_file != nullptr) {
         array = cJSON_CreateArray();
     }
 
-    for (ii = 0; ii < settings.num_interfaces; ++ii) {
-        stats.listening_ports[ii].port = settings.interfaces[ii].port;
-        stats.listening_ports[ii].maxconns = settings.interfaces[ii].maxconn;
+    int ret = 0;
+    for (int ii = 0; ii < settings.num_interfaces; ++ii) {
         ret |= server_socket(settings.interfaces + ii, array);
     }
 

@@ -28,6 +28,7 @@
 #define get_socket_error() WSAGetLastError()
 
 typedef int in_port_t;
+typedef int sa_family_t;
 typedef HANDLE pid_t;
 
 #define snprintf _snprintf

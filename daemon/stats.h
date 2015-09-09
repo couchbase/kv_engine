@@ -141,9 +141,22 @@ struct thread_stats {
  * Listening port.
  */
 struct listening_port {
-    int port;
+    in_port_t port;
     int curr_conns;
     int maxconns;
+
+    std::string host;
+    struct {
+        bool enabled;
+        std::string key;
+        std::string cert;
+    } ssl;
+
+    int backlog;
+    bool ipv6;
+    bool ipv4;
+    bool tcp_nodelay;
+    Protocol protocol;
 };
 
 /**

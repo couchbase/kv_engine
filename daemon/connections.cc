@@ -19,6 +19,7 @@
 #include "runtime.h"
 #include "utilities/protocol2text.h"
 #include "settings.h"
+#include "stats.h"
 
 #include <cJSON.h>
 #include <list>
@@ -172,22 +173,33 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
         c->setAuthContext(auth_create(NULL, c->getPeername().c_str(),
                                       c->getSockname().c_str()));
 
-        for (int ii = 0; ii < settings.num_interfaces; ++ii) {
-            if (parent_port == settings.interfaces[ii].port) {
-                c->setProtocol(settings.interfaces[ii].protocol);
-                c->setTcpNoDelay(settings.interfaces[ii].tcp_nodelay);
-                if (settings.interfaces[ii].ssl.cert != NULL) {
-                    if (!c->enableSSL(settings.interfaces[ii].ssl.cert,
-                                      settings.interfaces[ii].ssl.key)) {
+        bool found = false;
+        for (auto& interface : stats.listening_ports) {
+            if (parent_port == interface.port) {
+                c->setProtocol(interface.protocol);
+                c->setTcpNoDelay(interface.tcp_nodelay);
+                if (interface.ssl.enabled) {
+                    if (!c->enableSSL(interface.ssl.cert,
+                                      interface.ssl.key)) {
                         release_connection(c);
-                        return NULL;
+                        return nullptr;
                     }
                 }
                 settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                                                "%d: Using protocol: %s",
-                                                sfd, to_string(c->getProtocol()));
-
+                                                "%u: Using protocol: %s",
+                                                c->getId(),
+                                                to_string(c->getProtocol()));
+                found = true;
             }
+        }
+
+        if (!found) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "%u: failed to locate server port "
+                                            "%u. Disconnecting",
+                                            c->getId(), parent_port);
+            release_connection(c);
+            return nullptr;
         }
     }
 
@@ -300,15 +312,13 @@ void conn_close(Connection *c) {
 }
 
 struct listening_port *get_listening_port_instance(const in_port_t port) {
-    struct listening_port *port_ins = NULL;
-    int ii;
-    for (ii = 0; ii < settings.num_interfaces; ++ii) {
-        if (stats.listening_ports[ii].port == port) {
-            port_ins = &stats.listening_ports[ii];
+    for (auto &instance : stats.listening_ports) {
+        if (instance.port == port) {
+            return &instance;
         }
     }
-    return port_ins;
 
+    return nullptr;
 }
 
 void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) {

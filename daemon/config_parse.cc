@@ -693,7 +693,7 @@ static bool handle_interface(int idx, cJSON *r, struct interface* iface_list,
             return false;
         }
         for (int ii = 0; ii < idx; ++ii) {
-            if (iface_list[ii].port == iface->port) {
+            if (iface_list[ii].port == iface->port && iface->port != 0) {
                 /* port numbers are used as a unique identified inside memcached
                  * (see for example: get_listening_port_instance(). Check user
                  * doesn't try to use the same number twice.
@@ -975,6 +975,11 @@ static bool dyna_validate_interfaces(const struct settings *new_settings,
         for (ii = 0; ii < settings.num_interfaces; ii++) {
             struct interface *cur_if = &settings.interfaces[ii];
             struct interface *new_if = &new_settings->interfaces[ii];
+
+            // we can't validate dynamic ports...
+            if (cur_if->port == 0 || new_if->port == 0) {
+                continue;
+            }
 
             /* These settings cannot change: */
             if (strcmp(new_if->host, cur_if->host) != 0) {
@@ -1277,15 +1282,17 @@ static void dyna_reconfig_iface_ssl(const struct interface *new_if,
 }
 
 static void dyna_reconfig_interfaces(const struct settings *new_settings) {
-    int ii = 0;
-    for (ii = 0; ii < settings.num_interfaces; ii++) {
-        struct interface *cur_if = &settings.interfaces[ii];
-        struct interface *new_if = &new_settings->interfaces[ii];
+    for (int ii = 0; ii < settings.num_interfaces; ii++) {
+        struct interface* cur_if = &settings.interfaces[ii];
+        struct interface* new_if = &new_settings->interfaces[ii];
 
-        dyna_reconfig_iface_maxconns(new_if, cur_if);
-        dyna_reconfig_iface_backlog(new_if, cur_if);
-        dyna_reconfig_iface_nodelay(new_if, cur_if);
-        dyna_reconfig_iface_ssl(new_if, cur_if);
+        // Skip wildcards
+        if (new_if->port != 0) {
+            dyna_reconfig_iface_maxconns(new_if, cur_if);
+            dyna_reconfig_iface_backlog(new_if, cur_if);
+            dyna_reconfig_iface_nodelay(new_if, cur_if);
+            dyna_reconfig_iface_ssl(new_if, cur_if);
+        }
     }
 }
 

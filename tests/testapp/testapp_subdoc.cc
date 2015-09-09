@@ -1720,7 +1720,7 @@ TEST_P(McdTestappTest, SubdocCASAutoRetry)
 class WorkerConcurrencyTest : public TestappTest {
 public:
     static void SetUpTestCase() {
-        memcached_cfg.reset(generate_config(/*disable SSL*/0));
+        memcached_cfg.reset(generate_config(0));
         // Change the number of worker threads to one so we guarantee that
         // multiple connections are handled by a single worker.
         cJSON_AddNumberToObject(memcached_cfg.get(), "threads", 1);

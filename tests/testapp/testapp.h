@@ -77,12 +77,7 @@ protected:
     // per test tear-down function.
     virtual void TearDown();
 
-    /* Generate a memcached config.
-     * @param ssl_port SSL port to use. If set to 0 then don't enable SSL.
-     */
     static cJSON* generate_config(uint16_t ssl_port);
-
-    static uint16_t get_random_port();
 
     static void start_memcached_server(cJSON* config);
 
@@ -125,9 +120,6 @@ protected:
                             bool pipeline, int iterations, int message_size);
 
     void test_subdoc_dict_add_cas(bool compress, protocol_binary_command cmd);
-
-    // SSL port memcached was configured with.
-    static in_port_t memcached_ssl_port;
 };
 
 SOCKET connect_to_server_plain(in_port_t port, bool nonblocking);

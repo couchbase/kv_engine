@@ -149,7 +149,7 @@ void TestappTest::CreateTestBucket()
 // Per-test-case set-up.
 // Called before the first test in this test case.
 void TestappTest::SetUpTestCase() {
-    memcached_cfg.reset(generate_config(/*disable SSL*/0));
+    memcached_cfg.reset(generate_config(0));
     start_memcached_server(memcached_cfg.get());
 
     if (HasFailure()) {
@@ -212,8 +212,8 @@ void TestappTest::TearDown() {
 // Per-test-case set-up.
 // Called before the first test in this test case.
 void McdTestappTest::SetUpTestCase() {
-    memcached_ssl_port = get_random_port();
-    memcached_cfg.reset(generate_config(memcached_ssl_port));
+    memcached_cfg.reset(generate_config(0));
+
     start_memcached_server(memcached_cfg.get());
 
     if (HasFailure()) {
@@ -336,18 +336,16 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddItemToArray(array, obj);
 
-    if (ssl_port != 0) {
-        obj = cJSON_CreateObject();
-        cJSON_AddNumberToObject(obj, "port", ssl_port);
-        cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
-        cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
-        cJSON_AddStringToObject(obj, "host", "*");
-        obj_ssl = cJSON_CreateObject();
-        cJSON_AddStringToObject(obj_ssl, "key", pem_path);
-        cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
-        cJSON_AddItemToObject(obj, "ssl", obj_ssl);
-        cJSON_AddItemToArray(array, obj);
-    }
+    obj = cJSON_CreateObject();
+    cJSON_AddNumberToObject(obj, "port", ssl_port);
+    cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
+    cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
+    cJSON_AddStringToObject(obj, "host", "*");
+    obj_ssl = cJSON_CreateObject();
+    cJSON_AddStringToObject(obj_ssl, "key", pem_path);
+    cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
+    cJSON_AddItemToObject(obj, "ssl", obj_ssl);
+    cJSON_AddItemToArray(array, obj);
 
     cJSON_AddItemToObject(root, "interfaces", array);
 
@@ -411,23 +409,6 @@ static cJSON *generate_rbac_config(void)
     cJSON_AddItemToObject(root, "users", array);
 
     return root;
-}
-
-uint16_t TestappTest::get_random_port() {
-    // We need to ensure that if >1 instance of this testsuite is run
-    // at once then there each has a unique SSL port.  For the first
-    // interface this is simple: we can specify the magic value '0'
-    // which will cause memcached to automatically select an available
-    // port, however for the second (SSL) port this isn't possible
-    // (port numbers - even when zero - are used to uniquely identify
-    // interfaces in memcached). The (somewhat hacky) solution we use
-    // here is to derive a SSL port number using the process ID. While
-    // not guaranteed to be unique (port namespace is 16bit whereas
-    // PIDs are normally at least 32bit) but given the common case
-    // will be 2 testapp processes it should suffice in reality.
-    // We also mix in the current time as some tests re-launch memcached
-    // and hence we'll need a new port number.
-    return 40000 + ((getpid() + time(NULL)) % 10000);
 }
 
 static int write_config_to_file(const char* config, const char *fname) {
@@ -2529,7 +2510,7 @@ TEST_P(McdTestappTest, IOCTL_TCMallocAggrDecommit) {
 }
 #endif /* defined(HAVE_TCMALLOC) */
 
-TEST_P(McdTestappTest, Config_Validate) {
+TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2548,91 +2529,123 @@ TEST_P(McdTestappTest, Config_Validate) {
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
                              PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
+TEST_P(McdTestappTest, Config_Validate_Empty) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
 
     /* empty config is invalid */
-    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                      PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                      NULL, 0);
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                             NULL, 0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     validate_response_header(&buffer.response,
                              PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
+}
+
+TEST_P(McdTestappTest, Config_ValidateInvalidJSON) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
 
     /* non-JSON config is invalid */
-    {
-        char non_json[] = "[something which isn't JSON]";
-        len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                          PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                          non_json, strlen(non_json));
+    char non_json[] = "[something which isn't JSON]";
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                             non_json, strlen(non_json));
 
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        validate_response_header(&buffer.response,
-                                 PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
-                                 PROTOCOL_BINARY_RESPONSE_EINVAL);
-    }
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+}
+
+TEST_P(McdTestappTest, Config_ValidateAdminNotDynamic) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
 
     /* 'admin' cannot be changed */
-    {
-        cJSON *dynamic = cJSON_CreateObject();
-        char* dyn_string = NULL;
-        cJSON_AddStringToObject(dynamic, "admin", "not_me");
-        dyn_string = cJSON_Print(dynamic);
-        cJSON_Delete(dynamic);
-        len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                          PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                          dyn_string, strlen(dyn_string));
-        cJSON_Free(dyn_string);
+    cJSON* dynamic = cJSON_CreateObject();
+    char* dyn_string = NULL;
+    cJSON_AddStringToObject(dynamic, "admin", "not_me");
+    dyn_string = cJSON_Print(dynamic);
+    cJSON_Delete(dynamic);
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                             dyn_string, strlen(dyn_string));
+    cJSON_Free(dyn_string);
 
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        validate_response_header(&buffer.response,
-                                 PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
-                                 PROTOCOL_BINARY_RESPONSE_EINVAL);
-    }
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+}
+
+TEST_P(McdTestappTest, Config_ValidateThreadsNotDynamic) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
 
     /* 'threads' cannot be changed */
-    {
-        cJSON *dynamic = cJSON_CreateObject();
-        char* dyn_string = NULL;
-        cJSON_AddNumberToObject(dynamic, "threads", 99);
-        dyn_string = cJSON_Print(dynamic);
-        cJSON_Delete(dynamic);
-        len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                          PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                          dyn_string, strlen(dyn_string));
-        cJSON_Free(dyn_string);
+    cJSON* dynamic = cJSON_CreateObject();
+    char* dyn_string = NULL;
+    cJSON_AddNumberToObject(dynamic, "threads", 99);
+    dyn_string = cJSON_Print(dynamic);
+    cJSON_Delete(dynamic);
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                             dyn_string, strlen(dyn_string));
+    cJSON_Free(dyn_string);
 
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        validate_response_header(&buffer.response,
-                                 PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
-                                 PROTOCOL_BINARY_RESPONSE_EINVAL);
-    }
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+}
+
+TEST_P(McdTestappTest, Config_ValidateInterface) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
 
     /* 'interfaces' - should be able to change max connections */
-    {
-        cJSON *dynamic = generate_config(memcached_ssl_port);
-        char* dyn_string = NULL;
-        cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
-        cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
-        cJSON_ReplaceItemInObject(iface, "maxconn",
-                                  cJSON_CreateNumber(MAX_CONNECTIONS * 2));
-        dyn_string = cJSON_Print(dynamic);
-        cJSON_Delete(dynamic);
-        len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                          PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
-                          dyn_string, strlen(dyn_string));
-        cJSON_Free(dyn_string);
+    cJSON* dynamic = generate_config(ssl_port);
+    char* dyn_string = NULL;
+    cJSON* iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
+    cJSON* iface = cJSON_GetArrayItem(iface_list, 0);
+    cJSON_ReplaceItemInObject(iface, "maxconn",
+                              cJSON_CreateNumber(MAX_CONNECTIONS * 2));
+    dyn_string = cJSON_Print(dynamic);
+    cJSON_Delete(dynamic);
+    size_t len = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE, NULL, 0,
+                             dyn_string, strlen(dyn_string));
+    cJSON_Free(dyn_string);
 
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        validate_response_header(&buffer.response,
-                                 PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    }
+    safe_send(buffer.bytes, len, false);
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    validate_response_header(&buffer.response,
+                             PROTOCOL_BINARY_CMD_CONFIG_VALIDATE,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
 TEST_P(McdTestappTest, Config_Reload) {
@@ -2661,7 +2674,7 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change max_conns on first interface. */
     {
-        cJSON *dynamic = generate_config(memcached_ssl_port);
+        cJSON *dynamic = generate_config(ssl_port);
         char* dyn_string = NULL;
         cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
@@ -2688,7 +2701,7 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change backlog on first interface. */
     {
-        cJSON *dynamic = generate_config(memcached_ssl_port);
+        cJSON *dynamic = generate_config(ssl_port);
         char* dyn_string = NULL;
         cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
@@ -2715,7 +2728,7 @@ TEST_P(McdTestappTest, Config_Reload) {
 
     /* Change tcp_nodelay on first interface. */
     {
-        cJSON *dynamic = generate_config(memcached_ssl_port);
+        cJSON *dynamic = generate_config(ssl_port);
         char* dyn_string = NULL;
         cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
         cJSON *iface = cJSON_GetArrayItem(iface_list, 0);
@@ -2742,7 +2755,7 @@ TEST_P(McdTestappTest, Config_Reload) {
     /* Check that invalid (corrupted) file is rejected (and we don't
        leak any memory in the process). */
     {
-        cJSON *dynamic = generate_config(memcached_ssl_port);
+        cJSON *dynamic = generate_config(ssl_port);
         char* dyn_string = cJSON_Print(dynamic);
         cJSON_Delete(dynamic);
         // Corrupt the JSON by replacing first opening brace '{' with
@@ -2768,7 +2781,7 @@ TEST_P(McdTestappTest, Config_Reload) {
     }
 
     /* Restore original configuration. */
-    cJSON *dynamic = generate_config(memcached_ssl_port);
+    cJSON *dynamic = generate_config(ssl_port);
     char* dyn_string = cJSON_Print(dynamic);
     cJSON_Delete(dynamic);
     if (write_config_to_file(dyn_string, config_file) == -1) {
@@ -2800,7 +2813,7 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     }
 
     /* Change ssl cert/key on second interface. */
-    cJSON *dynamic = generate_config(memcached_ssl_port);
+    cJSON *dynamic = generate_config(ssl_port);
     char* dyn_string = NULL;
     cJSON *iface_list = cJSON_GetObjectItem(dynamic, "interfaces");
     cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
@@ -4416,8 +4429,6 @@ public:
 };
 
 unique_cJSON_ptr TestappTest::memcached_cfg;
-
-in_port_t McdTestappTest::memcached_ssl_port;
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
