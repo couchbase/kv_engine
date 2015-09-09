@@ -100,9 +100,9 @@ void Connection::setState(STATE_FUNC next_state) {
          * read from the nework / engine
          */
         if (isTAP() || isDCP()) {
-            if (state == conn_waiting) {
+            if (next_state == conn_waiting) {
                 setCurrentEvent(EV_WRITE);
-                state = conn_ship_log;
+                next_state = conn_ship_log;
             }
         }
 
