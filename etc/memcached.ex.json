@@ -67,7 +67,7 @@
     "reqs_per_event_med_priority" : 20,
     "reqs_per_event_low_priority" : 10,
     "verbosity" : 2,
-    "datatype_support" : true
+    "datatype_support" : true,
     "max_packet_size" : 25,
     "bio_drain_buffer_sz" : 8192
 }
