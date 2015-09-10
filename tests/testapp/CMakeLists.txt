@@ -7,6 +7,8 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_audit.cc
                testapp_binprot.cc
                testapp_binprot.h
+               testapp_connection.cc
+               testapp_connection.h
                testapp_rbac.cc
                testapp_rbac.h
                testapp_shutdown.cc

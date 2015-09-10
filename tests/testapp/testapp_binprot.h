@@ -17,11 +17,19 @@
 #pragma once
 
 // Utility functions used to build up packets in the memcached binary protocol
+#include "testapp_connection.h"
 
 #include <cstdlib>
 #include <sys/types.h>
 
 #include <memcached/protocol_binary.h>
+
+off_t mcbp_raw_command(Frame& frame,
+                       uint8_t cmd,
+                       const void* key,
+                       size_t keylen,
+                       const void* data,
+                       size_t datalen);
 
 /* Populate buf with a binary command with the given parameters. */
 off_t mcbp_raw_command(char* buf, size_t bufsz,

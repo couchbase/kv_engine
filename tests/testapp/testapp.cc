@@ -101,41 +101,26 @@ std::ostream& operator << (std::ostream& os, const Transport& t)
 
 void TestappTest::CreateTestBucket()
 {
-    // We need to create the bucket
-    int phase = current_phase;
-    current_phase = phase_plain;
-
-    sock = connect_to_server_plain(port);
-    ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("_admin",
-                                                          "password"));
-    union {
-        protocol_binary_request_create_bucket request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
+    auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
+    ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
 
     char cfg[80];
     memset(cfg, 0, sizeof(cfg));
-    snprintf(cfg, sizeof(cfg), "ewouldblock_engine.so%cdefault_engine.so",
-             0);
+    snprintf(cfg, sizeof(cfg), "ewouldblock_engine.so%cdefault_engine.so", 0);
 
-    size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                   PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                                   "default", strlen("default"),
-                                   cfg, sizeof(cfg));
+    Frame request;
+    mcbp_raw_command(request, PROTOCOL_BINARY_CMD_CREATE_BUCKET,
+                     "default", strlen("default"), cfg, sizeof(cfg));
 
+    conn.sendFrame(request);
 
-    safe_send(buffer.bytes, plen, false);
-    safe_recv_packet(&buffer, sizeof(buffer));
-
-    mcbp_validate_response_header(&buffer.response,
+    Frame response;
+    conn.recvFrame(response);
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(response.payload.data());
+    mcbp_validate_response_header(rsp,
                                   PROTOCOL_BINARY_CMD_CREATE_BUCKET,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    closesocket(sock);
-    sock = INVALID_SOCKET;
-
-    current_phase = phase;
+    conn.reconnect();
 }
 
 // Per-test-case set-up.
@@ -404,15 +389,18 @@ static cJSON* loadJsonFile(const std::string &file) {
  * Set <code>server_pid</code> to the pid of the process
  *
  * @param port_out where to store the TCP port number the server is
- *                 listening on
+ *                 listening on (deprecated, use connectionMap instead)
+ * @param ssl_port_out where to store the TCP port number the server is
+ *                     listening for SSL connections (deprecated, use
+ *                     connectionMap instead)
  * @param daemon set to true if you want to run the memcached server
  *               as a daemon process
  * @param timeout Number of seconds to wait for server to start before
  *                giving up.
  */
-void TestappTest::start_server(in_port_t *port_out, in_port_t *ssl_port_out,
-                               bool daemon, int timeout)
-{
+void TestappTest::start_server(in_port_t* port_out,
+                               in_port_t* ssl_port_out,
+                               bool daemon, int timeout) {
     char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
     snprintf(mcd_parent_monitor_env, sizeof(mcd_parent_monitor_env),
              "MEMCACHED_PARENT_MONITOR=%lu", (unsigned long)getpid());
@@ -528,6 +516,7 @@ void TestappTest::start_server(in_port_t *port_out, in_port_t *ssl_port_out,
     cJSON* portnumbers;
     ASSERT_NO_THROW(portnumbers = loadJsonFile(filename));
     ASSERT_NE(nullptr, portnumbers);
+    ASSERT_NO_THROW(connectionMap.initialize(portnumbers));
 
     cJSON* array = cJSON_GetObjectItem(portnumbers, "ports");
     ASSERT_NE(nullptr, array) << "ports not found in portnumber file";
@@ -710,6 +699,7 @@ void TestappTest::start_memcached_server(cJSON* config) {
 
 void TestappTest::stop_memcached_server() {
 
+    connectionMap.invalidate();
     if (sock != INVALID_SOCKET) {
         closesocket(sock);
         sock = INVALID_SOCKET;
@@ -4109,9 +4099,11 @@ void McdEnvironment::TearDown() {
 char McdEnvironment::isasl_env_var[256];
 unique_cJSON_ptr TestappTest::memcached_cfg;
 std::string TestappTest::config_file;
+ConnectionMap TestappTest::connectionMap;
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
+    initialize_openssl();
 
 #ifdef __sun
     {
