@@ -1,12 +1,15 @@
 ADD_EXECUTABLE(memcached_testapp
+               ${Memcached_SOURCE_DIR}/programs/utilities.c
+               ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
                bucket_tests.cc
                testapp.cc testapp.h
+               testapp_rbac.cc
+               testapp_rbac.h
                testapp_shutdown.cc
                testapp_subdoc.cc
                testapp_subdoc_multipath.cc
                testapp_subdoc_perf.cc
-               ${Memcached_SOURCE_DIR}/programs/utilities.c
-               ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc)
+	       )
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform gtest gtest_main ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
 
 # Note: As well as the Transport (plain/SSL) tests there are also some

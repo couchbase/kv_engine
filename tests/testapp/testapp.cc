@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "testapp.h"
+#include "testapp_rbac.h"
 #include "testapp_subdoc.h"
 
 #include <memcached/util.h>
@@ -356,61 +357,6 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddStringToObject(root, "admin", "");
     cJSON_AddTrueToObject(root, "datatype_support");
     cJSON_AddStringToObject(root, "rbac_file", rbac_path);
-
-    return root;
-}
-
-static cJSON *generate_rbac_config(void)
-{
-    cJSON *root = cJSON_CreateObject();
-    cJSON *prof;
-    cJSON *obj;
-    cJSON *array;
-    cJSON *array2;
-
-    /* profiles */
-    array = cJSON_CreateArray();
-
-    prof = cJSON_CreateObject();
-    cJSON_AddStringToObject(prof, "name", "system");
-    cJSON_AddStringToObject(prof, "description", "system internal");
-    obj = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj, "opcode", "all");
-    cJSON_AddItemToObject(prof, "memcached", obj);
-    cJSON_AddItemToArray(array, prof);
-
-    prof = cJSON_CreateObject();
-    cJSON_AddStringToObject(prof, "name", "statistics");
-    cJSON_AddStringToObject(prof, "description", "only stat and assume");
-    obj = cJSON_CreateObject();
-
-    array2 = cJSON_CreateArray();
-    cJSON_AddItemToArray(array2, cJSON_CreateString("stat"));
-    cJSON_AddItemToArray(array2, cJSON_CreateString("assume_role"));
-    cJSON_AddItemToObject(obj, "opcode", array2);
-    cJSON_AddItemToObject(prof, "memcached", obj);
-    cJSON_AddItemToArray(array, prof);
-
-    cJSON_AddItemToObject(root, "profiles", array);
-
-    /* roles */
-    array = cJSON_CreateArray();
-    prof = cJSON_CreateObject();
-    cJSON_AddStringToObject(prof, "name", "statistics");
-    cJSON_AddStringToObject(prof, "profiles", "statistics");
-
-    cJSON_AddItemToArray(array, prof);
-    cJSON_AddItemToObject(root, "roles", array);
-
-    /* users */
-    array = cJSON_CreateArray();
-    prof = cJSON_CreateObject();
-    cJSON_AddStringToObject(prof, "login", "*");
-    cJSON_AddStringToObject(prof, "profiles", "system");
-    cJSON_AddStringToObject(prof, "roles", "statistics");
-
-    cJSON_AddItemToArray(array, prof);
-    cJSON_AddItemToObject(root, "users", array);
 
     return root;
 }
