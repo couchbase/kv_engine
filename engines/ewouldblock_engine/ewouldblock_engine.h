@@ -21,6 +21,7 @@
  * The "ewouldblock_engine" allows one to test how memcached responds when the
  * engine returns EWOULDBLOCK instead of the correct response.
  */
+#pragma once
 
 #include "config.h"
 
