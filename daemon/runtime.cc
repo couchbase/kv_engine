@@ -17,6 +17,7 @@
 #include "config.h"
 #include "runtime.h"
 
+#include <algorithm>
 #include <string>
 #include <platform/platform.h>
 
