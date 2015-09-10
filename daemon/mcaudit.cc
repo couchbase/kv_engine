@@ -19,6 +19,7 @@
 #include "mcaudit.h"
 #include "memcached_audit_events.h"
 #include "buckets.h"
+#include "debug_helpers.h"
 
 #include <memcached/audit_interface.h>
 #include <cJSON.h>
@@ -31,8 +32,7 @@
  * @param c the connection object
  * @return the cJSON object containing the basic information
  */
-static cJSON *create_memcached_audit_object(const Connection *c)
-{
+static cJSON *create_memcached_audit_object(const Connection *c) {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddStringToObject(root, "peername", c->getPeername().c_str());
     cJSON_AddStringToObject(root, "sockname", c->getSockname().c_str());
@@ -63,8 +63,7 @@ static void do_audit(const Connection *c, uint32_t id, cJSON *event, const char 
     cJSON_Delete(event);
 }
 
-void audit_auth_failure(const Connection *c, const char *reason)
-{
+void audit_auth_failure(const Connection *c, const char *reason) {
     cJSON *root = create_memcached_audit_object(c);
     cJSON_AddStringToObject(root, "reason", reason);
 
@@ -81,8 +80,7 @@ void audit_bucket_flush(const Connection *c, const char *bucket) {
 }
 
 
-void audit_dcp_open(const Connection *c)
-{
+void audit_dcp_open(const Connection *c) {
     if (c->isAdmin()) {
         settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
                                         "Open DCP stream with admin credentials");
@@ -94,4 +92,32 @@ void audit_dcp_open(const Connection *c)
                  "Failed to send DCP open connection "
                  "audit event to audit daemon");
     }
+}
+
+void audit_command_access_failed(const Connection *c) {
+    cJSON *root = create_memcached_audit_object(c);
+    char buffer[256];
+    memset(buffer, 0, sizeof(buffer));
+    // Deliberately ignore failure of bytes_to_output_string
+    // We'll either have a partial string or no string.
+    bytes_to_output_string(buffer, sizeof(buffer), c->getId(), true,
+                           "Access to command is not allowed:",
+                           reinterpret_cast<const char*>(&c->getBinaryHeader()),
+                           sizeof(protocol_binary_request_header));
+    cJSON_AddStringToObject(root, "packet", buffer);
+    do_audit(c, MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
+}
+
+void audit_invalid_packet(const Connection *c) {
+    cJSON *root = create_memcached_audit_object(c);
+    char buffer[256];
+    memset(buffer, 0, sizeof(buffer));
+    // Deliberately ignore failure of bytes_to_output_string
+    // We'll either have a partial string or no string.
+    bytes_to_output_string(buffer, sizeof(buffer), c->getId(), true,
+                           "Invalid Packet:",
+                           reinterpret_cast<const char*>(&c->getBinaryHeader()),
+                           sizeof(protocol_binary_request_header));
+    cJSON_AddStringToObject(root, "packet", buffer);
+    do_audit(c, MEMCACHED_AUDIT_INVALID_PACKET, root, buffer);
 }

@@ -630,54 +630,6 @@ static char* binary_get_key(Connection *c) {
     return c->read.curr - (c->binary_header.request.keylen);
 }
 
-/**
- * Convert a byte array to a text string
- *
- * @param dest where to store the output
- * @param destsz size of destination buffer
- * @param prefix string to insert before the data
- * @param client the client we are serving
- * @param from_client set to true if this data is from the client
- * @param data the data to add to the buffer
- * @param size the number of bytes in data to print
- * @return number of bytes in dest if success, -1 otherwise
- */
-static ssize_t bytes_to_output_string(char *dest, size_t destsz,
-                                      uint32_t client, bool from_client,
-                                      const char *prefix,
-                                      const char *data,
-                                      size_t size)
-{
-    ssize_t nw = snprintf(dest, destsz, "%c%u %s", from_client ? '>' : '<',
-                          client, prefix);
-    ssize_t offset = nw;
-
-    if (nw == -1) {
-        return -1;
-    }
-
-    for (size_t ii = 0; ii < size; ++ii) {
-        if (ii % 4 == 0) {
-            if ((nw = snprintf(dest + offset, destsz - offset, "\n%c%d  ",
-                               from_client ? '>' : '<', client)) == -1) {
-                return  -1;
-            }
-            offset += nw;
-        }
-        if ((nw = snprintf(dest + offset, destsz - offset,
-                           " 0x%02x", (unsigned char)data[ii])) == -1) {
-            return -1;
-        }
-        offset += nw;
-    }
-
-    if ((nw = snprintf(dest + offset, destsz - offset, "\n")) == -1) {
-        return -1;
-    }
-
-    return offset + nw;
-}
-
 int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_len,
                    uint32_t body_len, uint8_t datatype) {
     protocol_binary_response_header* header;
@@ -4917,12 +4869,12 @@ static void process_bin_packet(Connection *c) {
     AuthResult res = c->checkAccess(opcode);
     switch (res) {
     case AuthResult::FAIL:
-        /* @TODO Should go to audit */
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                         "%u (%s => %s): no access to command %s",
                                         c->getId(), c->getPeername().c_str(),
                                         c->getSockname().c_str(),
                                         memcached_opcode_2_text(opcode));
+        audit_command_access_failed(c);
         write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
         return;
     case AuthResult::OK: {
@@ -4936,6 +4888,7 @@ static void process_bin_packet(Connection *c) {
                     (EXTENSION_LOG_WARNING, c,
                      "%u: Invalid format for specified for %s - %d",
                      c->getId(), memcached_opcode_2_text(opcode), result);
+            audit_invalid_packet(c);
             write_bin_packet(c, result);
             return;
         }

@@ -42,6 +42,20 @@ extern "C" {
      */
     void audit_dcp_open(const Connection *c);
 
+    /*
+     * Send an audit event for command access failure
+     *
+     * param c the connection object performing DCP Open
+     */
+    void audit_command_access_failed(const Connection *c);
+
+    /**
+     * Send an audit event for a invalid and thus rejected packet
+     *
+     * param c the connection object performing DCP Open
+     */
+    void audit_invalid_packet(const Connection *c);
+
 #ifdef __cplusplus
 }
 #endif

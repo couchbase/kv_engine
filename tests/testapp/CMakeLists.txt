@@ -10,7 +10,7 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_subdoc_multipath.cc
                testapp_subdoc_perf.cc
 	       )
-TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform gtest gtest_main ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
+TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform dirutils gtest gtest_main ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
 
 # Note: As well as the Transport (plain/SSL) tests there are also some
 # other unit tests in memcached_testapp. Therefore run all _but_ the

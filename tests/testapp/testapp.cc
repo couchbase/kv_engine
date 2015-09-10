@@ -45,10 +45,10 @@
 static uint8_t read_command = 0xe1;
 static uint8_t write_command = 0xe2;
 
+McdEnvironment* mcd_env = nullptr;
+
 #define CFG_FILE_PATTERN "memcached_testapp.json.XXXXXX"
-char config_file[] = CFG_FILE_PATTERN;
 #define RBAC_FILE_PATTERN "testapp_rbac.json.XXXXXX"
-char rbac_file[] = RBAC_FILE_PATTERN;
 
 #define MAX_CONNECTIONS 1000
 #define BACKLOG 1024
@@ -60,10 +60,10 @@ char rbac_file[] = RBAC_FILE_PATTERN;
 #define phase_max 4
 static int current_phase = 0;
 
-pid_t server_pid;
+pid_t server_pid = pid_t(-1);
 in_port_t port = -1;
 static in_port_t ssl_port = -1;
-SOCKET sock;
+SOCKET sock = INVALID_SOCKET;
 static SOCKET sock_ssl;
 static std::atomic<bool> allow_closed_read;
 static time_t server_start_time = 0;
@@ -88,9 +88,7 @@ bool memcached_verbose = false;
  */
 static char mcd_parent_monitor_env[80];
 static char mcd_port_filename_env[80];
-static char isasl_pwfile_env[1024];
 
-static void stop_memcached_server(void);
 static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking);
 
 static void destroy_ssl_socket();
@@ -163,7 +161,9 @@ void TestappTest::SetUpTestCase() {
 // Per-test-case tear-down.
 // Called after the last test in this test case.
 void TestappTest::TearDownTestCase() {
-    closesocket(sock);
+    if (sock != INVALID_SOCKET) {
+       closesocket(sock);
+    }
 
     if (server_pid != reinterpret_cast<pid_t>(-1)) {
         current_phase = phase_plain;
@@ -279,7 +279,7 @@ static void log_network_error(const char* prefix) {
 #define CERTIFICATE_PATH(file) ("/tests/cert/"#file)
 #endif
 
-static void get_working_current_directory(char* out_buf, int out_buf_len) {
+void get_working_current_directory(char* out_buf, int out_buf_len) {
     bool ok = false;
 #ifdef WIN32
     ok = GetCurrentDirectory(out_buf_len, out_buf) != 0;
@@ -305,7 +305,7 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
 
     get_working_current_directory(pem_path, 256);
     strncpy(cert_path, pem_path, 256);
-    snprintf(rbac_path, sizeof(rbac_path), "%s/%s", pem_path, rbac_file);
+    snprintf(rbac_path, sizeof(rbac_path), "%s/%s", pem_path, mcd_env->getRbacFilename());
     strncat(pem_path, CERTIFICATE_PATH(testapp.pem), 256);
     strncat(cert_path, CERTIFICATE_PATH(testapp.cert), 256);
 
@@ -361,7 +361,7 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     return root;
 }
 
-static int write_config_to_file(const char* config, const char *fname) {
+int write_config_to_file(const char* config, const char *fname) {
     FILE *fp;
     if ((fp = fopen(fname, "w")) == NULL) {
         return -1;
@@ -413,8 +413,8 @@ static cJSON* loadJsonFile(const std::string &file) {
  * @param timeout Number of seconds to wait for server to start before
  *                giving up.
  */
-static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
-                         bool daemon, int timeout)
+void TestappTest::start_server(in_port_t *port_out, in_port_t *ssl_port_out,
+                               bool daemon, int timeout)
 {
     char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
 #ifdef __sun
@@ -450,7 +450,7 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
     sinfo.cb = sizeof(sinfo);
 
     char commandline[1024];
-    sprintf(commandline, "memcached.exe -C %s", config_file);
+    sprintf(commandline, "memcached.exe -C %s", config_file.c_str());
 
     putenv(mcd_port_filename_env);
 
@@ -496,7 +496,7 @@ static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
         }
         argv[arg++] = "./memcached";
         argv[arg++] = "-C";
-        argv[arg++] = (char*)config_file;
+        argv[arg++] = config_file.c_str();
 
         argv[arg++] = NULL;
         cb_assert(execvp(argv[0], const_cast<char **>(argv)) != -1);
@@ -715,36 +715,17 @@ static void reconnect_to_server(bool nonblocking) {
     }
 }
 
-static char *isasl_file;
-
 void TestappTest::start_memcached_server(cJSON* config) {
 
-    strncpy(config_file, CFG_FILE_PATTERN, sizeof(config_file));
-    ASSERT_NE(cb_mktemp(config_file), nullptr);
+    char config_file_pattern [] = CFG_FILE_PATTERN;
+    strncpy(config_file_pattern, CFG_FILE_PATTERN, sizeof(config_file_pattern));
+    ASSERT_NE(cb_mktemp(config_file_pattern), nullptr);
+    config_file = config_file_pattern;
 
     char* config_string = cJSON_Print(config);
 
-    ASSERT_EQ(0, write_config_to_file(config_string, config_file));
+    ASSERT_EQ(0, write_config_to_file(config_string, config_file.c_str()));
     cJSON_Free(config_string);
-
-    char fname[1024];
-    snprintf(fname, sizeof(fname), "isasl.%lu.%lu.pw",
-             (unsigned long)getpid(),
-             (unsigned long)time(NULL));
-    isasl_file = strdup(fname);
-    ASSERT_NE(nullptr, isasl_file);
-
-    FILE *fp = fopen(isasl_file, "w");
-    ASSERT_NE(nullptr, fp);
-    fprintf(fp, "_admin password \n");
-    for (int ii = 0; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
-        fprintf(fp, "mybucket_%03u mybucket_%03u \n", ii, ii);
-    }
-    fclose(fp);
-
-    snprintf(isasl_pwfile_env, sizeof(isasl_pwfile_env), "ISASL_PWFILE=%s",
-             isasl_file);
-    putenv(isasl_pwfile_env);
 
     // We need to set MEMCACHED_UNIT_TESTS to enable the use of
     // the ewouldblock engine..
@@ -756,9 +737,12 @@ void TestappTest::start_memcached_server(cJSON* config) {
     start_server(&port, &ssl_port, false, 30);
 }
 
-static void stop_memcached_server(void) {
-    closesocket(sock);
-    sock = INVALID_SOCKET;
+void TestappTest::stop_memcached_server() {
+
+    if (sock != INVALID_SOCKET) {
+        closesocket(sock);
+        sock = INVALID_SOCKET;
+    }
 
     if (server_pid != reinterpret_cast<pid_t>(-1)) {
 #ifdef WIN32
@@ -776,11 +760,13 @@ static void stop_memcached_server(void) {
             EXPECT_EQ(0, WEXITSTATUS(status));
         }
 #endif
+        server_pid = pid_t(-1);
     }
 
-    EXPECT_NE(-1, remove(config_file));
-    EXPECT_NE(-1, remove(isasl_file));
-    free(isasl_file);
+    if (!config_file.empty()) {
+        EXPECT_NE(-1, remove(config_file.c_str()));
+        config_file.clear();
+    }
 }
 
 static ssize_t socket_send(SOCKET s, const char *buf, size_t len)
@@ -2632,7 +2618,7 @@ TEST_P(McdTestappTest, Config_Reload) {
                                   cJSON_CreateNumber(MAX_CONNECTIONS * 2));
         dyn_string = cJSON_Print(dynamic);
         cJSON_Delete(dynamic);
-        if (write_config_to_file(dyn_string, config_file) == -1) {
+        if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
             cJSON_Free(dyn_string);
             FAIL() << "Failed to write config to file";
         }
@@ -2659,7 +2645,7 @@ TEST_P(McdTestappTest, Config_Reload) {
                                   cJSON_CreateNumber(BACKLOG * 2));
         dyn_string = cJSON_Print(dynamic);
         cJSON_Delete(dynamic);
-        if (write_config_to_file(dyn_string, config_file) == -1) {
+        if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
             cJSON_Free(dyn_string);
             FAIL() << "Failed to write config to file";
         }
@@ -2685,7 +2671,7 @@ TEST_P(McdTestappTest, Config_Reload) {
         cJSON_AddFalseToObject(iface, "tcp_nodelay");
         dyn_string = cJSON_Print(dynamic);
         cJSON_Delete(dynamic);
-        if (write_config_to_file(dyn_string, config_file) == -1) {
+        if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
             cJSON_Free(dyn_string);
             FAIL() << "Failed to write config to file";
         }
@@ -2713,7 +2699,7 @@ TEST_P(McdTestappTest, Config_Reload) {
         char* ptr = strchr(dyn_string, '{');
         ASSERT_NE(nullptr, ptr);
         *ptr = '}';
-        if (write_config_to_file(dyn_string, config_file) == -1) {
+        if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
             cJSON_Free(dyn_string);
             FAIL() << "Failed to write config to file";
         }
@@ -2734,7 +2720,7 @@ TEST_P(McdTestappTest, Config_Reload) {
     cJSON *dynamic = generate_config(ssl_port);
     char* dyn_string = cJSON_Print(dynamic);
     cJSON_Delete(dynamic);
-    if (write_config_to_file(dyn_string, config_file) == -1) {
+    if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
         cJSON_Free(dyn_string);
         FAIL() << "Failed to write config to file";
     }
@@ -2780,7 +2766,7 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(cert_path));
     dyn_string = cJSON_Print(dynamic);
     cJSON_Delete(dynamic);
-    if (write_config_to_file(dyn_string, config_file) == -1) {
+    if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
         cJSON_Free(dyn_string);
         FAIL() << "Failed to write config to file";
     }
@@ -4354,31 +4340,57 @@ INSTANTIATE_TEST_CASE_P(PlainOrSSL,
                         McdTestappTest,
                         ::testing::Values(Transport::Plain, Transport::SSL));
 
-class McdEnvironment : public ::testing::Environment{
-public:
-    virtual void SetUp() {
-        // Create an rbac config file for use for all tests
-        cJSON *rbac = generate_rbac_config();
-        char *rbac_text = cJSON_Print(rbac);
+void McdEnvironment::SetUp() {
+    // Create an rbac config file for use for all tests
+    cJSON *rbac = generate_rbac_config();
+    char *rbac_text = cJSON_Print(rbac);
 
-        strncpy(rbac_file, RBAC_FILE_PATTERN, sizeof(rbac_file));
-        ASSERT_NE(cb_mktemp(rbac_file), nullptr);
+    char rbac_file_pattern [] = RBAC_FILE_PATTERN;
+    strncpy(rbac_file_pattern, RBAC_FILE_PATTERN, sizeof(rbac_file_pattern));
+    ASSERT_NE(cb_mktemp(rbac_file_pattern), nullptr);
+    rbac_file_name = rbac_file_pattern;
 
-        ASSERT_EQ(0, write_config_to_file(rbac_text, rbac_file));
+    ASSERT_EQ(0, write_config_to_file(rbac_text, rbac_file_name.c_str()));
 
-        cJSON_Free(rbac_text);
-        cJSON_Delete(rbac);
+    cJSON_Free(rbac_text);
+    cJSON_Delete(rbac);
+
+    // Create an isasl file for all tests.
+    isasl_file_name = "isasl." + std::to_string(getpid()) +
+                      "." + std::to_string(time(NULL)) + ".pw";
+
+    // write out user/passwords
+    std::ofstream isasl(isasl_file_name,
+                        std::ofstream::out | std::ofstream::trunc);
+    ASSERT_TRUE(isasl.is_open());
+    isasl << "_admin password " << std::endl;
+    for (int ii = 0; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
+        std::stringstream line;
+        line << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
+        line << " mybucket_" << std::setfill('0') << std::setw(3) << ii
+             << " " << std::endl;
+        isasl << line.rdbuf();
     }
 
-    virtual void TearDown() {
-        // Cleanup RBAC config file.
-        EXPECT_NE(-1, remove(rbac_file));
+    // Add the file to the exec environment
+    snprintf(isasl_env_var, sizeof(isasl_env_var),
+             "ISASL_PWFILE=%s", isasl_file_name.c_str());
+    putenv(isasl_env_var);
+}
 
-        shutdown_openssl();
-    }
-};
+void McdEnvironment::TearDown() {
+    // Cleanup RBAC config file.
+    EXPECT_NE(-1, remove(rbac_file_name.c_str()));
 
+    // Cleanup isasl file
+    EXPECT_NE(-1, remove(isasl_file_name.c_str()));
+
+    shutdown_openssl();
+}
+
+char McdEnvironment::isasl_env_var[256];
 unique_cJSON_ptr TestappTest::memcached_cfg;
+std::string TestappTest::config_file;
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
@@ -4397,9 +4409,8 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
-
-    McdEnvironment* env = new McdEnvironment();
-    ::testing::AddGlobalTestEnvironment(env);
+    mcd_env = new McdEnvironment();
+    ::testing::AddGlobalTestEnvironment(mcd_env);
 
     cb_initialize_sockets();
 

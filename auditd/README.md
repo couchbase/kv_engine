@@ -263,11 +263,12 @@ An example configuration is presented below.
 
        {
         "version":      1,
-        "daemon_enabled":       true,
+        "auditd_enabled":       true,
         "rotate_interval":      1440,
         "rotate_size":          20971520,
         "buffered":             true,
-        "log_path", "/var/lib/couchbase/logs",
+        "log_path": "/var/lib/couchbase/logs",
+        "descriptors_path" : "/path/to/directory/containing/audit_events.json/",
         "disabled": [],
         "sync": []
        }

@@ -80,6 +80,10 @@ protected:
     static cJSON* generate_config(uint16_t ssl_port);
 
     static void start_memcached_server(cJSON* config);
+    static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
+                             bool daemon, int timeout);
+
+    static void stop_memcached_server();
 
     // Create the bucket used for testing
     static void CreateTestBucket();
@@ -94,6 +98,8 @@ protected:
 
     // JSON configuration (as JSON object) memcached was configured with.
     static unique_cJSON_ptr memcached_cfg;
+
+    static std::string config_file;
 };
 
 // Test the various memcached binary protocol commands against a
@@ -120,6 +126,21 @@ protected:
                             bool pipeline, int iterations, int message_size);
 
     void test_subdoc_dict_add_cas(bool compress, protocol_binary_command cmd);
+};
+
+class McdEnvironment : public ::testing::Environment {
+public:
+
+    virtual void SetUp();
+    virtual void TearDown();
+
+    const char* getRbacFilename() const {
+        return rbac_file_name.c_str();
+    }
+private:
+    std::string isasl_file_name;
+    std::string rbac_file_name;
+    static char isasl_env_var[256];
 };
 
 SOCKET connect_to_server_plain(in_port_t port, bool nonblocking);
@@ -202,3 +223,7 @@ bool safe_recv_packet(void *buf, size_t size);
  */
 void validate_response_header(protocol_binary_response_no_extras *response,
                               uint8_t cmd, uint16_t status);
+
+int write_config_to_file(const char* config, const char *fname);
+
+void get_working_current_directory(char* out_buf, int out_buf_len);
