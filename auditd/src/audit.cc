@@ -212,7 +212,7 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
     cJSON *real_userid = cJSON_CreateObject();
     cJSON_AddStringToObject(real_userid, "source", "internal");
     cJSON_AddStringToObject(real_userid, "user", "couchbase");
-    cJSON_AddItemReferenceToObject(payload, "real_userid", real_userid);
+    cJSON_AddItemToObject(payload, "real_userid", real_userid);
 
     switch (event_id) {
         case AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON:
