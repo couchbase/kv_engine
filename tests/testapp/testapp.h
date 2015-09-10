@@ -19,6 +19,8 @@
 
 #include "config.h"
 
+#include "testapp_binprot.h"
+
 #include <memory>
 #include <stdint.h>
 #include <stdlib.h>
@@ -181,9 +183,6 @@ enum test_return store_object_w_datatype(const char *key,
                                          const void *data, size_t datalen,
                                          bool deflate, bool json);
 
-/* Populate buf with a binary command with the given parameters. */
-off_t raw_command(char* buf, size_t bufsz, uint8_t cmd, const void* key,
-                  size_t keylen, const void* dta, size_t dtalen);
 
 // Enables / disables the MUTATION_SEQNO feature.
 void set_mutation_seqno_feature(bool enable);
@@ -218,11 +217,6 @@ void safe_send(const void* buf, size_t len, bool hickup);
 /* Attempts to receive size bytes into buf. Returns true if successful.
  */
 bool safe_recv_packet(void *buf, size_t size);
-
-/* Validate the specified response header against the expected cmd and status.
- */
-void validate_response_header(protocol_binary_response_no_extras *response,
-                              uint8_t cmd, uint16_t status);
 
 int write_config_to_file(const char* config, const char *fname);
 

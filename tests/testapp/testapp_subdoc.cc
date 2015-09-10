@@ -122,8 +122,9 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
 
-    validate_response_header((protocol_binary_response_no_extras*)&receive.response,
-                             expected_cmd, expected_status);
+    mcbp_validate_response_header(
+        (protocol_binary_response_no_extras*)&receive.response,
+        expected_cmd, expected_status);
 
     const protocol_binary_response_header* header = &receive.response.message.header;
 
@@ -156,8 +157,9 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
 
-    validate_response_header((protocol_binary_response_no_extras*)&receive.response,
-                             expected_cmd, expected_status);
+    mcbp_validate_response_header(
+        (protocol_binary_response_no_extras*)&receive.response,
+        expected_cmd, expected_status);
 
     // Decode body and check against expected_results
     const auto& header = receive.response.message.header;
@@ -237,8 +239,9 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
 
-    validate_response_header((protocol_binary_response_no_extras*)&receive.response,
-                             expected_cmd, expected_status);
+    mcbp_validate_response_header(
+        (protocol_binary_response_no_extras*)&receive.response,
+        expected_cmd, expected_status);
 
     // TODO: Check extras for subdoc command and mutation / seqno (if enabled).
 

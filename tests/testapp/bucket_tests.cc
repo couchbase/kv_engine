@@ -33,46 +33,46 @@ TEST_P(McdTestappTest, TestMaxBuckets)
     // We've already created two buckets, the "NO-bucket" and default
     for (int ii = 2; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
         snprintf(name, sizeof(name), "mybucket_%03u", ii);
-        size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                                  name, strlen(name),
-                                  cfg, strlen(cfg));
+        size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                       PROTOCOL_BINARY_CMD_CREATE_BUCKET,
+                                       name, strlen(name),
+                                       cfg, strlen(cfg));
 
         safe_send(buffer.bytes, plen, false);
         safe_recv_packet(&buffer, sizeof(buffer));
 
-        validate_response_header(&buffer.response,
-                                 PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_CREATE_BUCKET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     }
 
     snprintf(name, sizeof(name), "mybucket_%03u", 0);
-    size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                              PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                              name, strlen(name),
-                              cfg, strlen(cfg));
+    size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                   PROTOCOL_BINARY_CMD_CREATE_BUCKET,
+                                   name, strlen(name),
+                                   cfg, strlen(cfg));
 
     safe_send(buffer.bytes, plen, false);
     safe_recv_packet(&buffer, sizeof(buffer));
 
-    validate_response_header(&buffer.response,
-                             PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                             PROTOCOL_BINARY_RESPONSE_E2BIG);
+    mcbp_validate_response_header(&buffer.response,
+                                  PROTOCOL_BINARY_CMD_CREATE_BUCKET,
+                                  PROTOCOL_BINARY_RESPONSE_E2BIG);
 
     for (int ii = 2; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
         snprintf(name, sizeof(name), "mybucket_%03u", ii);
-        size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                                  name, strlen(name),
-                                  NULL, 0);
+        size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                       PROTOCOL_BINARY_CMD_DELETE_BUCKET,
+                                       name, strlen(name),
+                                       NULL, 0);
 
         safe_send(buffer.bytes, plen, false);
         safe_recv_packet(&buffer, sizeof(buffer));
 
-        validate_response_header(&buffer.response,
-                                 PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_DELETE_BUCKET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     }
 }
@@ -92,17 +92,17 @@ TEST_P(McdTestappTest, TestBucketIsolationBuckets)
 
     for (int ii = 2; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
         snprintf(name, sizeof(name), "mybucket_%03u", ii);
-        size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                                  name, strlen(name),
-                                  cfg, strlen(cfg));
+        size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                       PROTOCOL_BINARY_CMD_CREATE_BUCKET,
+                                       name, strlen(name),
+                                       cfg, strlen(cfg));
 
         safe_send(buffer.bytes, plen, false);
         safe_recv_packet(&buffer, sizeof(buffer));
 
-        validate_response_header(&buffer.response,
-                                 PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_CREATE_BUCKET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     }
 
@@ -119,25 +119,25 @@ TEST_P(McdTestappTest, TestBucketIsolationBuckets)
                                      0, 0);
         safe_send(buffer.bytes, len, false);
         safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_ADD,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_ADD,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("_admin",
                                                           "password"));
     for (int ii = 2; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
         snprintf(name, sizeof(name), "mybucket_%03u", ii);
-        size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                  PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                                  name, strlen(name),
-                                  NULL, 0);
+        size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                       PROTOCOL_BINARY_CMD_DELETE_BUCKET,
+                                       name, strlen(name),
+                                       NULL, 0);
 
         safe_send(buffer.bytes, plen, false);
         safe_recv_packet(&buffer, sizeof(buffer));
 
-        validate_response_header(&buffer.response,
-                                 PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_DELETE_BUCKET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     }
 }

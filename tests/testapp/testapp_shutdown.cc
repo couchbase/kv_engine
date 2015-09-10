@@ -61,9 +61,9 @@ protected:
     void setControlToken() {
         std::vector<char> message;
         message.resize(32);
-        raw_command(message.data(), message.size(),
-                    PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
-                    nullptr, 0, nullptr, 0);
+        mcbp_raw_command(message.data(), message.size(),
+                         PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
+                         nullptr, 0, nullptr, 0);
 
         char* ptr = reinterpret_cast<char*>(&token);
         memcpy(message.data() + 24, ptr, sizeof(token));
@@ -72,8 +72,8 @@ protected:
         uint8_t buffer[1024];
         safe_recv_packet(buffer, sizeof(buffer));
         auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(buffer);
-        validate_response_header(rsp, PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp_validate_response_header(rsp, PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     }
 
@@ -83,15 +83,15 @@ protected:
     void assumeRole(const std::string& role) {
         std::vector<char> message;
         message.resize(24 + role.size());
-        raw_command(message.data(), message.size(),
-                    PROTOCOL_BINARY_CMD_ASSUME_ROLE,
-                    role.c_str(), role.length(), nullptr, 0);
+        mcbp_raw_command(message.data(), message.size(),
+                         PROTOCOL_BINARY_CMD_ASSUME_ROLE,
+                         role.c_str(), role.length(), nullptr, 0);
         safe_send(message.data(), message.size(), false);
         uint8_t buffer[1024];
         safe_recv_packet(buffer, sizeof(buffer));
         auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(buffer);
-        validate_response_header(rsp, PROTOCOL_BINARY_CMD_ASSUME_ROLE,
-                                 PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        mcbp_validate_response_header(rsp, PROTOCOL_BINARY_CMD_ASSUME_ROLE,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     }
 
@@ -103,8 +103,9 @@ protected:
         // build the shutdown packet
         std::vector<char> packet;
         packet.resize(24);
-        raw_command(packet.data(), packet.size(), PROTOCOL_BINARY_CMD_SHUTDOWN,
-                    nullptr, 0, nullptr, 0);
+        mcbp_raw_command(packet.data(), packet.size(),
+                         PROTOCOL_BINARY_CMD_SHUTDOWN,
+                         nullptr, 0, nullptr, 0);
         char* ptr = reinterpret_cast<char*>(&token);
         memcpy(packet.data() + 16, ptr, sizeof(token));
         safe_send(packet.data(), packet.size(), false);
@@ -112,7 +113,7 @@ protected:
         uint8_t buffer[1024];
         safe_recv_packet(buffer, sizeof(buffer));
         auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(buffer);
-        validate_response_header(rsp, PROTOCOL_BINARY_CMD_SHUTDOWN, status);
+        mcbp_validate_response_header(rsp, PROTOCOL_BINARY_CMD_SHUTDOWN, status);
     }
 
     uint64_t token;
