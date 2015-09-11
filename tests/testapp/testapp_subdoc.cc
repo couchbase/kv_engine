@@ -1749,7 +1749,7 @@ TEST_F(WorkerConcurrencyTest, SubdocArrayPushLast_Concurrent) {
     // Create an additional second connection to memcached.
     SOCKET* current_sock = &sock;
     SOCKET sock1 = *current_sock;
-    SOCKET sock2 = connect_to_server_plain(port, false);
+    SOCKET sock2 = connect_to_server_plain(port);
     ASSERT_NE(sock2, INVALID_SOCKET);
     sock = sock1;
 

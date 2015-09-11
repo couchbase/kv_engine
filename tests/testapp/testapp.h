@@ -143,7 +143,7 @@ private:
     static char isasl_env_var[256];
 };
 
-SOCKET connect_to_server_plain(in_port_t port, bool nonblocking);
+SOCKET connect_to_server_plain(in_port_t port);
 
 /* Compress the given document. Returns the size of the compressed document,
  * and deflated is updated to point to the compressed buffer.

@@ -89,7 +89,7 @@ bool memcached_verbose = false;
 static char mcd_parent_monitor_env[80];
 static char mcd_port_filename_env[80];
 
-static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking);
+static SOCKET connect_to_server_ssl(in_port_t ssl_port);
 
 static void destroy_ssl_socket();
 
@@ -112,7 +112,7 @@ void TestappTest::CreateTestBucket()
     int phase = current_phase;
     current_phase = phase_plain;
 
-    sock = connect_to_server_plain(port, false);
+    sock = connect_to_server_plain(port);
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("_admin",
                                                           "password"));
     union {
@@ -167,7 +167,7 @@ void TestappTest::TearDownTestCase() {
 
     if (server_pid != reinterpret_cast<pid_t>(-1)) {
         current_phase = phase_plain;
-        sock = connect_to_server_plain(port, false);
+        sock = connect_to_server_plain(port);
         ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth("_admin",
                                                               "password"));
         union {
@@ -195,7 +195,7 @@ void TestappTest::TearDownTestCase() {
 void TestappTest::SetUp() {
     ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
     current_phase = phase_plain;
-    sock = connect_to_server_plain(port, false);
+    sock = connect_to_server_plain(port);
     ASSERT_NE(INVALID_SOCKET, sock);
 
     // Set ewouldblock_engine test harness to default mode.
@@ -228,11 +228,11 @@ void McdTestappTest::SetUp() {
     ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
     if (GetParam() == Transport::Plain) {
         current_phase = phase_plain;
-        sock = connect_to_server_plain(port, false);
+        sock = connect_to_server_plain(port);
         ASSERT_NE(INVALID_SOCKET, sock);
     } else {
         current_phase = phase_ssl;
-        sock_ssl = connect_to_server_ssl(ssl_port, false);
+        sock_ssl = connect_to_server_ssl(ssl_port);
         ASSERT_NE(INVALID_SOCKET, sock_ssl);
     }
 
@@ -603,7 +603,7 @@ static struct addrinfo *lookuphost(const char *hostname, in_port_t port)
 
 
 
-static SOCKET create_connect_plain_socket(const char *hostname, in_port_t port, bool nonblock)
+static SOCKET create_connect_plain_socket(const char *hostname, in_port_t port)
 {
     struct addrinfo *ai = lookuphost(hostname, port);
     SOCKET sock = INVALID_SOCKET;
@@ -624,7 +624,7 @@ static SOCKET create_connect_plain_socket(const char *hostname, in_port_t port, 
     return sock;
 }
 
-static SOCKET create_connect_ssl_socket(const char *hostname, in_port_t port, bool nonblocking) {
+static SOCKET create_connect_ssl_socket(const char *hostname, in_port_t port) {
     char port_str[32];
     snprintf(port_str, 32, "%d", port);
 
@@ -664,35 +664,23 @@ static void destroy_ssl_socket() {
     ssl_ctx = nullptr;
 }
 
-SOCKET connect_to_server_plain(in_port_t port, bool nonblocking) {
-    SOCKET sock = create_connect_plain_socket("127.0.0.1", port, nonblocking);
+SOCKET connect_to_server_plain(in_port_t port) {
+    SOCKET sock = create_connect_plain_socket("127.0.0.1", port);
     if (sock == INVALID_SOCKET) {
         ADD_FAILURE() << "Failed to connect socket to port" << port;
         return INVALID_SOCKET;
     }
 
-    if (nonblocking) {
-        if (evutil_make_socket_nonblocking(sock) == -1) {
-            fprintf(stderr, "evutil_make_socket_nonblocking failed\n");
-            abort();
-        }
-    }
     return sock;
 }
 
-static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking) {
-    SOCKET sock = create_connect_ssl_socket("127.0.0.1", ssl_port, nonblocking);
+static SOCKET connect_to_server_ssl(in_port_t ssl_port) {
+    SOCKET sock = create_connect_ssl_socket("127.0.0.1", ssl_port);
     if (sock == INVALID_SOCKET) {
         ADD_FAILURE() << "Failed to connect SSL socket to port" << ssl_port;
         return INVALID_SOCKET;
     }
 
-    if (nonblocking) {
-        if (evutil_make_socket_nonblocking(sock) == -1) {
-            fprintf(stderr, "evutil_make_socket_nonblocking failed\n");
-            abort();
-        }
-    }
     return sock;
 }
 
@@ -701,16 +689,16 @@ static SOCKET connect_to_server_ssl(in_port_t ssl_port, bool nonblocking) {
     Uses global port and ssl_port values.
     New socket-fd written to global "sock" and "ssl_bio"
 */
-static void reconnect_to_server(bool nonblocking) {
+static void reconnect_to_server() {
     if (current_phase == phase_ssl) {
         closesocket(sock_ssl);
         destroy_ssl_socket();
 
-        sock_ssl = connect_to_server_ssl(ssl_port, nonblocking);
+        sock_ssl = connect_to_server_ssl(ssl_port);
         ASSERT_NE(INVALID_SOCKET, sock_ssl);
     } else {
         closesocket(sock);
-        sock = connect_to_server_plain(port, nonblocking);
+        sock = connect_to_server_plain(port);
         ASSERT_NE(INVALID_SOCKET, sock);
     }
 }
@@ -1354,7 +1342,7 @@ void test_quit_impl(uint8_t cmd) {
     /* Socket should be closed now, read should return 0 */
     EXPECT_EQ(0, phase_recv(buffer.bytes, sizeof(buffer.bytes)));
 
-    reconnect_to_server(false);
+    reconnect_to_server();
 }
 
 TEST_P(McdTestappTest, Quit) {
@@ -2339,7 +2327,7 @@ TEST_P(McdTestappTest, PipelineHickup)
 
     cb_join_thread(tid);
 
-    reconnect_to_server(false);
+    reconnect_to_server();
 }
 
 TEST_P(McdTestappTest, IOCTL_Get) {
@@ -3253,7 +3241,7 @@ TEST_P(McdTestappTest, DatatypeInvalid) {
     code = res.response.message.header.response.status;
     ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, code);
 
-    reconnect_to_server(false);
+    reconnect_to_server();
 
     set_datatype_feature(false);
     request.message.header.request.datatype = 4;
@@ -3262,7 +3250,7 @@ TEST_P(McdTestappTest, DatatypeInvalid) {
     code = res.response.message.header.response.status;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, code);
 
-    reconnect_to_server(false);
+    reconnect_to_server();
 }
 
 static uint64_t get_session_ctrl_token(void) {
@@ -3841,7 +3829,7 @@ TEST_P(McdTestappTest, MB_12762_SSLHandshakeHang) {
      * 'plain' TCP connection to the SSL port - i.e. without any SSL handshake.
      */
     closesocket(sock_ssl);
-    sock_ssl = create_connect_plain_socket("127.0.0.1", ssl_port, false);
+    sock_ssl = create_connect_plain_socket("127.0.0.1", ssl_port);
 
     /* Send a payload which is NOT a valid SSL handshake: */
     char buf[] = {'a', '\n'};
@@ -3879,7 +3867,7 @@ TEST_P(McdTestappTest, MB_12762_SSLHandshakeHang) {
     cb_assert(len == 0);
 
     /* Restore the SSL connection to a sane state :) */
-    reconnect_to_server(false);
+    reconnect_to_server();
 }
 
 std::string get_sasl_mechs(void) {
@@ -4059,7 +4047,7 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize)
     validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                              PROTOCOL_BINARY_RESPONSE_EINVAL);
 
-    reconnect_to_server(false);
+    reconnect_to_server();
 }
 
 /**

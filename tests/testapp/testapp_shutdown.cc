@@ -38,7 +38,7 @@ public:
         TestappTest::SetUpTestCase();
 
         ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
-        sock = connect_to_server_plain(port, false);
+        sock = connect_to_server_plain(port);
         ASSERT_NE(INVALID_SOCKET, sock);
 
         setControlToken();
