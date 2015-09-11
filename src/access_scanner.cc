@@ -42,10 +42,13 @@ public:
         cb_assert(log != NULL);
         log->open();
         if (!log->isOpen()) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to open access log: %s",
+            LOG(EXTENSION_LOG_WARNING, "Failed to open access log: '%s'",
                 next.c_str());
             delete log;
             log = NULL;
+        } else {
+            LOG(EXTENSION_LOG_NOTICE, "Attempting to generate new access file "
+                "'%s'", next.c_str());
         }
     }
 
@@ -95,44 +98,59 @@ public:
             stats.accessScannerHisto.add((gethrtime() - taskStart) / 1000);
 
             if (num_items == 0) {
-                LOG(EXTENSION_LOG_INFO, "The new access log is empty. "
-                    "Delete it without replacing the current access log...\n");
+                LOG(EXTENSION_LOG_NOTICE, "The new access log file is empty. "
+                    "Delete it without replacing the current access log...");
                 remove(next.c_str());
-                if (stateFinalizer) {
-                    if (++(as->completedCount) ==
-                                        store.getVBuckets().getNumShards()) {
-                        *stateFinalizer = true;
-                    }
-                }
+                updateStateFinalizer();
                 return;
             }
 
             if (access(prev.c_str(), F_OK) == 0 && remove(prev.c_str()) == -1){
-                LOG(EXTENSION_LOG_WARNING, "Failed to remove '%s': %s",
-                    prev.c_str(), strerror(errno));
+                LOG(EXTENSION_LOG_WARNING, "Failed to remove access log file "
+                    "'%s': %s", prev.c_str(), strerror(errno));
                 remove(next.c_str());
-            } else if (access(name.c_str(), F_OK) == 0 && rename(name.c_str(),
-                                                          prev.c_str()) == -1){
-                LOG(EXTENSION_LOG_WARNING,
-                    "Failed to rename '%s' to '%s': %s",
-                    name.c_str(), prev.c_str(), strerror(errno));
-                remove(next.c_str());
-            } else if (rename(next.c_str(), name.c_str()) == -1) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "Failed to rename '%s' to '%s': %s",
-                    next.c_str(), name.c_str(), strerror(errno));
-                remove(next.c_str());
+                updateStateFinalizer();
+                return;
             }
+            LOG(EXTENSION_LOG_NOTICE, "Removed old access log file: '%s'",
+                prev.c_str());
+            if (access(name.c_str(), F_OK) == 0 && rename(name.c_str(),
+                                                          prev.c_str()) == -1){
+                LOG(EXTENSION_LOG_WARNING, "Failed to rename access log file "
+                    "from '%s' to '%s': %s", name.c_str(), prev.c_str(),
+                    strerror(errno));
+                remove(next.c_str());
+                updateStateFinalizer();
+                return;
+            }
+            LOG(EXTENSION_LOG_NOTICE, "Renamed access log file from '%s' to "
+                "'%s'", name.c_str(), prev.c_str());
+            if (rename(next.c_str(), name.c_str()) == -1) {
+                LOG(EXTENSION_LOG_WARNING, "Failed to rename access log file "
+                    "from '%s' to '%s': %s", next.c_str(), name.c_str(),
+                    strerror(errno));
+                remove(next.c_str());
+                updateStateFinalizer();
+                return;
+            }
+            LOG(EXTENSION_LOG_NOTICE, "New access log file '%s' created with "
+                "%" PRIu64 " keys", name.c_str(),
+                static_cast<uint64_t>(num_items));
         }
 
+        updateStateFinalizer();
+    }
+
+private:
+    void updateStateFinalizer() {
         if (stateFinalizer) {
-            if (++(as->completedCount) == store.getVBuckets().getNumShards()) {
+            if (++(as->completedCount) ==
+                store.getVBuckets().getNumShards()) {
                 *stateFinalizer = true;
             }
         }
     }
 
-private:
     EventuallyPersistentStore &store;
     EPStats &stats;
     rel_time_t startTime;
