@@ -70,43 +70,50 @@ void KVStore::createDataDir(const std::string& dbname) {
     }
 }
 
-std::string KVStore::updateCachedVBState(uint16_t vbid, uint64_t maxDeletedRevSeqno,
-                                         uint64_t snapStartSeqno, uint64_t snapEndSeqno,
-                                         uint64_t maxCas, uint64_t driftCounter) {
+std::string KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) {
 
     std::string output;
     vbucket_state *vbState = cachedVBStates[vbid];
 
-    if (vbState) {
-        if (maxDeletedRevSeqno > 0 &&
-                vbState->maxDeletedSeqno < maxDeletedRevSeqno) {
-            vbState->maxDeletedSeqno = maxDeletedRevSeqno;
+    if (vbState != nullptr) {
+        //Check if the cached state requires any update
+        if (*vbState == newState) {
+            return output;
         }
 
-        vbState->lastSnapStart = snapStartSeqno;
-        vbState->lastSnapEnd = snapEndSeqno;
+        vbState->state = newState.state;
+        vbState->checkpointId = newState.checkpointId;
+        vbState->failovers = newState.failovers;
 
-        if (maxCas > vbState->maxCas) {
-            vbState->maxCas = maxCas;
+        if (newState.maxDeletedSeqno > 0 &&
+                vbState->maxDeletedSeqno < newState.maxDeletedSeqno) {
+            vbState->maxDeletedSeqno = newState.maxDeletedSeqno;
         }
 
-        vbState->driftCounter = driftCounter;
-
-        std::stringstream jsonState;
-        jsonState << "{\"state\": \"" << VBucket::toString(vbState->state) << "\""
-                  << ",\"checkpoint_id\": \"" << vbState->checkpointId << "\""
-                  << ",\"max_deleted_seqno\": \"" << vbState->maxDeletedSeqno << "\""
-                  << ",\"failover_table\": " << vbState->failovers
-                  << ",\"snap_start\": \"" << vbState->lastSnapStart << "\""
-                  << ",\"snap_end\": \"" << vbState->lastSnapEnd << "\""
-                  << ",\"max_cas\": \"" << vbState->maxCas << "\""
-                  << ",\"drift_counter\": \"" << vbState->driftCounter << "\""
-                  << "}";
-
-        output = jsonState.str();
+        vbState->lastSnapStart = newState.lastSnapStart;
+        vbState->lastSnapEnd = newState.lastSnapEnd;
+        vbState->maxCas = std::max(vbState->maxCas, newState.maxCas);
+        vbState->driftCounter = newState.driftCounter;
+    } else {
+        cachedVBStates[vbid] = new vbucket_state(newState);
     }
 
-    return output;
+    return newState.toJSON();
+}
+
+std::string vbucket_state::toJSON() const {
+    std::stringstream jsonState;
+    jsonState << "{\"state\": \"" << VBucket::toString(state) << "\""
+              << ",\"checkpoint_id\": \"" << checkpointId << "\""
+              << ",\"max_deleted_seqno\": \"" << maxDeletedSeqno << "\""
+              << ",\"failover_table\": " << failovers
+              << ",\"snap_start\": \"" << lastSnapStart << "\""
+              << ",\"snap_end\": \"" << lastSnapEnd << "\""
+              << ",\"max_cas\": \"" << maxCas << "\""
+              << ",\"drift_counter\": \"" << driftCounter << "\""
+              << "}";
+
+    return jsonState.str();
 }
 
 IORequest::IORequest(uint16_t vbId, MutationRequestCallback &cb , bool del,

@@ -138,6 +138,26 @@ struct vbucket_state {
         driftCounter = vbstate.driftCounter;
     }
 
+    friend bool operator== (const vbucket_state& vbstate1,
+                            const vbucket_state& vbstate2) {
+       if (vbstate1.state == vbstate2.state &&
+           vbstate1.checkpointId == vbstate2.checkpointId &&
+           vbstate1.maxDeletedSeqno == vbstate2.maxDeletedSeqno &&
+           vbstate1.highSeqno == vbstate2.highSeqno &&
+           vbstate1.purgeSeqno == vbstate2.purgeSeqno &&
+           vbstate1.lastSnapStart == vbstate2.lastSnapStart &&
+           vbstate1.lastSnapEnd == vbstate2.lastSnapEnd &&
+           vbstate1.maxCas == vbstate2.maxCas &&
+           vbstate1.driftCounter == vbstate2.driftCounter &&
+           vbstate1.failovers.compare(vbstate2.failovers) == 0) {
+           return true;
+       }
+
+       return false;
+    }
+
+    std::string toJSON() const;
+
     vbucket_state_t state;
     uint64_t checkpointId;
     uint64_t maxDeletedSeqno;
@@ -462,10 +482,15 @@ public:
     virtual bool snapshotStats(const std::map<std::string, std::string> &m) = 0;
 
     /**
-     * Snapshot vbucket state.
+     * Snapshot vbucket state
+     * @param vbucketId id of the vbucket that needs to be snapshotted
+     * @param vbstate   state of the vbucket
+     * @param cb        stats callback
+     * @param persist   whether state needs to be persisted to disk
      */
     virtual bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                                 Callback<kvstats_ctx> *cb) = 0;
+                                 Callback<kvstats_ctx> *cb,
+                                 bool persist = true) = 0;
 
     /**
      * Compact a vbucket file.
@@ -475,13 +500,6 @@ public:
                                 Callback<kvstats_ctx> &kvcb) = 0;
 
     virtual vbucket_state *getVBucketState(uint16_t vbid) = 0;
-
-    virtual ENGINE_ERROR_CODE updateVBState(uint16_t vbucketId,
-                                            uint64_t maxDeletedRevSeqno,
-                                            uint64_t snapStartSeqno,
-                                            uint64_t snapEndSeqno,
-                                            uint64_t maxCas,
-                                            uint64_t driftCounter) = 0;
 
     /**
      * Check if the underlying store supports dumping all of the keys
@@ -564,9 +582,7 @@ protected:
     std::vector<vbucket_state *> cachedVBStates;
     std::list<PersistenceCallback *> pcbs;
     void createDataDir(const std::string& dbname);
-    std::string updateCachedVBState(uint16_t vbid, uint64_t maxDeletedRevSeqno,
-                                    uint64_t snapStartSeqno, uint64_t snapEndSeqno,
-                                    uint64_t maxCas, uint64_t driftCounter);
+    std::string updateCachedVBState(uint16_t vbid, const vbucket_state& vbState);
 };
 
 /**
@@ -579,7 +595,6 @@ public:
     /**
      * Create a KVStore with the given type.
      *
-     * @param stats     instance of ep-engine stats
      * @param config    engine configuration
      * @param read_only true if the kvstore instance is for read operations only
      */

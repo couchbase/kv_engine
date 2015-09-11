@@ -879,60 +879,8 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     return true;
 }
 
-
-ENGINE_ERROR_CODE CouchKVStore::updateVBState(uint16_t vbucketId,
-                                              uint64_t maxDeletedRevSeqno,
-                                              uint64_t snapStartSeqno,
-                                              uint64_t snapEndSeqno,
-                                              uint64_t maxCas,
-                                              uint64_t driftCounter) {
-
-    std::string state = updateCachedVBState(vbucketId, maxDeletedRevSeqno,
-                                            snapStartSeqno,
-                                            snapEndSeqno, maxCas, driftCounter);
-
-    if (!state.empty()) {
-        return ENGINE_SUCCESS;
-    } else {
-        return ENGINE_FAILED;
-    }
-}
-
 vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {
     return cachedVBStates[vbucketId];
-}
-
-bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                                   Callback<kvstats_ctx> *cb) {
-    cb_assert(!isReadOnly());
-    hrtime_t start = gethrtime();
-
-    vbucket_state *state = cachedVBStates[vbucketId];
-    if (state) {
-        if (state->state == vbstate.state &&
-            state->checkpointId == vbstate.checkpointId &&
-            state->failovers.compare(vbstate.failovers) == 0) {
-            return true; // no changes
-        }
-        state->state = vbstate.state;
-        state->checkpointId = vbstate.checkpointId;
-        state->failovers = vbstate.failovers;
-        // Note that max deleted seq number is maintained within CouchKVStore
-        vbstate.maxDeletedSeqno = state->maxDeletedSeqno;
-    } else {
-        cachedVBStates[vbucketId] = new vbucket_state(vbstate);
-    }
-
-    if (!setVBucketState(vbucketId, vbstate, cb)) {
-        LOG(EXTENSION_LOG_WARNING,
-                "Failed to set new state, %s, for vbucket %d\n",
-                VBucket::toString(vbstate.state), vbucketId);
-        return false;
-    }
-
-    st.snapshotHisto.add((gethrtime() - start) / 1000);
-
-    return true;
 }
 
 bool CouchKVStore::snapshotStats(const std::map<std::string,
@@ -1071,6 +1019,33 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
         kvcb->callback(kvctx);
     }
     closeDatabaseHandle(db);
+
+    return true;
+}
+
+bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+                                   Callback<kvstats_ctx> *cb, bool persist) {
+    if (isReadOnly()) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Snapshotting a vbucket cannot be performed on a read-only "
+            "KVStore instance");
+        return false;
+    }
+
+    hrtime_t start = gethrtime();
+
+    std::string stateStr = updateCachedVBState(vbucketId, vbstate);
+
+    if (!stateStr.empty() && persist) {
+        if (!setVBucketState(vbucketId, vbstate, cb)) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to persist new state, %s, for vbucket %d\n",
+                VBucket::toString(vbstate.state), vbucketId);
+           return false;
+        }
+    }
+
+    st.snapshotHisto.add((gethrtime() - start) / 1000);
 
     return true;
 }

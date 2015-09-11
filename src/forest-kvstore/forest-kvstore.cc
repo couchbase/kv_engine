@@ -456,40 +456,6 @@ vbucket_state * ForestKVStore::getVBucketState(uint16_t vbucketId) {
     return cachedVBStates[vbucketId];
 }
 
-ENGINE_ERROR_CODE ForestKVStore::updateVBState(uint16_t vbucketId,
-                                               uint64_t maxDeletedRevSeqno,
-                                               uint64_t snapStartSeqno,
-                                               uint64_t snapEndSeqno,
-                                               uint64_t maxCas,
-                                               uint64_t driftCounter) {
-    std::string state = updateCachedVBState(vbucketId, maxDeletedRevSeqno,
-                                            snapStartSeqno, snapEndSeqno,
-                                            maxCas, driftCounter);
-
-    if (!state.empty()) {
-        char keybuf[20];
-        fdb_doc statDoc;
-        memset(&statDoc, 0, sizeof(statDoc));
-        sprintf(keybuf, "partition%d", vbucketId);
-        statDoc.key = keybuf;
-        statDoc.keylen = strlen(keybuf);
-        statDoc.meta = NULL;
-        statDoc.metalen = 0;
-        statDoc.body = const_cast<char *>(state.c_str());
-        statDoc.bodylen = state.length();
-        fdb_status status = fdb_set(vbStateHandle, &statDoc);
-
-        if (status == FDB_RESULT_SUCCESS) {
-            return ENGINE_SUCCESS;
-        } else {
-            LOG(EXTENSION_LOG_WARNING, "Failed to save vbucket state for "
-                    "vbucket=%d error=%s", vbucketId, fdb_error_msg(status));
-        }
-    }
-
-    return ENGINE_FAILED;
-}
-
 static void commitCallback(std::vector<ForestRequest *> &committedReqs) {
     size_t commitSize = committedReqs.size();
 
@@ -748,10 +714,33 @@ bool ForestKVStore::snapshotStats(const std::map<std::string,
     return true;
 }
 
-bool ForestKVStore::snapshotVBucket(uint16_t vbucketId,
-                                    vbucket_state &vbstate,
-                                    Callback<kvstats_ctx> *cb) {
-    return true;
+bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+                                    Callback<kvstats_ctx> *cb, bool persist) {
+
+    std::string stateStr = updateCachedVBState(vbucketId, vbstate);
+
+    if (!stateStr.empty() && persist) {
+        char keybuf[20];
+        fdb_doc statDoc;
+        memset(&statDoc, 0, sizeof(statDoc));
+        sprintf(keybuf, "partition%d", vbucketId);
+        statDoc.key = keybuf;
+        statDoc.keylen = strlen(keybuf);
+        statDoc.meta = NULL;
+        statDoc.metalen = 0;
+        statDoc.body = const_cast<char *>(stateStr.c_str());
+        statDoc.bodylen = stateStr.length();
+        fdb_status status = fdb_set(vbStateHandle, &statDoc);
+
+        if (status == FDB_RESULT_SUCCESS) {
+            return true;
+        } else {
+            LOG(EXTENSION_LOG_WARNING, "Failed to save vbucket state for "
+                    "vbucket=%d error=%s", vbucketId, fdb_error_msg(status));
+        }
+    }
+
+    return false;
 }
 
 bool ForestKVStore::compactVBucket(const uint16_t vbid, compaction_ctx *cookie,

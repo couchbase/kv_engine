@@ -352,7 +352,7 @@ public:
      * @return true if the snapshot is done successfully
      */
     bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                         Callback<kvstats_ctx> *cb);
+                         Callback<kvstats_ctx> *cb, bool persist);
 
      /**
      * Compact a vbucket in the underlying storage system.
@@ -367,13 +367,6 @@ public:
                         Callback<kvstats_ctx> &kvcb);
 
     vbucket_state *getVBucketState(uint16_t vbid);
-
-    ENGINE_ERROR_CODE updateVBState(uint16_t vbucketId,
-                                    uint64_t maxDeletedRevSeqno,
-                                    uint64_t snapStartSeqno,
-                                    uint64_t snapEndSeqno,
-                                    uint64_t maxCas,
-                                    uint64_t driftCounter);
 
     /**
      * Does the underlying storage system support key-only retrieval operations?
@@ -481,7 +474,6 @@ public:
     void destroyScanContext(ScanContext* ctx);
 
 private:
-
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          Callback<kvstats_ctx> *cb, bool reset=false);
     bool resetVBucket(uint16_t vbucketId, vbucket_state &vbstate) {

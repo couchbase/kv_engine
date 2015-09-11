@@ -3240,9 +3240,14 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 range.end = maxSeqno;
             }
 
-            if (rwUnderlying->updateVBState(vb->getId(), maxDeletedRevSeqno,
-                                            range.start, range.end, maxCas,
-                                            vb->getDriftCounter()) != ENGINE_SUCCESS) {
+            std::string failovers = vb->failovers->toJSON();
+            vbucket_state vbState(vb->getState(), vbMap.getPersistenceCheckpointId(vbid),
+                                  maxDeletedRevSeqno, vb->getHighSeqno(),
+                                  vb->getPurgeSeqno(), range.start, range.end, maxCas,
+                                  vb->getDriftCounter(), failovers);
+
+            if (rwUnderlying->snapshotVBucket(vb->getId(), vbState,
+                                              NULL, false) != true) {
                 return RETRY_FLUSH_VBUCKET;
             }
 
