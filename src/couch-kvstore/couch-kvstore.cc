@@ -957,22 +957,26 @@ bool CouchKVStore::snapshotStats(const std::map<std::string,
     // compaction manager in the erlang side for the master database yet. At this time,
     // we simply log the engine stats into a separate json file. As part of futhre work,
     // we need to get rid of the tight coupling between those two components.
-    bool rv = true;
     std::string next_fname = dbname + "/stats.json.new";
-    std::ofstream new_stats;
-    new_stats.exceptions (new_stats.failbit | new_stats.badbit);
-    try {
-        new_stats.open(next_fname.c_str());
-        new_stats << stats_buf.str().c_str() << std::endl;
-        new_stats.flush();
-        new_stats.close();
-    } catch (const std::ofstream::failure& e) {
-        LOG(EXTENSION_LOG_WARNING, "Failed to log the engine stats to "
-            "file \"%s\" due to IO exception \"%s\"; Not critical because new "
-            "stats will be dumped later, please ignore.",
-            next_fname.c_str(), e.what());
+
+    FILE *new_stats = fopen(next_fname.c_str(), "w");
+    if (new_stats == nullptr) {
+        LOG(EXTENSION_LOG_NOTICE, "Failed to log the engine stats to "
+                "file \"%s\" due to an error \"%s\"; Not critical because new "
+                "stats will be dumped later, please ignore.",
+            next_fname.c_str(), strerror(errno));
+        return false;
+    }
+
+    bool rv = true;
+    if (fprintf(new_stats, "%s\n", stats_buf.str().c_str()) < 0) {
+        LOG(EXTENSION_LOG_NOTICE, "Failed to log the engine stats to "
+                "file \"%s\" due to an error \"%s\"; Not critical because new "
+                "stats will be dumped later, please ignore.",
+            next_fname.c_str(), strerror(errno));
         rv = false;
     }
+    fclose(new_stats);
 
     if (rv) {
         std::string old_fname = dbname + "/stats.json.old";
