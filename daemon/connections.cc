@@ -117,8 +117,9 @@ void close_all_connections(void)
         {
             std::lock_guard<std::mutex> lock(connections.mutex);
             for (auto* c : connections.conns) {
-                while (c->getRefcount() > 1) {
+                if (c->getRefcount() > 1) {
                     done = false;
+                    break;
                 }
             }
         }
