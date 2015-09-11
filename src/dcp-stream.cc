@@ -149,10 +149,11 @@ bool DCPBackfill::run() {
         engine->getEpStore()->getRWUnderlying(vbid)->getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
-        LOG(EXTENSION_LOG_WARNING, "Rescheduling backfill for vbucket %d "
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Rescheduling backfill "
             "because backfill up to seqno %llu is needed but only up to "
-            "%llu is persisted (disk %llu)", vbid, endSeqno,
-            lastPersistedSeqno, diskSeqno);
+            "%llu is persisted (disk %llu)",
+            static_cast<ActiveStream*>(stream.get())->logHeader(), vbid,
+            endSeqno, lastPersistedSeqno, diskSeqno);
         snooze(DCP_BACKFILL_SLEEP_TIME);
         return true;
     }
@@ -169,9 +170,10 @@ bool DCPBackfill::run() {
 
     static_cast<ActiveStream*>(stream.get())->completeBackfill();
 
-    LOG(EXTENSION_LOG_WARNING, "Backfill task (%llu to %llu) finished for vb %d"
-        " disk seqno %llu memory seqno %llu", startSeqno, endSeqno,
-        stream->getVBucket(), diskSeqno, lastPersistedSeqno);
+    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill task (%llu to %llu) "
+        "finished. disk seqno %llu memory seqno %llu",
+        static_cast<ActiveStream*>(stream.get())->logHeader(), startSeqno,
+        endSeqno, vbid, diskSeqno, lastPersistedSeqno);
 
     return false;
 }
@@ -693,9 +695,9 @@ void ActiveStream::endStream(end_stream_status_t reason) {
         }
         transitionState(STREAM_DEAD);
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream closing, %llu items sent"
-            " from disk, %llu items sent from memory, %llu was last seqno sent",
-            producer->logHeader(), vb_, itemsFromBackfill, itemsFromMemory,
-            lastSentSeqno);
+            " from disk, %llu items sent from memory, %llu was last seqno sent"
+            " %s is the reason", producer->logHeader(), vb_, itemsFromBackfill,
+            itemsFromMemory, lastSentSeqno, getEndStreamStatusStr(reason));
     }
 }
 
@@ -751,6 +753,23 @@ void ActiveStream::scheduleBackfill() {
             itemsReady = true;
         }
     }
+}
+
+const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
+{
+    switch (status) {
+        case END_STREAM_OK:
+            return "The stream ended due to all items being streamed";
+        case END_STREAM_CLOSED:
+            return "The stream closed early due to a close stream message";
+        case END_STREAM_STATE:
+            return "The stream closed early because the vbucket state changed";
+        case END_STREAM_DISCONNECTED:
+            return "The stream closed early because the conn was disconnected";
+        default:
+            break;
+    }
+    return "Status unknown; this should not happen";
 }
 
 void ActiveStream::transitionState(stream_state_t newState) {
@@ -820,6 +839,11 @@ size_t ActiveStream::getItemsRemaining() {
     }
 
     return 0;
+}
+
+const char* ActiveStream::logHeader()
+{
+    return producer->logHeader();
 }
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e, DcpProducer* p,
@@ -931,8 +955,9 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
     const char* type = (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) ? "takeover" : "";
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Attempting to add %s stream with "
         "start seqno %llu, end seqno %llu, vbucket uuid %llu, snap start seqno "
-        "%llu, and snap end seqno %llu", consumer->logHeader(), vb, type,
-        st_seqno, en_seqno, vb_uuid, snap_start_seqno, snap_end_seqno);
+        "%llu, snap end seqno %llu, and vb_high_seqno %llu",
+        consumer->logHeader(), vb, type, st_seqno, en_seqno, vb_uuid,
+        snap_start_seqno, snap_end_seqno, vb_high_seqno);
 }
 
 PassiveStream::~PassiveStream() {
@@ -947,6 +972,10 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
     transitionState(STREAM_DEAD);
     uint32_t unackedBytes = buffer.bytes;
     clearBuffer();
+    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Setting stream to dead state,"
+        " last_seqno is %llu, unackedBytes is %u, status is %s",
+        consumer->logHeader(), vb_, last_seqno, unackedBytes,
+        getEndStreamStatusStr(status));
     return unackedBytes;
 }
 
@@ -1380,4 +1409,17 @@ void PassiveStream::transitionState(stream_state_t newState) {
     }
 
     state_ = newState;
+}
+
+const char* PassiveStream::getEndStreamStatusStr(end_stream_status_t status)
+{
+    switch (status) {
+        case END_STREAM_CLOSED:
+            return "The stream closed due to a close stream message";
+        case END_STREAM_DISCONNECTED:
+            return "The stream closed early because the conn was disconnected";
+        default:
+            break;
+    }
+    return "Status unknown; this should not happen";
 }
