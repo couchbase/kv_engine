@@ -721,16 +721,12 @@ const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
     switch (status) {
     case END_STREAM_OK:
         return "The stream ended due to all items being streamed";
-        break;
     case END_STREAM_CLOSED:
         return "The stream closed early due to a close stream message";
-        break;
     case END_STREAM_STATE:
         return "The stream closed early because the vbucket state changed";
-        break;
     case END_STREAM_DISCONNECTED:
         return "The stream closed early because the conn was disconnected";
-        break;
     default:
         break;
     }
@@ -938,11 +934,12 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
     type_ = STREAM_PASSIVE;
 
     const char* type = (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) ? "takeover" : "";
-    LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Attempting to add %s stream with "
-        "start seqno %" PRIu64 ", end seqno %" PRIu64 ", vbucket uuid %" PRIu64
-        ", snap start seqno %" PRIu64 ", and snap end seqno %" PRIu64,
-        consumer->logHeader(), vb, type,
-        st_seqno, en_seqno, vb_uuid, snap_start_seqno, snap_end_seqno);
+    LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRId16 ") Attempting to add %s stream"
+        " with start seqno %" PRIu64 ", end seqno %" PRIu64 ","
+        " vbucket uuid %" PRIu64 ", snap start seqno %" PRIu64 ","
+        " snap end seqno %" PRIu64 ", and vb_high_seqno %" PRIu64 "",
+        consumer->logHeader(), vb, type, st_seqno, en_seqno, vb_uuid,
+        snap_start_seqno, snap_end_seqno, vb_high_seqno);
 }
 
 PassiveStream::~PassiveStream() {
@@ -975,6 +972,14 @@ uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status) {
         clearBuffer();
     }
 
+    EXTENSION_LOG_LEVEL logLevel = EXTENSION_LOG_NOTICE;
+    if (END_STREAM_DISCONNECTED == status) {
+        logLevel = EXTENSION_LOG_WARNING;
+    }
+    LOG(logLevel, "%s (vb %" PRId16 ") Setting stream to dead"
+        " state, last_seqno is %" PRIu64 ", totalBytes is %" PRIu32 ","
+        " status is %s", consumer->logHeader(), vb_, last_seqno, totalBytes,
+        getEndStreamStatusStr(status));
     return totalBytes;
 }
 
@@ -1445,4 +1450,17 @@ void PassiveStream::transitionState(stream_state_t newState) {
     }
 
     state_ = newState;
+}
+
+const char* PassiveStream::getEndStreamStatusStr(end_stream_status_t status)
+{
+    switch (status) {
+        case END_STREAM_CLOSED:
+            return "The stream closed due to a close stream message";
+        case END_STREAM_DISCONNECTED:
+            return "The stream closed early because the conn was disconnected";
+        default:
+            break;
+    }
+    return "Status unknown; this should not happen";
 }
