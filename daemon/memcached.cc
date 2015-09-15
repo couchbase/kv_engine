@@ -6990,6 +6990,8 @@ static void* get_extension(extension_type_t type)
 
 static void shutdown_server(void) {
     memcached_shutdown = true;
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                    "Received shutdown request");
     event_base_loopbreak(main_base);
 }
 
