@@ -5748,9 +5748,14 @@ bool conn_ship_log(Connection *c) {
     return cont;
 }
 
+/**
+ * Check if the associated bucket is dying or not. There is two reasons
+ * for why a bucket could be dying: It is currently being deleted, or
+ * someone initiated a shutdown process.
+ */
 static bool is_bucket_dying(Connection *c)
 {
-    bool disconnect = false;
+    bool disconnect = memcached_shutdown;
     Bucket &b = all_buckets.at(c->getBucketIndex());
     cb_mutex_enter(&b.mutex);
 
@@ -6198,9 +6203,7 @@ bool conn_delete_bucket(Connection *c) {
 }
 
 void event_handler(evutil_socket_t fd, short which, void *arg) {
-    Connection *c = reinterpret_cast<Connection *>(arg);
-    LIBEVENT_THREAD *thr;
-
+    auto *c = reinterpret_cast<Connection *>(arg);
     if (c == nullptr) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "event_handler: connection must be "
@@ -6208,12 +6211,16 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         return;
     }
 
+    auto *thr = c->getThread();
     if (memcached_shutdown) {
-        c->eventBaseLoopbreak();
-        return ;
+        // Someone requested memcached to shut down. The listen thread should
+        // be stopped immediately.
+        if (is_listen_thread() || signal_idle_clients(thr, -1) == 0) {
+            c->eventBaseLoopbreak();
+            return;
+        }
     }
 
-    thr = c->getThread();
     if (!is_listen_thread()) {
         cb_assert(thr);
         LOCK_THREAD(thr);
@@ -6234,7 +6241,14 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
 
     run_event_loop(c);
 
-    if (thr) {
+    if (thr != nullptr) {
+        if (memcached_shutdown) {
+            // Someone requested memcached to shut down. If we don't have
+            // any connections bound to this thread we can just shut down
+            if (signal_idle_clients(thr, -1) == 0) {
+                event_base_loopbreak(thr->base);
+            }
+        }
         UNLOCK_THREAD(thr);
     }
 }
@@ -6975,7 +6989,7 @@ static void* get_extension(extension_type_t type)
 }
 
 static void shutdown_server(void) {
-    memcached_shutdown = 1;
+    memcached_shutdown = true;
     event_base_loopbreak(main_base);
 }
 

@@ -70,14 +70,17 @@ void connection_stats(ADD_STAT add_stats, Connection *c, const int64_t fd);
 void conn_cleanup_engine_allocations(Connection * c);
 
 /**
- * Signal (set writable) all idle clients bound to a given bucket.
+ * Signal (set writable) all idle clients bound to either a specific
+ * bucket specified by its index, or any bucket (specified as -1).
  * Due to the threading model we're only going to look at the clients
  * connected to the thread represented by me.
  *
- * @param me the thread to inpect
- * @param bucket_idx the bucket we'd like to signal
+ * @param me the thread to inspect
+ * @param bucket_idx the bucket we'd like to signal (set to -1 to signal
+ *                   all buckets)
+ * @return the number of client connections bound to this thread.
  */
-void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx);
+int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx);
 
 /**
  * Assert that none of the connections is assciated with

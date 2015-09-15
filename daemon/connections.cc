@@ -56,20 +56,27 @@ static Connection *allocate_connection(SOCKET sfd);
 static void release_connection(Connection *c);
 
 /** External functions *******************************************************/
-void signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
+int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
 {
+    int connected = 0;
     std::lock_guard<std::mutex> lock(connections.mutex);
     for (auto* c : connections.conns) {
-        if (c->getThread() == me && c->getBucketIndex() == bucket_idx) {
-            if (c->getState() == conn_read || c->getState() == conn_waiting) {
-                /* set write access to ensure it's handled */
-                if (!c->updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
-                    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                    "Couldn't update event");
+        if (c->getThread() == me) {
+            ++connected;
+            if (bucket_idx == -1 || c->getBucketIndex() == bucket_idx) {
+                auto state = c->getState();
+                if (state == conn_read || state == conn_waiting) {
+                    /*
+                     * set write access to ensure it's handled (error logged in
+                     * updateEvent().
+                     */
+                    c->updateEvent(EV_READ | EV_WRITE | EV_PERSIST);
                 }
             }
         }
     }
+
+    return connected;
 }
 
 void assert_no_associations(int bucket_idx)
