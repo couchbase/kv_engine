@@ -6245,8 +6245,18 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         if (memcached_shutdown) {
             // Someone requested memcached to shut down. If we don't have
             // any connections bound to this thread we can just shut down
-            if (signal_idle_clients(thr, -1) == 0) {
+            int connected = signal_idle_clients(thr, -1);
+            if (connected == 0) {
+                settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                                "Stopping workier thread %u",
+                                                thr->index);
                 event_base_loopbreak(thr->base);
+            } else {
+                // @todo Change loglevel once MB-16255 is resolved
+                settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                                "Waiting for %d connected "
+                                                "clients on worker thread %u",
+                                                connected, thr->index);
             }
         }
         UNLOCK_THREAD(thr);
