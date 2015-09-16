@@ -5686,6 +5686,30 @@ bool conn_listening(Connection *c)
 }
 
 /**
+ * Check if the associated bucket is dying or not. There is two reasons
+ * for why a bucket could be dying: It is currently being deleted, or
+ * someone initiated a shutdown process.
+ */
+static bool is_bucket_dying(Connection *c)
+{
+    bool disconnect = memcached_shutdown;
+    Bucket &b = all_buckets.at(c->getBucketIndex());
+    cb_mutex_enter(&b.mutex);
+
+    if (b.state != BucketState::Ready) {
+        disconnect = true;
+    }
+    cb_mutex_exit(&b.mutex);
+
+    if (disconnect) {
+        c->setState(conn_closing);
+        return true;
+    }
+
+    return false;
+}
+
+/**
  * Ship tap log to the other end. This state differs with all other states
  * in the way that it support full duplex dialog. We're listening to both read
  * and write events from libevent most of the time. If a read event occurs we
@@ -5697,6 +5721,10 @@ bool conn_listening(Connection *c)
  *              if we should start processing events for other connections.
  */
 bool conn_ship_log(Connection *c) {
+    if (is_bucket_dying(c)) {
+        return true;
+    }
+
     bool cont = false;
     short mask = EV_READ | EV_PERSIST | EV_WRITE;
 
@@ -5746,30 +5774,6 @@ bool conn_ship_log(Connection *c) {
     }
 
     return cont;
-}
-
-/**
- * Check if the associated bucket is dying or not. There is two reasons
- * for why a bucket could be dying: It is currently being deleted, or
- * someone initiated a shutdown process.
- */
-static bool is_bucket_dying(Connection *c)
-{
-    bool disconnect = memcached_shutdown;
-    Bucket &b = all_buckets.at(c->getBucketIndex());
-    cb_mutex_enter(&b.mutex);
-
-    if (b.state != BucketState::Ready) {
-        disconnect = true;
-    }
-    cb_mutex_exit(&b.mutex);
-
-    if (disconnect) {
-        c->setState(conn_closing);
-        return true;
-    }
-
-    return false;
 }
 
 bool conn_waiting(Connection *c) {
@@ -6241,8 +6245,6 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
          * callback for the worker thread is executed.
          */
         thr->pending_io = list_remove(thr->pending_io, c);
-    } else {
-        cb_assert(thr == nullptr);
     }
 
     c->setCurrentEvent(which);
