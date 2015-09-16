@@ -6248,7 +6248,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
             int connected = signal_idle_clients(thr, -1);
             if (connected == 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                                "Stopping workier thread %u",
+                                                "Stopping worker thread %u",
                                                 thr->index);
                 event_base_loopbreak(thr->base);
             } else {
