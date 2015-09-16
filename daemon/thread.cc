@@ -296,8 +296,22 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     drain_notification_channel(fd);
 
     if (memcached_shutdown) {
-         event_base_loopbreak(me->base);
-         return ;
+        // Someone requested memcached to shut down. The listen thread should
+        // be stopped immediately.
+        if (is_listen_thread()) {
+            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                            "Stopping listen thread (thread.cc)");
+            event_base_loopbreak(me->base);
+            return;
+        }
+
+        if (signal_idle_clients(me, -1, false) == 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                            "Stopping worker thread %u",
+                                            me->index);
+            event_base_loopbreak(me->base);
+            return;
+        }
     }
 
     while ((item = cq_pop(me->new_conn_queue)) != NULL) {
@@ -344,6 +358,25 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
     if (me->deleting_buckets) {
         notify_thread_bucket_deletion(me);
     }
+
+    if (memcached_shutdown) {
+        // Someone requested memcached to shut down. If we don't have
+        // any connections bound to this thread we can just shut down
+        int connected = signal_idle_clients(me, -1, true);
+        if (connected == 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                            "Stopping worker thread %u",
+                                            me->index);
+            event_base_loopbreak(me->base);
+        } else {
+            // @todo Change loglevel once MB-16255 is resolved
+            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                            "Waiting for %d connected "
+                                                "clients on worker thread %u",
+                                            connected, me->index);
+        }
+    }
+
     UNLOCK_THREAD(me);
 }
 
