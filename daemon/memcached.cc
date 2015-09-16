@@ -6215,7 +6215,18 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     if (memcached_shutdown) {
         // Someone requested memcached to shut down. The listen thread should
         // be stopped immediately.
-        if (is_listen_thread() || signal_idle_clients(thr, -1) == 0) {
+        if (is_listen_thread()) {
+            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                            "Stopping listen thread");
+            c->eventBaseLoopbreak();
+            return;
+        }
+
+        if (signal_idle_clients(thr, -1, false) == 0) {
+            cb_assert(thr != nullptr);
+            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                            "Stopping worker thread %u",
+                                            thr->index);
             c->eventBaseLoopbreak();
             return;
         }
@@ -6230,6 +6241,8 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
          * callback for the worker thread is executed.
          */
         thr->pending_io = list_remove(thr->pending_io, c);
+    } else {
+        cb_assert(thr == nullptr);
     }
 
     c->setCurrentEvent(which);
@@ -6245,7 +6258,7 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         if (memcached_shutdown) {
             // Someone requested memcached to shut down. If we don't have
             // any connections bound to this thread we can just shut down
-            int connected = signal_idle_clients(thr, -1);
+            int connected = signal_idle_clients(thr, -1, true);
             if (connected == 0) {
                 settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
                                                 "Stopping worker thread %u",
@@ -7324,7 +7337,7 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
         }
         cb_mutex_exit(&all_buckets[ii].mutex);
         if (destroy) {
-            signal_idle_clients(me, ii);
+            signal_idle_clients(me, ii, false);
         }
     }
 }

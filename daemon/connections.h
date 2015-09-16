@@ -80,7 +80,7 @@ void conn_cleanup_engine_allocations(Connection * c);
  *                   all buckets)
  * @return the number of client connections bound to this thread.
  */
-int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx);
+int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging);
 
 /**
  * Assert that none of the connections is assciated with

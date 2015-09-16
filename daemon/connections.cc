@@ -56,7 +56,7 @@ static Connection *allocate_connection(SOCKET sfd);
 static void release_connection(Connection *c);
 
 /** External functions *******************************************************/
-int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
+int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging)
 {
     int connected = 0;
     std::lock_guard<std::mutex> lock(connections.mutex);
@@ -71,6 +71,15 @@ int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx)
                      * updateEvent().
                      */
                     c->updateEvent(EV_READ | EV_WRITE | EV_PERSIST);
+                } else if (logging) {
+                    auto* js = c->toJSON();
+                    char* details = cJSON_PrintUnformatted(js);
+
+                    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                                    "Worker thread %u: %s",
+                                                    me->index, details);
+                    cJSON_Free(details);
+                    cJSON_Delete(js);
                 }
             }
         }
