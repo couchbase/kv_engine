@@ -8093,14 +8093,26 @@ int main (int argc, char **argv) {
     settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
                                     "Initiating graceful shutdown.");
 
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                    "Shutting down audit daemon");
+
     /* Close down the audit daemon cleanly */
     shutdown_auditdaemon(settings.audit_file);
 
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                    "Shutting down client worker threads");
     threads_shutdown();
 
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                    "Releasing client resources");
     close_all_connections();
+
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                    "Releasing bucket resources");
     cleanup_buckets();
 
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+                                    "Releasing thread resources");
     threads_cleanup();
 
     release_signal_handlers();
