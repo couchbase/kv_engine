@@ -2352,6 +2352,10 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
         return ENGINE_E2BIG;
     }
 
+    if (state > vbucket_state_dead) {
+        return ENGINE_EINVAL;
+    }
+
     memset(packet.bytes, 0, sizeof(packet.bytes));
     packet.message.header.request.magic =  (uint8_t)PROTOCOL_BINARY_REQ;
     packet.message.header.request.opcode = (uint8_t)PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE;
@@ -2359,23 +2363,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
     packet.message.header.request.bodylen = htonl(1);
     packet.message.header.request.opaque = opaque;
     packet.message.header.request.vbucket = htons(vbucket);
-
-    switch (state) {
-    case vbucket_state_active:
-        packet.message.body.state = 0x01;
-        break;
-    case vbucket_state_pending:
-        packet.message.body.state = 0x02;
-        break;
-    case vbucket_state_replica:
-        packet.message.body.state = 0x03;
-        break;
-    case vbucket_state_dead:
-        packet.message.body.state = 0x04;
-        break;
-    default:
-        return ENGINE_EINVAL;
-    }
+    packet.message.body.state = uint8_t(state);
 
     memcpy(c->write.curr, packet.bytes, sizeof(packet.bytes));
     c->addIov(c->write.curr, sizeof(packet.bytes));
