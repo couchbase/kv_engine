@@ -7377,8 +7377,19 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     }
 
     if (ret != ENGINE_SUCCESS) {
+        auto code = engine_error_2_protocol_error(ret);
+        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                                        "<>%u Delete bucket [%s]: %s",
+                                        c->getId(), bucket_name.c_str(),
+                                        memcached_protocol_errcode_2_text(
+                                            code));
         return ret;
     }
+
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                                    ">%u Delete bucket [%s]. Wait for "
+                                        "clients to disconnect",
+                                    c->getId(), bucket_name.c_str());
 
     /* If this thread is connected to the requested bucket... release it */
     if (ii == c->getBucketIndex()) {
@@ -7388,10 +7399,15 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     /* Let all of the worker threads start invalidating connections */
     threads_initiate_bucket_deletion();
 
-
     /* Wait until all users disconnected... */
     cb_mutex_enter(&all_buckets[idx].mutex);
     while (all_buckets[idx].clients > 0) {
+        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                                        "%u Delete bucket [%s]. %u "
+                                            "clients connected",
+                                        c->getId(), bucket_name.c_str(),
+                                        all_buckets[idx].clients);
+
         /* drop the lock and notify the worker threads */
         cb_mutex_exit(&all_buckets[idx].mutex);
         threads_notify_bucket_deletion();
@@ -7409,8 +7425,18 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     /* assert that all associations are gone. */
     assert_no_associations(idx);
 
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                                    "%u Delete bucket [%s]. Shut "
+                                        "down the bucket",
+                                    c->getId(), bucket_name.c_str());
+
     all_buckets[idx].engine->destroy
             (v1_handle_2_handle(all_buckets[idx].engine), force);
+
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                                    "%u Delete bucket [%s]. "
+                                        "Clean up allocated resources ",
+                                    c->getId(), bucket_name.c_str());
 
     /* Clean up the stats... */
     delete []all_buckets[idx].stats;
@@ -7430,7 +7456,11 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     // don't need lock because all timing data uses atomics
     all_buckets[idx].timings.reset();
 
-    return ret;
+    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
+                                    "<%u Delete bucket [%s] complete",
+                                    c->getId(), bucket_name.c_str());
+
+    return ENGINE_SUCCESS;
 }
 
 static void delete_bucket_main(void *arg)
