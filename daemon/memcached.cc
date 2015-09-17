@@ -7136,9 +7136,6 @@ static void process_bin_dcp_response(Connection *c) {
 
 /* BUCKET FUNCTIONS */
 
-/**
- * @todo this should be run as its own thread!!! look at cbsasl refresh..
- */
 static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
                                           char *config,
                                           BucketType engine) {
@@ -7285,9 +7282,6 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
     }
 }
 
-/**
- * @todo this should be run as its own thread!!! look at cbsasl refresh..
- */
 static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
                                           const std::string& bucket_name,
                                           bool force)
