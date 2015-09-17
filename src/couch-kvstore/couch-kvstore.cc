@@ -1171,15 +1171,9 @@ void CouchKVStore::pendingTasks() {
 
         while (!queue.empty()) {
             std::string filename_str = queue.front();
-            int errCode;
-#ifdef _MSC_VER
-            errCode = _unlink(filename_str.c_str());
-#else
-            errCode = unlink(filename_str.c_str());
-#endif
-            if (errCode == -1) {
-                LOG(EXTENSION_LOG_WARNING, "Failed to unlink file '%s' with error "
-                    "code: %d", filename_str.c_str(), errno);
+            if (remove(filename_str.c_str()) == -1) {
+                LOG(EXTENSION_LOG_WARNING, "Failed to remove file '%s' "
+                    "with error code: %d", filename_str.c_str(), errno);
                 if (errno != ENOENT) {
                     pendingFileDeletions.push(filename_str);
                 }
@@ -2445,19 +2439,14 @@ void CouchKVStore::unlinkCouchFile(uint16_t vbucket,
                                    uint64_t fRev) {
 
     cb_assert(!isReadOnly());
-
-    int errCode;
     char fname[PATH_MAX];
     snprintf(fname, sizeof(fname), "%s/%d.couch.%" PRIu64,
              dbname.c_str(), vbucket, fRev);
-#ifdef _MSC_VER
-    errCode = _unlink(fname);
-#else
-    errCode = unlink(fname);
-#endif
-    if (errCode == -1) {
-        LOG(EXTENSION_LOG_WARNING, "Failed to unlink database file for "
-            "vbucket = %d rev = %" PRIu64 ", errCode = %u", vbucket, fRev, errno);
+
+    if (remove(fname) == -1) {
+        LOG(EXTENSION_LOG_WARNING, "Failed to remove database file for "
+            "vbucket = %d rev = %" PRIu64 ", errCode = %u", vbucket, fRev,
+            errno);
 
         if (errno != ENOENT) {
             std::string file_str = fname;
