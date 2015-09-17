@@ -7691,8 +7691,7 @@ static void set_max_filehandles(void) {
             int req;
             fmt = "WARNING: maxconns cannot be set to (%d) connections due to "
                 "system\nresouce restrictions. Increase the number of file "
-                "descriptors allowed\nto the memcached user process or start "
-                "memcached as root (remember\nto use the -u parameter).\n"
+                "descriptors allowed\nto the memcached user process.\n"
                 "The maximum number of connections is set to %d.\n";
             req = settings.maxconns;
             settings.maxconns = syslimit - (3 * (settings.num_threads + 2));
