@@ -510,35 +510,30 @@ static void settings_init_relocable_files(void)
 }
 
 struct {
-    cb_mutex_t mutex;
+    std::mutex mutex;
     bool disabled;
     ssize_t count;
     uint64_t num_disable;
 } listen_state;
 
 static bool is_listen_disabled(void) {
-    bool ret;
-    cb_mutex_enter(&listen_state.mutex);
-    ret = listen_state.disabled;
-    cb_mutex_exit(&listen_state.mutex);
-    return ret;
+    std::lock_guard<std::mutex> guard(listen_state.mutex);
+    return listen_state.disabled;
 }
 
 static uint64_t get_listen_disabled_num(void) {
-    uint64_t ret;
-    cb_mutex_enter(&listen_state.mutex);
-    ret = listen_state.num_disable;
-    cb_mutex_exit(&listen_state.mutex);
-    return ret;
+    std::lock_guard<std::mutex> guard(listen_state.mutex);
+    return listen_state.num_disable;
 }
 
 static void disable_listen(void) {
     Connection *next;
-    cb_mutex_enter(&listen_state.mutex);
-    listen_state.disabled = true;
-    listen_state.count = 10;
-    ++listen_state.num_disable;
-    cb_mutex_exit(&listen_state.mutex);
+    {
+        std::lock_guard<std::mutex> guard(listen_state.mutex);
+        listen_state.disabled = true;
+        listen_state.count = 10;
+        ++listen_state.num_disable;
+    }
 
     for (next = listen_conn; next; next = next->getNext()) {
         next->updateEvent(0);
@@ -6228,13 +6223,14 @@ static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
 
     if (nr != -1 && is_listen_disabled()) {
         bool enable = false;
-        cb_mutex_enter(&listen_state.mutex);
-        listen_state.count -= nr;
-        if (listen_state.count <= 0) {
-            enable = true;
-            listen_state.disabled = false;
+        {
+            std::lock_guard<std::mutex> guard(listen_state.mutex);
+            listen_state.count -= nr;
+            if (listen_state.count <= 0) {
+                enable = true;
+                listen_state.disabled = false;
+            }
         }
-        cb_mutex_exit(&listen_state.mutex);
         if (enable) {
             Connection *next;
             for (next = listen_conn; next; next = next->getNext()) {
@@ -7814,8 +7810,6 @@ int main (int argc, char **argv) {
     initialize_openssl();
 
     /* Initialize global variables */
-    cb_mutex_initialize(&listen_state.mutex);
-
     session_cas.value = 0xdeadbeef;
     session_cas.ctr = 0;
 
