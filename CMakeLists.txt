@@ -388,6 +388,10 @@ INSTALL(FILES
         management/tap_example.py
         DESTINATION lib/python)
 
+INSTALL(FILES
+        docs/stats.org
+        DESTINATION share/doc/ep-engine)
+
 INSTALL(TARGETS ep
         RUNTIME DESTINATION lib/memcached
         LIBRARY DESTINATION lib/memcached
