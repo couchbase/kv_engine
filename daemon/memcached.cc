@@ -761,7 +761,7 @@ void write_bin_packet(Connection *c, protocol_binary_response_status err) {
         // description of the error in the response body for most errors.
         // We don't want to do that for any new commands.
         if (c->includeErrorStringInResponseBody(err)) {
-            errtext = memcached_protocol_errcode_2_text(err);
+            errtext = memcached_status_2_text(err);
             if (errtext != nullptr) {
                 len = (ssize_t)strlen(errtext);
             }
@@ -7322,8 +7322,7 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
         settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
                                         "<>%u Delete bucket [%s]: %s",
                                         c->getId(), bucket_name.c_str(),
-                                        memcached_protocol_errcode_2_text(
-                                            code));
+                                        memcached_status_2_text(code));
         return ret;
     }
 

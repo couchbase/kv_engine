@@ -1082,9 +1082,9 @@ void validate_response_header(protocol_binary_response_no_extras *response,
     }
     EXPECT_EQ(status, header->response.status)
         << "Expected (as string): '"
-        << memcached_protocol_errcode_2_text(static_cast<protocol_binary_response_status>(status))
+        << memcached_status_2_text(static_cast<protocol_binary_response_status>(status))
         << "', actual (as string): '"
-        << memcached_protocol_errcode_2_text(static_cast<protocol_binary_response_status>(header->response.status))
+        << memcached_status_2_text(static_cast<protocol_binary_response_status>(header->response.status))
         << "' for opcode: '" << memcached_opcode_2_text(header->response.opcode) << "'";
 
     EXPECT_EQ(0xdeadbeef, header->response.opaque);

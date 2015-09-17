@@ -21,7 +21,7 @@
 #include <strings.h>
 #include "protocol2text.h"
 
-const std::map<uint8_t, std::string> commandmap {
+static const std::map<uint8_t, std::string> commandmap {
     {PROTOCOL_BINARY_CMD_GET,"GET"},
     {PROTOCOL_BINARY_CMD_SET,"SET"},
     {PROTOCOL_BINARY_CMD_ADD,"ADD"},
@@ -189,4 +189,88 @@ uint8_t memcached_text_2_opcode(const char *cmd) {
     }
 
     return 0xff;
+}
+
+static const std::map<protocol_binary_response_status, std::string> statusmap {
+    {PROTOCOL_BINARY_RESPONSE_SUCCESS,
+        "Success"},
+    {PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+        "Not found"},
+    {PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+        "Data exists for key"},
+    {PROTOCOL_BINARY_RESPONSE_E2BIG,
+        "Too large"},
+    {PROTOCOL_BINARY_RESPONSE_EINVAL,
+        "Invalid arguments"},
+    {PROTOCOL_BINARY_RESPONSE_NOT_STORED,
+        "Not stored"},
+    {PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL,
+        "Non-numeric server-side value for incr or decr"},
+    {PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+        "I'm not responsible for this vbucket"},
+    {PROTOCOL_BINARY_RESPONSE_NO_BUCKET,
+        "Not connected to a bucket"},
+    {PROTOCOL_BINARY_RESPONSE_AUTH_STALE,
+        "Authentication stale. Please reauthenticate"},
+    {PROTOCOL_BINARY_RESPONSE_AUTH_ERROR,
+        "Auth failure"},
+    {PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE,
+        "Auth continue"},
+    {PROTOCOL_BINARY_RESPONSE_ERANGE,
+        "Outside range"},
+    {PROTOCOL_BINARY_RESPONSE_ROLLBACK,
+        "Rollback"},
+    {PROTOCOL_BINARY_RESPONSE_EACCESS,
+        "No access"},
+    {PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED,
+        "Node not initialized"},
+    {PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND,
+        "Unknown command"},
+    {PROTOCOL_BINARY_RESPONSE_ENOMEM,
+        "Out of memory"},
+    {PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+        "Not supported"},
+    {PROTOCOL_BINARY_RESPONSE_EINTERNAL,
+        "Internal error"},
+    {PROTOCOL_BINARY_RESPONSE_EBUSY,
+        "Server too busy"},
+    {PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+        "Temporary failure"},
+
+    /* Sub-document responses */
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT,
+        "Subdoc: Path not does not exist"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH,
+        "Subdoc: Path mismatch"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL,
+        "Subdoc: Invalid path"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_E2BIG,
+        "Subdoc: Path too large"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_E2DEEP,
+        "Subdoc: Document too deep"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT,
+        "Subdoc: Cannot insert specified value"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON,
+        "Subdoc: Existing document not JSON"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE,
+        "Subdoc: Existing number outside valid arithmetic range"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE,
+        "Subdoc: Delta outside valid arithmetic range"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS,
+        "Subdoc: Document path already exists"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP,
+        "Subdoc: Inserting value would make document too deep"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
+        "Subdoc: Invalid combination for multi-path command"},
+    {PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE,
+        "Subdoc: One or more paths in a multi-path command failed"}
+};
+
+const char *memcached_status_2_text(protocol_binary_response_status status) {
+    auto ii = statusmap.find(status);
+    if (ii != statusmap.end()) {
+        return ii->second.c_str();
+    }
+
+    return "Unknown error code";
 }

@@ -31,6 +31,7 @@
 #include <strings.h>
 
 #include <memcached/util.h>
+#include <utilities/protocol2text.h>
 #include "programs/utilities.h"
 
 struct statistic {
@@ -82,7 +83,7 @@ static void receive_stat_response(BIO *bio, struct statistic *st) {
 
     if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         fprintf(stderr, "Error from server requesting stats: %s\n",
-                memcached_protocol_errcode_2_text(status));
+                memcached_status_2_text(status));
         /* Just terminate.. we might have multiple packets in the
          * pipeline and this makes the error handling easier and
          * safer
@@ -203,7 +204,7 @@ static int set_verbosity(BIO *bio, const char* value)
         return EXIT_SUCCESS;
     }
 
-    fprintf(stderr, "Error: %s\n", memcached_protocol_errcode_2_text(status));
+    fprintf(stderr, "Error: %s\n", memcached_status_2_text(status));
     return EXIT_FAILURE;
 }
 
@@ -259,7 +260,7 @@ static int ioctl_set(BIO *bio, const char *property, const char* value)
         result = 0;
     } else {
         fprintf(stderr, "Error from server: %s\n",
-                memcached_protocol_errcode_2_text(status));
+                memcached_status_2_text(status));
         result = 1;
     }
 
@@ -318,7 +319,7 @@ static int ioctl_get(BIO *bio, const char *property)
         result = 0;
     } else {
         fprintf(stderr, "Error from server for get request: %s\n",
-                memcached_protocol_errcode_2_text(status));
+                memcached_status_2_text(status));
         result = 1;
     }
 

@@ -10,6 +10,7 @@
 #include <getopt.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <utilities/protocol2text.h>
 
 
 #include "programs/utilities.h"
@@ -82,7 +83,7 @@ static void request_stat(BIO *bio, const char *key)
             } else {
                 fprintf(stderr, "s: ");
             }
-            fprintf(stderr, "%s\n",  memcached_protocol_errcode_2_text(err));
+            fprintf(stderr, "%s\n",  memcached_status_2_text(err));
         }
     } while (response.message.header.response.keylen != 0);
 }

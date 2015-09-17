@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <strings.h>
 #include <ctype.h>
+#include <utilities/protocol2text.h>
 
 #include "programs/utilities.h"
 
@@ -115,7 +116,7 @@ static int set_binary(BIO *bio, const char *key, size_t size) {
     } else {
         uint16_t err = ntohs(response.message.header.response.status);
         fprintf(stderr, "Error from server: ");
-        fprintf(stderr, "%s\n",  memcached_protocol_errcode_2_text(err));
+        fprintf(stderr, "%s\n",  memcached_status_2_text(err));
         if (buffer != NULL) {
             fprintf(stderr, " (response payload: %s)\n", buffer);
         }

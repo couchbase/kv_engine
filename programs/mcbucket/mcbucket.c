@@ -40,6 +40,7 @@
 #include <strings.h>
 
 #include <memcached/util.h>
+#include <utilities/protocol2text.h>
 #include "programs/utilities.h"
 
 static int usage() {
@@ -84,11 +85,11 @@ static int read_response(BIO *bio) {
 
     if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         fprintf(stderr, "Error from server: %s\n",
-                memcached_protocol_errcode_2_text(status));
+                memcached_status_2_text(status));
     }
 
     if (payload != NULL) {
-        if (strcmp(payload, memcached_protocol_errcode_2_text(status)) != 0) {
+        if (strcmp(payload, memcached_status_2_text(status)) != 0) {
             fprintf(stdout, "%s\n", payload);
         }
         free(payload);
