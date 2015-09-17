@@ -4669,7 +4669,7 @@ static void delete_bucket_executor(Connection *c, void *packet)
         } else {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                             "Failed to create thread to "
-                                            "delete bucket:: %s",
+                                            "delete bucket: %s",
                                             strerror(err));
             ret = ENGINE_FAILED;
         }
@@ -7280,8 +7280,7 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
 
 static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
                                           const std::string& bucket_name,
-                                          bool force)
-{
+                                          bool force) {
     ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
     /*
      * the number of buckets cannot change without a restart, but we don't want
@@ -7333,8 +7332,8 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     cb_mutex_enter(&all_buckets[idx].mutex);
     while (all_buckets[idx].clients > 0) {
         settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                        "%u Delete bucket [%s]. %u "
-                                            "clients connected",
+                                        "%u Delete bucket [%s]. Still waiting: "
+                                            "%u clients connected",
                                         c->getId(), bucket_name.c_str(),
                                         all_buckets[idx].clients);
 
@@ -7361,7 +7360,7 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
                                     c->getId(), bucket_name.c_str());
 
     all_buckets[idx].engine->destroy
-            (v1_handle_2_handle(all_buckets[idx].engine), force);
+        (v1_handle_2_handle(all_buckets[idx].engine), force);
 
     settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
                                     "%u Delete bucket [%s]. "
@@ -7369,7 +7368,7 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
                                     c->getId(), bucket_name.c_str());
 
     /* Clean up the stats... */
-    delete []all_buckets[idx].stats;
+    delete[]all_buckets[idx].stats;
     int numthread = settings.num_threads + 1;
     all_buckets[idx].stats = new thread_stats[numthread];
 
@@ -7393,11 +7392,10 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     return ENGINE_SUCCESS;
 }
 
-static void delete_bucket_main(void *arg)
-{
-    Connection *c = reinterpret_cast<Connection *>(arg);
+static void delete_bucket_main(void* arg) {
+    Connection* c = reinterpret_cast<Connection*>(arg);
     ENGINE_ERROR_CODE ret;
-    char *packet = (c->read.curr - (c->binary_header.request.bodylen +
+    char* packet = (c->read.curr - (c->binary_header.request.bodylen +
                                     sizeof(c->binary_header)));
 
     auto* req = reinterpret_cast<protocol_binary_request_delete_bucket*>(packet);
@@ -7405,7 +7403,6 @@ static void delete_bucket_main(void *arg)
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t blen = ntohl(req->message.header.request.bodylen);
     blen -= klen;
-
 
     try {
         std::string key((char*)(req + 1), klen);
