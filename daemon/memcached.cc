@@ -7919,22 +7919,21 @@ int main (int argc, char **argv) {
     audit_extension_data.max_file_rotation_time = 604800;  // 1 week = 60*60*24*7
     audit_extension_data.log_extension = settings.extensions.logger;
     audit_extension_data.notify_io_complete = notify_io_complete;
+    if (settings.audit_file && configure_auditdaemon(settings.audit_file, NULL)
+        != AUDIT_SUCCESS) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                    "FATAL: Failed to initialize audit "
+                                    "daemon with configuation file: %s",
+                                    settings.audit_file);
+        /* we failed configuring the audit.. run without it */
+        free((void*)settings.audit_file);
+        settings.audit_file = NULL;
+    }
     if (start_auditdaemon(&audit_extension_data) != AUDIT_SUCCESS) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "FATAL: Failed to start "
                                         "audit daemon");
         abort();
-    } else if (settings.audit_file) {
-        /* configure the audit daemon */
-        if (configure_auditdaemon(settings.audit_file, NULL) != AUDIT_SUCCESS) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "FATAL: Failed to initialize audit "
-                                        "daemon with configuation file: %s",
-                                        settings.audit_file);
-            /* we failed configuring the audit.. run without it */
-            free((void*)settings.audit_file);
-            settings.audit_file = NULL;
-        }
     }
 
     /* Initialize RBAC data */

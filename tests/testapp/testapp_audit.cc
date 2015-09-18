@@ -44,7 +44,7 @@ public:
      * 5. Connect to memcached/create bucket ready for a test.
      */
     void SetUp() {
-        if (server_pid != -1) {
+        if (server_pid != pid_t(-1)) {
             // We need to restart with auditing enabled.
             stop_memcached_server();
         }
@@ -99,7 +99,7 @@ public:
             CreateTestBucket();
         }
 
-        sock = connect_to_server_plain(port, false);
+        sock = connect_to_server_plain(port);
         ASSERT_NE(INVALID_SOCKET, sock);
 
         // Set ewouldblock_engine test harness to default mode.
@@ -181,8 +181,8 @@ TEST_F(AuditTest, AuditIllegalPacket) {
     safe_send(send.bytes, len, false);
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
-    validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
-                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+    mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
+                                  PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     // stop memcached so it writes out the audit logs.
     stop_memcached_server();
@@ -214,15 +214,15 @@ TEST_F(AuditTest, AuditFailedAuth) {
     const char* chosenmech = "PLAIN";
     const char* data = "\0nouser\0nopassword";
 
-    size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                              PROTOCOL_BINARY_CMD_SASL_AUTH,
-                              chosenmech, strlen(chosenmech),
-                              data, sizeof(data));
+    size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                   PROTOCOL_BINARY_CMD_SASL_AUTH,
+                                   chosenmech, strlen(chosenmech),
+                                   data, sizeof(data));
 
     safe_send(buffer.bytes, plen, false);
     safe_recv_packet(&buffer, sizeof(buffer));
-    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_SASL_AUTH,
-                             PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_SASL_AUTH,
+                                  PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
 
     stop_memcached_server();
     ASSERT_TRUE(searchAuditLogForID(20481));
@@ -239,24 +239,24 @@ TEST_F(AuditTest, AuditRBACFailed) {
     } buffer;
 
     /* assume the statistics role */
-    auto len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                             PROTOCOL_BINARY_CMD_ASSUME_ROLE,
-                             "statistics", 10, NULL, 0);
+    auto len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                PROTOCOL_BINARY_CMD_ASSUME_ROLE,
+                                "statistics", 10, NULL, 0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_ASSUME_ROLE,
-                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_ASSUME_ROLE,
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     /* At this point I should get an EACCESS if I tried to run NOOP */
-    len = raw_command(buffer.bytes, sizeof(buffer.bytes),
-                      PROTOCOL_BINARY_CMD_NOOP,
-                      NULL, 0, NULL, 0);
+    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                           PROTOCOL_BINARY_CMD_NOOP,
+                           NULL, 0, NULL, 0);
 
     safe_send(buffer.bytes, len, false);
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_NOOP,
-                             PROTOCOL_BINARY_RESPONSE_EACCESS);
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_NOOP,
+                                  PROTOCOL_BINARY_RESPONSE_EACCESS);
 
     stop_memcached_server();
     ASSERT_TRUE(searchAuditLogForID(20484));
