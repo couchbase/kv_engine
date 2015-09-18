@@ -592,6 +592,7 @@ void threads_cleanup(void)
         event_base_free(threads[ii].base);
 
         while ((it = cq_pop(threads[ii].new_conn_queue)) != NULL) {
+            safe_close(it->sfd);
             cqi_free(it);
         }
         free(threads[ii].new_conn_queue);
