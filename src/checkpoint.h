@@ -301,9 +301,10 @@ public:
     /**
      * Get the mutation id for a given key in this checkpoint
      * @param key a key to retrieve its mutation id
+     * @param isMetaKey indicates if the key is a checkpoint meta item
      * @return the mutation id for a given key
      */
-    uint64_t getMutationIdForKey(const std::string &key);
+    uint64_t getMutationIdForKey(const std::string &key, bool isMetaKey);
 
 private:
     EPStats                       &stats;
@@ -316,6 +317,8 @@ private:
     // List is used for queueing mutations as vector incurs shift operations for deduplication.
     std::list<queued_item>         toWrite;
     checkpoint_index               keyIndex;
+    /* Index for meta keys like "dummy_key" */
+    checkpoint_index               metaKeyIndex;
     size_t                         memOverhead;
 };
 
@@ -465,7 +468,7 @@ public:
      * Return true if a given key was already visited by all the cursors
      * and is eligible for eviction.
      */
-    bool eligibleForEviction(const std::string &key);
+    bool eligibleForEviction(const std::string &key, bool isMeta);
 
     /**
      * Clear all the checkpoints managed by this checkpoint manager.
@@ -524,9 +527,10 @@ public:
      * Gets the mutation id for a given checkpoint item.
      * @param The checkpoint to look for the key in
      * @param The key to get the mutation id for
+     * @param isMeta indicates if the key is a checkpoint meta item
      * @return The mutation id or 0 if not found
      */
-    uint64_t getMutationIdForKey(uint64_t chk_id, std::string key);
+    uint64_t getMutationIdForKey(uint64_t chk_id, std::string key, bool isMeta);
 
     bool incrCursor(CheckpointCursor &cursor);
 

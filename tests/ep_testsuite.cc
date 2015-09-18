@@ -451,10 +451,28 @@ static enum test_result test_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(ENGINE_SUCCESS ==
-          store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
-          "Error setting.");
-    h1->release(h, NULL, i);
+    const int num_sets = 5, num_keys = 4;
+
+    std::string key_arr[num_keys] = { "dummy_key",
+                                      "checkpoint_start",
+                                      "checkpoint_end",
+                                      "key" };
+
+
+    for (int k = 0; k < num_keys; k++) {
+        for (int j = 0; j < num_sets; j++) {
+            std::string err_string("Error setting " + key_arr[k]);
+            checkeq(ENGINE_SUCCESS,
+                    store(h, h1, NULL, OPERATION_SET, key_arr[k].c_str(),
+                          "somevalue", &i),
+                    err_string.c_str());
+            h1->release(h, NULL, i);
+        }
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    checkeq(num_keys, get_int_stat(h, h1, "ep_total_persisted"),
+            "Expected ep_total_persisted equals 4");
     return SUCCESS;
 }
 
@@ -3659,6 +3677,7 @@ static enum test_result test_dcp_producer_stream_req_disk(ENGINE_HANDLE *h,
     for (int j = 0; j < num_items; ++j) {
         if (j == 200) {
             wait_for_flusher_to_settle(h, h1);
+            wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", 200);
             stop_persistence(h, h1);
         }
         item *i = NULL;
@@ -6365,13 +6384,26 @@ static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDL
     item *itm;
     stop_persistence(h, h1);
     for (size_t i = 0; i < 5; ++i) {
-        for (size_t j = 0; j < 500; ++j) {
+        for (size_t j = 0; j < 497; ++j) {
             char key[8];
             sprintf(key, "key%ld", j);
             check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
                         == ENGINE_SUCCESS, "Failed to store an item.");
             h1->release(h, NULL, itm);
         }
+        /* Test with app keys with special strings */
+        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "dummy_key",
+                                      "value", &itm, 0, 0),
+                "Failed to store an item.");
+        h1->release(h, NULL, itm);
+        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET,
+                                      "checkpoint_start", "value", &itm, 0, 0),
+                "Failed to store an item.");
+        h1->release(h, NULL, itm);
+        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET,
+                                      "checkpoint_end", "value", &itm, 0, 0),
+                "Failed to store an item.");
+        h1->release(h, NULL, itm);
     }
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
