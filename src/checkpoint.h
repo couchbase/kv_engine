@@ -333,9 +333,10 @@ public:
     /**
      * Get the mutation id for a given key in this checkpoint
      * @param key a key to retrieve its mutation id
+     * @param isMetaKey indicates if the key is a checkpoint meta item
      * @return the mutation id for a given key
      */
-    uint64_t getMutationIdForKey(const std::string &key);
+    uint64_t getMutationIdForKey(const std::string &key, bool isMetaKey);
 
 private:
     EPStats                       &stats;
@@ -350,6 +351,8 @@ private:
     // List is used for queueing mutations as vector incurs shift operations for deduplication.
     std::list<queued_item>         toWrite;
     checkpoint_index               keyIndex;
+    /* Index for meta keys like "dummy_key" */
+    checkpoint_index               metaKeyIndex;
     size_t                         memOverhead;
 };
 

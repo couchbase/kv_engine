@@ -485,24 +485,44 @@ static enum test_result test_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     item_info info;
-    uint64_t vb_uuid = 0;
-    uint32_t high_seqno = 0;
+    uint64_t vb_uuid = 0, high_seqno = 0;
+    const int num_sets = 5, num_keys = 4;
 
-    memset(&info, 0, sizeof(info));
+    std::string key_arr[num_keys] = { "dummy_key",
+                                      "checkpoint_start",
+                                      "checkpoint_end",
+                                      "key" };
 
-    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
-    check(ENGINE_SUCCESS ==
-          store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
-          "Error setting.");
+    for (int k = 0; k < num_keys; k++) {
+        for (int j = 0; j < num_sets; j++) {
+            memset(&info, 0, sizeof(info));
+            vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+            high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno",
+                                      "vbucket-seqno");
 
-    h1->release(h, NULL, i);
+            std::string err_str_store("Error setting " + key_arr[k]);
+            checkeq(ENGINE_SUCCESS,
+                    store(h, h1, NULL, OPERATION_SET, key_arr[k].c_str(),
+                          "somevalue", &i),
+                    err_str_store.c_str());
+            h1->release(h, NULL, i);
 
-    check(get_item_info(h, h1, &info, "key"), "Error getting item info");
+            std::string err_str_get_item_info("Error getting " + key_arr[k]);
+            checkeq(true, get_item_info(h, h1, &info, key_arr[k].c_str()),
+                  err_str_get_item_info.c_str());
 
-    check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
-    check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
+            std::string err_str_vb_uuid("Expected valid vbucket uuid for " +
+                                        key_arr[k]);
+            checkeq(vb_uuid, info.vbucket_uuid, err_str_vb_uuid.c_str());
+
+            std::string err_str_seqno("Expected valid sequence number for " +
+                                        key_arr[k]);
+            checkeq(high_seqno + 1, info.seqno, err_str_seqno.c_str());
+        }
+    }
+
+    wait_for_flusher_to_settle(h, h1);
 
     return SUCCESS;
 }
@@ -4188,6 +4208,7 @@ static enum test_result test_dcp_producer_stream_req_disk(ENGINE_HANDLE *h,
     for (int j = 0; j < num_items; ++j) {
         if (j == 200) {
             wait_for_flusher_to_settle(h, h1);
+            wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", 200);
             stop_persistence(h, h1);
         }
         item *i = NULL;
@@ -7217,13 +7238,26 @@ static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDL
     item *itm;
     stop_persistence(h, h1);
     for (size_t i = 0; i < 5; ++i) {
-        for (size_t j = 0; j < 500; ++j) {
+        for (size_t j = 0; j < 497; ++j) {
             char key[8];
             sprintf(key, "key%ld", j);
             check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
                         == ENGINE_SUCCESS, "Failed to store an item.");
             h1->release(h, NULL, itm);
         }
+        /* Test with app keys with special strings */
+        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "dummy_key",
+                                      "value", &itm, 0, 0),
+                "Failed to store an item.");
+        h1->release(h, NULL, itm);
+        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET,
+                                      "checkpoint_start", "value", &itm, 0, 0),
+                "Failed to store an item.");
+        h1->release(h, NULL, itm);
+        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET,
+                                      "checkpoint_end", "value", &itm, 0, 0),
+                "Failed to store an item.");
+        h1->release(h, NULL, itm);
     }
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica), "Failed to set vbucket state.");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
