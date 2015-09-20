@@ -118,4 +118,17 @@ typedef int SOCKET;
 #undef assert
 #define assert #error "assert() is forbidden. Use cb_assert() from <platform/cbassert.h instead."
 
+/*
+ * Using the ntoh-methods on thread sanitizer builder cause compile warnings
+ * due to the macros is using the "register" keyword. Just undefine the
+ * macros since we don't need the extra performance optimization during the
+ * thread sanitizer run.
+ */
+#ifdef THREAD_SANITIZER
+#undef ntohs
+#undef ntohl
+#undef htons
+#undef htonl
+#endif
+
 #endif //CONFIG_H
