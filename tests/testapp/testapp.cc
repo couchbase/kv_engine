@@ -410,9 +410,6 @@ void TestappTest::start_server(in_port_t *port_out, in_port_t *ssl_port_out,
                                bool daemon, int timeout)
 {
     char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
-#ifdef __sun
-    char coreadm[128];
-#endif
     snprintf(mcd_parent_monitor_env, sizeof(mcd_parent_monitor_env),
              "MEMCACHED_PARENT_MONITOR=%lu", (unsigned long)getpid());
     putenv(mcd_parent_monitor_env);
@@ -424,16 +421,6 @@ void TestappTest::start_server(in_port_t *port_out, in_port_t *ssl_port_out,
 
     static char topkeys_env[] = "MEMCACHED_TOP_KEYS=10";
     putenv(topkeys_env);
-
-
-#ifdef __sun
-    /* I want to name the corefiles differently so that they don't
-       overwrite each other
-    */
-    snprintf(coreadm, sizeof(coreadm),
-             "coreadm -p core.%%f.%%p %lu", (unsigned long)getpid());
-    system(coreadm);
-#endif
 
 #ifdef WIN32
     STARTUPINFO sinfo;
@@ -4103,6 +4090,17 @@ std::string TestappTest::config_file;
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
+
+#ifdef __sun
+    {
+        // Use coreadm to set up a corefile pattern to ensure that the corefiles
+        // created from the unit tests (of testapp or memcached) don't
+        // overwrite each other
+        std::string coreadm =
+            "coreadm -p core.%%f.%%p %lu" + std::to_string(getpid());
+        system(coreadm.c_str());
+    }
+#endif
 
     int cmd;
     while ((cmd = getopt(argc, argv, "v")) != EOF) {
