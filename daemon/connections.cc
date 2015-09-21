@@ -176,9 +176,10 @@ void run_event_loop(Connection * c) {
     }
 }
 
-Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
-               STATE_FUNC init_state,
-               struct event_base *base) {
+Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
+                     STATE_FUNC init_state,
+                     struct event_base* base,
+                     LIBEVENT_THREAD* thread) {
     Connection *c = allocate_connection(sfd);
     if (c == NULL) {
         return NULL;
@@ -252,6 +253,7 @@ Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
         associate_initial_bucket(c);
     }
 
+    c->setThread(thread);
     MEMCACHED_CONN_ALLOCATE(c->getId());
 
     return c;

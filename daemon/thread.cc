@@ -263,15 +263,13 @@ void dispatch_new_connections(LIBEVENT_THREAD* me) {
     std::unique_ptr<ConnectionQueueItem> item;
     while ((item = me->new_conn_queue->pop()) != nullptr) {
         Connection* c = conn_new(item->sfd, item->parent_port, item->init_state,
-                                 me->base);
+                                 me->base, me);
         if (c == nullptr) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
-                                            "Can't listen for events on fd %d",
-                                            item->sfd);
+                                            "Failed to dispatch event for "
+                                                "socket %ld",
+                                            long(item->sfd));
             safe_close(item->sfd);
-        } else {
-            cb_assert(c->getThread() == nullptr);
-            c->setThread(me);
         }
     }
 }

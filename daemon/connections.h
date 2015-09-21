@@ -42,8 +42,9 @@ void run_event_loop(Connection * c);
 /* Creates a new connection. Returns a pointer to the allocated connection if
  * successful, else NULL.
  */
-Connection *conn_new(const SOCKET sfd, in_port_t parent_port,
-               STATE_FUNC init_state, struct event_base *base);
+Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
+                     STATE_FUNC init_state, struct event_base* base,
+                     LIBEVENT_THREAD* thread = nullptr);
 
 /*
  * Closes a connection. Afterwards the connection is invalid (can no longer
