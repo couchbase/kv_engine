@@ -93,7 +93,7 @@ void Checkpoint::setState(checkpoint_state state) {
 void Checkpoint::popBackCheckpointEndItem() {
     if (!toWrite.empty() &&
         toWrite.back()->getOperation() == queue_op_checkpoint_end) {
-        keyIndex.erase(toWrite.back()->getKey());
+        metaKeyIndex.erase(toWrite.back()->getKey());
         toWrite.pop_back();
     }
 }
@@ -199,11 +199,11 @@ size_t Checkpoint::mergePrevCheckpoint(Checkpoint *pPrevCheckpoint) {
 
     std::list<queued_item>::iterator itr = toWrite.begin();
     uint64_t seqno = pPrevCheckpoint->getMutationIdForKey("dummy_key", true);
-    keyIndex["dummy_key"].mutation_id = seqno;
+    metaKeyIndex["dummy_key"].mutation_id = seqno;
     (*itr)->setBySeqno(seqno);
 
     seqno = pPrevCheckpoint->getMutationIdForKey("checkpoint_start", true);
-    keyIndex["checkpoint_start"].mutation_id = seqno;
+    metaKeyIndex["checkpoint_start"].mutation_id = seqno;
     ++itr;
     (*itr)->setBySeqno(seqno);
 
