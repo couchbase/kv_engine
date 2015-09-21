@@ -138,10 +138,6 @@ typedef union {
 /* list of listening connections */
 extern Connection *listen_conn;
 
-/* States for the connection list_state */
-#define LIST_STATE_PROCESSING 1
-#define LIST_STATE_REQ_PENDING_IO 2
-
 /*
  * Functions
  */
