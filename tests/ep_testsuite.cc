@@ -2912,12 +2912,13 @@ static enum test_result test_memory_tracking(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    checkeq(10240000, get_int_stat(h, h1, "ep_max_size"), "Max size not at 10MB");
     set_param(h, h1, protocol_binary_engine_param_flush, "mutation_mem_threshold", "95");
     wait_for_stat_change(h, h1,"ep_db_data_size", 0);
     check(get_int_stat(h, h1, "ep_oom_errors") == 0 &&
           get_int_stat(h, h1, "ep_tmp_oom_errors") == 0, "Expected no OOM errors.");
 
-    size_t vlen = 2 * 1024 * 1024;
+    size_t vlen = 4 * 1024 * 1024;
     char *data = new char[vlen + 1]; // +1 for terminating '\0' byte
     cb_assert(data);
     memset(data, 'x', vlen);
@@ -2925,8 +2926,9 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     item *i = NULL;
     // So if we add an item,
-    check(store(h, h1, NULL, OPERATION_SET, "key", data, &i) == ENGINE_SUCCESS,
-          "store failure");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", data, &i),
+            "store failure");
     check_key_value(h, h1, "key", data, vlen);
     h1->release(h, NULL, i);
 
@@ -2935,11 +2937,11 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     // Set max_size equal to used memory, so that the next store operation
     // would throw an ENOMEM/ETMPFAIL.
     int new_max_size = get_int_stat(h, h1, "mem_used");
-    std::stringstream ss;
-    ss << new_max_size;
-    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", ss.str().c_str());
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
+              std::to_string(new_max_size).c_str());
 
     int num_pager_runs = get_int_stat(h, h1, "ep_num_pager_runs");
+    int num_ejects = get_int_stat(h, h1, "ep_num_value_ejects");
 
     i = NULL;
     // There should be no room for another.
@@ -2956,13 +2958,19 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     // Consider the number of ejects to estimate the outcome of the next
     // store operation, as the previous one that failed because of ENOMEM
     // would've woken up the item-pager.
+    bool opToSucceed = false;
+    if (get_int_stat(h, h1, "ep_num_pager_runs") > num_pager_runs &&
+        get_int_stat(h, h1, "ep_num_value_ejects") > num_ejects) {
+        opToSucceed = true;
+    }
     ENGINE_ERROR_CODE overwrite = store(h, h1, NULL, OPERATION_SET, "key", data, &i);
-    if (get_int_stat(h, h1, "ep_num_pager_runs") > num_pager_runs) {
+    if (opToSucceed) {
+        checkeq(ENGINE_SUCCESS,
+                overwrite,
+                "Item pager cleared up memory but this op still failed");
+    } else {
         check(overwrite == ENGINE_ENOMEM || overwrite == ENGINE_TMPFAIL,
               "should have failed second override");
-    } else {
-        check(overwrite == ENGINE_SUCCESS,
-                "Item pager cleared up memory but this op still failed");
     }
 
     if (i) {
@@ -2980,15 +2988,16 @@ static enum test_result test_memory_limit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(ENGINE_SUCCESS != verify_key(h, h1, "key2"), "Expected a failure in GET");
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Until we remove that item
-    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0), "Failed remove with value.");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
     wait_for_flusher_to_settle(h, h1);
 
-    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue2", &i) == ENGINE_SUCCESS,
-          "should have succeded on the last set");
+    checkeq(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue2", &i),
+            ENGINE_SUCCESS,
+            "should have succeded on the last set");
     check_key_value(h, h1, "key2", "somevalue2", 10);
     h1->release(h, NULL, i);
     delete []data;
@@ -14144,7 +14153,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("test total memory limit", test_memory_limit,
                  test_setup, teardown,
-                 "ht_locks=1;ht_size=3;"
+                 "max_size=10240000;ht_locks=1;ht_size=3;"
                  "chk_remover_stime=1;chk_period=60",
                  prepare, cleanup),
         TestCase("test max_size - water_mark changes",
