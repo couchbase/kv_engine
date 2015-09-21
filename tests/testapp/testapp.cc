@@ -581,11 +581,9 @@ static struct addrinfo *lookuphost(const char *hostname, in_port_t port)
     return ai;
 }
 
-
-
-static SOCKET create_connect_plain_socket(const char *hostname, in_port_t port)
+static SOCKET create_connect_plain_socket(in_port_t port)
 {
-    struct addrinfo *ai = lookuphost(hostname, port);
+    struct addrinfo *ai = lookuphost("127.0.0.1", port);
     SOCKET sock = INVALID_SOCKET;
     if (ai != NULL) {
        if ((sock = socket(ai->ai_family, ai->ai_socktype,
@@ -604,13 +602,14 @@ static SOCKET create_connect_plain_socket(const char *hostname, in_port_t port)
     return sock;
 }
 
-static SOCKET create_connect_ssl_socket(const char *hostname, in_port_t port) {
+static SOCKET create_connect_ssl_socket(in_port_t port) {
     char port_str[32];
     snprintf(port_str, 32, "%d", port);
 
     EXPECT_EQ(nullptr, ssl_ctx);
     EXPECT_EQ(nullptr, bio);
-    EXPECT_EQ(0, create_ssl_connection(&ssl_ctx, &bio, hostname, port_str, NULL, NULL, 1));
+    EXPECT_EQ(0, create_ssl_connection(&ssl_ctx, &bio, "127.0.0.1", port_str,
+                                       NULL, NULL, 1));
 
     /* SSL "trickery". To ensure we have full control over send/receive of data.
        create_ssl_connection will have negotiated the SSL connection, now:
@@ -645,7 +644,7 @@ static void destroy_ssl_socket() {
 }
 
 SOCKET connect_to_server_plain(in_port_t port) {
-    SOCKET sock = create_connect_plain_socket("127.0.0.1", port);
+    SOCKET sock = create_connect_plain_socket(port);
     if (sock == INVALID_SOCKET) {
         ADD_FAILURE() << "Failed to connect socket to port" << port;
         return INVALID_SOCKET;
@@ -655,7 +654,7 @@ SOCKET connect_to_server_plain(in_port_t port) {
 }
 
 static SOCKET connect_to_server_ssl(in_port_t ssl_port) {
-    SOCKET sock = create_connect_ssl_socket("127.0.0.1", ssl_port);
+    SOCKET sock = create_connect_ssl_socket(ssl_port);
     if (sock == INVALID_SOCKET) {
         ADD_FAILURE() << "Failed to connect SSL socket to port" << ssl_port;
         return INVALID_SOCKET;
@@ -3534,7 +3533,7 @@ TEST_P(McdTestappTest, MB_12762_SSLHandshakeHang) {
      * 'plain' TCP connection to the SSL port - i.e. without any SSL handshake.
      */
     closesocket(sock_ssl);
-    sock_ssl = create_connect_plain_socket("127.0.0.1", ssl_port);
+    sock_ssl = create_connect_plain_socket(ssl_port);
 
     /* Send a payload which is NOT a valid SSL handshake: */
     char buf[] = {'a', '\n'};
