@@ -16,6 +16,8 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <platform/platform.h>
+#include <queue>
+#include <memory>
 
 #define ITEMS_PER_ALLOC 64
 
@@ -23,22 +25,48 @@ static char devnull[8192];
 extern std::atomic<bool> memcached_shutdown;
 
 /* An item in the connection queue. */
-typedef struct conn_queue_item CQ_ITEM;
-struct conn_queue_item {
-    SOCKET            sfd;
-    int               parent_port;
-    STATE_FUNC        init_state;
-    CQ_ITEM          *next;
+struct ConnectionQueueItem {
+    ConnectionQueueItem(SOCKET sock, in_port_t port, STATE_FUNC state)
+        : sfd(sock),
+          parent_port(port),
+          init_state(state) {
+        // empty
+    }
+
+    SOCKET sfd;
+    in_port_t parent_port;
+    STATE_FUNC init_state;
 };
 
-/* A connection queue. */
-typedef struct conn_queue CQ;
-struct conn_queue {
-    CQ_ITEM *head;
-    CQ_ITEM *tail;
-    cb_mutex_t lock;
-    cb_cond_t  cond;
+class ConnectionQueue {
+public:
+    ~ConnectionQueue() {
+        while (!connections.empty()) {
+            safe_close(connections.front()->sfd);
+            connections.pop();
+        }
+    }
+
+    std::unique_ptr<ConnectionQueueItem> pop() {
+        std::lock_guard<std::mutex> guard(mutex);
+        if (connections.empty()) {
+            return nullptr;
+        }
+        std::unique_ptr<ConnectionQueueItem> ret(std::move(connections.front()));
+        connections.pop();
+        return ret;
+    }
+
+    void push(std::unique_ptr<ConnectionQueueItem> &item) {
+        std::lock_guard<std::mutex> guard(mutex);
+        connections.push(std::move(item));
+    }
+
+private:
+    std::mutex mutex;
+    std::queue< std::unique_ptr<ConnectionQueueItem> > connections;
 };
+
 
 /* Connection lock around accepting new connections */
 cb_mutex_t conn_lock;
@@ -61,52 +89,6 @@ static cb_mutex_t init_lock;
 static cb_cond_t init_cond;
 
 static void thread_libevent_process(evutil_socket_t fd, short which, void *arg);
-
-/*
- * Initializes a connection queue.
- */
-static void cq_init(CQ *cq) {
-    cb_mutex_initialize(&cq->lock);
-    cb_cond_initialize(&cq->cond);
-    cq->head = NULL;
-    cq->tail = NULL;
-}
-
-/*
- * Looks for an item on a connection queue, but doesn't block if there isn't
- * one.
- * Returns the item, or NULL if no item is available
- */
-static CQ_ITEM *cq_pop(CQ *cq) {
-    CQ_ITEM *item;
-
-    cb_mutex_enter(&cq->lock);
-    item = cq->head;
-    if (NULL != item) {
-        cq->head = item->next;
-        if (NULL == cq->head)
-            cq->tail = NULL;
-    }
-    cb_mutex_exit(&cq->lock);
-
-    return item;
-}
-
-/*
- * Adds an item to a connection queue.
- */
-static void cq_push(CQ *cq, CQ_ITEM *item) {
-    item->next = NULL;
-
-    cb_mutex_enter(&cq->lock);
-    if (NULL == cq->tail)
-        cq->head = item;
-    else
-        cq->tail->next = item;
-    cq->tail = item;
-    cb_cond_signal(&cq->cond);
-    cb_mutex_exit(&cq->lock);
-}
 
 /*
  * Creates a worker thread.
@@ -209,13 +191,14 @@ static void setup_thread(LIBEVENT_THREAD *me) {
         exit(1);
     }
 
-    me->new_conn_queue = reinterpret_cast<struct conn_queue *>(malloc(sizeof(struct conn_queue)));
-    if (me->new_conn_queue == NULL) {
+    try {
+        me->new_conn_queue = new ConnectionQueue;
+    } catch (std::bad_alloc&) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to allocate memory for connection queue");
+                                        "Failed to allocate memory for "
+                                            "connection queue");
         exit(EXIT_FAILURE);
     }
-    cq_init(me->new_conn_queue);
 
     cb_mutex_initialize(&me->mutex);
 
@@ -276,16 +259,36 @@ static void drain_notification_channel(evutil_socket_t fd)
     }
 }
 
+void dispatch_new_connections(LIBEVENT_THREAD* me) {
+    std::unique_ptr<ConnectionQueueItem> item;
+    while ((item = me->new_conn_queue->pop()) != nullptr) {
+        Connection* c = conn_new(item->sfd, item->parent_port, item->init_state,
+                                 me->base);
+        if (c == nullptr) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
+                                            "Can't listen for events on fd %d",
+                                            item->sfd);
+            safe_close(item->sfd);
+        } else {
+            cb_assert(c->getThread() == nullptr);
+            c->setThread(me);
+        }
+    }
+}
+
 /*
  * Processes an incoming "handle a new connection" item. This is called when
  * input arrives on the libevent wakeup pipe.
  */
 static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) {
-    LIBEVENT_THREAD *me = reinterpret_cast<LIBEVENT_THREAD*>(arg);
-    CQ_ITEM *item;
-    Connection * pending;
+    LIBEVENT_THREAD* me = reinterpret_cast<LIBEVENT_THREAD*>(arg);
 
     cb_assert(me->type == ThreadType::GENERAL);
+    // Start by draining the notification channel before doing any work.
+    // By doing so we know that we'll be notified again if someone
+    // tries to notify us while we're doing the work below (so we don't have
+    // to care about race conditions for stuff people try to notify us
+    // about.
     drain_notification_channel(fd);
 
     if (memcached_shutdown) {
@@ -307,23 +310,10 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         }
     }
 
-    while ((item = cq_pop(me->new_conn_queue)) != NULL) {
-        Connection *c = conn_new(item->sfd, item->parent_port, item->init_state,
-                                 me->base);
-        if (c == NULL) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Can't listen for events on fd %d",
-                                            item->sfd);
-            safe_close(item->sfd);
-        } else {
-            cb_assert(c->getThread() == nullptr);
-            c->setThread(me);
-        }
-        delete item;
-    }
+    dispatch_new_connections(me);
 
     LOCK_THREAD(me);
-    pending = me->pending_io;
+    Connection* pending = me->pending_io;
     me->pending_io = NULL;
     while (pending != NULL) {
         Connection *c = pending;
@@ -462,29 +452,22 @@ static int last_thread = -1;
  */
 void dispatch_conn_new(SOCKET sfd, int parent_port,
                        STATE_FUNC init_state) {
-    CQ_ITEM *item = nullptr;
-    try {
-        item = new CQ_ITEM();
-
-        item->sfd = sfd;
-        item->parent_port = parent_port;
-        item->init_state = init_state;
-    } catch (std::bad_alloc& e) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
-            "dispatch_conn_new: Failed to dispatch new connection: %s",
-             e.what());
-        delete item;
-        close(sfd);
-        return;
-    }
-
     int tid = (last_thread + 1) % settings.num_threads;
-
-    LIBEVENT_THREAD *thread = threads + tid;
-
+    LIBEVENT_THREAD* thread = threads + tid;
     last_thread = tid;
 
-    cq_push(thread->new_conn_queue, item);
+    try {
+        std::unique_ptr<ConnectionQueueItem> item(
+            new ConnectionQueueItem(sfd, parent_port, init_state));
+        thread->new_conn_queue->push(item);
+    } catch (std::bad_alloc& e) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
+                                        "dispatch_conn_new: Failed to dispatch"
+                                            " new connection: %s",
+                                        e.what());
+        safe_close(sfd);
+        return ;
+    }
 
     MEMCACHED_CONN_DISPATCH(sfd, (uintptr_t)thread->thread_id);
     notify_thread(thread);
@@ -580,21 +563,15 @@ void threads_cleanup(void)
 {
     int ii;
     for (ii = 0; ii < nthreads; ++ii) {
-        CQ_ITEM *it;
-
         safe_close(threads[ii].notify[0]);
         safe_close(threads[ii].notify[1]);
         event_base_free(threads[ii].base);
 
-        while ((it = cq_pop(threads[ii].new_conn_queue)) != NULL) {
-            safe_close(it->sfd);
-            delete it;
-        }
-        free(threads[ii].new_conn_queue);
         free(threads[ii].read.buf);
         free(threads[ii].write.buf);
         subdoc_op_free(threads[ii].subdoc_op);
         delete threads[ii].validator;
+        delete threads[ii].new_conn_queue;
     }
 
     free(thread_ids);

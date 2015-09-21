@@ -79,13 +79,14 @@ struct net_buf {
 };
 
 class Connection;
+class ConnectionQueue;
 
 typedef struct {
     cb_thread_t thread_id;      /* unique ID of this thread */
     struct event_base *base;    /* libevent handle this thread uses */
     struct event notify_event;  /* listen event for notify pipe */
     SOCKET notify[2];           /* notification pipes */
-    struct conn_queue *new_conn_queue; /* queue of new connections to handle */
+    ConnectionQueue *new_conn_queue; /* queue of new connections to handle */
     cb_mutex_t mutex;      /* Mutex to lock protect access to the pending_io */
     bool is_locked;
     Connection *pending_io;    /* List of connection with pending async io ops */
