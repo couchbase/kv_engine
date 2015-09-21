@@ -65,7 +65,8 @@ int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging)
             ++connected;
             if (bucket_idx == -1 || c->getBucketIndex() == bucket_idx) {
                 auto state = c->getState();
-                if (state == conn_read || state == conn_waiting) {
+                if (state == conn_read || state == conn_waiting ||
+                    state == conn_new_cmd) {
                     /*
                      * set write access to ensure it's handled (error logged in
                      * updateEvent().
