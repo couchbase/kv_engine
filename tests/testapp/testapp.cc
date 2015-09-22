@@ -326,6 +326,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     // One interface using the memcached binary protocol
     obj = cJSON_CreateObject();
     cJSON_AddNumberToObject(obj, "port", 0);
+    cJSON_AddTrueToObject(obj, "ipv4");
+    cJSON_AddTrueToObject(obj, "ipv6");
     cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
     cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
     cJSON_AddStringToObject(obj, "host", "*");
@@ -337,6 +339,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddNumberToObject(obj, "port", ssl_port);
     cJSON_AddNumberToObject(obj, "maxconn", MAX_CONNECTIONS);
     cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
+    cJSON_AddTrueToObject(obj, "ipv4");
+    cJSON_AddTrueToObject(obj, "ipv6");
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddStringToObject(obj, "protocol", "memcached");
     obj_ssl = cJSON_CreateObject();
