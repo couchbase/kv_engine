@@ -543,7 +543,8 @@ cJSON* Connection::toJSON() const {
         }
         json_add_uintptr_to_object(obj, "opaque", getOpaque());
         json_add_uintptr_to_object(obj, "next", (uintptr_t) next);
-        json_add_uintptr_to_object(obj, "thread", (uintptr_t) thread);
+        json_add_uintptr_to_object(obj, "thread", (uintptr_t)thread.load(
+            std::memory_order::memory_order_relaxed));
         cJSON_AddNumberToObject(obj, "aiostat", aiostat);
         json_add_bool_to_object(obj, "ewouldblock", ewouldblock);
         json_add_uintptr_to_object(obj, "tap_iterator",

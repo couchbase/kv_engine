@@ -714,11 +714,11 @@ public:
     }
 
     LIBEVENT_THREAD* getThread() const {
-        return thread;
+        return thread.load(std::memory_order_relaxed);
     }
 
     void setThread(LIBEVENT_THREAD* thread) {
-        Connection::thread = thread;
+        Connection::thread.store(thread, std::memory_order::memory_order_relaxed);
     }
 
     const ENGINE_ERROR_CODE& getAiostat() const {
@@ -1083,7 +1083,7 @@ private:
     Connection* next;
 
     /** Pointer to the thread object serving this connection */
-    LIBEVENT_THREAD* thread;
+    std::atomic<LIBEVENT_THREAD*> thread;
 
     /**
      * The status for the async io operation
