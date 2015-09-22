@@ -14,6 +14,8 @@ ADD_EXECUTABLE(memcached_testapp
 	       )
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform dirutils gtest gtest_main ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
 
+target_compile_options(memcached_testapp PRIVATE ${CMAKE_CXX_FLAGS_DEBUG})
+
 # Note: As well as the Transport (plain/SSL) tests there are also some
 # other unit tests in memcached_testapp. Therefore run all _but_ the
 # SSL tests in 'plain'.
