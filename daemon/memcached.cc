@@ -4755,7 +4755,7 @@ typedef protocol_binary_response_status (*bin_package_validate)(void *packet);
 typedef void (*bin_package_execute)(Connection *c, void *packet);
 
 mcbp_package_validate *validators;
-bin_package_execute executors[0xff];
+bin_package_execute executors[0x100];
 
 static void setup_bin_packet_handlers(void) {
     validators = get_mcbp_validators();
