@@ -26,9 +26,8 @@ IF(${COUCHBASE_PYTHON})
         TARGET_LINK_LIBRARIES(memcached_generated_testsuite_${ID} platform)
         ADD_DEPENDENCIES(memcached_generated_testsuite_${ID}
                          DUMMY_generated_suite)
-        SEPARATE_ARGUMENTS(disable_opt_flags UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
         TARGET_COMPILE_OPTIONS(memcached_generated_testsuite_${ID}
-                               PRIVATE ${disable_opt_flags})
+                               PRIVATE ${CB_C_FLAGS_NO_OPTIMIZE})
 
         ADD_TEST(NAME memcached-breakdancer-engine-tests_${ID}
                  WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
