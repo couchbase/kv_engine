@@ -24,6 +24,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <platform/strerror.h>
 
 /////////////////////////////////////////////////////////////////////////
 // SASL related functions
@@ -176,7 +177,8 @@ MemcachedConnection::MemcachedConnection(in_port_t port, sa_family_t family,
       ssl(ssl),
       protocol(protocol),
       context(nullptr),
-      bio(nullptr) {
+      bio(nullptr),
+      sock(INVALID_SOCKET) {
     connect();
 }
 
@@ -190,13 +192,21 @@ void MemcachedConnection::reconnect() {
 }
 
 void MemcachedConnection::close() {
-    if (bio != nullptr) {
-        BIO_free_all(bio);
-        bio = nullptr;
-    }
-    if (context != nullptr) {
-        SSL_CTX_free(context);
-        context = nullptr;
+    if (ssl) {
+        // the socket is closed by the underlying BIO stuctures
+        if (bio != nullptr) {
+            BIO_free_all(bio);
+            bio = nullptr;
+        }
+        if (context != nullptr) {
+            SSL_CTX_free(context);
+            context = nullptr;
+        }
+    } else {
+        if (sock != INVALID_SOCKET) {
+            ::closesocket(sock);
+            sock = INVALID_SOCKET;
+        }
     }
 }
 
@@ -239,7 +249,7 @@ SOCKET new_socket(in_port_t port, sa_family_t family) {
 }
 
 void MemcachedConnection::connect() {
-    SOCKET sock = new_socket(port, family);
+    sock = new_socket(port, family);
     if (sock == INVALID_SOCKET) {
         std::string msg("Failed to connect to: ");
         if (family == AF_INET) {
@@ -250,6 +260,7 @@ void MemcachedConnection::connect() {
         msg.append(std::to_string(port));
         throw std::runtime_error(msg);
     }
+
     /* we're connected */
     if (ssl) {
         if ((context = SSL_CTX_new(SSLv23_client_method())) == NULL) {
@@ -267,16 +278,10 @@ void MemcachedConnection::connect() {
             context = nullptr;
             throw std::runtime_error("Failed to do SSL handshake!");
         }
-    } else {
-        bio = BIO_new_fd(sock, 0);
-        if (bio == nullptr) {
-            ::closesocket(sock);
-            throw std::runtime_error("Error creating the BIO object");
-        }
     }
 }
 
-void MemcachedConnection::sendFrame(const Frame& frame) {
+void MemcachedConnection::sendFrameSsl(const Frame& frame) {
     const char* data = reinterpret_cast<const char*>(frame.payload.data());
     Frame::size_type nbytes = frame.payload.size();
     Frame::size_type offset = 0;
@@ -293,7 +298,24 @@ void MemcachedConnection::sendFrame(const Frame& frame) {
     }
 }
 
-void MemcachedConnection::read(Frame& frame, size_t bytes) {
+void MemcachedConnection::sendFramePlain(const Frame& frame) {
+    const char* data = reinterpret_cast<const char*>(frame.payload.data());
+    Frame::size_type nbytes = frame.payload.size();
+    Frame::size_type offset = 0;
+
+    while (offset < nbytes) {
+        auto nw = send(sock, data + offset, nbytes - offset, 0);
+        if (nw < 0) {
+            std::string msg("Failed to send data: " );
+            msg.append(cb_strerror());
+            throw std::runtime_error(msg);
+        } else {
+            offset += nw;
+        }
+    }
+}
+
+void MemcachedConnection::readSsl(Frame& frame, size_t bytes) {
     Frame::size_type offset = frame.payload.size();
     frame.payload.resize(bytes + offset);
     char* data = reinterpret_cast<char*>(frame.payload.data()) + offset;
@@ -312,6 +334,24 @@ void MemcachedConnection::read(Frame& frame, size_t bytes) {
     }
 }
 
+void MemcachedConnection::readPlain(Frame& frame, size_t bytes) {
+    Frame::size_type offset = frame.payload.size();
+    frame.payload.resize(bytes + offset);
+    char* data = reinterpret_cast<char*>(frame.payload.data()) + offset;
+
+    size_t total = 0;
+
+    while (total < bytes) {
+        auto nr = recv(sock, data + total, bytes - total, 0);
+        if (nr < 0) {
+            std::string msg("Failed to read data: " );
+            msg.append(cb_strerror());
+            throw std::runtime_error(msg);
+        } else {
+            total += nr;
+        }
+    }
+}
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the MemcachedBinaryConnection class
 /////////////////////////////////////////////////////////////////////////

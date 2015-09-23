@@ -89,7 +89,13 @@ public:
      * Sent the given frame over this connection
      * @throws std::runtime_error if an error occurs
      */
-    virtual void sendFrame(const Frame& frame);
+    virtual void sendFrame(const Frame& frame) {
+        if (ssl) {
+            sendFrameSsl(frame);
+        } else {
+            sendFramePlain(frame);
+        }
+    }
 
     virtual void recvFrame(Frame& frame) = 0;
 
@@ -108,7 +114,20 @@ protected:
      *
      * @throws runtime_error if an error occurs
      */
-    void read(Frame& frame, size_t bytes);
+    void read(Frame& frame, size_t bytes) {
+        if (ssl) {
+            readSsl(frame, bytes);
+        } else {
+            readPlain(frame, bytes);
+        }
+    }
+
+    void readPlain(Frame& frame, size_t bytes);
+    void readSsl(Frame& frame, size_t bytes);
+
+    void sendFramePlain(const Frame& frame);
+    void sendFrameSsl(const Frame& frame);
+
 
     in_port_t port;
     sa_family_t family;
@@ -116,6 +135,7 @@ protected:
     Protocol protocol;
     SSL_CTX* context;
     BIO* bio;
+    SOCKET sock;
 };
 
 class MemcachedBinprotConnection : public MemcachedConnection {
