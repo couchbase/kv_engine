@@ -16,8 +16,8 @@ ADD_EXECUTABLE(memcached_testapp
 	       )
 TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform dirutils gtest gtest_main ${SNAPPY_LIBRARIES} ${LIBEVENT_LIBRARIES} ${COUCHBASE_NETWORK_LIBS} ${OPENSSL_LIBRARIES})
 
-separate_arguments(CMAKE_CXX_FLAGS_DEBUG UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
-target_compile_options(memcached_testapp PRIVATE ${CMAKE_CXX_FLAGS_DEBUG})
+separate_arguments(disable_opt_flags UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
+target_compile_options(memcached_testapp PRIVATE ${disable_opt_flags})
 
 # Note: As well as the Transport (plain/SSL) tests there are also some
 # other unit tests in memcached_testapp. Therefore run all _but_ the
