@@ -66,32 +66,3 @@ void set_ssl_cipher_list(const char *list) {
 void set_ssl_ctx_cipher_list(SSL_CTX *ctx, EXTENSION_LOGGER_DESCRIPTOR *logger) {
     sslCipherList.setCipherList(ctx, logger);
 }
-
-char *locate_ssl_json(void) {
-    // We don't know where the "root" of the couchbase installation is
-    // but we know where the SASL_PW file is..
-    char *env = getenv("ISASL_PWFILE");
-    if (env == NULL) {
-        return NULL;
-    }
-
-    std::string path(env);
-#ifdef WIN32
-    // Make sure that the path is in unix format
-    std::replace(path.begin(), path.end(), '\\', '/');
-#endif
-
-    std::string::size_type position = path.find("/var/lib/couchbase/isasl.pw");
-    if (position == std::string::npos) {
-        return NULL;
-    }
-    path.resize(position);
-    path.append("/etc/security/ssl.json");
-
-#ifdef WIN32
-    // Make sure that the path is in Windows format
-    std::replace(path.begin(), path.end(), '/', '\\');
-#endif
-
-    return strdup(path.c_str());
-}
