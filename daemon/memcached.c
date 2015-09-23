@@ -5309,8 +5309,8 @@ static void not_supported_executor(conn *c, void *packet)
 typedef int (*bin_package_validate)(void *packet);
 typedef void (*bin_package_execute)(conn *c, void *packet);
 
-bin_package_validate validators[0xff];
-bin_package_execute executors[0xff];
+bin_package_validate validators[0x100];
+bin_package_execute executors[0x100];
 
 static void setup_bin_packet_handlers(void) {
     validators[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_validator;
