@@ -55,7 +55,7 @@ static void checkeqfn(T exp, T got, const char *msg, const char *file, const int
     if (exp != got) {
         std::stringstream ss;
         ss << "Expected `" << exp << "', got `" << got << "' - " << msg;
-        abort_msg(ss.str().c_str(), file, linenum);
+        abort_msg(ss.str().c_str(), "", file, linenum);
     }
 }
 

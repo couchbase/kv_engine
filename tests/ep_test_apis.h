@@ -31,9 +31,10 @@
 #include "item.h"
 
 #define check(expr, msg) \
-    static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
+    static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __FILE__, __LINE__))
 
-extern "C" bool abort_msg(const char *expr, const char *msg, int line);
+extern "C" bool abort_msg(const char *expr, const char *msg,
+                          const char *file, int line);
 
 #ifdef __cplusplus
 extern "C" {

@@ -1256,9 +1256,9 @@ void set_degraded_mode(ENGINE_HANDLE *h,
     }
 }
 
-bool abort_msg(const char *expr, const char *msg, int line) {
+bool abort_msg(const char *expr, const char *msg, const char *file, int line) {
     fprintf(stderr, "%s:%d Test failed: `%s' (%s)\n",
-            __FILE__, line, msg, expr);
+            file, line, msg, expr);
     abort();
     // UNREACHABLE
     return false;
