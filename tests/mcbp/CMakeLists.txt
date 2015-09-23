@@ -13,4 +13,5 @@ add_test(NAME memcached_mcbp_test COMMAND memcached_mcbp_test)
 
 # GTest can be slow to compile (due to all the template / macro
 # expansion).  Disabling optimization can speed up by ~30%.
+separate_arguments(CMAKE_CXX_FLAGS_DEBUG UNIX_COMMAND "${CMAKE_CXX_FLAGS_DEBUG}")
 target_compile_options(memcached_mcbp_test PRIVATE ${CMAKE_CXX_FLAGS_DEBUG})
