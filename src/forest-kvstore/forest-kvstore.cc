@@ -732,15 +732,14 @@ bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
         statDoc.bodylen = stateStr.length();
         fdb_status status = fdb_set(vbStateHandle, &statDoc);
 
-        if (status == FDB_RESULT_SUCCESS) {
-            return true;
-        } else {
+        if (status != FDB_RESULT_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING, "Failed to save vbucket state for "
                     "vbucket=%d error=%s", vbucketId, fdb_error_msg(status));
+            return false;
         }
     }
 
-    return false;
+    return true;
 }
 
 bool ForestKVStore::compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
