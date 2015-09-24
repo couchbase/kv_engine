@@ -13765,6 +13765,10 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
     check(set_vbucket_state(h, h1, 1, vbucket_state_active),
           "Failed to set vbucket state.");
 
+    // Reduce our memory usage to a minimum before we start taking
+    // measurments.
+    testHarness.release_free_memory();
+
     // 0. Get baseline memory usage (before creating any objects).
     //    First ensure stats are up-to-date, by getting directly from the
     //    allocator (normally they are retrieved periodically by a worker
@@ -13776,7 +13780,7 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
     //    they are small, main thing is we create enough to span multiple
     //    pages (so we can later leave 'holes' when they are deleted).
     const size_t size = 128;
-    const size_t num_docs = 40000;
+    const size_t num_docs = 50000;
     std::string data(size, 'x');
     for (unsigned int i = 0; i < num_docs; i++ ) {
         // Deliberately using C-style int-to-string conversion (instead of
@@ -13806,8 +13810,9 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
     size_t num_remaining = num_docs;
     const size_t LOG_PAGE_SIZE = 12; // 4K page
     {
-        typedef std::map<uintptr_t, std::vector<int> > page_to_keys_t;
+        typedef std::unordered_map<uintptr_t, std::vector<int> > page_to_keys_t;
         page_to_keys_t page_to_keys;
+
         // Build a map of pages to keys
         for (unsigned int i = 0; i < num_docs; i++ ) {
             char key[16];
@@ -13860,19 +13865,24 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
 
     size_t mapped_2 = testHarness.get_mapped_bytes();
 
-    // Sanity check (2) - mapped memory should still be high - at least 90% of
-    // the value after creation, before delete.
-    check(mapped_2 - mapped_0 >= 0.9 * (double)(mapped_1 - mapped_0),
-          "Mapped memory lower than expected");
+    // Sanity check (2) - mapped memory should still be high - at least as much
+    // as after document creation, before delete.
+    const size_t current_mapped = mapped_2 - mapped_0;
+    const size_t previous_mapped = mapped_1 - mapped_0;
 
-    // 3. Trigger defragmentation
+    check(current_mapped >= 1.0 * double(previous_mapped),
+          ("current_mapped memory (which is " + std::to_string(current_mapped) +
+           ") is lower than 90% of previous mapped (which is " +
+           std::to_string(previous_mapped) + "). ").c_str());
+
+    // 3. Enable defragmenter and trigger defragmentation
     // (Enable defragmenter task if it was disabled)
 
-    if (!get_bool_stat(h, h1, "ep_defragmenter_enabled")) {
-        check(set_param(h, h1, protocol_binary_engine_param_flush,
+    checkeq(get_bool_stat(h, h1, "ep_defragmenter_enabled"), false,
+            "Expected defragmenter to be disabled");
+    check(set_param(h, h1, protocol_binary_engine_param_flush,
                     "defragmenter_enabled", "true"),
-                "Set defragmenter_enabled should have worked");
-    }
+          "Set defragmenter_enabled should have worked");
 
     check(set_param(h, h1, protocol_binary_engine_param_flush, "defragmenter_run",
                     "true"),
@@ -15035,7 +15045,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "defragmenter_interval=9999"
                  ";defragmenter_age_threshold=0"
-                 ";defragmenter_chunk_duration=99999",
+                 ";defragmenter_chunk_duration=99999"
+                 ";defragmenter_enabled=false",
                  prepare, cleanup),
 #endif
 
