@@ -30,15 +30,7 @@ AtomicValue<size_t> GlobalTask::task_id_counter(1);
 extern "C" {
     static void launch_executor_thread(void *arg) {
         ExecutorThread *executor = (ExecutorThread*) arg;
-        try {
-            executor->run();
-        } catch (std::exception& e) {
-            LOG(EXTENSION_LOG_WARNING, "%s: Caught an exception: %s\n",
-                executor->getName().c_str(), e.what());
-        } catch(...) {
-            LOG(EXTENSION_LOG_WARNING, "%s: Caught a fatal exception\n",
-                executor->getName().c_str());
-        }
+        executor->run();
     }
 }
 
@@ -109,69 +101,60 @@ void ExecutorThread::run() {
 
             taskStart = now;
             rel_time_t startReltime = ep_current_time();
-            try {
-                LOG(EXTENSION_LOG_DEBUG,
-                    "%s: Run task \"%s\" id %" PRIu64,
-                    getName().c_str(), currentTask->getDescription().c_str(),
-                    uint64_t(currentTask->getId()));
 
-                // Now Run the Task ....
-                currentTask->setState(TASK_RUNNING, TASK_SNOOZED);
-                bool again = currentTask->run();
+            LOG(EXTENSION_LOG_DEBUG,
+                "%s: Run task \"%s\" id %" PRIu64,
+                getName().c_str(), currentTask->getDescription().c_str(),
+                uint64_t(currentTask->getId()));
 
-                // Task done, log it ...
-                hrtime_t runtime((gethrtime() - taskStart) / 1000);
-                currentTask->getTaskable()->logRunTime(currentTask->getTypeId(),
-                                                       runtime);
-                if (engine) {
-                    ObjectRegistry::onSwitchThread(NULL);
+            // Now Run the Task ....
+            currentTask->setState(TASK_RUNNING, TASK_SNOOZED);
+            bool again = currentTask->run();
+
+            // Task done, log it ...
+            hrtime_t runtime((gethrtime() - taskStart) / 1000);
+            currentTask->getTaskable()->logRunTime(currentTask->getTypeId(),
+                                                   runtime);
+            if (engine) {
+                ObjectRegistry::onSwitchThread(NULL);
+            }
+
+            addLogEntry(currentTask->getTaskable()->getName() +
+                        currentTask->getDescription(),
+                       q->getQueueType(), runtime, startReltime,
+                       (runtime >
+                       (hrtime_t)currentTask->maxExpectedDuration()));
+
+            if (engine) {
+                ObjectRegistry::onSwitchThread(engine);
+            }
+
+            // Check if task is run once or needs to be rescheduled..
+            if (!again || currentTask->isdead()) {
+                // release capacity back to TaskQueue
+                manager->doneWork(curTaskType);
+                manager->cancel(currentTask->taskId, true);
+            } else {
+                hrtime_t new_waketime;
+                // if a task has not set snooze, update its waketime to now
+                // before rescheduling for more accurate timing histograms
+                if (currentTask->waketime <= now) {
+                    currentTask->waketime = now;
                 }
-
-                addLogEntry(currentTask->getTaskable()->getName() +
-                            currentTask->getDescription(),
-                           q->getQueueType(), runtime, startReltime,
-                           (runtime >
-                           (hrtime_t)currentTask->maxExpectedDuration()));
-
-                if (engine) {
-                    ObjectRegistry::onSwitchThread(engine);
+                // release capacity back to TaskQueue ..
+                manager->doneWork(curTaskType);
+                new_waketime = q->reschedule(currentTask, curTaskType);
+                // record min waketime ...
+                if (new_waketime < waketime) {
+                    waketime = new_waketime;
                 }
-
-                // Check if task is run once or needs to be rescheduled..
-                if (!again || currentTask->isdead()) {
-                    // release capacity back to TaskQueue
-                    manager->doneWork(curTaskType);
-                    manager->cancel(currentTask->taskId, true);
-                } else {
-                    hrtime_t new_waketime;
-                    // if a task has not set snooze, update its waketime to now
-                    // before rescheduling for more accurate timing histograms
-                    if (currentTask->waketime <= now) {
-                        currentTask->waketime = now;
-                    }
-                    // release capacity back to TaskQueue ..
-                    manager->doneWork(curTaskType);
-                    new_waketime = q->reschedule(currentTask, curTaskType);
-                    // record min waketime ...
-                    if (new_waketime < waketime) {
-                        waketime = new_waketime;
-                    }
-                    LOG(EXTENSION_LOG_DEBUG, "%s: Reschedule a task"
-                            " \"%s\" id %" PRIu64 "[%" PRIu64 " %" PRIu64 " |%" PRIu64 "]",
-                            name.c_str(),
-                            currentTask->getDescription().c_str(),
-                            uint64_t(currentTask->getId()), uint64_t(new_waketime),
-                            uint64_t(currentTask->waketime),
-                            uint64_t(waketime));
-                }
-            } catch (std::exception& e) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s: Exception caught in task \"%s\": %s", name.c_str(),
-                    currentTask->getDescription().c_str(), e.what());
-            } catch(...) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s: Fatal exception caught in task \"%s\"\n",
-                    name.c_str(), currentTask->getDescription().c_str());
+                LOG(EXTENSION_LOG_DEBUG, "%s: Reschedule a task"
+                        " \"%s\" id %" PRIu64 "[%" PRIu64 " %" PRIu64 " |%" PRIu64 "]",
+                        name.c_str(),
+                        currentTask->getDescription().c_str(),
+                        uint64_t(currentTask->getId()), uint64_t(new_waketime),
+                        uint64_t(currentTask->waketime),
+                        uint64_t(waketime));
             }
         }
     }
