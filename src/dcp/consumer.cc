@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2013 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -654,15 +654,23 @@ bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
                              uint64_t rollbackSeqno) {
     ENGINE_ERROR_CODE err = engine_.getEpStore()->rollback(vbid, rollbackSeqno);
 
-    if (err == ENGINE_NOT_MY_VBUCKET) {
+    switch (err) {
+    case ENGINE_NOT_MY_VBUCKET:
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Rollback failed because the "
                 "vbucket was not found", logHeader(), vbid);
         return false;
-    } else if (err == ENGINE_TMPFAIL) {
-        return true; // Reschedule the rollback.
-    }
 
-    cb_assert(err == ENGINE_SUCCESS);
+    case ENGINE_TMPFAIL:
+        return true; // Reschedule the rollback.
+
+    case ENGINE_SUCCESS:
+        // expected
+        break;
+
+    default:
+        throw std::logic_error("DcpConsumer::doRollback: Unexpected error "
+                "code from EpStore::rollback: " + std::to_string(err));
+    }
 
     RCPtr<VBucket> vb = engine_.getVBucket(vbid);
     streams[vbid]->reconnectStream(vb, opaque, vb->getHighSeqno());
@@ -675,7 +683,10 @@ bool DcpConsumer::reconnectSlowStream(StreamEndResponse *resp) {
      * To be invoked only if END_STREAM was received, and the reconnection
      * is initiated only if the reason states SLOW.
      */
-    cb_assert(resp);
+    if (resp == nullptr) {
+        throw std::invalid_argument("DcpConsumer::reconnectSlowStream: resp is NULL");
+    }
+
     if (resp->getFlags() == END_STREAM_SLOW) {
         uint16_t vbid = resp->getVbucket();
         RCPtr<VBucket> vb = engine_.getVBucket(vbid);

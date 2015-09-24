@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2013 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@
 #include "dcp/stream.h"
 #include "ep_engine.h"
 
-static const char* backfillStateToString(backfill_state_t state) {
+static std::string backfillStateToString(backfill_state_t state) {
     switch (state) {
         case backfill_state_init:
             return "initalizing";
@@ -37,8 +37,16 @@ static const char* backfillStateToString(backfill_state_t state) {
 }
 
 CacheCallback::CacheCallback(EventuallyPersistentEngine* e, stream_t &s)
-    : engine_(e), stream_(s) {
-    cb_assert(stream_.get() && stream_.get()->getType() == STREAM_ACTIVE);
+    : engine_(e),
+      stream_(s) {
+    if (stream_.get() == nullptr) {
+        throw std::invalid_argument("CacheCallback(): stream is NULL");
+    }
+    if (stream_.get()->getType() != STREAM_ACTIVE) {
+        throw std::invalid_argument("CacheCallback(): stream->getType() "
+                "(which is " + std::to_string(stream_.get()->getType()) +
+                ") is not ACTIVE");
+    }
 }
 
 void CacheCallback::callback(CacheLookup &lookup) {
@@ -67,11 +75,20 @@ void CacheCallback::callback(CacheLookup &lookup) {
 
 DiskCallback::DiskCallback(stream_t &s)
     : stream_(s) {
-    cb_assert(stream_.get() && stream_.get()->getType() == STREAM_ACTIVE);
+    if (stream_.get() == nullptr) {
+        throw std::invalid_argument("DiskCallback(): stream is NULL");
+    }
+    if (stream_.get()->getType() != STREAM_ACTIVE) {
+        throw std::invalid_argument("DiskCallback(): stream->getType() "
+                "(which is " + std::to_string(stream_.get()->getType()) +
+                ") is not ACTIVE");
+    }
 }
 
 void DiskCallback::callback(GetValue &val) {
-    cb_assert(val.getValue());
+    if (val.getValue() == nullptr) {
+        throw std::invalid_argument("DiskCallback::callback: val is NULL");
+    }
 
     ActiveStream* as = static_cast<ActiveStream*>(stream_.get());
     if (!as->backfillReceived(val.getValue(), BACKFILL_FROM_DISK)) {
@@ -85,7 +102,11 @@ DCPBackfill::DCPBackfill(EventuallyPersistentEngine* e, stream_t s,
                          uint64_t start_seqno, uint64_t end_seqno)
     : engine(e), stream(s),startSeqno(start_seqno), endSeqno(end_seqno),
       scanCtx(NULL), state(backfill_state_init) {
-    cb_assert(stream->getType() == STREAM_ACTIVE);
+    if (stream->getType() != STREAM_ACTIVE) {
+        throw std::invalid_argument("DCPBackfill(): stream->getType() "
+                "(which is " + std::to_string(stream->getType()) +
+                ") is not ACTIVE");
+    }
 }
 
 backfill_status_t DCPBackfill::run() {
@@ -203,23 +224,36 @@ void DCPBackfill::transitionState(backfill_state_t newState) {
         return;
     }
 
+    bool validTransition = false;
     switch (newState) {
+        case backfill_state_init:
+            // Not valid to transition back to 'init'
+            break;
         case backfill_state_scanning:
-            cb_assert(state == backfill_state_init);
+            if (state == backfill_state_init) {
+                validTransition = true;
+            }
             break;
         case backfill_state_completing:
-            cb_assert(state == backfill_state_scanning);
+            if (state == backfill_state_scanning) {
+                validTransition = true;
+            }
             break;
         case backfill_state_done:
-            cb_assert(state == backfill_state_init ||
-                      state == backfill_state_scanning ||
-                      state == backfill_state_completing);
+            if (state == backfill_state_init ||
+                state == backfill_state_scanning ||
+                state == backfill_state_completing) {
+                validTransition = true;
+            }
             break;
-        default:
-            LOG(EXTENSION_LOG_WARNING, "Invalid backfill state transition from"
-                " %s to %s", backfillStateToString(state),
-                backfillStateToString(newState));
-            abort();
     }
+
+    if (!validTransition) {
+        throw std::invalid_argument("DCPBackfill::transitionState:"
+            " newState (which is " + backfillStateToString(newState) +
+            ") is not valid for current state (which is " +
+            backfillStateToString(state) + ")");
+    }
+
     state = newState;
 }

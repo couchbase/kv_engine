@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2012 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -345,7 +345,10 @@ CouchKVStore::~CouchKVStore() {
     }
 }
 void CouchKVStore::reset(uint16_t vbucketId) {
-    cb_assert(!isReadOnly());
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::reset: Not valid on a read-only "
+                        "object.");
+    }
 
     vbucket_state *state = cachedVBStates[vbucketId];
     if (state) {
@@ -361,15 +364,21 @@ void CouchKVStore::reset(uint16_t vbucketId) {
         resetVBucket(vbucketId, *state);
         updateDbFileMap(vbucketId, 1);
     } else {
-        LOG(EXTENSION_LOG_WARNING, "No entry in cached states "
-                "for vbucket %u", vbucketId);
-        cb_assert(false);
+        throw std::invalid_argument("CouchKVStore::reset: No entry in cached "
+                        "states for vbucket " + std::to_string(vbucketId));
     }
 }
 
 void CouchKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
-    cb_assert(!isReadOnly());
-    cb_assert(intransaction);
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::set: Not valid on a read-only "
+                        "object.");
+    }
+    if (!intransaction) {
+        throw std::invalid_argument("CouchKVStore::set: intransaction must be "
+                        "true to perform a set operation.");
+    }
+
     bool deleteItem = false;
     MutationRequestCallback requestcb;
     uint64_t fileRev = dbFileRevMap[itm.getVBucketId()];
@@ -518,8 +527,15 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
 
 void CouchKVStore::del(const Item &itm,
                        Callback<int> &cb) {
-    cb_assert(!isReadOnly());
-    cb_assert(intransaction);
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::del: Not valid on a read-only "
+                        "object.");
+    }
+    if (!intransaction) {
+        throw std::invalid_argument("CouchKVStore::del: intransaction must be "
+                        "true to perform a delete operation.");
+    }
+
     uint64_t fileRev = dbFileRevMap[itm.getVBucketId()];
     MutationRequestCallback requestcb;
     requestcb.delCb = &cb;
@@ -528,7 +544,10 @@ void CouchKVStore::del(const Item &itm,
 }
 
 void CouchKVStore::delVBucket(uint16_t vbucket) {
-    cb_assert(!isReadOnly());
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::delVBucket: Not valid on a "
+                        "read-only object.");
+    }
 
     unlinkCouchFile(vbucket, dbFileRevMap[vbucket]);
 
@@ -771,7 +790,10 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
 bool CouchKVStore::compactVBucket(const uint16_t vbid,
                                   compaction_ctx *hook_ctx,
                                   Callback<kvstats_ctx> &kvcb) {
-    cb_assert(!isReadOnly());
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::compactVBucket: Cannot perform "
+                        "on a read-only instance.");
+    }
 
     couchstore_compact_hook       hook = time_purge_hook;
     couchstore_docinfo_hook      dhook = edit_docinfo_hook;
@@ -885,7 +907,11 @@ vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {
 
 bool CouchKVStore::snapshotStats(const std::map<std::string,
                                  std::string> &stats) {
-    cb_assert(!isReadOnly());
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::snapshotStats: Cannot perform "
+                        "on a read-only instance.");
+    }
+
     size_t count = 0;
     size_t size = stats.size();
     std::stringstream stats_buf;
@@ -1056,7 +1082,11 @@ StorageProperties CouchKVStore::getStorageProperties() {
 }
 
 bool CouchKVStore::commit(Callback<kvstats_ctx> *cb) {
-    cb_assert(!isReadOnly());
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::commit: Not valid on a read-only "
+                        "object.");
+    }
+
     if (intransaction) {
         if (commit2couchstore(cb)) {
             intransaction = false;
@@ -1138,7 +1168,10 @@ void CouchKVStore::addStat(const std::string &prefix, const char *stat, T &val,
 }
 
 void CouchKVStore::pendingTasks() {
-    cb_assert(!isReadOnly());
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::pendingTasks: Not valid on a "
+                        "read-only object.");
+    }
 
     if (!pendingFileDeletions.empty()) {
         std::queue<std::string> queue;
@@ -1492,7 +1525,14 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     uint8_t ext_len;
     uint8_t conf_res_mode = 0;
 
-    cb_assert(metadata.size >= DEFAULT_META_LEN);
+    if (metadata.size < DEFAULT_META_LEN) {
+        throw std::invalid_argument("CouchKVStore::fetchDoc: "
+                        "docValue->rev_meta.size (which is " +
+                        std::to_string(metadata.size) +
+                        ") is less than DEFAULT_META_LEN (which is " +
+                        std::to_string(DEFAULT_META_LEN) + ")");
+    }
+
     if (metadata.size == DEFAULT_META_LEN) {
         memcpy(&cas, (metadata.buf), 8);
         memcpy(&exptime, (metadata.buf) + 8, 4);
@@ -1538,7 +1578,16 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                 // error code as not found but still release the document body.
                 errCode = COUCHSTORE_ERROR_DOC_NOT_FOUND;
             } else {
-                cb_assert(doc && (doc->id.size <= UINT16_MAX));
+                if (doc == nullptr) {
+                    throw std::logic_error("CouchKVStore::fetchDoc: doc is NULL");
+                }
+                if (doc->id.size > UINT16_MAX) {
+                    throw std::logic_error("CouchKVStore::fetchDoc: "
+                            "doc->id.size (which is" +
+                            std::to_string(doc->id.size) + ") is greater than "
+                            + std::to_string(UINT16_MAX));
+                }
+
                 size_t valuelen = doc->data.size;
                 void *valuePtr = doc->data.buf;
 
@@ -1593,8 +1642,16 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     uint8_t ext_len;
     uint8_t conf_res_mode = 0;
 
-    cb_assert(key.size <= UINT16_MAX);
-    cb_assert(metadata.size >= DEFAULT_META_LEN);
+    if (key.size > UINT16_MAX) {
+        throw std::invalid_argument("CouchKVStore::recordDbDump: "
+                        "docinfo->id.size (which is " + std::to_string(key.size) +
+                        ") is greater than " + std::to_string(UINT16_MAX));
+    }
+    if (metadata.size < DEFAULT_META_LEN) {
+        throw std::invalid_argument("CouchKVStore::recordDbDump: "
+                        "docinfo->rev_meta.size (which is " + std::to_string(key.size) +
+                        ") is less than " + std::to_string(DEFAULT_META_LEN));
+    }
 
     std::string docKey(docinfo->id.buf, docinfo->id.size);
     CacheLookup lookup(docKey, byseqno, vbucketId);
@@ -1724,15 +1781,29 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb) {
     Doc **docs = new Doc *[pendingCommitCnt];
     DocInfo **docinfos = new DocInfo *[pendingCommitCnt];
 
-    cb_assert(pendingReqsQ[0]);
+    if (pendingReqsQ[0] == nullptr) {
+        throw std::logic_error("CouchKVStore::commit2couchstore: "
+                        "pendingReqsQ[0] is NULL");
+    }
     uint16_t vbucket2flush = pendingReqsQ[0]->getVBucketId();
     uint64_t fileRev = pendingReqsQ[0]->getRevNum();
     for (size_t i = 0; i < pendingCommitCnt; ++i) {
         CouchRequest *req = pendingReqsQ[i];
-        cb_assert(req);
+        if (req == nullptr) {
+            throw std::logic_error("CouchKVStore::commit2couchstore: "
+                                       "pendingReqsQ["
+                                       + std::to_string(i) + "] is NULL");
+        }
         docs[i] = (Doc *)req->getDbDoc();
         docinfos[i] = req->getDbDocInfo();
-        cb_assert(vbucket2flush == req->getVBucketId());
+        if (vbucket2flush != req->getVBucketId()) {
+            throw std::logic_error(
+                    "CouchKVStore::commit2couchstore: "
+                    "mismatch between vbucket2flush (which is "
+                    + std::to_string(vbucket2flush) + ") and pendingReqsQ["
+                    + std::to_string(i) + "] (which is "
+                    + std::to_string(req->getVBucketId()) + ")");
+        }
     }
 
     kvstats_ctx kvctx;
@@ -1762,7 +1833,9 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb) {
 }
 
 static int readDocInfos(Db *db, DocInfo *docinfo, void *ctx) {
-    cb_assert(ctx);
+    if (ctx == nullptr) {
+        throw std::invalid_argument("readDocInfos: ctx must be non-NULL");
+    }
     kvstats_ctx *cbCtx = static_cast<kvstats_ctx *>(ctx);
     if(docinfo) {
         // An item exists in the VB DB file.
@@ -1784,7 +1857,9 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
     couchstore_error_t errCode;
     uint64_t fileRev = rev;
     DbInfo info;
-    cb_assert(fileRev);
+    if (rev == 0) {
+        throw std::invalid_argument("CouchKVStore::saveDocs: rev must be non-zero");
+    }
 
     Db *db = NULL;
     uint64_t newFileRev;
@@ -1797,7 +1872,11 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
         return errCode;
     } else {
         vbucket_state *state = cachedVBStates[vbid];
-        cb_assert(state);
+        if (state == nullptr) {
+            throw std::logic_error(
+                    "CouchKVStore::saveDocs: cachedVBStates[" +
+                    std::to_string(vbid) + "] is NULL");
+        }
 
         uint64_t maxDBSeqno = 0;
         sized_buf *ids = new sized_buf[docCount];
@@ -2074,9 +2153,16 @@ couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState) {
 }
 
 int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
-    cb_assert(docinfo);
+    if (docinfo == nullptr) {
+        throw std::invalid_argument("CouchKVStore::getMultiCb: docinfo "
+                "must be non-NULL");
+    }
+    if (ctx == nullptr) {
+        throw std::invalid_argument("CouchKVStore::getMultiCb: ctx must "
+                "be non-NULL");
+    }
+
     std::string keyStr(docinfo->id.buf, docinfo->id.size);
-    cb_assert(ctx);
     GetMultiCbCtx *cbCtx = static_cast<GetMultiCbCtx *>(ctx);
     CouchKVStoreStats &st = cbCtx->cks.getCKVStoreStat();
 
@@ -2413,7 +2499,10 @@ CouchKVStore::getAllKeys(uint16_t vbid, std::string &start_key, uint32_t count,
 void CouchKVStore::unlinkCouchFile(uint16_t vbucket,
                                    uint64_t fRev) {
 
-    cb_assert(!isReadOnly());
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::unlinkCouchFile: Not valid on a "
+                "read-only object.");
+    }
     char fname[PATH_MAX];
     snprintf(fname, sizeof(fname), "%s/%d.couch.%" PRIu64,
              dbname.c_str(), vbucket, fRev);
@@ -2447,7 +2536,10 @@ void CouchKVStore::removeCompactFile(const std::string &dbname,
 }
 
 void CouchKVStore::removeCompactFile(const std::string &filename) {
-    cb_assert(!isReadOnly());
+    if (isReadOnly()) {
+        throw std::logic_error("CouchKVStore::removeCompactFile: Not valid on "
+                "a read-only object.");
+    }
 
     if (access(filename.c_str(), F_OK) == 0) {
         if (remove(filename.c_str()) == 0) {

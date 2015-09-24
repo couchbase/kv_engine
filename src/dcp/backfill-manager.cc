@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2014 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -164,7 +164,11 @@ bool BackfillManager::bytesRead(uint32_t bytes) {
 
 void BackfillManager::bytesSent(uint32_t bytes) {
     LockHolder lh(lock);
-    cb_assert(buffer.bytesRead >= bytes);
+    if (bytes > buffer.bytesRead) {
+        throw std::invalid_argument("BackfillManager::bytesSent: bytes "
+                "(which is" + std::to_string(bytes) + ") is greater than "
+                "buffer.bytesRead (which is" + std::to_string(buffer.bytesRead) + ")");
+    }
     buffer.bytesRead -= bytes;
 
     if (buffer.full) {

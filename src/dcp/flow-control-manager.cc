@@ -86,7 +86,10 @@ DcpFlowControlManagerDynamic::~DcpFlowControlManagerDynamic() {}
 
 size_t DcpFlowControlManagerDynamic::newConsumerConn(DcpConsumer *consumerConn)
 {
-    cb_assert(consumerConn);
+    if (consumerConn == nullptr) {
+        throw std::invalid_argument(
+                "DcpFlowControlManagerDynamic::newConsumerConn: resp is NULL");
+    }
     Configuration &config = engine_.getConfiguration();
     double dcpConnBufferSizePerc = static_cast<double>
                                         (config.getDcpConnBufferSizePerc())/100;
@@ -143,7 +146,10 @@ DcpFlowControlManagerAggressive::~DcpFlowControlManagerAggressive() {}
 size_t DcpFlowControlManagerAggressive::newConsumerConn(
                                                     DcpConsumer *consumerConn)
 {
-    cb_assert(consumerConn);
+    if (consumerConn == nullptr) {
+        throw std::invalid_argument(
+                "DcpFlowControlManagerAggressive::newConsumerConn: resp is NULL");
+    }
     /* Calculate new per conn buf size */
     uint32_t totalConns = dcpConsumersMap.size();
 

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2013 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,7 +31,11 @@
 
 static const char* snapshotTypeToString(snapshot_type_t type) {
     static const char * const snapshotTypes[] = { "none", "disk", "memory" };
-    cb_assert(type >= none && type <= memory);
+    if (type < none || type > memory) {
+        throw std::invalid_argument("snapshotTypeToString: type (which is " +
+                                    std::to_string(type) +
+                                    ") is not a valid snapshot_type_t");
+    }
     return snapshotTypes[type];
 }
 
@@ -96,7 +100,11 @@ const char * Stream::stateName(stream_state_t st) const {
         "pending", "backfilling", "in-memory", "takeover-send", "takeover-wait",
         "reading", "dead"
     };
-    cb_assert(st >= STREAM_PENDING && st <= STREAM_DEAD);
+    if (st < STREAM_PENDING || st > STREAM_DEAD) {
+        throw std::invalid_argument("Stream::stateName: st (which is " +
+                                        std::to_string(st) +
+                                        ") is not a valid stream_state_t");
+    }
     return stateNames[st];
 }
 
@@ -183,28 +191,40 @@ DcpResponse* ActiveStream::next() {
 
     DcpResponse* response = NULL;
 
+    bool validTransition = false;
     switch (state_) {
         case STREAM_PENDING:
+            validTransition = true;
             break;
         case STREAM_BACKFILLING:
+            validTransition = true;
             response = backfillPhase();
             break;
         case STREAM_IN_MEMORY:
+            validTransition = true;
             response = inMemoryPhase();
             break;
         case STREAM_TAKEOVER_SEND:
+            validTransition = true;
             response = takeoverSendPhase();
             break;
         case STREAM_TAKEOVER_WAIT:
+            validTransition = true;
             response = takeoverWaitPhase();
             break;
+        case STREAM_READING:
+            // Not valid for an active stream.
+            break;
         case STREAM_DEAD:
+            validTransition = true;
             response = deadPhase();
             break;
-        default:
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid state '%s'",
-                producer->logHeader(), vb_, stateName(state_));
-            abort();
+    }
+
+    if (!validTransition) {
+        throw std::invalid_argument("ActiveStream::transitionState:"
+                " invalid state " + std::to_string(state_) + " for stream " +
+                producer->logHeader() + " vb " + std::to_string(vb_));
     }
 
     if (state_ != STREAM_DEAD && initState != state_ && !response) {
@@ -571,7 +591,11 @@ void ActiveStream::nextCheckpointItem() {
                            prepareExtendedMetaData(qi->getVBucketId(),
                                                    qi->getConflictResMode())));
         } else if (qi->getOperation() == queue_op_checkpoint_start) {
-            cb_assert(mutations.empty());
+            if (!mutations.empty()) {
+                throw std::logic_error("ActiveStream::nextCheckpointItem: "
+                        "found checkpoint_start queued item but mutations is "
+                        "not empty");
+            }
             mark = true;
         }
     }
@@ -676,7 +700,12 @@ void ActiveStream::scheduleBackfill() {
         curChkSeqno = result.first;
         bool isFirstItem = result.second;
 
-        cb_assert(lastReadSeqno <= curChkSeqno);
+        if (lastReadSeqno > curChkSeqno) {
+            throw std::logic_error("ActiveStream::scheduleBackfill: "
+                    "lastReadSeqno (which is " + std::to_string(lastReadSeqno) +
+                    ") is greater than curChkSeqno (which is " +
+                    std::to_string(curChkSeqno) + ")");
+        }
         uint64_t backfillStart = lastReadSeqno + 1;
 
         /* We need to find the minimum seqno that needs to be backfilled in
@@ -741,29 +770,50 @@ void ActiveStream::transitionState(stream_state_t newState) {
         return;
     }
 
+    bool validTransition = false;
     switch (state_) {
         case STREAM_PENDING:
-            cb_assert(newState == STREAM_BACKFILLING || newState == STREAM_DEAD);
+            if (newState == STREAM_BACKFILLING || newState == STREAM_DEAD) {
+                validTransition = true;
+            }
             break;
         case STREAM_BACKFILLING:
-            cb_assert(newState == STREAM_IN_MEMORY ||
-                   newState == STREAM_TAKEOVER_SEND ||
-                   newState == STREAM_DEAD);
+            if(newState == STREAM_IN_MEMORY ||
+               newState == STREAM_TAKEOVER_SEND ||
+               newState == STREAM_DEAD) {
+                validTransition = true;
+            }
             break;
         case STREAM_IN_MEMORY:
-            cb_assert(newState == STREAM_BACKFILLING || newState == STREAM_DEAD);
+            if (newState == STREAM_BACKFILLING || newState == STREAM_DEAD) {
+                validTransition = true;
+            }
             break;
         case STREAM_TAKEOVER_SEND:
-            cb_assert(newState == STREAM_TAKEOVER_WAIT || newState == STREAM_DEAD);
+            if (newState == STREAM_TAKEOVER_WAIT || newState == STREAM_DEAD) {
+                validTransition = true;
+            }
             break;
         case STREAM_TAKEOVER_WAIT:
-            cb_assert(newState == STREAM_TAKEOVER_SEND || newState == STREAM_DEAD);
+            if (newState == STREAM_TAKEOVER_SEND || newState == STREAM_DEAD) {
+                validTransition = true;
+            }
             break;
-        default:
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid Transition from %s "
-                "to %s", producer->logHeader(), vb_, stateName(state_),
-                stateName(newState));
-            abort();
+        case STREAM_READING:
+            // Active stream should never be in READING state.
+            validTransition = false;
+            break;
+        case STREAM_DEAD:
+            // Once DEAD, no other transitions should occur.
+            validTransition = false;
+            break;
+    }
+
+    if (!validTransition) {
+        throw std::invalid_argument("ActiveStream::transitionState:"
+                " newState (which is " + std::to_string(newState) +
+                ") is not valid for current state (which is " +
+                std::to_string(state_) + ")");
     }
 
     state_ = newState;
@@ -903,17 +953,30 @@ void NotifierStream::transitionState(stream_state_t newState) {
         return;
     }
 
+    bool validTransition = false;
     switch (state_) {
         case STREAM_PENDING:
-            cb_assert(newState == STREAM_DEAD);
+            if (newState == STREAM_DEAD) {
+                validTransition = true;
+            }
             break;
-        default:
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid Transition from %s "
-                "to %s", producer->logHeader(), vb_, stateName(state_),
-                stateName(newState));
-            abort();
+
+        case STREAM_BACKFILLING:
+        case STREAM_IN_MEMORY:
+        case STREAM_TAKEOVER_SEND:
+        case STREAM_TAKEOVER_WAIT:
+        case STREAM_READING:
+        case STREAM_DEAD:
+            // No other state transitions are valid for a notifier stream.
+            break;
     }
 
+    if (!validTransition) {
+        throw std::invalid_argument("NotifierStream::transitionState:"
+                " newState (which is " + std::to_string(newState) +
+                ") is not valid for current state (which is " +
+                std::to_string(state_) + ")");
+    }
     state_ = newState;
 }
 
@@ -1435,18 +1498,37 @@ void PassiveStream::transitionState(stream_state_t newState) {
         return;
     }
 
+    bool validTransition = false;
     switch (state_) {
         case STREAM_PENDING:
-            cb_assert(newState == STREAM_READING || newState == STREAM_DEAD);
+            if (newState == STREAM_READING || newState == STREAM_DEAD) {
+                validTransition = true;
+            }
             break;
+
+        case STREAM_BACKFILLING:
+        case STREAM_IN_MEMORY:
+        case STREAM_TAKEOVER_SEND:
+        case STREAM_TAKEOVER_WAIT:
+            // Not valid for passive streams
+            break;
+
         case STREAM_READING:
-            cb_assert(newState == STREAM_PENDING || newState == STREAM_DEAD);
+            if (newState == STREAM_PENDING || newState == STREAM_DEAD) {
+                validTransition = true;
+            }
             break;
-        default:
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Invalid Transition from %s "
-                "to %s", consumer->logHeader(), vb_, stateName(state_),
-                stateName(newState));
-            abort();
+
+        case STREAM_DEAD:
+            // Once 'dead' shouldn't transition away from it.
+            break;
+    }
+
+    if (!validTransition) {
+        throw std::invalid_argument("PassiveStream::transitionState:"
+                " newState (which is" + std::to_string(newState) +
+                ") is not valid for current state (which is " +
+                std::to_string(state_) + ")");
     }
 
     state_ = newState;
