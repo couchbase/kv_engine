@@ -28,6 +28,7 @@
 #include "item.h"
 #include "kvstore.h"
 #include "stats.h"
+#include "vbucket.h"
 
 // Forward declarations.
 class EventuallyPersistentStore;
@@ -66,14 +67,14 @@ public:
     bool pendingJob(void);
     void notifyBGEvent(void);
     void setTaskId(size_t newId) { taskId = newId; }
-    void addPendingVB(uint16_t vbId) {
+    void addPendingVB(VBucket::id_type vbId) {
         LockHolder lh(queueMutex);
         pendingVbs.insert(vbId);
     }
 
 private:
-    size_t doFetch(uint16_t vbId);
-    void clearItems(uint16_t vbId);
+    size_t doFetch(VBucket::id_type vbId);
+    void clearItems(VBucket::id_type vbId);
 
     EventuallyPersistentStore *store;
     KVShard *shard;
@@ -83,7 +84,7 @@ private:
     EPStats &stats;
 
     AtomicValue<bool> pendingFetch;
-    std::set<uint16_t> pendingVbs;
+    std::set<VBucket::id_type> pendingVbs;
 };
 
 #endif  // SRC_BGFETCHER_H_

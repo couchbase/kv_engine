@@ -103,12 +103,10 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
         EventuallyPersistentStore *store = engine->getEpStore();
         // Get a list of active vbuckets sorted by memory usage
         // of their respective checkpoint managers.
-        std::vector<std::pair<int, size_t> > vbs =
-                store->getVBuckets().getActiveVBucketsSortedByChkMgrMem();
-        std::vector<std::pair<int, size_t> >::iterator it = vbs.begin();
-        for (; it != vbs.end(); ++it) {
+        auto vbuckets = store->getVBuckets().getActiveVBucketsSortedByChkMgrMem();
+        for (const auto& it: vbuckets) {
             if (memoryCleared < amountOfMemoryToClear) {
-                uint16_t vbid = static_cast<uint16_t>(it->first);
+                uint16_t vbid = it.first;
                 RCPtr<VBucket> vb = store->getVBucket(vbid);
                 if (vb) {
                     // Get a list of cursors that can be dropped from the

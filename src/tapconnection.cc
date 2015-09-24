@@ -1148,12 +1148,11 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
 
     std::set<uint16_t> vbs = vbucketFilter.getVBSet();
     if (vbs.empty()) {
-        std::vector<int> ids = engine_.getEpStore()->getVBuckets().getBuckets();
-        std::vector<int>::iterator itr;
-        for (itr = ids.begin(); itr != ids.end(); ++itr) {
+        auto vbuckets = engine_.getEpStore()->getVBuckets().getBuckets();
+        for (auto vbid : vbuckets) {
             std::stringstream msg;
-            msg << "sent_from_vb_" << *itr;
-            addStat(msg.str().c_str(), transmitted[*itr], add_stat, c);
+            msg << "sent_from_vb_" << vbid;
+            addStat(msg.str().c_str(), transmitted[vbid], add_stat, c);
         }
     } else {
         std::set<uint16_t>::iterator itr;
@@ -1667,10 +1666,7 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
     uint64_t current_time = (uint64_t)ep_real_time();
     std::vector<uint16_t> backfill_vbuckets;
     const VBucketMap &vbuckets = engine_.getEpStore()->getVBuckets();
-    size_t numOfVBuckets = vbuckets.getSize();
-    for (size_t i = 0; i < numOfVBuckets; ++i) {
-        cb_assert(i <= std::numeric_limits<uint16_t>::max());
-        uint16_t vbid = static_cast<uint16_t>(i);
+    for (VBucketMap::id_type vbid = 0; vbid < vbuckets.getSize(); ++vbid) {
         if (vbucketFilter(vbid)) {
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
             if (!vb) {

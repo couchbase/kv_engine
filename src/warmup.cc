@@ -336,11 +336,9 @@ void LoadStorageKVPairCallback::purge() {
         EventuallyPersistentStore *epstore;
     };
 
-    std::vector<int> vbucketIds(vbuckets.getBuckets());
-    std::vector<int>::iterator it;
+    auto vbucketIds(vbuckets.getBuckets());
     EmergencyPurgeVisitor epv(epstore);
-    for (it = vbucketIds.begin(); it != vbucketIds.end(); ++it) {
-        int vbid = *it;
+    for (auto vbid : vbucketIds) {
         RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
         if (vb && epv.visitBucket(vb)) {
             vb->ht.visit(epv);

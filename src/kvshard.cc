@@ -109,8 +109,8 @@ void KVShard::resetBucket(uint16_t id) {
     vbuckets[id].reset();
 }
 
-std::vector<int> KVShard::getVBucketsSortedByState() {
-    std::vector<int> rv;
+std::vector<VBucket::id_type> KVShard::getVBucketsSortedByState() {
+    std::vector<VBucket::id_type> rv;
     for (int state = vbucket_state_active;
          state <= vbucket_state_dead;
          ++state) {
@@ -124,8 +124,8 @@ std::vector<int> KVShard::getVBucketsSortedByState() {
     return rv;
 }
 
-std::vector<int> KVShard::getVBuckets() {
-    std::vector<int> rv;
+std::vector<VBucket::id_type> KVShard::getVBuckets() {
+    std::vector<VBucket::id_type> rv;
     for (size_t i = 0; i < maxVbuckets; ++i) {
         RCPtr<VBucket> b = vbuckets[i];
         if (b) {

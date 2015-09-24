@@ -260,21 +260,17 @@ void Flusher::flushVB(void) {
         }
         bool inverse = true;
         if (pendingMutation.compare_exchange_strong(inverse, false)) {
-            std::vector<int> vbs = shard->getVBucketsSortedByState();
-            std::vector<int>::iterator itr = vbs.begin();
-            for (; itr != vbs.end(); ++itr) {
-                lpVbs.push(static_cast<uint16_t>(*itr));
+            for (auto vbid : shard->getVBucketsSortedByState()) {
+                lpVbs.push(vbid);
             }
         }
     }
 
     if (!doHighPriority && shard->highPriorityCount.load() > 0) {
-        std::vector<int> vbs = shard->getVBuckets();
-        std::vector<int>::iterator itr = vbs.begin();
-        for (; itr != vbs.end(); ++itr) {
-            RCPtr<VBucket> vb = store->getVBucket(*itr);
+        for (auto vbid : shard->getVBuckets()) {
+            RCPtr<VBucket> vb = store->getVBucket(vbid);
             if (vb && vb->getHighPriorityChkSize() > 0) {
-                hpVbs.push(static_cast<uint16_t>(*itr));
+                hpVbs.push(vbid);
             }
         }
         numHighPriority = hpVbs.size();

@@ -58,9 +58,9 @@ VBucketMap::~VBucketMap() {
     }
 }
 
-RCPtr<VBucket> VBucketMap::getBucket(uint16_t id) const {
+RCPtr<VBucket> VBucketMap::getBucket(id_type id) const {
     static RCPtr<VBucket> emptyVBucket;
-    if (static_cast<size_t>(id) < size) {
+    if (id < size) {
         return getShard(id)->getBucket(id);
     } else {
         return emptyVBucket;
@@ -68,28 +68,29 @@ RCPtr<VBucket> VBucketMap::getBucket(uint16_t id) const {
 }
 
 ENGINE_ERROR_CODE VBucketMap::addBucket(const RCPtr<VBucket> &b) {
-    if (static_cast<size_t>(b->getId()) < size) {
+    if (b->getId() < size) {
         getShard(b->getId())->setBucket(b);
         LOG(EXTENSION_LOG_INFO, "Mapped new vbucket %d in state %s",
             b->getId(), VBucket::toString(b->getState()));
         return ENGINE_SUCCESS;
     }
-    LOG(EXTENSION_LOG_WARNING, "Cannot create vb %d, max vbuckets is %" PRIu64,
-        b->getId(), uint64_t(size));
+    LOG(EXTENSION_LOG_WARNING,
+        "Cannot create vb %" PRIu16", max vbuckets is %" PRIu16, b->getId(),
+        size);
     return ENGINE_ERANGE;
 }
 
-void VBucketMap::removeBucket(uint16_t id) {
-    if (static_cast<size_t>(id) < size) {
+void VBucketMap::removeBucket(id_type id) {
+    if (id < size) {
         // Theoretically, this could be off slightly.  In
         // practice, this happens only on dead vbuckets.
         getShard(id)->resetBucket(id);
     }
 }
 
-std::vector<int> VBucketMap::getBuckets(void) const {
-    std::vector<int> rv;
-    for (size_t i = 0; i < size; ++i) {
+std::vector<VBucketMap::id_type> VBucketMap::getBuckets(void) const {
+    std::vector<id_type> rv;
+    for (id_type i = 0; i < size; ++i) {
         RCPtr<VBucket> b(getShard(i)->getBucket(i));
         if (b) {
             rv.push_back(b->getId());
@@ -98,8 +99,8 @@ std::vector<int> VBucketMap::getBuckets(void) const {
     return rv;
 }
 
-std::vector<int> VBucketMap::getBucketsSortedByState(void) const {
-    std::vector<int> rv;
+std::vector<VBucketMap::id_type> VBucketMap::getBucketsSortedByState(void) const {
+    std::vector<id_type> rv;
     for (int state = vbucket_state_active;
          state <= vbucket_state_dead; ++state) {
         for (size_t i = 0; i < size; ++i) {
@@ -112,10 +113,10 @@ std::vector<int> VBucketMap::getBucketsSortedByState(void) const {
     return rv;
 }
 
-std::vector<std::pair<int, size_t> >
+std::vector<std::pair<VBucketMap::id_type, size_t> >
 VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
-    std::vector<std::pair<int, size_t> > rv;
-    for (size_t i = 0; i < size; ++i) {
+    std::vector<std::pair<id_type, size_t> > rv;
+    for (id_type i = 0; i < size; ++i) {
         RCPtr<VBucket> b = getShard(i)->getBucket(i);
         if (b && b->getState() == vbucket_state_active) {
             rv.push_back(std::make_pair(b->getId(), b->getChkMgrMemUsage()));
@@ -123,8 +124,8 @@ VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
     }
 
     struct SortCtx {
-        static bool compareSecond(std::pair<int, size_t> a,
-                                  std::pair<int, size_t> b) {
+        static bool compareSecond(std::pair<id_type, size_t> a,
+                                  std::pair<id_type, size_t> b) {
             if (a.second <= b.second) {
                 return true;
             } else {
@@ -139,7 +140,7 @@ VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
 }
 
 
-size_t VBucketMap::getSize(void) const {
+VBucketMap::id_type VBucketMap::getSize(void) const {
     return size;
 }
 

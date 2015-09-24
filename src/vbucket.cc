@@ -170,7 +170,7 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
     pendingOps.clear();
 
     LOG(EXTENSION_LOG_INFO,
-        "Fired pendings ops for vbucket %d in state %s\n",
+        "Fired pendings ops for vbucket %" PRIu16 " in state %s\n",
         id, VBucket::toString(state));
 }
 
@@ -195,7 +195,7 @@ void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
         checkpointManager.setOpenCheckpointId(2);
     }
 
-    LOG(EXTENSION_LOG_DEBUG, "transitioning vbucket %d from %s to %s",
+    LOG(EXTENSION_LOG_DEBUG, "transitioning vbucket %" PRIu16 " from %s to %s",
         id, VBucket::toString(oldstate), VBucket::toString(to));
 
     state = to;
@@ -332,7 +332,7 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             stats.chkPersistenceHisto.add(wall_time / 1000);
             adjustCheckpointFlushTimeout(wall_time / 1000000000);
             LOG(EXTENSION_LOG_NOTICE, "Notified the completion of checkpoint "
-                "persistence for vbucket %d, id %" PRIu64 ", cookie %p",
+                "persistence for vbucket %" PRIu16 ", id %" PRIu64 ", cookie %p",
                 id, idNum, entry->cookie);
             entry = hpChks.erase(entry);
             if (shard) {

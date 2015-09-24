@@ -29,7 +29,6 @@
 #include <vector>
 
 #include "atomic.h"
-#include "bgfetcher.h"
 #include "bloomfilter.h"
 #include "checkpoint.h"
 #include "common.h"
@@ -141,11 +140,14 @@ class KVShard;
 class VBucket : public RCValue {
 public:
 
-    VBucket(int i, vbucket_state_t newState, EPStats &st,
+    // Identifier for a vBucket
+    typedef uint16_t id_type;
+
+    VBucket(id_type i, vbucket_state_t newState, EPStats &st,
             CheckpointConfig &chkConfig, KVShard *kvshard,
             int64_t lastSeqno, uint64_t lastSnapStart,
             uint64_t lastSnapEnd, FailoverTable *table,
-            shared_ptr<Callback<uint16_t> > cb,
+            shared_ptr<Callback<id_type> > cb,
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t chkId = 1, uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0, int64_t driftCounter = INITIAL_DRIFT):
@@ -270,7 +272,7 @@ public:
         takeover_backed_up.compare_exchange_strong(inverse, to);
     }
 
-    int getId(void) const { return id; }
+    id_type getId() const { return id; }
     vbucket_state_t getState(void) const { return state.load(); }
     void setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi);
 
@@ -435,8 +437,8 @@ public:
             oldVal = dirtyQueueSize.load();
             if (oldVal < decrementBy) {
                 LOG(EXTENSION_LOG_DEBUG,
-                    "Cannot decrement dirty queue size of vbucket %d by %"
-                    PRIu64 ", the current value is %" PRIu64 "\n", id,
+                    "Cannot decrement dirty queue size of vbucket %" PRIu16
+                    "by %" PRIu64 ", the current value is %" PRIu64 "\n", id,
                     uint64_t(decrementBy), uint64_t(oldVal));
                 return false;
             }
@@ -500,7 +502,7 @@ private:
 
     void adjustCheckpointFlushTimeout(size_t wall_time);
 
-    int                      id;
+    id_type                  id;
     AtomicValue<vbucket_state_t>  state;
     vbucket_state_t          initialState;
     Mutex                    pendingOpLock;

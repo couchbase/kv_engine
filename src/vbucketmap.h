@@ -34,26 +34,33 @@ friend class EventuallyPersistentStore;
 friend class Warmup;
 
 public:
+
+    // This class uses the same id_type as VBucket
+    typedef VBucket::id_type id_type;
+
     VBucketMap(Configuration &config, EventuallyPersistentStore &store);
     ~VBucketMap();
 
     ENGINE_ERROR_CODE addBucket(const RCPtr<VBucket> &b);
-    void removeBucket(uint16_t id);
+    void removeBucket(id_type id);
     void addBuckets(const std::vector<VBucket*> &newBuckets);
-    RCPtr<VBucket> getBucket(uint16_t id) const;
-    size_t getSize() const;
-    std::vector<int> getBuckets(void) const;
-    std::vector<int> getBucketsSortedByState(void) const;
-    std::vector<std::pair<int, size_t> > getActiveVBucketsSortedByChkMgrMem(void) const;
-    bool isBucketDeletion(uint16_t id) const;
-    bool setBucketDeletion(uint16_t id, bool delBucket);
-    bool isBucketCreation(uint16_t id) const;
-    bool setBucketCreation(uint16_t id, bool rv);
-    uint64_t getPersistenceCheckpointId(uint16_t id) const;
-    void setPersistenceCheckpointId(uint16_t id, uint64_t checkpointId);
-    uint64_t getPersistenceSeqno(uint16_t id) const;
-    void setPersistenceSeqno(uint16_t id, uint64_t seqno);
-    KVShard* getShard(uint16_t id) const;
+    RCPtr<VBucket> getBucket(id_type id) const;
+
+    // Returns the size of the map, i.e. the total number of VBuckets it can
+    // contain.
+    id_type getSize() const;
+    std::vector<id_type> getBuckets(void) const;
+    std::vector<id_type> getBucketsSortedByState(void) const;
+    std::vector<std::pair<id_type, size_t> > getActiveVBucketsSortedByChkMgrMem(void) const;
+    bool isBucketDeletion(id_type id) const;
+    bool setBucketDeletion(id_type id, bool delBucket);
+    bool isBucketCreation(id_type id) const;
+    bool setBucketCreation(id_type id, bool rv);
+    uint64_t getPersistenceCheckpointId(id_type id) const;
+    void setPersistenceCheckpointId(id_type id, uint64_t checkpointId);
+    uint64_t getPersistenceSeqno(id_type id) const;
+    void setPersistenceSeqno(id_type id, uint64_t seqno);
+    KVShard* getShard(id_type id) const;
     size_t getNumShards() const;
 
 private:
@@ -63,7 +70,7 @@ private:
     AtomicValue<bool> *bucketCreation;
     AtomicValue<uint64_t> *persistenceCheckpointIds;
     AtomicValue<uint64_t> *persistenceSeqnos;
-    size_t size;
+    const id_type size;
     size_t numShards;
 
     DISALLOW_COPY_AND_ASSIGN(VBucketMap);

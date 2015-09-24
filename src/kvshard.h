@@ -66,7 +66,7 @@ class Flusher;
 class KVShard {
     friend class VBucketMap;
 public:
-    KVShard(uint16_t id, EventuallyPersistentStore &store);
+    KVShard(VBucket::id_type id, EventuallyPersistentStore &store);
     ~KVShard();
 
     KVStore *getRWUnderlying();
@@ -77,13 +77,13 @@ public:
 
     void notifyFlusher();
 
-    RCPtr<VBucket> getBucket(uint16_t id) const;
+    RCPtr<VBucket> getBucket(VBucket::id_type id) const;
     void setBucket(const RCPtr<VBucket> &b);
-    void resetBucket(uint16_t id);
+    void resetBucket(VBucket::id_type id);
 
-    uint16_t getId() { return shardId; }
-    std::vector<int> getVBucketsSortedByState();
-    std::vector<int> getVBuckets();
+    VBucket::id_type getId() { return shardId; }
+    std::vector<VBucket::id_type> getVBucketsSortedByState();
+    std::vector<VBucket::id_type> getVBuckets();
     size_t getMaxNumVbuckets() { return maxVbuckets; }
 
     /**

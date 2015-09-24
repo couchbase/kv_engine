@@ -2025,9 +2025,9 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
 }
 
 GetValue EventuallyPersistentStore::getRandomKey() {
-    long max = vbMap.getSize();
+    VBucketMap::id_type max = vbMap.getSize();
 
-    long start = random() % max;
+    const long start = random() % max;
     long curr = start;
     Item *itm = NULL;
 
@@ -2928,10 +2928,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
 }
 
 void EventuallyPersistentStore::reset() {
-    std::vector<int> buckets = vbMap.getBuckets();
-    std::vector<int>::iterator it;
-    for (it = buckets.begin(); it != buckets.end(); ++it) {
-        RCPtr<VBucket> vb = getVBucket(*it);
+    auto buckets = vbMap.getBuckets();
+    for (auto vbid : buckets) {
+        RCPtr<VBucket> vb = getVBucket(vbid);
         if (vb) {
             LockHolder lh(vb_mutexes[vb->getId()]);
             vb->ht.clear();
@@ -3143,7 +3142,7 @@ void EventuallyPersistentStore::setFlushAllComplete() {
 }
 
 void EventuallyPersistentStore::flushOneDeleteAll() {
-    for (size_t i = 0; i < vbMap.getSize(); ++i) {
+    for (VBucketMap::id_type i = 0; i < vbMap.getSize(); ++i) {
         RCPtr<VBucket> vb = getVBucket(i);
         if (vb) {
             LockHolder lh(vb_mutexes[vb->getId()]);
@@ -3654,10 +3653,7 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
 }
 
 void EventuallyPersistentStore::setAllBloomFilters(bool to) {
-    size_t maxSize = vbMap.getSize();
-    cb_assert(maxSize <= std::numeric_limits<uint16_t>::max());
-    for (size_t i = 0; i < maxSize; i++) {
-        uint16_t vbid = static_cast<uint16_t>(i);
+    for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); vbid++) {
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
         if (vb) {
             if (to) {
@@ -3671,10 +3667,7 @@ void EventuallyPersistentStore::setAllBloomFilters(bool to) {
 
 void EventuallyPersistentStore::visit(VBucketVisitor &visitor)
 {
-    size_t maxSize = vbMap.getSize();
-    cb_assert(maxSize <= std::numeric_limits<uint16_t>::max());
-    for (size_t i = 0; i < maxSize; ++i) {
-        uint16_t vbid = static_cast<uint16_t>(i);
+    for (VBucketMap::id_type vbid = 0; vbid < vbMap.getSize(); ++vbid) {
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
         if (vb) {
             bool wantData = visitor.visitBucket(vb);
@@ -3691,10 +3684,8 @@ EventuallyPersistentStore::Position
 EventuallyPersistentStore::pauseResumeVisit(PauseResumeEPStoreVisitor& visitor,
                                             Position& start_pos)
 {
-    const size_t maxSize = vbMap.getSize();
-
     uint16_t vbid = start_pos.vbucket_id;
-    for (; vbid < maxSize; ++vbid) {
+    for (; vbid < vbMap.getSize(); ++vbid) {
         RCPtr<VBucket> vb = vbMap.getBucket(vbid);
         if (vb) {
             bool paused = !visitor.visit(vbid, vb->ht);
@@ -3770,11 +3761,7 @@ VBucketVisitorTask::VBucketVisitorTask(EventuallyPersistentStore *s,
     shardID(sh)
 {
     const VBucketFilter &vbFilter = visitor->getVBucketFilter();
-    std::vector<int> vbs = store->vbMap.getShard(shardID)->getVBuckets();
-    cb_assert(vbs.size() <= std::numeric_limits<uint16_t>::max());
-    std::vector<int>::iterator it;
-    for (it = vbs.begin(); it != vbs.end(); ++it) {
-        uint16_t vbid = static_cast<uint16_t>(*it);
+    for (auto vbid : store->vbMap.getShard(shardID)->getVBuckets()) {
         RCPtr<VBucket> vb = store->vbMap.getBucket(vbid);
         if (vb && vbFilter(vbid)) {
             vbList.push(vbid);

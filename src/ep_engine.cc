@@ -4423,10 +4423,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         return ENGINE_SUCCESS;
     }
 
-    std::vector<int> vbuckets = epstore->getVBuckets().getBuckets();
-    std::vector<int>::iterator itr = vbuckets.begin();
-    for (; itr != vbuckets.end(); ++itr) {
-        RCPtr<VBucket> vb = getVBucket(*itr);
+    auto vbuckets = epstore->getVBuckets().getBuckets();
+    for (auto vbid : vbuckets) {
+        RCPtr<VBucket> vb = getVBucket(vbid);
         if (vb) {
             uint64_t relHighSeqno = vb->getHighSeqno();
             if (vb->getState() != vbucket_state_active) {
@@ -4969,10 +4968,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deregisterTapClient(
         // If the tap connection is not found, we still need to remove
         /// its checkpoint cursors.
         const VBucketMap &vbuckets = getEpStore()->getVBuckets();
-        size_t numOfVBuckets = vbuckets.getSize();
-        for (size_t i = 0; i < numOfVBuckets; ++i) {
-            cb_assert(i <= std::numeric_limits<uint16_t>::max());
-            uint16_t vbid = static_cast<uint16_t>(i);
+        for (VBucketMap::id_type vbid = 0; vbid < vbuckets.getSize(); ++vbid) {
             RCPtr<VBucket> vb = vbuckets.getBucket(vbid);
             if (!vb) {
                 continue;
@@ -6249,7 +6245,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
     }
 
     std::vector<uint8_t> payload;
-    std::vector<int> vbuckets = epstore->getVBuckets().getBuckets();
+    auto vbuckets = epstore->getVBuckets().getBuckets();
 
     /* Reserve a buffer that's big enough to hold all of them (we might
      * not use all of them. Each entry in the array occupies 10 bytes

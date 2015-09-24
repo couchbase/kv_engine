@@ -54,7 +54,7 @@ void BgFetcher::notifyBGEvent(void) {
     }
 }
 
-size_t BgFetcher::doFetch(uint16_t vbId) {
+size_t BgFetcher::doFetch(VBucket::id_type vbId) {
     hrtime_t startTime(gethrtime());
     LOG(EXTENSION_LOG_DEBUG, "BgFetcher is fetching data, vBucket = %d "
         "numDocs = %" PRIu64 ", startTime = %" PRIu64,
@@ -86,7 +86,7 @@ size_t BgFetcher::doFetch(uint16_t vbId) {
     return totalfetches;
 }
 
-void BgFetcher::clearItems(uint16_t vbId) {
+void BgFetcher::clearItems(VBucket::id_type vbId) {
     vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
 
     for(; itr != items2fetch.end(); ++itr) {
@@ -155,10 +155,8 @@ bool BgFetcher::run(GlobalTask *task) {
 }
 
 bool BgFetcher::pendingJob() {
-    std::vector<int> vbIds = shard->getVBuckets();
-    size_t numVbuckets = vbIds.size();
-    for (size_t i = 0; i < numVbuckets; ++i) {
-        RCPtr<VBucket> vb = shard->getBucket(vbIds[i]);
+    for (auto vbid : shard->getVBuckets()) {
+        RCPtr<VBucket> vb = shard->getBucket(vbid);
         if (vb && vb->hasPendingBGFetchItems()) {
             return true;
         }
