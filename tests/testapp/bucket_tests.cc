@@ -113,7 +113,7 @@ TEST_P(McdTestappTest, TestBucketIsolationBuckets)
         snprintf(name, sizeof(name), "mybucket_%03u", ii);
         ASSERT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, sasl_auth(name, name));
 
-        size_t len = storage_command(buffer.bytes, sizeof(buffer.bytes),
+        size_t len = mcbp_storage_command(buffer.bytes, sizeof(buffer.bytes),
                                      PROTOCOL_BINARY_CMD_ADD,
                                      "mykey", strlen("mykey"), 0, 0,
                                      0, 0);

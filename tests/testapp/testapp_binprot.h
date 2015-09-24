@@ -49,6 +49,30 @@ off_t mcbp_arithmetic_command(char* buf,
                               uint64_t initial,
                               uint32_t exp);
 
+/**
+ * Constructs a storage command using the give arguments into buf.
+ *
+ * @param buf the buffer to write the command into
+ * @param bufsz the size of the buffer
+ * @param cmd the command opcode to use
+ * @param key the key to use
+ * @param keylen the number of bytes in key
+ * @param dta the value for the key
+ * @param dtalen the number of bytes in the value
+ * @param flags the value to use for the flags
+ * @param exp the expiry time
+ * @return the number of bytes in the storage command
+ */
+size_t mcbp_storage_command(char* buf,
+                            size_t bufsz,
+                            uint8_t cmd,
+                            const void* key,
+                            size_t keylen,
+                            const void* dta,
+                            size_t dtalen,
+                            uint32_t flags,
+                            uint32_t exp);
+
 /* Validate the specified response header against the expected cmd and status.
  */
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,

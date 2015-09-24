@@ -143,6 +143,41 @@ off_t mcbp_arithmetic_command(char* buf,
     return (off_t)(key_offset + keylen);
 }
 
+size_t mcbp_storage_command(char* buf,
+                            size_t bufsz,
+                            uint8_t cmd,
+                            const void* key,
+                            size_t keylen,
+                            const void* dta,
+                            size_t dtalen,
+                            uint32_t flags,
+                            uint32_t exp) {
+    /* all of the storage commands use the same command layout */
+    size_t key_offset;
+    auto* request = reinterpret_cast<protocol_binary_request_set*>(buf);
+    cb_assert(bufsz >= sizeof(*request) + keylen + dtalen);
+
+    memset(request, 0, sizeof(*request));
+    request->message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request->message.header.request.opcode = cmd;
+    request->message.header.request.keylen = htons((uint16_t)keylen);
+    request->message.header.request.extlen = 8;
+    request->message.header.request.bodylen = htonl(
+        (uint32_t)(keylen + 8 + dtalen));
+    request->message.header.request.opaque = 0xdeadbeef;
+    request->message.body.flags = htonl(flags);
+    request->message.body.expiration = htonl(exp);
+
+    key_offset = sizeof(protocol_binary_request_no_extras) + 8;
+
+    memcpy(buf + key_offset, key, keylen);
+    if (dta != nullptr) {
+        memcpy(buf + key_offset + keylen, dta, dtalen);
+    }
+
+    return key_offset + keylen + dtalen;
+}
+
 void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
                                    uint8_t cmd, uint16_t status) {
     protocol_binary_response_header* header = &response->message.header;

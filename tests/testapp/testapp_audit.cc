@@ -169,11 +169,11 @@ TEST_F(AuditTest, AuditIllegalPacket) {
     } send, receive;
     uint64_t value = 0xdeadbeefdeadcafe;
     std::string key("AuditTest::AuditIllegalPacket");
-    size_t len = storage_command(send.bytes, sizeof(send.bytes),
-                                 PROTOCOL_BINARY_CMD_SET,
-                                 key.c_str(), key.size(),
-                                 &value, sizeof(value),
-                                 0, 0);
+    size_t len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
+                                      PROTOCOL_BINARY_CMD_SET,
+                                      key.c_str(), key.size(),
+                                      &value, sizeof(value),
+                                      0, 0);
 
     // Now make packet illegal.
     send.request.message.header.request.bodylen = htonl(1);

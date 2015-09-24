@@ -899,42 +899,6 @@ bool safe_recv_packet(void *buf, size_t size) {
     return true;
 }
 
-size_t storage_command(char*buf,
-                       size_t bufsz,
-                       uint8_t cmd,
-                       const void* key,
-                       size_t keylen,
-                       const void* dta,
-                       size_t dtalen,
-                       uint32_t flags,
-                       uint32_t exp)
-{
-    /* all of the storage commands use the same command layout */
-    size_t key_offset;
-    protocol_binary_request_set *request =
-        reinterpret_cast<protocol_binary_request_set*>(buf);
-    cb_assert(bufsz >= sizeof(*request) + keylen + dtalen);
-
-    memset(request, 0, sizeof(*request));
-    request->message.header.request.magic = PROTOCOL_BINARY_REQ;
-    request->message.header.request.opcode = cmd;
-    request->message.header.request.keylen = htons((uint16_t)keylen);
-    request->message.header.request.extlen = 8;
-    request->message.header.request.bodylen = htonl((uint32_t)(keylen + 8 + dtalen));
-    request->message.header.request.opaque = 0xdeadbeef;
-    request->message.body.flags = htonl(flags);
-    request->message.body.expiration = htonl(exp);
-
-    key_offset = sizeof(protocol_binary_request_no_extras) + 8;
-
-    memcpy(buf + key_offset, key, keylen);
-    if (dta != NULL) {
-        memcpy(buf + key_offset + keylen, dta, dtalen);
-    }
-
-    return key_offset + keylen + dtalen;
-}
-
 // Configues the ewouldblock_engine to use the given mode; value
 // is a mode-specific parameter.
 void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
@@ -1026,9 +990,9 @@ void test_set_impl(const char *key, uint8_t cmd) {
         char bytes[1024];
     } send, receive;
     uint64_t value = 0xdeadbeefdeadcafe;
-    size_t len = storage_command(send.bytes, sizeof(send.bytes), cmd,
-                                 key, strlen(key), &value, sizeof(value),
-                                 0, 0);
+    size_t len = mcbp_storage_command(send.bytes, sizeof(send.bytes), cmd,
+                                      key, strlen(key), &value, sizeof(value),
+                                      0, 0);
 
     /* Set should work over and over again */
     int ii;
@@ -1073,9 +1037,9 @@ static enum test_return test_add_impl(const char *key, uint8_t cmd) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, receive;
-    size_t len = storage_command(send.bytes, sizeof(send.bytes), cmd, key,
-                                 strlen(key), &value, sizeof(value),
-                                 0, 0);
+    size_t len = mcbp_storage_command(send.bytes, sizeof(send.bytes), cmd, key,
+                                      strlen(key), &value, sizeof(value),
+                                      0, 0);
 
     /* Add should only work the first time */
     int ii;
@@ -1123,23 +1087,23 @@ static enum test_return test_replace_impl(const char* key, uint8_t cmd) {
         char bytes[1024];
     } send, receive;
     int ii;
-    size_t len = storage_command(send.bytes, sizeof(send.bytes), cmd,
-                                 key, strlen(key), &value, sizeof(value),
-                                 0, 0);
+    size_t len = mcbp_storage_command(send.bytes, sizeof(send.bytes), cmd,
+                                      key, strlen(key), &value, sizeof(value),
+                                      0, 0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, cmd,
                                   PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-    len = storage_command(send.bytes, sizeof(send.bytes),
-                          PROTOCOL_BINARY_CMD_ADD,
-                          key, strlen(key), &value, sizeof(value), 0, 0);
+    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
+                               PROTOCOL_BINARY_CMD_ADD,
+                               key, strlen(key), &value, sizeof(value), 0, 0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_ADD,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    len = storage_command(send.bytes, sizeof(send.bytes), cmd,
-                          key, strlen(key), &value, sizeof(value), 0, 0);
+    len = mcbp_storage_command(send.bytes, sizeof(send.bytes), cmd,
+                               key, strlen(key), &value, sizeof(value), 0, 0);
     for (ii = 0; ii < 10; ++ii) {
         safe_send(send.bytes, len, false);
         if (cmd == PROTOCOL_BINARY_CMD_REPLACE) {
@@ -1180,9 +1144,9 @@ static enum test_return test_delete_impl(const char *key, uint8_t cmd) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, cmd,
                                   PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-    len = storage_command(send.bytes, sizeof(send.bytes),
-                          PROTOCOL_BINARY_CMD_ADD,
-                          key, strlen(key), NULL, 0, 0, 0);
+    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
+                               PROTOCOL_BINARY_CMD_ADD,
+                               key, strlen(key), NULL, 0, 0, 0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_ADD,
@@ -1222,9 +1186,9 @@ static enum test_return test_delete_cas_impl(const char *key, bool bad) {
         char bytes[1024];
     } send, receive;
     size_t len;
-    len = storage_command(send.bytes, sizeof(send.bytes),
-                          PROTOCOL_BINARY_CMD_SET,
-                          key, strlen(key), NULL, 0, 0, 0);
+    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
+                               PROTOCOL_BINARY_CMD_SET,
+                               key, strlen(key), NULL, 0, 0, 0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
@@ -1283,10 +1247,10 @@ static enum test_return test_get_impl(const char *key, uint8_t cmd) {
     mcbp_validate_response_header(&receive.response, cmd,
                                   PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
 
-    len = storage_command(send.bytes, sizeof(send.bytes),
-                          PROTOCOL_BINARY_CMD_ADD,
-                          key, strlen(key), NULL, 0,
-                          0, 0);
+    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
+                               PROTOCOL_BINARY_CMD_ADD,
+                               key, strlen(key), NULL, 0,
+                               0, 0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_ADD,
@@ -1331,10 +1295,10 @@ static enum test_return test_getq_impl(const char *key, uint8_t cmd) {
         protocol_binary_response_no_extras response;
         char bytes[1024];
     } send, temp, receive;
-    size_t len = storage_command(send.bytes, sizeof(send.bytes),
-                                 PROTOCOL_BINARY_CMD_ADD,
-                                 key, strlen(key), NULL, 0,
-                                 0, 0);
+    size_t len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
+                                      PROTOCOL_BINARY_CMD_ADD,
+                                      key, strlen(key), NULL, 0,
+                                      0, 0);
     size_t len2 = mcbp_raw_command(temp.bytes, sizeof(temp.bytes), cmd,
                                    missing, strlen(missing), NULL, 0);
     /* I need to change the first opaque so that I can separate the two
@@ -1627,9 +1591,9 @@ TEST_P(McdTestappTest, CAS) {
         char bytes[1024];
     } send, receive;
     uint64_t value = 0xdeadbeefdeadcafe;
-    size_t len = storage_command(send.bytes, sizeof(send.bytes),
-                                 PROTOCOL_BINARY_CMD_SET,
-                                 "FOO", 3, &value, sizeof(value), 0, 0);
+    size_t len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
+                                      PROTOCOL_BINARY_CMD_SET,
+                                      "FOO", 3, &value, sizeof(value), 0, 0);
 
     send.request.message.header.request.cas = 0x7ffffff;
     safe_send(send.bytes, len, false);
@@ -1676,9 +1640,9 @@ void test_concat_impl(const char *key, uint8_t cmd) {
     mcbp_validate_response_header(&receive.response, cmd,
                                   PROTOCOL_BINARY_RESPONSE_NOT_STORED);
 
-    len = storage_command(send.bytes, sizeof(send.bytes),
-                          PROTOCOL_BINARY_CMD_ADD,
-                          key, strlen(key), value, strlen(value), 0, 0);
+    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
+                               PROTOCOL_BINARY_CMD_ADD,
+                               key, strlen(key), value, strlen(value), 0, 0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_ADD,
@@ -1913,9 +1877,9 @@ static enum test_return test_pipeline_hickup_chunk(void *buffer, size_t buffersi
         case PROTOCOL_BINARY_CMD_REPLACEQ:
         case PROTOCOL_BINARY_CMD_SET:
         case PROTOCOL_BINARY_CMD_SETQ:
-            len = storage_command(command.bytes, sizeof(command.bytes), cmd,
-                                  key, keylen , &value, sizeof(value),
-                                  0, 0);
+            len = mcbp_storage_command(command.bytes, sizeof(command.bytes),
+                                       cmd, key, keylen, &value, sizeof(value),
+                                       0, 0);
             break;
         case PROTOCOL_BINARY_CMD_APPEND:
         case PROTOCOL_BINARY_CMD_APPENDQ:
@@ -2585,10 +2549,10 @@ void store_object(const char *key, const char *value, bool validate) {
     send.resize(sizeof(protocol_binary_request_set) + strlen(key) +
                 strlen(value));
 
-    size_t len = storage_command(send.data(), send.size(),
-                                 PROTOCOL_BINARY_CMD_SET,
-                                 key, strlen(key), value, strlen(value),
-                                 0, 0);
+    size_t len = mcbp_storage_command(send.data(), send.size(),
+                                      PROTOCOL_BINARY_CMD_SET,
+                                      key, strlen(key), value, strlen(value),
+                                      0, 0);
 
     safe_send(send.data(), len, false);
 
@@ -3256,9 +3220,10 @@ static enum test_return test_expiry(const char* key, time_t expiry,
 
     uint64_t value = 0xdeadbeefdeadcafe;
     size_t len = 0;
-    len = storage_command(send.bytes, sizeof(send.bytes), PROTOCOL_BINARY_CMD_SET,
-                                 key, strlen(key), &value, sizeof(value),
-                                 0, (uint32_t)expiry);
+    len = mcbp_storage_command(send.bytes, sizeof(send.bytes),
+                               PROTOCOL_BINARY_CMD_SET,
+                               key, strlen(key), &value, sizeof(value),
+                               0, (uint32_t)expiry);
 
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
@@ -3315,9 +3280,9 @@ void McdTestappTest::test_set_huge_impl(const char *key, uint8_t cmd,
     int ii;
     memset(message, 0xb0, message_size);
 
-    cb_assert(len == storage_command(set_message.data(), len, cmd, key,
-                                     strlen(key), NULL, message_size,
-                                     0, 0));
+    cb_assert(len == mcbp_storage_command(set_message.data(), len, cmd, key,
+                                          strlen(key), NULL, message_size,
+                                          0, 0));
 
     for (ii = 0; ii < iterations; ++ii) {
         safe_send(set_message.data(), len, false);
@@ -3419,10 +3384,11 @@ void test_pipeline_impl(int cmd, int result, const char* key_root,
         snprintf(key.data(), key_root_len + key_digit_len + 1, "%s%05d", key_root, ii);
         if (PROTOCOL_BINARY_CMD_SET == cmd) {
             protocol_binary_request_set* this_req = (protocol_binary_request_set*)current_message;
-            current_message += storage_command((char*)current_message,
-                                               out_message_len, cmd,
-                                               key.data(), strlen(key.data()),
-                                               NULL, value_size, 0, 0);
+            current_message += mcbp_storage_command((char*)current_message,
+                                                    out_message_len, cmd,
+                                                    key.data(),
+                                                    strlen(key.data()),
+                                                    NULL, value_size, 0, 0);
             this_req->message.header.request.opaque = htonl((session << 8) | ii);
         } else {
             protocol_binary_request_no_extras* this_req = (protocol_binary_request_no_extras*)current_message;
@@ -3746,9 +3712,9 @@ TEST_P(McdTestappTest, ExceedMaxPacketSize)
     } send, receive;
     memset(send.bytes, 0, sizeof(send.bytes));
 
-    storage_command(send.bytes, sizeof(send.bytes),
-                    PROTOCOL_BINARY_CMD_SET,
-                    "key", 3, NULL, 0, 0, 0);
+    mcbp_storage_command(send.bytes, sizeof(send.bytes),
+                         PROTOCOL_BINARY_CMD_SET,
+                         "key", 3, NULL, 0, 0, 0);
     send.request.message.header.request.bodylen = ntohl(31*1024*1024);
     safe_send(send.bytes, sizeof(send.bytes), false);
 
@@ -3938,10 +3904,10 @@ static void test_set_topkeys(const std::string& key, const int operations) {
     /* Send CMD_SET for current key 'sum' number of times (and validate
      * response). */
     for (ii = 0; ii < operations; ii++) {
-        len = storage_command(buffer.bytes, sizeof(buffer.bytes),
-                              PROTOCOL_BINARY_CMD_SET, key.c_str(),
-                              key.length(),
-                              "foo", strlen("foo"), 0, 0);
+        len = mcbp_storage_command(buffer.bytes, sizeof(buffer.bytes),
+                                   PROTOCOL_BINARY_CMD_SET, key.c_str(),
+                                   key.length(),
+                                   "foo", strlen("foo"), 0, 0);
 
         safe_send(buffer.bytes, len, false);
 

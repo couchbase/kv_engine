@@ -191,30 +191,6 @@ enum test_return store_object_w_datatype(const char *key,
 // Enables / disables the MUTATION_SEQNO feature.
 void set_mutation_seqno_feature(bool enable);
 
-/**
- * Constructs a storage command using the give arguments into buf.
- *
- * @param buf the buffer to write the command into
- * @param bufsz the size of the buffer
- * @param cmd the command opcode to use
- * @param key the key to use
- * @param keylen the number of bytes in key
- * @param dta the value for the key
- * @param dtalen the number of bytes in the value
- * @param flags the value to use for the flags
- * @param exp the expiry time
- * @return the number of bytes in the storage command
- */
-size_t storage_command(char* buf,
-                       size_t bufsz,
-                       uint8_t cmd,
-                       const void* key,
-                       size_t keylen,
-                       const void* dta,
-                       size_t dtalen,
-                       uint32_t flags,
-                       uint32_t exp);
-
 /* Send the specified buffer+len to memcached. */
 void safe_send(const void* buf, size_t len, bool hickup);
 
