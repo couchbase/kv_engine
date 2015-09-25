@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2011 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -144,46 +144,38 @@ VBucketMap::id_type VBucketMap::getSize(void) const {
     return size;
 }
 
-bool VBucketMap::isBucketDeletion(uint16_t id) const {
-    cb_assert(id < size);
+bool VBucketMap::isBucketDeletion(id_type id) const {
     return bucketDeletion[id].load();
 }
 
-bool VBucketMap::setBucketDeletion(uint16_t id, bool delBucket) {
-    cb_assert(id < size);
+bool VBucketMap::setBucketDeletion(id_type id, bool delBucket) {
     bool inverse = !delBucket;
     return bucketDeletion[id].compare_exchange_strong(inverse, delBucket);
 }
 
-bool VBucketMap::isBucketCreation(uint16_t id) const {
-    cb_assert(id < size);
+bool VBucketMap::isBucketCreation(id_type id) const {
     return bucketCreation[id].load();
 }
 
-bool VBucketMap::setBucketCreation(uint16_t id, bool rv) {
-    cb_assert(id < size);
+bool VBucketMap::setBucketCreation(id_type id, bool rv) {
     bool inverse = !rv;
     return bucketCreation[id].compare_exchange_strong(inverse, rv);
 }
 
-uint64_t VBucketMap::getPersistenceCheckpointId(uint16_t id) const {
-    cb_assert(id < size);
+uint64_t VBucketMap::getPersistenceCheckpointId(id_type id) const {
     return persistenceCheckpointIds[id].load();
 }
 
-void VBucketMap::setPersistenceCheckpointId(uint16_t id,
+void VBucketMap::setPersistenceCheckpointId(id_type id,
                                             uint64_t checkpointId) {
-    cb_assert(id < size);
     persistenceCheckpointIds[id].store(checkpointId);
 }
 
-uint64_t VBucketMap::getPersistenceSeqno(uint16_t id) const {
-    cb_assert(id < size);
+uint64_t VBucketMap::getPersistenceSeqno(id_type id) const {
     return persistenceSeqnos[id].load();
 }
 
-void VBucketMap::setPersistenceSeqno(uint16_t id, uint64_t seqno) {
-    cb_assert(id < size);
+void VBucketMap::setPersistenceSeqno(id_type id, uint64_t seqno) {
     persistenceSeqnos[id].store(seqno);
 }
 

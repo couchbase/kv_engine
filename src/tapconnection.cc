@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -43,7 +43,12 @@ void TapEngineSpecific::readSpecificData(uint16_t ev, void *engine_specific,
     if (ev == TAP_CHECKPOINT_START || ev == TAP_CHECKPOINT_END || ev == TAP_DELETION ||
         ev == TAP_MUTATION)
         {
-            cb_assert(nengine >= sizeRevSeqno);
+            if (nengine < sizeRevSeqno) {
+                throw std::invalid_argument("TapEngineSpecific::readSpecificData: "
+                        "nengine (which is " + std::to_string(nengine) +
+                        ") is less than sizeRevSeqno (which is " +
+                        std::to_string(sizeRevSeqno));
+            }
             memcpy(seqnum, engine_specific, sizeRevSeqno);
             *seqnum = ntohll(*seqnum);
             if (ev == TAP_MUTATION && nengine == sizeTotal) {
@@ -530,7 +535,6 @@ void TapProducer::clearQueues_UNLOCKED() {
     // Clear bg-fetched items.
     while (!backfilledItems.empty()) {
         Item *i(backfilledItems.front());
-        cb_assert(i);
         delete i;
         backfilledItems.pop();
     }
@@ -560,7 +564,7 @@ void TapProducer::clearQueues_UNLOCKED() {
     ackLog_.clear();
 
     stats.memOverhead.fetch_sub(mem_overhead);
-    cb_assert(stats.memOverhead.load() < GIGANTOR);
+    ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
 
     LOG(EXTENSION_LOG_WARNING, "%s Clear the tap queues by force", logHeader());
 }
@@ -649,7 +653,7 @@ void TapProducer::rollback() {
     }
 
     stats.memOverhead.fetch_sub(ackLogSize * sizeof(TapLogElement));
-    cb_assert(stats.memOverhead.load() < GIGANTOR);
+    ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
 
     seqnoReceived = seqno - 1;
     seqnoAckRequested = seqno - 1;
@@ -896,7 +900,7 @@ ENGINE_ERROR_CODE TapProducer::processAck(uint32_t s,
     }
 
     stats.memOverhead.fetch_sub(num_logs * sizeof(TapLogElement));
-    cb_assert(stats.memOverhead.load() < GIGANTOR);
+    ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
 
     return ret;
 }
@@ -961,17 +965,18 @@ bool BGFetchCallback::run() {
     hrtime_t start = gethrtime();
     RememberingCallback<GetValue> gcb;
 
-    EPStats &stats = epe->getEpStats();
-    EventuallyPersistentStore *epstore = epe->getEpStore();
-    cb_assert(epstore);
+    EPStats &stats = epe.getEpStats();
+    EventuallyPersistentStore *epstore = epe.getEpStore();
+    if (epstore == nullptr) {
+        throw std::logic_error("BGFetchCallback::run: epstore is NULL");
+    }
 
     epstore->getROUnderlying(vbucket)->get(key, vbucket, gcb, true);
     gcb.waitForValue();
-    cb_assert(gcb.fired);
 
     if (gcb.val.getStatus() != ENGINE_SUCCESS) {
         CompletedBGFetchTapOperation tapop(connToken, vbucket);
-        epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue());
+        epe.getTapConnMap().performOp(name, tapop, gcb.val.getValue());
         if (gcb.val.getStatus() != ENGINE_KEY_ENOENT) {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed TAP background fetch for VBucket %d, TAP %s"
@@ -982,7 +987,7 @@ bool BGFetchCallback::run() {
     }
 
     CompletedBGFetchTapOperation tapop(connToken, vbucket);
-    if (!epe->getTapConnMap().performOp(name, tapop, gcb.val.getValue())) {
+    if (!epe.getTapConnMap().performOp(name, tapop, gcb.val.getValue())) {
         delete gcb.val.getValue(); // connection is closed. Free an item instance.
     }
 
@@ -1028,7 +1033,7 @@ const char *TapProducer::opaqueCmdToString(uint32_t opaque_code) {
 }
 
 void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
-    ExTask task = new BGFetchCallback(&engine(), getName(), key, vb,
+    ExTask task = new BGFetchCallback(engine(), getName(), key, vb,
                                       getConnectionToken(),
                                       Priority::TapBgFetcherPriority, 0);
     ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
@@ -1037,7 +1042,13 @@ void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uin
     if (it != checkpointState_.end()) {
         ++(it->second.bgJobIssued);
     }
-    cb_assert(bgJobIssued > bgJobCompleted);
+    if (bgJobIssued <= bgJobCompleted) {
+        throw std::logic_error("TapProducer::queueBGFetch_UNLOCKED: "
+                "postcondition bgJobIssued (which is " +
+                std::to_string(bgJobIssued.load()) +
+                ") > bgJobCompleted (which is " +
+                std::to_string(bgJobCompleted.load()) + ") failed");
+    }
 }
 
 void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqueue) {
@@ -1057,7 +1068,13 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
     if (it != checkpointState_.end()) {
         ++(it->second.bgJobCompleted);
     }
-    cb_assert(bgJobIssued >= bgJobCompleted);
+    if (bgJobIssued < bgJobCompleted) {
+        throw std::logic_error("TapProducer::completeBGFetchJob: "
+                "postcondition bgJobIssued (which is " +
+                std::to_string(bgJobIssued.load()) +
+                ") >= bgJobCompleted (which is " +
+                std::to_string(bgJobCompleted.load()) + ") failed");
+    }
 
     if (itm && vbucketFilter(itm->getVBucketId())) {
         backfilledItems.push(itm);
@@ -1066,16 +1083,22 @@ void TapProducer::completeBGFetchJob(Item *itm, uint16_t vbid, bool implicitEnqu
             ++(it->second.bgResultSize);
         }
         stats.memOverhead.fetch_add(sizeof(Item *));
-        cb_assert(stats.memOverhead.load() < GIGANTOR);
+        ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
     } else {
         delete itm;
     }
 }
 
 Item* TapProducer::nextBgFetchedItem_UNLOCKED() {
-    cb_assert(!backfilledItems.empty());
+    if (backfilledItems.empty()) {
+        throw std::logic_error("TapProducer::nextBgFetchedItem_UNLOCKED: "
+                "backfilledItems is empty");
+    }
     Item *rv = backfilledItems.front();
-    cb_assert(rv);
+    if (rv == nullptr) {
+        throw std::logic_error("TapProducer::nextBgFetchedItem_UNLOCKED: "
+                "front item on backfilledItems queue is NULL");
+    }
     backfilledItems.pop();
     --bgResultSize;
 
@@ -1086,7 +1109,7 @@ Item* TapProducer::nextBgFetchedItem_UNLOCKED() {
     }
 
     stats.memOverhead.fetch_sub(sizeof(Item *));
-    cb_assert(stats.memOverhead.load() < GIGANTOR);
+    ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
 
     return rv;
 }
@@ -1183,7 +1206,11 @@ void TapProducer::aggregateQueueStats(ConnCounter* aggregator) {
 
 void TapProducer::processedEvent(uint16_t event, ENGINE_ERROR_CODE)
 {
-    cb_assert(event == TAP_ACK);
+    if (event != TAP_ACK) {
+        throw std::invalid_argument("TapProducer::processedEvent: Unexpected "
+                "event - event (which is " + std::to_string(event) +
+                ") is not TAP_ACK (" + std::to_string(TAP_ACK) + ")");
+    }
 }
 
 
@@ -1300,7 +1327,7 @@ queued_item TapProducer::nextFgFetched_UNLOCKED(bool &shouldPause) {
             queueMemSize.store(0);
         }
         stats.memOverhead.fetch_sub(sizeof(queued_item));
-        cb_assert(stats.memOverhead.load() < GIGANTOR);
+        ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
         ++recordsFetched;
         return qi;
     }
@@ -1403,7 +1430,11 @@ VBucketEvent TapProducer::checkDumpOrTakeOverCompletion() {
         if (ev.event != TAP_PAUSE) {
             RCPtr<VBucket> vb = engine_.getVBucket(ev.vbucket);
             vbucket_state_t myState(vb ? vb->getState() : vbucket_state_dead);
-            cb_assert(ev.event == TAP_VBUCKET_SET);
+            if (ev.event != TAP_VBUCKET_SET) {
+                throw std::logic_error("TapProducer::checkDumpOrTakeOverCompletion: "
+                        "ev.event (which is " + std::to_string(ev.event) +
+                        ") is not TAP_VBUCKET_SET");
+            }
             if (ev.state == vbucket_state_active && myState == vbucket_state_active &&
                 ackLog_.size() < MAX_TAKEOVER_TAP_LOG_SIZE) {
                 // Set vbucket state to dead if the number of items waiting for
@@ -1441,7 +1472,7 @@ bool TapProducer::addEvent_UNLOCKED(const queued_item &it) {
         ++queueSize;
         queueMemSize.fetch_add(sizeof(queued_item));
         stats.memOverhead.fetch_add(sizeof(queued_item));
-        cb_assert(stats.memOverhead.load() < GIGANTOR);
+        ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
         return wasEmpty;
     } else {
         return queue->empty();
@@ -1550,7 +1581,7 @@ void TapProducer::appendQueue(std::list<queued_item> *q) {
     }
     queueSize += count;
     stats.memOverhead.fetch_add(count * sizeof(queued_item));
-    cb_assert(stats.memOverhead.load() < GIGANTOR);
+    ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
     queueMemSize.fetch_add(count * sizeof(queued_item));
     q->clear();
 }
@@ -1701,7 +1732,11 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
             // If backfill is currently running for this vbucket, skip the cursor registration.
             if (backfillVBuckets.find(vbid) != backfillVBuckets.end()) {
                 cit = checkpointState_.find(vbid);
-                cb_assert(cit != checkpointState_.end());
+                if (cit == checkpointState_.end()) {
+                    throw std::logic_error("TapProducer::registerCursor: "
+                            "Failed to find checkpoint for vbid " +
+                            std::to_string(vbid) + " in checkpointState");
+                }
                 cit->second.currentCheckpointId = 0;
                 cit->second.state = backfill;
                 continue;
@@ -1746,7 +1781,11 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
                 }
 
                 cit = checkpointState_.find(vbid);
-                cb_assert(cit != checkpointState_.end());
+                if(cit == checkpointState_.end()) {
+                    throw std::logic_error("TapProducer::registerCursor: "
+                            "Failed to find checkpoint for vbid " +
+                            std::to_string(vbid) + " in checkpointState (2)");
+                }
                 cit->second.currentCheckpointId = chk_id;
                 cit->second.state = cstate;
             } else {
@@ -1863,7 +1902,10 @@ Item* TapProducer::getNextItem(const void *c, uint16_t *vbucket, uint16_t &ret,
             ENGINE_ERROR_CODE r = gv.getStatus();
             if (r == ENGINE_SUCCESS) {
                 itm = gv.getValue();
-                cb_assert(itm);
+                if (itm == nullptr) {
+                    throw std::logic_error("TapProducer::getNextItem: found a"
+                            " NULL value for GetValue from queue_op_set");
+                }
                 nru = gv.getNRUValue();
                 ret = TAP_MUTATION;
             } else if (r == ENGINE_KEY_ENOENT) {

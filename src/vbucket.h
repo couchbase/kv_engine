@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -190,7 +190,7 @@ public:
         pendingOpsStart = 0;
         stats.memOverhead.fetch_add(sizeof(VBucket)
                                + ht.memorySize() + sizeof(CheckpointManager));
-        cb_assert(stats.memOverhead.load() < GIGANTOR);
+        ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
     }
 
     ~VBucket();
@@ -274,7 +274,7 @@ public:
 
     id_type getId() const { return id; }
     vbucket_state_t getState(void) const { return state.load(); }
-    void setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi);
+    void setState(vbucket_state_t to);
 
     vbucket_state_t getInitialState(void) { return initialState; }
     void setInitialState(vbucket_state_t initState) {

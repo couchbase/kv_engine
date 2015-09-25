@@ -1262,7 +1262,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             engine.getDcpConnMap().vbucketStateChanged(vbid, to);
         }
 
-        vb->setState(to, engine.getServerApi());
+        vb->setState(to);
 
         if (to == vbucket_state_active && oldstate == vbucket_state_replica) {
             /**

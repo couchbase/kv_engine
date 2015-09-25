@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -143,8 +143,9 @@ VBucket::~VBucket() {
     // Clear out the bloomfilter(s)
     clearFilter();
 
-    stats.memOverhead.fetch_sub(sizeof(VBucket) + ht.memorySize() + sizeof(CheckpointManager));
-    cb_assert(stats.memOverhead.load() < GIGANTOR);
+    stats.memOverhead.fetch_sub(sizeof(VBucket) + ht.memorySize() +
+                                sizeof(CheckpointManager));
+    ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
 
     LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);
 }
@@ -186,8 +187,7 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
     }
 }
 
-void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
-    cb_assert(sapi);
+void VBucket::setState(vbucket_state_t to) {
     vbucket_state_t oldstate(state);
 
     if (to == vbucket_state_active &&
@@ -426,7 +426,11 @@ size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) {
 
 bool VBucket::isResidentRatioUnderThreshold(float threshold,
                                             item_eviction_policy_t policy) {
-    cb_assert(policy == FULL_EVICTION);
+    if (policy != FULL_EVICTION) {
+        throw std::invalid_argument("VBucket::isResidentRatioUnderThreshold: "
+                "policy (which is " + std::to_string(policy) +
+                ") must be FULL_EVICTION");
+    }
     size_t num_items = getNumItems(policy);
     size_t num_non_resident_items = getNumNonResidentItems(policy);
     if (threshold >= ((float)(num_items - num_non_resident_items) /

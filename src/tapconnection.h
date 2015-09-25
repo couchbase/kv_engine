@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2013 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -673,14 +673,16 @@ public:
  */
 class BGFetchCallback : public GlobalTask {
 public:
-    BGFetchCallback(EventuallyPersistentEngine *e, const std::string &n,
+    BGFetchCallback(EventuallyPersistentEngine& e, const std::string &n,
                     const std::string &k, uint16_t vbid, hrtime_t token,
-                    const Priority &p, double sleeptime = 0) :
-        GlobalTask(e, p, sleeptime, false), name(n), key(k), epe(e),
-        init(gethrtime()), connToken(token), vbucket(vbid)
-    {
-        cb_assert(epe);
-    }
+                    const Priority &p, double sleeptime = 0)
+        : GlobalTask(&e, p, sleeptime, false),
+          name(n),
+          key(k),
+          epe(e),
+          init(gethrtime()),
+          connToken(token),
+          vbucket(vbid) {}
 
     bool run();
 
@@ -693,7 +695,7 @@ public:
 private:
     const std::string name;
     const std::string key;
-    EventuallyPersistentEngine *epe;
+    EventuallyPersistentEngine& epe;
     hrtime_t init;
     hrtime_t connToken;
     uint16_t vbucket;
@@ -855,7 +857,6 @@ public:
         delete queue;
         delete []specificData;
         delete []transmitted;
-        cb_assert(!isReserved());
     }
 
     virtual void addStats(ADD_STAT add_stat, const void *c);
@@ -993,7 +994,7 @@ protected:
             TapLogElement log(seqno, qi);
             ackLog_.push_back(log);
             stats.memOverhead.fetch_add(sizeof(TapLogElement));
-            cb_assert(stats.memOverhead.load() < GIGANTOR);
+            ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
         }
     }
 
@@ -1008,7 +1009,7 @@ protected:
             TapLogElement log(seqno, e);
             ackLog_.push_back(log);
             stats.memOverhead.fetch_add(sizeof(TapLogElement));
-            cb_assert(stats.memOverhead.load() < GIGANTOR);
+            ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
         }
     }
 
