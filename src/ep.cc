@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -170,19 +170,17 @@ private:
  */
 class BloomFilterCallback : public Callback<std::string&, bool&> {
 public:
-    BloomFilterCallback(EventuallyPersistentStore *eps, uint16_t vbid,
+    BloomFilterCallback(EventuallyPersistentStore& eps, uint16_t vbid,
                         bool residentRatioAlert)
         : store(eps), vbucketId(vbid),
           residentRatioLessThanThreshold(residentRatioAlert) {
-
     }
 
     void callback(std::string& key, bool& isDeleted) {
-        cb_assert(store);
-        RCPtr<VBucket> vb = store->getVBucket(vbucketId);
+        RCPtr<VBucket> vb = store.getVBucket(vbucketId);
         if (vb) {
             if (vb->isTempFilterAvailable()) {
-                if (store->getItemEvictionPolicy() == VALUE_ONLY) {
+                if (store.getItemEvictionPolicy() == VALUE_ONLY) {
                     /**
                      * VALUE-ONLY EVICTION POLICY
                      * Consider deleted items only.
@@ -200,7 +198,7 @@ public:
                     if (residentRatioLessThanThreshold) {
                         vb->addToTempFilter(key);
                     } else {
-                        if (isDeleted || !store->isMetaDataResident(vb, key)) {
+                        if (isDeleted || !store.isMetaDataResident(vb, key)) {
                             vb->addToTempFilter(key);
                         }
                     }
@@ -210,7 +208,7 @@ public:
     }
 
 private:
-    EventuallyPersistentStore *store;
+    EventuallyPersistentStore& store;
     uint16_t vbucketId;
     bool residentRatioLessThanThreshold;
 };
@@ -622,7 +620,11 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                 // This is a temporary item whose background fetch for metadata
                 // has completed.
                 bool deleted = vb->ht.unlocked_del(key, bucket_num);
-                cb_assert(deleted);
+                if (!deleted) {
+                    throw std::logic_error("EPStore::deleteExpiredItem: "
+                            "Failed to delete key '" + key + "' from bucket "
+                            + std::to_string(bucket_num));
+                }
             } else if (v->isExpired(startTime) && !v->isDeleted()) {
                 vb->ht.unlocked_softDelete(v, 0, getItemEvictionPolicy());
                 queueDirty(vb, v, &lh, NULL, false);
@@ -688,7 +690,10 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
 bool EventuallyPersistentStore::isMetaDataResident(RCPtr<VBucket> &vb,
                                                    const std::string &key) {
 
-    cb_assert(vb);
+    if (!vb) {
+        throw std::invalid_argument("EPStore::isMetaDataResident: vb is NULL");
+    }
+
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(key, bucket_num, false, false);
@@ -1136,7 +1141,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
         }
 
         void visit(StoredValue*) {
-            cb_assert(false); // this does not happen
+            throw std::logic_error("VBucketStateVisitor:visit: Should never be called");
         }
 
         std::map<uint16_t, vbucket_state> states;
@@ -1506,7 +1511,7 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
 
                 estimated_count = round(1.25 * num_deletes);
                 shared_ptr<Callback<std::string&, bool&> >
-                    filter(new BloomFilterCallback(this, vbid, false));
+                    filter(new BloomFilterCallback(*this, vbid, false));
                 ctx->bloomFilterCallback = filter;
             } else {
                 /**
@@ -1519,7 +1524,7 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
                                                 getBfiltersResidencyThreshold(),
                                                 eviction_policy);
                 shared_ptr<Callback<std::string&, bool&> >
-                    filter(new BloomFilterCallback(this, vbid, residentRatioAlert));
+                    filter(new BloomFilterCallback(*this, vbid, residentRatioAlert));
                 ctx->bloomFilterCallback = filter;
 
                 /**
@@ -1647,7 +1652,9 @@ extern "C" {
     static void add_stat(const char *key, const uint16_t klen,
                          const char *val, const uint32_t vlen,
                          const void *cookie) {
-        cb_assert(cookie);
+        if (cookie == nullptr) {
+            throw std::invalid_argument("add_stat: cookie is NULL");
+        }
         void *ptr = const_cast<void *>(cookie);
         snapshot_stats_t* snap = static_cast<snapshot_stats_t*>(ptr);
         ObjectRegistry::onSwitchThread(snap->engine);
@@ -1713,7 +1720,6 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     }
     getROUnderlying(vbucket)->get(key, vbucket, gcb);
     gcb.waitForValue();
-    cb_assert(gcb.fired);
     ENGINE_ERROR_CODE status = gcb.val.getStatus();
 
     // Lock to prevent a race condition between a fetch for restore and delete
@@ -1755,7 +1761,11 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
             if (restore) {
                 if (gcb.val.getStatus() == ENGINE_SUCCESS) {
                     v->unlocked_restoreValue(gcb.val.getValue(), vb->ht);
-                    cb_assert(v->isResident());
+                    if (!v->isResident()) {
+                        throw std::logic_error("EPStore::completeBGFetch: "
+                                "storedvalue (which has key " + v->getKey() +
+                                ") should be resident after calling restoreValue()");
+                    }
                     if (vb->getState() == vbucket_state_active &&
                         v->getExptime() != gcb.val.getValue()->getExptime() &&
                         v->getCas() == gcb.val.getValue()->getCas()) {
@@ -1860,7 +1870,11 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
             if (restore) {
                 if (status == ENGINE_SUCCESS) {
                     v->unlocked_restoreValue(fetchedValue, vb->ht);
-                    cb_assert(v->isResident());
+                    if (!v->isResident()) {
+                        throw std::logic_error("EPStore::completeBGFetchMulti: "
+                            "storedvalue (which has key " + v->getKey() +
+                            ") should be resident after calling restoreValue()");
+                    }
                     if (vb->getState() == vbucket_state_active &&
                         v->getExptime() != fetchedValue->getExptime() &&
                         v->getCas() == fetchedValue->getCas()) {
@@ -1918,7 +1932,11 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
 
     if (multiBGFetchEnabled()) {
         RCPtr<VBucket> vb = getVBucket(vbucket);
-        cb_assert(vb);
+        if (!vb) {
+            throw std::invalid_argument("EPStore::bgFetch: vbucket (which is " +
+                                        std::to_string(vbucket) +
+                                        ") is not present in vbMap");
+        }
         KVShard *myShard = vbMap.getShard(vbucket);
 
         // schedule to the current batch of background fetch of the given
@@ -2354,7 +2372,6 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
             return ENGINE_KEY_ENOENT;
         }
         bgFetchQueue++;
-        cb_assert(bgFetchQueue > 0);
         ExecutorPool* iom = ExecutorPool::get();
         ExTask task = new VKeyStatBGFetchTask(&engine, key, vbucket,
                                            v->getBySeqno(), cookie,
@@ -2380,7 +2397,6 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
             case ADD_BG_FETCH:
                 {
                     ++bgFetchQueue;
-                    cb_assert(bgFetchQueue > 0);
                     ExecutorPool* iom = ExecutorPool::get();
                     ExTask task = new VKeyStatBGFetchTask(&engine, key,
                                                           vbucket, -1, cookie,
@@ -2402,7 +2418,6 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
 
     getROUnderlying(vbid)->get(key, vbid, gcb);
     gcb.waitForValue();
-    cb_assert(gcb.fired);
 
     if (eviction_policy == FULL_EVICTION) {
         RCPtr<VBucket> vb = getVBucket(vbid);
@@ -2413,7 +2428,11 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
             if (v && v->isTempInitialItem()) {
                 if (gcb.val.getStatus() == ENGINE_SUCCESS) {
                     v->unlocked_restoreValue(gcb.val.getValue(), vb->ht);
-                    cb_assert(v->isResident());
+                    if (!v->isResident()) {
+                        throw std::logic_error("EPStore::completeStatsVKey: "
+                            "storedvalue (which has key " + v->getKey() +
+                            ") should be resident after calling restoreValue()");
+                    }
                 } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
                     v->setStoredValueState(
                                           StoredValue::state_non_existent_key);
@@ -2959,10 +2978,11 @@ class PersistenceCallback : public Callback<mutation_result>,
 public:
 
     PersistenceCallback(const queued_item &qi, RCPtr<VBucket> &vb,
-                        EventuallyPersistentStore *st, EPStats *s, uint64_t c)
+                        EventuallyPersistentStore& st, EPStats& s, uint64_t c)
         : queuedItem(qi), vbucket(vb), store(st), stats(s), cas(c) {
-        cb_assert(vb);
-        cb_assert(s);
+        if (!vb) {
+            throw std::invalid_argument("PersistenceCallback(): vb is NULL");
+        }
     }
 
     // This callback is invoked for set only.
@@ -2971,9 +2991,9 @@ public:
             int bucket_num(0);
             LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(),
                                                         &bucket_num);
-            StoredValue *v = store->fetchValidValue(vbucket,
-                                                    queuedItem->getKey(),
-                                                    bucket_num, true, false);
+            StoredValue *v = store.fetchValidValue(vbucket,
+                                                   queuedItem->getKey(),
+                                                   bucket_num, true, false);
             if (v) {
                 if (v->getCas() == cas) {
                     // mark this item clean only if current and stored cas
@@ -2996,8 +3016,8 @@ public:
             }
 
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-            stats->decrDiskQueueSize(1);
-            stats->totalPersisted++;
+            stats.decrDiskQueueSize(1);
+            stats.totalPersisted++;
         } else {
             // If the return was 0 here, we're in a bad state because
             // we do not know the rowid of this object.
@@ -3005,10 +3025,10 @@ public:
                 int bucket_num(0);
                 LockHolder lh = vbucket->ht.getLockedBucket(
                                            queuedItem->getKey(), &bucket_num);
-                StoredValue *v = store->fetchValidValue(vbucket,
-                                                        queuedItem->getKey(),
-                                                        bucket_num, true,
-                                                        false);
+                StoredValue *v = store.fetchValidValue(vbucket,
+                                                       queuedItem->getKey(),
+                                                       bucket_num, true,
+                                                       false);
                 if (v) {
                     std::stringstream ss;
                     ss << "Persisting ``" << queuedItem->getKey() << "'' on vb"
@@ -3023,7 +3043,7 @@ public:
                 }
 
                 vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-                stats->decrDiskQueueSize(1);
+                stats.decrDiskQueueSize(1);
             } else {
                 std::stringstream ss;
                 ss <<
@@ -3042,24 +3062,32 @@ public:
     // successfully deleted the item.
     void callback(int &value) {
         // > 1 would be bad.  We were only trying to delete one row.
-        cb_assert(value < 2);
+        if (value > 1) {
+            throw std::logic_error("PersistenceCallback::callback: value "
+                    "(which is " + std::to_string(value) +
+                    ") should be <= 1 for deletions");
+        }
         // -1 means fail
         // 1 means we deleted one row
         // 0 means we did not delete a row, but did not fail (did not exist)
         if (value >= 0) {
-            // We have succesfully removed an item from the disk, we
+            // We have successfully removed an item from the disk, we
             // may now remove it from the hash table.
             int bucket_num(0);
             LockHolder lh = vbucket->ht.getLockedBucket(queuedItem->getKey(),
                                                         &bucket_num);
-            StoredValue *v = store->fetchValidValue(vbucket,
-                                                    queuedItem->getKey(),
-                                                    bucket_num, true, false);
+            StoredValue *v = store.fetchValidValue(vbucket,
+                                                   queuedItem->getKey(),
+                                                   bucket_num, true, false);
             if (v && v->isDeleted()) {
                 bool newCacheItem = v->isNewCacheItem();
                 bool deleted = vbucket->ht.unlocked_del(queuedItem->getKey(),
                                                         bucket_num);
-                cb_assert(deleted);
+                if (!deleted) {
+                    throw std::logic_error("PersistenceCallback:callback: "
+                            "Failed to delete key '" + queuedItem->getKey() +
+                            "' from bucket " + std::to_string(bucket_num));
+                }
                 if (newCacheItem && value > 0) {
                     // Need to decrement the item counter again for an item that
                     // exists on DB file, but not in memory (i.e., full eviction),
@@ -3076,11 +3104,11 @@ public:
             }
 
             if (value > 0) {
-                ++stats->totalPersisted;
+                ++stats.totalPersisted;
                 ++vbucket->opsDelete;
             }
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-            stats->decrDiskQueueSize(1);
+            stats.decrDiskQueueSize(1);
             vbucket->decrMetaDataDisk(*queuedItem);
         } else {
             std::stringstream ss;
@@ -3095,13 +3123,13 @@ public:
 private:
 
     void redirty() {
-        if (store->vbMap.isBucketDeletion(vbucket->getId())) {
+        if (store.vbMap.isBucketDeletion(vbucket->getId())) {
             vbucket->doStatsForFlushing(*queuedItem, queuedItem->size());
-            stats->decrDiskQueueSize(1);
+            stats.decrDiskQueueSize(1);
             return;
         }
-        ++stats->flushFailed;
-        store->invokeOnLockedStoredValue(queuedItem->getKey(),
+        ++stats.flushFailed;
+        store.invokeOnLockedStoredValue(queuedItem->getKey(),
                                          queuedItem->getVBucketId(),
                                          &StoredValue::reDirty);
         vbucket->rejectQueue.push(queuedItem);
@@ -3109,8 +3137,8 @@ private:
 
     const queued_item queuedItem;
     RCPtr<VBucket> vbucket;
-    EventuallyPersistentStore *store;
-    EPStats *stats;
+    EventuallyPersistentStore& store;
+    EPStats& stats;
     uint64_t cas;
     DISALLOW_COPY_AND_ASSIGN(PersistenceCallback);
 };
@@ -3361,14 +3389,14 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
                          bySeqno == -1 ? "disk_insert" : "disk_update",
                          stats.timingLog);
         PersistenceCallback *cb =
-            new PersistenceCallback(qi, vb, this, &stats, qi->getCas());
+            new PersistenceCallback(qi, vb, *this, stats, qi->getCas());
         rwUnderlying->set(*qi, *cb);
         return cb;
     } else {
         BlockTimer timer(&stats.diskDelHisto, "disk_delete",
                          stats.timingLog);
         PersistenceCallback *cb =
-            new PersistenceCallback(qi, vb, this, &stats, 0);
+            new PersistenceCallback(qi, vb, *this, stats, 0);
         rwUnderlying->del(*qi, *cb);
         return cb;
     }
@@ -3717,10 +3745,7 @@ VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
     visitor(v), label(l), sleepTime(sleep), currentvb(0)
 {
     const VBucketFilter &vbFilter = visitor->getVBucketFilter();
-    size_t maxSize = store->vbMap.getSize();
-    cb_assert(maxSize <= std::numeric_limits<uint16_t>::max());
-    for (size_t i = 0; i < maxSize; ++i) {
-        uint16_t vbid = static_cast<uint16_t>(i);
+    for (auto vbid : store->vbMap.getBuckets()) {
         RCPtr<VBucket> vb = store->vbMap.getBucket(vbid);
         if (vb && vbFilter(vbid)) {
             vbList.push(vbid);
@@ -3852,8 +3877,12 @@ public:
     }
 
     void callback(GetValue& val) {
-        cb_assert(val.getValue());
-        cb_assert(dbHandle);
+        if (val.getValue() == nullptr) {
+            throw std::invalid_argument("Rollback::callback: val is NULL");
+        }
+        if (dbHandle == nullptr) {
+            throw std::logic_error("Rollback::callback: dbHandle is NULL");
+        }
         Item *itm = val.getValue();
         RCPtr<VBucket> vb = engine.getVBucket(itm->getVBucketId());
         int bucket_num(0);
@@ -3864,7 +3893,6 @@ public:
                                                            itm->getVBucketId(),
                                                            gcb);
         gcb.waitForValue();
-        cb_assert(gcb.fired);
         if (gcb.val.getStatus() == ENGINE_SUCCESS) {
             Item *it = gcb.val.getValue();
             if (it->isDeleted()) {

@@ -821,7 +821,10 @@ extern "C" {
                                        ADD_RESPONSE response) {
         protocol_binary_request_get_vbucket *req =
             reinterpret_cast<protocol_binary_request_get_vbucket*>(request);
-        cb_assert(req);
+        if (req == nullptr) {
+            throw std::invalid_argument("getVBucket: Unable to convert req"
+                    " to protocol_binary_request_get_vbucket");
+        }
 
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
         RCPtr<VBucket> vb = e->getVBucket(vbucket);
@@ -1767,8 +1770,15 @@ extern "C" {
                                     const void *event_data,
                                     const void *cb_data)
     {
-        cb_assert(type == ON_DISCONNECT);
-        cb_assert(event_data == NULL);
+        if (type != ON_DISCONNECT) {
+            throw std::invalid_argument("EvpHandleDisconnect: type "
+                    "(which is" + std::to_string(type) +
+                    ") is not ON_DISCONNECT");
+        }
+        if (event_data != nullptr) {
+            throw std::invalid_argument("EvpHandleDisconnect: event_data "
+                    "is not NULL");
+        }
         void *c = const_cast<void*>(cb_data);
         getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDisconnect(cookie);
         releaseHandle(static_cast<ENGINE_HANDLE*>(c));
@@ -3548,7 +3558,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
 
     if (getConfiguration().isWarmup()) {
         Warmup *wp = epstore->getWarmup();
-        cb_assert(wp);
+        if (wp == nullptr) {
+            throw std::logic_error("EPEngine::doEngineStats: warmup is NULL");
+        }
         if (!epstore->isWarmingUp()) {
             add_casted_stat("ep_warmup_thread", "complete", add_stat, cookie);
         } else {
@@ -3897,7 +3909,11 @@ struct ConnAggStatBuilder {
         if (tc.get()) {
             const std::string name(tc->getName());
             size_t pos1 = name.find(':');
-            cb_assert(pos1 != name.npos);
+            if (pos1 == name.npos) {
+                throw std::invalid_argument("ConnAggStatBuilder::getTarget: "
+                        "connection tc (which has name '" + tc->getName() +
+                        "' does not include a colon (:)");
+            }
             size_t pos2 = name.find(sep, pos1+1, sep_len);
             if (pos2 != name.npos) {
                 std::string prefix(name.substr(pos1+1, pos2 - pos1 - 1));
@@ -6173,7 +6189,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,
         handler = dcpConnMap_->newConsumer(cookie, connName);
     }
 
-    cb_assert(handler);
+    if (handler == nullptr) {
+        throw std::logic_error("EPEngine::dcpOpen: failed to create a handler");
+    }
     storeEngineSpecific(cookie, handler);
 
     return ENGINE_SUCCESS;

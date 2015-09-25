@@ -125,8 +125,8 @@ public:
     bool visitBucket(RCPtr<VBucket> &vb);
 
     void visit(StoredValue* v) {
-        (void)v;
-        cb_assert(false); // this does not happen
+        throw std::logic_error("VBucketCountVisitor:visit: Should never "
+                "be called");
     }
 
     vbucket_state_t getVBucketState() { return desired_state; }
@@ -395,7 +395,10 @@ public:
                 delete itm;
                 return ENGINE_TMPFAIL;
             }
-            cb_assert(itm->getCas());
+            if (itm->getCas() == 0) {
+                // A zero cas for the item shouldn't be possible...
+                return ENGINE_EINVAL;
+            }
             if ((errno != ERANGE) && (isspace(*endptr)
                                       || (*endptr == '\0' && endptr != data))) {
                 if (increment) {

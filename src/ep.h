@@ -752,13 +752,16 @@ public:
     bool isMetaDataResident(RCPtr<VBucket> &vb, const std::string &key);
 
     void incExpirationStat(RCPtr<VBucket> &vb, exp_type_t source) {
-        if (source == EXP_BY_PAGER) {
+        switch (source) {
+        case EXP_BY_PAGER:
             ++stats.expired_pager;
-        } else if (source == EXP_BY_COMPACTOR) {
+            break;
+        case EXP_BY_COMPACTOR:
             ++stats.expired_compactor;
-        } else {
-            cb_assert(source == EXP_BY_ACCESS);
+            break;
+        case EXP_BY_ACCESS:
             ++stats.expired_access;
+            break;
         }
         ++vb->numExpiredItems;
     }
