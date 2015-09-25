@@ -101,7 +101,6 @@ void ConnNotifier::start() {
     pendingNotification.compare_exchange_strong(inverse, true);
     ExTask connotifyTask = new ConnNotifierCallback(&connMap.getEngine(), this);
     task = ExecutorPool::get()->schedule(connotifyTask, NONIO_TASK_IDX);
-    cb_assert(task);
 }
 
 void ConnNotifier::stop() {
@@ -113,7 +112,6 @@ void ConnNotifier::stop() {
 void ConnNotifier::notifyMutationEvent(void) {
     bool inverse = false;
     if (pendingNotification.compare_exchange_strong(inverse, true)) {
-        cb_assert(task > 0);
         ExecutorPool::get()->wake(task);
     }
 }
@@ -992,23 +990,21 @@ bool DcpConnMap::isPassiveStreamConnected(uint16_t vbucket) {
     return false;
 }
 
-ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler* conn,
+ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
                                                uint32_t opaque,
                                                uint16_t vbucket,
                                                uint32_t flags)
 {
-    cb_assert(conn);
-
     /* Check if a stream (passive) for the vbucket is already present */
     if (isPassiveStreamConnected(vbucket)) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Failing to add passive stream, "
             "as one already exists for the vbucket!",
-            conn->logHeader(), vbucket);
+            conn.logHeader(), vbucket);
         return ENGINE_KEY_EEXISTS;
     }
 
     LockHolder lh(connsLock);
-    return conn->addStream(opaque, vbucket, flags);
+    return conn.addStream(opaque, vbucket, flags);
 }
 
 DcpProducer *DcpConnMap::newProducer(const void* cookie,

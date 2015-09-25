@@ -141,7 +141,9 @@ private:
     AtomicPtr<std::queue<T> > *initialize() {
         std::queue<T> *q = new std::queue<T>;
         size_t i(counter++);
-        cb_assert(counter <= MAX_THREADS);
+        if (counter > MAX_THREADS) {
+            throw std::overflow_error("AtomicQueue::initialize: exceeded maximum allowed threads");
+        }
         queues[i].store(q);
         threadQueue = &queues[i];
         return &queues[i];

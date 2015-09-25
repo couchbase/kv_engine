@@ -103,7 +103,7 @@ public:
      *
      * @return A unique task id number.
      */
-    size_t getId() { return taskId; }
+    size_t getId() const { return taskId; }
 
     /**
      * Returns the type id of this task.

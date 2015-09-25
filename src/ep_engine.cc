@@ -6205,7 +6205,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpAddStream(const void* cookie,
     ENGINE_ERROR_CODE errCode = ENGINE_DISCONNECT;
     ConnHandler* conn = getConnHandler(cookie);
     if (conn) {
-        errCode = dcpConnMap_->addPassiveStream(conn, opaque, vbucket, flags);
+        errCode = dcpConnMap_->addPassiveStream(*conn, opaque, vbucket, flags);
     }
     return errCode;
 }

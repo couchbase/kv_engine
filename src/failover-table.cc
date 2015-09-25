@@ -30,8 +30,12 @@ FailoverTable::FailoverTable(size_t capacity)
 }
 
 FailoverTable::FailoverTable(const std::string& json, size_t capacity)
-    : max_entries(capacity), provider(true) {
-    loadFromJSON(json);
+    : max_entries(capacity),
+      provider(true) {
+    if (!loadFromJSON(json)) {
+        throw std::invalid_argument("FailoverTable(): unable to load from "
+                "JSON file '" + json + "'");
+    }
 }
 
 FailoverTable::~FailoverTable() { }
@@ -163,15 +167,28 @@ bool FailoverTable::needsRollback(uint64_t start_seqno,
 }
 
 void FailoverTable::pruneEntries(uint64_t seqno) {
+    // Not permitted to remove the initial table entry (i.e. seqno zero).
+    if (seqno == 0) {
+        throw std::invalid_argument("FailoverTable::pruneEntries: "
+                                    "cannot prune entry zero");
+    }
     LockHolder lh(lock);
-    table_t::iterator it = table.begin();
-    for (; it != table.end(); ++it) {
-        if (it->by_seqno > seqno) {
-            it = table.erase(it);
-        }
+
+    auto seqno_too_high = [seqno](failover_entry_t& entry) {
+        return entry.by_seqno > seqno;
+    };
+
+    // Count how many this would remove
+    auto count = std::count_if(table.begin(), table.end(), seqno_too_high);
+    if (table.size() - count < 1) {
+        throw std::invalid_argument("FailoverTable::pruneEntries: cannot "
+                "prune up to seqno " + std::to_string(seqno) +
+                " as it would result in less than one element in failover table");
     }
 
-    cb_assert(table.size() > 0);
+    // Preconditions look good; remove them.
+    table.remove_if(seqno_too_high);
+
     latest_uuid = table.front().vb_uuid;
 
     cacheTableJSON();
@@ -221,7 +238,6 @@ ENGINE_ERROR_CODE FailoverTable::addFailoverLog(const void* cookie,
     ENGINE_ERROR_CODE rv = ENGINE_SUCCESS;
     size_t logsize = table.size();
 
-    cb_assert(logsize > 0);
     vbucket_failover_t *logentries = new vbucket_failover_t[logsize];
     vbucket_failover_t *logentry = logentries;
 
@@ -245,6 +261,8 @@ bool FailoverTable::loadFromJSON(cJSON *json) {
         return false;
     }
 
+    table_t new_table;
+
     for (cJSON* it = json->child; it != NULL; it = it->next) {
         if (it->type != cJSON_Object) {
             return false;
@@ -263,10 +281,15 @@ bool FailoverTable::loadFromJSON(cJSON *json) {
         failover_entry_t entry;
         entry.vb_uuid = (uint64_t) jid->valuedouble;
         entry.by_seqno = (uint64_t) jseq->valuedouble;
-        table.push_back(entry);
+        new_table.push_back(entry);
     }
 
-    cb_assert(table.size() > 0);
+    // Must have at least one element in the failover table.
+    if (new_table.empty()) {
+        return false;
+    }
+
+    table = new_table;
     latest_uuid = table.front().vb_uuid;
 
     return true;

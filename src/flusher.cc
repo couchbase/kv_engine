@@ -139,7 +139,6 @@ void Flusher::schedule_UNLOCKED() {
                                   shard->getId());
     this->setTaskId(task->getId());
     iom->schedule(task, WRITER_TASK_IDX);
-    cb_assert(taskId > 0);
 }
 
 void Flusher::start() {

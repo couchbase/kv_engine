@@ -439,7 +439,11 @@ void CouchKVStore::getWithHeader(void *dbHandle, const std::string &key,
                 couchkvstore_strerrno(db, errCode).c_str());
         }
     } else {
-        cb_assert(docInfo);
+        if (docInfo == nullptr) {
+            throw std::logic_error("CouchKVStore::getWithHeader: "
+                    "couchstore_docinfo_by_id returned success but docInfo "
+                    "is NULL");
+        }
         errCode = fetchDoc(db, docInfo, rv, vb, getMetaOnly, fetchDelete);
         if (errCode != COUCHSTORE_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING,

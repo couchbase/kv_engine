@@ -35,13 +35,11 @@ void BgFetcher::start() {
                                       Priority::BgFetcherPriority, false);
     this->setTaskId(task->getId());
     iom->schedule(task, READER_TASK_IDX);
-    cb_assert(taskId > 0);
 }
 
 void BgFetcher::stop() {
     bool inverse = true;
     pendingFetch.compare_exchange_strong(inverse, false);
-    cb_assert(taskId > 0);
     ExecutorPool::get()->cancel(taskId);
 }
 
@@ -49,7 +47,6 @@ void BgFetcher::notifyBGEvent(void) {
     ++stats.numRemainingBgJobs;
     bool inverse = false;
     if (pendingFetch.compare_exchange_strong(inverse, true)) {
-        cb_assert(taskId > 0);
         ExecutorPool::get()->wake(taskId);
     }
 }

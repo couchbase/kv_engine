@@ -169,7 +169,10 @@ public:
         if (!fired) {
             so.wait();
         }
-        cb_assert(fired);
+        if (!fired) {
+            throw std::logic_error("RememberingCallback::waitForValue: "
+                    "fired is false even after waiting on sync object");
+        }
     }
 
     /**
