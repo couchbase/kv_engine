@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2011 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@
 
 #include <fcntl.h>
 
+#include <array>
 #include <algorithm>
 #include <cstdio>
 #include <exception>
@@ -83,16 +84,15 @@ public:
         _blockCount = htonl(bc);
     }
 
-    void set(const uint8_t *buf, size_t buflen) {
-        cb_assert(buflen == MIN_LOG_HEADER_SIZE);
+    void set(const std::array<uint8_t, MIN_LOG_HEADER_SIZE>& buf) {
         int offset(0);
-        memcpy(&_version, buf + offset, sizeof(_version));
+        memcpy(&_version, buf.data() + offset, sizeof(_version));
         offset += sizeof(_version);
-        memcpy(&_blockSize, buf + offset, sizeof(_blockSize));
+        memcpy(&_blockSize, buf.data() + offset, sizeof(_blockSize));
         offset += sizeof(_blockSize);
-        memcpy(&_blockCount, buf + offset, sizeof(_blockCount));
+        memcpy(&_blockCount, buf.data() + offset, sizeof(_blockCount));
         offset += sizeof(_blockCount);
-        memcpy(&_rdwr, buf + offset, sizeof(_rdwr));
+        memcpy(&_rdwr, buf.data() + offset, sizeof(_rdwr));
         offset += sizeof(_rdwr);
     }
 
@@ -216,10 +216,26 @@ public:
      * @param buflen the length of said buf
      */
     static MutationLogEntry* newEntry(uint8_t *buf, size_t buflen) {
-        cb_assert(buflen >= len(0));
+        if (buflen < len(0)) {
+            throw std::invalid_argument("MutationLogEntry::newEntry: buflen "
+                    "(which is " + std::to_string(buflen) +
+                    ") is less than minimum required (which is " +
+                    std::to_string(len(0)) + ")");
+        }
+
         MutationLogEntry *me = reinterpret_cast<MutationLogEntry*>(buf);
-        cb_assert(me->magic == MUTATION_LOG_MAGIC);
-        cb_assert(buflen >= me->len());
+
+        if (me->magic != MUTATION_LOG_MAGIC) {
+            throw std::invalid_argument("MutationLogEntry::newEntry: "
+                    "magic (which is " + std::to_string(me->magic) +
+                    ") is not equal to " + std::to_string(MUTATION_LOG_MAGIC));
+        }
+        if (me->len() > buflen) {
+            throw std::invalid_argument("MutationLogEntry::newEntry: "
+                    "entry length (which is " + std::to_string(me->len()) +
+                    ") is greater than available buflen (which is " +
+                    std::to_string(buflen) + ")");
+        }
         return me;
     }
 
@@ -281,7 +297,12 @@ private:
         : _rowid(htonll(r)), _vbucket(htons(vb)), magic(MUTATION_LOG_MAGIC),
           _type(static_cast<uint8_t>(t)),
           keylen(static_cast<uint8_t>(k.length())) {
-        cb_assert(k.length() <= std::numeric_limits<uint8_t>::max());
+        if (k.length() > std::numeric_limits<uint8_t>::max()) {
+            throw std::invalid_argument("MutationLogEntry(): key length "
+                    "(which is " + std::to_string(k.length()) +
+                    ") is greater than " +
+                    std::to_string(std::numeric_limits<uint8_t>::max()));
+        }
         memcpy(_key, k.data(), k.length());
     }
 
@@ -390,7 +411,7 @@ public:
     void resetCounts(size_t *);
 
     /**
-     * Exception thrown upon failure to read a mutation log.
+     * Exception thrown upon failure to write a mutation log.
      */
     class WriteException : public std::runtime_error {
     public:
@@ -432,7 +453,7 @@ public:
      * A ReadException may be thrown at any point along iteration.
      */
     class iterator  : public std::iterator<std::input_iterator_tag,
-                                           const MutationLogEntry*> {
+                                           const MutationLogEntry> {
     public:
 
         iterator(const iterator& mit);
@@ -440,8 +461,6 @@ public:
         ~iterator();
 
         iterator& operator++();
-
-        iterator& operator++(int);
 
         bool operator==(const iterator& rhs);
 
@@ -453,15 +472,15 @@ public:
 
         friend class MutationLog;
 
-        iterator(const MutationLog *l, bool e=false);
+        iterator(const MutationLog& l, bool e=false);
 
         void nextBlock();
         size_t bufferBytesRemaining();
         void prepItem();
 
-        const MutationLog *log;
-        uint8_t           *entryBuf;
-        uint8_t           *buf;
+        const MutationLog& log;
+        std::unique_ptr<uint8_t[]> entryBuf;
+        std::unique_ptr<uint8_t[]> buf;
         uint8_t           *p;
         off_t              offset;
         uint16_t           items;
@@ -472,7 +491,7 @@ public:
      * An iterator pointing to the beginning of the log file.
      */
     iterator begin() {
-        iterator it(iterator(this));
+        iterator it(iterator(*this));
         it.nextBlock();
         return it;
     }
@@ -481,7 +500,7 @@ public:
      * An iterator pointing at the end of the log file.
      */
     iterator end() {
-        return iterator(this, true);
+        return iterator(*this, true);
     }
 
     //! Items logged by type.
@@ -518,8 +537,8 @@ private:
     file_handle_t      file;
     bool               disabled;
     uint16_t           entries;
-    uint8_t           *entryBuffer;
-    uint8_t           *blockBuffer;
+    std::unique_ptr<uint8_t[]> entryBuffer;
+    std::unique_ptr<uint8_t[]> blockBuffer;
     uint8_t            syncConfig;
     bool               readOnly;
 
