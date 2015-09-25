@@ -1096,14 +1096,6 @@ bool CouchKVStore::commit(Callback<kvstats_ctx> *cb) {
     return !intransaction;
 }
 
-uint64_t CouchKVStore::getLastPersistedSeqno(uint16_t vbid) {
-    vbucket_state *state = cachedVBStates[vbid];
-    if (state) {
-        return state->highSeqno;
-    }
-    return 0;
-}
-
 void CouchKVStore::addStats(const std::string &prefix,
                             ADD_STAT add_stat,
                             const void *c) {

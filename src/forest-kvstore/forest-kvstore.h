@@ -27,6 +27,12 @@ class Mutex; //forward declaration
 const size_t FORESTDB_METADATA_SIZE  ((3 * sizeof(uint32_t) + 2 * sizeof(uint64_t)) +
                                       FLEX_DATA_OFFSET + EXT_META_LEN +
                                       CONFLICT_RES_META_LEN);
+
+enum class handleType {
+    READER,
+    WRITER
+};
+
 /**
  * Class representing a document to be persisted in ForestDB.
  */
@@ -241,11 +247,15 @@ class ForestKVStore : public KVStore
     }
 
     /**
-     * Get the stats that belong to a database file
+     * Get the stats that belong to a database file. The current
+     * implementation of this API retrieves the information on a
+     * vbucket level in order to be compatible with the behavior
+     * of CouchKVStore. Once CouchKVStore is deprecated, this API
+     * should retrieve information for a shard file.
      *
-     * @param dbId The database id for which stats are needed
+     * @param vbId The vbucket id for which stats are needed
      */
-    DBFileInfo getDbFileInfo(uint16_t dbId);
+    DBFileInfo getDbFileInfo(uint16_t vbId);
 
     ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
                                  uint32_t count,
@@ -257,17 +267,11 @@ class ForestKVStore : public KVStore
                                  shared_ptr<Callback<CacheLookup> > cl,
                                  uint16_t vbid, uint64_t startSeqno,
                                  DocumentFilter options,
-                                 ValueFilter valOptions) {
-        return NULL;
-    }
+                                 ValueFilter valOptions);
 
-    scan_error_t scan(ScanContext *sctx) {
-        return scan_success;
-    }
+    scan_error_t scan(ScanContext *sctx);
 
-    void destroyScanContext(ScanContext *ctx) {
-        return;
-    }
+    void destroyScanContext(ScanContext *ctx);
 
 private:
     bool intransaction;
@@ -280,9 +284,11 @@ private:
     fdb_config fileConfig;
     fdb_kvs_config kvsConfig;
     std::vector<ForestRequest *> pendingReqsQ;
-
     static Mutex initLock;
     static int numGlobalFiles;
+    AtomicValue<size_t> backfillCounter;
+    std::map<size_t, fdb_kvs_handle *> backfills;
+    Mutex backfillLock; /* guard for the backfills map */
 
 private:
     void close();
@@ -291,7 +297,7 @@ private:
     void initForestDb();
     void shutdownForestDb();
     void readVBState(uint16_t vbId);
-    fdb_kvs_handle *getKvsHandle(uint16_t vbId);
+    fdb_kvs_handle *getKvsHandle(uint16_t vbId, handleType htype);
     bool save2forestdb(Callback<kvstats_ctx> *cb);
     GetValue docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc, uint16_t vbId,
                        bool metaOnly = false, bool fetchDelete = false);

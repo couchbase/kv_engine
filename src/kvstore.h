@@ -501,15 +501,6 @@ public:
 
     virtual vbucket_state *getVBucketState(uint16_t vbid) = 0;
 
-    /**
-     * Check if the underlying store supports dumping all of the keys
-     * @return true you may call dumpKeys() to do a prefetch
-     *              of the keys
-     */
-    virtual bool isKeyDumpSupported() {
-        return false;
-    }
-
     virtual size_t getNumPersistedDeletes(uint16_t) {
         return 0;
     }
@@ -555,7 +546,13 @@ public:
      */
     virtual void pendingTasks() = 0;
 
-    virtual uint64_t getLastPersistedSeqno(uint16_t vbid) = 0;
+    uint64_t getLastPersistedSeqno(uint16_t vbid) {
+        vbucket_state *state = cachedVBStates[vbid];
+        if (state) {
+            return state->highSeqno;
+        }
+        return 0;
+    }
 
     bool isReadOnly(void) {
         return readOnly;

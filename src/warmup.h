@@ -160,6 +160,9 @@ private:
 
     void fireStateChange(const int from, const int to);
 
+    /* Returns the number of KV stores that holds the states of all the vbuckets */
+    uint16_t getNumKVStores();
+
     void populateShardVbStates();
 
     void scheduleInitialize();
@@ -186,7 +189,6 @@ private:
     AtomicValue<hrtime_t> metadata;
     AtomicValue<hrtime_t> warmup;
 
-    std::vector<vbucket_state *> allVbStates;
     std::map<uint16_t, vbucket_state> *shardVbStates;
     AtomicValue<size_t> threadtask_count;
     bool *shardKeyDumpStatus;

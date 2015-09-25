@@ -517,18 +517,32 @@ StorageProperties ForestKVStore::getStorageProperties(void) {
     return rv;
 }
 
-fdb_kvs_handle* ForestKVStore::getKvsHandle(uint16_t vbucketId) {
+fdb_kvs_handle* ForestKVStore::getKvsHandle(uint16_t vbucketId, handleType htype) {
     char kvsName[20];
     sprintf(kvsName, "partition%d", vbucketId);
     fdb_kvs_handle *kvsHandle = NULL;
     fdb_status status;
-    unordered_map<uint16_t, fdb_kvs_handle*>::iterator found =
-                                            writeHandleMap.find(vbucketId);
-    if (found == writeHandleMap.end()) {
-        throw std::invalid_argument("ForestKVStore::getKvsHandle: Failed "
-                "to find vb (which is " + std::to_string(vbucketId) +
-                ") in writeHandleMap");
+    unordered_map<uint16_t, fdb_kvs_handle*>::iterator found;
+
+    switch (htype) {
+        case handleType::WRITER:
+            found = writeHandleMap.find(vbucketId);
+            if (found == writeHandleMap.end()) {
+                throw std::invalid_argument("ForestKVStore::getKvsHandle: Failed "
+                    "to find vb (which is " + std::to_string(vbucketId) +
+                    ") in writeHandleMap");
+            }
+            break;
+        case handleType::READER:
+            found = readHandleMap.find(vbucketId);
+            if (found == readHandleMap.end()) {
+                throw std::invalid_argument("ForestKVStore::getKvsHandle: Failed "
+                    "to find vb (which is " + std::to_string(vbucketId) +
+                    ") in readHandleMap");
+            }
+            break;
     }
+
     if (!(found->second)) {
         status = fdb_kvs_open(dbFileHandle, &kvsHandle, kvsName, &kvsConfig);
         if (status != FDB_RESULT_SUCCESS) {
@@ -621,7 +635,7 @@ void ForestKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
     setDoc.deleted = false;
 
     fdb_doc_set_seqnum(&setDoc, itm.getBySeqno());
-    kvsHandle = getKvsHandle(req->getVBucketId());
+    kvsHandle = getKvsHandle(req->getVBucketId(), handleType::WRITER);
     if (kvsHandle) {
         status = fdb_set(kvsHandle, &setDoc);
         if (status != FDB_RESULT_SUCCESS) {
@@ -704,7 +718,7 @@ void ForestKVStore::del(const Item &itm, Callback<int> &cb) {
     delDoc.deleted = true;
 
     fdb_doc_set_seqnum(&delDoc, itm.getBySeqno());
-    kvsHandle = getKvsHandle(req->getVBucketId());
+    kvsHandle = getKvsHandle(req->getVBucketId(), handleType::WRITER);
     if (kvsHandle) {
         status = fdb_del(kvsHandle, &delDoc);
         if (status != FDB_RESULT_SUCCESS) {
@@ -727,8 +741,48 @@ std::vector<vbucket_state *> ForestKVStore::listPersistedVbuckets(void) {
     return cachedVBStates;
 }
 
-DBFileInfo ForestKVStore::getDbFileInfo(uint16_t dbId) {
+DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
     DBFileInfo dbInfo;
+    fdb_file_info fileInfo;
+    fdb_kvs_info kvsInfo;
+    fdb_kvs_handle *kvsHandle = NULL;
+    fdb_status status;
+
+    status = fdb_get_file_info(dbFileHandle, &fileInfo);
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to retrieve database file info");
+        return dbInfo;
+    }
+
+    kvsHandle = getKvsHandle(vbId, handleType::READER);
+    if (!kvsHandle) {
+        return dbInfo;
+    }
+
+    status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to retrieve KV store info with error: %s",
+            fdb_error_msg(status));
+        return dbInfo;
+    }
+
+    fdb_kvs_name_list name_list;
+    status = fdb_get_kvs_name_list(dbFileHandle, &name_list);
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to retrieve KV store names from database file"
+            "with error: %s", fdb_error_msg(status));
+        return dbInfo;
+    }
+
+    dbInfo.itemCount = kvsInfo.doc_count;
+    dbInfo.fileSize =  fileInfo.file_size/name_list.num_kvs_names;
+    dbInfo.spaceUsed = kvsInfo.space_used;
+
+    fdb_free_kvs_name_list(&name_list);
+
     return dbInfo;
 }
 
@@ -763,6 +817,187 @@ bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
     }
 
     return true;
+}
+
+ScanContext* ForestKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
+                                           shared_ptr<Callback<CacheLookup> > cl,
+                                           uint16_t vbid, uint64_t startSeqno,
+                                           DocumentFilter options,
+                                           ValueFilter valOptions) {
+    fdb_kvs_handle *kvsHandle = NULL;
+
+    kvsHandle = getKvsHandle(vbid, handleType::READER);
+    if (!kvsHandle) {
+        return NULL;
+    }
+
+    fdb_kvs_info kvsInfo;
+    fdb_status status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to read KV store info for backfill with error: %s",
+            fdb_error_msg(status));
+        return NULL;
+    }
+
+    size_t backfillId = backfillCounter++;
+
+    LockHolder lh(backfillLock);
+    backfills[backfillId] = kvsHandle;
+
+    return new ScanContext(cb, cl, vbid, backfillId, startSeqno,
+                           (uint64_t)kvsInfo.last_seqnum, options, valOptions);
+}
+
+scan_error_t ForestKVStore::scan(ScanContext *ctx) {
+     if (!ctx) {
+         return scan_failed;
+     }
+
+     if (ctx->lastReadSeqno == ctx->maxSeqno) {
+         return scan_success;
+     }
+
+     LockHolder lh(backfillLock);
+     auto itr = backfills.find(ctx->scanId);
+     if (itr == backfills.end()) {
+         return scan_failed;
+     }
+
+     fdb_kvs_handle *kvsHandle = itr->second;
+     lh.unlock();
+
+     fdb_iterator_opt_t options;
+     fdb_iterator *fdb_iter;
+     fdb_status status;
+     fdb_doc *rdoc = NULL;
+
+     shared_ptr<Callback<GetValue> > cb = ctx->callback;
+     shared_ptr<Callback<CacheLookup> > cl = ctx->lookup;
+
+     bool validFilter = false;
+     switch (ctx->docFilter) {
+          case DocumentFilter::NO_DELETES:
+              options = FDB_ITR_NO_DELETES;
+              validFilter = true;
+              break;
+          case DocumentFilter::ALL_ITEMS:
+              options = FDB_ITR_NONE;
+              validFilter = true;
+              break;
+          case DocumentFilter::ONLY_DELETES:
+              break;
+     }
+
+     if (!validFilter) {
+         std::string err("ForestKVStore::scan: Illegal document filter!" +
+                         std::to_string(static_cast<int>(ctx->docFilter)));
+         throw std::logic_error(err);
+     }
+
+     fdb_seqnum_t start = (fdb_seqnum_t)ctx->startSeqno;
+
+     status = fdb_iterator_sequence_init(kvsHandle, &fdb_iter, start,
+                                         0, options);
+     if (status != FDB_RESULT_SUCCESS) {
+         LOG(EXTENSION_LOG_WARNING,
+             "ForestDB iterator initialization failed with error "
+             "message: %s", fdb_error_msg(status));
+         return scan_failed;
+     }
+
+     do {
+         status = fdb_iterator_get(fdb_iter, &rdoc);
+         if (status != FDB_RESULT_SUCCESS) {
+             LOG(EXTENSION_LOG_WARNING,
+                 "fdb_iterator_get failed with error: %s",
+                 fdb_error_msg(status));
+             fdb_doc_free(rdoc);
+             fdb_iterator_close(fdb_iter);
+             return scan_failed;
+         }
+         uint8_t *metadata = (uint8_t *)rdoc->meta;
+         std::string docKey((char *)rdoc->key, rdoc->keylen);
+         CacheLookup lookup(docKey, (uint64_t) rdoc->seqnum, ctx->vbid);
+         cl->callback(lookup);
+         if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
+             ctx->lastReadSeqno = static_cast<uint64_t>(rdoc->seqnum);
+             fdb_doc_free(rdoc);
+             continue;
+         } else if (cl->getStatus() == ENGINE_ENOMEM) {
+             fdb_doc_free(rdoc);
+             fdb_iterator_close(fdb_iter);
+             return scan_again;
+         }
+
+         uint64_t cas;
+         uint32_t exptime;
+         uint32_t texptime;
+         uint32_t itemflags;
+         uint64_t rev_seqno;
+         uint8_t ext_meta[EXT_META_LEN] = {0};
+         uint8_t ext_len;
+         uint8_t conf_res_mode = 0;
+
+         memcpy(&cas, metadata, 8);
+         memcpy(&exptime, metadata + 8, 4);
+         memcpy(&texptime, metadata + 12, 4);
+         memcpy(&itemflags, metadata + 16, 4);
+         memcpy(&rev_seqno, metadata + 20, 8);
+         memcpy(ext_meta, metadata + 29, EXT_META_LEN);
+         memcpy(&conf_res_mode, metadata + 30, CONFLICT_RES_META_LEN);
+         ext_len = EXT_META_LEN;
+
+         cas = ntohll(cas);
+         exptime = ntohl(exptime);
+         texptime = ntohl(texptime);
+         rev_seqno = ntohll(rev_seqno);
+
+         uint64_t bySeqno = static_cast<uint64_t>(rdoc->seqnum);
+
+         Item *it = new Item(rdoc->key, rdoc->keylen, itemflags, (time_t)exptime,
+                             rdoc->body, rdoc->bodylen, ext_meta, ext_len, cas,
+                             bySeqno, ctx->vbid, rev_seqno);
+
+         if (rdoc->deleted) {
+             it->setDeleted();
+         }
+
+         it->setConflictResMode(
+                      static_cast<enum conflict_resolution_mode>(conf_res_mode));
+
+         bool onlyKeys = (ctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
+         GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);
+         cb->callback(rv);
+
+         fdb_doc_free(rdoc);
+
+         if (cb->getStatus() == ENGINE_ENOMEM) {
+             fdb_iterator_close(fdb_iter);
+             return scan_again;
+         }
+
+         ctx->lastReadSeqno = bySeqno;
+         rdoc = NULL;
+     } while (fdb_iterator_next(fdb_iter) == FDB_RESULT_SUCCESS);
+
+     fdb_iterator_close(fdb_iter);
+
+     return scan_success;
+}
+
+void ForestKVStore::destroyScanContext(ScanContext* ctx) {
+    if (!ctx) {
+        return;
+    }
+
+    LockHolder lh(backfillLock);
+    auto itr = backfills.find(ctx->scanId);
+    if (itr != backfills.end()) {
+        backfills.erase(itr);
+    }
+
+    delete ctx;
 }
 
 bool ForestKVStore::compactVBucket(const uint16_t vbid, compaction_ctx *cookie,

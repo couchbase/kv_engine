@@ -256,15 +256,9 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
                 }
                 break;
             case INVALID_CAS:
-                if (vb->getShard()->getROUnderlying()->isKeyDumpSupported()) {
-                    LOG(EXTENSION_LOG_DEBUG,
-                        "Value changed in memory before restore from disk. "
-                        "Ignored disk value for: %s.", i->getKey().c_str());
-                } else {
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Warmup dataload error: Duplicate key: %s.",
-                        i->getKey().c_str());
-                }
+                LOG(EXTENSION_LOG_DEBUG,
+                    "Value changed in memory before restore from disk. "
+                    "Ignored disk value for: %s.", i->getKey().c_str());
                 ++stats.warmDups;
                 succeeded = true;
                 break;
@@ -451,7 +445,6 @@ void Warmup::scheduleInitialize()
 void Warmup::initialize()
 {
     startTime = gethrtime();
-    allVbStates = store.loadVBucketState();
 
     std::map<std::string, std::string> session_stats;
     store.getOneROUnderlying()->getPersistedStats(session_stats);
@@ -561,14 +554,12 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
             vb->ht.numTotalItems = info.itemCount;
             vb->fileSize = info.fileSize;
             vb->fileSpaceUsed = info.spaceUsed;
-
         }
         item_count += info.itemCount;
     }
 
     estimatedItemCount.fetch_add(item_count);
     estimateTime.fetch_add(gethrtime() - st);
-
 
     if (++threadtask_count == store.vbMap.numShards) {
         if (store.getItemEvictionPolicy() == VALUE_ONLY) {
@@ -592,26 +583,25 @@ void Warmup::scheduleKeyDump()
 
 void Warmup::keyDumpforShard(uint16_t shardId)
 {
-    if (store.getROUnderlyingByShard(shardId)->isKeyDumpSupported()) {
-        KVStore* kvstore = store.getROUnderlyingByShard(shardId);
-        LoadStorageKVPairCallback *load_cb =
+    KVStore* kvstore = store.getROUnderlyingByShard(shardId);
+    LoadStorageKVPairCallback *load_cb =
             new LoadStorageKVPairCallback(store, false, state.getState());
-        shared_ptr<Callback<GetValue> > cb(load_cb);
-        shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
+    shared_ptr<Callback<GetValue> > cb(load_cb);
+    shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
 
-        std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
-        for (; itr != shardVbIds[shardId].end(); ++itr) {
-            ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0,
-                                                   DocumentFilter::NO_DELETES,
-                                                   ValueFilter::KEYS_ONLY);
-            if (ctx) {
-                kvstore->scan(ctx);
-                kvstore->destroyScanContext(ctx);
-            }
+    std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
+
+    for (; itr != shardVbIds[shardId].end(); ++itr) {
+        ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0,
+                                                    DocumentFilter::NO_DELETES,
+                                                    ValueFilter::KEYS_ONLY);
+        if (ctx) {
+            kvstore->scan(ctx);
+            kvstore->destroyScanContext(ctx);
         }
-
-        shardKeyDumpStatus[shardId] = true;
     }
+
+    shardKeyDumpStatus[shardId] = true;
 
     if (++threadtask_count == store.vbMap.numShards) {
         bool success = false;
@@ -627,10 +617,8 @@ void Warmup::keyDumpforShard(uint16_t shardId)
         if (success) {
             transition(WarmupState::CheckForAccessLog);
         } else {
-            if (store.getROUnderlyingByShard(shardId)->isKeyDumpSupported()) {
-                LOG(EXTENSION_LOG_WARNING,
-                        "Failed to dump keys, falling back to full dump");
-            }
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to dump keys, falling back to full dump");
             transition(WarmupState::LoadingKVPairs);
         }
     }
@@ -1004,16 +992,38 @@ void Warmup::addStats(ADD_STAT add_stat, const void *c) const
     }
 }
 
+/* In the case of CouchKVStore, all vbucket states of all the shards are stored
+ * in a single instance. ForestKVStore stores only the vbucket states specific
+ * to that shard. Hence the vbucket states of all the shards need to be
+ * retrieved */
+uint16_t Warmup::getNumKVStores()
+{
+    Configuration& config = store.getEPEngine().getConfiguration();
+    if (config.getBackend().compare("couchdb") == 0) {
+        return 1;
+    } else if (config.getBackend().compare("forestdb") == 0) {
+        return config.getMaxNumShards();
+    }
+
+    return 0;
+}
+
 void Warmup::populateShardVbStates()
 {
-    for (uint16_t vb = 0; vb < allVbStates.size(); vb++) {
-        if (!allVbStates[vb]) {
-            continue;
-        }
-        std::map<uint16_t, vbucket_state> &shardVB =
-            shardVbStates[vb % store.vbMap.numShards];
-        shardVB.insert(std::pair<uint16_t, vbucket_state>(vb,
+    uint16_t numKvs = getNumKVStores();
+
+    for (size_t i = 0; i < numKvs; i++) {
+        std::vector<vbucket_state *> allVbStates =
+                     store.getROUnderlyingByShard(i)->listPersistedVbuckets();
+        for (uint16_t vb = 0; vb < allVbStates.size(); vb++) {
+            if (!allVbStates[vb]) {
+                continue;
+            }
+            std::map<uint16_t, vbucket_state> &shardVB =
+                shardVbStates[vb % store.vbMap.numShards];
+            shardVB.insert(std::pair<uint16_t, vbucket_state>(vb,
                                                           *(allVbStates[vb])));
+        }
     }
 
     for (size_t i = 0; i < store.vbMap.shards.size(); i++) {

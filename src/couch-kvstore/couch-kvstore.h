@@ -375,15 +375,6 @@ public:
     vbucket_state *getVBucketState(uint16_t vbid);
 
     /**
-     * Does the underlying storage system support key-only retrieval operations?
-     *
-     * @return true if key-only retrieval is supported
-     */
-    bool isKeyDumpSupported() {
-        return true;
-    }
-
-    /**
      * Get the number of deleted items that are persisted to a vbucket file
      *
      * @param vbid The vbucket if of the file to get the number of deletes for
