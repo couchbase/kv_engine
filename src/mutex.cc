@@ -41,7 +41,6 @@ bool Mutex::tryAcquire() {
 }
 
 void Mutex::release() {
-    cb_assert(held && cb_thread_equal(holder, cb_thread_self()));
     setHolder(false);
     cb_mutex_exit(&mutex);
 }

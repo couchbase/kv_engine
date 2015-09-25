@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2011 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -60,7 +60,7 @@ static bool verifyEngine(EventuallyPersistentEngine *engine)
        if (getenv("ALLOW_NO_STATS_UPDATE") != NULL) {
            return false;
        } else {
-           cb_assert(engine);
+           throw std::logic_error("verifyEngine: engine should be non-NULL");
        }
    }
    return true;
@@ -85,7 +85,7 @@ void ObjectRegistry::onCreateBlob(const Blob *blob)
        stats.currentSize.fetch_add(size);
        stats.totalValueSize.fetch_add(size);
        stats.numBlob++;
-       cb_assert(stats.currentSize.load() < GIGANTOR);
+       sanityCheckStat(stats.currentSize, "currentSize");
    }
 }
 
@@ -103,7 +103,7 @@ void ObjectRegistry::onDeleteBlob(const Blob *blob)
        stats.currentSize.fetch_sub(size);
        stats.totalValueSize.fetch_sub(size);
        stats.numBlob--;
-       cb_assert(stats.currentSize.load() < GIGANTOR);
+       sanityCheckStat(stats.currentSize, "currentSize");
    }
 }
 
@@ -120,7 +120,7 @@ void ObjectRegistry::onCreateStoredValue(const StoredValue *sv)
        }
        stats.numStoredVal++;
        stats.totalStoredValSize.fetch_add(size);
-       cb_assert(stats.currentSize.load() < GIGANTOR);
+       sanityCheckStat(stats.currentSize, "currentSize");
    }
 }
 
@@ -137,7 +137,7 @@ void ObjectRegistry::onDeleteStoredValue(const StoredValue *sv)
        }
        stats.totalStoredValSize.fetch_sub(size);
        stats.numStoredVal--;
-       cb_assert(stats.currentSize.load() < GIGANTOR);
+       sanityCheckStat(stats.currentSize, "currentSize");
    }
 }
 
@@ -148,7 +148,7 @@ void ObjectRegistry::onCreateItem(const Item *pItem)
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
        stats.memOverhead.fetch_add(pItem->size() - pItem->getValMemSize());
-       cb_assert(stats.memOverhead.load() < GIGANTOR);
+       sanityCheckStat(stats.memOverhead, "memOverhead");
        stats.numItem++;
    }
 }
@@ -159,7 +159,7 @@ void ObjectRegistry::onDeleteItem(const Item *pItem)
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
        stats.memOverhead.fetch_sub(pItem->size() - pItem->getValMemSize());
-       cb_assert(stats.memOverhead.load() < GIGANTOR);
+       sanityCheckStat(stats.memOverhead, "memOverhead");
        stats.numItem--;
    }
 }
@@ -224,4 +224,14 @@ bool ObjectRegistry::memoryDeallocated(size_t mem) {
         stats.memoryTrackerEnabled.store(false);
     }
     return true;
+}
+
+void ObjectRegistry::sanityCheckStat(const AtomicValue<size_t>& stat,
+                                     const char* stat_name) {
+    const size_t value = stat.load();
+    if (value >= GIGANTOR) {
+        throw std::runtime_error("ObjectRegistry::onCreateBlob: stats." +
+                                 std::string(stat_name) + " is out of range: " +
+                                 std::to_string(value));
+    }
 }

@@ -641,7 +641,7 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                         return;
                     }
                     v = vb->ht.unlocked_find(key, bucket_num, true, false);
-                    v->setStoredValueState(StoredValue::state_deleted_key);
+                    v->setDeleted();
                     v->setRevSeqno(revSeqno);
                     vb->ht.unlocked_softDelete(v, 0, eviction_policy);
                     queueDirty(vb, v, &lh, NULL, false);
@@ -1776,8 +1776,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                         queueDirty(vb, v, &hlh, NULL);
                     }
                 } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
-                    v->setStoredValueState(
-                                          StoredValue::state_non_existent_key);
+                    v->setNonExistent();
                     if (eviction_policy == FULL_EVICTION) {
                         // For the full eviction, we should notify
                         // ENGINE_SUCCESS to the memcached worker thread, so
@@ -1886,7 +1885,7 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                         queueDirty(vb, v, &blh, NULL);
                     }
                 } else if (status == ENGINE_KEY_ENOENT) {
-                    v->setStoredValueState(StoredValue::state_non_existent_key);
+                    v->setNonExistent();
                     if (eviction_policy == FULL_EVICTION) {
                         // For the full eviction, we should notify
                         // ENGINE_SUCCESS to the memcached worker thread,
@@ -2434,8 +2433,7 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
                             ") should be resident after calling restoreValue()");
                     }
                 } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
-                    v->setStoredValueState(
-                                          StoredValue::state_non_existent_key);
+                    v->setNonExistent();
                 } else {
                     // underlying kvstore couldn't fetch requested data
                     // log returned error and notify TMPFAIL to client
@@ -2732,12 +2730,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                             return ENGINE_ENOMEM;
                         }
                         v = vb->ht.unlocked_find(key, bucket_num, true, false);
-                        v->setStoredValueState(StoredValue::state_deleted_key);
+                        v->setDeleted();
                     } else {
                         return ENGINE_KEY_ENOENT;
                     }
                 } else if (v->isTempInitialItem()) {
-                    v->setStoredValueState(StoredValue::state_deleted_key);
+                    v->setDeleted();
                 } else { // Non-existent or deleted key.
                     if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
                         // Delete a temp non-existent item to ensure that
@@ -2869,7 +2867,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                     return ENGINE_ENOMEM;
                 }
                 v = vb->ht.unlocked_find(key, bucket_num, true, false);
-                v->setStoredValueState(StoredValue::state_deleted_key);
+                v->setDeleted();
             }
         }
     } else {
@@ -2882,9 +2880,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                 return ENGINE_ENOMEM;
             }
             v = vb->ht.unlocked_find(key, bucket_num, true, false);
-            v->setStoredValueState(StoredValue::state_deleted_key);
+            v->setDeleted();
         } else if (v->isTempInitialItem()) {
-            v->setStoredValueState(StoredValue::state_deleted_key);
+            v->setDeleted();
         }
     }
 

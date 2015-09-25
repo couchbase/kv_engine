@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2011 Couchbase, Inc.
+ *     Copyright 2015 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -49,6 +49,11 @@ public:
     static void setStats(AtomicValue<size_t>* init_track);
     static bool memoryAllocated(size_t mem);
     static bool memoryDeallocated(size_t mem);
+
+    // Verifies memory stat value appear sane, i.e. less than GIGANTOR.
+    // Throws std::runtime_error() if not.
+    static void sanityCheckStat(const AtomicValue<size_t>& stat,
+                                const char* stat_name);
 };
 
 #endif  // SRC_OBJECTREGISTRY_H_

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -231,7 +231,10 @@ public:
      * Reset the value of this item.
      */
     void resetValue() {
-        cb_assert(!isDeleted());
+        if (isDeleted()) {
+            throw std::logic_error("StoredValue::resetValue: Not possible to "
+                    "reset the value of a deleted item");
+        }
         markNotResident();
         // item no longer resident once reset the value
         deleted = true;
@@ -321,16 +324,23 @@ public:
      * It is an error to set an ID on an item that already has one.
      */
     void setBySeqno(int64_t to) {
+        if (to <= 0) {
+            throw std::invalid_argument("StoredValue::setBySeqno: to "
+                    "(which is " + std::to_string(to) + ") must be positive");
+        }
         bySeqno = to;
-        cb_assert(hasBySeqno());
     }
 
-    /**
-     * Set the stored value state to the specified value
-     */
-    void setStoredValueState(const int64_t to) {
-        cb_assert(to == state_deleted_key || to == state_non_existent_key);
-        bySeqno = to;
+    // Marks the stored item as deleted.
+    void setDeleted()
+    {
+        bySeqno = state_deleted_key;
+    }
+
+    // Marks the stored item as non-existent.
+    void setNonExistent()
+    {
+        bySeqno = state_non_existent_key;
     }
 
     /**
@@ -746,7 +756,11 @@ private:
         size_t base = sizeof(StoredValue) - sizeof(char);
 
         const std::string &key = itm.getKey();
-        cb_assert(key.length() < 256);
+        if (key.length() >= 256) {
+            throw std::invalid_argument("StoredValueFactory::newStoredValue: "
+                    "item key length (which is " + std::to_string(key.length()) +
+                    "is greater than 256");
+        }
 
         size_t len = key.length() + base;
 
@@ -820,9 +834,6 @@ public:
     {
         size = HashTable::getNumBuckets(s);
         n_locks = HashTable::getNumLocks(l);
-        cb_assert(size > 0);
-        cb_assert(n_locks > 0);
-        cb_assert(visitors == 0);
         values = static_cast<StoredValue**>(calloc(size, sizeof(StoredValue*)));
         mutexes = new Mutex[n_locks];
         activeState = true;
@@ -961,7 +972,10 @@ public:
      * @return a pointer to a StoredValue -- NULL if not found
      */
     StoredValue *find(std::string &key, bool trackReference=true) {
-        cb_assert(isActive());
+        if (!isActive()) {
+            throw std::logic_error("HashTable::find: Cannot call on a "
+                    "non-active object");
+        }
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         return unlocked_find(key, bucket_num, false, trackReference);
@@ -1018,7 +1032,10 @@ public:
                                  item_eviction_policy_t policy = VALUE_ONLY,
                                  uint8_t nru=0xff, bool maybeKeyExists=true,
                                  bool isReplication = false) {
-        cb_assert(isActive());
+        if (!isActive()) {
+            throw std::logic_error("HashTable::unlocked_set: Cannot call on a "
+                    "non-active object");
+        }
         Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
             return NOMEM;
@@ -1139,7 +1156,10 @@ public:
      */
     add_type_t add(const Item &val, item_eviction_policy_t policy,
                    bool isDirty = true, bool storeVal = true) {
-        cb_assert(isActive());
+        if (!isActive()) {
+            throw std::logic_error("HashTable::add: Cannot call on a "
+                    "non-active object");
+        }
         int bucket_num(0);
         LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
         StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
@@ -1194,7 +1214,10 @@ public:
      */
     mutation_type_t softDelete(const std::string &key, uint64_t cas,
                                item_eviction_policy_t policy = VALUE_ONLY) {
-        cb_assert(isActive());
+        if (!isActive()) {
+            throw std::logic_error("HashTable::softDelete: Cannot call on a "
+                    "non-active object");
+        }
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         StoredValue *v = unlocked_find(key, bucket_num, false, false);
@@ -1311,7 +1334,10 @@ public:
      * @return the hash value
      */
     inline int hash(const char *str, const size_t len) {
-        cb_assert(isActive());
+        if (!isActive()) {
+            throw std::logic_error("HashTable::hash: Cannot call on a "
+                    "non-active object");
+        }
         int h=5381;
 
         for(size_t i=0; i < len; i++) {
@@ -1352,7 +1378,10 @@ public:
      */
     inline LockHolder getLockedBucket(int h, int *bucket) {
         while (true) {
-            cb_assert(isActive());
+            if (!isActive()) {
+                throw std::logic_error("HashTable::getLockedBucket: "
+                        "Cannot call on a non-active object");
+            }
             *bucket = getBucketForHash(h);
             LockHolder rv(mutexes[mutexForBucket(*bucket)]);
             if (*bucket == getBucketForHash(h)) {
@@ -1396,7 +1425,10 @@ public:
      * @return true if an object was deleted, false otherwise
      */
     bool unlocked_del(const std::string &key, int bucket_num) {
-        cb_assert(isActive());
+        if (!isActive()) {
+            throw std::logic_error("HashTable::unlocked_del: Cannot call on a "
+                    "non-active object");
+        }
         StoredValue *v = values[bucket_num];
 
         // Special case empty bucket.
@@ -1456,7 +1488,6 @@ public:
      * @return true if the item existed before this call
      */
     bool del(const std::string &key) {
-        cb_assert(isActive());
         int bucket_num(0);
         LockHolder lh = getLockedBucket(key, &bucket_num);
         return unlocked_del(key, bucket_num);
@@ -1549,9 +1580,15 @@ public:
 
     /**
      * Eject an item meta data and value from memory.
-     * @param vptr the reference to the pointer to the StoredValue instance
+     * @param vptr the reference to the pointer to the StoredValue instance.
+     *             This is passed as a reference as it may be modified by this
+     *             function (see note below).
      * @param policy item eviction policy
      * @return true if an item is ejected.
+     *
+     * NOTE: Upon a successful ejection (and if full eviction is enabled)
+     *       the StoredValue will be deleted, therefore it is *not* safe to
+     *       access vptr after calling this function if it returned true.
      */
     bool unlocked_ejectItem(StoredValue*& vptr, item_eviction_policy_t policy);
 
@@ -1591,13 +1628,12 @@ private:
         return abs(h % static_cast<int>(size));
     }
 
-    inline int mutexForBucket(int bucket_num) {
-        cb_assert(isActive());
-        cb_assert(bucket_num >= 0);
-        int lock_num = bucket_num % static_cast<int>(n_locks);
-        cb_assert(lock_num < static_cast<int>(n_locks));
-        cb_assert(lock_num >= 0);
-        return lock_num;
+    inline size_t mutexForBucket(size_t bucket_num) {
+        if (!isActive()) {
+            throw std::logic_error("HashTable::mutexForBucket: Cannot call on a "
+                    "non-active object");
+        }
+        return bucket_num % n_locks;
     }
 
     Item *getRandomKeyFromSlot(int slot);
