@@ -251,7 +251,10 @@ void ExecutorPool::addWork(size_t newWork, task_type_t qType) {
 }
 
 void ExecutorPool::lessWork(task_type_t qType) {
-    cb_assert(numReadyTasks[qType].load());
+    if (numReadyTasks[qType].load() == 0) {
+        throw std::logic_error("ExecutorPool::lessWork: number of ready "
+                "tasks on qType " + std::to_string(qType) + " is zero");
+    }
     numReadyTasks[qType]--;
     totReadyTasks--;
 }
@@ -305,7 +308,11 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
     task->cancel(); // must be idempotent, just set state to dead
 
     if (eraseTask) { // only internal threads can erase tasks
-        cb_assert(task->isdead());
+        if (!task->isdead()) {
+            throw std::logic_error("ExecutorPool::_cancel: task '"
+                    + task->getDescription() + "' is not dead after calling "
+                            "cancel() on it");
+        }
         taskLocator.erase(itr);
         tMutex.notify();
     } else { // wake up the task from the TaskQ so a thread can safely erase it
@@ -364,7 +371,11 @@ TaskQueue* ExecutorPool::_getTaskQueue(Taskable *t,
 
     bucket_priority_t bucketPriority = t->getWorkloadPriority();
 
-    cb_assert(0 <= (int)qidx && (size_t)qidx < numTaskSets);
+    if (qidx < 0 || qidx >= numTaskSets) {
+        throw std::invalid_argument("ExecutorPool::_getTaskQueue: qidx "
+                "(which is " + std::to_string(qidx) + ") is outside the range [0,"
+                + std::to_string(numTaskSets) + ")");
+    }
 
     curNumThreads = threadQ.size();
 
@@ -381,12 +392,30 @@ TaskQueue* ExecutorPool::_getTaskQueue(Taskable *t,
             q = lpTaskQ[qidx];
         }
     } else { // Max capacity Mode scheduling ...
-        if (bucketPriority == LOW_BUCKET_PRIORITY) {
-            cb_assert(lpTaskQ.size() == numTaskSets);
+        switch (bucketPriority) {
+        case LOW_BUCKET_PRIORITY:
+            if (lpTaskQ.size() != numTaskSets) {
+                throw std::logic_error("ExecutorPool::_getTaskQueue: At "
+                        "maximum capacity but low-priority taskQ size "
+                        "(which is " + std::to_string(lpTaskQ.size()) +
+                        ") is not " + std::to_string(numTaskSets));
+            }
             q = lpTaskQ[qidx];
-        } else {
-            cb_assert(hpTaskQ.size() == numTaskSets);
+            break;
+
+        case HIGH_BUCKET_PRIORITY:
+            if (hpTaskQ.size() != numTaskSets) {
+                throw std::logic_error("ExecutorPool::_getTaskQueue: At "
+                        "maximum capacity but high-priority taskQ size "
+                        "(which is " + std::to_string(lpTaskQ.size()) +
+                        ") is not " + std::to_string(numTaskSets));
+            }
             q = hpTaskQ[qidx];
+            break;
+
+        default:
+            throw std::logic_error("ExecutorPool::_getTaskQueue: Invalid "
+                    "bucketPriority " + std::to_string(bucketPriority));
         }
     }
     return q;
@@ -568,7 +597,11 @@ void ExecutorPool::_unregisterTaskable(Taskable *taskable, bool force) {
     LockHolder lh(tMutex);
     taskOwners.erase(taskable);
     if (!(--numBuckets)) {
-        cb_assert(!taskLocator.size());
+        if (taskLocator.size()) {
+            throw std::logic_error("ExecutorPool::_unregisterTaskable: "
+                    "Attempting to unregister taskable '" +
+                    taskable->getName() + "' but taskLocator is not empty");
+        }
         for (unsigned int idx = 0; idx < numTaskSets; idx++) {
             TaskQueue *sleepQ = getSleepQ(idx);
             size_t wakeAll = threadQ.size();

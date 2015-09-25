@@ -73,7 +73,6 @@ public:
     void wait();
     bool pause();
     bool resume();
-    void initialize(size_t tid);
     void start();
     void wake(void);
     bool step(GlobalTask *task);
@@ -106,6 +105,7 @@ private:
     bool transition_state(enum flusher_state to);
     void flushVB();
     void completeFlush();
+    void initialize();
     void schedule_UNLOCKED();
     double computeMinSleepTime();
 

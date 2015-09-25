@@ -93,7 +93,11 @@ const char * Flusher::stateName(enum flusher_state st) const {
     static const char * const stateNames[] = {
         "initializing", "running", "pausing", "paused", "stopping", "stopped"
     };
-    cb_assert(st >= initializing && st <= stopped);
+    if (st < initializing || st > stopped) {
+        throw std::invalid_argument("Flusher::stateName: st (which is " +
+                                        std::to_string(st) +
+                                        ") is not a valid flusher_state");
+    }
     return stateNames[st];
 }
 
@@ -123,8 +127,7 @@ enum flusher_state Flusher::state() const {
     return _state;
 }
 
-void Flusher::initialize(size_t tid) {
-    cb_assert(taskId == tid);
+void Flusher::initialize() {
     LOG(EXTENSION_LOG_DEBUG, "Initializing flusher");
     transition_state(running);
 }
@@ -158,65 +161,62 @@ void Flusher::wake(void) {
 }
 
 bool Flusher::step(GlobalTask *task) {
-    try {
-        switch (_state.load()) {
-        case initializing:
-            initialize(task->getId());
-            return true;
-        case paused:
-        case pausing:
-            if (_state == pausing) {
-                transition_state(paused);
-            }
-            // Indefinitely put task to sleep..
-            task->snooze(INT_MAX);
-            return true;
-        case running:
-            {
-                flushVB();
-                if (_state == running) {
-                    double tosleep = computeMinSleepTime();
-                    if (tosleep > 0) {
-                        store->commit(shard->getId());
-                        resetCommitInterval();
-                        task->snooze(tosleep);
-                    }
-                }
-                return true;
-            }
-        case stopping:
-            {
-                std::stringstream ss;
-                ss << "Shutting down flusher (Write of all dirty items)"
-                   << std::endl;
-                LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
-            }
-            completeFlush();
-            store->commit(shard->getId());
-            resetCommitInterval();
-            LOG(EXTENSION_LOG_DEBUG, "Flusher stopped");
-            transition_state(stopped);
-        case stopped:
-            {
-                taskId = 0;
-                return false;
-            }
-        default:
-            LOG(EXTENSION_LOG_WARNING, "Unexpected state in flusher: %s",
-                stateName());
-            cb_assert(false);
+    flusher_state current_state = _state.load();
+
+    switch (current_state) {
+    case initializing:
+        if (task->getId() != taskId) {
+            throw std::invalid_argument("Flusher::step: Argument "
+                    "task->getId() (which is" + std::to_string(task->getId()) +
+                    ") does not equal member variable taskId (which is" +
+                    std::to_string(taskId.load()));
         }
-    } catch(std::runtime_error &e) {
-        std::stringstream ss;
-        ss << "Exception in flusher loop: " << e.what() << std::endl;
-        LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
-        cb_assert(false);
+        initialize();
+        return true;
+
+    case paused:
+    case pausing:
+        if (_state == pausing) {
+            transition_state(paused);
+        }
+        // Indefinitely put task to sleep..
+        task->snooze(INT_MAX);
+        return true;
+
+    case running:
+        flushVB();
+        if (_state == running) {
+            double tosleep = computeMinSleepTime();
+            if (tosleep > 0) {
+                store->commit(shard->getId());
+                resetCommitInterval();
+                task->snooze(tosleep);
+            }
+        }
+        return true;
+
+    case stopping:
+        {
+            std::stringstream ss;
+            ss << "Shutting down flusher (Write of all dirty items)"
+               << std::endl;
+            LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
+        }
+        completeFlush();
+        store->commit(shard->getId());
+        resetCommitInterval();
+        LOG(EXTENSION_LOG_DEBUG, "Flusher stopped");
+        transition_state(stopped);
+        return false;
+
+    case stopped:
+        taskId = 0;
+        return false;
     }
 
-    // We should _NEVER_ get here (unless you compile with -DNDEBUG causing
-    // the assertions to be removed.. It's a bug, so we should abort and
-    // create a coredump
-    abort();
+    // If we got here there was an unhandled switch case
+    throw std::logic_error("Flusher::step: Invalid state " +
+                               std::to_string(current_state));
 }
 
 void Flusher::completeFlush() {

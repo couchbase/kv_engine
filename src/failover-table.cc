@@ -287,7 +287,11 @@ bool FailoverTable::loadFromJSON(const std::string& json) {
 
 void FailoverTable::replaceFailoverLog(uint8_t* bytes, uint32_t length) {
     LockHolder lh(lock);
-    cb_assert((length % 16) == 0 && length != 0);
+    if ((length % 16) != 0 || length == 0) {
+        throw std::invalid_argument("FailoverTable::replaceFailoverLog: "
+                "length (which is " + std::to_string(length) +
+                ") must be a non-zero multiple of 16");
+    }
     table.clear();
 
     for (; length > 0; length -=16) {
