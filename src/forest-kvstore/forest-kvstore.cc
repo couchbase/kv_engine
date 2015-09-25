@@ -32,7 +32,10 @@ void ForestKVStore::initForestDb() {
     if (numGlobalFiles == 0) {
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         fdb_status status = fdb_init(&fileConfig);
-        cb_assert(status == FDB_RESULT_SUCCESS);
+        if (status != FDB_RESULT_SUCCESS) {
+            throw std::logic_error("ForestKVStore::initForestDb: failed "
+                    "with status:" + std::to_string(status));
+        }
         ObjectRegistry::onSwitchThread(epe);
     }
     ++numGlobalFiles;
@@ -344,7 +347,11 @@ void ForestKVStore::getWithHeader(void *dbHandle, const std::string &key,
 
     //There will always be a handle in the handle map for readers. It will be
     //initialized to NULL if one hasn't been initialized yet.
-    cb_assert(found != readHandleMap.end());
+    if (found == readHandleMap.end()) {
+        throw std::invalid_argument("ForestKVStore::getWithHeader: Failed "
+                "to find vb (which is " + std::to_string(vb) +
+                ") in readHandleMap");
+    }
     if (!(found->second)) {
         status = fdb_kvs_open(dbFileHandle, &kvsHandle, kvsName, &kvsConfig);
         if (status != FDB_RESULT_SUCCESS) {
@@ -517,7 +524,11 @@ fdb_kvs_handle* ForestKVStore::getKvsHandle(uint16_t vbucketId) {
     fdb_status status;
     unordered_map<uint16_t, fdb_kvs_handle*>::iterator found =
                                             writeHandleMap.find(vbucketId);
-    cb_assert (found != writeHandleMap.end());
+    if (found == writeHandleMap.end()) {
+        throw std::invalid_argument("ForestKVStore::getKvsHandle: Failed "
+                "to find vb (which is " + std::to_string(vbucketId) +
+                ") in writeHandleMap");
+    }
     if (!(found->second)) {
         status = fdb_kvs_open(dbFileHandle, &kvsHandle, kvsName, &kvsConfig);
         if (status != FDB_RESULT_SUCCESS) {
@@ -580,8 +591,14 @@ static void populateMetaData(const Item &itm, uint8_t *meta, bool deletion) {
 }
 
 void ForestKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
-    cb_assert(!isReadOnly());
-    cb_assert(intransaction);
+    if (isReadOnly()) {
+        throw std::logic_error("ForestKVStore::set: Not valid on a read-only "
+                        "object.");
+    }
+    if (!intransaction) {
+        throw std::invalid_argument("ForestKVStore::set: intransaction must be "
+                        "true to perform a set operation.");
+    }
     MutationRequestCallback requestcb;
 
     // each req will be de-allocated after commit
@@ -661,8 +678,14 @@ void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
 }
 
 void ForestKVStore::del(const Item &itm, Callback<int> &cb) {
-    cb_assert(!isReadOnly());
-    cb_assert(intransaction);
+    if (isReadOnly()) {
+        throw std::logic_error("ForestKVStore::del: Not valid on a read-only "
+                        "object.");
+    }
+    if (!intransaction) {
+        throw std::invalid_argument("ForestKVStore::del: intransaction must be "
+                        "true to perform a delete operation.");
+    }
     MutationRequestCallback requestcb;
     requestcb.delCb = &cb;
     ForestRequest *req = new ForestRequest(itm, requestcb, true);

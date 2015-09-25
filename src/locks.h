@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -132,7 +132,11 @@ public:
      */
     void lock() {
         for (size_t i = 0; i < n_locks; i++) {
-            cb_assert(!locked[i]);
+            if (locked[i]) {
+                throw std::logic_error("MultiLockHolder::lock: mutex " +
+                                       std::to_string(i) +
+                                       " is already locked");
+            }
             mutexes[i].acquire();
             locked[i] = true;
         }

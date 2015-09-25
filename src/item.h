@@ -73,7 +73,6 @@ public:
         size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
         Blob *t = new (::operator new(total_len)) Blob(start, len, ext_meta,
                                                        ext_len);
-        cb_assert(t->vlength() == len);
         return t;
     }
 
@@ -91,7 +90,6 @@ public:
         size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
         Blob *t = new (::operator new(total_len)) Blob(NULL, len, ext_meta,
                                                        ext_len);
-        cb_assert(t->vlength() == len);
         return t;
     }
 
@@ -107,7 +105,6 @@ public:
     static Blob* New(const size_t len, uint8_t ext_len) {
         size_t total_len = len + sizeof(Blob) + FLEX_DATA_OFFSET + ext_len;
         Blob *t = new (::operator new(total_len)) Blob(len, ext_len);
-        cb_assert(t->vlength() == len);
         return t;
     }
 
@@ -341,7 +338,9 @@ public:
         nru(nru_value),
         conflictResMode(conflict_res_value)
     {
-        cb_assert(bySeqno != 0);
+        if (bySeqno == 0) {
+            throw std::invalid_argument("Item(): bySeqno must be non-zero");
+        }
         ObjectRegistry::onCreateItem(this);
     }
 
@@ -370,7 +369,9 @@ public:
         nru(nru_value),
         conflictResMode(conflict_res_value)
     {
-        cb_assert(bySeqno != 0);
+        if (bySeqno == 0) {
+            throw std::invalid_argument("Item(): bySeqno must be non-zero");
+        }
         setData(static_cast<const char*>(dta), nb, ext_meta, ext_len);
         ObjectRegistry::onCreateItem(this);
     }
@@ -388,7 +389,9 @@ public:
        nru(nru_value),
        conflictResMode(conflict_res_value)
     {
-       cb_assert(bySeqno >= 0);
+       if (bySeqno < 0) {
+           throw std::invalid_argument("Item(): bySeqno must be non-negative");
+       }
        metaData.revSeqno = revSeq;
        ObjectRegistry::onCreateItem(this);
     }
@@ -675,7 +678,6 @@ private:
         } else {
             data = Blob::New(dta, nb, ext_meta, ext_len);
         }
-        cb_assert(data);
         value.reset(data);
     }
 

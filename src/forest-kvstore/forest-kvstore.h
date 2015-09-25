@@ -97,7 +97,10 @@ class ForestKVStore : public KVStore
      * @return true if the transaction is started successfully
      */
     bool begin(void) {
-        cb_assert(!isReadOnly());
+        if (isReadOnly()) {
+            throw std::logic_error("ForestKVStore::begin: Not valid on a "
+                    "read-only object.");
+        }
         intransaction = true;
         return intransaction;
     }
@@ -113,7 +116,10 @@ class ForestKVStore : public KVStore
      * Rollback a transaction (unless not currently in one).
      */
     void rollback(void) {
-        cb_assert(!isReadOnly());
+        if (isReadOnly()) {
+            throw std::logic_error("ForestKVStore::rollback: Not valid on a "
+                    "read-only object.");
+        }
         if (intransaction) {
             intransaction = false;
         }

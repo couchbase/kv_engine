@@ -533,7 +533,10 @@ public:
      * do stuff to them that might improve performance at the IO layer.
      */
     void optimizeWrites(std::vector<queued_item> &items) {
-        cb_assert(!isReadOnly());
+        if (isReadOnly()) {
+            throw std::logic_error("KVStore::optimizeWrites: Not valid on a "
+                    "read-only object");
+        }
         if (items.empty()) {
             return;
         }

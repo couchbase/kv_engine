@@ -158,16 +158,18 @@ public:
         : it(input.begin()), end(input.end()) {}
 
     HistogramBin<T>* operator () () {
-        cb_assert(it != end);
+        if (it + 1 >= end) {
+            throw std::overflow_error("FixedInputGenerator::operator() "
+                    "would overflow input sequence");
+        }
         T current = *it;
         ++it;
-        cb_assert(it != end);
         T next = *it;
         return new HistogramBin<T>(current, next);
     }
 private:
     typename std::vector<T>::iterator it;
-    typename std::vector<T>::iterator end;
+    const typename std::vector<T>::iterator end;
 };
 
 /**
@@ -332,8 +334,9 @@ private:
         verify();
     }
 
-    // This validates that we're sorted and have no gaps or overlaps.
-    void verify() {
+    // This validates that we're sorted and have no gaps or overlaps. Returns
+    // true if tests pass, else false.
+    bool verify() {
         T prev = std::numeric_limits<T>::min();
         typename std::vector<HistogramBin<T>*>::iterator it;
         int pos(0);
@@ -341,15 +344,23 @@ private:
             if ((*it)->start() != prev) {
                 std::cerr << "Expected " << (*it)->start() << " == " << prev
                           << " at pos " << pos << std::endl;
-                abort();
+                return false;
             }
-            cb_assert((*it)->start() == prev);
+            if ((*it)->start() != prev) {
+                return false;
+            }
             prev = (*it)->end();
             ++pos;
         }
-        cb_assert(prev == std::numeric_limits<T>::max());
+        if (prev != std::numeric_limits<T>::max()) {
+            return false;
+        }
+        return true;
     }
 
+    /* Finds the bin containing the specified amount. Returns NULL if the amount
+     * could not be found.
+     */
     HistogramBin<T> *findBin(T amount) {
         HistogramBin<T> *rv(NULL);
         if (amount == std::numeric_limits<T>::max()) {
@@ -358,8 +369,12 @@ private:
             typename std::vector<HistogramBin<T>*>::iterator it;
             BinCompare<T> binCompare;
             it = std::upper_bound(bins.begin(), bins.end(), amount, binCompare);
-            cb_assert(it != bins.end());
-            cb_assert((*it)->accepts(amount));
+            if (it == bins.end()) {
+                return nullptr;
+            }
+            if (!(*it)->accepts(amount)) {
+                return nullptr;
+            }
             rv = *it;
         }
         return rv;

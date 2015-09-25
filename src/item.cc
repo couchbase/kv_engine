@@ -31,8 +31,14 @@ const uint32_t Item::metaDataSize(2*sizeof(uint32_t) + 2*sizeof(uint64_t) + 2);
  * @return true if success
  */
 ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
-    cb_assert(value.get() != NULL);
-    cb_assert(i.getValue().get() != NULL);
+    if (value.get() == nullptr) {
+        throw std::invalid_argument("Item::append: Cannot append to a "
+                "NULL value");
+    }
+    if (i.getValue().get() == nullptr) {
+        throw std::invalid_argument("Item::append: Cannot append an Item"
+                "with a NULL value to this item");
+    }
 
     switch(value->getDataType()) {
     case PROTOCOL_BINARY_RAW_BYTES:
@@ -226,8 +232,14 @@ ENGINE_ERROR_CODE Item::append(const Item &i, size_t maxItemSize) {
  * @return true if success
  */
 ENGINE_ERROR_CODE Item::prepend(const Item &i, size_t maxItemSize) {
-    cb_assert(value.get() != NULL);
-    cb_assert(i.getValue().get() != NULL);
+    if (value.get() == nullptr) {
+        throw std::invalid_argument("Item::append: Cannot append to a "
+                "NULL value");
+    }
+    if (i.getValue().get() == nullptr) {
+        throw std::invalid_argument("Item::append: Cannot append an Item"
+                "with a NULL value to this item");
+    }
 
     switch(value->getDataType()) {
     case PROTOCOL_BINARY_RAW_BYTES:
