@@ -67,15 +67,15 @@ private:
  */
 class LoadStorageKVPairCallback : public Callback<GetValue> {
 public:
-    LoadStorageKVPairCallback(EventuallyPersistentStore *ep,
+    LoadStorageKVPairCallback(EventuallyPersistentStore& ep,
                               bool _maybeEnableTraffic, int _warmupState)
-        : vbuckets(ep->vbMap), stats(ep->getEPEngine().getEpStats()),
-          epstore(ep), startTime(ep_real_time()),
-          hasPurged(false), maybeEnableTraffic(_maybeEnableTraffic),
-          warmupState(_warmupState)
-    {
-        cb_assert(epstore);
-    }
+        : vbuckets(ep.vbMap),
+          stats(ep.getEPEngine().getEpStats()),
+          epstore(ep),
+          startTime(ep_real_time()),
+          hasPurged(false),
+          maybeEnableTraffic(_maybeEnableTraffic),
+          warmupState(_warmupState) {}
 
     void callback(GetValue &val);
 
@@ -89,7 +89,7 @@ private:
 
     VBucketMap &vbuckets;
     EPStats    &stats;
-    EventuallyPersistentStore *epstore;
+    EventuallyPersistentStore& epstore;
     time_t      startTime;
     bool        hasPurged;
     bool        maybeEnableTraffic;
@@ -111,7 +111,7 @@ private:
 
 class Warmup {
 public:
-    Warmup(EventuallyPersistentStore *st);
+    Warmup(EventuallyPersistentStore& st);
 
     void addToTaskSet(size_t taskId);
     void removeFromTaskSet(size_t taskId);
@@ -176,7 +176,7 @@ private:
 
     WarmupState state;
 
-    EventuallyPersistentStore *store;
+    EventuallyPersistentStore& store;
 
     // Unordered set to hold the current executing tasks
     Mutex taskSetMutex;
