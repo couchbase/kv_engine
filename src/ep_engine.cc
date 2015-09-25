@@ -6044,7 +6044,9 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     uint32_t count = 1000;
 
     if (extlen > 0) {
-        cb_assert(extlen == (sizeof(uint32_t)));
+        if (extlen != sizeof(uint32_t)) {
+            return ENGINE_EINVAL;
+        }
         memcpy(&count, request->bytes + sizeof(request->bytes),
                sizeof(uint32_t));
         count = ntohl(count);
