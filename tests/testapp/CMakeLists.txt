@@ -4,7 +4,7 @@ ADD_EXECUTABLE(memcached_testapp
                bucket_tests.cc
                testapp.cc
                testapp.h
-               testapp_audit.cc
+               #testapp_audit.cc
                testapp_binprot.cc
                testapp_binprot.h
                testapp_connection.cc

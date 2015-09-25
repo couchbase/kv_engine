@@ -147,6 +147,18 @@ void ConnectionMap::initialize(cJSON* ports) {
         auto portval = static_cast<in_port_t>(port->valueint);
         bool useSsl = ssl->type == cJSON_True ? true : false;
 
+#ifdef WIN32
+        if (useSsl) {
+            // Looks like OpenSSL isn't fully safe for windows when
+            // it comes to the BIO_set_fd (the socket is a 32 bit integer
+            // on unix, but a SOCKET on windows is a HANDLE and could
+            // overflow.. Just disable the ssl code for now as it isn't
+            // being used yet (will be used as part of the Greenstack
+            // tests)
+            continue;
+        }
+#endif
+
         MemcachedConnection* connection;
         if (strcmp(protocol->valuestring, "greenstack") == 0) {
             connection = new MemcachedGreenstackConnection(portval,
