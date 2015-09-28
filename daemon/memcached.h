@@ -19,6 +19,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/engine.h>
 #include <memcached/extension.h>
+#include "net_buf.h"
 #include <JSON_checker.h>
 
 #include "rbac.h"
@@ -68,20 +69,10 @@ enum class ThreadType {
     DISPATCHER = 15
 };
 
-/**
- * The structure representing a network buffer
- */
-struct net_buf {
-    char     *buf;  /** start of allocated buffer */
-    char     *curr; /** but if we parsed some already, this is where we stopped */
-    uint32_t size;  /** total allocated size of buf */
-    uint32_t bytes; /** how much data, starting from curr, do we have unparsed */
-};
-
 class Connection;
 class ConnectionQueue;
 
-typedef struct {
+struct LIBEVENT_THREAD {
     cb_thread_t thread_id;      /* unique ID of this thread */
     struct event_base *base;    /* libevent handle this thread uses */
     struct event notify_event;  /* listen event for notify pipe */
@@ -113,7 +104,7 @@ typedef struct {
     int deleting_buckets;
 
     JSON_checker::Validator *validator;
-} LIBEVENT_THREAD;
+};
 
 #define LOCK_THREAD(t)                          \
     cb_mutex_enter(&t->mutex);                  \

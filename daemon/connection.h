@@ -20,8 +20,18 @@
 
 #include "config.h"
 
-#include <string>
+#include "dynamic_buffer.h"
+#include "net_buf.h"
+#include "rbac.h"
+#include "settings.h"
 
+#include <cJSON.h>
+#include <cbsasl/cbsasl.h>
+#include <memcached/openssl.h>
+#include <string>
+#include <vector>
+
+struct LIBEVENT_THREAD;
 class Connection;
 
 typedef bool (* STATE_FUNC)(Connection*);
