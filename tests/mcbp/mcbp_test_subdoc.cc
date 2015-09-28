@@ -80,6 +80,21 @@ TEST_F(SubdocSingleTest, DictAdd_InvalidValue) {
               validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
 }
 
+TEST_F(SubdocSingleTest, DictAdd_InvalidExtras) {
+    // Extras can only be '3' for lookups, may also be '7' for mutations
+    // (specifying expiration).
+    request.message.header.request.extlen = 4;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+              validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+
+    request.message.header.request.extlen = 7;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+              validate(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD));
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL,
+              validate(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS));
+}
+
 class SubdocMultiLookupTest : public ValidatorTest {
     virtual void SetUp() override {
         ValidatorTest::SetUp();
@@ -136,6 +151,11 @@ TEST_F(SubdocMultiLookupTest, InvalidExtras) {
     auto* header = reinterpret_cast<protocol_binary_request_header*>
         (payload.data());
     header->request.extlen = 1;
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+
+    // extlen of 4 permitted for mutations only.
+    header->request.extlen = 4;
+    header->request.bodylen = htonl(ntohl(header->request.bodylen) + 4);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
 }
 
@@ -272,6 +292,32 @@ TEST_F(SubdocMultiMutationTest, InvalidExtras) {
         (payload.data());
     header->request.extlen = 1;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
+}
+
+TEST_F(SubdocMultiMutationTest, Expiry) {
+    // extlen of 4 permitted for mutations.
+    request.expiry = 10;
+    std::vector<char> payload = request.encode();
+
+    // Check that we encoded correctly.
+    auto* header = reinterpret_cast<protocol_binary_request_header*>
+        (payload.data());
+    ASSERT_EQ(4, header->request.extlen);
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(payload));
+}
+
+TEST_F(SubdocMultiMutationTest, ExplicitZeroExpiry) {
+    // extlen of 4 permitted for mutations.
+    request.expiry = 0;
+    request.encode_zero_expiry_on_wire = 1;
+    std::vector<char> payload = request.encode();
+
+    auto* header = reinterpret_cast<protocol_binary_request_header*>
+        (payload.data());
+    ASSERT_EQ(4, header->request.extlen);
+
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(payload));
 }
 
 TEST_F(SubdocMultiMutationTest, NumPaths) {

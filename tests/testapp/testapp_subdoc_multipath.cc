@@ -393,3 +393,59 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddDelete_MutationSeqno) {
     test_subdoc_multi_mutation_dictadd_delete();
     set_mutation_seqno_feature(false);
 }
+
+// Test support for expiration on multi-path commands.
+TEST_P(McdTestappTest, SubdocMultiMutation_Expiry) {
+    // Create two documents; one to be used for an exlicit 1s expiry and one
+    // for an explicit 0s (i.e. never) expiry.
+    store_object("ephemeral", "[\"a\"]");
+    store_object("permanent", "[\"a\"]");
+
+    // Expiry not permitted for MULTI_LOOKUP operations.
+    SubdocMultiLookupCmd lookup;
+    lookup.key = "ephemeral";
+    lookup.expiry = 666;
+    lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
+                            SUBDOC_FLAG_NONE, "[0]" });
+    expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_EINVAL, {});
+
+    // Perform a MULTI_REPLACE operation, setting a expiry of 1s.
+    SubdocMultiMutationCmd mutation;
+    mutation.key = "ephemeral";
+    mutation.expiry = 1;
+    mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                              SUBDOC_FLAG_NONE, "[0]", "\"b\""});
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+
+    // Try to read the document immediately - should exist.
+    auto result = fetch_value("ephemeral");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("[\"b\"]", result.second);
+
+    // Perform a REPLACE on permanent, explicitly encoding an expiry of 0s.
+    mutation.key = "permanent";
+    mutation.expiry = 0;
+    mutation.encode_zero_expiry_on_wire = true;
+    expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                      std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+
+    // Try to read the second document immediately - should exist.
+    result = fetch_value("permanent");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("[\"b\"]", result.second);
+
+    // Sleep for 2s seconds.
+    // TODO: it would be great if we could somehow accelerate time from the
+    // harness, and not add 2s to the runtime of the test...
+    usleep(2 * 1000 * 1000);
+
+    // Try to read the ephemeral document - shouldn't exist.
+    result = fetch_value("ephemeral");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, result.first);
+
+    // Try to read the permanent document - should still exist.
+    result = fetch_value("permanent");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("[\"b\"]", result.second);
+}

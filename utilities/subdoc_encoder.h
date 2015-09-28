@@ -32,16 +32,28 @@ struct SubdocMultiCmd {
 
     SubdocMultiCmd(protocol_binary_command command_)
         : cas(0),
+          expiry(0),
+          encode_zero_expiry_on_wire(false),
           command(command_) {}
 
     std::string key;
     uint64_t cas;
+    uint32_t expiry;
+
+    // If true then a zero expiry will actually be encoded on the wire (as zero),
+    // as opposed to the normal behaviour of indicating zero by the absence of
+    // the 'expiry' field in extras.
+    bool encode_zero_expiry_on_wire;
 
     protocol_binary_command command;
 
     virtual std::vector<char> encode() const = 0;
 
 protected:
+    // Helper for encode() - fills in elements common to both lookup and
+    // mutation.
+    std::vector<char> encode_common() const;
+
     // Fill in the header for this command.
     void populate_header(protocol_binary_request_header& header,
                          size_t bodylen) const;

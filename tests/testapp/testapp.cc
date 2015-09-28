@@ -2506,7 +2506,7 @@ fetch_value(const std::string& key) {
                                         PROTOCOL_BINARY_CMD_GET,
                                         key.data(), key.size(), NULL, 0);
     safe_send(send.bytes, len, false);
-    safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    EXPECT_TRUE(safe_recv_packet(receive.bytes, sizeof(receive.bytes)));
 
     protocol_binary_response_status status =
             protocol_binary_response_status(receive.response.message.header.response.status);

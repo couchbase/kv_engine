@@ -29,29 +29,29 @@
 
 // Class representing a subdoc command; to assist in constructing / encoding one.
 struct SubdocCmd {
+
     // Always need at least a cmd, key and path.
     explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
                        const std::string& path_)
-      : cmd(cmd_), key(key_), path(path_), value(""), flags(), cas() {}
+      : SubdocCmd(cmd_, key_, path_, "", SUBDOC_FLAG_NONE, 0) {}
 
     // Constructor including a value.
     explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
                        const std::string& path_, const std::string& value_)
-      : cmd(cmd_), key(key_), path(path_), value(value_), flags(), cas() {}
+      : SubdocCmd(cmd_, key_, path_, value_, SUBDOC_FLAG_NONE, 0) {}
 
     // Constructor additionally including flags.
     explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
                        const std::string& path_, const std::string& value_,
                        protocol_binary_subdoc_flag flags_)
-      : cmd(cmd_), key(key_), path(path_), value(value_), flags(flags_),
-        cas() {}
+    : SubdocCmd(cmd_, key_, path_, value_, flags_, 0) {}
 
     // Constructor additionally including CAS.
     explicit SubdocCmd(protocol_binary_command cmd_, const std::string& key_,
                        const std::string& path_, const std::string& value_,
                        protocol_binary_subdoc_flag flags_, uint64_t cas_)
       : cmd(cmd_), key(key_), path(path_), value(value_), flags(flags_),
-        cas(cas_) {}
+        cas(cas_), expiry(), encode_zero_expiry_on_wire(false) {}
 
     protocol_binary_command cmd;
     std::string key;
@@ -59,6 +59,12 @@ struct SubdocCmd {
     std::string value;
     protocol_binary_subdoc_flag flags;
     uint64_t cas;
+    uint32_t expiry;
+
+    // If true then a zero expiry will actually be encoded on the wire (as zero),
+    // as opposed to the normal behaviour of indicating zero by the absence of
+    // the 'expiry' field in extras.
+    bool encode_zero_expiry_on_wire;
 };
 
 typedef std::pair<protocol_binary_response_status,

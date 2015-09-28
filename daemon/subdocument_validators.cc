@@ -38,7 +38,6 @@ static protocol_binary_response_status subdoc_validator(const void* packet, cons
 
     if ((header->request.magic != PROTOCOL_BINARY_REQ) ||
         (keylen == 0) ||
-        (extlen != sizeof(uint16_t) + sizeof(uint8_t)) ||
         (pathlen > SUBDOC_PATH_MAX_LENGTH) ||
         (header->request.datatype != PROTOCOL_BINARY_RAW_BYTES)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
@@ -65,6 +64,20 @@ static protocol_binary_response_status subdoc_validator(const void* packet, cons
     if (!traits.allow_empty_path &&
         (pathlen == 0)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // Check that extlen is valid. For mutations can be one of two values
+    // (depending on if an expiry is encoded in the request); for lookups must
+    // be a fixed value.
+    if (traits.is_mutator) {
+        if ((extlen != SUBDOC_BASIC_EXTRAS_LEN) &&
+            (extlen != SUBDOC_EXPIRY_EXTRAS_LEN)) {
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+    } else {
+        if (extlen != SUBDOC_BASIC_EXTRAS_LEN) {
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
     }
 
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -192,15 +205,27 @@ subdoc_multi_validator(void* packet, const SubdocMultiCmdTraits traits)
 
     // 1. Check simple static values.
 
-    // Must have at least one lookup spec; with at least a 1B path.
-    const size_t minimum_body_len = traits.min_body_len;
+    // Must have at least one lookup spec
+    const size_t minimum_body_len = ntohs(req->request.keylen) + req->request.extlen + traits.min_value_len;
 
     if ((req->request.magic != PROTOCOL_BINARY_REQ) ||
         (req->request.keylen == 0) ||
-        (req->request.extlen != 0) ||
         (req->request.bodylen < minimum_body_len) ||
         (req->request.datatype != PROTOCOL_BINARY_RAW_BYTES)) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    // 1a. extlen must be zero for lookups, can be 0 or 4 for mutations
+    // (to specify expiry).
+    if (traits.is_mutator) {
+        if ((req->request.extlen != 0) &&
+            (req->request.extlen != sizeof(uint32_t))) {
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+    } else {
+        if (req->request.extlen != 0) {
+            return PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
     }
 
     // 2. Check that the lookup operation specs are valid.
@@ -208,7 +233,7 @@ subdoc_multi_validator(void* packet, const SubdocMultiCmdTraits traits)
                                  sizeof(*req);
     const size_t keylen = ntohs(req->request.keylen);
     const size_t bodylen = ntohl(req->request.bodylen);
-    size_t body_validated = keylen;
+    size_t body_validated = keylen + req->request.extlen;
     unsigned int path_index;
     for (path_index = 0;
          (path_index < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) &&

@@ -833,6 +833,8 @@ extern "C"
             struct {
                 uint16_t pathlen;      // Length in bytes of the sub-doc path.
                 uint8_t  subdoc_flags; // See protocol_binary_subdoc_flag
+                /* uint32_t expiry     (optional for mutations only - present
+                                        if extlen == 7) */
             } extras;
         } message;
         uint8_t bytes[sizeof(protocol_binary_request_header) + 3];
@@ -869,9 +871,9 @@ extern "C"
      *
      *  SUBDOC_MULTI_LOOKUP:
      *    Header:                24 @0:  <protocol_binary_request_header>
-     *    Extras:                 0 @24: no extras
-     *    Body:         <variable>  @24:
-     *        Key            keylen @24: <variable>
+     *    Extras:            0 OR 4 @24: (optional) expiration
+     *    Body:         <variable>  @24 + extlen:
+     *        Key            keylen @24 + extlen: <variable>
      *        1..MULTI_MAX_PATHS [Lookup Operation Spec]
      *
      *        Lookup Operation Spec:

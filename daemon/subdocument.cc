@@ -45,7 +45,7 @@ static bool subdoc_operate(SubdocCmdContext* context);
 static ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
                                        ENGINE_ERROR_CODE ret,
                                        const char* key, size_t keylen,
-                                       uint16_t vbucket);
+                                       uint16_t vbucket, uint32_t expiration);
 static void subdoc_response(SubdocCmdContext* context);
 
 static protocol_binary_response_status
@@ -199,6 +199,38 @@ subdoc_create_context(Connection*c, const SubdocCmdTraits traits,
     }
 }
 
+/* Decode the specified expiration value for the specified request.
+ */
+uint32_t subdoc_decode_expiration(const protocol_binary_request_header* header,
+                                  const SubdocCmdTraits traits) {
+    // Expiration is zero (never expire) unless an (optional) 4-byte expiry
+    // value was included in the extras.
+    const char* expiration_ptr = nullptr;
+
+    // Single-path and multi-path have different extras encodings:
+    switch (traits.path) {
+    case SubdocPath::SINGLE:
+        if (header->request.extlen == SUBDOC_EXPIRY_EXTRAS_LEN) {
+            expiration_ptr = reinterpret_cast<const char*>(header) +
+                             sizeof(*header) + SUBDOC_BASIC_EXTRAS_LEN;
+        }
+        break;
+
+    case SubdocPath::MULTI:
+        if (header->request.extlen == sizeof(uint32_t)) {
+            expiration_ptr = reinterpret_cast<const char*>(header) +
+                             sizeof(*header);
+        }
+        break;
+    }
+
+    if (expiration_ptr != nullptr) {
+        return ntohl(*reinterpret_cast<const uint32_t*>(expiration_ptr));
+    } else {
+        return 0;
+    }
+}
+
 /* Main function which handles execution of all sub-document
  * commands: fetches, operates on, updates and finally responds to the client.
  *
@@ -227,6 +259,8 @@ static void subdoc_executor(Connection *c, const void *packet,
 
     const char* value = key + keylen;
     const uint32_t vallen = bodylen - keylen - extlen;
+
+    const uint32_t expiration = subdoc_decode_expiration(header, traits);
 
     // We potentially need to make multiple attempts at this as the engine may
     // return EWOULDBLOCK if not initially resident, hence initialise ret to
@@ -274,7 +308,7 @@ static void subdoc_executor(Connection *c, const void *packet,
         }
 
         // 3. Update the document in the engine (mutations only).
-        ret = subdoc_update(context, ret, key, keylen, vbucket);
+        ret = subdoc_update(context, ret, key, keylen, vbucket, expiration);
         if (ret == ENGINE_KEY_EEXISTS) {
             if (auto_retry) {
                 // Retry the operation. Reset the command context and related
@@ -691,7 +725,8 @@ static bool subdoc_operate(SubdocCmdContext* context) {
 // else false.
 ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
                                 ENGINE_ERROR_CODE ret, const char* key,
-                                size_t keylen, uint16_t vbucket) {
+                                size_t keylen, uint16_t vbucket,
+                                uint32_t expiration) {
     auto* const c = context->c;
     auto* handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
 
@@ -721,9 +756,9 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
         item *new_doc;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->allocate(handle,
-                                             c, &new_doc, key, keylen, new_doc_len, 0, 0,
-                                             PROTOCOL_BINARY_DATATYPE_JSON);
+            ret = c->getBucketEngine()->allocate(
+                    handle, c, &new_doc, key, keylen, new_doc_len, 0,
+                    expiration, PROTOCOL_BINARY_DATATYPE_JSON);
         }
 
         switch (ret) {

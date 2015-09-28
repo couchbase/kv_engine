@@ -55,7 +55,8 @@ struct SubdocCmdTraits {
 
 // Additional traits for multi-path operations.
 struct SubdocMultiCmdTraits {
-    uint32_t min_body_len;  // Minimum size of the command body.
+    uint32_t min_value_len;  // Minimum size of the command value.
+                             // (i.e. lookup/mutation specs)
     bool is_mutator;  // Does the command mutate (modify) the document?
 };
 

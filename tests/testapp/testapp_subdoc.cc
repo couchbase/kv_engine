@@ -51,14 +51,21 @@ std::ostream& operator<<(std::ostream& os, const SubdocCmd& obj)
 void encode_subdoc_command(char* buf, size_t bufsz, const SubdocCmd& cmd,
                            ssize_t& length) {
     protocol_binary_request_subdocument* request = (protocol_binary_request_subdocument*)buf;
-    ASSERT_GE(bufsz,
-              (sizeof(*request) + cmd.key.size() + cmd.path.size() + cmd.value.size()));
 
     // Always need a key.
     ASSERT_FALSE(cmd.key.empty());
 
     // path is encoded in extras as a uint16_t.
     ASSERT_LT(cmd.path.size(), std::numeric_limits<uint16_t>::max());
+
+    // Expiry (optional) is encoded in extras. Only include if non-zero or
+    // if explicit encoding of zero was requested.
+    bool include_expiry = (cmd.expiry != 0 || cmd.encode_zero_expiry_on_wire);
+    size_t encoded_expiry_len = include_expiry ? sizeof(uint32_t) : 0;
+
+    ASSERT_GE(bufsz,
+              (sizeof(*request) + encoded_expiry_len + cmd.key.size() +
+               cmd.path.size() + cmd.value.size()));
 
     memset(request, 0, sizeof(*request));
 
@@ -67,7 +74,8 @@ void encode_subdoc_command(char* buf, size_t bufsz, const SubdocCmd& cmd,
     header->request.magic = PROTOCOL_BINARY_REQ;
     header->request.opcode = cmd.cmd;
     header->request.keylen = htons(cmd.key.size());
-    header->request.extlen = sizeof(uint16_t) + sizeof(uint8_t);
+    header->request.extlen = sizeof(uint16_t) + sizeof(uint8_t) +
+                             encoded_expiry_len;
     header->request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     header->request.vbucket = 0;
     header->request.bodylen = htonl(header->request.extlen + cmd.key.size() +
@@ -75,9 +83,18 @@ void encode_subdoc_command(char* buf, size_t bufsz, const SubdocCmd& cmd,
     header->request.opaque = 0xdeadbeef;
     header->request.cas = cmd.cas;
 
-    // Add extras: flags, pathlen.
-    request->message.extras.subdoc_flags = cmd.flags;
+    // Add extras: pathlen, flags, optional expiry
     request->message.extras.pathlen = htons(cmd.path.size());
+    request->message.extras.subdoc_flags = cmd.flags;
+    if (include_expiry) {
+        // As expiry is optional (and immediately follows subdoc_flags,
+        // i.e. unaligned) there's no field in the struct; so use low-level
+        // memcpy to populate it.
+        char* expiry_ptr = reinterpret_cast<char*>(&request->message.extras.subdoc_flags) +
+                sizeof(request->message.extras.subdoc_flags);
+        uint32_t encoded_expiry = htonl(cmd.expiry);
+        std::memcpy(expiry_ptr, &encoded_expiry, sizeof(encoded_expiry));
+    }
 
     // Add Body: key; path; value if applicable.
     const off_t key_offset = sizeof(*header) + header->request.extlen;
@@ -1718,6 +1735,56 @@ TEST_P(McdTestappTest, SubdocCASAutoRetry)
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                                 "a", "key3", "3"),
                       PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "");
+}
+
+// Test operation of setting document expiry for single-path commands.
+TEST_P(McdTestappTest, SubdocExpiry_Single)
+{
+    // Create two documents; one to be used for an exlicit 1s expiry and one
+    // for an explicit 0s (i.e. never) expiry.
+    store_object("ephemeral", "[\"a\"]");
+    store_object("permanent", "[\"a\"]");
+
+    // Expiry not permitted for SUBDOC_GET operations.
+    SubdocCmd get(PROTOCOL_BINARY_CMD_SUBDOC_GET, "ephemeral", "[0]");
+    get.expiry = 666;
+    expect_subdoc_cmd(get, PROTOCOL_BINARY_RESPONSE_EINVAL, "");
+
+    // Perform a REPLACE operation, setting a expiry of 1s.
+    SubdocCmd replace(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "ephemeral", "[0]",
+                      "\"b\"");
+    replace.expiry = 1;
+    expect_subdoc_cmd(replace, PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+    // Try to read the document immediately - should exist.
+    auto result = fetch_value("ephemeral");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("[\"b\"]", result.second);
+
+    // Perform a REPLACE, explicitly encoding an expiry of 0s.
+    SubdocCmd replace2(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "permanent", "[0]",
+                      "\"b\"");
+    replace2.encode_zero_expiry_on_wire = true;
+    expect_subdoc_cmd(replace2, PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+    // Try to read the second document immediately - should exist.
+    result = fetch_value("permanent");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("[\"b\"]", result.second);
+
+    // Sleep for 2s seconds.
+    // TODO: it would be great if we could somehow accelerate time from the
+    // harness, and not add 2s to the runtime of the test...
+    usleep(2 * 1000 * 1000);
+
+    // Try to read the ephemeral document - shouldn't exist.
+    result = fetch_value("ephemeral");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, result.first);
+
+    // Try to read the permanent document - should still exist.
+    result = fetch_value("permanent");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ("[\"b\"]", result.second);
 }
 
 

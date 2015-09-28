@@ -27,17 +27,8 @@
 #include <iterator>
 
 std::vector<char> SubdocMultiLookupCmd::encode() const {
-    std::vector<char> request;
-
-    // Reserve space for the header and setup pointer to it (we fill in the
-    // details once the rest of the packet is encoded).
-    request.resize(sizeof(protocol_binary_request_header));
-
-    size_t bodylen = 0;
-
-    // Add the key.
-    std::copy(key.begin(), key.end(), back_inserter(request));
-    bodylen += key.size();
+    // Encode the common elements (key, extras) first.
+    std::vector<char> request = encode_common();
 
     // Add all lookup specs.
     for (const auto& s : specs) {
@@ -53,29 +44,19 @@ std::vector<char> SubdocMultiLookupCmd::encode() const {
                   &encoded.bytes[sizeof(encoded.spec)],
                   back_inserter(request));
         std::copy(s.path.begin(), s.path.end(), back_inserter(request));
-        bodylen += sizeof(encoded.spec) + s.path.size();
     }
 
     // Populate the header.
     auto* header = reinterpret_cast<protocol_binary_request_header*>
         (request.data());
-    populate_header(*header, bodylen);
+    populate_header(*header, request.size() - sizeof(*header));
 
     return request;
 }
 
 std::vector<char> SubdocMultiMutationCmd::encode() const {
-    std::vector<char> request;
-
-    // Reserve space for the header and setup pointer to it (we fill in the
-    // details once the rest of the packet is encoded).
-    request.resize(sizeof(protocol_binary_request_header));
-
-    size_t bodylen = 0;
-
-    // Add the key.
-    std::copy(key.begin(), key.end(), back_inserter(request));
-    bodylen += key.size();
+    // Encode the common elements (key, extras) first.
+    std::vector<char> request = encode_common();
 
     // Add all lookup specs.
     for (const auto& s : specs) {
@@ -93,14 +74,39 @@ std::vector<char> SubdocMultiMutationCmd::encode() const {
                   back_inserter(request));
         std::copy(s.path.begin(), s.path.end(), back_inserter(request));
         std::copy(s.value.begin(), s.value.end(), back_inserter(request));
-        bodylen += sizeof(encoded.spec) + s.path.size() + s.value.size();
     }
 
     // Populate the header.
     auto* header = reinterpret_cast<protocol_binary_request_header*>
         (request.data());
 
-    populate_header(*header, bodylen);
+    populate_header(*header, request.size() - sizeof(*header));
+
+    return request;
+}
+
+std::vector<char> SubdocMultiCmd::encode_common() const {
+    std::vector<char> request;
+
+    // Reserve space for the header and setup pointer to it (we fill in the
+    // details once the rest of the packet is encoded).
+    request.resize(sizeof(protocol_binary_request_header));
+
+    // Expiry (optional) is encoded in extras. Only include if non-zero or
+    // if explicit encoding of zero was requested.
+    bool include_expiry = (expiry != 0 || encode_zero_expiry_on_wire);
+    if (include_expiry) {
+        union {
+            uint32_t expiry;
+            char bytes[sizeof(uint32_t)];
+        } u;
+        u.expiry = htonl(expiry);
+        std::copy(&u.bytes[0], &u.bytes[sizeof(uint32_t)],
+                  back_inserter(request));
+    }
+
+    // Add the key.
+    std::copy(key.begin(), key.end(), back_inserter(request));
 
     return request;
 }
@@ -110,7 +116,7 @@ void SubdocMultiCmd::populate_header(protocol_binary_request_header& header,
     header.request.magic = PROTOCOL_BINARY_REQ;
     header.request.opcode = command;
     header.request.keylen = htons(key.size());
-    header.request.extlen = 0;
+    header.request.extlen = (expiry != 0 || encode_zero_expiry_on_wire) ? sizeof(uint32_t) : 0;
     header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
     /* TODO: vbucket */
     header.request.bodylen = htonl(bodylen);

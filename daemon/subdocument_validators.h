@@ -28,6 +28,14 @@
 /* Maximum sub-document path length */
 const size_t SUBDOC_PATH_MAX_LENGTH = 1024;
 
+/* Possible valid extras lengths for single-path commands. */
+
+// Extras is either pathlen + subdoc_flags ...
+const size_t SUBDOC_BASIC_EXTRAS_LEN = sizeof(uint16_t) + sizeof(uint8_t);
+// ... or it may haven an additional expiry for mutations only:
+const size_t SUBDOC_EXPIRY_EXTRAS_LEN = SUBDOC_BASIC_EXTRAS_LEN + sizeof(uint32_t);
+
+
 /* Subdocument validator functions. Returns 0 if valid, else -1. */
 protocol_binary_response_status subdoc_get_validator(void* packet);
 protocol_binary_response_status subdoc_exists_validator(void* packet);
