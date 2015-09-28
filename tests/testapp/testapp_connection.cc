@@ -281,7 +281,7 @@ void MemcachedConnection::connect() {
         }
 
         bio = BIO_new_ssl(context, 1);
-        BIO_push(bio, BIO_new_fd(sock, 0));
+        BIO_push(bio, BIO_new_socket(sock, 0));
 
         if (BIO_do_handshake(bio) <= 0) {
             BIO_free_all(bio);
