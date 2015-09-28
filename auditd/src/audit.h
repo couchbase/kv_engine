@@ -60,6 +60,7 @@ public:
     Audit()
         : processeventqueue(new std::queue<Event*>()),
           filleventqueue(new std::queue<Event*>()),
+          terminate_audit_daemon(false),
           dropped_events(0),
           max_audit_queue(50000) {
         cb_cond_initialize(&processeventqueue_empty);
