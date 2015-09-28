@@ -104,6 +104,8 @@ public:
 
     bool isStreamPresent(uint16_t vbucket);
 
+    void cancelTask();
+
 private:
 
     DcpResponse* getNextItem();
@@ -151,6 +153,7 @@ private:
     bool pendingEnableExtMetaData;
     bool pendingEnableValueCompression;
     bool pendingSupportCursorDropping;
+    bool taskCancelled;
 
     FlowControl flowControl;
 

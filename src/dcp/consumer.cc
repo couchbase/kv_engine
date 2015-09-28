@@ -79,7 +79,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name), opaqueCounter(0), processerTaskId(0),
       itemsToProcess(false), lastNoopTime(ep_current_time()), backoffs(0),
-      flowControl(engine, this)
+      taskCancelled(false), flowControl(engine, this)
 {
     Configuration& config = engine.getConfiguration();
     streams = new passive_stream_t[config.getMaxVbuckets()];
@@ -101,9 +101,18 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
 }
 
 DcpConsumer::~DcpConsumer() {
-    ExecutorPool::get()->cancel(processerTaskId);
+    cancelTask();
     closeAllStreams();
+
     delete[] streams;
+}
+
+
+void DcpConsumer::cancelTask() {
+    if (!taskCancelled) {
+        ExecutorPool::get()->cancel(processerTaskId);
+        taskCancelled = true;
+    }
 }
 
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,

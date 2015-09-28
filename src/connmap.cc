@@ -1056,6 +1056,7 @@ void DcpConnMap::shutdownAllConnections() {
     rlh.unlock();
 
     closeAllStreams_UNLOCKED();
+    cancelAllTasks_UNLOCKED();
     all.clear();
     map_.clear();
 }
@@ -1095,6 +1096,16 @@ void DcpConnMap::closeAllStreams_UNLOCKED() {
             producer->closeAllStreams();
         } else {
             static_cast<DcpConsumer*>(itr->second.get())->closeAllStreams();
+        }
+    }
+}
+
+void DcpConnMap::cancelAllTasks_UNLOCKED() {
+    std::map<const void*, connection_t>::iterator itr = map_.begin();
+    for (; itr != map_.end(); ++itr) {
+        DcpConsumer* consumer = dynamic_cast<DcpConsumer*> (itr->second.get());
+        if (consumer) {
+            consumer->cancelTask();
         }
     }
 }

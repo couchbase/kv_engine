@@ -505,6 +505,8 @@ private:
 
     void closeAllStreams_UNLOCKED();
 
+    void cancelAllTasks_UNLOCKED();
+
     std::list<connection_t> deadConnections;
 
     SpinLock numBackfillsLock;
