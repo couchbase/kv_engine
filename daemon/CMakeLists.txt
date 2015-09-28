@@ -68,6 +68,8 @@ ADD_EXECUTABLE(memcached
                ioctl.cc
                mcaudit.cc
                mcaudit.h
+               mcbp.cc
+               mcbp.h
                mcbp_topkeys.cc
                mcbp_topkeys.h
                mcbp_validators.cc
@@ -91,7 +93,7 @@ ADD_EXECUTABLE(memcached
                settings.h
                stats.h
                ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
-               ${Memcached_BINARY_DIR}/default_rbac.cc)
+               ${Memcached_BINARY_DIR}/default_rbac.cc net_buf.h)
 
 ADD_DEPENDENCIES(memcached generate_audit_descriptors)
 

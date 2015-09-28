@@ -19,14 +19,12 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/engine.h>
 #include <memcached/extension.h>
-#include "net_buf.h"
 #include <JSON_checker.h>
 
+#include "dynamic_buffer.h"
+#include "net_buf.h"
 #include "rbac.h"
 #include "settings.h"
-
-#include "dynamic_buffer.h"
-
 
 /** Maximum length of a key. */
 #define KEY_MAX_LENGTH 250
@@ -242,24 +240,11 @@ const char* get_server_version(void);
  */
 int add_iov(Connection *c, const void *buf, size_t len);
 
-int add_bin_header(Connection *c, uint16_t err, uint8_t ext_len, uint16_t key_len,
-                   uint32_t body_len, uint8_t datatype);
-
 /* set up a connection to write a DynamicBuffer then free it once sent. */
 void write_and_free(Connection *c, DynamicBuffer* buf);
 
-void write_bin_packet(Connection *c, protocol_binary_response_status err);
-
 /* Increments topkeys count for a key when called by a valid operation. */
 void update_topkeys(const char *key, size_t nkey, Connection *c);
-
-/**
- * Convert an error code generated from the storage engine to the corresponding
- * error code used by the protocol layer.
- * @param e the error code as used in the engine
- * @return the error code as used by the protocol layer
- */
-protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERROR_CODE e);
 
 void bucket_item_set_cas(Connection *c, item *it, uint64_t cas);
 

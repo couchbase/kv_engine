@@ -21,6 +21,7 @@
 
 #include "connections.h"
 #include "debug_helpers.h"
+#include "mcbp.h"
 #include "subdocument_context.h"
 #include "subdocument_traits.h"
 #include "subdocument_validators.h"
@@ -289,7 +290,7 @@ static void subdoc_executor(Connection *c, const void *packet,
                 continue;
             } else {
                 // No auto-retry - return status back to client and return.
-                write_bin_packet(c, engine_error_2_protocol_error(ret));
+                mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
                 return;
             }
         } else if (ret != ENGINE_SUCCESS) {
@@ -320,7 +321,7 @@ static void subdoc_executor(Connection *c, const void *packet,
          "attempting to perform op %s for client %s - returning TMPFAIL",
          c->getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(mcbp_cmd),
          c->getPeername().c_str());
-    write_bin_packet(c, engine_error_2_protocol_error(ENGINE_TMPFAIL));
+    mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ENGINE_TMPFAIL));
 }
 
 /* Gets a flat, uncompressed JSON document ready for performing a subjson
@@ -485,7 +486,7 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
             return false;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret));
+            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
             return false;
         }
     }
@@ -511,7 +512,7 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             // Failed. Note c->item and c->commandContext will both be freed for
             // us as part of preparing for the next command.
-            write_bin_packet(c, status);
+            mcbp_write_packet(c, status);
             return false;
         }
 
@@ -602,7 +603,7 @@ static bool subdoc_operate(SubdocCmdContext* context) {
                 if (op->status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
                     // Failure of a (the only) op stops execution and returns an
                     // error to the client.
-                    write_bin_packet(context->c, op->status);
+                    mcbp_write_packet(context->c, op->status);
                     return false;
                 }
                 break;
@@ -637,8 +638,8 @@ static bool subdoc_operate(SubdocCmdContext* context) {
                             intermediate_doc.reset(new char[new_doc_len]);
                         } catch (const std::bad_alloc&) {
                             // Insufficient memory - unable to continue.
-                            write_bin_packet(context->c,
-                                             PROTOCOL_BINARY_RESPONSE_ENOMEM);
+                            mcbp_write_packet(context->c,
+                                              PROTOCOL_BINARY_RESPONSE_ENOMEM);
                             return false;
                         }
 
@@ -740,7 +741,7 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
             return ret;
 
         default:
-            write_bin_packet(c, engine_error_2_protocol_error(ret));
+            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
             return ret;
         }
 
@@ -754,7 +755,7 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
         new_doc_info.nvalue = IOV_MAX;
         if (!c->getBucketEngine()->get_item_info(handle,
                                              c, new_doc, &new_doc_info)) {
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return ENGINE_FAILED;
         }
 
@@ -782,7 +783,7 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
                 settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                                                 "%u: Subdoc: Failed to get item info",
                                                 c->getId());
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return ENGINE_FAILED;
             }
             context->vbucket_uuid = info.vbucket_uuid;
@@ -806,7 +807,7 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
         break;
 
     default:
-        write_bin_packet(c, engine_error_2_protocol_error(ret));
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
         break;
     }
 
@@ -847,9 +848,9 @@ static void subdoc_single_response(SubdocCmdContext* context) {
         vallen = mloc.length;
     }
 
-    if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
-                       /*keylen*/0, extlen + vallen,
-                       PROTOCOL_BINARY_RAW_BYTES) == -1) {
+    if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
+        /*keylen*/0, extlen + vallen,
+                        PROTOCOL_BINARY_RAW_BYTES) == -1) {
         c->setState(conn_closing);
         return;
     }
@@ -860,7 +861,7 @@ static void subdoc_single_response(SubdocCmdContext* context) {
         DynamicBuffer& response_buf = c->getDynamicBuffer();
         if (!response_buf.grow(extlen)) {
             // Unable to form complete response.
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             return;
         }
         char* const extras_ptr = response_buf.getCurrent();
@@ -894,7 +895,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
             const size_t extlen = sizeof(mutation_descr_t);
             if (!extras_buf.grow(extlen)) {
                 // Unable to form complete response.
-                write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
                 return;
             }
 
@@ -903,9 +904,9 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
             extras_buf.moveOffset(sizeof(extlen));
 
             // Finally send header and extras (empty body).
-            if (add_bin_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
-                               /*keylen*/0, extlen,
-                               PROTOCOL_BINARY_RAW_BYTES) == -1) {
+            if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
+                /*keylen*/0, extlen,
+                                PROTOCOL_BINARY_RAW_BYTES) == -1) {
                 c->setState(conn_closing);
                 return;
             }
@@ -913,7 +914,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
 
         } else {
             // No extras, just send respose with zero body.
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             return;
         }
     } else {
@@ -928,7 +929,7 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
         }
         if (first_failing_idx == 0xff) {
             // Something's gone wrong, we didn't find *any* unsuccessful spec.
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
 
@@ -936,13 +937,14 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
         const size_t response_bodylen = sizeof(uint16_t) + sizeof(uint8_t);
         if (!response_buf.grow(response_bodylen)) {
             // Unable to form complete response.
-            write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             return;
         }
 
         // Build header and add response body iovec.
-        if (add_bin_header(c, context->overall_status, /*extlen*/0, /*keylen*/0,
-                           response_bodylen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
+        if (mcbp_add_header(c, context->overall_status, /*extlen*/
+                            0, /*keylen*/0,
+                            response_bodylen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
             c->setState(conn_closing);
             return;
         }
@@ -988,13 +990,14 @@ static void subdoc_multi_lookup_response(SubdocCmdContext* context) {
     size_t needed = (sizeof(uint16_t) + sizeof(uint32_t)) * context->ops.size();
     if (!response_buf.grow(needed)) {
         // Unable to form complete response.
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         return;
     }
 
     // Allocated required resource - build the header.
-    if (add_bin_header(c, context->overall_status, /*extlen*/0, /*keylen*/0,
-                       vallen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
+    if (mcbp_add_header(c, context->overall_status, /*extlen*/0, /*keylen*/
+                        0,
+                        vallen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
         c->setState(conn_closing);
         return;
     }
@@ -1044,7 +1047,7 @@ void subdoc_response(SubdocCmdContext* context) {
         break;
 
     default:
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
         c->setState(conn_closing);
     }
 }
