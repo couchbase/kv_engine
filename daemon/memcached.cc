@@ -33,6 +33,7 @@
 #include "breakpad.h"
 #include "runtime.h"
 #include "mcaudit.h"
+#include "session_cas.h"
 #include "settings.h"
 #include "subdocument.h"
 #include "enginemap.h"
@@ -153,15 +154,6 @@ std::atomic<bool> memcached_shutdown;
 
 /* Mutex for global stats */
 std::mutex stats_mutex;
-
-/**
- * Structure to save ns_server's session cas token.
- */
-static struct session_cas {
-    uint64_t value;
-    uint64_t ctr;
-    std::mutex mutex;
-} session_cas;
 
 /*
  * forward declarations
@@ -4188,43 +4180,25 @@ static void get_cmd_timer_executor(Connection *c, void *packet)
 static void set_ctrl_token_executor(Connection *c, void *packet)
 {
     auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(packet);
-    uint64_t old_cas = ntohll(req->message.header.request.cas);
-    uint16_t ret = PROTOCOL_BINARY_RESPONSE_SUCCESS;
-    uint64_t cas_return;
+    uint64_t casval = ntohll(req->message.header.request.cas);
+    uint64_t newval = ntohll(req->message.body.new_cas);
+    uint64_t value;
 
-    {
-        std::lock_guard<std::mutex> lock(session_cas.mutex);
-
-        if (session_cas.ctr > 0) {
-            ret = PROTOCOL_BINARY_RESPONSE_EBUSY;
-        } else {
-            if (old_cas == session_cas.value || old_cas == 0) {
-                session_cas.value = ntohll(req->message.body.new_cas);
-            } else {
-                ret = PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-            }
-        }
-        cas_return = session_cas.value;
-    }
+    auto ret = session_cas.cas(newval, casval, value);
     binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
-                            ret, cas_return, c);
+                            engine_error_2_mcbp_protocol_error(ret),
+                            value, c);
 
     write_and_free(c, &c->getDynamicBuffer());
 }
 
-static void get_ctrl_token_executor(Connection *c, void *packet)
+static void get_ctrl_token_executor(Connection *c, void *)
 {
-    (void)packet;
-    uint64_t cas;
-    {
-        std::lock_guard<std::mutex> lock(session_cas.mutex);
-        cas = session_cas.value;
-    }
     binary_response_handler(NULL, 0, NULL, 0, NULL, 0,
                             PROTOCOL_BINARY_RAW_BYTES,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                            cas, c);
+                            session_cas.getCasValue(), c);
     write_and_free(c, &c->getDynamicBuffer());
 }
 
@@ -4232,18 +4206,13 @@ static void init_complete_executor(Connection *c, void *packet)
 {
     auto* init = reinterpret_cast<protocol_binary_request_init_complete*>(packet);
     uint64_t cas = ntohll(init->message.header.request.cas);;
-    bool stale;
 
-    {
-        std::lock_guard<std::mutex> lock(session_cas.mutex);
-        stale = (session_cas.value != cas);
-    }
-
-    if (stale) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
-    } else {
+    if (session_cas.increment_session_counter(cas)) {
         set_server_initialized(true);
+        session_cas.decrement_session_counter();
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    } else {
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     }
 }
 
@@ -4561,15 +4530,10 @@ static void shutdown_executor(Connection *c, void *packet)
 {
     auto req = reinterpret_cast<protocol_binary_request_shutdown*>(packet);
     uint64_t cas = ntohll(req->message.header.request.cas);
-    bool ok;
 
-    {
-        std::lock_guard<std::mutex> lock(session_cas.mutex);
-        ok = session_cas.value == cas;
-    }
-
-    if (ok) {
+    if (session_cas.increment_session_counter(cas)) {
         shutdown_server();
+        session_cas.decrement_session_counter();
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     } else {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
@@ -6573,24 +6537,11 @@ static uint8_t get_opcode_if_ewouldblock_set(const void *cookie) {
 }
 
 static bool validate_session_cas(const uint64_t cas) {
-    bool ret = true;
-    std::lock_guard<std::mutex> lock(session_cas.mutex);
-    if (cas != 0) {
-        if (session_cas.value != cas) {
-            ret = false;
-        } else {
-            session_cas.ctr++;
-        }
-    } else {
-        session_cas.ctr++;
-    }
-    return ret;
+    return session_cas.increment_session_counter(cas);
 }
 
 static void decrement_session_ctr(void) {
-    std::lock_guard<std::mutex> lock(session_cas.mutex);
-    cb_assert(session_cas.ctr != 0);
-    session_cas.ctr--;
+    session_cas.decrement_session_counter();
 }
 
 static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {
@@ -7656,10 +7607,6 @@ int main (int argc, char **argv) {
 #endif
 
     initialize_openssl();
-
-    /* Initialize global variables */
-    session_cas.value = 0xdeadbeef;
-    session_cas.ctr = 0;
 
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
