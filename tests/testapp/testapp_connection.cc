@@ -280,6 +280,11 @@ void MemcachedConnection::connect() {
             throw std::runtime_error("Failed to create openssl client contex");
         }
 
+        /* Ensure read/write operations only return after the
+         * handshake and successful completion.
+         */
+        SSL_CTX_set_mode(context, SSL_MODE_AUTO_RETRY);
+
         bio = BIO_new_ssl(context, 1);
         BIO_push(bio, BIO_new_socket(sock, 0));
 
