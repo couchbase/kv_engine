@@ -4030,6 +4030,33 @@ TEST_P(McdTestappTest, test_MB_16333) {
                                   PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND);
 }
 
+/**
+ * Test that a bad SASL auth doesn't crash the server.
+ * It should be rejected with EINVAL.
+ */
+TEST_P(McdTestappTest, test_MB_16197) {
+    const char* chosenmech = "PLAIN";
+    const char* data = "\0nouser\0nopassword";
+
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    // Bodylen deliberatley set to less than keylen.
+    // This packet should be rejected.
+    size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                   PROTOCOL_BINARY_CMD_SASL_AUTH,
+                                   chosenmech, strlen(chosenmech)/*keylen*/,
+                                   data, 1/*bodylen*/);
+
+    safe_send(buffer.bytes, plen, false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_SASL_AUTH,
+                                  PROTOCOL_BINARY_RESPONSE_EINVAL);
+}
+
 INSTANTIATE_TEST_CASE_P(PlainOrSSL,
                         McdTestappTest,
                         ::testing::Values(Transport::Plain, Transport::SSL));
