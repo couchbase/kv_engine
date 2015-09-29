@@ -4010,6 +4010,26 @@ TEST_P(McdTestappTest, test_topkeys) {
     test_delete_topkeys("key1");
 }
 
+/**
+ * Test that opcode 255 is rejected and the server doesn't crash
+ */
+TEST_P(McdTestappTest, test_MB_16333) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+    memset(buffer.bytes, 0, sizeof(buffer));
+
+    auto len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                255, NULL, 0, NULL, 0);
+    safe_send(buffer.bytes, len, false);
+
+    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+    mcbp_validate_response_header(&buffer.response, 255,
+                                  PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND);
+}
+
 INSTANTIATE_TEST_CASE_P(PlainOrSSL,
                         McdTestappTest,
                         ::testing::Values(Transport::Plain, Transport::SSL));
