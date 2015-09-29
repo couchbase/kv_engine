@@ -634,6 +634,14 @@ public:
         op = static_cast<uint8_t>(o);
     }
 
+    bool isCheckPointMetaItem(void) const {
+        queue_operation qOp = static_cast<enum queue_operation>(op);
+        if ((queue_op_set == qOp) || (queue_op_del == qOp)) {
+            return false;
+        }
+        return true;
+    }
+
     void setNRUValue(uint8_t nru_value) {
         nru = nru_value;
     }
