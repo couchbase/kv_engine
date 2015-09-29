@@ -57,7 +57,7 @@ struct tap_stats {
 } tap_stats;
 
 bool* topkey_commands;
-mcbp_package_validate* validators;
+std::array<mcbp_package_validate, 0x100>& validators = get_mcbp_validators();
 std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
 
 static bool authenticated(Connection* c) {
@@ -4536,7 +4536,6 @@ void mcbp_complete_nread(Connection* c) {
 
 
 void setup_mcbp_packet_handlers(void) {
-    validators = get_mcbp_validators();
     topkey_commands = get_mcbp_topkeys();
 }
 

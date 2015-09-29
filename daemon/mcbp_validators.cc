@@ -23,24 +23,6 @@
 #include "memcached.h"
 #include "subdocument_validators.h"
 
-#include <mutex>
-#include <vector>
-
-static std::vector<mcbp_package_validate> validators;
-
-static void initialize();
-
-mcbp_package_validate *get_mcbp_validators(void) {
-    static std::mutex mutex;
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        if (validators.size() != 0x100) {
-            initialize();
-        }
-    }
-
-    return validators.data();
-}
 
 /******************************************************************************
  *                         Package validators                                 *
@@ -860,11 +842,11 @@ static protocol_binary_response_status tap_validator(void *packet) {
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static void initialize() {
-    validators.reserve(0x100);
-    for (int ii = 0; ii < 0x100; ++ii) {
-        validators.push_back(null_validator);
-    }
+std::array<mcbp_package_validate, 0x100>& get_mcbp_validators() {
+    static std::array<mcbp_package_validate, 0x100> validators;
+
+    std::fill(validators.begin(), validators.end(), null_validator);
+
     validators[PROTOCOL_BINARY_CMD_DCP_OPEN] = dcp_open_validator;
     validators[PROTOCOL_BINARY_CMD_DCP_ADD_STREAM] = dcp_add_stream_validator;
     validators[PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM] = dcp_close_stream_validator;
@@ -954,4 +936,6 @@ static void initialize() {
     validators[PROTOCOL_BINARY_CMD_TAP_FLUSH] = tap_validator;
     validators[PROTOCOL_BINARY_CMD_TAP_OPAQUE] = tap_validator;
     validators[PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET] = tap_validator;
+
+    return validators;
 }

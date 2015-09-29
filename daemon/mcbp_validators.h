@@ -20,6 +20,7 @@
  */
 #pragma once
 
+#include <array>
 #include <memcached/protocol_binary.h>
 
 typedef protocol_binary_response_status (*mcbp_package_validate)(void *packet);
@@ -30,4 +31,4 @@ typedef protocol_binary_response_status (*mcbp_package_validate)(void *packet);
  * @return the array of 0x100 entries for the package
  *         validators
  */
-mcbp_package_validate *get_mcbp_validators(void);
+std::array<mcbp_package_validate, 0x100>& get_mcbp_validators();

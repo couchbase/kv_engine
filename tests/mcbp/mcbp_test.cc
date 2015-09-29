@@ -27,7 +27,7 @@
  */
 namespace BinaryProtocolValidator {
     void ValidatorTest::SetUp() {
-        validators = get_mcbp_validators();
+        validators = get_mcbp_validators().data();
         ASSERT_NE(nullptr, validators);
     }
 
