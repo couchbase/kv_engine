@@ -149,3 +149,12 @@ class Connection;
  * tries to switch bucket/delete bucket, then it is invalidated).
  */
 extern const char* getBucketName(const Connection* c);
+
+/**
+ * All of the buckets is stored in the following vector. It is to be
+ * treated as an array whos size is set at runtime. Once set it never
+ * change
+ */
+extern std::vector<Bucket> all_buckets;
+
+cJSON *get_bucket_details(int idx);

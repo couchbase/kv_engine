@@ -70,6 +70,8 @@ ADD_EXECUTABLE(memcached
                mcaudit.h
                mcbp.cc
                mcbp.h
+               mcbp_executors.cc
+               mcbp_executors.h
                mcbp_topkeys.cc
                mcbp_topkeys.h
                mcbp_validators.cc

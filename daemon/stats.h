@@ -18,6 +18,7 @@
 
 #include <cstdint>
 #include <relaxed_atomic.h>
+#include <mutex>
 
 /**
  * Stats stored per-thread.
@@ -232,3 +233,8 @@ struct thread_stats *get_thread_stats(Connection *c);
  * value.
  */
 #define STATS_MAX(conn, op, value) get_thread_stats(conn)->op.setIfGreater(value);
+
+extern std::mutex stats_mutex;
+extern char reset_stats_time[80];
+
+void stats_reset(const void *cookie);

@@ -246,15 +246,6 @@ void write_and_free(Connection *c, DynamicBuffer* buf);
 /* Increments topkeys count for a key when called by a valid operation. */
 void update_topkeys(const char *key, size_t nkey, Connection *c);
 
-void bucket_item_set_cas(Connection *c, item *it, uint64_t cas);
-
-void bucket_reset_stats(Connection *c);
-ENGINE_ERROR_CODE bucket_get_engine_vb_map(Connection *c,
-                                           engine_get_vb_map_cb callback);
-
-ENGINE_ERROR_CODE bucket_unknown_command(Connection *c,
-                                         protocol_binary_request_header *request,
-                                         ADD_RESPONSE response);
 
 void notify_thread_bucket_deletion(LIBEVENT_THREAD *me);
 
@@ -314,6 +305,75 @@ inline void set_econnreset(void) {
 }
 #endif
 
+void shutdown_server(void);
+bool associate_bucket(Connection *c, const char *name);
+void disassociate_bucket(Connection *c);
+
+bool cookie_is_admin(const void *cookie);
+
+void delete_bucket_main(void* arg);
+void create_bucket_main(void *c);
+
+bool is_listen_disabled(void);
+uint64_t get_listen_disabled_num(void);
+
+ENGINE_ERROR_CODE refresh_cbsasl(Connection *c);
+ENGINE_ERROR_CODE refresh_ssl_certs(Connection *c);
+
+
+
+/* Wrap the engine interface ! */
+
+static inline ENGINE_ERROR_CODE bucket_unknown_command(Connection* c,
+                                                       protocol_binary_request_header* request,
+                                                       ADD_RESPONSE response) {
+    return c->getBucketEngine()->unknown_command(c->getBucketEngineAsV0(), c,
+                                                 request, response);
+}
+
+static inline void bucket_item_set_cas(Connection* c, item* it, uint64_t cas) {
+    c->getBucketEngine()->item_set_cas(c->getBucketEngineAsV0(), c, it, cas);
+}
+
+static inline void bucket_reset_stats(Connection* c) {
+    c->getBucketEngine()->reset_stats(c->getBucketEngineAsV0(), c);
+}
+
+static inline ENGINE_ERROR_CODE bucket_get_engine_vb_map(Connection* c,
+                                                         engine_get_vb_map_cb callback) {
+    return c->getBucketEngine()->get_engine_vb_map(c->getBucketEngineAsV0(),
+                                                   c, callback);
+}
+
+static inline bool bucket_get_item_info(Connection* c, const item* item_,
+                                        item_info* item_info_) {
+    return c->getBucketEngine()->get_item_info(c->getBucketEngineAsV0(),
+                                               c, item_, item_info_);
+}
+
+static inline bool bucket_set_item_info(Connection* c, item* item_,
+                                        const item_info* item_info_) {
+    return c->getBucketEngine()->set_item_info(c->getBucketEngineAsV0(),
+                                               c, item_, item_info_);
+}
+
+static inline ENGINE_ERROR_CODE bucket_store(Connection* c,
+                                             item* item_,
+                                             uint64_t* cas,
+                                             ENGINE_STORE_OPERATION operation,
+                                             uint16_t vbucket) {
+    return c->getBucketEngine()->store(c->getBucketEngineAsV0(), c, item_,
+                                       cas, operation, vbucket);
+}
+
+static inline ENGINE_ERROR_CODE bucket_get(Connection* c,
+                                           item** item_,
+                                           const void* key,
+                                           const int nkey,
+                                           uint16_t vbucket) {
+    return c->getBucketEngine()->get(c->getBucketEngineAsV0(), c, item_,
+                                     key, nkey, vbucket);
+}
 
 
 #endif

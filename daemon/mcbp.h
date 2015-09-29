@@ -53,3 +53,9 @@ void mcbp_write_packet(Connection* c, protocol_binary_response_status err);
  */
 protocol_binary_response_status engine_error_2_mcbp_protocol_error(
     ENGINE_ERROR_CODE e);
+
+bool mcbp_response_handler(const void* key, uint16_t keylen,
+                           const void* ext, uint8_t extlen,
+                           const void* body, uint32_t bodylen,
+                           uint8_t datatype, uint16_t status,
+                           uint64_t cas, const void* cookie);

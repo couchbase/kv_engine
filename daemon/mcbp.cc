@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include <snappy-c.h>
 #include "mcbp.h"
 
 #include "debug_helpers.h"
@@ -200,4 +201,100 @@ protocol_binary_response_status engine_error_2_mcbp_protocol_error(
     }
 
     return ret;
+}
+
+bool mcbp_response_handler(const void* key, uint16_t keylen,
+                           const void* ext, uint8_t extlen,
+                           const void* body, uint32_t bodylen,
+                           uint8_t datatype, uint16_t status,
+                           uint64_t cas, const void* cookie)
+{
+    protocol_binary_response_header header;
+    char *buf;
+    Connection *c = (Connection *)cookie;
+    /* Look at append_bin_stats */
+    size_t needed;
+    bool need_inflate = false;
+    size_t inflated_length;
+
+    if (!c->isSupportsDatatype()) {
+        if ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) ==
+            PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+            need_inflate = true;
+        }
+        /* We may silently drop the knowledge about a JSON item */
+        datatype = PROTOCOL_BINARY_RAW_BYTES;
+    }
+
+    needed = keylen + extlen + sizeof(protocol_binary_response_header);
+    if (need_inflate) {
+        if (snappy_uncompressed_length(reinterpret_cast<const char*>(body),
+                                       bodylen, &inflated_length) != SNAPPY_OK) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "<%u ERROR: Failed to inflate body, "
+                                                "Key: %s may have an incorrect datatype, "
+                                                "Datatype indicates that document is %s" ,
+                                            c->getId(), (const char *)key,
+                                            (datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED) ?
+                                            "RAW_COMPRESSED" : "JSON_COMPRESSED");
+            return false;
+        }
+        needed += inflated_length;
+    } else {
+        needed += bodylen;
+    }
+
+    auto &dbuf = c->getDynamicBuffer();
+    if (!dbuf.grow(needed)) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                        "<%u ERROR: Failed to allocate memory for response",
+                                        c->getId());
+        return false;
+    }
+
+    buf = dbuf.getCurrent();
+    memset(&header, 0, sizeof(header));
+    header.response.magic = (uint8_t)PROTOCOL_BINARY_RES;
+    header.response.opcode = c->binary_header.request.opcode;
+    header.response.keylen = (uint16_t)htons(keylen);
+    header.response.extlen = extlen;
+    header.response.datatype = datatype;
+    header.response.status = (uint16_t)htons(status);
+    if (need_inflate) {
+        header.response.bodylen = htonl((uint32_t)(inflated_length + keylen + extlen));
+    } else {
+        header.response.bodylen = htonl(bodylen + keylen + extlen);
+    }
+    header.response.opaque = c->getOpaque();
+    header.response.cas = htonll(cas);
+
+    memcpy(buf, header.bytes, sizeof(header.response));
+    buf += sizeof(header.response);
+
+    if (extlen > 0) {
+        memcpy(buf, ext, extlen);
+        buf += extlen;
+    }
+
+    if (keylen > 0) {
+        cb_assert(key != NULL);
+        memcpy(buf, key, keylen);
+        buf += keylen;
+    }
+
+    if (bodylen > 0) {
+        if (need_inflate) {
+            if (snappy_uncompress(reinterpret_cast<const char*>(body), bodylen,
+                                  buf, &inflated_length) != SNAPPY_OK) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                                "<%u Failed to inflate item", c->getId());
+                return false;
+            }
+        } else {
+            memcpy(buf, body, bodylen);
+        }
+    }
+
+    dbuf.moveOffset(needed);
+    return true;
 }
