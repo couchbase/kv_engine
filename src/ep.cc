@@ -141,7 +141,7 @@ public:
     VBucketMemoryDeletionTask(EventuallyPersistentEngine &eng,
                               RCPtr<VBucket> &vb, double delay) :
                               GlobalTask(&eng,
-                              Priority::VBMemoryDeletionPriority, delay,false),
+                              Priority::VBMemoryDeletionPriority, delay, true),
                               e(eng), vbucket(vb), vbid(vb->getId()) { }
 
     std::string getDescription() {
