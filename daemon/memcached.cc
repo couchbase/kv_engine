@@ -41,6 +41,7 @@
 #include "topkeys.h"
 #include "stats.h"
 #include "mcbp_executors.h"
+#include "memcached_openssl.h"
 
 #include <platform/strerror.h>
 
@@ -2788,65 +2789,6 @@ static void set_max_filehandles(void) {
 }
 
 #endif
-
-static cb_mutex_t *openssl_lock_cs;
-
-static unsigned long get_thread_id(void) {
-    return (unsigned long)cb_thread_self();
-}
-
-static void openssl_locking_callback(int mode, int type, const char *file,
-                                     int line)
-{
-    (void)line;
-    (void)file;
-
-    if (mode & CRYPTO_LOCK) {
-        cb_mutex_enter(&(openssl_lock_cs[type]));
-    } else {
-        cb_mutex_exit(&(openssl_lock_cs[type]));
-    }
-}
-
-static void initialize_openssl(void) {
-    int ii;
-
-    CRYPTO_malloc_init();
-    SSL_library_init();
-    SSL_load_error_strings();
-    ERR_load_BIO_strings();
-    OpenSSL_add_all_algorithms();
-
-    openssl_lock_cs = reinterpret_cast<cb_mutex_t*>
-        (calloc(CRYPTO_num_locks(), sizeof(cb_mutex_t)));
-    for (ii = 0; ii < CRYPTO_num_locks(); ii++) {
-        cb_mutex_initialize(&(openssl_lock_cs[ii]));
-    }
-
-    CRYPTO_set_id_callback(get_thread_id);
-    CRYPTO_set_locking_callback(openssl_locking_callback);
-}
-
-static void shutdown_openssl() {
-    // Global OpenSSL cleanup:
-    CRYPTO_set_locking_callback(NULL);
-    CRYPTO_set_id_callback(NULL);
-    ENGINE_cleanup();
-    CONF_modules_unload(1);
-    ERR_free_strings();
-    EVP_cleanup();
-    CRYPTO_cleanup_all_ex_data();
-
-    // per-thread cleanup:
-    ERR_remove_state(0);
-
-    // Newer versions of openssl (1.0.2a) have a the function
-    // SSL_COMP_free_compression_methods() to perform this;
-    // however we arn't that new...
-    sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
-
-    free(openssl_lock_cs);
-}
 
 void calculate_maxconns(void) {
     int ii;

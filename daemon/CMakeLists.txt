@@ -77,6 +77,8 @@ ADD_EXECUTABLE(memcached
                mcbp_validators.cc
                mcbp_validators.h
                memcached.cc
+               memcached_openssl.cc
+               memcached_openssl.h
                privileges.c
                privileges.h
                session_cas.cc
