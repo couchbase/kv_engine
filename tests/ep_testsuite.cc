@@ -13899,12 +13899,12 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
 
     size_t mapped_2 = testHarness.get_mapped_bytes();
 
-    // Sanity check (2) - mapped memory should still be high - at least as much
-    // as after document creation, before delete.
+    // Sanity check (2) - mapped memory should still be high - at least 90% of
+    // the value after creation, before delete.
     const size_t current_mapped = mapped_2 - mapped_0;
     const size_t previous_mapped = mapped_1 - mapped_0;
 
-    check(current_mapped >= 1.0 * double(previous_mapped),
+    check(current_mapped >= 0.9 * double(previous_mapped),
           ("current_mapped memory (which is " + std::to_string(current_mapped) +
            ") is lower than 90% of previous mapped (which is " +
            std::to_string(previous_mapped) + "). ").c_str());
