@@ -193,7 +193,7 @@ Available params for "set":
                                    (in seconds).
     defragmenter_age_threshold   - How old (measured in number of defragmenter
                                    passes) must a document be to be considered
-                                   for degragmentation.
+                                   for defragmentation.
     defragmenter_chunk_duration  - Maximum time (in ms) defragmentation task
                                    will run for before being paused (and
                                    resumed at the next defragmenter_interval).
