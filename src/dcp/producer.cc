@@ -30,7 +30,7 @@ const uint32_t DcpProducer::defaultNoopInerval = 20;
 
 void BufferLog::insert(DcpResponse* response) {
     if (isFull()) {
-        throw std::overflow_error("BufferLog::insert: BufferLog is full");
+        throw std::length_error("BufferLog::insert: BufferLog is full");
     }
     bytes_sent += response->getMessageSize();
 }
