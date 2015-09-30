@@ -1072,7 +1072,7 @@ typedef void (* RESPONSE_HANDLER)(Connection*);
  * A map between the response packets op-code and the function to handle
  * the response message.
  */
-static RESPONSE_HANDLER response_handlers[0x100];
+static std::array<RESPONSE_HANDLER, 0x100> response_handlers;
 
 void setup_mcbp_lookup_cmd(
     EXTENSION_BINARY_PROTOCOL_DESCRIPTOR* descriptor,
