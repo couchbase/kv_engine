@@ -2845,8 +2845,6 @@ int main (int argc, char **argv) {
 
     initialize_mbcp_lookup_map();
 
-    setup_mcbp_packet_handlers();
-
     if (memcached_initialize_stderr_logger(get_server_api) != EXTENSION_SUCCESS) {
         fprintf(stderr, "Failed to initialize log system\n");
         return EX_OSERR;

@@ -17,4 +17,6 @@
 
 #pragma once
 
-bool *get_mcbp_topkeys();
+#include <array>
+
+std::array<bool, 0x100>& get_mcbp_topkeys();

@@ -47,5 +47,5 @@ void setup_mcbp_lookup_cmd(
     EXTENSION_BINARY_PROTOCOL_DESCRIPTOR* descriptor,
     uint8_t cmd,
     BINARY_COMMAND_CALLBACK new_handler);
-void setup_mcbp_packet_handlers(void);
+
 void process_stat_settings(ADD_STAT add_stat_callback, void *c);

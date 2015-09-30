@@ -17,15 +17,16 @@
 
 #include "config.h"
 #include "mcbp_topkeys.h"
-#include <memcached/protocol_binary.h>
 
-static bool commands[0x100];
+#include <memcached/protocol_binary.h>
 
 /**
  * Define valid commands to track operations on keys. True commands
  * will be tracked, false will not.
  */
-static void initialize() {
+std::array<bool, 0x100>& get_mcbp_topkeys() {
+    static std::array<bool, 0x100> commands;
+
     commands[PROTOCOL_BINARY_CMD_SETQ] = true;
     commands[PROTOCOL_BINARY_CMD_SET] = true;
     commands[PROTOCOL_BINARY_CMD_ADDQ] = true;
@@ -66,9 +67,6 @@ static void initialize() {
     commands[PROTOCOL_BINARY_CMD_SETQ_WITH_META] = true;
     commands[PROTOCOL_BINARY_CMD_DEL_WITH_META] = true;
     commands[PROTOCOL_BINARY_CMD_DELQ_WITH_META] = true;
-}
 
-bool *get_mcbp_topkeys(void) {
-    initialize();
     return commands;
 }

@@ -56,7 +56,7 @@ struct tap_stats {
     struct tap_cmd_stats received;
 } tap_stats;
 
-bool* topkey_commands;
+std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 std::array<mcbp_package_validate, 0x100>& validators = get_mcbp_validators();
 std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
 
@@ -4532,11 +4532,6 @@ void mcbp_complete_nread(Connection* c) {
     } else {
         process_bin_packet(c);
     }
-}
-
-
-void setup_mcbp_packet_handlers(void) {
-    topkey_commands = get_mcbp_topkeys();
 }
 
 int try_read_mcbp_command(Connection* c) {
