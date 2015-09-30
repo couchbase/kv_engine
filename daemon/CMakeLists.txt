@@ -44,17 +44,19 @@ ENDIF()
 
 ADD_EXECUTABLE(memcached
                ${BREAKPAD_SRCS}
+               ${Memcached_BINARY_DIR}/default_rbac.cc
+               ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
+               ${MEMORY_TRACKING_SRCS}
                breakpad.h
                buckets.h
-               ${MEMORY_TRACKING_SRCS}
                cmdline.cc
                cmdline.h
                command_timings.cc
                command_timings.h
-               config_util.c
-               config_util.h
                config_parse.cc
                config_parse.h
+               config_util.c
+               config_util.h
                connection.cc
                connection.h
                connections.cc
@@ -63,9 +65,12 @@ ADD_EXECUTABLE(memcached
                debug_helpers.h
                dynamic_buffer.cc
                dynamic_buffer.h
-               enginemap.h
                enginemap.cc
+               enginemap.h
                ioctl.cc
+               ioctl.h
+               mc_time.cc
+               mc_time.h
                mcaudit.cc
                mcaudit.h
                mcbp.cc
@@ -79,27 +84,29 @@ ADD_EXECUTABLE(memcached
                memcached.cc
                memcached_openssl.cc
                memcached_openssl.h
+               net_buf.h
                privileges.c
                privileges.h
-               session_cas.cc
-               session_cas.h
-               subdocument.cc
-               subdocument_traits.cc
-               subdocument_validators.cc
-               thread.cc
-               timings.cc
-               topkeys.cc
-               topkeys.h
-               mc_time.cc
                rbac.cc
                rbac.h
                rbac_impl.h
                runtime.cc
                runtime.h
+               session_cas.cc
+               session_cas.h
                settings.h
                stats.h
-               ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
-               ${Memcached_BINARY_DIR}/default_rbac.cc net_buf.h)
+               subdocument.cc
+               subdocument.h
+               subdocument_traits.cc
+               subdocument_traits.h
+               subdocument_validators.cc
+               subdocument_validators.h
+               thread.cc
+               timings.cc
+               timings.h
+               topkeys.cc
+               topkeys.h)
 
 ADD_DEPENDENCIES(memcached generate_audit_descriptors)
 
