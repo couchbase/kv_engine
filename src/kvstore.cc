@@ -90,6 +90,7 @@ std::string KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& new
             vbState->maxDeletedSeqno = newState.maxDeletedSeqno;
         }
 
+        vbState->highSeqno = newState.highSeqno;
         vbState->lastSnapStart = newState.lastSnapStart;
         vbState->lastSnapEnd = newState.lastSnapEnd;
         vbState->maxCas = std::max(vbState->maxCas, newState.maxCas);
