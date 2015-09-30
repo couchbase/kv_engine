@@ -14,12 +14,13 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <snappy-c.h>
 #include "mcbp.h"
 
 #include "debug_helpers.h"
 #include "memcached.h"
 #include "utilities/protocol2text.h"
+
+#include <snappy-c.h>
 
 static ENGINE_ERROR_CODE get_vb_map_cb(const void* cookie,
                                        const void* map,
