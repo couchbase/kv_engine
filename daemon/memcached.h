@@ -177,8 +177,6 @@ bool load_extension(const char *soname, const char *config);
 
 int add_conn_to_pending_io_list(Connection *c);
 
-extern "C" void drop_privileges(void);
-
 /* connection state machine */
 bool conn_listening(Connection *c);
 bool conn_new_cmd(Connection *c);

@@ -42,6 +42,7 @@
 #include "stats.h"
 #include "mcbp_executors.h"
 #include "memcached_openssl.h"
+#include "privileges.h"
 
 #include <platform/strerror.h>
 
