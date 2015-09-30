@@ -151,9 +151,9 @@ class Connection;
 extern const char* getBucketName(const Connection* c);
 
 /**
- * All of the buckets is stored in the following vector. It is to be
+ * All of the buckets are stored in the following vector. It is to be
  * treated as an array whos size is set at runtime. Once set it never
- * change
+ * changes
  */
 extern std::vector<Bucket> all_buckets;
 
