@@ -326,7 +326,7 @@ private:
 
     void transitionState(stream_state_t newState);
 
-    void clearBuffer();
+    uint32_t clearBuffer();
 
     const char* getEndStreamStatusStr(end_stream_status_t status);
 

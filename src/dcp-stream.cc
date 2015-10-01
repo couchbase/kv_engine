@@ -971,8 +971,7 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
     LockHolder lh(streamMutex);
     transitionState(STREAM_DEAD);
     lh.unlock();
-    uint32_t unackedBytes = buffer.bytes;
-    clearBuffer();
+    uint32_t unackedBytes = clearBuffer();
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Setting stream to dead state,"
         " last_seqno is %llu, unackedBytes is %u, status is %s",
         consumer->logHeader(), vb_, last_seqno, unackedBytes,
@@ -1374,8 +1373,9 @@ DcpResponse* PassiveStream::next() {
     return response;
 }
 
-void PassiveStream::clearBuffer() {
+uint32_t PassiveStream::clearBuffer() {
     LockHolder lh(buffer.bufMutex);
+    uint32_t unackedBytes = buffer.bytes;
 
     while (!buffer.messages.empty()) {
         DcpResponse* resp = buffer.messages.front();
@@ -1385,6 +1385,7 @@ void PassiveStream::clearBuffer() {
 
     buffer.bytes = 0;
     buffer.items = 0;
+    return unackedBytes;
 }
 
 void PassiveStream::transitionState(stream_state_t newState) {
