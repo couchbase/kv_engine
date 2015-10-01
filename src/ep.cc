@@ -484,34 +484,39 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                                              uint64_t revSeqno) {
     RCPtr<VBucket> vb = getVBucket(vbid);
     if (vb) {
-        int bucket_num(0);
-        incExpirationStat(vb);
-        LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-        StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, false);
-        if (v) {
-            if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
-                // This is a temporary item whose background fetch for metadata
-                // has completed.
-                bool deleted = vb->ht.unlocked_del(key, bucket_num);
-                cb_assert(deleted);
-            } else if (v->isExpired(startTime) && !v->isDeleted()) {
-                vb->ht.unlocked_softDelete(v, 0, getItemEvictionPolicy());
-                queueDirty(vb, v, &lh, false);
-            }
-        } else {
-            if (eviction_policy == FULL_EVICTION) {
-                // Create a temp item and delete and push it
-                // into the checkpoint queue.
-                add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
-                                                            eviction_policy);
-                if (rv == ADD_NOMEM) {
-                    return;
+        // Obtain reader access to the VB state change lock so that
+        // the VB can't switch state whilst we're processing
+        ReaderLockHolder(vb->getStateLock());
+        if (vb->getState() == vbucket_state_active) {
+            int bucket_num(0);
+            incExpirationStat(vb);
+            LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
+            StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, false);
+            if (v) {
+                if (v->isTempNonExistentItem() || v->isTempDeletedItem()) {
+                    // This is a temporary item whose background fetch for metadata
+                    // has completed.
+                    bool deleted = vb->ht.unlocked_del(key, bucket_num);
+                    cb_assert(deleted);
+                } else if (v->isExpired(startTime) && !v->isDeleted()) {
+                    vb->ht.unlocked_softDelete(v, 0, getItemEvictionPolicy());
+                    queueDirty(vb, v, &lh, false);
                 }
-                v = vb->ht.unlocked_find(key, bucket_num, true, false);
-                v->setStoredValueState(StoredValue::state_deleted_key);
-                v->setRevSeqno(revSeqno);
-                vb->ht.unlocked_softDelete(v, 0, eviction_policy);
-                queueDirty(vb, v, &lh, false);
+            } else {
+                if (eviction_policy == FULL_EVICTION) {
+                    // Create a temp item and delete and push it
+                    // into the checkpoint queue.
+                    add_type_t rv = vb->ht.unlocked_addTempItem(bucket_num, key,
+                                                                eviction_policy);
+                    if (rv == ADD_NOMEM) {
+                        return;
+                    }
+                    v = vb->ht.unlocked_find(key, bucket_num, true, false);
+                    v->setStoredValueState(StoredValue::state_deleted_key);
+                    v->setRevSeqno(revSeqno);
+                    vb->ht.unlocked_softDelete(v, 0, eviction_policy);
+                    queueDirty(vb, v, &lh, false);
+                }
             }
         }
     }

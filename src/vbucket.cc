@@ -183,6 +183,7 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
 
 void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
     cb_assert(sapi);
+    WriterLockHolder wlh(stateLock);
     vbucket_state_t oldstate(state);
 
     if (to == vbucket_state_active &&

@@ -28,6 +28,7 @@
 #include "common.h"
 #include "mutex.h"
 #include "syncobject.h"
+#include "rwlock.h"
 
 /**
  * RAII lock holder to guarantee release of the lock.
@@ -156,6 +157,66 @@ private:
     size_t  n_locks;
 
     DISALLOW_COPY_AND_ASSIGN(MultiLockHolder);
+};
+
+// RAII Reader lock
+class ReaderLockHolder {
+public:
+    ReaderLockHolder(RWLock& lock)
+      :  rwLock(lock) {
+        int locked = rwLock.readerLock();
+        if (locked != 0) {
+            char exceptionMsg[64];
+            snprintf(exceptionMsg, sizeof(exceptionMsg),
+                     "%d returned by readerLock()", locked);
+            throw std::runtime_error(exceptionMsg);
+        }
+    }
+
+    ~ReaderLockHolder() {
+        int unlocked = rwLock.readerUnlock();
+        if (unlocked != 0) {
+            char exceptionMsg[64];
+            snprintf(exceptionMsg, sizeof(exceptionMsg),
+                     "%d returned by readerUnlock()", unlocked);
+            throw std::runtime_error(exceptionMsg);
+        }
+    }
+
+private:
+    RWLock& rwLock;
+
+    DISALLOW_COPY_AND_ASSIGN(ReaderLockHolder);
+};
+
+// RAII Writer lock
+class WriterLockHolder {
+public:
+    WriterLockHolder(RWLock& lock)
+      :  rwLock(lock) {
+        int locked = rwLock.writerLock();
+        if (locked != 0) {
+            char exceptionMsg[64];
+            snprintf(exceptionMsg, sizeof(exceptionMsg),
+                     "%d returned by writerLock()", locked);
+            throw std::runtime_error(exceptionMsg);
+        }
+    }
+
+    ~WriterLockHolder() {
+        int unlocked = rwLock.writerUnlock();
+        if (unlocked != 0) {
+            char exceptionMsg[64];
+            snprintf(exceptionMsg, sizeof(exceptionMsg),
+                     "%d returned by writerUnlock()", unlocked);
+            throw std::runtime_error(exceptionMsg);
+        }
+    }
+
+private:
+    RWLock& rwLock;
+
+    DISALLOW_COPY_AND_ASSIGN(WriterLockHolder);
 };
 
 #endif  // SRC_LOCKS_H_
