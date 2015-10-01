@@ -1420,17 +1420,27 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
                 status = ENGINE_SUCCESS;
             }
         } else {
+            bool restore = false;
             if (v && v->isResident()) {
                 status = ENGINE_SUCCESS;
-            }
-
-            bool restore = false;
-            if (eviction_policy == VALUE_ONLY &&
-                v && !v->isResident() && !v->isDeleted()) {
-                restore = true;
-            } else if (eviction_policy == FULL_EVICTION &&
-                       v && v->isTempInitialItem()) {
-                restore = true;
+            } else {
+                switch (eviction_policy) {
+                    case VALUE_ONLY:
+                        if (v && !v->isResident() && !v->isDeleted()) {
+                            restore = true;
+                        }
+                        break;
+                    case FULL_EVICTION:
+                        if (v) {
+                            if (v->isTempInitialItem() ||
+                                (!v->isResident() && !v->isDeleted())) {
+                                restore = true;
+                            }
+                        }
+                        break;
+                    default:
+                        throw std::logic_error("Unknown eviction policy");
+                }
             }
 
             if (restore) {
@@ -1515,17 +1525,27 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                 status = ENGINE_SUCCESS;
             }
         } else {
+            bool restore = false;
             if (v && v->isResident()) {
                 status = ENGINE_SUCCESS;
-            }
-
-            bool restore = false;
-            if (eviction_policy == VALUE_ONLY &&
-                v && !v->isResident() && !v->isDeleted()) {
-                restore = true;
-            } else if (eviction_policy == FULL_EVICTION &&
-                       v && v->isTempInitialItem()) {
-                restore = true;
+            } else {
+                switch (eviction_policy) {
+                    case VALUE_ONLY:
+                        if (v && !v->isResident() && !v->isDeleted()) {
+                            restore = true;
+                        }
+                        break;
+                    case FULL_EVICTION:
+                        if (v) {
+                            if (v->isTempInitialItem() ||
+                                (!v->isResident() && !v->isDeleted())) {
+                                restore = true;
+                            }
+                        }
+                        break;
+                    default:
+                        throw std::logic_error("Unknown eviction policy");
+                }
             }
 
             if (restore) {
