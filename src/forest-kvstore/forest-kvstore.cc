@@ -328,7 +328,52 @@ void ForestKVStore::readVBState(uint16_t vbId) {
 }
 
 void ForestKVStore::delVBucket(uint16_t vbucket) {
+    fdb_kvs_handle *kvsHandle = getKvsHandle(vbucket, handleType::READER);
+    fdb_status status;
 
+    if (kvsHandle != nullptr) {
+        status = fdb_kvs_close(kvsHandle);
+        if (status != FDB_RESULT_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING,
+                "fdb_kvs_close API call failed for vbucket %d with error: %s "
+                "in ForestKVStore::delVBucket\n", vbucket, fdb_error_msg(status));
+        }
+    }
+
+    readHandleMap[vbucket] = NULL;
+
+    kvsHandle = getKvsHandle(vbucket, handleType::WRITER);
+
+    if (kvsHandle != nullptr) {
+        status = fdb_kvs_close(kvsHandle);
+        if (status != FDB_RESULT_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING,
+                "fdb_kvs_close API call failed for vbucket %d with error: %s "
+                "in ForestKVStore::delVBucket\n", vbucket, fdb_error_msg(status));
+        }
+    }
+
+    writeHandleMap[vbucket] = NULL;
+
+    char kvsName[20];
+    sprintf(kvsName,"partition%d", vbucket);
+
+    status = fdb_kvs_remove(dbFileHandle, kvsName);
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "ForestDB KV Store remove failed for vbucket "
+            "%d with error: %s\n", vbucket,
+            fdb_error_msg(status));
+    }
+
+    if (cachedVBStates[vbucket]) {
+        delete cachedVBStates[vbucket];
+    }
+
+    std::string failovers("[{\"id\":0, \"seq\":0}]");
+    cachedVBStates[vbucket] = new vbucket_state(vbucket_state_dead, 0, 0, 0, 0,
+                                                0, 0, 0, INITIAL_DRIFT,
+                                                failovers);
 }
 
 ENGINE_ERROR_CODE ForestKVStore::forestErr2EngineErr(fdb_status errCode) {
