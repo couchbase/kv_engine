@@ -336,9 +336,10 @@ private:
 
     void transitionState(stream_state_t newState);
 
-    void clearBuffer();
+    uint32_t clearBuffer();
 
-    uint32_t setDead_UNLOCKED(end_stream_status_t status);
+    uint32_t setDead_UNLOCKED(end_stream_status_t status,
+                              LockHolder *slh);
 
     const char* getEndStreamStatusStr(end_stream_status_t status);
 

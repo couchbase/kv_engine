@@ -13008,6 +13008,28 @@ static enum test_result test_non_existent_get_and_delete(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_mb16421(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1) {
+    // Store the item!
+    item *itm = NULL;
+    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
+          "Failed set.");
+    h1->release(h, NULL, itm);
+    wait_for_flusher_to_settle(h, h1);
+
+    // Evict Item!
+    evict_key(h, h1, "mykey", 0, "Ejected.");
+
+    // Issue Get Meta
+    check(get_meta(h, h1, "mykey"), "Expected to get meta");
+
+    // Issue Get
+    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_SUCCESS, "Item should be there");
+    h1->release(h, NULL, itm);
+
+    return SUCCESS;
+}
+
 static enum test_result test_get_random_key(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
 
@@ -14476,6 +14498,9 @@ engine_test_t* get_tests(void) {
         TestCase("test get & delete on non existent items",
                  test_non_existent_get_and_delete, test_setup, teardown,
                  "item_eviction_policy=full_eviction", prepare, cleanup),
+        TestCase("test MB-16421", test_mb16421,
+                 test_setup, teardown, "item_eviction_policy=full_eviction",
+                 prepare, cleanup),
 
         TestCase("test get random key", test_get_random_key,
                  test_setup, teardown, NULL, prepare, cleanup),

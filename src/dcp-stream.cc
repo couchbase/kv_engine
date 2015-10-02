@@ -902,14 +902,15 @@ PassiveStream::~PassiveStream() {
     LockHolder lh(streamMutex);
     clear_UNLOCKED();
     if (state_ != STREAM_DEAD) {
-        setDead_UNLOCKED(END_STREAM_OK);
+        setDead_UNLOCKED(END_STREAM_OK, &lh);
     }
 }
 
-uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status) {
+uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status,
+                                         LockHolder *slh) {
     transitionState(STREAM_DEAD);
-    uint32_t unackedBytes = buffer.bytes;
-    clearBuffer();
+    slh->unlock();
+    uint32_t unackedBytes = clearBuffer();
     LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRId16 ") Setting stream to dead"
         " state, last_seqno is %" PRIu64 ", unackedBytes is %" PRIu32 ","
         " status is %s",
@@ -920,7 +921,7 @@ uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status) {
 
 uint32_t PassiveStream::setDead(end_stream_status_t status) {
     LockHolder lh(streamMutex);
-    return setDead_UNLOCKED(status);
+    return setDead_UNLOCKED(status, &lh);
 }
 
 void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
@@ -1306,8 +1307,9 @@ DcpResponse* PassiveStream::next() {
     return response;
 }
 
-void PassiveStream::clearBuffer() {
+uint32_t PassiveStream::clearBuffer() {
     LockHolder lh(buffer.bufMutex);
+    uint32_t unackedBytes = buffer.bytes;
 
     while (!buffer.messages.empty()) {
         DcpResponse* resp = buffer.messages.front();
@@ -1317,6 +1319,7 @@ void PassiveStream::clearBuffer() {
 
     buffer.bytes = 0;
     buffer.items = 0;
+    return unackedBytes;
 }
 
 void PassiveStream::transitionState(stream_state_t newState) {
