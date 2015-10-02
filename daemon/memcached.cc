@@ -44,6 +44,7 @@
 #include "memcached_openssl.h"
 #include "privileges.h"
 
+#include <platform/backtrace.h>
 #include <platform/strerror.h>
 
 #include <signal.h>
@@ -2808,6 +2809,26 @@ static void load_extensions(void) {
     }
 }
 
+static std::terminate_handler default_terminate_handler;
+
+// Replacement terminate_handler which prints a backtrace of the current stack
+// before chaining to the default handler.
+static void backtrace_terminate_handler() {
+    fprintf(stderr, "*** Fatal error encountered during exception handling ***\n");
+    fprintf(stderr, "Call stack:\n");
+    print_backtrace_to_file(stderr);
+    fflush(stderr);
+
+    // Chain to the default handler if available (as it may be able to print
+    // other useful information on why we were told to terminate).
+    if (default_terminate_handler != nullptr) {
+        default_terminate_handler();
+    }
+
+    std::abort();
+}
+
+
 int main (int argc, char **argv) {
     // MB-14649 log() crash on windows on some CPU's
 #ifdef _WIN64
@@ -2833,6 +2854,9 @@ int main (int argc, char **argv) {
         }
     }
 #endif
+
+    // Interpose our own C++ terminate handler to print backtrace upon failures
+    default_terminate_handler = std::set_terminate(backtrace_terminate_handler);
 
     initialize_openssl();
 
