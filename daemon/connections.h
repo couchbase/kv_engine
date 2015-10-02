@@ -43,7 +43,7 @@ void run_event_loop(Connection * c);
  * successful, else NULL.
  */
 Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
-                     STATE_FUNC init_state, struct event_base* base,
+                     TaskFunction init_state, struct event_base* base,
                      LIBEVENT_THREAD* thread = nullptr);
 
 /*

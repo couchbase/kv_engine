@@ -26,7 +26,7 @@ extern std::atomic<bool> memcached_shutdown;
 
 /* An item in the connection queue. */
 struct ConnectionQueueItem {
-    ConnectionQueueItem(SOCKET sock, in_port_t port, STATE_FUNC state)
+    ConnectionQueueItem(SOCKET sock, in_port_t port, TaskFunction state)
         : sfd(sock),
           parent_port(port),
           init_state(state) {
@@ -35,7 +35,7 @@ struct ConnectionQueueItem {
 
     SOCKET sfd;
     in_port_t parent_port;
-    STATE_FUNC init_state;
+    TaskFunction init_state;
 };
 
 class ConnectionQueue {
@@ -449,7 +449,7 @@ static int last_thread = -1;
  * from the main thread, or because of an incoming connection.
  */
 void dispatch_conn_new(SOCKET sfd, int parent_port,
-                       STATE_FUNC init_state) {
+                       TaskFunction init_state) {
     int tid = (last_thread + 1) % settings.num_threads;
     LIBEVENT_THREAD* thread = threads + tid;
     last_thread = tid;

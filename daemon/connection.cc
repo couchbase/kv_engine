@@ -26,7 +26,7 @@ Connection::Connection()
       max_reqs_per_event(settings.default_reqs_per_event),
       numEvents(0),
       sasl_conn(nullptr),
-      state(conn_immediate_close),
+      stateMachine(new McbpStateMachine(conn_immediate_close)),
       protocol(Protocol::Memcached),
       admin(false),
       authenticated(false),
@@ -74,7 +74,7 @@ Connection::Connection()
     memset(&binary_header, 0, sizeof(binary_header));
 
     msglist.reserve(MSG_LIST_INITIAL);
-    state = conn_immediate_close;
+    setState(conn_immediate_close);
     socketDescriptor = INVALID_SOCKET;
 }
 
@@ -91,83 +91,8 @@ Connection::~Connection() {
     }
 }
 
-void Connection::setState(STATE_FUNC next_state) {
-    if (next_state != state) {
-        /*
-         * The connections in the "tap thread" behaves differently than
-         * normal connections because they operate in a full duplex mode.
-         * New messages may appear from both sides, so we can't block on
-         * read from the nework / engine
-         */
-        if (isTAP() || isDCP()) {
-            if (next_state == conn_waiting) {
-                setCurrentEvent(EV_WRITE);
-                next_state = conn_ship_log;
-            }
-        }
-
-        if (settings.verbose > 2 || state == conn_closing
-            || state == conn_setup_tap_stream) {
-            settings.extensions.logger->log(EXTENSION_LOG_DETAIL, this,
-                                            "%u: going from %s to %s\n",
-                                            getId(), getStateName(state),
-                                            getStateName(next_state));
-        }
-
-        if (next_state == conn_write || next_state == conn_mwrite) {
-            if (start != 0) {
-                collect_timings(this);
-                start = 0;
-            }
-            MEMCACHED_PROCESS_COMMAND_END(getId(), write.buf, write.bytes);
-        }
-
-        state = next_state;
-    }
-}
-
-const char* Connection::getStateName(STATE_FUNC state) {
-    if (state == conn_listening) {
-        return "conn_listening";
-    } else if (state == conn_new_cmd) {
-        return "conn_new_cmd";
-    } else if (state == conn_waiting) {
-        return "conn_waiting";
-    } else if (state == conn_read) {
-        return "conn_read";
-    } else if (state == conn_parse_cmd) {
-        return "conn_parse_cmd";
-    } else if (state == conn_write) {
-        return "conn_write";
-    } else if (state == conn_nread) {
-        return "conn_nread";
-    } else if (state == conn_closing) {
-        return "conn_closing";
-    } else if (state == conn_mwrite) {
-        return "conn_mwrite";
-    } else if (state == conn_ship_log) {
-        return "conn_ship_log";
-    } else if (state == conn_setup_tap_stream) {
-        return "conn_setup_tap_stream";
-    } else if (state == conn_pending_close) {
-        return "conn_pending_close";
-    } else if (state == conn_immediate_close) {
-        return "conn_immediate_close";
-    } else if (state == conn_refresh_cbsasl) {
-        return "conn_refresh_cbsasl";
-    } else if (state == conn_refresh_ssl_certs) {
-        return "conn_refresh_ssl_cert";
-    } else if (state == conn_flush) {
-        return "conn_flush";
-    } else if (state == conn_audit_configuring) {
-        return "conn_audit_configuring";
-    } else if (state == conn_create_bucket) {
-        return "conn_create_bucket";
-    } else if (state == conn_delete_bucket) {
-        return "conn_delete_bucket";
-    } else {
-        return "Unknown";
-    }
+void Connection::setState(TaskFunction next_state) {
+    stateMachine->setCurrentTask(*this, next_state);
 }
 
 void Connection::runStateMachinery() {
@@ -175,9 +100,10 @@ void Connection::runStateMachinery() {
         if (settings.verbose) {
             settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
                                             "%u - Running task: (%s)",
-                                            getId(), getStateName(state));
+                                            getId(),
+                                            stateMachine->getCurrentTaskName());
         }
-    } while (state(this));
+    } while (stateMachine->execute(*this));
 }
 
 /**
@@ -443,7 +369,7 @@ cJSON* Connection::toJSON() const {
         {
             cJSON* state = cJSON_CreateArray();
             cJSON_AddItemToArray(state,
-                                 cJSON_CreateString(getStateName(getState())));
+                                 cJSON_CreateString(stateMachine->getCurrentTaskName()));
             cJSON_AddItemToObject(obj, "state", state);
         }
         json_add_bool_to_object(obj, "registered_in_libevent",

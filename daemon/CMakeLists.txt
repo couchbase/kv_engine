@@ -95,6 +95,8 @@ ADD_EXECUTABLE(memcached
                session_cas.cc
                session_cas.h
                settings.h
+               statemachine.cc
+               statemachine.h
                stats.h
                subdocument.cc
                subdocument.h

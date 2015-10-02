@@ -24,17 +24,17 @@
 #include "net_buf.h"
 #include "rbac.h"
 #include "settings.h"
+#include "statemachine.h"
 
 #include <cJSON.h>
 #include <cbsasl/cbsasl.h>
 #include <memcached/openssl.h>
+#include <memory>
 #include <string>
 #include <vector>
 
 struct LIBEVENT_THREAD;
 class Connection;
-
-typedef bool (* STATE_FUNC)(Connection*);
 
 /**
  * The SslContext class is a holder class for all of the ssl-related
@@ -227,20 +227,20 @@ public:
      * processing that needs to happen on certain state transitions can
      * happen here.
      */
-    void setState(STATE_FUNC next_state);
+    void setState(TaskFunction next_state);
 
     /**
      * Get the current state
      */
-    STATE_FUNC getState() const {
-        return state;
+    TaskFunction getState() const {
+        return stateMachine->getCurrentTask();
     }
 
     /**
      * Get the name of the current state
      */
     const char* getStateName() const {
-        return getStateName(state);
+        return stateMachine->getCurrentTaskName();
     }
 
     /**
@@ -510,11 +510,11 @@ public:
         Connection::write = write;
     }
 
-    const STATE_FUNC getWriteAndGo() const {
+    const TaskFunction getWriteAndGo() const {
         return write_and_go;
     }
 
-    void setWriteAndGo(STATE_FUNC write_and_go) {
+    void setWriteAndGo(TaskFunction write_and_go) {
         Connection::write_and_go = write_and_go;
     }
 
@@ -907,11 +907,6 @@ public:
 
 protected:
 
-    /*
-     * Returns the name of the specified state function.
-     */
-    static const char* getStateName(STATE_FUNC state);
-
     /**
      * Ensures that there is room for another struct iovec in a connection's
      * iov list.
@@ -961,8 +956,10 @@ private:
      */
     cbsasl_conn_t* sasl_conn;
 
-    /** The current state we're in */
-    STATE_FUNC state;
+    /**
+     * The state machine we're currently using
+     */
+    std::unique_ptr<StateMachine> stateMachine;
 
     /** The protocol used by the connection */
     Protocol protocol;
@@ -995,7 +992,7 @@ public:
 
 private:
     /** which state to go into after finishing current write */
-    STATE_FUNC write_and_go;
+    TaskFunction write_and_go;
 
     /** when we read in an item's value, it goes here */
     char* ritem;

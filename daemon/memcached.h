@@ -153,7 +153,7 @@ void threads_shutdown(void);
 void threads_cleanup(void);
 
 void dispatch_conn_new(SOCKET sfd, int parent_port,
-                       STATE_FUNC init_state);
+                       TaskFunction init_state);
 
 /* Lock wrappers for cache functions that are called from main loop. */
 int is_listen_thread(void);
