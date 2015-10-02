@@ -1009,12 +1009,15 @@ PassiveStream::~PassiveStream() {
     LockHolder lh(streamMutex);
     clear_UNLOCKED();
     if (state_ != STREAM_DEAD) {
-        setDead_UNLOCKED(END_STREAM_OK);
+        setDead_UNLOCKED(END_STREAM_OK, &lh);
     }
 }
 
-uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status) {
+uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status,
+                                         LockHolder *slh) {
     transitionState(STREAM_DEAD);
+    slh->unlock();
+    uint32_t unackedBytes = 0;
 
     /**
      * Clear out buffered items in case of force shutdown,
@@ -1031,8 +1034,8 @@ uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status) {
         } while (bytes_processed > 0 && process_ret != cannot_process);
     }
     if (process_ret == cannot_process) {
-        totalBytes += buffer.bytes;
-        clearBuffer();
+        unackedBytes = clearBuffer();
+        totalBytes += unackedBytes;
     }
 
     EXTENSION_LOG_LEVEL logLevel = EXTENSION_LOG_NOTICE;
@@ -1041,14 +1044,15 @@ uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status) {
     }
     LOG(logLevel, "%s (vb %" PRId16 ") Setting stream to dead"
         " state, last_seqno is %" PRIu64 ", totalBytes is %" PRIu32 ","
-        " status is %s", consumer->logHeader(), vb_, last_seqno, totalBytes,
-        getEndStreamStatusStr(status));
+        " droppedBytes is %" PRIu32 ", status is %s",
+        consumer->logHeader(), vb_, last_seqno, totalBytes,
+        unackedBytes, getEndStreamStatusStr(status));
     return totalBytes;
 }
 
 uint32_t PassiveStream::setDead(end_stream_status_t status) {
     LockHolder lh(streamMutex);
-    return setDead_UNLOCKED(status);
+    return setDead_UNLOCKED(status, &lh);
 }
 
 void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
@@ -1477,8 +1481,9 @@ DcpResponse* PassiveStream::next() {
     return response;
 }
 
-void PassiveStream::clearBuffer() {
+uint32_t PassiveStream::clearBuffer() {
     LockHolder lh(buffer.bufMutex);
+    uint32_t unackedBytes = buffer.bytes;
 
     while (!buffer.messages.empty()) {
         DcpResponse* resp = buffer.messages.front();
@@ -1488,6 +1493,7 @@ void PassiveStream::clearBuffer() {
 
     buffer.bytes = 0;
     buffer.items = 0;
+    return unackedBytes;
 }
 
 void PassiveStream::transitionState(stream_state_t newState) {
