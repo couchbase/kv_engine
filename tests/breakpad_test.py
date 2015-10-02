@@ -33,7 +33,14 @@ import subprocess
 import sys
 import tempfile
 import time
+import threading
 
+
+def print_stderrdata(stderrdata):
+    print("=== stderr begin ===")
+    for line in stderrdata.splitlines():
+        print(line)
+    print("=== stderr end ===")
 
 def invoke_gdb(gdb_exe, program, core_file, commands=[]):
     """Invoke GDB on the specified program and core file, running the given
@@ -49,6 +56,29 @@ def invoke_gdb(gdb_exe, program, core_file, commands=[]):
                            stderr=subprocess.PIPE)
     gdb.wait()
     return gdb.stdout.read()
+
+class Subprocess(object):
+    """Simple wrapper around subprocess to add a timeout to the child process."""
+
+    def __init__(self, args):
+        self.args = args
+        self.process = None
+
+    def run(self, timeout):
+        def target():
+            self.process = subprocess.Popen(self.args, stderr=subprocess.PIPE,
+                                            env = os.environ)
+            (_, self.stderrdata) = self.process.communicate()
+
+        thread = threading.Thread(target=target)
+        thread.start()
+
+        thread.join(timeout)
+        if thread.is_alive():
+            print("*** Timeout - terminating process " + self.args[0])
+            self.process.terminate()
+            thread.join()
+        return (self.process.returncode, self.stderrdata)
 
 
 if len(sys.argv) == 2:
@@ -84,11 +114,15 @@ os.environ['MEMCACHED_UNIT_TESTS'] = "true"
 os.environ['MEMCACHED_CRASH_TEST'] = "true"
 
 args = [memcached_exe, "-C", os.path.abspath(config_file.name)]
-memcached = subprocess.Popen(args, stderr=subprocess.PIPE, env = os.environ)
+
+# Spawn memcached from a child thread. We specify a timeout to prevent the test
+# hanging forever if something goes wrong.
+memcached = Subprocess(args)
+memcached.run(timeout=10)
 
 # Wait for memcached to initialise (and consequently crash due to loading
 # crash_engine).
-(_, stderrdata) = memcached.communicate()
+(status, stderrdata) = memcached.run(timeout=10)
 
 # Cleanup config_file (no longer needed).
 os.remove(config_file.name)
@@ -96,30 +130,22 @@ os.remove(config_file.name)
 # Check a message was written to stderr
 if 'Breakpad caught crash' not in stderrdata:
     print("FAIL - No message written to stderr on crash.")
+    print_stderrdata(stderrdata)
     exit(3)
 
 # Check there is a minidump path in the output.
 m = re.search('Writing crash dump to ([\w\\\/\:\-.]+)', stderrdata)
 if not m:
     print("FAIL - Unable to find crash filename in stderr.")
+    print_stderrdata(stderrdata)
     exit(4)
 
 # Check the minidump file exists on disk.
 minidump = m.group(1)
 if not os.path.exists(minidump):
     print("FAIL - Minidump file '{0}' does not exist.".format(minidump))
-    print("--------[memcached stderr]--------")
-    for line in stderrdata.splitlines():
-        print(line)
-    print("-----------[end stderr]-----------")
+    print_stderrdata(stderrdata)
     exit(5)
-
-# Check that memcached has terminated by now.
-memcached.poll()
-if not memcached.returncode:
-    print("FAIL - Memcached has not actually terminated after it should have crashed.")
-    os.remove(minidump)
-    exit(6)
 
 # On Windows we don't have md2core or gdb; so skip these tests.
 if md2core_exe and gdb_exe:
