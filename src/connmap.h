@@ -475,11 +475,13 @@ public:
 
     void updateMaxActiveSnoozingBackfills(size_t maxDataSize);
 
-    uint16_t getNumActiveSnoozingBackfills () const {
+    uint16_t getNumActiveSnoozingBackfills () {
+        SpinLockHolder lh(&numBackfillsLock);
         return numActiveSnoozingBackfills;
     }
 
-    uint16_t getMaxActiveSnoozingBackfills () const {
+    uint16_t getMaxActiveSnoozingBackfills () {
+        SpinLockHolder lh(&numBackfillsLock);
         return maxActiveSnoozingBackfills;
     }
 
