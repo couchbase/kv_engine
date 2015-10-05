@@ -2769,9 +2769,9 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             uint64_t commit_time = (end - start) / 1000000;
             uint64_t trans_time = (end - flush_start) / 1000000;
 
-            lastTransTimePerItem = (items_flushed == 0) ? 0 :
-                static_cast<double>(trans_time) /
-                static_cast<double>(items_flushed);
+            lastTransTimePerItem.store((items_flushed == 0) ? 0 :
+                                       static_cast<double>(trans_time) /
+                                       static_cast<double>(items_flushed));
             stats.commit_time.store(commit_time);
             stats.cumulativeCommitTime.fetch_add(commit_time);
             stats.cumulativeFlushTime.fetch_add(ep_current_time()
