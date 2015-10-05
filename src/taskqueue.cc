@@ -106,8 +106,8 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
     size_t numToWake = _moveReadyTasks(t.now);
 
     if (!futureQueue.empty() && t.startIndex == queueType &&
-        futureQueue.top()->waketime < t.waketime) {
-        t.waketime = futureQueue.top()->waketime; // record earliest waketime
+        futureQueue.top()->getWaketime() < t.waketime) {
+        t.waketime = futureQueue.top()->getWaketime(); // record earliest waketime
     }
 
     if (!readyQueue.empty() && readyQueue.top()->isdead()) {
@@ -156,7 +156,7 @@ size_t TaskQueue::_moveReadyTasks(hrtime_t tv) {
     size_t numReady = 0;
     while (!futureQueue.empty()) {
         ExTask tid = futureQueue.top();
-        if (tid->waketime <= tv) {
+        if (tid->getWaketime() <= tv) {
             futureQueue.pop();
             readyQueue.push(tid);
             numReady++;
@@ -188,7 +188,7 @@ hrtime_t TaskQueue::_reschedule(ExTask &task, task_type_t &curTaskType) {
 
     futureQueue.push(task);
     if (curTaskType == queueType) {
-        wakeTime = futureQueue.top()->waketime;
+        wakeTime = futureQueue.top()->getWaketime();
     } else {
         wakeTime = hrtime_t(-1);
     }
@@ -255,12 +255,12 @@ void TaskQueue::_wake(ExTask &task) {
     }
 
     // Note that this task that we are waking may nor may not be blocked in Q
-    task->waketime = now;
+    task->updateWaketime(now);
     task->setState(TASK_RUNNING, TASK_SNOOZED);
 
     while (!notReady.empty()) {
         ExTask tid = notReady.front();
-        if (tid->waketime <= now || tid->isdead()) {
+        if (tid->getWaketime() <= now || tid->isdead()) {
             readyQueue.push(tid);
             numReady++;
         } else {
