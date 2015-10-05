@@ -8594,7 +8594,6 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
 
     /* This time since resident ratio is < 90% access log should be generated */
     checkeq(0, access(name.c_str(), F_OK), "access log file should exist");
-    checkeq(0, access(prev.c_str(), F_OK), ".old access log file should exist");
 
     /* Increase resident ratio by deleting items */
     vbucketDelete(h, h1, 0);
