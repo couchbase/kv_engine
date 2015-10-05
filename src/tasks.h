@@ -132,17 +132,30 @@ public:
     }
 
 protected:
-
     const Priority &priority;
     bool blockShutdown;
     AtomicValue<task_state_t> state;
     const size_t taskId;
-    hrtime_t waketime; // used for priority_queue, guarded by TaskQ mutex
     EventuallyPersistentEngine *engine;
     Taskable *taskable;
 
     static AtomicValue<size_t> task_id_counter;
     static size_t nextTaskId() { return task_id_counter.fetch_add(1); }
+
+    hrtime_t getWaketime() {
+        return waketime.load();
+    }
+
+    void updateWaketime(hrtime_t to) {
+        waketime.store(to);
+    }
+
+    void updateWaketimeIfLessThan(hrtime_t to) {
+        atomic_setIfBigger(waketime, to);
+    }
+
+private:
+    AtomicValue<hrtime_t> waketime;      // used for priority_queue
 };
 
 typedef SingleThreadedRCPtr<GlobalTask> ExTask;

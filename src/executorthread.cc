@@ -94,7 +94,7 @@ void ExecutorThread::run() {
             // Measure scheduling overhead as difference between the time
             // that the task wanted to wake up and the current time
             now = gethrtime();
-            hrtime_t woketime = currentTask->waketime;
+            hrtime_t woketime = currentTask->getWaketime();
             currentTask->getTaskable()->logQTime(currentTask->getTypeId(),
                                                  now > woketime ?
                                                  (now - woketime) / 1000 : 0);
@@ -138,9 +138,8 @@ void ExecutorThread::run() {
                 hrtime_t new_waketime;
                 // if a task has not set snooze, update its waketime to now
                 // before rescheduling for more accurate timing histograms
-                if (currentTask->waketime <= now) {
-                    currentTask->waketime = now;
-                }
+                currentTask->updateWaketimeIfLessThan(now);
+
                 // release capacity back to TaskQueue ..
                 manager->doneWork(curTaskType);
                 new_waketime = q->reschedule(currentTask, curTaskType);
@@ -153,7 +152,7 @@ void ExecutorThread::run() {
                         name.c_str(),
                         currentTask->getDescription().c_str(),
                         uint64_t(currentTask->getId()), uint64_t(new_waketime),
-                        uint64_t(currentTask->waketime),
+                        uint64_t(currentTask->getWaketime()),
                         uint64_t(waketime));
             }
         }

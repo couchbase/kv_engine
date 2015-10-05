@@ -46,14 +46,16 @@ GlobalTask::GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
 void GlobalTask::snooze(const double secs) {
     if (secs == INT_MAX) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        waketime = hrtime_t(-1);
+        updateWaketime(hrtime_t(-1));
         return;
     }
 
-    waketime = gethrtime();
+    hrtime_t curTime = gethrtime();
     if (secs) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        waketime += hrtime_t(secs * 1000000000);
+        waketime.store(curTime + hrtime_t(secs * 1000000000));
+    } else {
+        waketime.store(curTime);
     }
 }
 
