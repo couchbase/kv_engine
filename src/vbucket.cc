@@ -309,7 +309,7 @@ void VBucket::addHighPriorityVBEntry(uint64_t id, const void *cookie,
         ++shard->highPriorityCount;
     }
     hpChks.push_back(HighPriorityVBEntry(cookie, id, isBySeqno));
-    numHpChks = hpChks.size();
+    numHpChks.store(hpChks.size());
 }
 
 void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
@@ -353,7 +353,7 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             ++entry;
         }
     }
-    numHpChks = hpChks.size();
+    numHpChks.store(hpChks.size());
     lh.unlock();
 
     std::map<const void*, ENGINE_ERROR_CODE>::iterator itr = toNotify.begin();
@@ -398,7 +398,7 @@ void VBucket::adjustCheckpointFlushTimeout(size_t wall_time) {
 }
 
 size_t VBucket::getHighPriorityChkSize() {
-    return numHpChks;
+    return numHpChks.load();
 }
 
 size_t VBucket::getCheckpointFlushTimeout() {
