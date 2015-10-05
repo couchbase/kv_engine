@@ -266,11 +266,11 @@ public:
     void releaseReference(bool force = false);
 
     void setSupportAck(bool ack) {
-        supportAck = ack;
+        supportAck.store(ack);
     }
 
     bool supportsAck() const {
-        return supportAck;
+        return supportAck.load();
     }
 
     void setSupportCheckpointSync(bool checkpointSync) {
@@ -299,10 +299,10 @@ public:
 
     virtual void addStats(ADD_STAT add_stat, const void *c) {
         addStat("type", getType(), add_stat, c);
-        addStat("created", created, add_stat, c);
-        addStat("connected", connected, add_stat, c);
-        addStat("pending_disconnect", disconnect, add_stat, c);
-        addStat("supports_ack", supportAck, add_stat, c);
+        addStat("created", created.load(), add_stat, c);
+        addStat("connected", connected.load(), add_stat, c);
+        addStat("pending_disconnect", disconnect.load(), add_stat, c);
+        addStat("supports_ack", supportAck.load(), add_stat, c);
         addStat("reserved", reserved.load(), add_stat, c);
 
         if (numDisconnects > 0) {
@@ -364,19 +364,19 @@ public:
         if (!s) {
             ++numDisconnects;
         }
-        connected = s;
+        connected.store(s);
     }
 
     bool isConnected() {
-        return connected;
+        return connected.load();
     }
 
     bool doDisconnect() {
-        return disconnect;
+        return disconnect.load();
     }
 
     virtual void setDisconnect(bool val) {
-        disconnect = val;
+        disconnect.store(val);
     }
 
     static std::string getAnonName() {
@@ -414,16 +414,16 @@ private:
     hrtime_t connToken;
 
     //! Connection creation time
-    rel_time_t created;
+    AtomicValue<rel_time_t> created;
 
     //! The last time this connection's step function was called
     AtomicValue<rel_time_t> lastWalkTime;
 
     //! Should we disconnect as soon as possible?
-    bool disconnect;
+    AtomicValue<bool> disconnect;
 
     //! Is this tap conenction connected?
-    bool connected;
+    AtomicValue<bool> connected;
 
     //! Number of times this connection was disconnected
     AtomicValue<size_t> numDisconnects;
@@ -432,7 +432,7 @@ private:
     rel_time_t expiryTime;
 
     //! Whether or not this connection supports acking
-    bool supportAck;
+    AtomicValue<bool> supportAck;
 
     //! A counter used to generate unique names
     static AtomicValue<uint64_t> counter_;
