@@ -122,7 +122,7 @@ public:
 
     std::string getDescription() {
         std::stringstream rv;
-        rv << label << " on vb " << currentvb;
+        rv << label << " on vb " << currentvb.load();
         return rv.str();
     }
 
@@ -134,7 +134,7 @@ private:
     shared_ptr<VBucketVisitor>  visitor;
     const char                 *label;
     double                      sleepTime;
-    uint16_t                    currentvb;
+    AtomicValue<uint16_t>       currentvb;
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };
