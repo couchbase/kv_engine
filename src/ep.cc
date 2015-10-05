@@ -3773,7 +3773,7 @@ VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
 
 bool VBCBAdaptor::run(void) {
     if (!vbList.empty()) {
-        currentvb = vbList.front();
+        currentvb.store(vbList.front());
         RCPtr<VBucket> vb = store->vbMap.getBucket(currentvb);
         if (vb) {
             if (visitor->pauseVisitor()) {
