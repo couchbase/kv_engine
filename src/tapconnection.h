@@ -353,11 +353,11 @@ public:
     }
 
     void setLastWalkTime() {
-        lastWalkTime = ep_current_time();
+        lastWalkTime.store(ep_current_time());
     }
 
     rel_time_t getLastWalkTime() {
-        return lastWalkTime;
+        return lastWalkTime.load();
     }
 
     void setConnected(bool s) {
@@ -417,7 +417,7 @@ private:
     rel_time_t created;
 
     //! The last time this connection's step function was called
-    rel_time_t lastWalkTime;
+    AtomicValue<rel_time_t> lastWalkTime;
 
     //! Should we disconnect as soon as possible?
     bool disconnect;
