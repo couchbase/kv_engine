@@ -777,7 +777,7 @@ bool conn_listening(Connection *c)
         return false;
     }
 
-    dispatch_conn_new(sfd, c->getParentPort(), conn_new_cmd);
+    dispatch_conn_new(sfd, c->getParentPort());
 
     return false;
 }
@@ -1708,8 +1708,7 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
             }
         }
 
-        if (!(listen_conn_add = conn_new(sfd, listenport, conn_listening,
-                                         main_base))) {
+        if (!(listen_conn_add = conn_new_server(sfd, listenport, main_base))) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                             "failed to create listening connection\n");
             exit(EXIT_FAILURE);

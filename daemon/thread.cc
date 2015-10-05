@@ -26,16 +26,14 @@ extern std::atomic<bool> memcached_shutdown;
 
 /* An item in the connection queue. */
 struct ConnectionQueueItem {
-    ConnectionQueueItem(SOCKET sock, in_port_t port, TaskFunction state)
+    ConnectionQueueItem(SOCKET sock, in_port_t port)
         : sfd(sock),
-          parent_port(port),
-          init_state(state) {
+          parent_port(port) {
         // empty
     }
 
     SOCKET sfd;
     in_port_t parent_port;
-    TaskFunction init_state;
 };
 
 class ConnectionQueue {
@@ -262,8 +260,7 @@ static void drain_notification_channel(evutil_socket_t fd)
 void dispatch_new_connections(LIBEVENT_THREAD* me) {
     std::unique_ptr<ConnectionQueueItem> item;
     while ((item = me->new_conn_queue->pop()) != nullptr) {
-        Connection* c = conn_new(item->sfd, item->parent_port, item->init_state,
-                                 me->base, me);
+        Connection* c = conn_new(item->sfd, item->parent_port, me->base, me);
         if (c == nullptr) {
             settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
                                             "Failed to dispatch event for "
@@ -448,15 +445,14 @@ static int last_thread = -1;
  * Dispatches a new connection to another thread. This is only ever called
  * from the main thread, or because of an incoming connection.
  */
-void dispatch_conn_new(SOCKET sfd, int parent_port,
-                       TaskFunction init_state) {
+void dispatch_conn_new(SOCKET sfd, int parent_port) {
     int tid = (last_thread + 1) % settings.num_threads;
     LIBEVENT_THREAD* thread = threads + tid;
     last_thread = tid;
 
     try {
         std::unique_ptr<ConnectionQueueItem> item(
-            new ConnectionQueueItem(sfd, parent_port, init_state));
+            new ConnectionQueueItem(sfd, parent_port));
         thread->new_conn_queue->push(item);
     } catch (std::bad_alloc& e) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,

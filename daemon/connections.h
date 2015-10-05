@@ -39,12 +39,29 @@ void close_all_connections(void);
 /* Run the connection event loop; until an event handler returns false. */
 void run_event_loop(Connection * c);
 
-/* Creates a new connection. Returns a pointer to the allocated connection if
- * successful, else NULL.
+/**
+ * Cerate a new client connection
+ *
+ * @param sfd the socket descriptor
+ * @param parent_port the port number the client connected to
+ * @param base the event base to bind the client to
+ * @param thread the libevent thread object to bind the client to
+ * @return a connection object on success, nullptr otherwise
  */
-Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
-                     TaskFunction init_state, struct event_base* base,
-                     LIBEVENT_THREAD* thread = nullptr);
+Connection* conn_new(const SOCKET sfd,
+                     in_port_t parent_port,
+                     struct event_base* base,
+                     LIBEVENT_THREAD* thread);
+
+/**
+ * Create a new server socket.
+ *
+ * @param sfd the socket descriptor
+ * @param parent_port the port number
+ * @param base the event base to use for the socket
+ */
+Connection* conn_new_server(const SOCKET sfd, in_port_t parent_port,
+                            struct event_base* base);
 
 /*
  * Closes a connection. Afterwards the connection is invalid (can no longer

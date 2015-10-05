@@ -152,8 +152,7 @@ void thread_init(int nthreads, struct event_base *main_base,
 void threads_shutdown(void);
 void threads_cleanup(void);
 
-void dispatch_conn_new(SOCKET sfd, int parent_port,
-                       TaskFunction init_state);
+void dispatch_conn_new(SOCKET sfd, int parent_port);
 
 /* Lock wrappers for cache functions that are called from main loop. */
 int is_listen_thread(void);

@@ -176,85 +176,110 @@ void run_event_loop(Connection * c) {
     }
 }
 
-Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
-                     TaskFunction init_state,
-                     struct event_base* base,
-                     LIBEVENT_THREAD* thread) {
-    Connection *c = allocate_connection(sfd);
-    if (c == NULL) {
-        return NULL;
+Connection* conn_new_server(const SOCKET sfd,
+                            in_port_t parent_port,
+                            struct event_base* base) {
+    Connection* c = allocate_connection(sfd);
+    if (c == nullptr) {
+        return nullptr;
     }
 
-    c->resolveConnectionName(init_state == conn_listening);
-    if (init_state == conn_listening) {
-        c->setAuthContext(auth_create(NULL, NULL, NULL));
-    } else {
-        c->setAuthContext(auth_create(NULL, c->getPeername().c_str(),
-                                      c->getSockname().c_str()));
-
-        bool found = false;
-        for (auto& interface : stats.listening_ports) {
-            if (parent_port == interface.port) {
-                c->setProtocol(interface.protocol);
-                c->setTcpNoDelay(interface.tcp_nodelay);
-                if (interface.ssl.enabled) {
-                    if (!c->enableSSL(interface.ssl.cert,
-                                      interface.ssl.key)) {
-                        release_connection(c);
-                        return nullptr;
-                    }
-                }
-                settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                                                "%u: Using protocol: %s",
-                                                c->getId(),
-                                                to_string(c->getProtocol()));
-                found = true;
-            }
-        }
-
-        if (!found) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "%u: failed to locate server port "
-                                            "%u. Disconnecting",
-                                            c->getId(), parent_port);
-            release_connection(c);
-            return nullptr;
-        }
-    }
-
-    if (settings.verbose > 1) {
-        if (init_state == conn_listening) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "<%d server listening", sfd);
-        } else {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "<%d new client connection", sfd);
-        }
-    }
-
+    c->resolveConnectionName(true);
+    c->setAuthContext(auth_create(NULL, NULL, NULL));
     c->setParentPort(parent_port);
-    c->setState(init_state);
-    c->setWriteAndGo(init_state);
+    c->setState(conn_listening);
+    c->setWriteAndGo(conn_listening);
+
+    // Listen connections should not be associated with a bucket
+    c->setBucketEngine(nullptr);
+    c->setBucketIndex(-1);
 
     if (!c->initializeEvent(base)) {
         cb_assert(c->getThread() == nullptr);
         release_connection(c);
-        return NULL;
+        return nullptr;
     }
 
     stats.total_conns++;
 
     c->incrementRefcount();
 
-    if (init_state == conn_listening) {
-        c->setBucketEngine(nullptr);
-        c->setBucketIndex(-1);
-    } else {
-        associate_initial_bucket(c);
+
+    MEMCACHED_CONN_ALLOCATE(c->getId());
+
+    if (settings.verbose > 1) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                        "<%d server listening", sfd);
     }
+
+    return c;
+}
+
+
+Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
+                     struct event_base* base,
+                     LIBEVENT_THREAD* thread) {
+    Connection *c = allocate_connection(sfd);
+    if (c == nullptr) {
+        return nullptr;
+    }
+
+    c->resolveConnectionName(false);
+    c->setAuthContext(auth_create(NULL, c->getPeername().c_str(),
+                                  c->getSockname().c_str()));
+
+    bool found = false;
+    for (auto& interface : stats.listening_ports) {
+        if (parent_port == interface.port) {
+            c->setProtocol(interface.protocol);
+            c->setTcpNoDelay(interface.tcp_nodelay);
+            if (interface.ssl.enabled) {
+                if (!c->enableSSL(interface.ssl.cert,
+                                  interface.ssl.key)) {
+                    release_connection(c);
+                    return nullptr;
+                }
+            }
+            settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
+                                            "%u: Using protocol: %s",
+                                            c->getId(),
+                                            to_string(c->getProtocol()));
+            found = true;
+        }
+    }
+
+    if (!found) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "%u: failed to locate server port "
+                                            "%u. Disconnecting",
+                                        c->getId(), parent_port);
+        release_connection(c);
+        return nullptr;
+    }
+
+    c->setParentPort(parent_port);
+    c->setState(conn_new_cmd);
+    c->setWriteAndGo(conn_new_cmd);
+
+    if (!c->initializeEvent(base)) {
+        cb_assert(c->getThread() == nullptr);
+        release_connection(c);
+        return nullptr;
+    }
+
+    stats.total_conns++;
+
+    c->incrementRefcount();
+
+    associate_initial_bucket(c);
 
     c->setThread(thread);
     MEMCACHED_CONN_ALLOCATE(c->getId());
+
+    if (settings.verbose > 1) {
+        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
+                                        "<%d new client connection", sfd);
+    }
 
     return c;
 }
