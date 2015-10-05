@@ -3541,7 +3541,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     if (epstore->isExpPagerEnabled()) {
         char timestr[20];
         struct tm expPagerTim;
-        if (cb_gmtime_r((time_t *)&epstats.expPagerTime, &expPagerTim) == -1) {
+        hrtime_t expPagerTime = epstats.expPagerTime.load();
+        if (cb_gmtime_r((time_t *)&expPagerTime, &expPagerTim) == -1) {
             add_casted_stat("ep_expiry_pager_task_time", "UNKNOWN", add_stat,
                             cookie);
         } else {
