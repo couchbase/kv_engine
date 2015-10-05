@@ -78,6 +78,73 @@ Connection::Connection()
     socketDescriptor = INVALID_SOCKET;
 }
 
+Connection::Connection(SOCKET sock, const struct listening_port &interface)
+    : socketDescriptor(sock),
+      max_reqs_per_event(settings.default_reqs_per_event),
+      numEvents(0),
+      sasl_conn(nullptr),
+      stateMachine(interface.protocol == Protocol::Memcached ? new McbpStateMachine(conn_new_cmd) : nullptr),
+      protocol(interface.protocol),
+      admin(false),
+      authenticated(false),
+      username("unknown"),
+      registered_in_libevent(false),
+      ev_flags(0),
+      currentEvent(0),
+      write_and_go(conn_new_cmd),
+      ritem(nullptr),
+      rlbytes(0),
+      item(nullptr),
+      iov(IOV_LIST_INITIAL),
+      iovused(0),
+      msglist(),
+      msgcurr(0),
+      msgbytes(0),
+      noreply(false),
+      nodelay(false),
+      refcount(0),
+      supports_datatype(false),
+      supports_mutation_extras(false),
+      engine_storage(nullptr),
+      start(0),
+      cas(0),
+      cmd(PROTOCOL_BINARY_CMD_INVALID),
+      next(nullptr),
+      thread(nullptr),
+      aiostat(ENGINE_SUCCESS),
+      ewouldblock(false),
+      parent_port(interface.port),
+      tap_iterator(nullptr),
+      dcp(false),
+      commandContext(nullptr),
+      peername("unknown"),
+      sockname("unknown"),
+      auth_context(nullptr),
+      bucketIndex(0),
+      bucketEngine(nullptr) {
+    MEMCACHED_CONN_CREATE(this);
+
+    memset(&event, 0, sizeof(event));
+    memset(&read, 0, sizeof(read));
+    memset(&write, 0, sizeof(write));
+    memset(&ssl, 0, sizeof(ssl));
+    memset(&binary_header, 0, sizeof(binary_header));
+
+    msglist.reserve(MSG_LIST_INITIAL);
+
+    resolveConnectionName(false);
+    setAuthContext(auth_create(NULL, peername.c_str(),
+                               sockname.c_str()));
+
+    setTcpNoDelay(interface.tcp_nodelay);
+    if (interface.ssl.enabled) {
+        if (!enableSSL(interface.ssl.cert, interface.ssl.key)) {
+            throw std::runtime_error(std::to_string(getId()) +
+                                     " Failed to enable SSL");
+        }
+    }
+}
+
 Connection::~Connection() {
     MEMCACHED_CONN_DESTROY(this);
     auth_destroy(auth_context);

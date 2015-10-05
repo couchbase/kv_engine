@@ -52,7 +52,7 @@ static BufferLoan conn_loan_single_buffer(Connection *c, struct net_buf *thread_
 static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
                                       struct net_buf *conn_buf);
 static void conn_destructor(Connection *c);
-static Connection *allocate_connection(SOCKET sfd);
+static Connection *allocate_connection(SOCKET sfd, const struct listening_port *interface = nullptr);
 static void release_connection(Connection *c);
 
 /** External functions *******************************************************/
@@ -219,47 +219,30 @@ Connection* conn_new_server(const SOCKET sfd,
 Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
                      struct event_base* base,
                      LIBEVENT_THREAD* thread) {
-    Connection *c = allocate_connection(sfd);
-    if (c == nullptr) {
-        return nullptr;
-    }
 
-    c->resolveConnectionName(false);
-    c->setAuthContext(auth_create(NULL, c->getPeername().c_str(),
-                                  c->getSockname().c_str()));
+    Connection *c = nullptr;
 
-    bool found = false;
     for (auto& interface : stats.listening_ports) {
         if (parent_port == interface.port) {
-            c->setProtocol(interface.protocol);
-            c->setTcpNoDelay(interface.tcp_nodelay);
-            if (interface.ssl.enabled) {
-                if (!c->enableSSL(interface.ssl.cert,
-                                  interface.ssl.key)) {
-                    release_connection(c);
-                    return nullptr;
-                }
+            c = allocate_connection(sfd, &interface);
+            if (c == nullptr) {
+                return nullptr;
             }
+
             settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
                                             "%u: Using protocol: %s",
                                             c->getId(),
                                             to_string(c->getProtocol()));
-            found = true;
         }
     }
 
-    if (!found) {
+    if (c == nullptr) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "%u: failed to locate server port "
                                             "%u. Disconnecting",
-                                        c->getId(), parent_port);
-        release_connection(c);
+                                        (unsigned int)sfd, parent_port);
         return nullptr;
     }
-
-    c->setParentPort(parent_port);
-    c->setState(conn_new_cmd);
-    c->setWriteAndGo(conn_new_cmd);
 
     if (!c->initializeEvent(base)) {
         cb_assert(c->getThread() == nullptr);
@@ -485,11 +468,16 @@ static void conn_destructor(Connection *c) {
  *  list. Returns a pointer to the newly-allocated connection if successful,
  *  else NULL.
  */
-static Connection *allocate_connection(SOCKET sfd) {
+static Connection *allocate_connection(SOCKET sfd,
+                                       const struct listening_port* interface) {
     Connection *ret = nullptr;
 
     try {
-        ret = new Connection;
+        if (interface == nullptr) {
+            ret = new Connection;
+        } else {
+            ret = new Connection(sfd, *interface);
+        }
         ret->setSocketDescriptor(sfd);
         stats.conn_structs++;
 

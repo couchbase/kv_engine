@@ -190,6 +190,7 @@ public:
 class Connection {
 public:
     Connection();
+    Connection(SOCKET sfd, const struct listening_port &interface);
 
     ~Connection();
 
