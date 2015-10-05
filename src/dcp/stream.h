@@ -250,10 +250,10 @@ private:
                                               uint8_t conflictResMode);
 
     //! The last sequence number queued from disk or memory
-    uint64_t lastReadSeqno;
+    AtomicValue<uint64_t> lastReadSeqno;
 
     //! The last sequence number sent to the network layer
-    uint64_t lastSentSeqno;
+    AtomicValue<uint64_t> lastSentSeqno;
 
     //! The last known seqno pointed to by the checkpoint cursor
     uint64_t curChkSeqno;
@@ -274,8 +274,9 @@ private:
         AtomicValue<size_t> disk;
         AtomicValue<size_t> sent;
     } backfillItems;
+
     //! The amount of items that have been sent during the memory phase
-    size_t itemsFromMemoryPhase;
+    AtomicValue<size_t> itemsFromMemoryPhase;
 
     //! Whether ot not this is the first snapshot marker sent
     bool firstMarkerSent;

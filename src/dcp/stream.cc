@@ -284,7 +284,7 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
         pushToReadyQ(new MutationResponse(itm, opaque_,
                           prepareExtendedMetaData(itm->getVBucketId(),
                                                   itm->getConflictResMode())));
-        lastReadSeqno = itm->getBySeqno();
+        lastReadSeqno.store(itm->getBySeqno());
 
         if (!itemsReady) {
             itemsReady = true;
@@ -313,7 +313,7 @@ void ActiveStream::completeBackfill() {
             "%" PRIu64 " items read from disk, %" PRIu64 " from memory,"
             " last seqno read: %" PRIu64,
             producer->logHeader(), vb_, uint64_t(backfillItems.disk.load()),
-            uint64_t(backfillItems.memory.load()), lastReadSeqno);
+            uint64_t(backfillItems.memory.load()), lastReadSeqno.load());
 
         if (!itemsReady) {
             itemsReady = true;
@@ -380,7 +380,7 @@ DcpResponse* ActiveStream::backfillPhase() {
 
     if (!isBackfillTaskRunning && readyQ.empty()) {
         backfillRemaining.store(0, std::memory_order_relaxed);
-        if (lastReadSeqno >= end_seqno_) {
+        if (lastReadSeqno.load() >= end_seqno_) {
             endStream(END_STREAM_OK);
         } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
             transitionState(STREAM_TAKEOVER_SEND);
@@ -403,7 +403,7 @@ DcpResponse* ActiveStream::inMemoryPhase() {
         return nextQueuedItem();
     }
 
-    if (lastSentSeqno >= end_seqno_) {
+    if (lastSentSeqno.load() >= end_seqno_) {
         endStream(END_STREAM_OK);
     } else {
         nextCheckpointItem();
@@ -470,11 +470,11 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     snprintf(buffer, bsize, "%s:stream_%d_backfill_sent", name_.c_str(), vb_);
     add_casted_stat(buffer, backfillItems.sent, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_memory_phase", name_.c_str(), vb_);
-    add_casted_stat(buffer, itemsFromMemoryPhase, add_stat, c);
+    add_casted_stat(buffer, itemsFromMemoryPhase.load(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_sent_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, lastSentSeqno, add_stat, c);
+    add_casted_stat(buffer, lastSentSeqno.load(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_read_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, lastReadSeqno, add_stat, c);
+    add_casted_stat(buffer, lastReadSeqno.load(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_ready_queue_memory", name_.c_str(), vb_);
     add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
@@ -538,7 +538,8 @@ DcpResponse* ActiveStream::nextQueuedItem() {
         if (response->getEvent() == DCP_MUTATION ||
             response->getEvent() == DCP_DELETION ||
             response->getEvent() == DCP_EXPIRATION) {
-            lastSentSeqno = dynamic_cast<MutationResponse*>(response)->getBySeqno();
+            lastSentSeqno.store(
+                    dynamic_cast<MutationResponse*>(response)->getBySeqno());
 
             if (state_ == STREAM_BACKFILLING) {
                 backfillItems.sent++;
@@ -585,7 +586,7 @@ void ActiveStream::nextCheckpointItem() {
         if (qi->getOperation() == queue_op_set ||
             qi->getOperation() == queue_op_del) {
             curChkSeqno = qi->getBySeqno();
-            lastReadSeqno = qi->getBySeqno();
+            lastReadSeqno.store(qi->getBySeqno());
 
             mutations.push_back(new MutationResponse(qi, opaque_,
                            prepareExtendedMetaData(qi->getVBucketId(),
@@ -682,7 +683,7 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             "%" PRIu64 " was last seqno sent, reason: %s",
             producer->logHeader(), vb_,
             uint64_t(backfillItems.sent.load()),
-            uint64_t(itemsFromMemoryPhase), lastSentSeqno,
+            uint64_t(itemsFromMemoryPhase.load()), lastSentSeqno.load(),
             getEndStreamStatusStr(reason));
     }
 }
@@ -696,17 +697,17 @@ void ActiveStream::scheduleBackfill() {
 
         CursorRegResult result =
             vbucket->checkpointManager.registerCursorBySeqno(name_,
-                                                             lastReadSeqno);
+                                                             lastReadSeqno.load());
         curChkSeqno = result.first;
         bool isFirstItem = result.second;
 
-        if (lastReadSeqno > curChkSeqno) {
+        if (lastReadSeqno.load() > curChkSeqno) {
             throw std::logic_error("ActiveStream::scheduleBackfill: "
-                    "lastReadSeqno (which is " + std::to_string(lastReadSeqno) +
+                    "lastReadSeqno (which is " + std::to_string(lastReadSeqno.load()) +
                     ") is greater than curChkSeqno (which is " +
                     std::to_string(curChkSeqno) + ")");
         }
-        uint64_t backfillStart = lastReadSeqno + 1;
+        uint64_t backfillStart = lastReadSeqno.load() + 1;
 
         /* We need to find the minimum seqno that needs to be backfilled in
          * order to make sure that we don't miss anything when transitioning
@@ -841,12 +842,12 @@ size_t ActiveStream::getItemsRemaining() {
     uint64_t high_seqno = vbucket->getHighSeqno();
 
     if (end_seqno_ < high_seqno) {
-        if (end_seqno_ > lastSentSeqno) {
-            return (end_seqno_ - lastSentSeqno);
+        if (end_seqno_ > lastSentSeqno.load()) {
+            return (end_seqno_ - lastSentSeqno.load());
         }
     } else {
-        if (high_seqno > lastSentSeqno) {
-            return (high_seqno - lastSentSeqno);
+        if (high_seqno > lastSentSeqno.load()) {
+            return (high_seqno - lastSentSeqno.load());
         }
     }
 
@@ -854,7 +855,7 @@ size_t ActiveStream::getItemsRemaining() {
 }
 
 uint64_t ActiveStream::getLastSentSeqno() {
-    return lastSentSeqno;
+    return lastSentSeqno.load();
 }
 
 ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId,
