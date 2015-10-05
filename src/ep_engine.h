@@ -1034,7 +1034,7 @@ private:
     bool flushAllEnabled;
     // a unique system generated token initialized at each time
     // ep_engine starts up.
-    time_t startupTime;
+    AtomicValue<time_t> startupTime;
     EpEngineTaskable taskable;
 };
 

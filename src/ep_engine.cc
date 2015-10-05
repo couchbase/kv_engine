@@ -2164,7 +2164,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     dcpConnMap_->initialize(DCP_CONN_NOTIFIER);
 
     // record engine initialization time
-    startupTime = ep_real_time();
+    startupTime.store(ep_real_time());
 
     LOG(EXTENSION_LOG_DEBUG, "Engine init complete.\n");
 
@@ -3554,7 +3554,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                         add_stat, cookie);
     }
 
-    add_casted_stat("ep_startup_time", startupTime, add_stat, cookie);
+    add_casted_stat("ep_startup_time", startupTime.load(), add_stat, cookie);
 
     if (getConfiguration().isWarmup()) {
         Warmup *wp = epstore->getWarmup();
