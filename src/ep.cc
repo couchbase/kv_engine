@@ -3304,9 +3304,9 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             hrtime_t end = gethrtime();
             uint64_t trans_time = (end - flush_start) / 1000000;
 
-            lastTransTimePerItem = (items_flushed == 0) ? 0 :
-                static_cast<double>(trans_time) /
-                static_cast<double>(items_flushed);
+            lastTransTimePerItem.store((items_flushed == 0) ? 0 :
+                                       static_cast<double>(trans_time) /
+                                       static_cast<double>(items_flushed));
             stats.cumulativeFlushTime.fetch_add(ep_current_time()
                                                 - flush_start);
             stats.flusher_todo.store(0);
