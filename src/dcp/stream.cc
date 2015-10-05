@@ -1046,7 +1046,7 @@ uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status,
     LOG(logLevel, "%s (vb %" PRId16 ") Setting stream to dead"
         " state, last_seqno is %" PRIu64 ", totalBytes is %" PRIu32 ","
         " droppedBytes is %" PRIu32 ", status is %s",
-        consumer->logHeader(), vb_, last_seqno, totalBytes,
+        consumer->logHeader(), vb_, last_seqno.load(), totalBytes,
         unackedBytes, getEndStreamStatusStr(status));
     return totalBytes;
 }
@@ -1094,7 +1094,7 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
         start_seqno, end_seqno_, snap_start_seqno_, snap_end_seqno_);
 
     LockHolder lh(streamMutex);
-    last_seqno = start_seqno;
+    last_seqno.store(start_seqno);
     pushToReadyQ(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
                                   end_seqno_, vb_uuid_, snap_start_seqno_,
                                   snap_end_seqno_));
@@ -1124,16 +1124,16 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         {
             MutationResponse* m = static_cast<MutationResponse*>(resp);
             uint64_t bySeqno = m->getBySeqno();
-            if (bySeqno <= last_seqno) {
+            if (bySeqno <= last_seqno.load()) {
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous (out of "
                     "sequence) mutation received, with opaque: %" PRIu32 ", its "
                     "seqno (%" PRIu64 ") is not greater than last received seqno "
                     "(%" PRIu64 "); Dropping mutation!", consumer->logHeader(),
-                    vb_, opaque_, bySeqno, last_seqno);
+                    vb_, opaque_, bySeqno, last_seqno.load());
                 delete m;
                 return ENGINE_ERANGE;
             }
-            last_seqno = bySeqno;
+            last_seqno.store(bySeqno);
             break;
         }
         case DCP_SNAPSHOT_MARKER:
@@ -1141,13 +1141,13 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
             SnapshotMarker* s = static_cast<SnapshotMarker*>(resp);
             uint64_t snapStart = s->getStartSeqno();
             uint64_t snapEnd = s->getEndSeqno();
-            if (snapStart < last_seqno && snapEnd <= last_seqno) {
+            if (snapStart < last_seqno.load() && snapEnd <= last_seqno.load()) {
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous snapshot "
                     "marker received, with opaque: %" PRIu32 ", its start "
                     "(%" PRIu64 "), and end (%" PRIu64 ") are less than last "
                     "received seqno (%" PRIu64 "); Dropping marker!",
                     consumer->logHeader(), vb_, opaque_, snapStart, snapEnd,
-                    last_seqno);
+                    last_seqno.load());
                 delete s;
                 return ENGINE_ERANGE;
             }
@@ -1281,12 +1281,12 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (mutation->getBySeqno() > cur_snapshot_end) {
+    if (mutation->getBySeqno() > cur_snapshot_end.load()) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous mutation [sequence "
             "number (%" PRIu64 ") greater than current snapshot end seqno "
             "(%" PRIu64 ")] being processed; Dropping the mutation!",
             consumer->logHeader(), vb_, mutation->getBySeqno(),
-            cur_snapshot_end);
+            cur_snapshot_end.load());
         delete mutation;
         return ENGINE_ERANGE;
     }
@@ -1328,12 +1328,12 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (deletion->getBySeqno() > cur_snapshot_end) {
+    if (deletion->getBySeqno() > cur_snapshot_end.load()) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous deletion [sequence "
             "number (%" PRIu64 ") greater than current snapshot end seqno "
             "(%" PRIu64 ")] being processed; Dropping the deletion!",
             consumer->logHeader(), vb_, deletion->getBySeqno(),
-            cur_snapshot_end);
+            cur_snapshot_end.load());
         delete deletion;
         return ENGINE_ERANGE;
     }
@@ -1372,22 +1372,22 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
 void PassiveStream::processMarker(SnapshotMarker* marker) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
 
-    cur_snapshot_start = marker->getStartSeqno();
-    cur_snapshot_end = marker->getEndSeqno();
-    cur_snapshot_type = (marker->getFlags() & MARKER_FLAG_DISK) ? disk : memory;
+    cur_snapshot_start.store(marker->getStartSeqno());
+    cur_snapshot_end.store(marker->getEndSeqno());
+    cur_snapshot_type.store((marker->getFlags() & MARKER_FLAG_DISK) ? disk : memory);
 
     if (vb) {
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
             vb->setBackfillPhase(true);
-            vb->checkpointManager.setBackfillPhase(cur_snapshot_start,
-                                                   cur_snapshot_end);
+            vb->checkpointManager.setBackfillPhase(cur_snapshot_start.load(),
+                                                   cur_snapshot_end.load());
         } else {
             if (marker->getFlags() & MARKER_FLAG_CHK ||
                 vb->checkpointManager.getOpenCheckpointId() == 0) {
-                vb->checkpointManager.createSnapshot(cur_snapshot_start,
-                                                     cur_snapshot_end);
+                vb->checkpointManager.createSnapshot(cur_snapshot_start.load(),
+                                                     cur_snapshot_end.load());
             } else {
-                vb->checkpointManager.updateCurrentSnapshotEnd(cur_snapshot_end);
+                vb->checkpointManager.updateCurrentSnapshotEnd(cur_snapshot_end.load());
             }
             vb->setBackfillPhase(false);
         }
@@ -1413,8 +1413,8 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
 }
 
 void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
-    if (byseqno == cur_snapshot_end) {
-        if (cur_snapshot_type == disk && vb->isBackfillPhase()) {
+    if (byseqno == cur_snapshot_end.load()) {
+        if (cur_snapshot_type.load() == disk && vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);
             uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
             vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
@@ -1438,7 +1438,7 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
             }
             cur_snapshot_ack = false;
         }
-        cur_snapshot_type = none;
+        cur_snapshot_type.store(none);
     }
 }
 
@@ -1454,18 +1454,18 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
     snprintf(buf, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
     add_casted_stat(buf, itemsReady ? "true" : "false", add_stat, c);
     snprintf(buf, bsize, "%s:stream_%d_last_received_seqno", name_.c_str(), vb_);
-    add_casted_stat(buf, last_seqno, add_stat, c);
+    add_casted_stat(buf, last_seqno.load(), add_stat, c);
     snprintf(buf, bsize, "%s:stream_%d_ready_queue_memory", name_.c_str(), vb_);
     add_casted_stat(buf, getReadyQueueMemory(), add_stat, c);
 
     snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_type", name_.c_str(), vb_);
-    add_casted_stat(buf, snapshotTypeToString(cur_snapshot_type), add_stat, c);
+    add_casted_stat(buf, snapshotTypeToString(cur_snapshot_type.load()), add_stat, c);
 
-    if (cur_snapshot_type != none) {
+    if (cur_snapshot_type.load() != none) {
         snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_start", name_.c_str(), vb_);
-        add_casted_stat(buf, cur_snapshot_start, add_stat, c);
+        add_casted_stat(buf, cur_snapshot_start.load(), add_stat, c);
         snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_end", name_.c_str(), vb_);
-        add_casted_stat(buf, cur_snapshot_end, add_stat, c);
+        add_casted_stat(buf, cur_snapshot_end.load(), add_stat, c);
     }
 }
 
