@@ -421,7 +421,7 @@ void ActiveStream::completeBackfill() {
         LockHolder lh(streamMutex);
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill complete, %d items read"
             " from disk, last seqno read: %ld", producer->logHeader(), vb_,
-            itemsFromBackfill, lastReadSeqno);
+            itemsFromBackfill, lastReadSeqno.load());
     }
 
     isBackfillTaskRunning.store(false);
@@ -455,7 +455,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
             RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
             LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") Vbucket marked as "
                 "dead, last sent seqno: %" PRIu64 ", high seqno: %" PRIu64 "",
-                producer->logHeader(), vb_, lastSentSeqno,
+                producer->logHeader(), vb_, lastSentSeqno.load(),
                 vbucket->getHighSeqno());
         } else {
             LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") Receive ack for set "
@@ -487,8 +487,8 @@ DcpResponse* ActiveStream::backfillPhase() {
     }
 
     if (!isBackfillTaskRunning && readyQ.empty()) {
-        backfillRemaining = 0;
-        if (lastReadSeqno >= end_seqno_) {
+        backfillRemaining.store(0, memory_order_relaxed);
+        if (lastReadSeqno.load() >= end_seqno_) {
             endStream(END_STREAM_OK);
         } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
             transitionState(STREAM_TAKEOVER_SEND);
@@ -507,7 +507,7 @@ DcpResponse* ActiveStream::backfillPhase() {
 }
 
 DcpResponse* ActiveStream::inMemoryPhase() {
-    if (lastSentSeqno >= end_seqno_) {
+    if (lastSentSeqno.load() >= end_seqno_) {
         endStream(END_STREAM_OK);
     } else if (readyQ.empty()) {
         if (nextCheckpointItem()) {
@@ -556,9 +556,9 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     snprintf(buffer, bsize, "%s:stream_%d_memory", name_.c_str(), vb_);
     add_casted_stat(buffer, itemsFromMemory, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_sent_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, lastSentSeqno, add_stat, c);
+    add_casted_stat(buffer, lastSentSeqno.load(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_read_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, lastReadSeqno, add_stat, c);
+    add_casted_stat(buffer, lastReadSeqno.load(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_ready_queue_memory", name_.c_str(), vb_);
     add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
@@ -830,7 +830,8 @@ void ActiveStream::endStream(end_stream_status_t reason) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream closing, %llu items sent"
             " from disk, %llu items sent from memory, %llu was last seqno sent"
             " %s is the reason", producer->logHeader(), vb_, itemsFromBackfill,
-            itemsFromMemory, lastSentSeqno, getEndStreamStatusStr(reason));
+            itemsFromMemory.load(), lastSentSeqno.load(),
+            getEndStreamStatusStr(reason));
     }
 }
 
@@ -988,12 +989,12 @@ size_t ActiveStream::getItemsRemaining() {
     uint64_t high_seqno = vbucket->getHighSeqno();
 
     if (end_seqno_ < high_seqno) {
-        if (end_seqno_ > lastSentSeqno) {
-            return (end_seqno_ - lastSentSeqno);
+        if (end_seqno_ > lastSentSeqno.load()) {
+            return (end_seqno_ - lastSentSeqno.load());
         }
     } else {
-        if (high_seqno > lastSentSeqno) {
-            return (high_seqno - lastSentSeqno);
+        if (high_seqno > lastSentSeqno.load()) {
+            return (high_seqno - lastSentSeqno.load());
         }
     }
 

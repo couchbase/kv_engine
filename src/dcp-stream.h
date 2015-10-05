@@ -194,7 +194,7 @@ public:
     void setVBucketStateAckRecieved();
 
     void incrBackfillRemaining(size_t by) {
-        backfillRemaining += by;
+        backfillRemaining.fetch_add(by);
     }
 
     void markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno);
@@ -251,20 +251,24 @@ private:
     bool isCurrentSnapshotCompleted() const;
 
     //! The last sequence number queued from disk or memory
-    uint64_t lastReadSeqno;
+    AtomicValue<uint64_t> lastReadSeqno;
     //! The last sequence number sent to the network layer
-    uint64_t lastSentSeqno;
+    AtomicValue<uint64_t> lastSentSeqno;
     //! The last known seqno pointed to by the checkpoint cursor
     uint64_t curChkSeqno;
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;
-    //! The amount of items remaining to be read from disk
-    size_t backfillRemaining;
+    /* backfillRemaining is a stat recording the amount of
+     * items remaining to be read from disk.  It is an atomic
+     * because otherwise the function incrBackfillRemaining
+     * must acquire the streamMutex lock.
+     */
+    AtomicValue <size_t> backfillRemaining;
 
     //! The amount of items that have been read from disk
     size_t itemsFromBackfill;
     //! The amount of items that have been read from memory
-    size_t itemsFromMemory;
+    AtomicValue<size_t> itemsFromMemory;
     //! Whether ot not this is the first snapshot marker sent
     bool firstMarkerSent;
 
