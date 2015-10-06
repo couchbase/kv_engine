@@ -96,7 +96,7 @@ public:
     const std::string getTaskableName() const {
         std::string name;
         if (currentTask) {
-            name.assign(currentTask->getTaskable()->getName());
+            name.assign(currentTask->getTaskable().getName());
         }
         return name;
     }

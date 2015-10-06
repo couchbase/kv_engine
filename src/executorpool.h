@@ -76,9 +76,9 @@ public:
 
     bool snooze(size_t taskId, double tosleep);
 
-    void registerTaskable(Taskable* taskable);
+    void registerTaskable(Taskable& taskable);
 
-    void unregisterTaskable(Taskable* taskable, bool force);
+    void unregisterTaskable(Taskable& taskable, bool force);
 
     void doWorkerStat(EventuallyPersistentEngine *engine, const void *cookie,
                       ADD_STAT add_stat);
@@ -136,10 +136,10 @@ private:
     bool _startWorkers(void);
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task, task_type_t qidx);
-    void _registerTaskable(Taskable* taskable);
-    void _unregisterTaskable(Taskable* taskable, bool force);
+    void _registerTaskable(Taskable& taskable);
+    void _unregisterTaskable(Taskable& taskable, bool force);
     bool _stopTaskGroup(task_gid_t taskGID, task_type_t qidx, bool force);
-    TaskQueue* _getTaskQueue(Taskable *t, task_type_t qidx);
+    TaskQueue* _getTaskQueue(const Taskable& t, task_type_t qidx);
     void _stopAndJoinThreads();
 
     size_t numTaskSets; // safe to read lock-less not altered after creation

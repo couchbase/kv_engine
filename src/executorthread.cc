@@ -95,9 +95,9 @@ void ExecutorThread::run() {
             // that the task wanted to wake up and the current time
             now = gethrtime();
             hrtime_t woketime = currentTask->getWaketime();
-            currentTask->getTaskable()->logQTime(currentTask->getTypeId(),
-                                                 now > woketime ?
-                                                 (now - woketime) / 1000 : 0);
+            currentTask->getTaskable().logQTime(currentTask->getTypeId(),
+                                                now > woketime ?
+                                                (now - woketime) / 1000 : 0);
 
             taskStart = now;
             rel_time_t startReltime = ep_current_time();
@@ -113,13 +113,13 @@ void ExecutorThread::run() {
 
             // Task done, log it ...
             hrtime_t runtime((gethrtime() - taskStart) / 1000);
-            currentTask->getTaskable()->logRunTime(currentTask->getTypeId(),
-                                                   runtime);
+            currentTask->getTaskable().logRunTime(currentTask->getTypeId(),
+                                                  runtime);
             if (engine) {
                 ObjectRegistry::onSwitchThread(NULL);
             }
 
-            addLogEntry(currentTask->getTaskable()->getName() +
+            addLogEntry(currentTask->getTaskable().getName() +
                         currentTask->getDescription(),
                        q->getQueueType(), runtime, startReltime,
                        (runtime >

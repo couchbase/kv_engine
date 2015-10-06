@@ -303,7 +303,7 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
     ExTask task = itr->second.first;
     LOG(EXTENSION_LOG_DEBUG, "Cancel task %s id %" PRIu64 " on bucket %s %s",
             task->getDescription().c_str(), uint64_t(task->getId()),
-            task->getTaskable()->getName().c_str(), eraseTask ? "final erase" : "!");
+            task->getTaskable().getName().c_str(), eraseTask ? "final erase" : "!");
 
     task->cancel(); // must be idempotent, just set state to dead
 
@@ -364,12 +364,12 @@ bool ExecutorPool::snooze(size_t taskId, double tosleep) {
     return rv;
 }
 
-TaskQueue* ExecutorPool::_getTaskQueue(Taskable *t,
+TaskQueue* ExecutorPool::_getTaskQueue(const Taskable& t,
                                        task_type_t qidx) {
     TaskQueue         *q             = NULL;
     size_t            curNumThreads  = 0;
 
-    bucket_priority_t bucketPriority = t->getWorkloadPriority();
+    bucket_priority_t bucketPriority = t.getWorkloadPriority();
 
     if (qidx < 0 || qidx >= numTaskSets) {
         throw std::invalid_argument("ExecutorPool::_getTaskQueue: qidx "
@@ -381,7 +381,7 @@ TaskQueue* ExecutorPool::_getTaskQueue(Taskable *t,
 
     if (!bucketPriority) {
         LOG(EXTENSION_LOG_WARNING, "Trying to schedule task for unregistered "
-            "bucket %s", t->getName().c_str());
+            "bucket %s", t.getName().c_str());
         return q;
     }
 
@@ -439,27 +439,27 @@ size_t ExecutorPool::schedule(ExTask task, task_type_t qidx) {
     return rv;
 }
 
-void ExecutorPool::_registerTaskable(Taskable *taskable) {
+void ExecutorPool::_registerTaskable(Taskable& taskable) {
     TaskQ *taskQ;
     bool *whichQset;
     const char *queueName;
-    WorkLoadPolicy &workload = taskable->getWorkLoadPolicy();
+    WorkLoadPolicy &workload = taskable.getWorkLoadPolicy();
     bucket_priority_t priority = workload.getBucketPriority();
 
     if (priority < HIGH_BUCKET_PRIORITY) {
-        taskable->setWorkloadPriority(LOW_BUCKET_PRIORITY);
+        taskable.setWorkloadPriority(LOW_BUCKET_PRIORITY);
         taskQ = &lpTaskQ;
         whichQset = &isLowPrioQset;
         queueName = "LowPrioQ_";
         LOG(EXTENSION_LOG_NOTICE, "Taskable %s registered with low priority",
-            taskable->getName().c_str());
+            taskable.getName().c_str());
     } else {
-        taskable->setWorkloadPriority(HIGH_BUCKET_PRIORITY);
+        taskable.setWorkloadPriority(HIGH_BUCKET_PRIORITY);
         taskQ = &hpTaskQ;
         whichQset = &isHiPrioQset;
         queueName = "HiPrioQ_";
         LOG(EXTENSION_LOG_NOTICE, "Taskable %s registered with high priority",
-            taskable->getName().c_str());
+            taskable.getName().c_str());
     }
 
     LockHolder lh(tMutex);
@@ -472,13 +472,13 @@ void ExecutorPool::_registerTaskable(Taskable *taskable) {
         *whichQset = true;
     }
 
-    taskOwners.insert(taskable);
+    taskOwners.insert(&taskable);
     numBuckets++;
 
     _startWorkers();
 }
 
-void ExecutorPool::registerTaskable(Taskable* taskable) {
+void ExecutorPool::registerTaskable(Taskable& taskable) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     _registerTaskable(taskable);
     ObjectRegistry::onSwitchThread(epe);
@@ -554,11 +554,11 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
         for (itr = taskLocator.begin(); itr != taskLocator.end(); itr++) {
             task = itr->second.first;
             TaskQueue *q = itr->second.second;
-            if (task->getTaskable()->getGID() == taskGID &&
+            if (task->getTaskable().getGID() == taskGID &&
                 (taskType == NO_TASK_TYPE || q->queueType == taskType)) {
                 LOG(EXTENSION_LOG_DEBUG, "Stopping Task id %" PRIu64 " %s %s ",
                     uint64_t(task->getId()),
-                    task->getTaskable()->getName().c_str(),
+                    task->getTaskable().getName().c_str(),
                     task->getDescription().c_str());
                 // If force flag is set during shutdown, cancel all tasks
                 // without considering the blockShutdown status of the task.
@@ -587,20 +587,20 @@ bool ExecutorPool::stopTaskGroup(task_gid_t taskGID,
     return rv;
 }
 
-void ExecutorPool::_unregisterTaskable(Taskable *taskable, bool force) {
+void ExecutorPool::_unregisterTaskable(Taskable& taskable, bool force) {
 
     LOG(EXTENSION_LOG_NOTICE, "Unregistering %s taskable %s",
-            (numBuckets == 1)? "last" : "", taskable->getName().c_str());
+            (numBuckets == 1)? "last" : "", taskable.getName().c_str());
 
-    _stopTaskGroup(taskable->getGID(), NO_TASK_TYPE, force);
+    _stopTaskGroup(taskable.getGID(), NO_TASK_TYPE, force);
 
     LockHolder lh(tMutex);
-    taskOwners.erase(taskable);
+    taskOwners.erase(&taskable);
     if (!(--numBuckets)) {
         if (taskLocator.size()) {
             throw std::logic_error("ExecutorPool::_unregisterTaskable: "
                     "Attempting to unregister taskable '" +
-                    taskable->getName() + "' but taskLocator is not empty");
+                    taskable.getName() + "' but taskLocator is not empty");
         }
         for (unsigned int idx = 0; idx < numTaskSets; idx++) {
             TaskQueue *sleepQ = getSleepQ(idx);
@@ -644,7 +644,7 @@ void ExecutorPool::_unregisterTaskable(Taskable *taskable, bool force) {
     }
 }
 
-void ExecutorPool::unregisterTaskable(Taskable *taskable, bool force) {
+void ExecutorPool::unregisterTaskable(Taskable& taskable, bool force) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     _unregisterTaskable(taskable, force);
     ObjectRegistry::onSwitchThread(epe);

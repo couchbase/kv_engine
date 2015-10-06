@@ -50,7 +50,7 @@ friend class ExecutorThread;
 friend class TaskQueue;
 public:
 
-    GlobalTask(Taskable *t, const Priority &p,
+    GlobalTask(Taskable& t, const Priority &p,
                double sleeptime = 0, bool completeBeforeShutdown = true);
 
     GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
@@ -127,7 +127,7 @@ public:
         state.compare_exchange_strong(expected, tstate);
     }
 
-    Taskable* getTaskable() {
+    Taskable& getTaskable() {
         return taskable;
     }
 
@@ -137,7 +137,7 @@ protected:
     AtomicValue<task_state_t> state;
     const size_t taskId;
     EventuallyPersistentEngine *engine;
-    Taskable *taskable;
+    Taskable& taskable;
 
     static AtomicValue<size_t> task_id_counter;
     static size_t nextTaskId() { return task_id_counter.fetch_add(1); }

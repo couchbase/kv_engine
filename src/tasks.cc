@@ -26,7 +26,7 @@
 static const double VBSTATE_SNAPSHOT_FREQ(300.0);
 static const double WORKLOAD_MONITOR_FREQ(5.0);
 
-GlobalTask::GlobalTask(Taskable *t, const Priority &p,
+GlobalTask::GlobalTask(Taskable& t, const Priority &p,
            double sleeptime, bool completeBeforeShutdown) :
       RCValue(), priority(p),
       blockShutdown(completeBeforeShutdown),

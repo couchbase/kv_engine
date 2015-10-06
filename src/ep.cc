@@ -465,7 +465,7 @@ bool EventuallyPersistentStore::initialize() {
 EventuallyPersistentStore::~EventuallyPersistentStore() {
     stopWarmup();
     stopBgFetcher();
-    ExecutorPool::get()->stopTaskGroup(engine.getTaskable()->getGID(), NONIO_TASK_IDX,
+    ExecutorPool::get()->stopTaskGroup(engine.getTaskable().getGID(), NONIO_TASK_IDX,
                                        stats.forceShutdown);
 
     ExecutorPool::get()->cancel(statsSnapshotTaskId);

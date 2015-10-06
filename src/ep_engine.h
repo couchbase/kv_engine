@@ -846,8 +846,8 @@ public:
 
     void updateDcpMinCompressionRatio(float value);
 
-    EpEngineTaskable* getTaskable() {
-        return &taskable;
+    EpEngineTaskable& getTaskable() {
+        return taskable;
     }
 
 protected:
