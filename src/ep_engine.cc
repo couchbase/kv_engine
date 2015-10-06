@@ -50,8 +50,8 @@
 #include "dcp/producer.h"
 #include "warmup.h"
 
-static ALLOCATOR_HOOKS_API *hooksApi;
-static SERVER_LOG_API *loggerApi;
+static AtomicValue<ALLOCATOR_HOOKS_API*> hooksApi;
+static AtomicValue<SERVER_LOG_API*> loggerApi;
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -1805,8 +1805,8 @@ extern "C" {
             return ENGINE_ENOTSUP;
         }
 
-        hooksApi = api->alloc_hooks;
-        loggerApi = api->log;
+        hooksApi.store(api->alloc_hooks, std::memory_order_relaxed);
+        loggerApi.store(api->log, std::memory_order_relaxed);
         MemoryTracker::getInstance();
         ObjectRegistry::initialize(api->alloc_hooks->get_allocation_size);
 
@@ -1913,7 +1913,7 @@ extern "C" {
 void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     char buffer[2048];
 
-    if (loggerApi != nullptr) {
+    if (loggerApi.load(std::memory_order_relaxed) != nullptr) {
         static EXTENSION_LOGGER_DESCRIPTOR* logger;
         if (logger == nullptr) {
             // This locking isn't really needed because get_logger will
@@ -1921,10 +1921,10 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
             // and other tools from complaining ;-)
             static std::mutex mutex;
             std::lock_guard<std::mutex> guard(mutex);
-            logger = loggerApi->get_logger();
+            logger = loggerApi.load(std::memory_order_relaxed)->get_logger();
         }
 
-        if (loggerApi->get_level() <= severity) {
+        if (loggerApi.load(std::memory_order_relaxed)->get_level() <= severity) {
             EventuallyPersistentEngine *engine = ObjectRegistry::onSwitchThread(NULL, true);
             va_list va;
             va_start(va, fmt);
@@ -1942,7 +1942,7 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
 }
 
 ALLOCATOR_HOOKS_API *getHooksApi(void) {
-    return hooksApi;
+    return hooksApi.load(std::memory_order_relaxed);
 }
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(
