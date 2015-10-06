@@ -70,7 +70,10 @@ void ExecutorThread::run() {
     LOG(EXTENSION_LOG_DEBUG, "Thread %s running..", getName().c_str());
 
     for (uint8_t tick = 1;; tick++) {
-        currentTask.reset();
+        {
+            LockHolder lh(currentTaskMutex);
+            currentTask.reset();
+        }
         if (state != EXECUTOR_RUNNING) {
             break;
         }
@@ -161,6 +164,11 @@ void ExecutorThread::run() {
     ObjectRegistry::onSwitchThread(nullptr);
 
     state = EXECUTOR_DEAD;
+}
+
+void ExecutorThread::setCurrentTask(ExTask newTask) {
+    LockHolder lh(currentTaskMutex);
+    currentTask = newTask;
 }
 
 void ExecutorThread::addLogEntry(const std::string &desc,
