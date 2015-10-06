@@ -154,7 +154,7 @@ protected:
 };
 
 TEST_F(HashTableTest, Size) {
-    HashTable h(global_stats);
+    HashTable h(global_stats, /*size*/0, /*locks*/1);
     ASSERT_EQ(0, count(h));
 
     std::string k = "testkey";
@@ -164,7 +164,7 @@ TEST_F(HashTableTest, Size) {
 }
 
 TEST_F(HashTableTest, SizeTwo) {
-    HashTable h(global_stats);
+    HashTable h(global_stats, /*size*/0, /*locks*/1);
     ASSERT_EQ(0, count(h));
 
     std::vector<std::string> keys = generateKeys(5);
