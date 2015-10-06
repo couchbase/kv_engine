@@ -32,6 +32,7 @@
 #include <limits>
 #include <string>
 #include <vector>
+#include <mutex>
 
 #include "backfill.h"
 #include "ep_engine.h"
@@ -1912,9 +1913,16 @@ extern "C" {
 void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     char buffer[2048];
 
-    if (loggerApi != NULL) {
-        EXTENSION_LOGGER_DESCRIPTOR* logger =
-            (EXTENSION_LOGGER_DESCRIPTOR*)loggerApi->get_logger();
+    if (loggerApi != nullptr) {
+        static EXTENSION_LOGGER_DESCRIPTOR* logger;
+        if (logger == nullptr) {
+            // This locking isn't really needed because get_logger will
+            // always return the same address, but it'll keep thread sanitizer
+            // and other tools from complaining ;-)
+            static std::mutex mutex;
+            std::lock_guard<std::mutex> guard(mutex);
+            logger = loggerApi->get_logger();
+        }
 
         if (loggerApi->get_level() <= severity) {
             EventuallyPersistentEngine *engine = ObjectRegistry::onSwitchThread(NULL, true);
