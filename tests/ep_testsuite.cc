@@ -14550,7 +14550,7 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("tap stream send deletes", test_tap_sends_deleted, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("tap tap sent from vb", test_sent_from_vb, test_setup,
+        TestCase("test tap sent from vb", test_sent_from_vb, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("tap agg stats", test_tap_agg_stats, test_setup,
                  teardown, NULL, prepare, cleanup),
