@@ -60,7 +60,6 @@ extern std::string last_key;
 extern std::string last_body;
 extern bool dump_stats;
 extern std::map<std::string, std::string> vals;
-extern uint32_t last_bodylen;
 extern AtomicValue<uint64_t> last_cas;
 extern AtomicValue<uint8_t> last_datatype;
 extern AtomicValue<uint64_t> last_uuid;
