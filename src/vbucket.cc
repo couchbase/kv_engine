@@ -275,9 +275,9 @@ void VBucket::addStat(const char *nm, const T &val, ADD_STAT add_stat,
     add_casted_stat(n.data(), value.str().data(), add_stat, c);
 }
 
-void VBucket::queueBGFetchItem(const std::string &key,
-                               VBucketBGFetchItem *fetch,
-                               BgFetcher *bgFetcher) {
+size_t VBucket::queueBGFetchItem(const std::string &key,
+                                 VBucketBGFetchItem *fetch,
+                                 BgFetcher *bgFetcher) {
     LockHolder lh(pendingBGFetchesLock);
     vb_bgfetch_item_ctx_t& bgfetch_itm_ctx = pendingBGFetches[key];
 
@@ -291,14 +291,13 @@ void VBucket::queueBGFetchItem(const std::string &key,
         bgfetch_itm_ctx.isMetaOnly = false;
     }
     bgFetcher->addPendingVB(id);
-    lh.unlock();
+    return pendingBGFetches.size();
 }
 
 bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
     LockHolder lh(pendingBGFetchesLock);
     fetches.insert(pendingBGFetches.begin(), pendingBGFetches.end());
     pendingBGFetches.clear();
-    lh.unlock();
     return fetches.size() > 0;
 }
 

@@ -1947,8 +1947,6 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         uint16_t vbucket,
                                         const void *cookie,
                                         bool isMeta) {
-    std::stringstream ss;
-
     if (multiBGFetchEnabled()) {
         RCPtr<VBucket> vb = getVBucket(vbucket);
         if (!vb) {
@@ -1962,11 +1960,11 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         // vbucket
         VBucketBGFetchItem * fetchThis = new VBucketBGFetchItem(cookie,
                                                                 isMeta);
-        vb->queueBGFetchItem(key, fetchThis, myShard->getBgFetcher());
+        size_t bgfetch_size = vb->queueBGFetchItem(key, fetchThis,
+                                                   myShard->getBgFetcher());
         myShard->getBgFetcher()->notifyBGEvent();
-        ss << "Queued a background fetch, now at "
-           << vb->numPendingBGFetchItems() << std::endl;
-        LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Queued a background fetch, now at %" PRIu64,
+            uint64_t(bgfetch_size));
     } else {
         bgFetchQueue++;
         stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs,
@@ -1977,9 +1975,8 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                       Priority::BgFetcherGetMetaPriority,
                                       bgFetchDelay, false);
         iom->schedule(task, READER_TASK_IDX);
-        ss << "Queued a background fetch, now at " << bgFetchQueue.load()
-           << std::endl;
-        LOG(EXTENSION_LOG_DEBUG, "%s", ss.str().c_str());
+        LOG(EXTENSION_LOG_DEBUG, "Queued a background fetch, now at %" PRIu64,
+            uint64_t(bgFetchQueue.load()));
     }
 }
 

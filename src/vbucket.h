@@ -358,12 +358,14 @@ public:
     }
 
     bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
-    void queueBGFetchItem(const std::string &key, VBucketBGFetchItem *fetch,
-                          BgFetcher *bgFetcher);
-    size_t numPendingBGFetchItems(void) {
-        // do a dirty read of number of fetch items
-        return pendingBGFetches.size();
-    }
+
+    /* queue a background fetch of the specified item.
+     * Returns the number of pending background fetches after
+     * adding the specified item.
+     **/
+    size_t queueBGFetchItem(const std::string &key, VBucketBGFetchItem *fetch,
+                            BgFetcher *bgFetcher);
+
     bool hasPendingBGFetchItems(void) {
         LockHolder lh(pendingBGFetchesLock);
         return !pendingBGFetches.empty();
