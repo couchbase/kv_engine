@@ -27,10 +27,6 @@
 
 #include "threadtests.h"
 
-#ifdef _MSC_VER
-#define alarm(a)
-#endif
-
 time_t time_offset;
 
 extern "C" {
@@ -152,7 +148,7 @@ static std::vector<std::string> generateKeys(int num, int start=0) {
 // ----------------------------------------------------------------------
 
 static void testHashSize() {
-    HashTable h(global_stats);
+    HashTable h(global_stats, /*size*/0, /*locks*/1);
     cb_assert(count(h) == 0);
 
     std::string k = "testkey";
@@ -162,7 +158,7 @@ static void testHashSize() {
 }
 
 static void testHashSizeTwo() {
-    HashTable h(global_stats);
+    HashTable h(global_stats, /*size*/0, /*locks*/1);
     cb_assert(count(h) == 0);
 
     std::vector<std::string> keys = generateKeys(5);
@@ -174,7 +170,6 @@ static void testHashSizeTwo() {
 }
 
 static void testReverseDeletions() {
-    alarm(10);
     size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
     cb_assert(count(h) == 0);
@@ -197,7 +192,6 @@ static void testReverseDeletions() {
 }
 
 static void testForwardDeletions() {
-    alarm(10);
     size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
     cb_assert(h.getSize() == 5);
@@ -317,7 +311,7 @@ private:
 
     std::vector<std::string>  keys;
     HashTable                &ht;
-    size_t                    size;
+    AtomicValue<size_t>       size;
 };
 
 static void testConcurrentAccessResize() {
@@ -573,7 +567,6 @@ int main() {
     putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
     global_stats.setMaxDataSize(64*1024*1024);
     HashTable::setDefaultNumBuckets(3);
-    alarm(60);
     testHashSize();
     testHashSizeTwo();
     testReverseDeletions();
