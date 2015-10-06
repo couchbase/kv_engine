@@ -208,8 +208,6 @@ static void launch_set_thread(void *arg) {
 }
 
 TEST_F(CheckpointTest, basic_chk_test) {
-    HashTable::setDefaultNumBuckets(5);
-    HashTable::setDefaultNumLocks(1);
     shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
                                        checkpoint_config, NULL, 0, 0, 0, NULL,
@@ -532,6 +530,9 @@ static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     putenv(allow_no_stats_env);
+
+    HashTable::setDefaultNumBuckets(5);
+    HashTable::setDefaultNumLocks(1);
 
     return RUN_ALL_TESTS();
 }
