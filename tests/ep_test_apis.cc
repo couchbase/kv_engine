@@ -31,17 +31,17 @@
 
 std::map<std::string, std::string> vals;
 bool dump_stats = false;
-protocol_binary_response_status last_status =
-    static_cast<protocol_binary_response_status>(0);
+AtomicValue<protocol_binary_response_status> last_status(
+    static_cast<protocol_binary_response_status>(0));
 std::string last_key;
 std::string last_body;
-bool last_deleted_flag = false;
-uint8_t last_conflict_resolution_mode = static_cast<uint8_t>(-1);
-uint64_t last_cas = 0;
-uint8_t last_datatype = 0x00;
+bool last_deleted_flag(false);
+uint8_t last_conflict_resolution_mode(static_cast<uint8_t>(-1));
+AtomicValue<uint64_t> last_cas(0);
+AtomicValue<uint8_t> last_datatype(0x00);
 ItemMetaData last_meta;
-uint64_t last_uuid = 0;
-uint64_t last_seqno = 0;
+AtomicValue<uint64_t> last_uuid(0);
+AtomicValue<uint64_t> last_seqno(0);
 
 extern "C" bool add_response_get_meta(const void *key, uint16_t keylen,
                                       const void *ext, uint8_t extlen,
@@ -72,11 +72,11 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
     (void)ext;
     (void)extlen;
     (void)cookie;
-    last_status = static_cast<protocol_binary_response_status>(status);
+    last_status.store(static_cast<protocol_binary_response_status>(status));
     last_body.assign(static_cast<const char*>(body), bodylen);
     last_key.assign(static_cast<const char*>(key), keylen);
-    last_cas = cas;
-    last_datatype = datatype;
+    last_cas.store(cas);
+    last_datatype.store(datatype);
     return true;
 }
 
@@ -115,8 +115,8 @@ bool add_response_set_del_meta(const void *key, uint16_t keylen, const void *ext
         uint64_t seqno;
         memcpy(&vb_uuid, ext_bytes, 8);
         memcpy(&seqno, ext_bytes + 8, 8);
-        last_uuid = ntohll(vb_uuid);
-        last_seqno = ntohll(seqno);
+        last_uuid.store(ntohll(vb_uuid));
+        last_seqno.store(ntohll(seqno));
     }
 
     return add_response(key, keylen, ext, extlen, body, bodylen, datatype,
@@ -959,7 +959,7 @@ bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
     if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         if (!mute) {
             fprintf(stderr, "Last protocol status was %d (%s)\n",
-                    last_status,
+                    last_status.load(),
                     last_body.size() > 0 ? last_body.c_str() : "unknown");
         }
         return false;

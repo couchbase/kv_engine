@@ -55,16 +55,16 @@ ENGINE_ERROR_CODE vb_map_response(const void *cookie, const void *map,
 }
 #endif
 
-extern protocol_binary_response_status last_status;
+extern AtomicValue<protocol_binary_response_status> last_status;
 extern std::string last_key;
 extern std::string last_body;
 extern bool dump_stats;
 extern std::map<std::string, std::string> vals;
 extern uint32_t last_bodylen;
-extern uint64_t last_cas;
-extern uint8_t last_datatype;
-extern uint64_t last_uuid;
-extern uint64_t last_seqno;
+extern AtomicValue<uint64_t> last_cas;
+extern AtomicValue<uint8_t> last_datatype;
+extern AtomicValue<uint64_t> last_uuid;
+extern AtomicValue<uint64_t> last_seqno;
 extern bool last_deleted_flag;
 extern uint8_t last_conflict_resolution_mode;
 extern ItemMetaData last_meta;

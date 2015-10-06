@@ -226,7 +226,7 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     getl(h, h1, key, vbucketId, expiration);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Aquire lock should have succeeded");
-    auto locked_cas = last_cas;
+    auto locked_cas = last_cas.load();
     /* append should fail */
     check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
                        binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
