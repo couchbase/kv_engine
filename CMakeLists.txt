@@ -228,7 +228,7 @@ ADD_EXECUTABLE(ep-engine_hash_table_test
   src/testlogger.cc
   tests/module_tests/test_memory_tracker.cc
   ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_hash_table_test ${SNAPPY_LIBRARIES} platform)
+TARGET_LINK_LIBRARIES(ep-engine_hash_table_test gtest ${SNAPPY_LIBRARIES} platform)
 
 ADD_EXECUTABLE(ep-engine_histo_test tests/module_tests/histo_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_histo_test platform)

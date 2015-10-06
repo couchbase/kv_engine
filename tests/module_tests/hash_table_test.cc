@@ -27,6 +27,8 @@
 
 #include "threadtests.h"
 
+#include <gtest/gtest.h>
+
 #ifdef _MSC_VER
 #define alarm(a)
 #endif
@@ -63,7 +65,7 @@ public:
             if (verify) {
                 std::string key = v->getKey();
                 value_t val = v->getValue();
-                cb_assert(key.compare(val->to_s()) == 0);
+                EXPECT_EQ(0, key.compare(val->to_s()));
             }
         }
     }
@@ -74,13 +76,13 @@ private:
 static int count(HashTable &h, bool verify=true) {
     Counter c(verify);
     h.visit(c);
-    cb_assert(c.count + c.deleted == h.getNumItems());
+    EXPECT_EQ(h.getNumItems(), c.count + c.deleted);
     return c.count;
 }
 
 static void store(HashTable &h, std::string &k) {
     Item i(k.data(), k.length(), 0, 0, k.c_str(), k.length());
-    cb_assert(h.set(i) == WAS_CLEAN);
+    EXPECT_EQ(WAS_CLEAN, h.set(i));
 }
 
 static void storeMany(HashTable &h, std::vector<std::string> &keys) {
@@ -99,7 +101,7 @@ static void addMany(HashTable &h, std::vector<std::string> &keys,
         std::string k = *it;
         Item i(k.data(), k.length(), 0, 0, k.c_str(), k.length());
         add_type_t v = h.add(i, policy);
-        cb_assert(expect == v);
+        EXPECT_EQ(expect, v);
     }
 }
 
@@ -117,21 +119,12 @@ static const char *toString(add_type_t a) {
     return NULL;
 }
 
-template <typename T>
-void assertEquals(T a, T b) {
-    if (a != b) {
-        std::cerr << "Expected " << toString<T>(a)
-                  << " got " << toString<T>(b) << std::endl;
-        abort();
-    }
-}
-
 static void add(HashTable &h, const std::string &k, add_type_t expect,
                 int expiry=0) {
     Item i(k.data(), k.length(), 0, expiry, k.c_str(), k.length());
     item_eviction_policy_t policy = VALUE_ONLY;
     add_type_t v = h.add(i, policy);
-    assertEquals(expect, v);
+    EXPECT_EQ(expect, v);
 }
 
 static std::vector<std::string> generateKeys(int num, int start=0) {
@@ -151,38 +144,46 @@ static std::vector<std::string> generateKeys(int num, int start=0) {
 // Actual tests below.
 // ----------------------------------------------------------------------
 
-static void testHashSize() {
+// Test fixture for HashTable tests.
+class HashTableTest : public ::testing::Test {
+protected:
+    HashTableTest() {
+        // Default per-test timeout
+        alarm(30);
+    }
+};
+
+TEST_F(HashTableTest, Size) {
     HashTable h(global_stats);
-    cb_assert(count(h) == 0);
+    ASSERT_EQ(0, count(h));
 
     std::string k = "testkey";
     store(h, k);
 
-    cb_assert(count(h) == 1);
+    EXPECT_EQ(1, count(h));
 }
 
-static void testHashSizeTwo() {
+TEST_F(HashTableTest, SizeTwo) {
     HashTable h(global_stats);
-    cb_assert(count(h) == 0);
+    ASSERT_EQ(0, count(h));
 
     std::vector<std::string> keys = generateKeys(5);
     storeMany(h, keys);
-    cb_assert(count(h) == 5);
+    EXPECT_EQ(5, count(h));
 
     h.clear();
-    cb_assert(count(h) == 0);
+    EXPECT_EQ(0, count(h));
 }
 
-static void testReverseDeletions() {
-    alarm(20);
+TEST_F(HashTableTest, ReverseDeletions) {
     size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
-    cb_assert(count(h) == 0);
+    ASSERT_EQ(0, count(h));
     const int nkeys = 10000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
     storeMany(h, keys);
-    cb_assert(count(h) == nkeys);
+    EXPECT_EQ(nkeys, count(h));
 
     std::reverse(keys.begin(), keys.end());
 
@@ -192,22 +193,22 @@ static void testReverseDeletions() {
         h.del(key);
     }
 
-    cb_assert(count(h) == 0);
-    cb_assert(global_stats.currentSize.load() == initialSize);
+    EXPECT_EQ(0, count(h));
+    EXPECT_EQ(initialSize, global_stats.currentSize.load());
 }
 
-static void testForwardDeletions() {
+TEST_F(HashTableTest, ForwardDeletions) {
     alarm(20);
     size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
-    cb_assert(h.getSize() == 5);
-    cb_assert(h.getNumLocks() == 1);
-    cb_assert(count(h) == 0);
+    ASSERT_EQ(5, h.getSize());
+    ASSERT_EQ(1, h.getNumLocks());
+    ASSERT_EQ(0, count(h));
     const int nkeys = 10000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
     storeMany(h, keys);
-    cb_assert(count(h) == nkeys);
+    EXPECT_EQ(nkeys, count(h));
 
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
@@ -215,18 +216,18 @@ static void testForwardDeletions() {
         h.del(key);
     }
 
-    cb_assert(count(h) == 0);
-    cb_assert(global_stats.currentSize.load() == initialSize);
+    EXPECT_EQ(0, count(h));
+    EXPECT_EQ(initialSize, global_stats.currentSize.load());
 }
 
 static void verifyFound(HashTable &h, const std::vector<std::string> &keys) {
     std::string missingKey = "aMissingKey";
-    cb_assert(h.find(missingKey) == NULL);
+    EXPECT_FALSE(h.find(missingKey));
 
     std::vector<std::string>::const_iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
-        cb_assert(h.find(key));
+        EXPECT_TRUE(h.find(key));
     }
 }
 
@@ -239,12 +240,12 @@ static void testFind(HashTable &h) {
     verifyFound(h, keys);
 }
 
-static void testFind() {
+TEST_F(HashTableTest, Find) {
     HashTable h(global_stats, 5, 1);
     testFind(h);
 }
 
-static void testAddExpiry() {
+TEST_F(HashTableTest, AddExpiry) {
     HashTable h(global_stats, 5, 1);
     std::string k("aKey");
 
@@ -252,20 +253,20 @@ static void testAddExpiry() {
     add(h, k, ADD_EXISTS, ep_real_time() + 5);
 
     StoredValue *v = h.find(k);
-    cb_assert(v);
-    cb_assert(!v->isExpired(ep_real_time()));
-    cb_assert(v->isExpired(ep_real_time() + 6));
+    EXPECT_TRUE(v);
+    EXPECT_FALSE(v->isExpired(ep_real_time()));
+    EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
 
     time_offset += 6;
-    cb_assert(v->isExpired(ep_real_time()));
+    EXPECT_TRUE(v->isExpired(ep_real_time()));
 
     add(h, k, ADD_UNDEL, ep_real_time() + 5);
-    cb_assert(v);
-    cb_assert(!v->isExpired(ep_real_time()));
-    cb_assert(v->isExpired(ep_real_time() + 6));
+    EXPECT_TRUE(v);
+    EXPECT_FALSE(v->isExpired(ep_real_time()));
+    EXPECT_TRUE(v->isExpired(ep_real_time() + 6));
 }
 
-static void testResize() {
+TEST_F(HashTableTest, Resize) {
     HashTable h(global_stats, 5, 3);
 
     std::vector<std::string> keys = generateKeys(5000);
@@ -274,17 +275,17 @@ static void testResize() {
     verifyFound(h, keys);
 
     h.resize(6143);
-    cb_assert(h.getSize() == 6143);
+    EXPECT_EQ(6143, h.getSize());
 
     verifyFound(h, keys);
 
     h.resize(769);
-    cb_assert(h.getSize() == 769);
+    EXPECT_EQ(769, h.getSize());
 
     verifyFound(h, keys);
 
     h.resize(static_cast<size_t>(std::numeric_limits<int>::max()) + 17);
-    cb_assert(h.getSize() == 769);
+    EXPECT_EQ(769, h.getSize());
 
     verifyFound(h, keys);
 }
@@ -320,7 +321,7 @@ private:
     size_t                    size;
 };
 
-static void testConcurrentAccessResize() {
+TEST_F(HashTableTest, ConcurrentAccessResize) {
     HashTable h(global_stats, 5, 3);
 
     std::vector<std::string> keys = generateKeys(20000);
@@ -334,7 +335,7 @@ static void testConcurrentAccessResize() {
     getCompletedThreads(16, &gen);
 }
 
-static void testAutoResize() {
+TEST_F(HashTableTest, AutoResize) {
     HashTable h(global_stats, 5, 3);
 
     std::vector<std::string> keys = generateKeys(5000);
@@ -343,11 +344,11 @@ static void testAutoResize() {
     verifyFound(h, keys);
 
     h.resize();
-    cb_assert(h.getSize() == 6143);
+    EXPECT_EQ(6143, h.getSize());
     verifyFound(h, keys);
 }
 
-static void testAdd() {
+TEST_F(HashTableTest, Add) {
     HashTable h(global_stats, 5, 1);
     const int nkeys = 5000;
 
@@ -355,33 +356,33 @@ static void testAdd() {
     addMany(h, keys, ADD_SUCCESS);
 
     std::string missingKey = "aMissingKey";
-    cb_assert(h.find(missingKey) == NULL);
+    EXPECT_FALSE(h.find(missingKey));
 
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
-        cb_assert(h.find(key));
+        EXPECT_TRUE(h.find(key));
     }
 
     addMany(h, keys, ADD_EXISTS);
     for (it = keys.begin(); it != keys.end(); ++it) {
         std::string key = *it;
-        cb_assert(h.find(key));
+        EXPECT_TRUE(h.find(key));
     }
 
     // Verify we can readd after a soft deletion.
-    cb_assert(h.softDelete(keys[0], 0) == WAS_DIRTY);
-    cb_assert(h.softDelete(keys[0], 0) == NOT_FOUND);
-    cb_assert(!h.find(keys[0]));
-    cb_assert(count(h) == nkeys - 1);
+    EXPECT_EQ(WAS_DIRTY, h.softDelete(keys[0], 0));
+    EXPECT_EQ(NOT_FOUND, h.softDelete(keys[0], 0));
+    EXPECT_FALSE(h.find(keys[0]));
+    EXPECT_EQ(nkeys - 1, count(h));
 
     Item i(keys[0].data(), keys[0].length(), 0, 0, "newtest", 7);
     item_eviction_policy_t policy = VALUE_ONLY;
-    cb_assert(h.add(i, policy) == ADD_UNDEL);
-    cb_assert(count(h, false) == nkeys);
+    EXPECT_EQ(ADD_UNDEL, h.add(i, policy));
+    EXPECT_EQ(nkeys, count(h, false));
 }
 
-static void testDepthCounting() {
+TEST_F(HashTableTest, DepthCounting) {
     HashTable h(global_stats, 5, 1);
     const int nkeys = 5000;
 
@@ -391,212 +392,212 @@ static void testDepthCounting() {
     HashTableDepthStatVisitor depthCounter;
     h.visitDepth(depthCounter);
     // std::cout << "Max depth:  " << depthCounter.maxDepth << std::endl;
-    cb_assert(depthCounter.max > 1000);
+    EXPECT_GT(depthCounter.max, 1000);
 }
 
-static void testPoisonKey() {
+TEST_F(HashTableTest, PoisonKey) {
     std::string k("A\\NROBs_oc)$zqJ1C.9?XU}Vn^(LW\"`+K/4lykF[ue0{ram;fvId6h=p&Zb3T~SQ]82'ixDP");
 
     HashTable h(global_stats, 5, 1);
 
     store(h, k);
-    cb_assert(count(h) == 1);
+    EXPECT_EQ(1, count(h));
 }
 
-static void testSizeStats() {
+TEST_F(HashTableTest, SizeStats) {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
+    ASSERT_EQ(0, ht.memSize.load());
+    ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
     const std::string k("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    cb_assert(someval);
+    EXPECT_TRUE(someval);
 
     Item i(k.data(), k.length(), 0, 0, someval, itemSize);
 
-    cb_assert(ht.set(i) == WAS_CLEAN);
+    EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
     ht.del(k);
 
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
-    cb_assert(initialSize == global_stats.currentSize.load());
+    EXPECT_EQ(0, ht.memSize.load());
+    EXPECT_EQ(0, ht.cacheSize.load());
+    EXPECT_EQ(initialSize, global_stats.currentSize.load());
 
     free(someval);
 }
 
-static void testSizeStatsFlush() {
+TEST_F(HashTableTest, SizeStatsFlush) {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
+    ASSERT_EQ(0, ht.memSize.load());
+    ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
     const std::string k("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    cb_assert(someval);
+    EXPECT_TRUE(someval);
 
     Item i(k.data(), k.length(), 0, 0, someval, itemSize);
 
-    cb_assert(ht.set(i) == WAS_CLEAN);
+    EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
     ht.clear();
 
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
-    cb_assert(initialSize == global_stats.currentSize.load());
+    EXPECT_EQ(0, ht.memSize.load());
+    EXPECT_EQ(0, ht.cacheSize.load());
+    EXPECT_EQ(initialSize, global_stats.currentSize.load());
 
     free(someval);
 }
 
-static void testSizeStatsSoftDel() {
+TEST_F(HashTableTest, SizeStatsSoftDel) {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
+    ASSERT_EQ(0, ht.memSize.load());
+    ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
     const std::string k("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    cb_assert(someval);
+    EXPECT_TRUE(someval);
 
     Item i(k.data(), k.length(), 0, 0, someval, itemSize);
 
-    cb_assert(ht.set(i) == WAS_CLEAN);
+    EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
-    cb_assert(ht.softDelete(k, 0) == WAS_DIRTY);
+    EXPECT_EQ(WAS_DIRTY, ht.softDelete(k, 0));
     ht.del(k);
 
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
-    cb_assert(initialSize == global_stats.currentSize.load());
+    EXPECT_EQ(0, ht.memSize.load());
+    EXPECT_EQ(0, ht.cacheSize.load());
+    EXPECT_EQ(initialSize, global_stats.currentSize.load());
 
     free(someval);
 }
 
-static void testSizeStatsSoftDelFlush() {
+TEST_F(HashTableTest, SizeStatsSoftDelFlush) {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
+    ASSERT_EQ(0, ht.memSize.load());
+    ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
     const std::string k("somekey");
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    cb_assert(someval);
+    EXPECT_TRUE(someval);
 
     Item i(k.data(), k.length(), 0, 0, someval, itemSize);
 
-    cb_assert(ht.set(i) == WAS_CLEAN);
+    EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
-    cb_assert(ht.softDelete(k, 0) == WAS_DIRTY);
+    EXPECT_EQ(WAS_DIRTY, ht.softDelete(k, 0));
     ht.clear();
 
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
-    cb_assert(initialSize == global_stats.currentSize.load());
+    EXPECT_EQ(0, ht.memSize.load());
+    EXPECT_EQ(0, ht.cacheSize.load());
+    EXPECT_EQ(initialSize, global_stats.currentSize.load());
 
     free(someval);
 }
 
-static void testSizeStatsEject() {
+TEST_F(HashTableTest, SizeStatsEject) {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
+    ASSERT_EQ(0, ht.memSize.load());
+    ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
     const std::string k("somekey");
     std::string kstring(k);
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    cb_assert(someval);
+    EXPECT_TRUE(someval);
 
     Item i(k.data(), k.length(), 0, 0, someval, itemSize);
 
-    cb_assert(ht.set(i) == WAS_CLEAN);
+    EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
     item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue *v(ht.find(kstring));
-    cb_assert(v);
+    EXPECT_TRUE(v);
     v->markClean();
-    cb_assert(ht.unlocked_ejectItem(v, policy));
+    EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
 
     ht.del(k);
 
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
-    cb_assert(initialSize == global_stats.currentSize.load());
+    EXPECT_EQ(0, ht.memSize.load());
+    EXPECT_EQ(0, ht.cacheSize.load());
+    EXPECT_EQ(initialSize, global_stats.currentSize.load());
 
     free(someval);
 }
 
-static void testSizeStatsEjectFlush() {
+TEST_F(HashTableTest, SizeStatsEjectFlush) {
     global_stats.reset();
     HashTable ht(global_stats, 5, 1);
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
+    ASSERT_EQ(0, ht.memSize.load());
+    ASSERT_EQ(0, ht.cacheSize.load());
     size_t initialSize = global_stats.currentSize.load();
 
     const std::string k("somekey");
     std::string kstring(k);
     const size_t itemSize(16 * 1024);
     char *someval(static_cast<char*>(calloc(1, itemSize)));
-    cb_assert(someval);
+    EXPECT_TRUE(someval);
 
     Item i(k.data(), k.length(), 0, 0, someval, itemSize);
 
-    cb_assert(ht.set(i) == WAS_CLEAN);
+    EXPECT_EQ(WAS_CLEAN, ht.set(i));
 
     item_eviction_policy_t policy = VALUE_ONLY;
     StoredValue *v(ht.find(kstring));
-    cb_assert(v);
+    EXPECT_TRUE(v);
     v->markClean();
-    cb_assert(ht.unlocked_ejectItem(v, policy));
+    EXPECT_TRUE(ht.unlocked_ejectItem(v, policy));
 
     ht.clear();
 
-    cb_assert(ht.memSize.load() == 0);
-    cb_assert(ht.cacheSize.load() == 0);
-    cb_assert(initialSize == global_stats.currentSize.load());
+    EXPECT_EQ(0, ht.memSize.load());
+    EXPECT_EQ(0, ht.cacheSize.load());
+    EXPECT_EQ(initialSize, global_stats.currentSize.load());
 
     free(someval);
 }
 
-static void testItemAge() {
+TEST_F(HashTableTest, ItemAge) {
     // Setup
     HashTable ht(global_stats, 5, 1);
     std::string key("key");
     Item item(key.data(), key.length(), 0, 0, "value", strlen("value"));
-    cb_assert(ht.set(item) == WAS_CLEAN);
+    EXPECT_EQ(WAS_CLEAN, ht.set(item));
 
     // Test
     StoredValue* v(ht.find(key));
-    cb_assert(v->getValue()->getAge() == 0);
+    EXPECT_EQ(0, v->getValue()->getAge());
     v->getValue()->incrementAge();
-    cb_assert(v->getValue()->getAge() == 1);
+    EXPECT_EQ(1, v->getValue()->getAge());
 
     // Check saturation of age.
     for (int ii = 0; ii < 300; ii++) {
         v->getValue()->incrementAge();
     }
-    cb_assert(v->getValue()->getAge() == 0xff);
+    EXPECT_EQ(0xff, v->getValue()->getAge());
 
     // Check reset of age after reallocation.
     v->reallocate();
-    cb_assert(v->getValue()->getAge() == 0);
+    EXPECT_EQ(0, v->getValue()->getAge());
 
     // Check changing age when new value is used.
     Item item2(key.data(), key.length(), 0, 0, "value2", strlen("value2"));
     item2.getValue()->incrementAge();
     v->setValue(item2, ht, false);
-    cb_assert(v->getValue()->getAge() == 1);
+    EXPECT_EQ(1, v->getValue()->getAge());
 }
 
 /* static storage for environment variable set by putenv().
@@ -609,29 +610,12 @@ static void testItemAge() {
  */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
-int main() {
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
     putenv(allow_no_stats_env);
+
     global_stats.setMaxDataSize(64*1024*1024);
     HashTable::setDefaultNumBuckets(3);
-    alarm(60);
-    testHashSize();
-    testHashSizeTwo();
-    testReverseDeletions();
-    testForwardDeletions();
-    testFind();
-    testAdd();
-    testAddExpiry();
-    testDepthCounting();
-    testPoisonKey();
-    testResize();
-    testConcurrentAccessResize();
-    testAutoResize();
-    testSizeStats();
-    testSizeStatsFlush();
-    testSizeStatsSoftDel();
-    testSizeStatsSoftDelFlush();
-    testSizeStatsEject();
-    testSizeStatsEjectFlush();
-    testItemAge();
-    exit(0);
+
+    return RUN_ALL_TESTS();
 }
