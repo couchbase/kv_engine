@@ -760,8 +760,9 @@ public:
         return notifySent;
     }
 
-    virtual void setSuspended(bool value) {
-        suspended = value;
+    bool setSuspended(bool val) {
+        bool inverse = !val;
+        return suspended.compare_exchange_strong(inverse, val);
     }
 
     bool isSuspended() {
@@ -770,7 +771,7 @@ public:
 
 private:
     //! Is this tap connection in a suspended state
-    bool suspended;
+    AtomicValue<bool> suspended;
     //! Connection is temporarily paused?
     AtomicValue<bool> paused;
     //! Flag indicating if the notification event is scheduled
