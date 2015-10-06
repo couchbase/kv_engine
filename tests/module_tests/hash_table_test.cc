@@ -318,7 +318,7 @@ private:
 
     std::vector<std::string>  keys;
     HashTable                &ht;
-    size_t                    size;
+    std::atomic<size_t>       size;
 };
 
 TEST_F(HashTableTest, ConcurrentAccessResize) {
