@@ -146,6 +146,10 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
       return ENGINE_FAILED;
    }
 
+   // Clear the content of the engine interface so that I can test for null-
+   // values and not implement functions
+   memset(&engine->engine, 0, sizeof(engine->engine));
+
    engine->bucket_id = bucket_id++;
    engine->engine.interface.interface = 1;
    engine->engine.get_info = default_get_info;

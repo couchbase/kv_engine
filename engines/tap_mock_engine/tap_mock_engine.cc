@@ -860,6 +860,7 @@ struct EngineGlue {
         interface.item_set_cas = item_set_cas;
         interface.get_item_info = get_item_info;
         interface.set_item_info = set_item_info;
+        interface.set_log_level = NULL;
     }
 
     ENGINE_HANDLE_V1 interface;

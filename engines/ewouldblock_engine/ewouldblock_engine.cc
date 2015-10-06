@@ -646,6 +646,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::set_item_info = set_item_info;
     ENGINE_HANDLE_V1::get_engine_vb_map = NULL;
     ENGINE_HANDLE_V1::get_stats_struct = NULL;
+    ENGINE_HANDLE_V1::set_log_level = NULL;
 
     std::memset(&info, 0, sizeof(info.buffer));
     info.eng_info.description = "EWOULDBLOCK Engine";

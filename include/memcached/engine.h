@@ -577,6 +577,14 @@ extern "C" {
                                                engine_get_vb_map_cb callback);
 
         struct dcp_interface dcp;
+
+        /**
+         * Set the current log level
+         *
+         * @param handle the engine handle
+         * @param level the current log level
+         */
+        void (*set_log_level)(ENGINE_HANDLE* handle, EXTENSION_LOG_LEVEL level);
     } ENGINE_HANDLE_V1;
 
     /**

@@ -74,6 +74,8 @@
 #include <numa.h>
 #endif
 
+static EXTENSION_LOG_LEVEL get_log_level(void);
+
 /**
  * All of the buckets in couchbase is stored in this array.
  */
@@ -89,6 +91,7 @@ const char* getBucketName(const Connection* c) {
 }
 
 std::atomic<bool> memcached_shutdown;
+std::atomic<bool> service_online;
 
 /* Mutex for global stats */
 std::mutex stats_mutex;
@@ -209,11 +212,31 @@ void associate_initial_bucket(Connection *c) {
     associate_bucket(c, "default");
 }
 
+static void populate_log_level(void*) {
+    // Lock the entire buckets array so that buckets can't be modified while
+    // we notify them (blocking bucket creation/deletion)
+    auto val = get_log_level();
+
+    cb_mutex_enter(&buckets_lock);
+    for (auto& bucket : all_buckets) {
+        cb_mutex_enter(&bucket.mutex);
+        if (bucket.state == BucketState::Ready &&
+            bucket.engine->set_log_level != nullptr) {
+            bucket.engine->set_log_level(reinterpret_cast<ENGINE_HANDLE*>(bucket.engine),
+                                         val);
+        }
+        cb_mutex_exit(&bucket.mutex);
+    }
+    cb_mutex_exit(&buckets_lock);
+}
+
 /* Perform all callbacks of a given type for the given connection. */
 void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
                        const void *cookie)
 {
+    cb_thread_t tid;
+
     switch (type) {
         /*
          * The following events operates on a connection which is passed in
@@ -245,6 +268,15 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
         }
         for (auto& handler : engine_event_handlers[type]) {
             handler.cb(cookie, ON_LOG_LEVEL, data, handler.cb_data);
+        }
+
+        if (service_online) {
+            if (cb_create_thread(&tid, populate_log_level, nullptr, 1) == -1) {
+                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                                "Failed to create thread to"
+                                                    " notify engines about "
+                                                    "changing log level");
+            }
         }
         break;
 
@@ -3053,7 +3085,9 @@ int main (int argc, char **argv) {
         /* enter the event loop */
         settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
                                         "Initialization complete. Accepting clients.");
+        service_online = true;
         event_base_loop(main_base, 0);
+        service_online = false;
     }
 
     settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
