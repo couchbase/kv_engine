@@ -278,13 +278,13 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
     // init db file map with default revision number, 1
     numDbFiles = configuration.getMaxVBuckets();
     cachedVBStates.reserve(numDbFiles);
-    for (uint16_t i = 0; i < numDbFiles; i++) {
-        // pre-allocate to avoid rehashing for safe read-only operations
-        dbFileRevMap.push_back(1);
-        cachedDocCount[i] = (size_t)-1;
-        cachedDeleteCount[i] = (size_t)-1;
-        cachedVBStates.push_back((vbucket_state *)NULL);
-    }
+
+    // pre-allocate lookup maps (vectors) given we have a relatively
+    // small, fixed number of vBuckets.
+    dbFileRevMap.assign(numDbFiles, 1);
+    cachedDocCount.assign(numDbFiles, -1);
+    cachedDeleteCount.assign(numDbFiles, -1);
+    cachedVBStates.assign(numDbFiles, nullptr);
 
     initialize();
 }

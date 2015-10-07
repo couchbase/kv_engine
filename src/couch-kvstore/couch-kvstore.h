@@ -535,10 +535,12 @@ private:
     /* all stats */
     CouchKVStoreStats   st;
     couch_file_ops statCollectingFileOps;
-    /* deleted docs in each file*/
-    unordered_map<uint16_t, size_t> cachedDeleteCount;
-    /* non-deleted docs in each file */
-    unordered_map<uint16_t, size_t> cachedDocCount;
+    /* deleted docs in each file, indexed by vBucket */
+    std::vector<size_t> cachedDeleteCount;
+
+    /* non-deleted docs in each file, indexed by vBucket */
+    std::vector<size_t> cachedDocCount;
+
     /* pending file deletions */
     AtomicQueue<std::string> pendingFileDeletions;
 
