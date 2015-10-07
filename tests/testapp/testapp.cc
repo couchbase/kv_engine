@@ -4057,6 +4057,36 @@ TEST_P(McdTestappTest, test_MB_16197) {
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
 }
 
+/**
+ * Test that a bad TAP packet is rejected and doesn't crash the server.
+ * It should be rejected with EINVAL.
+ */
+TEST_P(McdTestappTest, test_MB_16198) {
+    union {
+        protocol_binary_request_tap_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    const char* key = "key";
+    const char* data = "somedata";
+
+    size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                   PROTOCOL_BINARY_CMD_TAP_MUTATION,
+                                   key, strlen(key),
+                                   data, strlen(data));
+
+    // Force the enginspecific to be greater than bodylen
+    uint32_t bodylen = ntohl(buffer.request.message.header.request.bodylen);
+    buffer.request.message.body.tap. enginespecific_length = htons(bodylen + 1);
+
+    safe_send(buffer.bytes, plen, false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_TAP_MUTATION,
+                                  PROTOCOL_BINARY_RESPONSE_EINVAL);
+}
+
+
 INSTANTIATE_TEST_CASE_P(PlainOrSSL,
                         McdTestappTest,
                         ::testing::Values(Transport::Plain, Transport::SSL));
