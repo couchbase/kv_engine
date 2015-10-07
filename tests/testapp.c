@@ -4310,6 +4310,32 @@ static enum test_return test_sasl_fail(void) {
     }
 }
 
+static enum test_return test_MB_16198(void) {
+    union {
+        protocol_binary_request_tap_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    const char* key = "key";
+    const char* data = "somedata";
+
+    size_t plen = raw_command(buffer.bytes, sizeof(buffer.bytes),
+                              PROTOCOL_BINARY_CMD_TAP_MUTATION,
+                              key, strlen(key),
+                              data, strlen(data));
+
+    // Force the enginspecific to be greater than bodylen
+    uint32_t bodylen = ntohl(buffer.request.message.header.request.bodylen);
+    buffer.request.message.body.tap. enginespecific_length = htons(bodylen + 1);
+
+    safe_send(buffer.bytes, plen, false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+    validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_TAP_MUTATION,
+                             PROTOCOL_BINARY_RESPONSE_EINVAL);
+    return TEST_PASS;
+}
+
 typedef enum test_return (*TEST_FUNC)(void);
 struct testcase {
     const char *description;
@@ -4427,6 +4453,7 @@ struct testcase testcases[] = {
     TESTCASE_SSL("pipeline_mb-11203",test_pipeline_set),
     TESTCASE_PLAIN_AND_SSL("pipeline_1", test_pipeline_set_get_del),
     TESTCASE_PLAIN_AND_SSL("pipeline_2", test_pipeline_set_del),
+    TESTCASE_PLAIN("MB16198", test_MB_16198),
     TESTCASE_CLEANUP("stop_server", stop_memcached_server),
     TESTCASE_PLAIN(NULL, NULL)
 };
