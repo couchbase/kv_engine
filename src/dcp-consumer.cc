@@ -640,6 +640,7 @@ DcpResponse* DcpConsumer::getNextItem() {
 }
 
 void DcpConsumer::notifyStreamReady(uint16_t vbucket) {
+    LockHolder lh(readyMutex);
     std::list<uint16_t>::iterator iter =
         std::find(ready.begin(), ready.end(), vbucket);
     if (iter != ready.end()) {
@@ -647,6 +648,7 @@ void DcpConsumer::notifyStreamReady(uint16_t vbucket) {
     }
 
     ready.push_back(vbucket);
+    lh.unlock();
 
     engine_.getDcpConnMap().notifyPausedConnection(this, true);
 }
