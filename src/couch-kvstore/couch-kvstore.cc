@@ -281,9 +281,9 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
 
     // pre-allocate lookup maps (vectors) given we have a relatively
     // small, fixed number of vBuckets.
-    dbFileRevMap.assign(numDbFiles, 1);
-    cachedDocCount.assign(numDbFiles, -1);
-    cachedDeleteCount.assign(numDbFiles, -1);
+    dbFileRevMap.assign(numDbFiles, Couchbase::RelaxedAtomic<uint64_t>(1));
+    cachedDocCount.assign(numDbFiles, Couchbase::RelaxedAtomic<size_t>(-1));
+    cachedDeleteCount.assign(numDbFiles, Couchbase::RelaxedAtomic<size_t>(-1));
     cachedVBStates.assign(numDbFiles, nullptr);
 
     initialize();
