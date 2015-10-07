@@ -163,7 +163,8 @@ public:
         dirtyQueueMem(0),
         dirtyQueueFill(0),
         dirtyQueueDrain(0),
-        dirtyQueueAge(0),
+        dirtyQueueAgeSum(0),
+        dirtyQueueSamples(0),
         dirtyQueuePendingWrites(0),
         metaDataDisk(0),
         numExpiredItems(0),
@@ -304,13 +305,13 @@ public:
 
     void resetStats();
 
-    // Get age sum in millisecond
+    // Get age average in milliseconds
     uint64_t getQueueAge() {
-        rel_time_t currentAge = ep_current_time() * dirtyQueueSize;
-        if (currentAge < dirtyQueueAge) {
+        if (dirtyQueueSamples == 0) {
             return 0;
+        } else {
+            return (dirtyQueueAgeSum / dirtyQueueSamples) * 1000;
         }
-        return (currentAge - dirtyQueueAge) * 1000;
     }
 
     void fireAllOps(EventuallyPersistentEngine &engine);
@@ -488,7 +489,8 @@ public:
     AtomicValue<size_t>  dirtyQueueMem;
     AtomicValue<size_t>  dirtyQueueFill;
     AtomicValue<size_t>  dirtyQueueDrain;
-    AtomicValue<uint64_t> dirtyQueueAge;
+    AtomicValue<uint64_t> dirtyQueueAgeSum;
+    AtomicValue<uint64_t> dirtyQueueSamples;
     AtomicValue<size_t>  dirtyQueuePendingWrites;
     AtomicValue<size_t>  metaDataDisk;
 
