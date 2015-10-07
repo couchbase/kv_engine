@@ -767,13 +767,10 @@ void TapConnMap::shutdownAllConnections() {
 
     connNotifier_->stop();
 
-    LockHolder lh(connsLock);
-    // We should pause unless we purged some connections or
-    // all queues have items.
-    if (all.empty()) {
-        return;
-    }
-
+    // Not safe to acquire both connsLock and releaseLock at the same time
+    // (can trigger deadlock), so first acquire releaseLock to release all
+    // the connections (without changing the list/map), then drop releaseLock,
+    // acquire connsLock and actually clear out the list/map.
     LockHolder rlh(releaseLock);
     std::list<connection_t>::iterator ii;
     for (ii = all.begin(); ii != all.end(); ++ii) {
@@ -786,6 +783,7 @@ void TapConnMap::shutdownAllConnections() {
     }
     rlh.unlock();
 
+    LockHolder lh(connsLock);
     all.clear();
     map_.clear();
 }
@@ -1038,11 +1036,10 @@ void DcpConnMap::shutdownAllConnections() {
 
     connNotifier_->stop();
 
-    LockHolder lh(connsLock);
-    if (all.empty()) {
-        return;
-    }
-
+    // Not safe to acquire both connsLock and releaseLock at the same time
+    // (can trigger deadlock), so first acquire releaseLock to release all
+    // the connections (without changing the list/map), then drop releaseLock,
+    // acquire connsLock and actually clear out the list/map.
     LockHolder rlh(releaseLock);
     std::list<connection_t>::iterator ii;
     for (ii = all.begin(); ii != all.end(); ++ii) {
@@ -1051,6 +1048,7 @@ void DcpConnMap::shutdownAllConnections() {
     }
     rlh.unlock();
 
+    LockHolder lh(connsLock);
     closeAllStreams_UNLOCKED();
     cancelAllTasks_UNLOCKED();
     all.clear();
