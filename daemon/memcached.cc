@@ -2783,10 +2783,25 @@ static std::terminate_handler default_terminate_handler;
 // Replacement terminate_handler which prints a backtrace of the current stack
 // before chaining to the default handler.
 static void backtrace_terminate_handler() {
-    fprintf(stderr, "*** Fatal error encountered during exception handling ***\n");
-    fprintf(stderr, "Call stack:\n");
-    print_backtrace_to_file(stderr);
-    fflush(stderr);
+    char buffer[1024];
+
+    if (print_backtrace_to_buffer("    ", buffer, sizeof(buffer))) {
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "*** Fatal error encountered during "
+                                            "exception handling ***\n"
+                                            "Call stack:\n%s",
+                                        buffer);
+    } else {
+        fprintf(stderr, "*** Fatal error encountered during exception handling ***\n");
+        fprintf(stderr, "Call stack:\n");
+        print_backtrace_to_file(stderr);
+        fflush(stderr);
+
+        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                        "*** Fatal error encountered during "
+                                            "exception handling ***\n"
+                                            "Call stack exceeds 1k");
+    }
 
     // Chain to the default handler if available (as it may be able to print
     // other useful information on why we were told to terminate).
