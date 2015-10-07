@@ -1,5 +1,5 @@
 ADD_EXECUTABLE(engine_testapp engine_testapp.cc
-                              mock_server.c
+                              mock_server.cc
                               mock_server.h
                               ${MEMORY_TRACKING_SRCS})
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform

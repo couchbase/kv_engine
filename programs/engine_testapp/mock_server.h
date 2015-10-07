@@ -4,16 +4,16 @@
 #include <memcached/engine.h>
 #include <platform/platform.h>
 
-#ifdef  __cplusplus
-extern "C" {
-#endif
+#include <string>
 
 struct mock_connstruct {
+
+    mock_connstruct();
+
     uint64_t magic;
-    const char *uname;
+    std::string uname;
     void *engine_data;
     bool connected;
-    struct mock_connstruct *next;
     int sfd;
     ENGINE_ERROR_CODE status;
     uint64_t evictions;
@@ -29,12 +29,15 @@ struct mock_connstruct {
 struct mock_callbacks {
     EVENT_CALLBACK cb;
     const void *cb_data;
-    struct mock_callbacks *next;
 };
 
 struct mock_stats {
     uint64_t astat;
 };
+
+#ifdef  __cplusplus
+extern "C" {
+#endif
 
 MEMCACHED_PUBLIC_API SERVER_HANDLE_V1 *get_mock_server_api(void);
 
@@ -60,11 +63,7 @@ MEMCACHED_PUBLIC_API void waitfor_mock_cookie(const void *cookie);
 
 MEMCACHED_PUBLIC_API void mock_time_travel(int by);
 
-MEMCACHED_PUBLIC_API void disconnect_mock_connection(struct mock_connstruct *c);
-
 MEMCACHED_PUBLIC_API void disconnect_all_mock_connections(void);
-
-MEMCACHED_PUBLIC_API void destroy_mock_event_callbacks_rec(struct mock_callbacks *h);
 
 MEMCACHED_PUBLIC_API void destroy_mock_event_callbacks(void);
 

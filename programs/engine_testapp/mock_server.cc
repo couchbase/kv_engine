@@ -1,3 +1,7 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
+#include "mock_server.h"
+
 #include "config.h"
 #include <stdlib.h>
 #include <string.h>
@@ -8,7 +12,8 @@
 #include <memcached/allocator_hooks.h>
 #include "daemon/alloc_hooks.h"
 
-#include "mock_server.h"
+#include <array>
+#include <list>
 
 #define REALTIME_MAXDELTA 60*60*24*3
 #define CONN_MAGIC 0xbeefcafe
@@ -18,11 +23,11 @@ struct mock_extensions {
     EXTENSION_LOGGER_DESCRIPTOR *logger;
 };
 
-struct mock_callbacks *mock_event_handlers[MAX_ENGINE_EVENT_TYPE + 1];
+std::array<std::list<mock_callbacks>, MAX_ENGINE_EVENT_TYPE + 1> mock_event_handlers;
+
 time_t process_started;     /* when the mock server was started */
 rel_time_t time_travel_offset;
 static cb_mutex_t time_mutex;
-struct mock_connstruct *connstructs;
 struct mock_extensions extensions;
 EXTENSION_LOGGER_DESCRIPTOR *null_logger = NULL;
 EXTENSION_LOGGER_DESCRIPTOR *stderr_logger = NULL;
@@ -34,6 +39,31 @@ EXTENSION_LOG_LEVEL log_level = EXTENSION_LOG_INFO;
 uint64_t session_cas;
 uint8_t session_ctr;
 cb_mutex_t session_mutex;
+
+mock_connstruct::mock_connstruct()
+    : magic(CONN_MAGIC),
+      engine_data(nullptr),
+      connected(true),
+      sfd(0),
+      status(ENGINE_SUCCESS),
+      evictions(0),
+      nblocks(0),
+      handle_ewouldblock(true),
+      handle_mutation_extras(true),
+      handle_datatype_support(true),
+      references(1)
+{
+    cb_mutex_initialize(&mutex);
+    cb_cond_initialize(&cond);
+}
+
+/* Forward declarations */
+
+void disconnect_mock_connection(struct mock_connstruct *c);
+
+static mock_connstruct* cookie_to_mock_object(const void* cookie) {
+  return const_cast<mock_connstruct*>(reinterpret_cast<const mock_connstruct*>(cookie));
+}
 
 /**
  * SERVER CORE API FUNCTIONS
@@ -208,11 +238,11 @@ static bool mock_register_extension(extension_type_t type, void *extension)
                 }
             }
             ((EXTENSION_DAEMON_DESCRIPTOR *)(extension))->next = extensions.daemons;
-            extensions.daemons = extension;
+            extensions.daemons = reinterpret_cast<EXTENSION_DAEMON_DESCRIPTOR*>(extension);
         }
         return true;
     case EXTENSION_LOGGER:
-        extensions.logger = extension;
+        extensions.logger = reinterpret_cast<EXTENSION_LOGGER_DESCRIPTOR*>(extension);
         return true;
     default:
         return false;
@@ -279,21 +309,14 @@ static void mock_register_callback(ENGINE_HANDLE *eh,
                                    ENGINE_EVENT_TYPE type,
                                    EVENT_CALLBACK cb,
                                    const void *cb_data) {
-    struct mock_callbacks *h =
-        calloc(sizeof(struct mock_callbacks), 1);
-    cb_assert(h);
-    h->cb = cb;
-    h->cb_data = cb_data;
-    h->next = mock_event_handlers[type];
-    mock_event_handlers[type] = h;
+    mock_event_handlers[type].emplace_back(mock_callbacks{cb, cb_data});
 }
 
 static void mock_perform_callbacks(ENGINE_EVENT_TYPE type,
                                    const void *data,
                                    const void *c) {
-    struct mock_callbacks *h;
-    for (h = mock_event_handlers[type]; h; h = h->next) {
-        h->cb(c, type, data, h->cb_data);
+    for (auto& h : mock_event_handlers[type]) {
+        h.cb(c, type, data, h.cb_data);
     }
 }
 
@@ -393,18 +416,7 @@ void init_mock_server(bool log_to_stderr) {
 }
 
 const void *create_mock_cookie(void) {
-    struct mock_connstruct *rv = calloc(sizeof(struct mock_connstruct), 1);
-    cb_assert(rv);
-    rv->magic = CONN_MAGIC;
-    rv->connected = true;
-    rv->status = ENGINE_SUCCESS;
-    rv->handle_ewouldblock = true;
-    rv->handle_mutation_extras = true;
-    rv->references = 1;
-    rv->handle_datatype_support = false;
-    cb_mutex_initialize(&rv->mutex);
-    cb_cond_initialize(&rv->cond);
-
+    struct mock_connstruct *rv = new mock_connstruct();
     return rv;
 }
 
@@ -417,33 +429,33 @@ void destroy_mock_cookie(const void *cookie) {
 }
 
 void mock_set_ewouldblock_handling(const void *cookie, bool enable) {
-    struct mock_connstruct *v = (void*)cookie;
-    v->handle_ewouldblock = enable;
+    mock_connstruct *c = cookie_to_mock_object(cookie);
+    c->handle_ewouldblock = enable;
 }
 
 void mock_set_mutation_extras_handling(const void *cookie, bool enable) {
-    struct mock_connstruct *v = (void *)cookie;
-    v->handle_mutation_extras = enable;
+    mock_connstruct *c = cookie_to_mock_object(cookie);
+    c->handle_mutation_extras = enable;
 }
 
 void mock_set_datatype_support(const void *cookie, bool enable) {
-    struct mock_connstruct *v = (void *)cookie;
-    v->handle_datatype_support = enable;
+    mock_connstruct *c = cookie_to_mock_object(cookie);
+    c->handle_datatype_support = enable;
 }
 
 void lock_mock_cookie(const void *cookie) {
-   struct mock_connstruct *c = (void*)cookie;
-   cb_mutex_enter(&c->mutex);
+    mock_connstruct *c = cookie_to_mock_object(cookie);
+    cb_mutex_enter(&c->mutex);
 }
 
 void unlock_mock_cookie(const void *cookie) {
-   struct mock_connstruct *c = (void*)cookie;
-   cb_mutex_exit(&c->mutex);
+    mock_connstruct *c = cookie_to_mock_object(cookie);
+    cb_mutex_exit(&c->mutex);
 }
 
 void waitfor_mock_cookie(const void *cookie) {
-   struct mock_connstruct *c = (void*)cookie;
-   cb_cond_wait(&c->cond, &c->mutex);
+    mock_connstruct *c = cookie_to_mock_object(cookie);
+    cb_cond_wait(&c->cond, &c->mutex);
 }
 
 void disconnect_mock_connection(struct mock_connstruct *c) {
@@ -452,31 +464,12 @@ void disconnect_mock_connection(struct mock_connstruct *c) {
     mock_perform_callbacks(ON_DISCONNECT, NULL, c);
 }
 
-static void disconnect_all_mock_connections_inner(struct mock_connstruct *c) {
-    if (c) {
-        disconnect_mock_connection(c);
-        disconnect_all_mock_connections_inner(c->next);
-        free((void*)c->uname);
-        free(c);
-    }
-}
-
 void disconnect_all_mock_connections(void) {
-    disconnect_all_mock_connections_inner(connstructs);
-    connstructs = NULL;
-}
-
-void destroy_mock_event_callbacks_rec(struct mock_callbacks *h) {
-    if (h) {
-        destroy_mock_event_callbacks_rec(h->next);
-        free(h);
-    }
+    // Currently does nothing; we don't track mock_connstructs
 }
 
 void destroy_mock_event_callbacks(void) {
-    int i = 0;
-    for (i = 0; i < MAX_ENGINE_EVENT_TYPE; i++) {
-        destroy_mock_event_callbacks_rec(mock_event_handlers[i]);
-        mock_event_handlers[i] = NULL;
+    for (int type = 0; type < MAX_ENGINE_EVENT_TYPE; type++) {
+        mock_event_handlers[type].clear();
     }
 }
