@@ -625,10 +625,6 @@ public:
 
     uint32_t getQueuedTime(void) const { return queuedTime; }
 
-    void setQueuedTime(uint32_t queued_time) {
-        queuedTime = queued_time;
-    }
-
     enum queue_operation getOperation(void) const {
         return static_cast<enum queue_operation>(op);
     }
