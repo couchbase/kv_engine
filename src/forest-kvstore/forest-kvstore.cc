@@ -128,7 +128,7 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
         abort();
     }
 
-    cachedVBStates.reserve(config.getMaxVBuckets());
+    cachedVBStates.reserve(maxVbuckets);
     for (uint16_t i = 0; i < maxVbuckets; ++i) {
         cachedVBStates.push_back((vbucket_state *)NULL);
         if (i == shardId) {
@@ -136,6 +136,9 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
             shardId += maxShards; // jump to next vbucket in shard
         }
     }
+
+    cachedDocCount.assign(maxVbuckets, Couchbase::RelaxedAtomic<size_t>(-1));
+    cachedDeleteCount.assign(maxVbuckets, Couchbase::RelaxedAtomic<size_t>(-1));
 }
 
 fdb_config ForestKVStore::getFileConfig() {
@@ -211,10 +214,26 @@ void ForestKVStore::readVBState(uint16_t vbId) {
     uint64_t checkpointId = 0;
     uint64_t maxDeletedSeqno = 0;
     std::string failovers;
+    int64_t highSeqno = 0;
     uint64_t lastSnapStart = 0;
     uint64_t lastSnapEnd = 0;
     uint64_t maxCas = 0;
     int64_t driftCounter = INITIAL_DRIFT;
+
+    fdb_kvs_info kvsInfo;
+    fdb_kvs_handle *kvsHandle = getKvsHandle(vbId, handleType::READER);
+    if (kvsHandle != nullptr) {
+        status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
+        if (status == FDB_RESULT_SUCCESS) {
+            highSeqno = static_cast<int64_t>(kvsInfo.last_seqnum);
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to read KV Store info for vbucket = %d", vbId);
+        }
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to get reader handle for vbucket = %d", vbId);
+    }
 
     char keybuf[20];
     fdb_doc *statDoc;
@@ -301,7 +320,7 @@ void ForestKVStore::readVBState(uint16_t vbId) {
 
     delete cachedVBStates[vbId];
     cachedVBStates[vbId] = new vbucket_state(state, checkpointId,
-                                             maxDeletedSeqno, 0, 0,
+                                             maxDeletedSeqno, highSeqno, 0,
                                              lastSnapStart, lastSnapEnd,
                                              maxCas, driftCounter,
                                              failovers);
@@ -994,7 +1013,149 @@ bool ForestKVStore::compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
     return true;
 }
 
+
 RollbackResult ForestKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                                        shared_ptr<RollbackCB> cb) {
-   return RollbackResult(true, 0, 0, 0);
+   fdb_kvs_handle *kvsHandle = NULL;
+   fdb_kvs_info kvsInfo;
+
+   kvsHandle = getKvsHandle(vbid, handleType::WRITER);
+   if (!kvsHandle) {
+       LOG(EXTENSION_LOG_WARNING,
+           "Failed to get reader KV store handle for vbucket "
+           "id :%d and rollback sequence number: %" PRIu64, vbid,
+           rollbackSeqno);
+       return RollbackResult(false, 0, 0, 0);
+   }
+
+   fdb_status status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
+   if (status != FDB_RESULT_SUCCESS) {
+       LOG(EXTENSION_LOG_WARNING,
+           "Failed to retrieve KV store info with error: %s for "
+           "vbucket id: %d and rollback sequence number: %" PRIu64,
+           fdb_error_msg(status), vbid, rollbackSeqno);
+       return RollbackResult(false, 0, 0 ,0);
+   }
+
+   fdb_iterator *fdb_iter;
+   fdb_iterator_opt_t options;
+   options = FDB_ITR_NONE;
+
+   uint64_t totalCount = kvsInfo.doc_count;
+
+   fdb_snapshot_info_t *markers;
+   uint64_t num_markers;
+   status = fdb_get_all_snap_markers(dbFileHandle, &markers, &num_markers);
+   if (status != FDB_RESULT_SUCCESS) {
+       LOG(EXTENSION_LOG_WARNING,
+           "Failed to retrieve snapshot markers from ForestDB file "
+           "with error: %s for vbucket id: %d and rollback sequence number: "
+           "%" PRIu64, fdb_error_msg(status), vbid, rollbackSeqno);
+       return RollbackResult(false, 0, 0, 0);
+   }
+
+   int64_t kvIndex = 0;
+   // search the snap marker to find out the index of the KV store
+   for (; kvIndex < markers[0].num_kvs_markers; kvIndex++) {
+       if (strcmp(markers[0].kvs_markers[kvIndex].kv_store_name, kvsInfo.name) == 0) {
+           break;
+       }
+   }
+
+   uint64_t currentSeqno = 0;
+   //Now search each marker in that index to find the correct snapshot
+   for (uint64_t snapIndex = 0; snapIndex < num_markers; snapIndex++) {
+       currentSeqno = markers[snapIndex].kvs_markers[kvIndex].seqnum;
+       if (currentSeqno <= rollbackSeqno) {
+           break;
+       }
+   }
+
+   uint64_t lastSeqno = kvsInfo.last_seqnum;
+   status = fdb_iterator_sequence_init(kvsHandle, &fdb_iter, currentSeqno,
+                                       lastSeqno, options);
+   if (status != FDB_RESULT_SUCCESS) {
+       LOG(EXTENSION_LOG_WARNING,
+           "ForestDB iterator initialization failed with error message: %s "
+           "for vbucket id: %d and rollback sequence number: %" PRIu64,
+           fdb_error_msg(status), vbid, rollbackSeqno);
+       return RollbackResult(false, 0, 0, 0);
+   }
+
+   uint64_t rollbackCount = 0;
+   std::vector<std::string> rollbackKeys;
+   fdb_doc *rdoc = NULL;
+   fdb_doc_create(&rdoc, NULL, 0, NULL, 0, NULL, 0);
+   rdoc->key = malloc(MAX_KEY_LENGTH);
+   rdoc->meta = malloc(FORESTDB_METADATA_SIZE);
+   do {
+       status = fdb_iterator_get_metaonly(fdb_iter, &rdoc);
+       if (status != FDB_RESULT_SUCCESS) {
+           LOG(EXTENSION_LOG_WARNING,
+               "ForestDB iterator get meta failed with error: %s "
+               "for vbucket id: %d and rollback sequence number: %" PRIu64,
+               fdb_error_msg(status), vbid, rollbackSeqno);
+           fdb_doc_free(rdoc);
+           fdb_iterator_close(fdb_iter);
+           return RollbackResult(false, 0, 0, 0);
+       }
+       rollbackCount++;
+       std::string str((char *)rdoc->key, rdoc->keylen);
+       rollbackKeys.push_back(str);
+   } while (fdb_iterator_next(fdb_iter) == FDB_RESULT_SUCCESS);
+
+   fdb_doc_free(rdoc);
+   fdb_iterator_close(fdb_iter);
+
+   if ((totalCount/2) <= rollbackCount) {
+       return RollbackResult(false, 0, 0, 0);
+   }
+
+   cb->setDbHeader(kvsHandle);
+
+   status = fdb_rollback(&kvsHandle, currentSeqno);
+   if (status != FDB_RESULT_SUCCESS) {
+       LOG(EXTENSION_LOG_WARNING,
+           "ForestDB rollback failed on vbucket: %d and rollback "
+           "sequence number: %" PRIu64 "with error: %s",
+           vbid, currentSeqno, fdb_error_msg(status));
+       return RollbackResult(false, 0, 0, 0);
+   }
+
+   writeHandleMap[vbid] = kvsHandle;
+
+   /* This is currently a workaround to update the rolled back keys
+    * in memory. ForestDB doesn't provide a way to retrieve the
+    * rolled back keys. So, we try to retrieve the rolled back keys
+    * which are cached in rollbackKeys. If the key isn't available,
+    * it is deleted in memory, otherwise the the original value is
+    * restored. */
+
+   for (auto it = rollbackKeys.begin(); it != rollbackKeys.end(); ++it) {
+       RememberingCallback<GetValue> gcb;
+       get(*it, vbid, gcb);
+       if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
+           Item *itm = new Item(*it, vbid, queue_op_del, 0, 0);
+           gcb.val.setValue(itm);
+       }
+       cb->callback(gcb.val);
+   }
+
+   status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
+   if (status != FDB_RESULT_SUCCESS) {
+       LOG(EXTENSION_LOG_WARNING,
+           "Failed to retrieve KV store info after rollback with error: %s "
+           "for vbucket id: %d and rollback sequence number: %" PRIu64,
+           fdb_error_msg(status), vbid, rollbackSeqno);
+       return RollbackResult(false, 0, 0 ,0);
+   }
+
+   readVBState(vbid);
+
+   cachedDocCount[vbid] = kvsInfo.doc_count;
+   cachedDeleteCount[vbid] = kvsInfo.deleted_count;
+
+   vbucket_state *vb_state = cachedVBStates[vbid];
+   return RollbackResult(true, vb_state->highSeqno,
+                         vb_state->lastSnapStart, vb_state->lastSnapEnd);
 }

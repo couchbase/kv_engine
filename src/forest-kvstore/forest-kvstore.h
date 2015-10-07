@@ -23,6 +23,9 @@
 
 class Mutex; //forward declaration
 
+//Maximum length of a key
+const size_t MAX_KEY_LENGTH = 250;
+
 // Additional 3 Bytes for flex meta, datatype and conflict resolution mode
 const size_t FORESTDB_METADATA_SIZE  ((3 * sizeof(uint32_t) + 2 * sizeof(uint64_t)) +
                                       FLEX_DATA_OFFSET + EXT_META_LEN +
@@ -280,6 +283,8 @@ private:
     fdb_file_handle *dbFileHandle;
     unordered_map<uint16_t, fdb_kvs_handle *> writeHandleMap;
     unordered_map<uint16_t, fdb_kvs_handle *> readHandleMap;
+    std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
+    std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
     fdb_kvs_handle *vbStateHandle;
     fdb_config fileConfig;
     fdb_kvs_config kvsConfig;

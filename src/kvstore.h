@@ -25,6 +25,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <relaxed_atomic.h>
 
 #include "common.h"
 #include "item.h"
@@ -101,6 +102,14 @@ typedef union {
     Callback <mutation_result> *setCb;
     Callback <int> *delCb;
 } MutationRequestCallback;
+
+
+class NoLookupCallback : public Callback<CacheLookup> {
+public:
+    NoLookupCallback() {}
+    ~NoLookupCallback() {}
+    void callback(CacheLookup&) {}
+};
 
 typedef struct RollbackResult {
     RollbackResult(bool _success, uint64_t _highSeqno, uint64_t _snapStartSeqno,

@@ -3948,6 +3948,7 @@ public:
             if (it->isDeleted()) {
                 LockHolder lh = vb->ht.getLockedBucket(it->getKey(),
                         &bucket_num);
+
                 bool ret = vb->ht.unlocked_del(it->getKey(), bucket_num);
                 if(!ret) {
                     setStatus(ENGINE_KEY_ENOENT);

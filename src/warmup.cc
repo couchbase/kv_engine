@@ -35,13 +35,6 @@
 #include "connmap.h"
 #include "warmup.h"
 
-class NoLookupCallback : public Callback<CacheLookup> {
-public:
-    NoLookupCallback() {}
-    ~NoLookupCallback() {}
-    void callback(CacheLookup&) {}
-};
-
 struct WarmupCookie {
     WarmupCookie(EventuallyPersistentStore *s, Callback<GetValue>&c) :
         cb(c), epstore(s),

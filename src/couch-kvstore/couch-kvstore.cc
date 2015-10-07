@@ -53,13 +53,6 @@ static const int MAX_OPEN_DB_RETRY = 10;
 
 static const uint32_t DEFAULT_META_LEN = 16;
 
-class NoLookupCallback : public Callback<CacheLookup> {
-public:
-    NoLookupCallback() {}
-    ~NoLookupCallback() {}
-    void callback(CacheLookup&) {}
-};
-
 extern "C" {
     static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
     {
