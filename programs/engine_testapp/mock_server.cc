@@ -133,8 +133,8 @@ static ENGINE_ERROR_CODE mock_cookie_reserve(const void *cookie) {
 static ENGINE_ERROR_CODE mock_cookie_release(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
 
-    c->references--;
-    if (c->references == 0) {
+    const int new_rc = --c->references;
+    if (new_rc == 0) {
         free(c);
     }
     return ENGINE_SUCCESS;

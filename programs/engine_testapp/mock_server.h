@@ -4,6 +4,7 @@
 #include <memcached/engine.h>
 #include <platform/platform.h>
 
+#include <atomic>
 #include <string>
 
 struct mock_connstruct {
@@ -23,7 +24,7 @@ struct mock_connstruct {
     bool handle_datatype_support;
     cb_mutex_t mutex;
     cb_cond_t cond;
-    int references;
+    std::atomic<int> references;
 };
 
 struct mock_callbacks {
