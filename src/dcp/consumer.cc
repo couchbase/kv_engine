@@ -42,6 +42,8 @@ public:
 
     std::string getDescription();
 
+    ~Processer();
+
 private:
     connection_t conn;
 };
@@ -75,11 +77,16 @@ std::string Processer::getDescription() {
     return ss.str();
 }
 
+Processer::~Processer() {
+    DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
+    consumer->taskCancelled();
+}
+
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name), opaqueCounter(0), processerTaskId(0),
       itemsToProcess(false), lastNoopTime(ep_current_time()), backoffs(0),
-      taskCancelled(false), flowControl(engine, this)
+      taskAlreadyCancelled(false), flowControl(engine, this)
 {
     Configuration& config = engine.getConfiguration();
     streams = new passive_stream_t[config.getMaxVbuckets()];
@@ -109,10 +116,15 @@ DcpConsumer::~DcpConsumer() {
 
 
 void DcpConsumer::cancelTask() {
-    if (!taskCancelled) {
+    bool inverse = false;
+    if (taskAlreadyCancelled.compare_exchange_strong(inverse, true)) {
         ExecutorPool::get()->cancel(processerTaskId);
-        taskCancelled = true;
     }
+}
+
+void DcpConsumer::taskCancelled() {
+    bool inverse = false;
+    taskAlreadyCancelled.compare_exchange_strong(inverse, true);
 }
 
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,

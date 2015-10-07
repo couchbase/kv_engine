@@ -106,6 +106,8 @@ public:
 
     void cancelTask();
 
+    void taskCancelled();
+
 private:
 
     DcpResponse* getNextItem();
@@ -153,7 +155,7 @@ private:
     bool pendingEnableExtMetaData;
     bool pendingEnableValueCompression;
     bool pendingSupportCursorDropping;
-    bool taskCancelled;
+    AtomicValue<bool> taskAlreadyCancelled;
 
     FlowControl flowControl;
 
