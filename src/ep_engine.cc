@@ -33,6 +33,7 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <memcached/extension.h>
 
 #include "backfill.h"
 #include "ep_engine.h"
@@ -52,6 +53,7 @@
 
 static AtomicValue<ALLOCATOR_HOOKS_API*> hooksApi;
 static AtomicValue<SERVER_LOG_API*> loggerApi;
+static AtomicValue<EXTENSION_LOG_LEVEL> log_level;
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -1785,6 +1787,9 @@ extern "C" {
         releaseHandle(static_cast<ENGINE_HANDLE*>(c));
     }
 
+    void EvpSetLogLevel(ENGINE_HANDLE* handle, EXTENSION_LOG_LEVEL level) {
+        log_level.store(level, std::memory_order_relaxed);
+    }
 
     /**
      * The only public interface to the eventually persistance engine.
@@ -1922,9 +1927,11 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
             static std::mutex mutex;
             std::lock_guard<std::mutex> guard(mutex);
             logger = loggerApi.load(std::memory_order_relaxed)->get_logger();
+            log_level.store(loggerApi.load(std::memory_order_relaxed)->get_level(),
+                            std::memory_order_relaxed);
         }
 
-        if (loggerApi.load(std::memory_order_relaxed)->get_level() <= severity) {
+        if (log_level.load(std::memory_order_relaxed) <= severity) {
             EventuallyPersistentEngine *engine = ObjectRegistry::onSwitchThread(NULL, true);
             va_list va;
             va_start(va, fmt);
@@ -1998,6 +2005,7 @@ EventuallyPersistentEngine::EventuallyPersistentEngine(
     ENGINE_HANDLE_V1::dcp.buffer_acknowledgement = EvpDcpBufferAcknowledgement;
     ENGINE_HANDLE_V1::dcp.control = EvpDcpControl;
     ENGINE_HANDLE_V1::dcp.response_handler = EvpDcpResponseHandler;
+    ENGINE_HANDLE_V1::set_log_level = EvpSetLogLevel;
 
     serverApi = getServerApiFunc();
     memset(&info, 0, sizeof(info));
