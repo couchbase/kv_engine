@@ -152,8 +152,19 @@ void fillLineWith(const char c, int spaces) {
  ** Testcases
  *****************************************************************************/
 
+/*
+ * The perf_latency_core performs add/get/replace/delete against the bucket
+ * associated with h/h1 parameters.
+ *
+ * key_prefix is used to enable multiple threads to operate on a single bucket
+ * in their own key-spaces.
+ * num_docs controls how many of each operation is performed.
+ *
+ * The elapsed time of each operation is pushed to the vector parameters.
+ */
 static void perf_latency_core(ENGINE_HANDLE *h,
                               ENGINE_HANDLE_V1 *h1,
+                              int key_prefix,
                               int num_docs,
                               std::vector<hrtime_t> &add_timings,
                               std::vector<hrtime_t> &get_timings,
@@ -166,7 +177,7 @@ static void perf_latency_core(ENGINE_HANDLE *h,
     // Build vector of keys
     std::vector<std::string> keys;
     for (int i = 0; i < num_docs; i++) {
-        keys.push_back(std::to_string(i));
+        keys.push_back(std::to_string(key_prefix) + std::to_string(i));
     }
 
     // Create (add)
@@ -238,7 +249,7 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     fillLineWith('=', 88-printed);
 
     // run and measure on this thread.
-    perf_latency_core(h, h1, num_docs, add_timings, get_timings, replace_timings, delete_timings);
+    perf_latency_core(h, h1, 0, num_docs, add_timings, get_timings, replace_timings, delete_timings);
 
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     all_timings.push_back(std::make_pair("Add", &add_timings));
@@ -279,6 +290,7 @@ struct ThreadArguments {
     }
     ENGINE_HANDLE* h;
     ENGINE_HANDLE_V1* h1;
+    int key_prefix;
     int num_docs;
     std::vector<hrtime_t> add_timings;
     std::vector<hrtime_t> get_timings;
@@ -292,6 +304,7 @@ extern "C" {
         // run and measure on this thread.
         perf_latency_core(threadArgs->h,
                           threadArgs->h1,
+                          threadArgs->key_prefix,
                           threadArgs->num_docs,
                           threadArgs->add_timings,
                           threadArgs->get_timings,
@@ -301,17 +314,28 @@ extern "C" {
 }
 
 //
-// Test performance of many buckets.
+// Test performance of many buckets/threads
 //
-static enum test_result perf_latency_baseline_multi_bucket(engine_test_t* test,
-                                                           int n_buckets,
-                                                           int num_docs) {
+static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t* test,
+                                                                  int n_buckets,
+                                                                  int n_threads,
+                                                                  int num_docs) {
+    if (n_buckets > n_threads) {
+        // not supporting...
+        fprintf(stderr, "Returning FAIL because n_buckets(%d) > n_threads(%d)\n",
+                n_buckets, n_threads);
+        return FAIL;
+    }
+
     std::vector<BucketHolder> buckets;
 
     int printed = 0;
-    printf("\n\n=== Latency (%d-buckets) - %u items (µs) %n", n_buckets,
-                                                              num_docs,
-                                                              &printed);
+    printf("\n\n=== Latency (%d-bucket(s) %d-thread(s)) - %u items (µs) %n",
+           n_buckets,
+           n_threads,
+           num_docs,
+           &printed);
+
     fillLineWith('=', 88-printed);
 
     if (create_buckets(test->cfg, n_buckets, buckets) != n_buckets) {
@@ -326,24 +350,30 @@ static enum test_result perf_latency_baseline_multi_bucket(engine_test_t* test,
         stop_persistence(buckets[ii].h, buckets[ii].h1);
     }
 
-    std::vector<ThreadArguments> thread_args(n_buckets);
-    std::vector<cb_thread_t> threads(n_buckets);
+    std::vector<ThreadArguments> thread_args(n_threads);
+    std::vector<cb_thread_t> threads(n_threads);
 
     // setup the arguments each thread will use.
-    for (int ii = 0; ii < n_buckets; ii++) {
-        thread_args[ii].h = buckets[ii].h;
-        thread_args[ii].h1 = buckets[ii].h1;
+    // just round robin allocate buckets to threads
+    int bucket = 0;
+    for (int ii = 0; ii < n_threads; ii++) {
+        thread_args[ii].h = buckets[bucket].h;
+        thread_args[ii].h1 = buckets[bucket].h1;
         thread_args[ii].reserve(num_docs);
         thread_args[ii].num_docs = num_docs;
+        thread_args[ii].key_prefix = ii;
+        if ((++bucket) == n_buckets) {
+            bucket = 0;
+        }
     }
 
-    // Now drive each bucket from 1 thread
-    for (int i = 0; i < n_buckets; i++) {
+    // Now drive bucket(s) from thread(s)
+    for (int i = 0; i < n_threads; i++) {
         int r = cb_create_thread(&threads[i], perf_latency_thread, &thread_args[i], 0);
         cb_assert(r == 0);
     }
 
-    for (int i = 0; i < n_buckets; i++) {
+    for (int i = 0; i < n_threads; i++) {
         int r = cb_join_thread(threads[i]);
         cb_assert(r == 0);
     }
@@ -357,7 +387,7 @@ static enum test_result perf_latency_baseline_multi_bucket(engine_test_t* test,
     // For the results, bring all the bucket timings into a single array
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     std::vector<hrtime_t> add_timings, get_timings, replace_timings, delete_timings;
-    for (int ii = 0; ii < n_buckets; ii++) {
+    for (int ii = 0; ii < n_threads; ii++) {
         add_timings.insert(add_timings.end(),
                            thread_args[ii].add_timings.begin(),
                            thread_args[ii].add_timings.end());
@@ -386,11 +416,17 @@ static enum test_result perf_latency_baseline_multi_bucket(engine_test_t* test,
 }
 
 static enum test_result perf_latency_baseline_multi_bucket_2(engine_test_t* test) {
-    return perf_latency_baseline_multi_bucket(test, 2, 10000);
+    return perf_latency_baseline_multi_thread_bucket(test,
+                                                     2, /* buckets */
+                                                     2, /* threads */
+                                                     10000/* documents */);
 }
 
 static enum test_result perf_latency_baseline_multi_bucket_4(engine_test_t* test) {
-    return perf_latency_baseline_multi_bucket(test, 4, 10000);
+    return perf_latency_baseline_multi_thread_bucket(test,
+                                                     4, /* buckets */
+                                                     4, /* threads */
+                                                     10000/* documents */);
 }
 
 enum class Doc_format {
@@ -744,6 +780,13 @@ static enum test_result perf_dcp_latency_with_random_binary(ENGINE_HANDLE *h,
                             Doc_format::BINARY_RANDOM, 5000);
 }
 
+static enum test_result perf_multi_thread_latency(engine_test_t* test) {
+    return perf_latency_baseline_multi_thread_bucket(test,
+                                                     1, /* bucket */
+                                                     4, /* threads */
+                                                     10000/* documents */);
+}
+
 
 /*****************************************************************************
  * List of testcases
@@ -789,6 +832,10 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "backend=couchdb;dbname=./perf_test;ht_size=393209",
                  prepare, cleanup),
+        TestCaseV2("Multi thread latency", perf_multi_thread_latency,
+                   NULL, NULL,
+                   "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                   prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL,
                  "backend=couchdb;dbname=./perf_test", prepare, cleanup)
