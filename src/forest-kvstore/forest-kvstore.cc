@@ -768,20 +768,9 @@ DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
         return dbInfo;
     }
 
-    fdb_kvs_name_list name_list;
-    status = fdb_get_kvs_name_list(dbFileHandle, &name_list);
-    if (status != FDB_RESULT_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to retrieve KV store names from database file"
-            "with error: %s", fdb_error_msg(status));
-        return dbInfo;
-    }
-
     dbInfo.itemCount = kvsInfo.doc_count;
-    dbInfo.fileSize =  fileInfo.file_size/name_list.num_kvs_names;
+    dbInfo.fileSize =  fileInfo.file_size/fileInfo.num_kv_stores;
     dbInfo.spaceUsed = kvsInfo.space_used;
-
-    fdb_free_kvs_name_list(&name_list);
 
     return dbInfo;
 }
