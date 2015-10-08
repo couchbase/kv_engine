@@ -206,6 +206,7 @@ void VBucket::doStatsForQueueing(Item& qi, size_t itemBytes)
     ++dirtyQueueSize;
     dirtyQueueMem.fetch_add(sizeof(Item));
     ++dirtyQueueFill;
+    dirtyQueueAge.fetch_add(qi.getQueuedTime());
     dirtyQueuePendingWrites.fetch_add(itemBytes);
 }
 
@@ -219,9 +220,11 @@ void VBucket::doStatsForFlushing(Item& qi, size_t itemBytes)
     }
     ++dirtyQueueDrain;
 
-    rel_time_t diff = ep_current_time() - qi.getQueuedTime();
-    dirtyQueueAgeSum.fetch_add(diff > 0 ? diff : 0);
-    dirtyQueueSamples++;
+    if (dirtyQueueAge > qi.getQueuedTime()) {
+        dirtyQueueAge.fetch_sub(qi.getQueuedTime());
+    } else {
+        dirtyQueueAge.store(0);
+    }
 
     if (dirtyQueuePendingWrites > itemBytes) {
         dirtyQueuePendingWrites.fetch_sub(itemBytes);
@@ -251,8 +254,7 @@ void VBucket::resetStats() {
     dirtyQueueSize.store(0);
     dirtyQueueMem.store(0);
     dirtyQueueFill.store(0);
-    dirtyQueueAgeSum.store(0);
-    dirtyQueueSamples.store(0);
+    dirtyQueueAge.store(0);
     dirtyQueuePendingWrites.store(0);
     dirtyQueueDrain.store(0);
     fileSpaceUsed = 0;

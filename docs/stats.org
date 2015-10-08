@@ -375,7 +375,7 @@ For introductory information on stats within Couchbase, start with the
 | vb_active_ops_reject          | Number of rejected operations              |
 | vb_active_queue_size          | Active items in disk queue                 |
 | vb_active_queue_memory        | Memory used for disk queue                 |
-| vb_active_queue_age           | Average disk queue item age in milliseconds|
+| vb_active_queue_age           | Sum of disk queue item age in milliseconds |
 | vb_active_queue_pending       | Total bytes of pending writes              |
 | vb_active_queue_fill          | Total enqueued items                       |
 | vb_active_queue_drain         | Total drained items                        |
@@ -401,7 +401,7 @@ For introductory information on stats within Couchbase, start with the
 | vb_replica_ops_reject         | Number of rejected operations              |
 | vb_replica_queue_size         | Replica items in disk queue                |
 | vb_replica_queue_memory       | Memory used for disk queue                 |
-| vb_replica_queue_age          | Average disk queue item age in milliseconds|
+| vb_replica_queue_age          | Sum of disk queue item age in milliseconds |
 | vb_replica_queue_pending      | Total bytes of pending writes              |
 | vb_replica_queue_fill         | Total enqueued items                       |
 | vb_replica_queue_drain        | Total drained items                        |
@@ -427,7 +427,7 @@ For introductory information on stats within Couchbase, start with the
 | vb_pending_ops_reject         | Number of rejected operations              |
 | vb_pending_queue_size         | Pending items in disk queue                |
 | vb_pending_queue_memory       | Memory used for disk queue                 |
-| vb_pending_queue_age          | Average disk queue item age in milliseconds|
+| vb_pending_queue_age          | Sum of disk queue item age in milliseconds |
 | vb_pending_queue_pending      | Total bytes of pending writes              |
 | vb_pending_queue_fill         | Total enqueued items                       |
 | vb_pending_queue_drain        | Total drained items                        |
@@ -458,7 +458,7 @@ The stats below are listed for each vbucket.
 | ops_reject                    | Number of rejected operations              |
 | queue_size                    | Pending items in disk queue                |
 | queue_memory                  | Memory used for disk queue                 |
-| queue_age                     | Average disk queue item age in milliseconds|
+| queue_age                     | Sum of disk queue item age in milliseconds |
 | queue_fill                    | Total enqueued items                       |
 | queue_drain                   | Total drained items                        |
 | pending writes                | Total bytes of pending writes              |

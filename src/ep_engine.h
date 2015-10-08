@@ -166,7 +166,7 @@ public:
     size_t getQueueMemory() { return queueMemory; }
     size_t getQueueFill() { return queueFill; }
     size_t getQueueDrain() { return queueDrain; }
-    uint64_t getAge() { return (numVbucket > 0 ? queueAge / numVbucket : 0); }
+    uint64_t getAge() { return queueAge; }
     size_t getPendingWrites() { return pendingWrites; }
     size_t getChkPersistRemaining() { return chkPersistRemaining; }
 
