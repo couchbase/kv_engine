@@ -14171,6 +14171,105 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+struct mb16357_ctx {
+    mb16357_ctx(ENGINE_HANDLE *_h, ENGINE_HANDLE_V1 *_h1, int _items) :
+        h(_h), h1(_h1), items(_items) { }
+
+    ENGINE_HANDLE *h;
+    ENGINE_HANDLE_V1 *h1;
+    int items;
+};
+
+extern "C" {
+    static void dcp_thread_func(void *args) {
+        struct mb16357_ctx *ctx = static_cast<mb16357_ctx *>(args);
+
+        const void *cookie = testHarness.create_cookie();
+        uint32_t opaque = 0xFFFF0000;
+        uint32_t flags = 0;
+        std::string name = "unittest";
+
+        while (get_int_stat(ctx->h, ctx->h1, "ep_pending_compactions") == 0);
+
+        // Switch to replica
+        check(set_vbucket_state(ctx->h, ctx->h1, 0, vbucket_state_replica),
+                "Failed to set vbucket state.");
+
+        // Open consumer connection
+        checkeq(ctx->h1->dcp.open(ctx->h, cookie, opaque, 0, flags,
+                                  (void*)name.c_str(), name.length()),
+                ENGINE_SUCCESS,
+                "Failed dcp Consumer open connection.");
+
+        add_stream_for_consumer(ctx->h, ctx->h1, cookie, opaque++, 0, 0,
+                PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+
+        uint32_t stream_opaque = get_int_stat(ctx->h, ctx->h1,
+                                              "eq_dcpq:unittest:stream_0_opaque",
+                                              "dcp");
+
+
+        for (int i = 1; i <= ctx->items; i++) {
+            std::stringstream ss;
+            ss << "kamakeey-" << i;
+
+            // send mutations in single mutation snapshots to race more with compaction
+            ctx->h1->dcp.snapshot_marker(ctx->h, cookie,
+                                         stream_opaque, 0/*vbid*/,
+                                         ctx->items, ctx->items + i, 2);
+            ctx->h1->dcp.mutation(ctx->h, cookie, stream_opaque,
+                                  ss.str().c_str(), ss.str().length(),
+                                  "value", 5, i * 3, 0, 0, 0,
+                                  i + ctx->items, i + ctx->items,
+                                  0, 0, "", 0, INITIAL_NRU_VALUE);
+        }
+
+        testHarness.destroy_cookie(cookie);
+    }
+
+    static void compact_thread_func(void *args) {
+        struct mb16357_ctx *ctx = static_cast<mb16357_ctx *>(args);
+        compact_db(ctx->h, ctx->h1, 0, 99, ctx->items, 1);
+    }
+}
+
+static enum test_result test_mb16357(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1) {
+
+    // Load up vb0 with n items, expire in 1 second
+    int num_items = 1000;
+
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key-" << j;
+        check(store(h, h1, NULL, OPERATION_SET,
+                    ss.str().c_str(), "data", &i, 0, 0, 1/*expire*/, 0)
+                    == ENGINE_SUCCESS, "Failed to store a value"); //expire in 1 second
+
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    testHarness.time_travel(3617); // force expiry pushing time forward.
+
+    struct mb16357_ctx ctx(h, h1, num_items);
+    cb_thread_t cp_thread, dcp_thread;
+
+    cb_assert(cb_create_thread(&cp_thread,
+                               compact_thread_func,
+                               &ctx, 0) == 0);
+    cb_assert(cb_create_thread(&dcp_thread,
+                               dcp_thread_func,
+                               &ctx, 0) == 0);
+
+    cb_assert(cb_join_thread(cp_thread) == 0);
+    cb_assert(cb_join_thread(dcp_thread) == 0);
+
+    return SUCCESS;
+}
+
 /*
     Basic test demonstrating multi-bucket operations.
     Checks that writing the same key to many buckets works as it should.
@@ -14181,6 +14280,7 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
     if (create_buckets(test->cfg, n_buckets, buckets) != n_buckets) {
         destroy_buckets(buckets);
         return FAIL;
+
     }
 
     for (auto bucket : buckets) {
@@ -15119,6 +15219,10 @@ BaseTestCase testsuite_testcases[] = {
                  NULL, prepare, cleanup),
         TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
                  teardown, NULL, prepare, cleanup),
+
+        TestCase("test MB-16357", test_mb16357,
+                 test_setup, teardown, "compaction_exp_mem_threshold=85",
+                 prepare, cleanup),
 
         TestCaseV2("multi_bucket set/get ", test_multi_bucket_set_get, NULL,
                    teardown_v2, NULL, prepare, cleanup),
