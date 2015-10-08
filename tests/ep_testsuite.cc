@@ -8573,7 +8573,14 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
 
     /* Get the resident ratio down to below 90% */
     int num_items = 0;
-    while(get_int_stat(h, h1, "vb_active_perc_mem_resident") > 94) {
+    while (true) {
+        // Gathering stats on every store is expensive, just check every 100 iterations
+        if ((num_items % 100) == 0) {
+            if (get_int_stat(h, h1, "vb_active_perc_mem_resident") < 94) {
+                break;
+            }
+        }
+
         item *itm = NULL;
         std::string key("key" + std::to_string(num_items));
         ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
