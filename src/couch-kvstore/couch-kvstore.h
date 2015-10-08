@@ -20,7 +20,6 @@
 
 #include "config.h"
 #include "libcouchstore/couch_db.h"
-#include <relaxed_atomic.h>
 
 #include <map>
 #include <string>
@@ -528,12 +527,7 @@ private:
     void removeCompactFile(const std::string &filename);
 
     const std::string dbname;
-
-    // Map of the fileRev for each vBucket. Using RelaxedAtomic so
-    // stats gathering (doDcpVbTakeoverStats) can get a snapshot
-    // without having to lock.
-    std::vector<Couchbase::RelaxedAtomic<uint64_t>> dbFileRevMap;
-
+    std::vector<uint64_t>dbFileRevMap;
     uint16_t numDbFiles;
     std::vector<CouchRequest *> pendingReqsQ;
     bool intransaction;
@@ -541,13 +535,11 @@ private:
     /* all stats */
     CouchKVStoreStats   st;
     couch_file_ops statCollectingFileOps;
-    /* deleted docs in each file, indexed by vBucket. RelaxedAtomic
-       to allow stats access witout lock */
-    std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
+    /* deleted docs in each file, indexed by vBucket */
+    std::vector<size_t> cachedDeleteCount;
 
-    /* non-deleted docs in each file, indexed by vBucket.
-       RelaxedAtomic to allow stats access witout lock. */
-    std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
+    /* non-deleted docs in each file, indexed by vBucket */
+    std::vector<size_t> cachedDocCount;
 
     /* pending file deletions */
     AtomicQueue<std::string> pendingFileDeletions;
