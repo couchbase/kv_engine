@@ -32,7 +32,8 @@ public:
     /**
      * Construct a CheckpointVisitor.
      */
-    CheckpointVisitor(EventuallyPersistentStore *s, EPStats &st, bool *sfin)
+    CheckpointVisitor(EventuallyPersistentStore *s, EPStats &st,
+                      AtomicValue<bool> &sfin)
         : store(s), stats(st), removed(0),
           stateFinalizer(sfin) {}
 
@@ -65,24 +66,23 @@ public:
     }
 
     void complete() {
-        if (stateFinalizer) {
-            *stateFinalizer = true;
-        }
+        bool inverse = false;
+        stateFinalizer.compare_exchange_strong(inverse, true);
     }
 
 private:
     EventuallyPersistentStore *store;
     EPStats                   &stats;
     size_t                     removed;
-    bool                      *stateFinalizer;
+    AtomicValue<bool>         &stateFinalizer;
 };
 
 bool ClosedUnrefCheckpointRemoverTask::run(void) {
-    if (available) {
-        available = false;
+    bool inverse = true;
+    if (available.compare_exchange_strong(inverse, false)) {
         EventuallyPersistentStore *store = engine->getEpStore();
         shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats,
-                    &available));
+                                                               available));
         store->visit(pv, "Checkpoint Remover", NONIO_TASK_IDX,
                      Priority::CheckpointRemoverPriority);
     }
