@@ -50,7 +50,7 @@ private:
     EPStats &stats;
     double sleepTime;
     std::string alogPath;
-    bool available;
+    AtomicValue<bool> available;
     uint8_t residentRatioThreshold;
 };
 
