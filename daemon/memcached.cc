@@ -2262,11 +2262,6 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
     bool found = false;
     ENGINE_ERROR_CODE ret;
 
-    /*
-     * the number of buckets cannot change without a restart, but we don't want
-     * to lock the entire bucket array during checking for the existence
-     * of the bucket and while we're locating the next entry.
-     */
     cb_mutex_enter(&buckets_lock);
 
     for (ii = 0; ii < settings.max_buckets && !found; ++ii) {
@@ -2404,14 +2399,11 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
                                           const std::string& bucket_name,
                                           bool force) {
     ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
-    /*
-     * the number of buckets cannot change without a restart, but we don't want
-     * to lock the entire bucket array during checking for the existence
-     * of the bucket and while we're locating the next entry.
-     */
+
+    cb_mutex_enter(&buckets_lock);
+
     int idx = 0;
-    int ii;
-    for (ii = 0; ii < settings.max_buckets; ++ii) {
+    for (int ii = 0; ii < settings.max_buckets; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (bucket_name == all_buckets[ii].name) {
             idx = ii;
@@ -2427,6 +2419,7 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
             break;
         }
     }
+    cb_mutex_exit(&buckets_lock);
 
     if (ret != ENGINE_SUCCESS) {
         auto code = engine_error_2_mcbp_protocol_error(ret);
@@ -2443,7 +2436,7 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
                                     c->getId(), bucket_name.c_str());
 
     /* If this thread is connected to the requested bucket... release it */
-    if (ii == c->getBucketIndex()) {
+    if (idx == c->getBucketIndex()) {
         disassociate_bucket(c);
     }
 
