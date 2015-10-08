@@ -4536,7 +4536,14 @@ static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
 static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
     int i = 0;  // Item count
-    while(get_int_stat(h, h1, "vb_active_perc_mem_resident") > 50) {
+    while (true) {
+        // Gathering stats on every store is expensive, just check every 100 iterations
+        if ((i % 100) == 0) {
+            if (get_int_stat(h, h1, "vb_active_perc_mem_resident") < 50) {
+                break;
+            }
+        }
+
         item *itm = NULL;
         std::stringstream ss;
         ss << "key" << i;
