@@ -58,7 +58,7 @@ public:
      * @param phase pointer to an item_pager_phase to be set
      */
     PagingVisitor(EventuallyPersistentStore &s, EPStats &st, double pcnt,
-                  bool *sfin, pager_type_t caller, bool pause = false,
+                  AtomicValue<bool> &sfin, pager_type_t caller, bool pause = false,
                   double bias = 1, item_pager_phase *phase = NULL)
       : store(s), stats(st), percent(pcnt),
         activeBias(bias), ejected(0),
@@ -171,9 +171,8 @@ public:
             stats.expiryPagerHisto.add(elapsed_time);
         }
 
-        if (stateFinalizer) {
-            *stateFinalizer = true;
-        }
+        bool inverse = false;
+        stateFinalizer.compare_exchange_strong(inverse, true);
 
         if (pager_phase && completePhase) {
             if (*pager_phase == PAGING_UNREFERENCED) {
@@ -234,7 +233,7 @@ private:
     double activeBias;
     size_t ejected;
     time_t startTime;
-    bool *stateFinalizer;
+    AtomicValue<bool> &stateFinalizer;
     pager_type_t owner;
     bool canPause;
     bool completePhase;
@@ -254,7 +253,9 @@ bool ItemPager::run(void) {
         doEvict = false;
     }
 
-    if (available && ((current > upper) || doEvict)) {
+    bool inverse = true;
+    if (available.compare_exchange_strong(inverse, false) &&
+            ((current > upper) || doEvict)) {
         if (store->getItemEvictionPolicy() == VALUE_ONLY) {
             doEvict = true;
         }
@@ -273,9 +274,8 @@ bool ItemPager::run(void) {
         size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 
-        available = false;
         shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, toKill,
-                                                       &available, ITEM_PAGER,
+                                                       available, ITEM_PAGER,
                                                        false, bias, &phase));
         store->visit(pv, "Item pager", NONIO_TASK_IDX,
                     Priority::ItemPagerPriority);
@@ -331,12 +331,12 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
 
 bool ExpiredItemPager::run(void) {
     EventuallyPersistentStore *store = engine->getEpStore();
-    if (available) {
+    bool inverse = true;
+    if (available.compare_exchange_strong(inverse, false)) {
         ++stats.expiryPagerRuns;
 
-        available = false;
         shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, -1,
-                                                       &available, EXPIRY_PAGER,
+                                                       available, EXPIRY_PAGER,
                                                        true, 1, NULL));
         // track spawned tasks for shutdown..
         store->visit(pv, "Expired item remover", NONIO_TASK_IDX,

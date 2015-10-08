@@ -83,7 +83,7 @@ private:
 
     EventuallyPersistentEngine *engine;
     EPStats &stats;
-    bool available;
+    AtomicValue<bool> available;
     item_pager_phase phase;
     bool doEvict;
 };
@@ -121,7 +121,7 @@ private:
     EventuallyPersistentEngine *engine;
     EPStats                    &stats;
     double                     sleepTime;
-    bool                       available;
+    AtomicValue<bool>          available;
 };
 
 #endif  // SRC_ITEM_PAGER_H_
