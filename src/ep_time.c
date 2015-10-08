@@ -36,6 +36,19 @@ static rel_time_t default_reltime(time_t notused) {
     return 0;
 }
 
+
+void initialize_time_functions(const SERVER_CORE_API* core_api) {
+    if (ep_current_time == uninitialized_current_time) {
+        ep_current_time = core_api->get_current_time;
+    }
+    if (ep_abs_time == default_abs_time) {
+        ep_abs_time = core_api->abstime;
+    }
+    if (ep_reltime == default_reltime) {
+        ep_reltime = core_api->realtime;
+    }
+}
+
 rel_time_t (*ep_current_time)(void) = uninitialized_current_time;
 time_t (*ep_abs_time)(rel_time_t) = default_abs_time;
 rel_time_t (*ep_reltime)(time_t) = default_reltime;

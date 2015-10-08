@@ -1832,9 +1832,7 @@ extern "C" {
         }
         delete inital_tracking;
 
-        ep_current_time = api->core->get_current_time;
-        ep_abs_time = api->core->abstime;
-        ep_reltime = api->core->realtime;
+        initialize_time_functions(api->core);
 
         *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
 
