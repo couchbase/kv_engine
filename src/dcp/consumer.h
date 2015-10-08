@@ -25,6 +25,8 @@
 #include "dcp/stream.h"
 #include "dcp/flow-control.h"
 
+#include <relaxed_atomic.h>
+
 class PassiveStream;
 class DcpResponse;
 
@@ -146,7 +148,7 @@ private:
     opaque_map opaqueMap_;
 
     rel_time_t lastNoopTime;
-    uint32_t backoffs;
+    Couchbase::RelaxedAtomic<uint32_t> backoffs;
     uint32_t noopInterval;
 
     bool pendingEnableNoop;
