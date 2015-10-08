@@ -180,7 +180,7 @@ private:
 
     bool supportsCursorDropping;
 
-    rel_time_t lastSendTime;
+    Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;
     BufferLog* log;
     BackfillManager* backfillMgr;
     std::list<uint16_t> ready;
