@@ -136,7 +136,7 @@ private:
     const std::string name;
     AtomicValue<executor_state_t> state;
 
-    hrtime_t     now;  // record of current time
+    AtomicValue<hrtime_t> now;  // record of current time
     hrtime_t waketime; // set to the earliest
 
     hrtime_t taskStart;
