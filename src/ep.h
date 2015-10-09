@@ -753,8 +753,6 @@ private:
                             const void* cookie,
                             double delay = 0);
 
-    RCPtr<VBucket> getVBucket(uint16_t vbid, vbucket_state_t wanted_state);
-
     /* Queue an item for persistence and replication
      *
      * The caller of this function must hold the lock of the hash table
