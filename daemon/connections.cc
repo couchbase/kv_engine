@@ -76,9 +76,8 @@ int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging)
                     auto* js = c->toJSON();
                     char* details = cJSON_PrintUnformatted(js);
 
-                    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                                    "Worker thread %u: %s",
-                                                    me->index, details);
+                    LOG_NOTICE(NULL, "Worker thread %u: %s", me->index,
+                               details);
                     cJSON_Free(details);
                     cJSON_Delete(js);
                 }
@@ -156,10 +155,9 @@ void run_event_loop(Connection * c) {
     try {
         c->runStateMachinery();
     } catch (std::invalid_argument& e) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: exception occurred in runloop "
-                                        "- closing connection: %s",
-                                        c->getId(), e.what());
+        LOG_WARNING(c,
+                    "%d: exception occurred in runloop - closing connection: %s",
+                    c->getId(), e.what());
         c->setState(conn_closing);
     }
 
@@ -208,8 +206,7 @@ Connection* conn_new_server(const SOCKET sfd,
     MEMCACHED_CONN_ALLOCATE(c->getId());
 
     if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "<%d server listening", sfd);
+        LOG_DEBUG(c, "<%d server listening", sfd);
     }
 
     return c;
@@ -229,18 +226,14 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
                 return nullptr;
             }
 
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                                            "%u: Using protocol: %s",
-                                            c->getId(),
-                                            to_string(c->getProtocol()));
+            LOG_INFO(NULL, "%u: Using protocol: %s", c->getId(),
+                     to_string(c->getProtocol()));
         }
     }
 
     if (c == nullptr) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "%u: failed to locate server port "
-                                            "%u. Disconnecting",
-                                        (unsigned int)sfd, parent_port);
+        LOG_WARNING(NULL, "%u: failed to locate server port %u. Disconnecting",
+                    (unsigned int)sfd, parent_port);
         return nullptr;
     }
 
@@ -260,8 +253,7 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
     MEMCACHED_CONN_ALLOCATE(c->getId());
 
     if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "<%d new client connection", sfd);
+        LOG_DEBUG(c, "<%d new client connection", sfd);
     }
 
     return c;
@@ -326,8 +318,8 @@ void conn_close(Connection *c) {
     }
     /* remove from pending-io list */
     if (settings.verbose > 1 && list_contains(thread->pending_io, c)) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "Current connection was in the pending-io list.. Nuking it\n");
+        LOG_WARNING(c,
+                    "Current connection was in the pending-io list.. Nuking it");
     }
     thread->pending_io = list_remove(thread->pending_io, c);
 
@@ -379,14 +371,12 @@ void dump_connection_stat_signal_handler(evutil_socket_t, short, void *) {
         try {
             cJSON* json = c->toJSON();
             char* info = cJSON_PrintUnformatted(json);
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                            "Connection: %s", info);
+            LOG_NOTICE(c, "Connection: %s", info);
             cJSON_Free(info);
             cJSON_Delete(json);
         } catch (const std::bad_alloc&) {
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                            "Failed to allocate memory to dump info for %u",
-                                            c->getId());
+            LOG_NOTICE(c, "Failed to allocate memory to dump info for %u",
+                       c->getId());
         }
     }
 }
@@ -485,8 +475,7 @@ static Connection *allocate_connection(SOCKET sfd,
         connections.conns.push_back(ret);
         return ret;
     } catch (std::bad_alloc) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to allocate memory for connection");
+        LOG_WARNING(NULL, "Failed to allocate memory for connection");
         delete ret;
         return NULL;
     }
@@ -536,9 +525,10 @@ static BufferLoan conn_loan_single_buffer(Connection *c, struct net_buf *thread_
              * other than terminate the current connection.
              */
             if (settings.verbose) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                    "%u: Failed to allocate new read buffer.. closing connection",
-                    c->getId());
+                LOG_WARNING(c,
+                            "%u: Failed to allocate new read buffer.. closing"
+                                " connection",
+                            c->getId());
             }
             c->setState(conn_closing);
             return BufferLoan::Existing;

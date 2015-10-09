@@ -28,9 +28,7 @@ static void do_asprintf(char **strp, const char *fmt, ...)
     va_start(ap, fmt);
     if (vasprintf(strp, fmt, ap) < 0){
         if (settings.extensions.logger) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "vasprintf failed: %s",
-                                            strerror(errno));
+            LOG_WARNING(NULL, "vasprintf failed: %s", strerror(errno));
         } else {
             fprintf(stderr, "vasprintf failed: %s", strerror(errno));
         }
@@ -1205,9 +1203,8 @@ static void dyna_reconfig_iface_maxconns(const struct interface *new_if,
         port->maxconns = new_if->maxconn;
         calculate_maxconns();
 
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-            "Changed maxconns for interface %s:%hu from %d to %d",
-            cur_if->host, cur_if->port, old_maxconns, cur_if->maxconn);
+        LOG_NOTICE(NULL, "Changed maxconns for interface %s:%hu from %d to %d",
+                   cur_if->host, cur_if->port, old_maxconns, cur_if->maxconn);
     }
 }
 
@@ -1217,9 +1214,8 @@ static void dyna_reconfig_iface_backlog(const struct interface *new_if,
         int old_backlog = cur_if->backlog;
         cur_if->backlog = new_if->backlog;
 
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                "Changed backlog for interface %s:%hu from %d to %d",
-                cur_if->host, cur_if->port, old_backlog, cur_if->backlog);
+        LOG_NOTICE(NULL, "Changed backlog for interface %s:%hu from %d to %d",
+                   cur_if->host, cur_if->port, old_backlog, cur_if->backlog);
     }
 }
 
@@ -1243,15 +1239,17 @@ static void dyna_reconfig_iface_nodelay(const struct interface *new_if,
                 int error = setsockopt(c->getSocketDescriptor(), IPPROTO_TCP, TCP_NODELAY,
                                        ptr, sizeof(nodelay_flag));
                 if (error != 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                         "Failed to set TCP_NODELAY for FD %d, interface %s:%hu to %d: %s",
-                                                    c->getSocketDescriptor(), cur_if->host, cur_if->port, nodelay_flag,
-                         strerror(errno));
+                    LOG_WARNING(NULL,
+                                "Failed to set TCP_NODELAY for FD %d, interface %s:%hu to %d: %s",
+                                c->getSocketDescriptor(), cur_if->host,
+                                cur_if->port, nodelay_flag,
+                                strerror(errno));
                 } else {
-                    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                        "Changed tcp_nodelay for FD %d, interface %s:%hu from %d to %d",
-                                                    c->getSocketDescriptor(), cur_if->host, cur_if->port, old_tcp_nodelay,
-                        cur_if->tcp_nodelay);
+                    LOG_NOTICE(NULL,
+                               "Changed tcp_nodelay for FD %d, interface %s:%hu from %d to %d",
+                               c->getSocketDescriptor(), cur_if->host,
+                               cur_if->port, old_tcp_nodelay,
+                               cur_if->tcp_nodelay);
                 }
             }
         }
@@ -1264,9 +1262,8 @@ static void dyna_reconfig_iface_ssl(const struct interface *new_if,
                                            cur_if->ssl.cert) != 0) {
         const char *old_cert = cur_if->ssl.cert;
         cur_if->ssl.cert = strdup(new_if->ssl.cert);
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-            "Changed ssl.cert for interface %s:%hu from %s to %s",
-            cur_if->host, cur_if->port, old_cert, cur_if->ssl.cert);
+        LOG_NOTICE(NULL, "Changed ssl.cert for interface %s:%hu from %s to %s",
+                   cur_if->host, cur_if->port, old_cert, cur_if->ssl.cert);
         free((char*)old_cert);
     }
 
@@ -1274,9 +1271,8 @@ static void dyna_reconfig_iface_ssl(const struct interface *new_if,
                                            cur_if->ssl.key) != 0) {
         const char *old_key = cur_if->ssl.key;
         cur_if->ssl.key = strdup(new_if->ssl.key);
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-            "Changed ssl.key for interface %s:%hu from %s to %s",
-            cur_if->host, cur_if->port, old_key, cur_if->ssl.key);
+        LOG_NOTICE(NULL, "Changed ssl.key for interface %s:%hu from %s to %s",
+                   cur_if->host, cur_if->port, old_key, cur_if->ssl.key);
         free((char*)old_key);
     }
 }
@@ -1301,9 +1297,8 @@ static void dyna_reconfig_default_reqs_per_event(const struct settings *new_sett
         new_settings->default_reqs_per_event != settings.default_reqs_per_event) {
         int old_reqs = settings.default_reqs_per_event;
         settings.default_reqs_per_event = new_settings->default_reqs_per_event;
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-            "Changed default reqs_per_event from %d to %d", old_reqs,
-            settings.default_reqs_per_event);
+        LOG_NOTICE(NULL, "Changed default reqs_per_event from %d to %d",
+                   old_reqs, settings.default_reqs_per_event);
     }
 }
 
@@ -1312,9 +1307,8 @@ static void dyna_reconfig_reqs_per_event_high_priority(const struct settings *ne
         new_settings->reqs_per_event_high_priority != settings.reqs_per_event_high_priority) {
         int old_reqs = settings.reqs_per_event_high_priority;
         settings.reqs_per_event_high_priority = new_settings->reqs_per_event_high_priority;
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-            "Changed high priority reqs_per_event from %d to %d", old_reqs,
-            settings.reqs_per_event_high_priority);
+        LOG_NOTICE(NULL, "Changed high priority reqs_per_event from %d to %d",
+                   old_reqs, settings.reqs_per_event_high_priority);
     }
 }
 
@@ -1323,9 +1317,8 @@ static void dyna_reconfig_reqs_per_event_med_priority(const struct settings *new
         new_settings->reqs_per_event_med_priority != settings.reqs_per_event_med_priority) {
         int old_reqs = settings.reqs_per_event_med_priority;
         settings.reqs_per_event_med_priority = new_settings->reqs_per_event_med_priority;
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-            "Changed medium priority reqs_per_event from %d to %d", old_reqs,
-            settings.reqs_per_event_med_priority);
+        LOG_NOTICE(NULL, "Changed medium priority reqs_per_event from %d to %d",
+                   old_reqs, settings.reqs_per_event_med_priority);
     }
 }
 
@@ -1334,9 +1327,8 @@ static void dyna_reconfig_reqs_per_event_low_priority(const struct settings *new
         new_settings->reqs_per_event_low_priority != settings.reqs_per_event_low_priority) {
         int old_reqs = settings.reqs_per_event_low_priority;
         settings.reqs_per_event_low_priority = new_settings->reqs_per_event_low_priority;
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-            "Changed low priority reqs_per_event from %d to %d", old_reqs,
-            settings.reqs_per_event_low_priority);
+        LOG_NOTICE(NULL, "Changed low priority reqs_per_event from %d to %d",
+                   old_reqs, settings.reqs_per_event_low_priority);
     }
 }
 
@@ -1346,9 +1338,8 @@ static void dyna_reconfig_verbosity(const struct settings *new_settings) {
         int old_verbose = settings.verbose;
         settings.verbose.store(new_settings->verbose);
         perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-            "Changed verbosity from %d to %d", old_verbose,
-            settings.verbose.load());
+        LOG_NOTICE(NULL, "Changed verbosity from %d to %d", old_verbose,
+                   settings.verbose.load());
     }
 }
 
@@ -1367,7 +1358,7 @@ static void dyna_reconfig_breakpad(const struct settings *new_settings) {
             reconfig = true;
             const bool old_enabled = settings.breakpad.enabled;
             settings.breakpad.enabled = new_settings->breakpad.enabled;
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+            LOG_NOTICE(NULL,
                 "Changed breakpad.enabled from %d to %d", old_enabled,
                 settings.breakpad.enabled);
         }
@@ -1377,7 +1368,7 @@ static void dyna_reconfig_breakpad(const struct settings *new_settings) {
             reconfig = true;
             const char* old_dir = settings.breakpad.minidump_dir;
             settings.breakpad.minidump_dir = strdup(new_settings->breakpad.minidump_dir);
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+            LOG_NOTICE(NULL,
                 "Changed breakpad.minidump_dir from %s to %s", old_dir,
                 settings.breakpad.minidump_dir);
             free((char*)old_dir);
@@ -1387,7 +1378,7 @@ static void dyna_reconfig_breakpad(const struct settings *new_settings) {
             reconfig = true;
             const breakpad_content_t old_content = settings.breakpad.content;
             settings.breakpad.content = new_settings->breakpad.content;
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
+            LOG_NOTICE(NULL,
                 "Changed breakpad.content from %d to %d", old_content,
                 settings.breakpad.content);
         }
@@ -1468,8 +1459,8 @@ static bool parse_JSON_config(cJSON* sys, struct settings *s,
         }
 
         if (handlers[ii].key == NULL) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Unknown token \"%s\" in config ignored.\n", obj->string);
+            LOG_WARNING(NULL, "Unknown token \"%s\" in config ignored.\n",
+                        obj->string);
         } else {
             if (!handlers[ii].handler(obj, s, error_msg)) {
                 return false;
@@ -1555,15 +1546,13 @@ void reload_config_file(void) {
     int ii;
     bool valid = true;
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-        "Reloading config file %s", get_config_file());
+    LOG_NOTICE(NULL, "Reloading config file %s", get_config_file());
 
     /* parse config into a new settings structure */
     if (!parse_config_file(get_config_file(), &new_settings, &error_msg)) {
         free_settings(&new_settings);
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-            "Failed to reload config file %s : %s\n", get_config_file(),
-            error_msg);
+        LOG_WARNING(NULL, "Failed to reload config file %s : %s\n",
+                    get_config_file(), error_msg);
         free(error_msg);
         return;
     }
@@ -1582,13 +1571,12 @@ void reload_config_file(void) {
             }
         }
     } else {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-            "Validation failed while reloading config file '%s'. Errors:",
-            get_config_file());
+        LOG_WARNING(NULL,
+                    "Validation failed while reloading config file '%s'. Errors:",
+                    get_config_file());
         for (ii = 0; ii < cJSON_GetArraySize(errors); ii++) {
             char* json = cJSON_Print(cJSON_GetArrayItem(errors, ii));
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "\t%s", json);
+            LOG_WARNING(NULL, "\t%s", json);
             free(json);
         }
     }

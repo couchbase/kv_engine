@@ -76,10 +76,8 @@ static bool authenticated(Connection* c) {
     }
 
     if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "%u: authenticated() in cmd 0x%02x is %s\n",
-                                        c->getId(), c->getCmd(),
-                                        rv ? "true" : "false");
+        LOG_DEBUG(c, "%u: authenticated() in cmd 0x%02x is %s",
+                  c->getId(), c->getCmd(), rv ? "true" : "false");
     }
 
     return rv;
@@ -123,17 +121,14 @@ static void bin_read_chunk(Connection* c, uint32_t chunk) {
         if (nsize != c->read.size) {
             char* newm;
             if (settings.verbose > 1) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                "%u: Need to grow buffer from %lu to %lu",
-                                                c->getId(),
-                                                (unsigned long)c->read.size,
-                                                (unsigned long)nsize);
+                LOG_DEBUG(c, "%u: Need to grow buffer from %lu to %lu",
+                          c->getId(), (unsigned long)c->read.size,
+                          (unsigned long)nsize);
             }
             newm = reinterpret_cast<char*>(realloc(c->read.buf, nsize));
             if (newm == NULL) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: Failed to grow buffer.. closing connection",
-                                                c->getId());
+                LOG_WARNING(c, "%u: Failed to grow buffer.. closing connection",
+                            c->getId());
                 c->setState(conn_closing);
                 return;
             }
@@ -148,9 +143,7 @@ static void bin_read_chunk(Connection* c, uint32_t chunk) {
             memmove(c->read.buf, c->read.curr, c->read.bytes);
             c->read.curr = c->read.buf;
             if (settings.verbose > 1) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                "%u: Repack input buffer\n",
-                                                c->getId());
+                LOG_DEBUG(c, "%u: Repack input buffer", c->getId());
             }
         }
     }
@@ -163,10 +156,8 @@ static void bin_read_chunk(Connection* c, uint32_t chunk) {
 /* Just write an error message and disconnect the client */
 static void handle_binary_protocol_error(Connection* c) {
     mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                    "%u: Protocol error (opcode %02x), close connection",
-                                    c->getId(),
-                                    c->binary_header.request.opcode);
+    LOG_NOTICE(c, "%u: Protocol error (opcode %02x), close connection",
+               c->getId(), c->binary_header.request.opcode);
     c->setWriteAndGo(conn_closing);
 }
 
@@ -515,8 +506,7 @@ static void process_bin_get(Connection* c) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     "GET", key, nkey) != -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s",
-                                            buffer);
+            LOG_DEBUG(c, "%s", buffer);
         }
     }
 
@@ -536,9 +526,7 @@ static void process_bin_get(Connection* c) {
 
         if (!bucket_get_item_info(c, it, &info.info)) {
             c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%u: Failed to get item info",
-                                            c->getId());
+            LOG_WARNING(c, "%u: Failed to get item info", c->getId());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             break;
         }
@@ -704,9 +692,9 @@ void ship_mcbp_tap_log(Connection* c) {
     int ii = 0;
 
     if (!c->addMsgHdr(true)) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u: Failed to create output headers. Shutting down tap connection",
-                                        c->getId());
+        LOG_WARNING(c,
+                    "%u: Failed to create output headers. Shutting down tap "
+                        "connection", c->getId());
         c->setState(conn_closing);
         return;
     }
@@ -772,17 +760,13 @@ void ship_mcbp_tap_log(Connection* c) {
         case TAP_MUTATION:
             if (!bucket_get_item_info(c, it, &info.info)) {
                 c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: Failed to get item info",
-                                                c->getId());
+                LOG_WARNING(c, "%u: Failed to get item info", c->getId());
                 break;
             }
 
             if (!c->reserveItem(it)) {
                 c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: Failed to grow item array",
-                                                c->getId());
+                LOG_WARNING(c, "%u: Failed to grow item array", c->getId());
                 break;
             }
             send_data = true;
@@ -816,11 +800,9 @@ void ship_mcbp_tap_log(Connection* c) {
                     inflate = true;
                     break;
                 default:
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                    "%u: shipping data with"
-                                                        " an invalid datatype "
-                                                        "(stripping info)",
-                                                    c->getId());
+                    LOG_WARNING(c,
+                                "%u: shipping data with an invalid datatype "
+                                    "(stripping info)", c->getId());
                 }
                 msg.mutation.message.header.request.datatype = 0;
             }
@@ -833,10 +815,10 @@ void ship_mcbp_tap_log(Connection* c) {
                              info.info.nbytes, &inflated_length) == SNAPPY_OK) {
                         bodylen += (uint32_t)inflated_length;
                     } else {
-                        settings.extensions.logger->log(EXTENSION_LOG_WARNING,
-                                                        c,
-                                                        "<%u Failed to determine inflated size. Sending as compressed",
-                                                        c->getId());
+                        LOG_WARNING(c,
+                                    "<%u Failed to determine inflated size. "
+                                        "Sending as compressed",
+                                    c->getId());
                         inflate = false;
                         bodylen += info.info.nbytes;
                     }
@@ -877,13 +859,12 @@ void ship_mcbp_tap_log(Connection* c) {
                     char* buf = reinterpret_cast<char*>(malloc(
                         inflated_length));
                     if (buf == NULL) {
-                        settings.extensions.logger->log(EXTENSION_LOG_WARNING,
-                                                        c,
-                                                        "%u: FATAL: failed to allocate buffer of size %" PRIu64
-                                                            " to inflate object into. "
-                                                            "Shutting down connection",
-                                                        c->getId(),
-                                                        inflated_length);
+                        LOG_WARNING(c,
+                                    "%u: FATAL: failed to allocate buffer "
+                                        "of size %" PRIu64
+                                        " to inflate object into. Shutting "
+                                        "down connection",
+                                    c->getId(), inflated_length);
                         c->setState(conn_closing);
                         return;
                     }
@@ -893,20 +874,20 @@ void ship_mcbp_tap_log(Connection* c) {
                                           buf, &inflated_length) == SNAPPY_OK) {
                         if (!c->pushTempAlloc(buf)) {
                             free(buf);
-                            settings.extensions.logger->log(
-                                EXTENSION_LOG_WARNING, c,
-                                "%u: FATAL: failed to allocate space to keep temporary buffer",
-                                c->getId());
+                            LOG_WARNING(c,
+                                        "%u: FATAL: failed to allocate space "
+                                            "to keep temporary buffer",
+                                        c->getId());
                             c->setState(conn_closing);
                             return;
                         }
                         c->addIov(buf, inflated_length);
                     } else {
                         free(buf);
-                        settings.extensions.logger->log(EXTENSION_LOG_WARNING,
-                                                        c,
-                                                        "%u: FATAL: failed to inflate object. shutting down connection",
-                                                        c->getId());
+                        LOG_WARNING(c,
+                                    "%u: FATAL: failed to inflate object. "
+                                        "shutting down connection",
+                                    c->getId());
                         c->setState(conn_closing);
                         return;
                     }
@@ -924,17 +905,13 @@ void ship_mcbp_tap_log(Connection* c) {
             /* This is a delete */
             if (!bucket_get_item_info(c, it, &info.info)) {
                 c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: Failed to get item info",
-                                                c->getId());
+                LOG_WARNING(c, "%u: Failed to get item info", c->getId());
                 break;
             }
 
             if (!c->reserveItem(it)) {
                 c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: Failed to grow item array",
-                                                c->getId());
+                LOG_WARNING(c, "%u: Failed to grow item array", c->getId());
                 break;
             }
             send_data = true;
@@ -1006,10 +983,9 @@ void ship_mcbp_tap_log(Connection* c) {
             }
             break;
         default:
-            settings.extensions.logger->log(
-                EXTENSION_LOG_WARNING, c,
-                "%u: ship_tap_log: event (which is %d) is not a valid "
-                    "tap_event_t - closing connection", event);
+            LOG_WARNING(c,
+                        "%u: ship_tap_log: event (which is %d) is not a valid "
+                            "tap_event_t - closing connection", event);
             c->setState(conn_closing);
             return;
         }
@@ -1029,9 +1005,8 @@ void ship_mcbp_tap_log(Connection* c) {
         } else {
             /* No more items to ship to the slave at this time.. suspend.. */
             if (settings.verbose > 1) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                "%u: No more items in tap log.. waiting",
-                                                c->getId());
+                LOG_DEBUG(c, "%u: No more items in tap log.. waiting",
+                          c->getId());
             }
             c->setEwouldblock(true);
         }
@@ -1145,9 +1120,8 @@ static void process_bin_tap_connect(Connection* c) {
         if (flags & TAP_CONNECT_FLAG_BACKFILL) {
             /* the userdata has to be at least 8 bytes! */
             if (ndata < 8) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: ERROR: Invalid tap connect message",
-                                                c->getId());
+                LOG_WARNING(c, "%u: ERROR: Invalid tap connect message",
+                            c->getId());
                 c->setState(conn_closing);
                 return;
             }
@@ -1165,9 +1139,8 @@ static void process_bin_tap_connect(Connection* c) {
         }
         memcpy(buffer, key, len);
         buffer[len] = '\0';
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "%u: Trying to connect with named tap connection: <%s>",
-                                        c->getId(), buffer);
+        LOG_DEBUG(c, "%u: Trying to connect with named tap connection: <%s>",
+                  c->getId(), buffer);
     }
 
     iterator = c->getBucketEngine()->get_tap_iterator(c->getBucketEngineAsV0(),
@@ -1176,9 +1149,8 @@ static void process_bin_tap_connect(Connection* c) {
                                                       flags, data, ndata);
 
     if (iterator == NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u: FATAL: The engine does not support tap",
-                                        c->getId());
+        LOG_WARNING(c, "%u: FATAL: The engine does not support tap",
+                    c->getId());
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         c->setWriteAndGo(conn_closing);
     } else {
@@ -1568,17 +1540,13 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
 
     if (!bucket_get_item_info(c, it, &info.info)) {
         c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u: Failed to get item info",
-                                        c->getId());
+        LOG_WARNING(c, "%u: Failed to get item info", c->getId());
         return ENGINE_FAILED;
     }
 
     if (!c->reserveItem(it)) {
         c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u: Failed to grow item array",
-                                        c->getId());
+        LOG_WARNING(c, "%u: Failed to grow item array", c->getId());
         return ENGINE_FAILED;
     }
 
@@ -1875,9 +1843,10 @@ void ship_mcbp_dcp_log(Connection* c) {
 
     if (!c->addMsgHdr(true)) {
         if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%u: Failed to create output headers. Shutting down DCP connection",
-                                            c->getId());
+            LOG_WARNING(c,
+                        "%u: Failed to create output headers. Shutting down "
+                            "DCP connection",
+                        c->getId());
         }
         c->setState(conn_closing);
         return;
@@ -2197,11 +2166,10 @@ static void dcp_stream_req_executor(Connection* c, void* packet) {
         c->setEwouldblock(false);
 
         if (ret == ENGINE_ROLLBACK) {
-            settings.extensions.logger->log
-                (EXTENSION_LOG_WARNING, c,
-                 "%u: dcp_stream_req_executor: Unexpected AIO stat result "
-                     "ROLLBACK. Shutting down DCP connection",
-                 c->getId());
+            LOG_WARNING(c,
+                        "%u: dcp_stream_req_executor: Unexpected AIO stat"
+                            " result ROLLBACK. Shutting down DCP connection",
+                        c->getId());
             c->setState(conn_closing);
             return;
         }
@@ -2698,8 +2666,7 @@ static void add_set_replace_executor(Connection* c, void* packet,
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     memcached_opcode_2_text(store_op), key,
                                     nkey) != -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s",
-                                            buffer);
+            LOG_DEBUG(c, "%s", buffer);
         }
     }
 
@@ -2749,10 +2716,8 @@ static void add_set_replace_executor(Connection* c, void* packet,
                 if (validator->validate(ptr, info.info.value[0].iov_len)) {
                     info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
                     if (!bucket_set_item_info(c, it, &info.info)) {
-                        settings.extensions.logger->log(EXTENSION_LOG_WARNING,
-                                                        c,
-                                                        "%u: Failed to set item info",
-                                                        c->getId());
+                        LOG_WARNING(c, "%u: Failed to set item info",
+                                    c->getId());
                     }
                 }
             } catch (std::bad_alloc&) {
@@ -2783,9 +2748,7 @@ static void add_set_replace_executor(Connection* c, void* packet,
             if (!bucket_get_item_info(c, c->getItem(), &info.info)) {
                 c->getBucketEngine()->release(c->getBucketEngineAsV0(), c,
                                               c->getItem());
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: Failed to get item info",
-                                                c->getId());
+                LOG_WARNING(c, "%u: Failed to get item info", c->getId());
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return;
             }
@@ -2928,10 +2891,8 @@ static void append_prepend_executor(Connection* c,
                 if (validator->validate(ptr, info.info.value[0].iov_len)) {
                     info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
                     if (!bucket_set_item_info(c, it, &info.info)) {
-                        settings.extensions.logger->log(EXTENSION_LOG_WARNING,
-                                                        c,
-                                                        "%u: Failed to set item info",
-                                                        c->getId());
+                        LOG_WARNING(c, "%u: Failed to set item info",
+                                    c->getId());
                     }
                 }
             } catch (std::bad_alloc&) {
@@ -2962,9 +2923,7 @@ static void append_prepend_executor(Connection* c,
             if (!bucket_get_item_info(c, c->getItem(), &info.info)) {
                 c->getBucketEngine()->release(c->getBucketEngineAsV0(), c,
                                               c->getItem());
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: Failed to get item info",
-                                                c->getId());
+                LOG_WARNING(c, "%u: Failed to get item info", c->getId());
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return;
             }
@@ -3035,10 +2994,9 @@ static void get_executor(Connection* c, void* packet) {
         c->setNoReply(false);
         break;
     default:
-        settings.extensions.logger->log(
-            EXTENSION_LOG_WARNING, c,
-            "%u: get_executor: cmd (which is %d) is not a valid GET "
-                "variant - closing connection", c->getCmd());
+        LOG_WARNING(c,
+                    "%u: get_executor: cmd (which is %d) is not a valid GET "
+                        "variant - closing connection", c->getCmd());
         c->setState(conn_closing);
         return;
     }
@@ -3081,8 +3039,7 @@ static void stat_executor(Connection* c, void* packet) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     "STATS", subcommand, nkey) != -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s\n",
-                                            buffer);
+            LOG_DEBUG(c, "%s\n", buffer);
         }
     }
 
@@ -3356,8 +3313,7 @@ static void process_hello_packet_executor(Connection* c, void* packet) {
         log_buffer[offset] = '\0';
         --offset;
     }
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                    "%u: %s", c->getId(), log_buffer);
+    LOG_NOTICE(c, "%u: %s", c->getId(), log_buffer);
 }
 
 static void version_executor(Connection* c, void*) {
@@ -3380,9 +3336,7 @@ static void sasl_list_mech_executor(Connection* c, void*) {
 
     if (cbsasl_list_mechs(&result_string, &string_length) != CBSASL_OK) {
         /* Perhaps there's a better error for this... */
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u: Failed to list SASL mechanisms.",
-                                        c->getId());
+        LOG_WARNING(c, "%u: Failed to list SASL mechanisms.", c->getId());
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
         return;
     }
@@ -3397,9 +3351,7 @@ static void sasl_auth_executor(Connection* c, void* packet) {
 
     if (nkey > 1023) {
         /* too big.. */
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u: sasl error. key: %d > 1023",
-                                        c->getId(), nkey);
+        LOG_WARNING(c, "%u: sasl error. key: %d > 1023", c->getId(), nkey);
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
         return;
     }
@@ -3408,10 +3360,8 @@ static void sasl_auth_executor(Connection* c, void* packet) {
     mech[nkey] = '\0';
 
     if (settings.verbose) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "%u: SASL auth with mech: '%s' with %d "
-                                            "bytes of data", c->getId(), mech,
-                                        vlen);
+        LOG_DEBUG(c, "%u: SASL auth with mech: '%s' with %d bytes of data",
+                  c->getId(), mech, vlen);
     }
 
     char* challenge =
@@ -3438,9 +3388,8 @@ static void sasl_auth_executor(Connection* c, void* packet) {
     switch (result) {
     case CBSASL_OK: {
         if (settings.verbose > 0) {
-            settings.extensions.logger->log
-                (EXTENSION_LOG_INFO, c, "%u: Client %s authenticated as %s",
-                 c->getId(), c->getPeername().c_str(), c->getUsername());
+            LOG_INFO(c, "%u: Client %s authenticated as %s",
+                     c->getId(), c->getPeername().c_str(), c->getUsername());
         }
 
         c->setAuthenticated(true);
@@ -3471,9 +3420,7 @@ static void sasl_auth_executor(Connection* c, void* packet) {
         break;
     case CBSASL_CONTINUE:
         if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                            "%u: SASL continue",
-                                            c->getId(), result);
+            LOG_INFO(c, "%u: SASL continue", c->getId(), result);
         }
 
         if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
@@ -3486,9 +3433,7 @@ static void sasl_auth_executor(Connection* c, void* packet) {
         c->setWriteAndGo(conn_new_cmd);
         break;
     case CBSASL_BADPARAM:
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u: Bad sasl params: %d",
-                                        c->getId(), result);
+        LOG_WARNING(c, "%u: Bad sasl params: %d", c->getId(), result);
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         {
             auto* ts = get_thread_stats(c);
@@ -3498,10 +3443,8 @@ static void sasl_auth_executor(Connection* c, void* packet) {
         break;
     default:
         if (!is_server_initialized()) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%u: SASL AUTH failure during "
-                                                "initialization",
-                                            c->getId());
+            LOG_WARNING(c, "%u: SASL AUTH failure during initialization",
+                        c->getId());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
             c->setWriteAndGo(conn_closing);
             return;
@@ -3510,14 +3453,10 @@ static void sasl_auth_executor(Connection* c, void* packet) {
         if (result == CBSASL_NOUSER || result == CBSASL_PWERR) {
             audit_auth_failure(c, result == CBSASL_NOUSER ?
                                   "Unknown user" : "Incorrect password");
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%u: Invalid username/password "
-                                                "combination",
-                                            c->getId());
+            LOG_WARNING(c, "%u: Invalid username/password combination",
+                        c->getId());
         } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%u: Unknown sasl response: %d",
-                                            c->getId(), result);
+            LOG_WARNING(c, "%u: Unknown sasl response: %d", c->getId(), result);
         }
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
 
@@ -3537,8 +3476,7 @@ static void flush_executor(Connection* c, void*) {
         c->setNoReply(true);
     }
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                    "%u: flush", c->getId());
+    LOG_NOTICE(c, "%u: flush", c->getId());
 
     ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c, 0);
     switch (ret) {
@@ -3575,8 +3513,7 @@ static void delete_executor(Connection* c, void*) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     "DELETE", key, nkey) != -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s\n",
-                                            buffer);
+            LOG_DEBUG(c, "%s\n", buffer);
         }
     }
 
@@ -3659,10 +3596,9 @@ static void arithmetic_executor(Connection* c, void* packet) {
         c->setNoReply(false);
         break;
     default:
-        settings.extensions.logger->log(
-            EXTENSION_LOG_WARNING, c,
-            "%u: arithmetic_executor: cmd (which is %d) is not a valid "
-                "ARITHMETIC variant - closing connection", c->getCmd());
+        LOG_WARNING(c,
+                    "%u: arithmetic_executor: cmd (which is %d) is not a valid "
+                        "ARITHMETIC variant - closing connection", c->getCmd());
         c->setState(conn_closing);
         return;
     }
@@ -3690,8 +3626,7 @@ static void arithmetic_executor(Connection* c, void* packet) {
             if (snprintf(buffer + nw, sizeof(buffer) - nw,
                          " %" PRIu64 ", %" PRIu64 ", %" PRIu64 "\n",
                          delta, initial, (uint64_t)expiration) != -1) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c, "%s",
-                                                buffer);
+                LOG_DEBUG(c, "%s", buffer);
             }
         }
     }
@@ -3719,9 +3654,7 @@ static void arithmetic_executor(Connection* c, void* packet) {
         info.nvalue = 1;
         if (!bucket_get_item_info(c, item, &info)) {
             c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, item);
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%u: Failed to get item info",
-                                            c->getId());
+            LOG_WARNING(c, "%u: Failed to get item info", c->getId());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
@@ -3797,10 +3730,9 @@ static void arithmetic_executor(Connection* c, void* packet) {
         c->setEwouldblock(true);
         break;
     default:
-        settings.extensions.logger->log(
-            EXTENSION_LOG_WARNING, c,
-            "%u: arithmetic_executor: unexpected response (0x%x) "
-                "from engine->arithmetic()", ret);
+        LOG_WARNING(c,
+                    "%u: arithmetic_executor: unexpected response (0x%x) "
+                        "from engine->arithmetic()", ret);
         c->setState(conn_closing);
         break;
     }
@@ -3982,11 +3914,10 @@ static void config_validate_executor(Connection* c, void* packet) {
 
         cJSON_Delete(errors);
     } catch (const std::bad_alloc&) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u: Failed to allocate buffer of "
-                                            "size %" PRIu64 " to validate "
-                                            "config. Shutting down connection",
-                                        c->getId(), vallen + 1);
+        LOG_WARNING(c,
+                    "%u: Failed to allocate buffer of size %"
+                        PRIu64 " to validate config. Shutting down connection",
+                    c->getId(), vallen + 1);
         c->setState(conn_closing);
         return;
     }
@@ -4005,11 +3936,10 @@ static void audit_config_reload_executor(Connection* c, void*) {
             c->setEwouldblock(true);
             c->setState(conn_audit_configuring);
         } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "configuration of audit "
-                                                "daemon failed with config "
-                                                "file: %s",
-                                            settings.audit_file);
+            LOG_WARNING(NULL,
+                        "configuration of audit daemon failed with config "
+                            "file: %s",
+                        settings.audit_file);
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
         }
     } else {
@@ -4048,10 +3978,9 @@ static void assume_role_executor(Connection* c, void* packet) {
         return;
     }
 
-    settings.extensions.logger->log(
-        EXTENSION_LOG_WARNING, c,
-        "%u: assume_role_executor: err (which is %d) is not a valid "
-            "AuthResult - closing connection", err);
+    LOG_WARNING(c,
+                "%u: assume_role_executor: err (which is %d) is not a valid "
+                    "AuthResult - closing connection", err);
     c->setState(conn_closing);
 }
 
@@ -4091,10 +4020,8 @@ static void create_bucket_executor(Connection* c, void* packet) {
         if (err == 0) {
             ret = ENGINE_EWOULDBLOCK;
         } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "Failed to create thread to "
-                                                "create bucket:: %s",
-                                            strerror(err));
+            LOG_WARNING(c, "Failed to create thread to create bucket:: %s",
+                        strerror(err));
             ret = ENGINE_FAILED;
         }
     }
@@ -4158,10 +4085,9 @@ static void delete_bucket_executor(Connection* c, void* packet) {
         if (err == 0) {
             ret = ENGINE_EWOULDBLOCK;
         } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "Failed to create thread to "
-                                                "delete bucket: %s",
-                                            strerror(err));
+            LOG_WARNING(c,
+                        "Failed to create thread to delete bucket: %s",
+                        strerror(err));
             ret = ENGINE_FAILED;
         }
     }
@@ -4404,11 +4330,11 @@ static void process_bin_packet(Connection* c) {
     AuthResult res = c->checkAccess(opcode);
     switch (res) {
     case AuthResult::FAIL:
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u (%s => %s): no access to command %s",
-                                        c->getId(), c->getPeername().c_str(),
-                                        c->getSockname().c_str(),
-                                        memcached_opcode_2_text(opcode));
+        LOG_WARNING(c,
+                    "%u (%s => %s): no access to command %s",
+                    c->getId(), c->getPeername().c_str(),
+                    c->getSockname().c_str(),
+                    memcached_opcode_2_text(opcode));
         audit_command_access_failed(c);
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
         return;
@@ -4419,10 +4345,9 @@ static void process_bin_packet(Connection* c) {
         }
 
         if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            settings.extensions.logger->log
-                (EXTENSION_LOG_WARNING, c,
-                 "%u: Invalid format for specified for %s - %d",
-                 c->getId(), memcached_opcode_2_text(opcode), result);
+            LOG_WARNING(c,
+                        "%u: Invalid format for specified for %s - %d",
+                        c->getId(), memcached_opcode_2_text(opcode), result);
             audit_invalid_packet(c);
             mcbp_write_packet(c, result);
             return;
@@ -4440,10 +4365,9 @@ static void process_bin_packet(Connection* c) {
         return;
     }
 
-    settings.extensions.logger->log(
-        EXTENSION_LOG_WARNING, c,
-        "%u: process_bin_packet: res (which is %d) is not a valid "
-            "AuthResult - closing connection", res);
+    LOG_WARNING(c,
+                "%u: process_bin_packet: res (which is %d) is not a valid "
+                    "AuthResult - closing connection", res);
     c->setState(conn_closing);
 }
 
@@ -4523,10 +4447,9 @@ void mcbp_complete_nread(Connection* c) {
         if (handler) {
             handler(c);
         } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%u: Unsupported response packet received: %u",
-                                            c->getId(),
-                                            (unsigned int)c->binary_header.request.opcode);
+            LOG_WARNING(c, "%u: Unsupported response packet received: %u",
+                        c->getId(),
+                        (unsigned int)c->binary_header.request.opcode);
             c->setState(conn_closing);
         }
     } else {
@@ -4566,8 +4489,7 @@ int try_read_mcbp_command(Connection* c) {
                                         (const char*)req->bytes,
                                         sizeof(req->bytes));
             if (nw != -1) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                "%s", buffer);
+                LOG_DEBUG(c, "%s", buffer);
             }
         }
 
@@ -4581,15 +4503,14 @@ int try_read_mcbp_command(Connection* c) {
             !(c->binary_header.request.magic == PROTOCOL_BINARY_RES &&
               response_handlers[c->binary_header.request.opcode])) {
             if (c->binary_header.request.magic != PROTOCOL_BINARY_RES) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: Invalid magic: %x, closing connection",
-                                                c->getId(),
-                                                c->binary_header.request.magic);
+                LOG_WARNING(c, "%u: Invalid magic: %x, closing connection",
+                            c->getId(), c->binary_header.request.magic);
             } else {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: Unsupported response packet received: %u, closing connection",
-                                                c->getId(),
-                                                (unsigned int)c->binary_header.request.opcode);
+                LOG_WARNING(c,
+                            "%u: Unsupported response packet received: %u, "
+                                "closing connection",
+                            c->getId(),
+                            (unsigned int)c->binary_header.request.opcode);
 
             }
             c->setState(conn_closing);

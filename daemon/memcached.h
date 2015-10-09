@@ -22,6 +22,7 @@
 #include <JSON_checker.h>
 
 #include "dynamic_buffer.h"
+#include "log_macros.h"
 #include "net_buf.h"
 #include "rbac.h"
 #include "settings.h"
@@ -371,6 +372,5 @@ static inline ENGINE_ERROR_CODE bucket_get(Connection* c,
     return c->getBucketEngine()->get(c->getBucketEngineAsV0(), c, item_,
                                      key, nkey, vbucket);
 }
-
 
 #endif

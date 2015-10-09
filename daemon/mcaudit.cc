@@ -56,8 +56,7 @@ static cJSON *create_memcached_audit_object(const Connection *c) {
 static void do_audit(const Connection *c, uint32_t id, cJSON *event, const char *warn) {
     if (put_json_audit_event(id, event) != AUDIT_SUCCESS) {
         char *text = cJSON_PrintUnformatted(event);
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c, "%s: %s",
-                                        warn, text);
+        LOG_WARNING(c, "%s: %s", warn, text);
         cJSON_Free(text);
     }
     cJSON_Delete(event);
@@ -82,8 +81,7 @@ void audit_bucket_flush(const Connection *c, const char *bucket) {
 
 void audit_dcp_open(const Connection *c) {
     if (c->isAdmin()) {
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
-                                        "Open DCP stream with admin credentials");
+        LOG_INFO(c, "Open DCP stream with admin credentials");
     } else {
         cJSON *root = create_memcached_audit_object(c);
         cJSON_AddStringToObject(root, "bucket", getBucketName(c));

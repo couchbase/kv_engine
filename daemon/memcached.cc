@@ -272,10 +272,9 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
 
         if (service_online) {
             if (cb_create_thread(&tid, populate_log_level, nullptr, 1) == -1) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "Failed to create thread to"
-                                                    " notify engines about "
-                                                    "changing log level");
+                LOG_WARNING(NULL,
+                            "Failed to create thread to notify engines about "
+                                "changing log level");
             }
         }
         break;
@@ -559,10 +558,8 @@ void collect_timings(const Connection *c) {
             snprintf(opcodetext, sizeof(opcodetext), "0x%0X", c->getCmd());
             opcode = opcodetext;
         }
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "%u: Slow %s operation on connection: %lu ms",
-                                        c->getId(), opcode,
-                                        (unsigned long)elapsed_ms);
+        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %lu ms",
+                    c->getId(), opcode, (unsigned long)elapsed_ms);
     }
 }
 
@@ -584,10 +581,8 @@ ENGINE_ERROR_CODE refresh_cbsasl(Connection *c)
     err = cb_create_named_thread(&tid, cbsasl_refresh_main, c, 1,
                                  "mc:refresh sasl");
     if (err != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "Failed to create cbsasl db "
-                                        "update thread: %s",
-                                        strerror(err));
+        LOG_WARNING(c, "Failed to create cbsasl db update thread: %s",
+                    strerror(err));
         return ENGINE_DISCONNECT;
     }
 
@@ -763,9 +758,8 @@ bool conn_listening(Connection *c)
 #else
             struct rlimit limit = {0};
             getrlimit(RLIMIT_NOFILE, &limit);
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "Too many open files. Current limit: %d\n",
-                                            limit.rlim_cur);
+            LOG_WARNING(c, "Too many open files. Current limit: %d",
+                        limit.rlim_cur);
 #endif
             disable_listen();
         } else if (!is_blocking(error)) {
@@ -790,11 +784,11 @@ bool conn_listening(Connection *c)
             --port_instance->curr_conns;
         }
         stats.rejected_conns++;
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-            "Too many open connections. Current/Limit for port %d: %d/%d; "
-            "total: %d/%d", port_instance->port,
-            port_conns, port_instance->maxconns,
-            curr_conns, settings.maxconns);
+        LOG_WARNING(c,
+                    "Too many open connections. Current/Limit for port "
+                        "%d: %d/%d; total: %d/%d", port_instance->port,
+                    port_conns, port_instance->maxconns,
+                    curr_conns, settings.maxconns);
 
         safe_close(sfd);
         return false;
@@ -1046,13 +1040,13 @@ bool conn_nread(Connection *c) {
 
     /* otherwise we have a real error, on which we close the connection */
     if (!is_closed_conn(error)) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u Failed to read, and not due to blocking:\n"
-                                        "errno: %d %s \n"
-                                        "rcurr=%lx ritem=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
-                                        c->getId(), errno, strerror(errno),
-                                        (long)c->read.curr, (long)c->getRitem(), (long)c->read.buf,
-                                        (int)c->getRlbytes(), (int)c->read.size);
+        LOG_WARNING(c,
+                    "%u Failed to read, and not due to blocking:\n"
+                        "errno: %d %s \n"
+                        "rcurr=%lx ritem=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
+                    c->getId(), errno, strerror(errno),
+                    (long)c->read.curr, (long)c->getRitem(), (long)c->read.buf,
+                    (int)c->getRlbytes(), (int)c->read.size);
     }
     c->setState(conn_closing);
     return true;
@@ -1066,8 +1060,7 @@ bool conn_write(Connection *c) {
      */
     if (c->getIovUsed() == 0) {
         if (!c->addIov(c->write.curr, c->write.bytes)) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "Couldn't build response, closing connection");
+            LOG_WARNING(c, "Couldn't build response, closing connection");
             c->setState(conn_closing);
             return true;
         }
@@ -1084,9 +1077,8 @@ bool conn_mwrite(Connection *c) {
         if (c->getState() == conn_mwrite) {
             c->releaseReservedItems();
         } else if (c->getState() != conn_write) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "%u: Unexpected state %d, closing",
-                                            c->getId(), c->getState());
+            LOG_WARNING(c, "%u: Unexpected state %d, closing",
+                        c->getId(), c->getState());
             c->setState(conn_closing);
             return true;
         }
@@ -1108,9 +1100,9 @@ bool conn_pending_close(Connection *c) {
     if (c->isSocketClosed() == false) {
         throw std::logic_error("conn_pending_close: socketDescriptor must be closed");
     }
-    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                    "Awaiting clients to release the cookie (pending close for %p)",
-                                    (void*)c);
+    LOG_DEBUG(c,
+              "Awaiting clients to release the cookie (pending close for %p)",
+              (void*)c);
     /*
      * tell the tap connection that we're disconnecting it now,
      * but give it a grace period
@@ -1130,9 +1122,7 @@ bool conn_immediate_close(Connection *c) {
     if (c->isSocketClosed() == false) {
         throw std::logic_error("conn_immediate_close: socketDescriptor must be closed");
     }
-    settings.extensions.logger->log(EXTENSION_LOG_DETAIL, c,
-                                    "Releasing connection %p",
-                                    c);
+    LOG_DETAIL(c, "Releasing connection %p", c);
 
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
@@ -1179,9 +1169,9 @@ bool conn_refresh_cbsasl(Connection *c) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_EWOULDBLOCK) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                 "conn_refresh_cbsasl: Unexpected AIO stat result "
-                 "EWOULDBLOCK. Shutting down connection");
+        LOG_WARNING(c,
+                    "conn_refresh_cbsasl: Unexpected AIO stat result "
+                        "EWOULDBLOCK. Shutting down connection");
         c->setState(conn_closing);
         return true;
     }
@@ -1206,9 +1196,9 @@ bool conn_refresh_ssl_certs(Connection *c) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_EWOULDBLOCK) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                 "conn_refresh_ssl_certs: Unexpected AIO stat result "
-                 "EWOULDBLOCK. Shutting down connection");
+        LOG_WARNING(c,
+                    "conn_refresh_ssl_certs: Unexpected AIO stat result "
+                        "EWOULDBLOCK. Shutting down connection");
         c->setState(conn_closing);
         return true;
     }
@@ -1266,11 +1256,9 @@ bool conn_audit_configuring(Connection *c) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         break;
     default:
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "configuration of audit "
-                                        "daemon failed with config "
-                                        "file: %s",
-                                        settings.audit_file);
+        LOG_WARNING(c,
+                    "configuration of audit daemon failed with config file: %s",
+                    settings.audit_file);
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
     }
     return true;
@@ -1282,9 +1270,9 @@ bool conn_create_bucket(Connection *c) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_EWOULDBLOCK) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                 "conn_create_bucket: Unexpected AIO stat result "
-                 "EWOULDBLOCK. Shutting down connection");
+        LOG_WARNING(c,
+                    "conn_create_bucket: Unexpected AIO stat result "
+                        "EWOULDBLOCK. Shutting down connection");
         c->setState(conn_closing);
         return true;
     }
@@ -1309,9 +1297,9 @@ bool conn_delete_bucket(Connection *c) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_EWOULDBLOCK) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                 "conn_delete_bucket: Unexpected AIO stat result "
-                 "EWOULDBLOCK. Shutting down connection");
+        LOG_WARNING(c,
+                    "conn_delete_bucket: Unexpected AIO stat result "
+                        "EWOULDBLOCK. Shutting down connection");
         c->setState(conn_closing);
         return true;
     }
@@ -1333,9 +1321,7 @@ bool conn_delete_bucket(Connection *c) {
 void event_handler(evutil_socket_t fd, short which, void *arg) {
     auto *c = reinterpret_cast<Connection *>(arg);
     if (c == nullptr) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "event_handler: connection must be "
-                                        "non-NULL");
+        LOG_WARNING(NULL, "event_handler: connection must be non-NULL");
         return;
     }
 
@@ -1344,17 +1330,14 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         // Someone requested memcached to shut down. The listen thread should
         // be stopped immediately.
         if (is_listen_thread()) {
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                            "Stopping listen thread");
+            LOG_NOTICE(NULL, "Stopping listen thread");
             c->eventBaseLoopbreak();
             return;
         }
 
         if (signal_idle_clients(thr, -1, false) == 0) {
             cb_assert(thr != nullptr);
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                            "Stopping worker thread %u",
-                                            thr->index);
+            LOG_NOTICE(NULL, "Stopping worker thread %u", thr->index);
             c->eventBaseLoopbreak();
             return;
         }
@@ -1386,16 +1369,14 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
             // any connections bound to this thread we can just shut down
             int connected = signal_idle_clients(thr, -1, true);
             if (connected == 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                                "Stopping worker thread %u",
-                                                thr->index);
+                LOG_NOTICE(NULL, "Stopping worker thread %u", thr->index);
                 event_base_loopbreak(thr->base);
             } else {
                 // @todo Change loglevel once MB-16255 is resolved
-                settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                                "Waiting for %d connected "
-                                                "clients on worker thread %u",
-                                                connected, thr->index);
+                LOG_NOTICE(NULL,
+                           "Waiting for %d connected "
+                               "clients on worker thread %u",
+                           connected, thr->index);
             }
         }
         UNLOCK_THREAD(thr);
@@ -1434,9 +1415,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
                 }
 
                 if (listen(next->getSocketDescriptor(), backlog) != 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                    "listen() failed",
-                                                    strerror(errno));
+                    LOG_WARNING(NULL, "listen() failed", strerror(errno));
                 }
             }
         }
@@ -1459,9 +1438,7 @@ static void maximize_sndbuf(const SOCKET sfd) {
     /* Start with the default size. */
     if (getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, old_ptr, &intsize) != 0) {
         if (settings.verbose > 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "getsockopt(SO_SNDBUF): %s",
-                                            strerror(errno));
+            LOG_WARNING(NULL, "getsockopt(SO_SNDBUF): %s", strerror(errno));
         }
 
         return;
@@ -1487,8 +1464,8 @@ static void maximize_sndbuf(const SOCKET sfd) {
     }
 
     if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                 "<%d send buffer was %d, now %d\n", sfd, old_size, last_good);
+        LOG_DEBUG(NULL,
+                  "<%d send buffer was %d, now %d", sfd, old_size, last_good);
     }
 }
 
@@ -1607,11 +1584,9 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
                           "getaddrinfo(): %s", error);
 #else
         if (error != EAI_SYSTEM) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                     "getaddrinfo(): %s", gai_strerror(error));
+            LOG_WARNING(NULL, "getaddrinfo(): %s", gai_strerror(error));
         } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                     "getaddrinfo(): %s", strerror(error));
+            LOG_WARNING(NULL, "getaddrinfo(): %s", strerror(error));
         }
 #endif
         return 1;
@@ -1642,9 +1617,8 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
             error = setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, flags_ptr,
                                sizeof(flags));
             if (error != 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "setsockopt(IPV6_V6ONLY): %s",
-                                                strerror(errno));
+                LOG_WARNING(NULL, "setsockopt(IPV6_V6ONLY): %s",
+                            strerror(errno));
                 safe_close(sfd);
                 continue;
             }
@@ -1655,25 +1629,20 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
         error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, flags_ptr,
                            sizeof(flags));
         if (error != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "setsockopt(SO_KEEPALIVE): %s",
-                                            strerror(errno));
+            LOG_WARNING(NULL, "setsockopt(SO_KEEPALIVE): %s", strerror(errno));
         }
 
         error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, ling_ptr, sizeof(ling));
         if (error != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "setsockopt(SO_LINGER): %s",
-                                            strerror(errno));
+            LOG_WARNING(NULL, "setsockopt(SO_LINGER): %s", strerror(errno));
         }
 
         if (interf->tcp_nodelay) {
             error = setsockopt(sfd, IPPROTO_TCP,
                                TCP_NODELAY, flags_ptr, sizeof(flags));
             if (error != 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "setsockopt(TCP_NODELAY): %s",
-                                                strerror(errno));
+                LOG_WARNING(NULL, "setsockopt(TCP_NODELAY): %s",
+                            strerror(errno));
             }
         }
 
@@ -1692,9 +1661,7 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
         } else {
             success++;
             if (listen(sfd, interf->backlog) == SOCKET_ERROR) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "listen(): %s",
-                                                strerror(errno));
+                LOG_WARNING(NULL, "listen(): %s", strerror(errno));
                 safe_close(sfd);
                 freeaddrinfo(ai);
                 return 1;
@@ -1741,8 +1708,7 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
         }
 
         if (!(listen_conn_add = conn_new_server(sfd, listenport, main_base))) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "failed to create listening connection\n");
+            LOG_WARNING(NULL, "failed to create listening connection");
             exit(EXIT_FAILURE);
         }
         listen_conn_add->setNext(listen_conn);
@@ -1820,14 +1786,12 @@ static bool install_signal_handlers() {
                                  dump_connection_stat_signal_handler,
                                  nullptr);
     if (sigusr1_event == nullptr) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
-                                        "Failed to allocate SIGUSR1 handler");
+        LOG_WARNING(nullptr, "Failed to allocate SIGUSR1 handler");
         return false;
     }
 
     if (event_add(sigusr1_event, nullptr) < 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
-                                        "Failed to install SIGUSR1 handler");
+        LOG_WARNING(nullptr, "Failed to install SIGUSR1 handler");
         return false;
 
     }
@@ -1835,28 +1799,24 @@ static bool install_signal_handlers() {
     // SIGTERM - Used to shut down memcached cleanly
     sigterm_event = evsignal_new(main_base, SIGTERM, sigterm_handler, NULL);
     if (sigterm_event == NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
-                                        "Failed to allocate SIGTERM handler");
+        LOG_WARNING(nullptr, "Failed to allocate SIGTERM handler");
         return false;
     }
 
     if (event_add(sigterm_event, NULL) < 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
-                                        "Failed to install SIGTERM handler");
+        LOG_WARNING(nullptr, "Failed to install SIGTERM handler");
         return false;
     }
 
     // SIGINT - Used to shut down memcached cleanly
     sigint_event = evsignal_new(main_base, SIGINT, sigterm_handler, NULL);
     if (sigint_event == NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
-                                        "Failed to allocate SIGINT handler");
+        LOG_WARNING(nullptr, "Failed to allocate SIGINT handler");
         return false;
     }
 
     if (event_add(sigint_event, NULL) < 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
-                                        "Failed to install SIGINT handler");
+        LOG_WARNING(nullptr, "Failed to install SIGINT handler");
         return false;
     }
 
@@ -1980,10 +1940,9 @@ static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {
         return;
     }
 
-    settings.extensions.logger->log(
-            EXTENSION_LOG_WARNING, c,
-            "%u: cookie_set_priority: priority (which is %d) is not a valid "
-            "CONN_PRIORITY - closing connection", priority);
+    LOG_WARNING(c,
+                "%u: cookie_set_priority: priority (which is %d) is not a "
+                    "valid CONN_PRIORITY - closing connection", priority);
     c->setState(conn_closing);
 }
 
@@ -2098,8 +2057,7 @@ static void unregister_extension(extension_type_t type, void *extension)
         }
         break;
     case EXTENSION_BINARY_PROTOCOL:
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "You can't unregister a binary command handler!");
+        LOG_WARNING(NULL, "You can't unregister a binary command handler!");
         break;
     }
 }
@@ -2126,8 +2084,7 @@ static void* get_extension(extension_type_t type)
 
 void shutdown_server(void) {
     memcached_shutdown = true;
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                    "Received shutdown request");
+    LOG_NOTICE(NULL, "Received shutdown request");
     event_base_loopbreak(main_base);
 }
 
@@ -2455,17 +2412,14 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
 
     if (ret != ENGINE_SUCCESS) {
         auto code = engine_error_2_mcbp_protocol_error(ret);
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                        "<>%u Delete bucket [%s]: %s",
-                                        c->getId(), bucket_name.c_str(),
-                                        memcached_status_2_text(code));
+        LOG_NOTICE(c, "<>%u Delete bucket [%s]: %s",
+                   c->getId(), bucket_name.c_str(),
+                   memcached_status_2_text(code));
         return ret;
     }
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                    ">%u Delete bucket [%s]. Wait for "
-                                        "clients to disconnect",
-                                    c->getId(), bucket_name.c_str());
+    LOG_NOTICE(c, ">%u Delete bucket [%s]. Wait for clients to disconnect",
+               c->getId(), bucket_name.c_str());
 
     /* If this thread is connected to the requested bucket... release it */
     if (idx == c->getBucketIndex()) {
@@ -2478,11 +2432,9 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     /* Wait until all users disconnected... */
     cb_mutex_enter(&all_buckets[idx].mutex);
     while (all_buckets[idx].clients > 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                        "%u Delete bucket [%s]. Still waiting: "
-                                            "%u clients connected",
-                                        c->getId(), bucket_name.c_str(),
-                                        all_buckets[idx].clients);
+        LOG_NOTICE(c,
+                   "%u Delete bucket [%s]. Still waiting: %u clients connected",
+                   c->getId(), bucket_name.c_str(), all_buckets[idx].clients);
 
         /* drop the lock and notify the worker threads */
         cb_mutex_exit(&all_buckets[idx].mutex);
@@ -2501,18 +2453,14 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     /* assert that all associations are gone. */
     assert_no_associations(idx);
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                    "%u Delete bucket [%s]. Shut "
-                                        "down the bucket",
-                                    c->getId(), bucket_name.c_str());
+    LOG_NOTICE(c, "%u Delete bucket [%s]. Shut down the bucket",
+               c->getId(), bucket_name.c_str());
 
     all_buckets[idx].engine->destroy
         (v1_handle_2_handle(all_buckets[idx].engine), force);
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                    "%u Delete bucket [%s]. "
-                                        "Clean up allocated resources ",
-                                    c->getId(), bucket_name.c_str());
+    LOG_NOTICE(c, "%u Delete bucket [%s]. Clean up allocated resources ",
+               c->getId(), bucket_name.c_str());
 
     /* Clean up the stats... */
     delete[]all_buckets[idx].stats;
@@ -2532,9 +2480,8 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     // don't need lock because all timing data uses atomics
     all_buckets[idx].timings.reset();
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, c,
-                                    "<%u Delete bucket [%s] complete",
-                                    c->getId(), bucket_name.c_str());
+    LOG_NOTICE(c, "<%u Delete bucket [%s] complete",
+               c->getId(), bucket_name.c_str());
 
     return ENGINE_SUCCESS;
 }
@@ -2656,18 +2603,18 @@ bool load_extension(const char *soname, const char *config) {
 
     handle = cb_dlopen(soname, &error_msg);
     if (handle == NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to open library \"%s\": %s\n",
-                                        soname, error_msg);
+        LOG_WARNING(NULL, "Failed to open library \"%s\": %s\n",
+                    soname, error_msg);
         free(error_msg);
         return false;
     }
 
     symbol = cb_dlsym(handle, "memcached_extensions_initialize", &error_msg);
     if (symbol == NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Could not find symbol \"memcached_extensions_initialize\" in %s: %s\n",
-                                        soname, error_msg);
+        LOG_WARNING(NULL,
+                    "Could not find symbol \"memcached_extensions_"
+                        "initialize\" in %s: %s\n",
+                    soname, error_msg);
         free(error_msg);
         return false;
     }
@@ -2675,16 +2622,15 @@ bool load_extension(const char *soname, const char *config) {
 
     error = (*funky.initialize)(config, get_server_api);
     if (error != EXTENSION_SUCCESS) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "Failed to initalize extensions from %s. Error code: %d\n",
-                soname, error);
+        LOG_WARNING(NULL,
+                    "Failed to initalize extensions from %s. Error code: %d",
+                    soname, error);
         cb_dlclose(handle);
         return false;
     }
 
     if (settings.verbose > 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_INFO, NULL,
-                "Loaded extensions from: %s\n", soname);
+        LOG_INFO(NULL, "Loaded extensions from: %s", soname);
     }
 
     return true;
@@ -2781,8 +2727,7 @@ static void set_max_filehandles(void) {
     struct rlimit rlim;
 
     if (getrlimit(RLIMIT_NOFILE, &rlim) != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "failed to getrlimit number of files\n");
+        LOG_WARNING(NULL, "failed to getrlimit number of files");
         exit(EX_OSERR);
     } else {
         const rlim_t maxfiles = settings.maxconns + (3 * (settings.num_threads + 2));
@@ -2803,13 +2748,13 @@ static void set_max_filehandles(void) {
             req = settings.maxconns;
             settings.maxconns = syslimit - (3 * (settings.num_threads + 2));
             if (settings.maxconns < 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                         "failed to set rlimit for open files. Try starting as"
-                         " root or requesting smaller maxconns value.\n");
+                LOG_WARNING(NULL,
+                            "failed to set rlimit for open files. Try "
+                                "starting as root or requesting smaller "
+                                "maxconns value.");
                 exit(EX_OSERR);
             }
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            fmt, req, settings.maxconns);
+            LOG_WARNING(NULL, fmt, req, settings.maxconns);
         }
     }
 }
@@ -2931,9 +2876,7 @@ int main (int argc, char **argv) {
     load_extensions();
 
     /* Logging available now extensions have been loaded. */
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                    "Couchbase version %s starting.",
-                                    get_server_version());
+    LOG_NOTICE(NULL, "Couchbase version %s starting.", get_server_version());
 
 #ifdef HAVE_LIBNUMA
     // Log the NUMA policy selected.
@@ -2967,28 +2910,25 @@ int main (int argc, char **argv) {
     audit_extension_data.notify_io_complete = notify_io_complete;
     if (settings.audit_file && configure_auditdaemon(settings.audit_file, NULL)
         != AUDIT_SUCCESS) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                    "FATAL: Failed to initialize audit "
-                                    "daemon with configuation file: %s",
-                                    settings.audit_file);
+        LOG_WARNING(NULL,
+                    "FATAL: Failed to initialize audit "
+                        "daemon with configuation file: %s",
+                    settings.audit_file);
         /* we failed configuring the audit.. run without it */
         free((void*)settings.audit_file);
         settings.audit_file = NULL;
     }
     if (start_auditdaemon(&audit_extension_data) != AUDIT_SUCCESS) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "FATAL: Failed to start "
-                                        "audit daemon");
+        LOG_WARNING(NULL, "FATAL: Failed to start audit daemon");
         abort();
     }
 
     /* Initialize RBAC data */
     if (load_rbac_from_file(settings.rbac_file) != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "FATAL: Failed to load RBAC configuration: %s",
-                                        (settings.rbac_file) ?
-                                        settings.rbac_file :
-                                        "no file specified");
+        LOG_WARNING(NULL,
+                    "FATAL: Failed to load RBAC configuration: %s",
+                    (settings.rbac_file) ? settings.rbac_file :
+                    "no file specified");
         abort();
     }
 
@@ -3003,8 +2943,7 @@ int main (int argc, char **argv) {
     {
         char *errmsg;
         if (!initialize_engine_map(&errmsg, settings.extensions.logger)) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "%s", errmsg);
+            LOG_WARNING(NULL, "%s", errmsg);
             exit(EXIT_FAILURE);
         }
     }
@@ -3032,8 +2971,7 @@ int main (int argc, char **argv) {
      * need that information
      */
     if (sigignore(SIGPIPE) == -1) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                "failed to ignore SIGPIPE; sigaction");
+        LOG_WARNING(NULL, "failed to ignore SIGPIPE; sigaction");
         exit(EX_OSERR);
     }
 #endif
@@ -3056,9 +2994,8 @@ int main (int argc, char **argv) {
 
             portnumber_file = fopen(temp_portnumber_filename.c_str(), "a");
             if (portnumber_file == nullptr) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                        "Failed to open \"%s\": %s",
-                        temp_portnumber_filename.c_str(), strerror(errno));
+                LOG_WARNING(NULL, "Failed to open \"%s\": %s",
+                            temp_portnumber_filename.c_str(), strerror(errno));
                 exit(EX_OSERR);
             }
         }
@@ -3083,36 +3020,29 @@ int main (int argc, char **argv) {
 
     if (!memcached_shutdown) {
         /* enter the event loop */
-        settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                        "Initialization complete. Accepting clients.");
+        LOG_NOTICE(NULL, "Initialization complete. Accepting clients.");
         service_online = true;
         event_base_loop(main_base, 0);
         service_online = false;
     }
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                    "Initiating graceful shutdown.");
+    LOG_NOTICE(NULL, "Initiating graceful shutdown.");
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                    "Shutting down audit daemon");
+    LOG_NOTICE(NULL, "Shutting down audit daemon");
 
     /* Close down the audit daemon cleanly */
     shutdown_auditdaemon(settings.audit_file);
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                    "Shutting down client worker threads");
+    LOG_NOTICE(NULL, "Shutting down client worker threads");
     threads_shutdown();
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                    "Releasing client resources");
+    LOG_NOTICE(NULL, "Releasing client resources");
     close_all_connections();
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                    "Releasing bucket resources");
+    LOG_NOTICE(NULL, "Releasing bucket resources");
     cleanup_buckets();
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                    "Releasing thread resources");
+    LOG_NOTICE(NULL, "Releasing thread resources");
     threads_cleanup();
 
     release_signal_handlers();
@@ -3129,8 +3059,6 @@ int main (int argc, char **argv) {
 
     shutdown_openssl();
 
-    settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                    "Shutdown complete.");
-
+    LOG_NOTICE(NULL, "Shutdown complete.");
     return EXIT_SUCCESS;
 }

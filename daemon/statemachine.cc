@@ -42,11 +42,8 @@ void McbpStateMachine::setCurrentTask(Connection& connection, TaskFunction task)
 
     if (settings.verbose > 2 || task == conn_closing
         || task == conn_setup_tap_stream) {
-        settings.extensions.logger->log(EXTENSION_LOG_DETAIL, this,
-                                        "%u: going from %s to %s\n",
-                                        connection.getId(),
-                                        getTaskName(currentTask),
-                                        getTaskName(task));
+        LOG_DETAIL(this, "%u: going from %s to %s", connection.getId(),
+                   getTaskName(currentTask), getTaskName(task));
     }
 
     if (task == conn_write || task == conn_mwrite) {

@@ -186,7 +186,7 @@ static void mc_time_clock_tick(void) {
             || (difference < memcached_check_system_time - 1))) {
             if (settings.extensions.logger) {
                 /* log all variables used in time calculations */
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                LOG_WARNING(NULL,
                     "system clock changed? difference = %lu, memcached_epoch = %lu, "
                     "memcached_uptime = %u, new memcached_epoch = %lu, "
                     "next check %lu\n",

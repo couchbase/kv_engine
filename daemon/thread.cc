@@ -159,8 +159,7 @@ static void setup_dispatcher(struct event_base *main_base,
     event_base_set(dispatcher_thread.base, &dispatcher_thread.notify_event);
 
     if (event_add(&dispatcher_thread.notify_event, 0) == -1) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Can't monitor libevent notify pipe\n");
+        LOG_WARNING(NULL, "Can't monitor libevent notify pipe");
         exit(1);
     }
 }
@@ -172,8 +171,7 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     me->type = ThreadType::GENERAL;
     me->base = event_base_new();
     if (! me->base) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Can't allocate event base\n");
+        LOG_WARNING(NULL, "Can't allocate event base");
         exit(1);
     }
 
@@ -184,17 +182,14 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     event_base_set(me->base, &me->notify_event);
 
     if (event_add(&me->notify_event, 0) == -1) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Can't monitor libevent notify pipe\n");
+        LOG_WARNING(NULL, "Can't monitor libevent notify pipe");
         exit(1);
     }
 
     try {
         me->new_conn_queue = new ConnectionQueue;
     } catch (std::bad_alloc&) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to allocate memory for "
-                                            "connection queue");
+        LOG_WARNING(NULL, "Failed to allocate memory for connection queue");
         exit(EXIT_FAILURE);
     }
 
@@ -206,9 +201,7 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     try {
         me->validator = new JSON_checker::Validator();
     } catch (const std::bad_alloc&) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to allocate memory for "
-                                            "JSON validator");
+        LOG_WARNING(NULL, "Failed to allocate memory for JSON validator");
         exit(EXIT_FAILURE);
     }
 }
@@ -262,10 +255,8 @@ void dispatch_new_connections(LIBEVENT_THREAD* me) {
     while ((item = me->new_conn_queue->pop()) != nullptr) {
         Connection* c = conn_new(item->sfd, item->parent_port, me->base, me);
         if (c == nullptr) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
-                                            "Failed to dispatch event for "
-                                                "socket %ld",
-                                            long(item->sfd));
+            LOG_WARNING(nullptr, "Failed to dispatch event for socket %ld",
+                        long(item->sfd));
             safe_close(item->sfd);
         }
     }
@@ -290,16 +281,13 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         // Someone requested memcached to shut down. The listen thread should
         // be stopped immediately.
         if (is_listen_thread()) {
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                            "Stopping listen thread (thread.cc)");
+            LOG_NOTICE(NULL, "Stopping listen thread (thread.cc)");
             event_base_loopbreak(me->base);
             return;
         }
 
         if (signal_idle_clients(me, -1, false) == 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                            "Stopping worker thread %u",
-                                            me->index);
+            LOG_NOTICE(NULL, "Stopping worker thread %u", me->index);
             event_base_loopbreak(me->base);
             return;
         }
@@ -342,16 +330,13 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         // any connections bound to this thread we can just shut down
         int connected = signal_idle_clients(me, -1, true);
         if (connected == 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                            "Stopping worker thread %u",
-                                            me->index);
+            LOG_NOTICE(NULL, "Stopping worker thread %u", me->index);
             event_base_loopbreak(me->base);
         } else {
             // @todo Change loglevel once MB-16255 is resolved
-            settings.extensions.logger->log(EXTENSION_LOG_NOTICE, NULL,
-                                            "Waiting for %d connected "
-                                                "clients on worker thread %u",
-                                            connected, me->index);
+            LOG_NOTICE(NULL,
+                       "Waiting for %d connected clients on worker thread %u",
+                       connected, me->index);
         }
     }
 
@@ -423,9 +408,7 @@ void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
     thr = conn->getThread();
     cb_assert(thr);
 
-    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                    "Got notify from %u, status %x\n",
-                                    conn->getId(), status);
+    LOG_DEBUG(NULL, "Got notify from %u, status %x", conn->getId(), status);
 
     LOCK_THREAD(thr);
     conn->setAiostat(status);
@@ -455,10 +438,9 @@ void dispatch_conn_new(SOCKET sfd, int parent_port) {
             new ConnectionQueueItem(sfd, parent_port));
         thread->new_conn_queue->push(item);
     } catch (std::bad_alloc& e) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, nullptr,
-                                        "dispatch_conn_new: Failed to dispatch"
-                                            " new connection: %s",
-                                        e.what());
+        LOG_WARNING(nullptr,
+                    "dispatch_conn_new: Failed to dispatch new connection: %s",
+                    e.what());
         safe_close(sfd);
         return ;
     }
@@ -503,17 +485,13 @@ void thread_init(int nthr, struct event_base *main_base,
 
     threads = reinterpret_cast<LIBEVENT_THREAD*>(calloc(nthreads,
                                                         sizeof(LIBEVENT_THREAD)));
-    if (! threads) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Can't allocate thread descriptors: %s",
-                                        strerror(errno));
+    if (threads == nullptr) {
+        LOG_WARNING(NULL, "Can't allocate thread descriptors");
         exit(1);
     }
     thread_ids = reinterpret_cast<cb_thread_t*>(calloc(nthreads, sizeof(cb_thread_t)));
-    if (! thread_ids) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Can't allocate thread descriptors: %s",
-                                        strerror(errno));
+    if (thread_ids == nullptr) {
+        LOG_WARNING(NULL, "Can't allocate thread descriptors");
         exit(1);
     }
 

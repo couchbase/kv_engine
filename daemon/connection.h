@@ -21,6 +21,7 @@
 #include "config.h"
 
 #include "dynamic_buffer.h"
+#include "log_macros.h"
 #include "net_buf.h"
 #include "rbac.h"
 #include "settings.h"
@@ -605,9 +606,9 @@ public:
             temp_alloc.push_back(ptr);
             return true;
         } catch (std::bad_alloc) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                            "%u: FATAL: failed to allocate space to keep temporary buffer",
-                                            getId());
+            LOG_WARNING(this,
+                        "%u: FATAL: failed to allocate space to keep temporary buffer",
+                        getId());
             return false;
         }
     }

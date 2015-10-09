@@ -49,8 +49,7 @@ ENGINE_ERROR_CODE ioctl_set_property(Connection * c, const char* key, size_t key
     if (strncmp("release_free_memory", key, keylen) == 0 &&
         keylen == strlen("release_free_memory")) {
         mc_release_free_memory();
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                "%u: IOCTL_SET: release_free_memory called", c->getId());
+        LOG_NOTICE(c, "%u: IOCTL_SET: release_free_memory called", c->getId());
         return ENGINE_SUCCESS;
 #if defined(HAVE_TCMALLOC)
     } else if (strncmp("tcmalloc.aggressive_memory_decommit", key, keylen) == 0 &&
@@ -67,8 +66,8 @@ ENGINE_ERROR_CODE ioctl_set_property(Connection * c, const char* key, size_t key
 
         if (errno == 0 && mc_set_allocator_property("tcmalloc.aggressive_memory_decommit",
                                                     intval)) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                "%u: IOCTL_SET: 'tcmalloc.aggressive_memory_decommit' set to %ld\n",
+            LOG_NOTICE(c,
+                "%u: IOCTL_SET: 'tcmalloc.aggressive_memory_decommit' set to %ld",
                 c->getId(), intval);
             return ENGINE_SUCCESS;
         } else {

@@ -83,8 +83,10 @@ static void apply_compat_arguments(void) {
 
     /* Handle all other options */
     for (o = options; o != NULL; o = o->next) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Option -%c passed to memcached is no longer supported. Consider using the configuration file instead\n", o->cmd);
+        LOG_WARNING(NULL,
+                    "Option -%c passed to memcached is no longer supported."
+                        " Consider using the configuration file instead\n",
+                    o->cmd);
 
         switch (o->cmd) {
         case 'b':

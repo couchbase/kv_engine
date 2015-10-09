@@ -165,10 +165,8 @@ void Connection::setState(TaskFunction next_state) {
 void Connection::runStateMachinery() {
     do {
         if (settings.verbose) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
-                                            "%u - Running task: (%s)",
-                                            getId(),
-                                            stateMachine->getCurrentTaskName());
+            LOG_DEBUG(this, "%u - Running task: (%s)", getId(),
+                      stateMachine->getCurrentTaskName());
         }
     } while (stateMachine->execute(*this));
 }
@@ -193,7 +191,7 @@ static std::string sockaddr_to_string(const struct sockaddr_storage* addr,
                           port, sizeof(port),
                           NI_NUMERICHOST | NI_NUMERICSERV);
     if (err != 0) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+        LOG_WARNING(NULL,
                                         "getnameinfo failed with error %d",
                                         err);
         return NULL;
@@ -212,9 +210,8 @@ void Connection::resolveConnectionName(bool listening) {
             socklen_t peer_len = sizeof(peer);
             if ((err = getpeername(socketDescriptor, reinterpret_cast<struct sockaddr*>(&peer),
                                    &peer_len)) != 0) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                                "getpeername for socket %d with error %d",
-                                                socketDescriptor, err);
+                LOG_WARNING(NULL, "getpeername for socket %d with error %d",
+                            socketDescriptor, err);
             } else {
                 peername = sockaddr_to_string(&peer, peer_len);
             }
@@ -224,26 +221,23 @@ void Connection::resolveConnectionName(bool listening) {
         socklen_t sock_len = sizeof(sock);
         if ((err = getsockname(socketDescriptor, reinterpret_cast<struct sockaddr*>(&sock),
                                &sock_len)) != 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "getsockname for socket %d with error %d",
-                                            socketDescriptor, err);
+            LOG_WARNING(NULL, "getsockname for socket %d with error %d",
+                        socketDescriptor, err);
         } else {
             sockname = sockaddr_to_string(&sock, sock_len);
         }
     } catch (std::bad_alloc& e) {
-        settings.extensions.logger->log
-            (EXTENSION_LOG_WARNING, NULL,
-             "Connection::resolveConnectionName: failed to allocate memory: %s",
-             e.what());
+        LOG_WARNING(NULL,
+                    "Connection::resolveConnectionName: failed to allocate memory: %s",
+                    e.what());
     }
 }
 
 bool Connection::unregisterEvent() {
     if (!registered_in_libevent) {
-        settings.extensions.logger->log
-            (EXTENSION_LOG_WARNING, NULL,
-             "Connection::unregisterEvent: Not registered in libevent - "
-             "ignoring unregister attempt");
+        LOG_WARNING(NULL,
+                    "Connection::unregisterEvent: Not registered in libevent - "
+                        "ignoring unregister attempt");
         return false;
     }
 
@@ -262,10 +256,8 @@ bool Connection::unregisterEvent() {
 
 bool Connection::registerEvent() {
     if (registered_in_libevent) {
-        settings.extensions.logger->log
-            (EXTENSION_LOG_WARNING, NULL,
-             "Connection::registerEvent: Already registered in libevent - "
-             "ignoring register attempt");
+        LOG_WARNING(NULL, "Connection::registerEvent: Already registered in"
+            " libevent - ignoring register attempt");
         return false;
     }
 
@@ -309,20 +301,17 @@ bool Connection::updateEvent(const short new_flags) {
     }
 
     if (settings.verbose > 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                        "Updated event for %u to read=%s, write=%s\n",
-                                        getId(),
-                                        (new_flags & EV_READ ? "yes" : "no"),
-                                        (new_flags & EV_WRITE ? "yes" : "no"));
+        LOG_DEBUG(NULL, "Updated event for %u to read=%s, write=%s\n",
+                  getId(), (new_flags & EV_READ ? "yes" : "no"),
+                  (new_flags & EV_WRITE ? "yes" : "no"));
     }
 
     if (!unregisterEvent()) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
-                                        "Failed to remove connection from "
-                                            "event notification library. Shutting "
-                                            "down connection [%s - %s]",
-                                        getPeername().c_str(),
-                                        getSockname().c_str());
+        LOG_DEBUG(this,
+                  "Failed to remove connection from event notification "
+                      "library. Shutting down connection [%s - %s]",
+                  getPeername().c_str(),
+                  getSockname().c_str());
         return false;
     }
 
@@ -332,12 +321,11 @@ bool Connection::updateEvent(const short new_flags) {
     ev_flags = new_flags;
 
     if (!registerEvent()) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, this,
-                                        "Failed to add connection to the "
-                                            "event notification library. Shutting "
-                                            "down connection [%s - %s]",
-                                        getPeername().c_str(),
-                                        getSockname().c_str());
+        LOG_DEBUG(this,
+                  "Failed to add connection to the event notification "
+                      "library. Shutting down connection [%s - %s]",
+                  getPeername().c_str(),
+                  getSockname().c_str());
         return false;
     }
 
@@ -367,9 +355,8 @@ bool Connection::setTcpNoDelay(bool enable) {
 
     if (error != 0) {
         std::string errmsg = cb_strerror(GetLastNetworkError());
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                        "setsockopt(TCP_NODELAY): %s",
-                                        errmsg.c_str());
+        LOG_WARNING(this, "setsockopt(TCP_NODELAY): %s",
+                    errmsg.c_str());
         nodelay = false;
         return false;
     } else {
@@ -571,9 +558,9 @@ void Connection::shrinkBuffers() {
             read.buf = newbuf;
             read.size = DATA_BUFFER_SIZE;
         } else {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                            "%u: Failed to shrink read buffer down to %" PRIu64
-                                            " bytes.", getId(), DATA_BUFFER_SIZE);
+            LOG_WARNING(this,
+                        "%u: Failed to shrink read buffer down to %" PRIu64
+                            " bytes.", getId(), DATA_BUFFER_SIZE);
         }
         read.curr = read.buf;
     }
@@ -583,10 +570,10 @@ void Connection::shrinkBuffers() {
             msglist.resize(MSG_LIST_INITIAL);
             msglist.shrink_to_fit();
         } catch (std::bad_alloc) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                            "%u: Failed to shrink msglist down to %"
-                                                PRIu64 " elements.", getId(),
-                                            MSG_LIST_INITIAL);
+            LOG_WARNING(this,
+                        "%u: Failed to shrink msglist down to %" PRIu64
+                            " elements.", getId(),
+                        MSG_LIST_INITIAL);
         }
     }
 
@@ -595,10 +582,10 @@ void Connection::shrinkBuffers() {
             iov.resize(IOV_LIST_INITIAL);
             iov.shrink_to_fit();
         } catch (std::bad_alloc) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                            "%u: Failed to shrink iov down to %"
-                                                PRIu64 " elements.", getId(),
-                                            IOV_LIST_INITIAL);
+            LOG_WARNING(this,
+                        "%u: Failed to shrink iov down to %" PRIu64
+                            " elements.", getId(),
+                        IOV_LIST_INITIAL);
         }
     }
 
@@ -620,19 +607,17 @@ int Connection::sslPreConnection() {
             return -1;
         } else {
             try {
-                std::string errmsg(
-                    "SSL_accept() returned " + std::to_string(r) +
-                    " with error " +
-                    std::to_string(ssl.getError(r)));
+                std::string errmsg("SSL_accept() returned " +
+                                   std::to_string(r) +
+                                   " with error " +
+                                   std::to_string(ssl.getError(r)));
 
                 std::vector<char> ssl_err(1024);
                 ERR_error_string_n(ERR_get_error(), ssl_err.data(),
                                    ssl_err.size());
 
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                                "%u: ERROR: %s\n%s",
-                                                getId(), errmsg.c_str(),
-                                                ssl_err.data());
+                LOG_WARNING(this, "%u: ERROR: %s\n%s",
+                            getId(), errmsg.c_str(), ssl_err.data());
             } catch (const std::bad_alloc&) {
                 // unable to print error message; continue.
             }
@@ -750,15 +735,12 @@ Connection::TransmitResult Connection::transmit() {
                 log_socket_error(EXTENSION_LOG_WARNING, this,
                                  "Failed to write, and not due to blocking: %s");
             } else {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                                "%d - sendmsg returned 0\n",
-                                                socketDescriptor);
+                LOG_WARNING(this, "%d - sendmsg returned 0\n",
+                            socketDescriptor);
                 for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                                    "\t%d - %zu\n",
-                                                    socketDescriptor, m->msg_iov[ii].iov_len);
+                    LOG_WARNING(this, "\t%d - %zu\n",
+                                socketDescriptor, m->msg_iov[ii].iov_len);
                 }
-
             }
         }
 
@@ -807,8 +789,7 @@ Connection::TryReadResult Connection::tryReadNetwork() {
             char* new_rbuf = reinterpret_cast<char*>(realloc(read.buf,
                                                              read.size * 2));
             if (!new_rbuf) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                                "Couldn't realloc input buffer");
+                LOG_WARNING(this, "Couldn't realloc input buffer");
                 read.bytes = 0; /* ignore what we read */
                 setState(conn_closing);
                 return TryReadResult::MemoryError;
@@ -894,9 +875,9 @@ int Connection::sslRead(char* dest, size_t nbytes) {
                  * @todo I don't know how to gracefully recover from this
                  * let's just shut down the connection
                  */
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                                "%u: ERROR: SSL_read returned -1 with error %d",
-                                                getId(), error);
+                LOG_WARNING(this,
+                            "%u: ERROR: SSL_read returned -1 with error %d",
+                            getId(), error);
                 set_econnreset();
                 return -1;
             }
@@ -947,9 +928,9 @@ int Connection::sslWrite(const char* src, size_t nbytes) {
                      * @todo I don't know how to gracefully recover from this
                      * let's just shut down the connection
                      */
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, this,
-                                                    "%u: ERROR: SSL_write returned -1 with error %d",
-                                                    getId(), error);
+                    LOG_WARNING(this,
+                                "%u: ERROR: SSL_write returned -1 with error %d",
+                                getId(), error);
                     set_econnreset();
                     return -1;
                 }
@@ -1089,13 +1070,11 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
 }
 
 void SslContext::dumpCipherList(uint32_t id) const {
-    settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                    "%u: Using SSL ciphers:", id);
+    LOG_DEBUG(NULL, "%u: Using SSL ciphers:", id);
     int ii = 0;
     const char* cipher;
     while ((cipher = SSL_get_cipher_list(client, ii++)) != NULL) {
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, NULL,
-                                        "%u    %s", id, cipher);
+        LOG_DEBUG(NULL, "%u    %s", id, cipher);
     }
 }
 

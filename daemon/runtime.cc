@@ -17,6 +17,7 @@
 
 #include "config.h"
 #include "runtime.h"
+#include "memcached.h"
 #include "settings.h"
 
 #include <atomic>
@@ -52,10 +53,9 @@ void set_ssl_ctx_cipher_list(SSL_CTX *ctx) {
     std::lock_guard<std::mutex> lock(ssl_cipher_list_mutex);
     if (ssl_cipher_list.length()) {
         if (SSL_CTX_set_cipher_list(ctx, ssl_cipher_list.c_str()) == 0) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                            "Failed to select any of the "
-                                            "requested ciphers (%s)",
-                                            ssl_cipher_list.c_str());
+            LOG_WARNING(NULL, "Failed to select any of the "
+                            "requested ciphers (%s)",
+                        ssl_cipher_list.c_str());
         }
     }
 }

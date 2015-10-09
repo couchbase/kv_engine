@@ -71,14 +71,11 @@ static void subdoc_print_command(Connection* c, protocol_binary_command cmd,
                         && (buf_to_printable_buffer(clean_value,
                                                     sizeof(clean_value), value,
                                                     vallen) != -1)) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "%s path:'%s' value:'%s'",
-                                            clean_key, clean_path, clean_value);
+            LOG_DEBUG(c, "%s path:'%s' value:'%s'",
+                      clean_key, clean_path, clean_value);
         } else {
             // key & path only
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "%s path:'%s'", clean_key,
-                                            clean_path);
+            LOG_DEBUG(c, "%s path:'%s'", clean_key, clean_path);
         }
     }
 }
@@ -349,8 +346,7 @@ static void subdoc_executor(Connection *c, const void *packet,
     const protocol_binary_command mcbp_cmd =
             protocol_binary_command(header->request.opcode);
 
-    settings.extensions.logger->log
-        (EXTENSION_LOG_WARNING, c,
+    LOG_WARNING(c,
          "%u: Subdoc: Hit maximum number of auto-retry attempts (%d) when "
          "attempting to perform op %s for client %s - returning TMPFAIL",
          c->getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(mcbp_cmd),
@@ -381,17 +377,13 @@ get_document_for_searching(Connection * c, const item* item,
 
     if (!c->getBucketEngine()->get_item_info(reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine()),
                                          c, item, &info.info)) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u: Failed to get item info",
-                                        c->getId());
+        LOG_WARNING(c, "%u: Failed to get item info", c->getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
     // Need to have the complete document in a single iovec.
     if (info.info.nvalue != 1) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%u: More than one iovec in document",
-                                        c->getId());
+        LOG_WARNING(c, "%u: More than one iovec in document", c->getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 
@@ -423,11 +415,11 @@ get_document_for_searching(Connection * c, const item* item,
                 if (buf_to_printable_buffer(clean_key, sizeof(clean_key),
                                             static_cast<const char*>(info.info.key),
                                             info.info.nkey) != -1) {
-                    settings.extensions.logger->log(
-                            EXTENSION_LOG_WARNING, c, "<%u ERROR: Failed to "
-                            "determine inflated body size. Key: '%s' may have an "
-                            "incorrect datatype of COMPRESSED_JSON.",
-                            c->getId(), clean_key);
+                    LOG_WARNING(c,
+                                "<%u ERROR: Failed to determine inflated body"
+                                    " size. Key: '%s' may have an "
+                                    "incorrect datatype of COMPRESSED_JSON.",
+                                c->getId(), clean_key);
                 }
                 return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
             }
@@ -437,10 +429,10 @@ get_document_for_searching(Connection * c, const item* item,
             // document we send.
             if (!c->growDynamicBuffer(uncompressed_len)) {
                 if (settings.verbose > 0) {
-                    settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                            "<%u ERROR: Failed to grow dynamic buffer to %" PRIu64
-                            "for uncompressing document.",
-                            c->getId(), uncompressed_len);
+                    LOG_WARNING(c,
+                                "<%u ERROR: Failed to grow dynamic buffer to %"
+                                    PRIu64 "for uncompressing document.",
+                                c->getId(), uncompressed_len);
                 }
                 return PROTOCOL_BINARY_RESPONSE_E2BIG;
             }
@@ -453,10 +445,10 @@ get_document_for_searching(Connection * c, const item* item,
                 if (buf_to_printable_buffer(clean_key, sizeof(clean_key),
                                             static_cast<const char*>(info.info.key),
                                             info.info.nkey) != -1) {
-                    settings.extensions.logger->log(
-                            EXTENSION_LOG_WARNING, c, "<%u ERROR: Failed to "
-                            "inflate body. Key: '%s' may have an incorrect "
-                            "datatype of COMPRESSED_JSON.", c->getId(), clean_key);
+                    LOG_WARNING(c,
+                                "<%u ERROR: Failed to inflate body. Key: '%s'"
+                                    " may have an incorrect datatype of "
+                                    "COMPRESSED_JSON.", c->getId(), clean_key);
                 }
                 return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
             }
@@ -479,10 +471,10 @@ get_document_for_searching(Connection * c, const item* item,
             if (buf_to_printable_buffer(clean_key, sizeof(clean_key),
                                         static_cast<const char*>(info.info.key),
                                         info.info.nkey) != -1) {
-                settings.extensions.logger->log(
-                        EXTENSION_LOG_WARNING, c, "<%u ERROR: Unhandled datatype "
-                        "'%u' of document '%s'.",
-                        c->getId(), info.info.datatype, clean_key);
+                LOG_WARNING(c,
+                            "<%u ERROR: Unhandled datatype '%u' of document"
+                                " '%s'.", c->getId(), info.info.datatype,
+                            clean_key);
             }
             return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
         }
@@ -527,8 +519,7 @@ static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
 
     auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
     if (context == nullptr) {
-        settings.extensions.logger->log
-            (EXTENSION_LOG_WARNING, c,
+        LOG_WARNING(c,
              "subdoc_fetch: Failed to allocate context - closing connection");
         c->setState(conn_closing);
         return false;
@@ -611,9 +602,8 @@ subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
 
     default:
         // TODO: handle remaining errors.
-        settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                        "Unexpected response from subdoc: %d (0x%x)",
-                                        subdoc_res, subdoc_res);
+        LOG_DEBUG(c, "Unexpected response from subdoc: %d (0x%x)",
+                  subdoc_res, subdoc_res);
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
 }
@@ -815,9 +805,8 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
             item_info info;
             info.nvalue = 1;
             if (!c->getBucketEngine()->get_item_info(handle, c, context->out_doc, &info)) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "%u: Subdoc: Failed to get item info",
-                                                c->getId());
+                LOG_WARNING(c, "%u: Subdoc: Failed to get item info",
+                            c->getId());
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return ENGINE_FAILED;
             }

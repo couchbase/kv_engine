@@ -30,9 +30,8 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void* cookie,
     protocol_binary_response_header header;
     size_t needed = mapsize + sizeof(protocol_binary_response_header);
     if (!c->growDynamicBuffer(needed)) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "<%d ERROR: Failed to allocate memory for response",
-                                        c->getId());
+        LOG_WARNING(c, "<%d ERROR: Failed to allocate memory for response",
+                    c->getId());
         return ENGINE_ENOMEM;
     }
 
@@ -105,9 +104,7 @@ void mcbp_write_packet(Connection* c, protocol_binary_response_status err) {
         }
 
         if (errtext && settings.verbose > 1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            ">%u Writing an error: %s",
-                                            c->getId(), errtext);
+            LOG_DEBUG(c, ">%u Writing an error: %s", c->getId(), errtext);
         }
 
         mcbp_add_header(c, err, 0, 0, len, PROTOCOL_BINARY_RAW_BYTES);
@@ -156,8 +153,7 @@ int mcbp_add_header(Connection* c,
                                    "Writing bin response:",
                                    (const char*)header->bytes,
                                    sizeof(header->bytes)) != -1) {
-            settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                            "%s", buffer);
+            LOG_DEBUG(c, "%s", buffer);
         }
     }
 
@@ -231,13 +227,13 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     if (need_inflate) {
         if (snappy_uncompressed_length(reinterpret_cast<const char*>(body),
                                        bodylen, &inflated_length) != SNAPPY_OK) {
-            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                            "<%u ERROR: Failed to inflate body, "
-                                                "Key: %s may have an incorrect datatype, "
-                                                "Datatype indicates that document is %s" ,
-                                            c->getId(), (const char *)key,
-                                            (datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED) ?
-                                            "RAW_COMPRESSED" : "JSON_COMPRESSED");
+            LOG_WARNING(c,
+                        "<%u ERROR: Failed to inflate body, "
+                            "Key: %s may have an incorrect datatype, "
+                            "Datatype indicates that document is %s",
+                        c->getId(), (const char*)key,
+                        (datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED) ?
+                        "RAW_COMPRESSED" : "JSON_COMPRESSED");
             return false;
         }
         needed += inflated_length;
@@ -247,9 +243,8 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
 
     auto &dbuf = c->getDynamicBuffer();
     if (!dbuf.grow(needed)) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "<%u ERROR: Failed to allocate memory for response",
-                                        c->getId());
+        LOG_WARNING(c, "<%u ERROR: Failed to allocate memory for response",
+                    c->getId());
         return false;
     }
 
@@ -287,8 +282,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
         if (need_inflate) {
             if (snappy_uncompress(reinterpret_cast<const char*>(body), bodylen,
                                   buf, &inflated_length) != SNAPPY_OK) {
-                settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                                "<%u Failed to inflate item", c->getId());
+                LOG_WARNING(c, "<%u Failed to inflate item", c->getId());
                 return false;
             }
         } else {

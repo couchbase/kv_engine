@@ -69,6 +69,7 @@ ADD_EXECUTABLE(memcached
                enginemap.h
                ioctl.cc
                ioctl.h
+               log_macros.h
                mc_time.cc
                mc_time.h
                mcaudit.cc
