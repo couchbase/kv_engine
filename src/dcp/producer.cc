@@ -277,6 +277,27 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     Item* itmCpy = NULL;
     if (resp->getEvent() == DCP_MUTATION) {
         itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
+
+        if (enableValueCompression) {
+            /**
+             * If value compression is enabled, the producer will need
+             * to snappy-compress the document before transmitting.
+             * Compression will obviously be done only if the datatype
+             * indicates that the value isn't compressed already.
+             */
+            uint32_t sizeBefore = itmCpy->getNBytes();
+            if (!itmCpy->compressValue(
+                            engine_.getDcpConnMap().getMinCompressionRatio())) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "%s Failed to snappy compress an uncompressed value!",
+                    logHeader());
+            }
+            uint32_t sizeAfter = itmCpy->getNBytes();
+            if (sizeAfter < sizeBefore) {
+                log->free(sizeBefore - sizeAfter);
+            }
+        }
+
     }
 
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL,
@@ -775,22 +796,6 @@ DcpResponse* DcpProducer::getNextItem() {
                 LOG(EXTENSION_LOG_WARNING, "%s Producer is attempting to write"
                     " an unexpected event %d", logHeader(), op->getEvent());
                 abort();
-        }
-
-        if (op->getEvent() == DCP_MUTATION && enableValueCompression) {
-            /**
-             * If value compression is enabled, the producer will need
-             * to snappy-compress the document before transmitting.
-             * Compression will obviously be done only if the datatype
-             * indicates that the value isn't compressed already.
-             */
-            if (!(static_cast<MutationResponse*>(op))->
-                    getItem()->compressValue(
-                        engine_.getDcpConnMap().getMinCompressionRatio())) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "%s Failed to snappy compress an uncompressed value!",
-                    logHeader());
-            }
         }
 
         if (log) {
