@@ -20,16 +20,26 @@ TARGET_LINK_LIBRARIES(memcached_testapp mcd_util cbsasl cJSON platform dirutils 
 
 target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 
-# Note: As well as the Transport (plain/SSL) tests there are also some
-# other unit tests in memcached_testapp. Therefore run all _but_ the
-# SSL tests in 'plain'.
-# In both cases we skip the PerfTests (run seperately below).
-ADD_TEST(NAME memcached-basic-unit-tests-plain
+# Run all unit tests we have't split into its own test target
+ADD_TEST(NAME memcached-basic-unit-tests-bulk
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND memcached_testapp --gtest_filter=*-PlainOrSSL/*/1:*PerfTest.*)
-ADD_TEST(NAME memcached-basic-unit-tests-SSL
-         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-         COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/1-*PerfTest.*)
+         COMMAND memcached_testapp
+                    --gtest_filter=*-PlainOrSSL/*:*PerfTest.*:ShutdownTest.*)
+
+# Run the unit tests for the memcached binary protocol over a plain socket
+ADD_TEST(NAME memcached-mcbp-unit-tests-plain
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/0)
+
+# Run the unit tests for the memcached binary protocol over SSL
+ADD_TEST(NAME memcached-mcbp-unit-tests-ssl
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/1)
+
+# Run the shutdown tests
+ADD_TEST(NAME memcached-shutdown-tests
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_testapp --gtest_filter=ShutdownTest.*)
 
 # For perf tests we also want GTest to output XML so we can plot the
 # results in Jenkins.
