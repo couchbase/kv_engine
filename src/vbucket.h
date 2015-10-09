@@ -275,6 +275,7 @@ public:
     id_type getId() const { return id; }
     vbucket_state_t getState(void) const { return state.load(); }
     void setState(vbucket_state_t to);
+    RWLock& getStateLock() {return stateLock;}
 
     vbucket_state_t getInitialState(void) { return initialState; }
     void setInitialState(vbucket_state_t initState) {
@@ -506,6 +507,7 @@ private:
 
     id_type                  id;
     AtomicValue<vbucket_state_t>  state;
+    RWLock                   stateLock;
     vbucket_state_t          initialState;
     Mutex                    pendingOpLock;
     std::vector<const void*> pendingOps;
