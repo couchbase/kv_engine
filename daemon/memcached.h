@@ -134,6 +134,7 @@ extern Connection *listen_conn;
  */
 #include "stats.h"
 #include "trace.h"
+#include "buckets.h"
 #include <memcached/util.h>
 
 /*
@@ -309,7 +310,48 @@ void disassociate_bucket(Connection *c);
 
 bool cookie_is_admin(const void *cookie);
 
+class DeleteBucketContext {
+public:
+    DeleteBucketContext(Connection& c)
+        : force(false),
+          connection(c) { }
+
+    std::string name;
+    bool force;
+    Connection& connection;
+};
+
+/**
+ * thread function to delete a bucket. The connection is supposed to be
+ * blocked while the thread is running, and when the bucket is deleted
+ * the connection is signalled with notify_io_complete
+ *
+ * @param arg a pointer to a DeleteBucketContext. delete_bucket_main is
+ *            responsible for freeing the memory when it is done with the
+ *            memory
+ */
 void delete_bucket_main(void* arg);
+
+class CreateBucketContext {
+public:
+    CreateBucketContext(Connection& c)
+        : connection(c) { }
+
+    std::string name;
+    std::string config;
+    BucketType type;
+    Connection& connection;
+};
+
+/**
+ * thread function to create a bucket. The connection is supposed to be
+ * blocked while the thread is running, and when the bucket is created
+ * the connection is signalled with notify_io_complete
+ *
+ * @param arg a pointer to a CreateBucketContext. create_bucket_main is
+ *            responsible for freeing the memory when it is done with the
+ *            memory
+ */
 void create_bucket_main(void *c);
 
 bool is_listen_disabled(void);

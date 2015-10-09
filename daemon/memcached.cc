@@ -2244,7 +2244,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
 /* BUCKET FUNCTIONS */
 
 static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
-                                          char *config,
+                                          const char *config,
                                           BucketType engine) {
     int ii;
     int first_free = -1;
@@ -2333,41 +2333,20 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
 
 void create_bucket_main(void *arg)
 {
-    Connection *c = reinterpret_cast<Connection *>(arg);
+    auto* context = reinterpret_cast<CreateBucketContext*>(arg);
+
     ENGINE_ERROR_CODE ret;
-    char *packet = (c->read.curr - (c->binary_header.request.bodylen +
-                                    sizeof(c->binary_header)));
-    auto* req = reinterpret_cast<protocol_binary_request_create_bucket*>(packet);
-    /* decode packet */
-    uint16_t klen = ntohs(req->message.header.request.keylen);
-    uint32_t blen = ntohl(req->message.header.request.bodylen);
-    blen -= klen;
 
     try {
-        std::string key((char*)(req + 1), klen);
-        std::string value((char*)(req + 1) + klen, blen);
-
-        char *config = NULL;
-
-        // Check if (optional) config was included after the value.
-        auto marker = value.find('\0');
-        if (marker != std::string::npos) {
-            config = &value[marker + 1];
-        }
-
-        BucketType engine = module_to_bucket_type(value.c_str());
-        if (engine == BucketType::Unknown) {
-            /* We should have other error codes as well :-) */
-            ret = ENGINE_NOT_STORED;
-        } else {
-            ret = do_create_bucket(key, config, engine);
-        }
-
-    } catch (const std::bad_alloc&) {
+        ret = do_create_bucket(context->name,
+                               context->config.c_str(),
+                               context->type);
+    } catch (std::bad_alloc&) {
         ret = ENGINE_ENOMEM;
     }
 
-    notify_io_complete(c, ret);
+    notify_io_complete(&context->connection, ret);
+    delete context;
 }
 
 void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
@@ -2487,39 +2466,19 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
 }
 
 void delete_bucket_main(void* arg) {
-    Connection* c = reinterpret_cast<Connection*>(arg);
+    auto* context = reinterpret_cast<DeleteBucketContext*>(arg);
     ENGINE_ERROR_CODE ret;
-    char* packet = (c->read.curr - (c->binary_header.request.bodylen +
-                                    sizeof(c->binary_header)));
-
-    auto* req = reinterpret_cast<protocol_binary_request_delete_bucket*>(packet);
-    /* decode packet */
-    uint16_t klen = ntohs(req->message.header.request.keylen);
-    uint32_t blen = ntohl(req->message.header.request.bodylen);
-    blen -= klen;
 
     try {
-        std::string key((char*)(req + 1), klen);
-        std::string config((char*)(req + 1) + klen, blen);
-
-        bool force = false;
-        struct config_item items[2];
-        memset(&items, 0, sizeof(items));
-        items[0].key = "force";
-        items[0].datatype = DT_BOOL;
-        items[0].value.dt_bool = &force;
-        items[1].key = NULL;
-
-        if (parse_config(config.c_str(), items, stderr) == 0) {
-            ret = do_delete_bucket(c, key, force);
-        } else {
-            ret = ENGINE_EINVAL;
-        }
+        ret = do_delete_bucket(&context->connection,
+                               context->name,
+                               context->force);
     } catch (const std::bad_alloc&) {
         ret = ENGINE_ENOMEM;
     }
 
-    notify_io_complete(c, ret);
+    notify_io_complete(&context->connection, ret);
+    delete context;
 }
 
 static void initialize_buckets(void) {

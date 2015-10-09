@@ -31,6 +31,7 @@
 #include "connections.h"
 #include "mcbp_validators.h"
 #include "mcbp_topkeys.h"
+#include "enginemap.h"
 
 #include <memcached/audit_interface.h>
 #include <snappy-c.h>
@@ -4013,16 +4014,47 @@ static void create_bucket_executor(Connection* c, void* packet) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        cb_thread_t tid;
-        int err;
+        auto* req = reinterpret_cast<protocol_binary_request_create_bucket*>(packet);
+        /* decode packet */
+        uint16_t klen = ntohs(req->message.header.request.keylen);
+        uint32_t blen = ntohl(req->message.header.request.bodylen);
+        blen -= klen;
 
-        err = cb_create_thread(&tid, create_bucket_main, c, 1);
-        if (err == 0) {
-            ret = ENGINE_EWOULDBLOCK;
-        } else {
-            LOG_WARNING(c, "Failed to create thread to create bucket:: %s",
-                        strerror(err));
-            ret = ENGINE_FAILED;
+        CreateBucketContext* context = nullptr;
+        try {
+            context = new CreateBucketContext(*c);
+            context->name.assign((char*)(req + 1), klen);
+            std::string value((char*)(req + 1) + klen, blen);
+
+            // Check if (optional) config was included after the value.
+            auto marker = value.find('\0');
+            if (marker != std::string::npos) {
+                context->config.assign(&value[marker + 1]);
+            }
+            context->type = module_to_bucket_type(value.c_str());
+            if (context->type == BucketType::Unknown) {
+                /* We should have other error codes as well :-) */
+                ret = ENGINE_NOT_STORED;
+                delete context;
+            }
+        } catch (const std::bad_alloc&) {
+            ret = ENGINE_ENOMEM;
+            delete context;
+        }
+
+        if (ret == ENGINE_SUCCESS) {
+            cb_thread_t tid;
+            int err;
+
+            err = cb_create_thread(&tid, create_bucket_main, context, 1);
+            if (err == 0) {
+                ret = ENGINE_EWOULDBLOCK;
+            } else {
+                LOG_WARNING(c, "Failed to create thread to create bucket: %s",
+                            strerror(err));
+                ret = ENGINE_FAILED;
+                delete context;
+            }
         }
     }
 
@@ -4078,17 +4110,45 @@ static void delete_bucket_executor(Connection* c, void* packet) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        cb_thread_t tid;
-        int err;
+        DeleteBucketContext *context = nullptr;
+        try {
+            context = new DeleteBucketContext(*c);
 
-        err = cb_create_thread(&tid, delete_bucket_main, c, 1);
-        if (err == 0) {
-            ret = ENGINE_EWOULDBLOCK;
-        } else {
-            LOG_WARNING(c,
-                        "Failed to create thread to delete bucket: %s",
-                        strerror(err));
-            ret = ENGINE_FAILED;
+            auto* req = reinterpret_cast<protocol_binary_request_delete_bucket*>(packet);
+            /* decode packet */
+            uint16_t klen = ntohs(req->message.header.request.keylen);
+            uint32_t blen = ntohl(req->message.header.request.bodylen);
+            blen -= klen;
+
+            context->name.assign((char*)(req + 1), klen);
+            std::string config((char*)(req + 1) + klen, blen);
+
+            struct config_item items[2];
+            memset(&items, 0, sizeof(items));
+            items[0].key = "force";
+            items[0].datatype = DT_BOOL;
+            items[0].value.dt_bool = &context->force;
+            items[1].key = NULL;
+
+            if (parse_config(config.c_str(), items, stderr) != 0) {
+                ret = ENGINE_EINVAL;
+            }
+        } catch (std::bad_alloc&) {
+            ret = ENGINE_ENOMEM;
+            delete context;
+        }
+
+        if (ret == ENGINE_SUCCESS) {
+            cb_thread_t tid;
+
+            int err = cb_create_thread(&tid, delete_bucket_main, context, 1);
+            if (err == 0) {
+                ret = ENGINE_EWOULDBLOCK;
+            } else {
+                LOG_WARNING(c, "Failed to create thread to delete bucket: %s",
+                            strerror(err));
+                ret = ENGINE_FAILED;
+            }
         }
     }
 
