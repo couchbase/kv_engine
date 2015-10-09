@@ -979,16 +979,6 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
         return false;
     }
 
-    KVStatsCallback kvcb(this);
-    uint64_t chkId = vbMap.getPersistenceCheckpointId(vbid);
-    std::string failovers = vb->failovers->toJSON();
-    uint64_t snapStart = 0;
-    uint64_t snapEnd = 0;
-
-    vb->getCurrentSnapshot(snapStart, snapEnd);
-    vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno(),
-                           vb->getPurgeSeqno(), snapStart, snapEnd, failovers);
-
     bool inverse = false;
     LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
     if (!lh.islocked()) {
@@ -999,6 +989,16 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
             return false;
         }
     }
+
+    KVStatsCallback kvcb(this);
+    uint64_t chkId = vbMap.getPersistenceCheckpointId(vbid);
+    std::string failovers = vb->failovers->toJSON();
+    uint64_t snapStart = 0;
+    uint64_t snapEnd = 0;
+
+    vb->getCurrentSnapshot(snapStart, snapEnd);
+    vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno(),
+                           vb->getPurgeSeqno(), snapStart, snapEnd, failovers);
 
     KVStore *rwUnderlying = getRWUnderlying(vbid);
     if (rwUnderlying->snapshotVBucket(vbid, vb_state, &kvcb)) {
