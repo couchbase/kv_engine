@@ -293,9 +293,12 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
                     logHeader());
             }
             uint32_t sizeAfter = itmCpy->getNBytes();
-            if (sizeAfter < sizeBefore) {
+
+            LockHolder lh(queueLock);
+            if (log && (sizeAfter < sizeBefore)) {
                 log->free(sizeBefore - sizeAfter);
             }
+            lh.unlock();
         }
 
     }
