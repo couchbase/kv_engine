@@ -371,7 +371,7 @@ TaskQueue* ExecutorPool::_getTaskQueue(const Taskable& t,
 
     bucket_priority_t bucketPriority = t.getWorkloadPriority();
 
-    if (qidx < 0 || qidx >= numTaskSets) {
+    if (qidx < 0 || static_cast<size_t>(qidx) >= numTaskSets) {
         throw std::invalid_argument("ExecutorPool::_getTaskQueue: qidx "
                 "(which is " + std::to_string(qidx) + ") is outside the range [0,"
                 + std::to_string(numTaskSets) + ")");
