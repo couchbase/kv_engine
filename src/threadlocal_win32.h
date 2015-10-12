@@ -25,9 +25,11 @@
 #include <cstdlib>
 #include <sstream>
 #include <cstring>
-#include <stdexcept>
+#include <system_error>
 #include <iostream>
 #include <string>
+
+#include <platform/strerror.h>
 
 /**
  * Container of thread-local data.
@@ -38,25 +40,27 @@ public:
     ThreadLocalWin32() {
         tlsIndex = TlsAlloc();
         if (tlsIndex == TLS_OUT_OF_INDEXES) {
-            std::cerr << "Failed to create thread local storage: " << getErrorString() << std::endl;
-            std::cerr.flush();
-            abort();
+            DWORD err = GetLastError();
+            std::string msg("Failed to create thread local storage: ");
+            msg.append(cb_strerror(err));
+            throw std::system_error(err, std::system_category(), msg);
         }
     }
 
     ~ThreadLocalWin32() {
         if (!TlsFree(tlsIndex)) {
-            std::cerr << "Failed to release thread local storage: " << getErrorString() << std::endl;
+            std::cerr << "~ThreadLocalPosix() TlsFree: "
+                      << cb_strerror() << std::endl;
             std::cerr.flush();
-            abort();
         }
     }
 
     void set(const T &newValue) {
         if (!TlsSetValue(tlsIndex, newValue)) {
-            std::stringstream ss;
-            ss << "Failed to store thread specific value: " << getErrorString();
-            throw std::runtime_error(ss.str().c_str());
+            DWORD err = GetLastError();
+            std::string msg("Failed to store thread specific value: ");
+            msg.append(cb_strerror(err));
+            throw std::system_error(err, std::system_category(), msg);
         }
     }
 
@@ -73,23 +77,6 @@ public:
     }
 
 private:
-
-    static std::string getErrorString(void) {
-        std::string ret;
-        char* win_msg = NULL;
-        DWORD err = GetLastError();
-        FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-            FORMAT_MESSAGE_FROM_SYSTEM |
-            FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL, err,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPTSTR)&win_msg,
-            0, NULL);
-        ret.assign(win_msg);
-        LocalFree(win_msg);
-        return ret;
-    }
-
     DWORD tlsIndex;
 };
 

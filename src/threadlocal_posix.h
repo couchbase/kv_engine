@@ -24,9 +24,9 @@
 
 #include <pthread.h>
 #include <cstdlib>
-#include <sstream>
+#include <string>
 #include <cstring>
-#include <stdexcept>
+#include <system_error>
 #include <iostream>
 
 #define MAX_THREADS 500
@@ -40,22 +40,27 @@ public:
     ThreadLocalPosix() {
         int rc = pthread_key_create(&key, NULL);
         if (rc != 0) {
-            std::cerr << "Failed to create a thread-specific key: " << strerror(rc) << std::endl;
-            std::cerr.flush();
-            abort();
+            std::string msg = "Failed to create a thread-specific key: ";
+            msg.append(strerror(rc));
+            throw std::system_error(rc, std::system_category(), msg);
         }
     }
 
     ~ThreadLocalPosix() {
-        pthread_key_delete(key);
+        int rc = pthread_key_delete(key);
+        if (rc != 0) {
+            std::cerr << "~ThreadLocalPosix() - pthread_key_delete(): "
+                      << strerror(rc) << std::endl;
+            std::cerr.flush();
+        }
     }
 
     void set(const T &newValue) {
         int rc = pthread_setspecific(key, newValue);
         if (rc != 0) {
-            std::stringstream ss;
-            ss << "Failed to store thread specific value: " << strerror(rc);
-            throw std::runtime_error(ss.str().c_str());
+            std::string msg("Failed to store thread specific value: ");
+            msg.append(strerror(rc));
+            throw std::system_error(rc, std::system_category(), msg);
         }
     }
 
