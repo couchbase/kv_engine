@@ -488,7 +488,7 @@ public:
     /**
      * Persist a snapshot of a collection of stats.
      */
-    virtual bool snapshotStats(const std::map<std::string, std::string> &m) = 0;
+    bool snapshotStats(const std::map<std::string, std::string> &m);
 
     /**
      * Snapshot vbucket state

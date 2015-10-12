@@ -102,6 +102,75 @@ std::string KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& new
     return newState.toJSON();
 }
 
+bool KVStore::snapshotStats(const std::map<std::string,
+                            std::string> &stats) {
+    if (isReadOnly()) {
+        throw std::logic_error("KVStore::snapshotStats: Cannot perform "
+                        "on a read-only instance.");
+    }
+
+    size_t count = 0;
+    size_t size = stats.size();
+    std::stringstream stats_buf;
+    stats_buf << "{";
+    std::map<std::string, std::string>::const_iterator it = stats.begin();
+    for (; it != stats.end(); ++it) {
+        stats_buf << "\"" << it->first << "\": \"" << it->second << "\"";
+        ++count;
+        if (count < size) {
+            stats_buf << ", ";
+        }
+    }
+    stats_buf << "}";
+    std::string dbname = configuration.getDBName();
+    std::string next_fname = dbname + "/stats.json.new";
+
+    FILE *new_stats = fopen(next_fname.c_str(), "w");
+    if (new_stats == nullptr) {
+        LOG(EXTENSION_LOG_NOTICE, "Failed to log the engine stats to "
+                "file \"%s\" due to an error \"%s\"; Not critical because new "
+                "stats will be dumped later, please ignore.",
+            next_fname.c_str(), strerror(errno));
+        return false;
+    }
+
+    bool rv = true;
+    if (fprintf(new_stats, "%s\n", stats_buf.str().c_str()) < 0) {
+        LOG(EXTENSION_LOG_NOTICE, "Failed to log the engine stats to "
+                "file \"%s\" due to an error \"%s\"; Not critical because new "
+                "stats will be dumped later, please ignore.",
+            next_fname.c_str(), strerror(errno));
+        rv = false;
+    }
+    fclose(new_stats);
+
+    if (rv) {
+        std::string old_fname = dbname + "/stats.json.old";
+        std::string stats_fname = dbname + "/stats.json";
+        if (access(old_fname.c_str(), F_OK) == 0 && remove(old_fname.c_str()) != 0) {
+            LOG(EXTENSION_LOG_WARNING, "Failed to remove '%s': %s",
+                old_fname.c_str(), strerror(errno));
+            remove(next_fname.c_str());
+            rv = false;
+        } else if (access(stats_fname.c_str(), F_OK) == 0 &&
+                   rename(stats_fname.c_str(), old_fname.c_str()) != 0) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to rename '%s' to '%s': %s",
+                stats_fname.c_str(), old_fname.c_str(), strerror(errno));
+            remove(next_fname.c_str());
+            rv = false;
+        } else if (rename(next_fname.c_str(), stats_fname.c_str()) != 0) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to rename '%s' to '%s': %s",
+                next_fname.c_str(), stats_fname.c_str(), strerror(errno));
+            remove(next_fname.c_str());
+            rv = false;
+        }
+    }
+
+    return rv;
+}
+
 std::string vbucket_state::toJSON() const {
     std::stringstream jsonState;
     jsonState << "{\"state\": \"" << VBucket::toString(state) << "\""

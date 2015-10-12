@@ -794,11 +794,6 @@ DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
     return dbInfo;
 }
 
-bool ForestKVStore::snapshotStats(const std::map<std::string,
-                                  std::string> &engine_stats) {
-    return true;
-}
-
 bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
                                     Callback<kvstats_ctx> *cb, bool persist) {
 

@@ -342,14 +342,6 @@ public:
     void getPersistedStats(std::map<std::string, std::string> &stats);
 
     /**
-     * Persist a snapshot of the engine stats in the underlying storage.
-     *
-     * @param engine_stats map instance that contains all the engine stats
-     * @return true if the snapshot is done successfully
-     */
-    bool snapshotStats(const std::map<std::string, std::string> &engine_stats);
-
-    /**
      * Persist a snapshot of the vbucket states in the underlying storage system.
      *
      * @param vbucketId vbucket id
