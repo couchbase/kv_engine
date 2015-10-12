@@ -437,7 +437,7 @@ void Warmup::scheduleInitialize()
 
 void Warmup::initialize()
 {
-    startTime = gethrtime();
+    startTime.store(gethrtime());
 
     std::map<std::string, std::string> session_stats;
     store.getOneROUnderlying()->getPersistedStats(session_stats);

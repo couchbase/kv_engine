@@ -185,7 +185,7 @@ private:
     Mutex taskSetMutex;
     std::unordered_set<size_t> taskSet;
 
-    hrtime_t startTime;
+    AtomicValue<hrtime_t> startTime;
     AtomicValue<hrtime_t> metadata;
     AtomicValue<hrtime_t> warmup;
 
