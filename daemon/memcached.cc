@@ -2245,7 +2245,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
 
 static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
                                           const char *config,
-                                          BucketType engine) {
+                                          BucketType bucketType) {
     int ii;
     int first_free = -1;
     bool found = false;
@@ -2277,7 +2277,7 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
          */
         cb_mutex_enter(&all_buckets[ii].mutex);
         all_buckets[ii].state = BucketState::Creating;
-        all_buckets[ii].type = engine;
+        all_buckets[ii].type = bucketType;
         strcpy(all_buckets[ii].name, bucket_name.c_str());
         try {
             all_buckets[ii].topkeys = new TopKeys(settings.topkeys_size);
@@ -2289,41 +2289,55 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
     cb_mutex_exit(&buckets_lock);
 
     if (ret == ENGINE_SUCCESS) {
+        auto &bucket = all_buckets[ii];
+
         /* People aren't allowed to use the engine in this state,
          * so we can do stuff without locking..
          */
-        if (new_engine_instance(engine, get_server_api,
-                                (ENGINE_HANDLE**)&all_buckets[ii].engine,
+        if (new_engine_instance(bucketType, get_server_api,
+                                (ENGINE_HANDLE**)&bucket.engine,
                                 settings.extensions.logger)) {
-            cb_mutex_enter(&all_buckets[ii].mutex);
-            all_buckets[ii].state = BucketState::Initializing;
-            cb_mutex_exit(&all_buckets[ii].mutex);
+            auto* engine = bucket.engine;
+            cb_mutex_enter(&bucket.mutex);
+            bucket.state = BucketState::Initializing;
+            cb_mutex_exit(&bucket.mutex);
 
-            ret = all_buckets[ii].engine->initialize
-                    (v1_handle_2_handle(all_buckets[ii].engine), config);
+            try {
+                ret = engine->initialize(v1_handle_2_handle(engine), config);
+            } catch (std::runtime_error& e) {
+                LOG_WARNING(NULL, "Failed to create bucket [%s]: ",
+                            bucket_name.c_str(), e.what());
+                ret = ENGINE_FAILED;
+            } catch (std::bad_alloc& e) {
+                LOG_WARNING(NULL, "Failed to create bucket [%s]: ",
+                            bucket_name.c_str(), e.what());
+                ret = ENGINE_ENOMEM;
+            }
+
             if (ret == ENGINE_SUCCESS) {
-                cb_mutex_enter(&all_buckets[ii].mutex);
-                all_buckets[ii].state = BucketState::Ready;
-                cb_mutex_exit(&all_buckets[ii].mutex);
+                cb_mutex_enter(&bucket.mutex);
+                bucket.state = BucketState::Ready;
+                cb_mutex_exit(&bucket.mutex);
             } else {
-                cb_mutex_enter(&all_buckets[ii].mutex);
-                all_buckets[ii].state = BucketState::Destroying;
-                cb_mutex_exit(&all_buckets[ii].mutex);
-                all_buckets[ii].engine->destroy
-                    (v1_handle_2_handle(all_buckets[ii].engine), false);
+                cb_mutex_enter(&bucket.mutex);
+                bucket.state = BucketState::Destroying;
+                cb_mutex_exit(&bucket.mutex);
+                engine->destroy(v1_handle_2_handle(engine), false);
 
-                cb_mutex_enter(&all_buckets[ii].mutex);
-                all_buckets[ii].state = BucketState::None;
-                all_buckets[ii].name[0] = '\0';
-                cb_mutex_exit(&all_buckets[ii].mutex);
+                cb_mutex_enter(&bucket.mutex);
+                bucket.state = BucketState::None;
+                bucket.name[0] = '\0';
+                bucket.engine = nullptr;
+                cb_mutex_exit(&bucket.mutex);
 
                 ret = ENGINE_NOT_STORED;
             }
         } else {
-            cb_mutex_enter(&all_buckets[ii].mutex);
-            all_buckets[ii].state = BucketState::None;
-            all_buckets[ii].name[0] = '\0';
-            cb_mutex_exit(&all_buckets[ii].mutex);
+            cb_mutex_enter(&bucket.mutex);
+            bucket.state = BucketState::None;
+            bucket.name[0] = '\0';
+            bucket.engine = nullptr;
+            cb_mutex_exit(&bucket.mutex);
             /* @todo should I change the error code? */
         }
     }
