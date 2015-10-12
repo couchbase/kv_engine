@@ -427,7 +427,10 @@ bool EventuallyPersistentStore::initialize() {
     itmpTask = new ItemPager(&engine, stats);
     ExecutorPool::get()->schedule(itmpTask, NONIO_TASK_IDX);
 
+    LockHolder elh(expiryPager.mutex);
     expiryPager.enabled = config.isExpPagerEnabled();
+    elh.unlock();
+
     size_t expiryPagerSleeptime = config.getExpPagerStime();
     setExpiryPagerSleeptime(expiryPagerSleeptime);
     config.addValueChangedListener("exp_pager_stime",
