@@ -140,12 +140,8 @@ enum test_result rmdb(const char* path) {
 bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_warmup_complete(h, h1);
 
-    check(h1->get_stats(h, NULL, "prev-vbucket", 12, add_stats) == ENGINE_SUCCESS,
-          "Failed to get the previous state of vbuckets");
-    if (vals.find("vb_0") == vals.end()) {
-        check(set_vbucket_state(h, h1, 0, vbucket_state_active),
-              "Failed to set VB0 state.");
-    }
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set VB0 state.");
 
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
 
