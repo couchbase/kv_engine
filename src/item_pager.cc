@@ -254,8 +254,8 @@ bool ItemPager::run(void) {
     }
 
     bool inverse = true;
-    if (available.compare_exchange_strong(inverse, false) &&
-            ((current > upper) || doEvict)) {
+    if (((current > upper) || doEvict) &&
+        available.compare_exchange_strong(inverse, false)) {
         if (store->getItemEvictionPolicy() == VALUE_ONLY) {
             doEvict = true;
         }
