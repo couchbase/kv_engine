@@ -185,12 +185,6 @@ static cJSON* get_baseline_settings(const char* temp_file)
         cJSON_AddItemToArray(ext_list, ext);
         cJSON_AddItemToObject(baseline, "extensions", ext_list);
     }
-    {
-        cJSON *engine = cJSON_CreateObject();
-        cJSON_AddStringToObject(engine, "module", "engine.so");
-        cJSON_AddStringToObject(engine, "config", "engine_config");
-        cJSON_AddItemToObject(baseline, "engine", engine);
-    }
     cJSON_AddTrueToObject(baseline, "require_sasl");
     cJSON_AddFalseToObject(baseline, "require_init");
     cJSON_AddNumberToObject(baseline, "default_reqs_per_event", 1);
@@ -582,24 +576,6 @@ static void test_dynamic_extensions_config(struct test_ctx *ctx) {
     cb_assert(cJSON_GetArraySize(ctx->errors) == 1);
 }
 
-static void test_dynamic_engine_module(struct test_ctx *ctx) {
-    /* Cannot change engine module */
-    cJSON *engine = cJSON_GetObjectItem(ctx->dynamic, "engine");
-    cJSON_ReplaceItemInObject(engine, "module",
-                              cJSON_CreateString("different_engine"));
-    cb_assert(validate_dynamic_JSON_changes(ctx) == false);
-    cb_assert(cJSON_GetArraySize(ctx->errors) == 1);
-}
-
-static void test_dynamic_engine_config(struct test_ctx *ctx) {
-    /* Cannot change engine config */
-    cJSON *engine = cJSON_GetObjectItem(ctx->dynamic, "engine");
-    cJSON_ReplaceItemInObject(engine, "config",
-                              cJSON_CreateString("different_config"));
-    cb_assert(validate_dynamic_JSON_changes(ctx) == false);
-    cb_assert(cJSON_GetArraySize(ctx->errors) == 1);
-}
-
 static void test_dynamic_require_sasl(struct test_ctx *ctx) {
     /* Cannot change equire_sasl */
     cJSON_ReplaceItemInObject(ctx->dynamic, "require_sasl", cJSON_CreateFalse());
@@ -777,8 +753,6 @@ int main(void)
         { "dynamic_extensions_count", setup_dynamic, test_dynamic_extensions_count, teardown_dynamic },
         { "dynamic_extensions_module", setup_dynamic, test_dynamic_extensions_module, teardown_dynamic },
         { "dynamic_extensions_config", setup_dynamic, test_dynamic_extensions_config, teardown_dynamic },
-        { "dynamic_engine_module", setup_dynamic, test_dynamic_engine_module, teardown_dynamic },
-        { "dynamic_engine_config", setup_dynamic, test_dynamic_engine_config, teardown_dynamic },
         { "dynamic_require_sasl", setup_dynamic, test_dynamic_require_sasl, teardown_dynamic },
         { "dynamic_require_init", setup_dynamic, test_dynamic_require_init, teardown_dynamic },
         { "dynamic_reqs_per_event", setup_dynamic, test_dynamic_reqs_per_event, teardown_dynamic },

@@ -491,44 +491,10 @@ static bool get_extensions(cJSON *o, struct settings *settings,
     return true;
 }
 
-static bool get_engine(cJSON *r, struct settings *settings, char **error_msg) {
-    const char *module = NULL;
-    const char *config = NULL;
-    if (r->type == cJSON_Object) {
-        cJSON *p = r->child;
-        while (p != NULL) {
-            if (strcasecmp("module", p->string) == 0) {
-                if (!get_string_value(p, "engine module", &module,
-                                      error_msg)) {
-                    return false;
-                }
-            } else if (strcasecmp("config", p->string) == 0) {
-                if (!get_string_value(p, "engine config", &config,
-                                      error_msg)) {
-                    return false;
-                }
-            } else {
-                do_asprintf(error_msg, "Unknown attribute for engine: %s\n",
-                            p->string);
-                return false;
-            }
-            p = p->next;
-        }
-
-        if (module == NULL) {
-            do_asprintf(error_msg,
-                        "Mandatory attribute module not specified for engine\n");
-            return false;
-        }
-
-        settings->engine_module = module;
-        settings->engine_config = config;
-        settings->has.engine = true;
-        return true;
-    } else {
-        do_asprintf(error_msg, "Invalid entry for engine\n");
-        return false;
-    }
+static bool get_engine(cJSON *, struct settings *, char **) {
+    LOG_NOTICE(nullptr,
+               "Ignoring obsolete engine parameter specified in config.");
+    return true;
 }
 
 /**
@@ -1059,31 +1025,7 @@ static bool dyna_validate_extensions(const struct settings *new_settings,
 static bool dyna_validate_engine(const struct settings *new_settings,
                                  cJSON* errors)
 {
-    /* engine is not dynamic. */
-    bool valid = true;
-
-    if (!new_settings->has.engine) {
-        return true;
-    }
-
-    /* module must be non-null, and the same as current.*/
-    valid &= new_settings->engine_module != NULL &&
-             strcmp(new_settings->engine_module, settings.engine_module) == 0;
-
-    /* config may be null if current is, but must be equal */
-    valid &= (settings.engine_config == NULL &&
-              new_settings->engine_config == NULL) ||
-             (settings.engine_config != NULL &&
-              new_settings->engine_config != NULL &&
-              strcmp(settings.engine_config, new_settings->engine_config) == 0);
-
-    if (valid) {
-        return true;
-    } else {
-        cJSON_AddItemToArray(errors,
-                             cJSON_CreateString("'engine' is not a dynamic setting."));
-        return false;
-    }
+    return true;
 }
 
 static bool dyna_validate_require_init(const struct settings *new_settings,
@@ -1599,8 +1541,6 @@ void free_settings(struct settings* s) {
         free((char*)s->pending_extensions[ii].config);
     }
     free(s->pending_extensions);
-    free((char*)s->engine_module);
-    free((char*)s->engine_config);
     free((char*)s->rbac_file);
     free((char*)s->config);
     free((char*)s->root);

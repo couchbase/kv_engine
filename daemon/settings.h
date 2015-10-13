@@ -89,8 +89,6 @@ struct settings {
     /* array of extensions and their settings to be loaded. */
     struct extension_settings *pending_extensions;
     int num_pending_extensions; /* size of above array. */
-    const char *engine_module; /* engine shared object */
-    const char *engine_config; /* engine configuration string */
     const char *audit_file; /* The file containing audit configuration */
     const char *rbac_file; /* The file containing RBAC information */
     bool rbac_privilege_debug; /* see manpage */
@@ -132,7 +130,6 @@ struct settings {
         bool threads;
         bool interfaces;
         bool extensions;
-        bool engine;
         bool audit;
         bool rbac;
         bool rbac_privilege_debug;

@@ -170,17 +170,7 @@ object describing a single extension with the following attributes:
 
 === engine
 
-The *engine* attribute is used to specify the engine to load. It is
-an object with the following attributes:
-
-    module    A string value containing the module to load. This may
-              either be an absolute path, or the systems library path
-              will be searched for the object. The object must
-              implement the engine api.
-
-    config    A string value containing configuration attributes to
-              the module. The config value is passed transparently
-              to the module.
+The *engine* parameter is no longer used and ignored.
 
 === require_sasl
 

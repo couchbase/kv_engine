@@ -275,8 +275,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
 {
     cJSON *root = cJSON_CreateObject();
     cJSON *array = cJSON_CreateArray();
-    cJSON *obj = cJSON_CreateObject();
-    cJSON *obj_ssl = NULL;
+    cJSON *obj = nullptr;
+    cJSON *obj_ssl = nullptr;
     char pem_path[256];
     char cert_path[256];
     char rbac_path[256];
@@ -286,10 +286,6 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     snprintf(rbac_path, sizeof(rbac_path), "%s/%s", pem_path, mcd_env->getRbacFilename());
     strncat(pem_path, CERTIFICATE_PATH(testapp.pem), 256);
     strncat(cert_path, CERTIFICATE_PATH(testapp.cert), 256);
-
-    cJSON_AddStringToObject(obj, "module", "ewouldblock_engine.so");
-    cJSON_AddStringToObject(obj, "config", "default_engine.so");
-    cJSON_AddItemToObject(root, "engine", obj);
 
     if (memcached_verbose) {
         cJSON_AddNumberToObject(root, "verbosity", 2);

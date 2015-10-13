@@ -104,12 +104,6 @@ static void apply_compat_arguments(void) {
         case 'v':
             ++settings.verbose;
             break;
-        case 'E':
-            settings.engine_module = strdup(o->optarg);
-            break;
-        case 'e':
-            settings.engine_config = strdup(o->optarg);
-            break;
         case 'X':
             handle_X(o);
             break;
@@ -132,12 +126,12 @@ void parse_arguments(int argc, char **argv) {
         case 'c':
         case 't':
         case 'v':
-        case 'E':
-        case 'e':
         case 'X':
             add_option(c, optarg);
             break;
 
+        case 'E':
+        case 'e':
         case 'I':
         case 'm':
         case 'M':
