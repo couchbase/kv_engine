@@ -1544,6 +1544,8 @@ void PassiveStream::transitionState(stream_state_t newState) {
 const char* PassiveStream::getEndStreamStatusStr(end_stream_status_t status)
 {
     switch (status) {
+        case END_STREAM_OK:
+            return "The stream closed as part of normal operation";
         case END_STREAM_CLOSED:
             return "The stream closed due to a close stream message";
         case END_STREAM_DISCONNECTED:
@@ -1551,5 +1553,7 @@ const char* PassiveStream::getEndStreamStatusStr(end_stream_status_t status)
         default:
             break;
     }
-    return "Status unknown; this should not happen";
+    std::string msg("Status unknown: " + std::to_string(status) +
+                    "; this should not have happened!");
+    return msg.c_str();
 }
