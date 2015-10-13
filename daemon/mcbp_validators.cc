@@ -575,7 +575,6 @@ static protocol_binary_response_status init_complete_validator(void *packet)
         req->message.header.request.extlen != 0 ||
         req->message.header.request.keylen != 0 ||
         req->message.header.request.bodylen != 0 ||
-        req->message.header.request.cas != 0 ||
         req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         return PROTOCOL_BINARY_RESPONSE_EINVAL;
     }

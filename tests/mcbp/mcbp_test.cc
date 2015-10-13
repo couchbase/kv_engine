@@ -2238,10 +2238,6 @@ namespace BinaryProtocolValidator {
         request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
-    TEST_F(InitCompleteValidatorTest, InvalidCas) {
-        request.message.header.request.cas = 1;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-    }
     TEST_F(InitCompleteValidatorTest, InvalidBody) {
         request.message.header.request.bodylen = htonl(4);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());

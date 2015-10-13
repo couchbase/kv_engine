@@ -11,6 +11,7 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_connection.h
                testapp_rbac.cc
                testapp_rbac.h
+               testapp_require_init.cc
                testapp_shutdown.cc
                testapp_subdoc.cc
                testapp_subdoc_multipath.cc
