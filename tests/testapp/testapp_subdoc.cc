@@ -1611,19 +1611,20 @@ TEST_P(McdTestappTest, SubdocCounter_Simple_MutationSeqno) {
     set_mutation_seqno_feature(false);
 }
 
+static const std::vector<std::string> NOT_INTEGER({
+    "true",
+    "false",
+    "null",
+    "\"string\"",
+    "[0]",
+    "{\"foo\": \"bar\"}",
+    "1.1"
+});
+
 TEST_P(McdTestappTest, SubdocCounter_InvalidNotInt)
 {
     // Cannot increment things which are not integers.
-    const std::vector<std::string> not_integer({
-        "true",
-        "false",
-        "null",
-        "\"string\"",
-        "[0]",
-        "{\"foo\": \"bar\"}",
-        "1.1"
-    });
-    for (auto& val : not_integer) {
+    for (auto& val : NOT_INTEGER) {
         const std::string doc("{\"key\":" + val + "}");
         store_object("a", doc, /*JSON*/true, /*compress*/false);
         expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
@@ -1700,6 +1701,33 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE, "");
 
     delete_object("b");
+}
+
+TEST_P(McdTestappTest, SubdocCounter_InvalidIncr)
+{
+    // Cannot increment by a non-numeric value.
+    const std::string doc("{\"key\":10}");
+    store_object("a", doc, /*JSON*/true, /*compress*/false);
+
+    for (auto& incr : NOT_INTEGER) {
+        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                    "a", "key", incr),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE, "");
+        auto result = fetch_value("a");
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first)
+            << " using increment '" << incr << "'";
+        EXPECT_EQ(doc, result.second);
+    }
+
+    // Cannot increment by zero.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                                "a", "key", "0"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE, "");
+    auto result = fetch_value("a");
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
+    EXPECT_EQ(doc, result.second);
+
+    delete_object("a");
 }
 
 // Test handling of the internal auto-retry when a CAS mismatch occurs due
