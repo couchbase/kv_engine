@@ -1,96 +1,101 @@
 {
-    "version" : 1,
-    "module" : "memcached",
-    "events" : [
-                {  "id" : 20480,
-                   "name" : "opened DCP connection",
-                   "description" : "opened DCP connection",
-                   "sync" : false,
-                   "enabled" : true,
-                   "mandatory_fields" : {
-                      "timestamp" : "",
-                      "real_userid" : {
-                          "source" : "",
-                          "user" : ""
-                       },
-                      "bucket" : ""
-                   },
-                   "optional_fields" : {
-                       "peername" : "",
-                       "sockname" : ""
-                   }
-                },
-                {  "id" : 20481,
-                   "name" : "authentication failed",
-                   "description" : "Authentication to the cluster failed",
-                   "sync" : false,
-                   "enabled" : true,
-                   "mandatory_fields" : {
-                      "timestamp" : "",
-                      "real_userid" : {
-                         "source" : "",
-                         "user" : ""
-                      },
-                      "reason" : ""
-                   },
-                   "optional_fields" : {
-                      "peername" : "",
-                      "sockname" : ""
-                   }
-                },
-                { "id" : 20482,
-                  "name" : "bucket flush",
-                  "description" : "Flushed the content of a bucket",
-                  "sync" : false,
-                  "enabled" : true,
-                  "mandatory_fields" : {
-                    "timestamp" : "",
-                    "real_userid" : {
-                      "source" : "",
-                      "user" : ""
-                    },
-                    "bucket" : ""
-                  },
-                  "optional_fields" : {
-                    "peername" : "",
-                    "sockname" : ""
-                  }
-                },
-                { "id" : 20483,
-                  "name" : "invalid packet",
-                  "description" : "Rejected an invalid packet",
-                  "sync" : false,
-                  "enabled" : true,
-                  "mandatory_fields" : {
-                    "timestamp" : "",
-                    "real_userid" : {
-                      "source" : "",
-                      "user" : ""
-                    },
-                    "bucket" : ""
-                  },
-                  "optional_fields" : {
-                    "peername" : "",
-                    "sockname" : ""
-                  }
-                },
-                { "id" : 20484,
-                  "name" : "command access failure",
-                  "description" : "Access to command is not allowed",
-                  "sync" : false,
-                  "enabled" : true,
-                  "mandatory_fields" : {
-                    "timestamp" : "",
-                    "real_userid" : {
-                      "source" : "",
-                      "user" : ""
-                    },
-                    "bucket" : ""
-                  },
-                  "optional_fields" : {
-                    "peername" : "",
-                    "sockname" : ""
-                  }
-                }
-               ]
+  "version": 1,
+  "module": "memcached",
+  "events": [
+    {
+      "id": 20480,
+      "name": "opened DCP connection",
+      "description": "opened DCP connection",
+      "sync": false,
+      "enabled": true,
+      "mandatory_fields": {
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "bucket": ""
+      },
+      "optional_fields": {
+        "peername": "",
+        "sockname": ""
+      }
+    },
+    {
+      "id": 20481,
+      "name": "authentication failed",
+      "description": "Authentication to the cluster failed",
+      "sync": false,
+      "enabled": true,
+      "mandatory_fields": {
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "reason": ""
+      },
+      "optional_fields": {
+        "peername": "",
+        "sockname": ""
+      }
+    },
+    {
+      "id": 20482,
+      "name": "bucket flush",
+      "description": "Flushed the content of a bucket",
+      "sync": false,
+      "enabled": true,
+      "mandatory_fields": {
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "bucket": ""
+      },
+      "optional_fields": {
+        "peername": "",
+        "sockname": ""
+      }
+    },
+    {
+      "id": 20483,
+      "name": "invalid packet",
+      "description": "Rejected an invalid packet",
+      "sync": false,
+      "enabled": true,
+      "mandatory_fields": {
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "bucket": ""
+      },
+      "optional_fields": {
+        "peername": "",
+        "sockname": ""
+      }
+    },
+    {
+      "id": 20484,
+      "name": "command access failure",
+      "description": "Access to command is not allowed",
+      "sync": false,
+      "enabled": true,
+      "mandatory_fields": {
+        "timestamp": "",
+        "real_userid": {
+          "source": "",
+          "user": ""
+        },
+        "bucket": ""
+      },
+      "optional_fields": {
+        "peername": "",
+        "sockname": ""
+      }
+    }
+  ]
 }
