@@ -898,6 +898,7 @@ ScanContext* ForestKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
 }
 
 scan_error_t ForestKVStore::scan(ScanContext *ctx) {
+
      if (!ctx) {
          return scan_failed;
      }
@@ -979,6 +980,7 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          }
          uint8_t *metadata = (uint8_t *)rdoc->meta;
          std::string docKey((char *)rdoc->key, rdoc->keylen);
+
          CacheLookup lookup(docKey, (uint64_t) rdoc->seqnum, ctx->vbid);
          cl->callback(lookup);
          if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
@@ -1070,6 +1072,31 @@ bool ForestKVStore::compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
     return true;
 }
 
+size_t ForestKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,
+                                  uint64_t max_seq) {
+    size_t totalCount = 0;
+    fdb_status status;
+    fdb_kvs_handle *kvsHandle = NULL;
+    fdb_iterator *fdb_iter;
+    kvsHandle = getKvsHandle(vbid, handleType::READER);
+    status = fdb_iterator_sequence_init(kvsHandle, &fdb_iter, min_seq,
+                                        max_seq, FDB_ITR_NONE);
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "ForestDB iterator initialization failed with error: %s "
+            "in ForestKVStore::getNumItems",
+            fdb_error_msg(status));
+        return 0;
+    }
+
+    do {
+        totalCount++;
+    } while (fdb_iterator_next(fdb_iter) == FDB_RESULT_SUCCESS);
+
+    fdb_iterator_close(fdb_iter);
+
+    return totalCount;
+}
 
 RollbackResult ForestKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                                        shared_ptr<RollbackCB> cb) {

@@ -223,6 +223,17 @@ class ForestKVStore : public KVStore
     vbucket_state *getVBucketState(uint16_t vbid);
 
     /**
+     * Get the number of items from a ForestDB KVStore instance
+     * inclusive of the max sequence number
+     *
+     * @param vbid The vbucket id for which the count is needed
+     * @param min_seq The sequence number to start the count from
+     * @param max_seq The sequence number to stop the count at
+     * @return total number of items
+     */
+    size_t getNumItems(uint16_t vbid, uint64_t min_seq, uint64_t max_seq);
+
+    /**
      * Do a rollback to the specified sequence number on the particular vbucket
      *
      * @param vbid          The vbucket id to be rolled back
