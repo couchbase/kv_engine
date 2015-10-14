@@ -32,7 +32,8 @@ public:
     /**
      * Construct a CheckpointVisitor.
      */
-    CheckpointVisitor(EventuallyPersistentStore *s, EPStats &st, bool *sfin)
+    CheckpointVisitor(EventuallyPersistentStore *s, EPStats &st,
+                      AtomicValue<bool> &sfin)
         : store(s), stats(st), removed(0),
           wasHighMemoryUsage(s->isMemoryUsageTooHigh()), stateFinalizer(sfin) {}
 
@@ -65,9 +66,8 @@ public:
     }
 
     void complete() {
-        if (stateFinalizer) {
-            *stateFinalizer = true;
-        }
+        bool inverse = false;
+        stateFinalizer.compare_exchange_strong(inverse, true);
 
         // Wake up any sleeping backfill tasks if the memory usage is lowered
         // below the high watermark as a result of checkpoint removal.
@@ -81,15 +81,15 @@ private:
     EPStats                   &stats;
     size_t                     removed;
     bool                       wasHighMemoryUsage;
-    bool                      *stateFinalizer;
+    AtomicValue<bool>         &stateFinalizer;
 };
 
 bool ClosedUnrefCheckpointRemoverTask::run(void) {
-    if (available) {
-        available = false;
+    bool inverse = true;
+    if (available.compare_exchange_strong(inverse, false)) {
         EventuallyPersistentStore *store = engine->getEpStore();
         shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats,
-                    &available));
+                                                               available));
         store->visit(pv, "Checkpoint Remover", NONIO_TASK_IDX,
                      Priority::CheckpointRemoverPriority);
     }

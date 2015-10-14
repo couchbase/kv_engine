@@ -149,7 +149,7 @@ DcpConsumer::~DcpConsumer() {
 
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
-    LockHolder lh(streamMutex);
+    LockHolder lh(readyMutex);
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -200,7 +200,6 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
 }
 
 ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
-    LockHolder lh(streamMutex);
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -666,7 +665,6 @@ bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
 
     cb_assert(err == ENGINE_SUCCESS);
 
-    LockHolder lh(streamMutex);
     RCPtr<VBucket> vb = engine_.getVBucket(vbid);
     streams[vbid]->reconnectStream(vb, opaque, vb->getHighSeqno());
 
@@ -736,7 +734,7 @@ process_items_error_t DcpConsumer::processBufferedItems() {
 }
 
 DcpResponse* DcpConsumer::getNextItem() {
-    LockHolder lh(streamMutex);
+    LockHolder lh(readyMutex);
 
     setPaused(false);
     while (!ready.empty()) {
@@ -773,6 +771,7 @@ DcpResponse* DcpConsumer::getNextItem() {
 }
 
 void DcpConsumer::notifyStreamReady(uint16_t vbucket) {
+    LockHolder lh(readyMutex);
     std::list<uint16_t>::iterator iter =
         std::find(ready.begin(), ready.end(), vbucket);
     if (iter != ready.end()) {
@@ -780,13 +779,13 @@ void DcpConsumer::notifyStreamReady(uint16_t vbucket) {
     }
 
     ready.push_back(vbucket);
+    lh.unlock();
 
     engine_.getDcpConnMap().notifyPausedConnection(this, true);
 }
 
 void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
                                  uint32_t bodylen) {
-    LockHolder lh(streamMutex);
 
     opaque_map::iterator oitr = opaqueMap_.find(opaque);
     if (oitr != opaqueMap_.end()) {
@@ -820,7 +819,6 @@ void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
 }
 
 bool DcpConsumer::isValidOpaque(uint32_t opaque, uint16_t vbucket) {
-    LockHolder lh(streamMutex);
     passive_stream_t stream = streams[vbucket];
     return stream && stream->getOpaque() == opaque;
 }

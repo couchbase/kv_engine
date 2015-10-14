@@ -121,10 +121,13 @@ private:
     uint64_t opaqueCounter;
     size_t processTaskId;
     AtomicValue<bool> itemsToProcess;
-    Mutex streamMutex;
+
+    Mutex readyMutex;
     std::list<uint16_t> ready;
+
     passive_stream_t* streams;
     opaque_map opaqueMap_;
+
     rel_time_t lastNoopTime;
     uint32_t backoffs;
     uint32_t noopInterval;

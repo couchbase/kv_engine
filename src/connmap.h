@@ -207,8 +207,17 @@ protected:
 
     connection_t findByName_UNLOCKED(const std::string &name);
 
+    // Synchronises notifying and releasing connections.
+    // Guards modifications to connection_t objects in {map_} / {all}.
+    // See also: {connLock}
     Mutex                                    releaseLock;
+
+    // Synchonises access to the {map_} and {all} members, i.e. adding
+    // removing connections.
+    // Actual modification of the underlying
+    // ConnHandler objects is guarded by {releaseLock}.
     Mutex                                    connsLock;
+
     std::map<const void*, connection_t>      map_;
     std::list<connection_t>                  all;
 
