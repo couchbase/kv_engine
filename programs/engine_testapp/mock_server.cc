@@ -28,6 +28,8 @@ std::array<std::list<mock_callbacks>, MAX_ENGINE_EVENT_TYPE + 1> mock_event_hand
 time_t process_started;     /* when the mock server was started */
 rel_time_t time_travel_offset;
 static cb_mutex_t time_mutex;
+/* ref_mutex to guard references, and object deletion in case references becomes zero */
+static cb_mutex_t ref_mutex;
 struct mock_extensions extensions;
 EXTENSION_LOGGER_DESCRIPTOR *null_logger = NULL;
 EXTENSION_LOGGER_DESCRIPTOR *stderr_logger = NULL;
@@ -125,18 +127,22 @@ static void mock_decrement_session_ctr(void) {
 }
 
 static ENGINE_ERROR_CODE mock_cookie_reserve(const void *cookie) {
+    cb_mutex_enter(&(ref_mutex));
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     c->references++;
+    cb_mutex_exit(&(ref_mutex));
     return ENGINE_SUCCESS;
 }
 
 static ENGINE_ERROR_CODE mock_cookie_release(const void *cookie) {
+    cb_mutex_enter(&(ref_mutex));
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
 
     const int new_rc = --c->references;
     if (new_rc == 0) {
         free(c);
     }
+    cb_mutex_exit(&(ref_mutex));
     return ENGINE_SUCCESS;
 }
 
@@ -413,6 +419,7 @@ void init_mock_server(bool log_to_stderr) {
     session_ctr = 0;
     cb_mutex_initialize(&session_mutex);
     cb_mutex_initialize(&time_mutex);
+    cb_mutex_initialize(&ref_mutex);
 }
 
 const void *create_mock_cookie(void) {
@@ -421,11 +428,13 @@ const void *create_mock_cookie(void) {
 }
 
 void destroy_mock_cookie(const void *cookie) {
+    cb_mutex_enter(&(ref_mutex));
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     disconnect_mock_connection(c);
     if (c->references == 0) {
         free((void*)cookie);
     }
+    cb_mutex_exit(&(ref_mutex));
 }
 
 void mock_set_ewouldblock_handling(const void *cookie, bool enable) {
@@ -459,6 +468,7 @@ void waitfor_mock_cookie(const void *cookie) {
 }
 
 void disconnect_mock_connection(struct mock_connstruct *c) {
+    // ref_mutex already held in calling function
     c->connected = false;
     c->references--;
     mock_perform_callbacks(ON_DISCONNECT, NULL, c);

@@ -24,7 +24,7 @@ struct mock_connstruct {
     bool handle_datatype_support;
     cb_mutex_t mutex;
     cb_cond_t cond;
-    std::atomic<int> references;
+    int references;
 };
 
 struct mock_callbacks {
