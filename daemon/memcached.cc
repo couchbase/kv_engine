@@ -551,16 +551,7 @@ void collect_timings(const Connection *c) {
 
     // Log operations taking longer than 0.5s
     const hrtime_t elapsed_ms = elapsed_ns / (1000 * 1000);
-    if (elapsed_ms > 500) {
-        const char *opcode = memcached_opcode_2_text(c->getCmd());
-        char opcodetext[10];
-        if (opcode == NULL) {
-            snprintf(opcodetext, sizeof(opcodetext), "0x%0X", c->getCmd());
-            opcode = opcodetext;
-        }
-        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %lu ms",
-                    c->getId(), opcode, (unsigned long)elapsed_ms);
-    }
+    c->maybeLogSlowCommand(std::chrono::milliseconds(elapsed_ms));
 }
 
 static void cbsasl_refresh_main(void *c)

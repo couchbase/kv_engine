@@ -1225,3 +1225,32 @@ bool Connection::ensureIovSpace() {
 
     return true;
 }
+
+void Connection::maybeLogSlowCommand(
+    const std::chrono::milliseconds& elapsed) const {
+
+    std::chrono::milliseconds limit(500);
+
+    switch (cmd) {
+    case PROTOCOL_BINARY_CMD_COMPACT_DB:
+        // We have no idea how slow this is, but just set a 30 minute
+        // threshold for now to avoid it popping up in the logs all of
+        // the times
+        limit = std::chrono::milliseconds(1800 * 1000);
+        break;
+    case PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE:
+        // I've heard that this may be slow as well...
+        break;
+    }
+
+    if (elapsed > limit) {
+        const char *opcode = memcached_opcode_2_text(cmd);
+        char opcodetext[10];
+        if (opcode == NULL) {
+            snprintf(opcodetext, sizeof(opcodetext), "0x%0X", cmd);
+            opcode = opcodetext;
+        }
+        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %lu ms",
+                    getId(), opcode, (unsigned long)elapsed.count());
+    }
+}

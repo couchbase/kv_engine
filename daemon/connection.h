@@ -29,6 +29,7 @@
 
 #include <cJSON.h>
 #include <cbsasl/cbsasl.h>
+#include <chrono>
 #include <memcached/openssl.h>
 #include <memory>
 #include <string>
@@ -802,6 +803,16 @@ public:
             commandContext = nullptr;
         }
     }
+
+    /**
+     * Log the current connection if its execution time exceeds the
+     * threshold for the command
+     *
+     * @param elapsed the number of ms elapsed while executing the command
+     *
+     * @todo refactor this into the command object when we introduce them
+     */
+    void maybeLogSlowCommand(const std::chrono::milliseconds &elapsed) const;
 
     /**
      * Set the authentication context to be used by this connection.
