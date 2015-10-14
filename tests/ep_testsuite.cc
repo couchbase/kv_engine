@@ -2926,8 +2926,8 @@ static enum test_result test_memory_tracking(ENGINE_HANDLE *h,
     if (tracker == "true") {
         return SUCCESS;
     } else {
-        std::cerr << "Memory tracker not enabled" << std::endl;
-        return FAIL;
+        std::cerr << "Memory tracker not enabled ...";
+        return SKIPPED;
     }
 }
 
