@@ -471,6 +471,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
         } else {
             supportsCursorDropping = false;
         }
+        return ENGINE_SUCCESS;
     } else if (strncmp(param, "set_noop_interval", nkey) == 0) {
         if (parseUint32(valueStr.c_str(), &noopCtx.noopInterval)) {
             return ENGINE_SUCCESS;
