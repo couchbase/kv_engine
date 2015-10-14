@@ -96,6 +96,23 @@
         "peername": "",
         "sockname": ""
       }
+    },
+    {  "id" : 20485,
+      "name" : "authentication succeeded",
+      "description" : "Authentication to the cluster succeeded",
+      "sync" : false,
+      "enabled" : false,
+      "mandatory_fields" : {
+        "timestamp" : "",
+        "real_userid" : {
+          "source" : "",
+          "user" : ""
+        }
+      },
+      "optional_fields" : {
+        "peername" : "",
+        "sockname" : ""
+      }
     }
   ]
 }

@@ -70,6 +70,13 @@ void audit_auth_failure(const Connection *c, const char *reason) {
              "Failed to send AUTH FAILED audit event");
 }
 
+void audit_auth_success(const Connection *c) {
+    cJSON *root = create_memcached_audit_object(c);
+    do_audit(c, MEMCACHED_AUDIT_AUTHENTICATION_SUCCEEDED, root,
+             "Failed to send AUTH SUCCESS audit event");
+}
+
+
 void audit_bucket_flush(const Connection *c, const char *bucket) {
     cJSON *root = create_memcached_audit_object(c);
     cJSON_AddStringToObject(root, "bucket", bucket);

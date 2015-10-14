@@ -29,6 +29,13 @@ extern "C" {
     void audit_auth_failure(const Connection *c, const char *reason);
 
     /**
+     * Send an audit event for a successful authentication
+     *
+     * @param c the connection object performing the sasl auth
+     */
+    void audit_auth_success(const Connection *c);
+
+    /**
      * Send an audit event for bucket flush
      * @param c the connection performing the operation
      * @param bucket the name of the bucket
