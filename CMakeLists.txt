@@ -194,7 +194,6 @@ CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp2.pem COPYONLY)
 CONFIGURE_FILE(tests/cert/testapp.cert tests/cert/testapp2.cert COPYONLY)
 
 ADD_SUBDIRECTORY(tests)
-ADD_SUBDIRECTORY(man)
 
 ENABLE_CODE_COVERAGE_REPORT()
 
