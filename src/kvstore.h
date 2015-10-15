@@ -76,11 +76,14 @@ typedef struct {
     std::string keyStr;
 } expiredItemCtx;
 
+typedef uint16_t DBFileId;
+
 typedef struct {
     uint64_t purge_before_ts;
     uint64_t purge_before_seq;
     uint64_t max_purged_seq;
     uint8_t  drop_deletes;
+    DBFileId db_file_id;
     uint32_t curr_time;
     shared_ptr<Callback<std::string&, bool&> > bloomFilterCallback;
     shared_ptr<Callback<std::string&, uint64_t&> > expiryCallback;
@@ -517,11 +520,10 @@ public:
                                  bool persist = true) = 0;
 
     /**
-     * Compact a vbucket file.
+     * Compact a database file.
      */
-    virtual bool compactVBucket(const uint16_t vbid,
-                                compaction_ctx *c,
-                                Callback<kvstats_ctx> &kvcb) = 0;
+    virtual bool compactDB(compaction_ctx *c,
+                           Callback<kvstats_ctx> &kvcb) = 0;
 
     virtual vbucket_state *getVBucketState(uint16_t vbid) = 0;
 

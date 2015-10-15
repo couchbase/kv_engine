@@ -782,11 +782,10 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
     return COUCHSTORE_COMPACT_KEEP_ITEM;
 }
 
-bool CouchKVStore::compactVBucket(const uint16_t vbid,
-                                  compaction_ctx *hook_ctx,
-                                  Callback<kvstats_ctx> &kvcb) {
+bool CouchKVStore::compactDB(compaction_ctx *hook_ctx,
+                             Callback<kvstats_ctx> &kvcb) {
     if (isReadOnly()) {
-        throw std::logic_error("CouchKVStore::compactVBucket: Cannot perform "
+        throw std::logic_error("CouchKVStore::compactDB: Cannot perform "
                         "on a read-only instance.");
     }
 
@@ -795,8 +794,6 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     const couch_file_ops     *def_iops = couchstore_get_default_file_ops();
     Db                      *compactdb = NULL;
     Db                       *targetDb = NULL;
-    uint64_t                   fileRev = dbFileRevMap[vbid];
-    uint64_t                   new_rev = fileRev + 1;
     couchstore_error_t         errCode = COUCHSTORE_SUCCESS;
     hrtime_t                     start = gethrtime();
     std::string                 dbfile;
@@ -804,6 +801,9 @@ bool CouchKVStore::compactVBucket(const uint16_t vbid,
     std::string               new_file;
     kvstats_ctx                  kvctx;
     DbInfo                        info;
+    uint16_t                      vbid = hook_ctx->db_file_id;
+    uint64_t                   fileRev = dbFileRevMap[vbid];
+    uint64_t                   new_rev = fileRev + 1;
 
     // Open the source VBucket database file ...
     errCode = openDB(vbid, fileRev, &compactdb,

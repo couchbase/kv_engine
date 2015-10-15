@@ -283,17 +283,14 @@ private:
 /**
  * A task for compacting a vbucket db file
  */
-class CompactVBucketTask : public GlobalTask {
+class CompactTask : public GlobalTask {
 public:
-    CompactVBucketTask(EventuallyPersistentEngine *e, const Priority &p,
-                uint16_t vbucket, compaction_ctx c, const void *ck,
+    CompactTask(EventuallyPersistentEngine *e, const Priority &p,
+                compaction_ctx c, const void *ck,
                 bool completeBeforeShutdown = false) :
                 GlobalTask(e, p, 0, completeBeforeShutdown),
-                           vbid(vbucket), compactCtx(c), cookie(ck)
-    {
-        std::stringstream ss;
-        ss<<"Compact VBucket "<<vbid;
-        desc = ss.str();
+                           compactCtx(c), cookie(ck) {
+        desc = "Compact DB file " + std::to_string(c.db_file_id);
     }
 
     bool run();
@@ -303,7 +300,6 @@ public:
     }
 
 private:
-    uint16_t vbid;
     compaction_ctx compactCtx;
     const void* cookie;
     std::string desc;

@@ -1111,9 +1111,8 @@ void ForestKVStore::destroyScanContext(ScanContext* ctx) {
     delete ctx;
 }
 
-bool ForestKVStore::compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
-                                   Callback<kvstats_ctx> &kvcb) {
-    return true;
+bool ForestKVStore::compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb) {
+    return false;
 }
 
 size_t ForestKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,

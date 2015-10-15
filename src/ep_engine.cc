@@ -1018,6 +1018,17 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
+    /**
+     * TODO: This function returns vbucket id as couchstore is the only
+     * supported backend. Once forestdb is supported, this function
+     * should return the database file id (shard id) from the request
+     * header
+     */
+    static uint16_t getDbFileId(EventuallyPersistentEngine *e,
+                                protocol_binary_request_compact_db *req) {
+        return ntohs(req->message.header.request.vbucket);
+    }
+
     static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine *e,
                                        const void *cookie,
                                        protocol_binary_request_compact_db *req,
@@ -1026,14 +1037,13 @@ extern "C" {
         std::string msg = "";
         protocol_binary_response_status res = PROTOCOL_BINARY_RESPONSE_SUCCESS;
         compaction_ctx compactreq;
-        uint16_t vbucket = ntohs(req->message.header.request.vbucket);
         uint64_t cas = ntohll(req->message.header.request.cas);
 
         if (ntohs(req->message.header.request.keylen) > 0 ||
              req->message.header.request.extlen != 24) {
             LOG(EXTENSION_LOG_WARNING,
-                    "Compaction of vbucket %d received bad ext/key len %d/%d.",
-                    vbucket, req->message.header.request.extlen,
+                    "Compaction received bad ext/key len %d/%d.",
+                    req->message.header.request.extlen,
                     ntohs(req->message.header.request.keylen));
             msg = "Incorrect packet format.";
             return sendResponse(response, NULL, 0, NULL, 0, msg.c_str(),
@@ -1047,13 +1057,14 @@ extern "C" {
         compactreq.purge_before_seq =
                                     ntohll(req->message.body.purge_before_seq);
         compactreq.drop_deletes     = req->message.body.drop_deletes;
+        compactreq.db_file_id       = getDbFileId(e, req);
 
         ENGINE_ERROR_CODE err;
         void* es = e->getEngineSpecific(cookie);
         if (es == NULL) {
             ++stats.pendingCompactions;
             e->storeEngineSpecific(cookie, e);
-            err = e->compactDB(vbucket, compactreq, cookie);
+            err = e->compactDB(compactreq, cookie);
         } else {
             e->storeEngineSpecific(cookie, NULL);
             err = ENGINE_SUCCESS;
@@ -1062,33 +1073,38 @@ extern "C" {
         switch (err) {
             case ENGINE_SUCCESS:
                 LOG(EXTENSION_LOG_NOTICE,
-                    "Compaction of vbucket %d completed.", vbucket);
+                    "Compaction of db file id: %d completed.", compactreq.db_file_id);
                 break;
             case ENGINE_NOT_MY_VBUCKET:
                 --stats.pendingCompactions;
-                LOG(EXTENSION_LOG_WARNING, "Compaction of vbucket %d failed "
-                    "because the vbucket doesn't exist!!!", vbucket);
+                LOG(EXTENSION_LOG_WARNING, "Compaction of db file id: %d failed "
+                    "because the db file doesn't exist!!!", compactreq.db_file_id);
                 res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
                 break;
+            case ENGINE_EINVAL:
+                --stats.pendingCompactions;
+                LOG(EXTENSION_LOG_WARNING, "Compaction of db file id: %d failed "
+                    "because of an invalid argument", compactreq.db_file_id);
+                res = PROTOCOL_BINARY_RESPONSE_EINVAL;
+                break;
             case ENGINE_EWOULDBLOCK:
-                LOG(EXTENSION_LOG_INFO, "Request to compact vbucket %d is "
+                LOG(EXTENSION_LOG_INFO, "Request to compact db file id: %d is "
                         "in EWOULDBLOCK state until the database file is "
-                        "compacted on disk",
-                        vbucket);
+                        "compacted on disk", compactreq.db_file_id);
                 e->storeEngineSpecific(cookie, req);
                 return ENGINE_EWOULDBLOCK;
             case ENGINE_TMPFAIL:
-                LOG(EXTENSION_LOG_WARNING, "Request to compact vbucket %d hit"
+                LOG(EXTENSION_LOG_WARNING, "Request to compact db file id: %d hit"
                         " a temporary failure and may need to be retried",
-                        vbucket);
-                msg = "Temporary failure in compacting vbucket.";
+                        compactreq.db_file_id);
+                msg = "Temporary failure in compacting db file.";
                 res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
                 break;
             default:
                 --stats.pendingCompactions;
-                LOG(EXTENSION_LOG_WARNING, "Compaction of vbucket %d failed "
-                    "because of unknown reasons\n", vbucket);
-                msg = "Failed to compact vbucket.  Unknown reason.";
+                LOG(EXTENSION_LOG_WARNING, "Compaction of db file id: %d failed "
+                    "because of unknown reasons\n", compactreq.db_file_id);
+                msg = "Failed to compact db file.  Unknown reason.";
                 res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
                 break;
         }

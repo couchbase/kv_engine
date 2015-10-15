@@ -90,8 +90,8 @@ bool VBDeleteTask::run() {
     return !engine->getEpStore()->completeVBucketDeletion(vbucketId, cookie);
 }
 
-bool CompactVBucketTask::run() {
-    return engine->getEpStore()->compactVBucket(vbid, &compactCtx, cookie);
+bool CompactTask::run() {
+    return engine->getEpStore()->doCompact(&compactCtx, cookie);
 }
 
 bool StatSnap::run() {

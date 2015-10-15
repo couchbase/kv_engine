@@ -344,25 +344,25 @@ public:
     /**
      * Persist a snapshot of the vbucket states in the underlying storage system.
      *
-     * @param vbucketId vbucket id
-     * @param vbstate vbucket state
-     * @param cb - call back for updating kv stats
+     * @param vbucketId - vbucket id
+     * @param vbstate   - vbucket state
+     * @param cb        - call back for updating kv stats
+     * @param persist   - whether to persist snapshot state or not
      * @return true if the snapshot is done successfully
      */
     bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
                          Callback<kvstats_ctx> *cb, bool persist);
 
      /**
-     * Compact a vbucket in the underlying storage system.
+     * Compact a database file in the underlying storage system.
      *
-     * @param vbid   - which vbucket needs to be compacted
-     * @param hook_ctx - details of vbucket which needs to be compacted
-     * @param cb - callback to help process newly expired items
+     * @param ctx - compaction context that holds the identifier of the
+                    underlying database file, options and callbacks
+                    that need to invoked.
      * @param kvcb - callback to update kvstore stats
      * @return true if successful
      */
-    bool compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
-                        Callback<kvstats_ctx> &kvcb);
+    bool compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb);
 
     vbucket_state *getVBucketState(uint16_t vbid);
 

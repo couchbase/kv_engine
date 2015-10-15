@@ -548,24 +548,38 @@ public:
     ENGINE_ERROR_CODE deleteVBucket(uint16_t vbid, const void* c = NULL);
 
     /**
+     * Check for the existence of a vbucket in the case of couchstore
+     * or shard in the case of forestdb. Note that this function will be
+     * deprecated once forestdb is the only backend supported
+     *
+     * @param db_file_id vbucketid for couchstore or shard id in the
+     *                   case of forestdb
+     */
+    ENGINE_ERROR_CODE checkForDBExistence(uint16_t db_file_id);
+
+    /**
      * Triggers compaction of a vbucket
      *
-     * @param vbid The vbucket to compact.
      * @param c The context for compaction of a DB file
      * @param ck cookie used to notify connection of operation completion
      */
-    ENGINE_ERROR_CODE compactDB(uint16_t vbid, compaction_ctx c,
-                                const void *ck);
+    ENGINE_ERROR_CODE compactDB(compaction_ctx c, const void *ck);
 
     /**
      * Callback to do the compaction of a vbucket
      *
-     * @param vbid The Id of the VBucket which needs to be compacted
      * @param ctx Context for couchstore compaction hooks
      * @param ck cookie used to notify connection of operation completion
      */
-    bool compactVBucket(const uint16_t vbid, compaction_ctx *ctx,
-                        const void *ck);
+    bool doCompact(compaction_ctx *ctx, const void *ck);
+
+    /**
+     * Remove completed compaction tasks or wake snoozed tasks
+     *
+     * @param db_file_id vbucket id for couchstore or shard id in the
+     *                   case of forestdb
+     */
+    void updateCompactionTasks(uint16_t db_file_id);
 
     /**
      * Reset a given vbucket from memory and disk. This differs from vbucket deletion in that

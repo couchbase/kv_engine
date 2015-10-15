@@ -1459,18 +1459,38 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
-                                                       compaction_ctx c,
+ENGINE_ERROR_CODE EventuallyPersistentStore::checkForDBExistence(DBFileId db_file_id) {
+    std::string backend = engine.getConfiguration().getBackend();
+    if (backend.compare("couchdb") == 0) {
+        RCPtr<VBucket> vb = vbMap.getBucket(db_file_id);
+        if (!vb) {
+            return ENGINE_NOT_MY_VBUCKET;
+        }
+    } else if (backend.compare("forestdb") == 0) {
+        if (db_file_id > (vbMap.getNumShards() - 1)) {
+            //TODO: find a better error code
+            return ENGINE_EINVAL;
+        }
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+            "Unknown backend specified for db file id: %d", db_file_id);
+        return ENGINE_FAILED;
+    }
+
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(compaction_ctx c,
                                                        const void *cookie) {
-    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-    if (!vb) {
-        return ENGINE_NOT_MY_VBUCKET;
+    ENGINE_ERROR_CODE errCode = checkForDBExistence(c.db_file_id);
+    if (errCode != ENGINE_SUCCESS) {
+        return errCode;
     }
 
     LockHolder lh(compactionLock);
-    ExTask task = new CompactVBucketTask(&engine, Priority::CompactorPriority,
-                                         vbid, c, cookie);
-    compactionTasks.push_back(std::make_pair(vbid, task));
+    ExTask task = new CompactTask(&engine, Priority::CompactorPriority,
+                                  c, cookie);
+    compactionTasks.push_back(std::make_pair(c.db_file_id, task));
     if (compactionTasks.size() > 1) {
         if ((stats.diskQueueSize > compactionWriteQueueCap &&
             compactionTasks.size() > (vbMap.getNumShards() / 2)) ||
@@ -1484,10 +1504,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
     ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
 
     LOG(EXTENSION_LOG_DEBUG,
-        "Scheduled compaction task %" PRIu64 " on vbucket %d,"
+        "Scheduled compaction task %" PRIu64 " on db %d,"
         "purge_before_ts = %" PRIu64 ", purge_before_seq = %" PRIu64
         ", dropdeletes = %d",
-        uint64_t(task->getId()), vbid, c.purge_before_ts,
+        uint64_t(task->getId()),c.db_file_id, c.purge_before_ts,
         c.purge_before_seq, c.drop_deletes);
 
    return ENGINE_EWOULDBLOCK;
@@ -1512,10 +1532,10 @@ class ExpiredItemsCallback : public Callback<std::string&, uint64_t&> {
         time_t startTime;
 };
 
-bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
-                                               compaction_ctx *ctx,
-                                               const void *cookie) {
+bool EventuallyPersistentStore::doCompact(compaction_ctx *ctx,
+                                          const void *cookie) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
+    const uint16_t vbid = ctx->db_file_id;
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
         LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
@@ -1590,11 +1610,11 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
             ctx->curr_time = 0;
         }
         shared_ptr<Callback<std::string&, uint64_t&> >
-            expiry(new ExpiredItemsCallback(this, vbid, ctx->curr_time));
+           expiry(new ExpiredItemsCallback(this, vbid, ctx->curr_time));
         ctx->expiryCallback = expiry;
 
         KVStatsCallback kvcb(this);
-        if (getRWUnderlying(vbid)->compactVBucket(vbid, ctx, kvcb)) {
+        if (getRWUnderlying(vbid)->compactDB(ctx, kvcb)) {
             if (config.isBfilterEnabled()) {
                 vb->swapFilter();
             } else {
@@ -1612,14 +1632,23 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
         //Decrement session counter here, as memcached thread wouldn't
         //visit the engine interface in case of a NOT_MY_VB notification
         engine.decrementSessionCtr();
-
     }
 
+    updateCompactionTasks(ctx->db_file_id);
+
+    if (cookie) {
+        engine.notifyIOComplete(cookie, err);
+    }
+    --stats.pendingCompactions;
+    return false;
+}
+
+void EventuallyPersistentStore::updateCompactionTasks(DBFileId db_file_id) {
     LockHolder lh(compactionLock);
     bool erased = false, woke = false;
     std::list<CompTaskEntry>::iterator it = compactionTasks.begin();
     while (it != compactionTasks.end()) {
-        if ((*it).first == vbid) {
+        if ((*it).first == db_file_id) {
             it = compactionTasks.erase(it);
             erased = true;
         } else {
@@ -1634,13 +1663,6 @@ bool EventuallyPersistentStore::compactVBucket(const uint16_t vbid,
             break;
         }
     }
-    lh.unlock();
-
-    if (cookie) {
-        engine.notifyIOComplete(cookie, err);
-    }
-    --stats.pendingCompactions;
-    return false;
 }
 
 bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {

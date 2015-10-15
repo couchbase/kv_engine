@@ -209,16 +209,13 @@ class ForestKVStore : public KVStore
                          Callback<kvstats_ctx> *cb, bool persist);
 
     /**
-     * Compact a vbucket in the underlying storage system.
+     * Compact a forestdb database file
      *
-     * @param vbid   - which vbucket needs to be compacted
-     * @param hook_ctx - details of vbucket which needs to be compacted
-     * @param cb - callback to help process newly expired items
-     * @param kvcb - callback to update kvstore stats
-     * @return true if successful
+     * @param ctx  - compaction context containing callback hooks
+     * @param kvcb - callback to update KV store stats
+     * @return false if the compaction fails; true if successful
      */
-    bool compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
-                        Callback<kvstats_ctx> &kvcb);
+    bool compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb);
 
     vbucket_state *getVBucketState(uint16_t vbid);
 
