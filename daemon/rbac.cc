@@ -366,7 +366,6 @@ void RBACManager::initializeProfiles(cJSON *root) {
             ss << ptr;
             cJSON_Free(ptr);
             throw ss.str();
-            throw ss.str();
         }
 
         Profile entry;
