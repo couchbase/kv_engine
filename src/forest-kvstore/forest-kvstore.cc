@@ -916,9 +916,9 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
      lh.unlock();
 
      fdb_iterator_opt_t options;
-     fdb_iterator *fdb_iter;
+     fdb_iterator *fdb_iter = NULL;
      fdb_status status;
-     fdb_doc *rdoc = NULL;
+     fdb_doc *rdoc;
 
      shared_ptr<Callback<GetValue> > cb = ctx->callback;
      shared_ptr<Callback<CacheLookup> > cl = ctx->lookup;
@@ -954,6 +954,19 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          return scan_failed;
      }
 
+     status = fdb_doc_create(&rdoc, NULL, 0, NULL, 0, NULL, 0);
+     if (status != FDB_RESULT_SUCCESS) {
+         LOG(EXTENSION_LOG_WARNING,
+             "ForestDB doc creation failed with error: %s",
+             fdb_error_msg(status));
+         fdb_iterator_close(fdb_iter);
+         return scan_failed;
+     }
+     // Pre-allocate key and meta data as their max sizes are known.
+     rdoc->key = malloc(MAX_KEY_LENGTH);
+     rdoc->meta = malloc(FORESTDB_METADATA_SIZE);
+     // Document body will be allocated by fdb_iterator_get API below.
+     rdoc->body = NULL;
      do {
          status = fdb_iterator_get(fdb_iter, &rdoc);
          if (status != FDB_RESULT_SUCCESS) {
@@ -970,7 +983,8 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          cl->callback(lookup);
          if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
              ctx->lastReadSeqno = static_cast<uint64_t>(rdoc->seqnum);
-             fdb_doc_free(rdoc);
+             free(rdoc->body);
+             rdoc->body = NULL;
              continue;
          } else if (cl->getStatus() == ENGINE_ENOMEM) {
              fdb_doc_free(rdoc);
@@ -1018,17 +1032,20 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);
          cb->callback(rv);
 
-         fdb_doc_free(rdoc);
+         free(rdoc->body);
+         rdoc->body = NULL;
 
          if (cb->getStatus() == ENGINE_ENOMEM) {
+             fdb_doc_free(rdoc);
              fdb_iterator_close(fdb_iter);
              return scan_again;
          }
 
          ctx->lastReadSeqno = bySeqno;
-         rdoc = NULL;
      } while (fdb_iterator_next(fdb_iter) == FDB_RESULT_SUCCESS);
 
+     fdb_doc_free(rdoc);
+     rdoc = NULL;
      fdb_iterator_close(fdb_iter);
 
      return scan_success;
