@@ -588,6 +588,16 @@ static SOCKET create_connect_plain_socket(in_port_t port)
 
        freeaddrinfo(ai);
     }
+
+    int nodelay_flag = 1;
+#if defined(WIN32)
+    char* ptr = reinterpret_cast<char*>(&nodelay_flag);
+#else
+    void* ptr = reinterpret_cast<void*>(&nodelay_flag);
+#endif
+    EXPECT_EQ(0, setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, ptr,
+                            sizeof(nodelay_flag)));
+
     return sock;
 }
 
