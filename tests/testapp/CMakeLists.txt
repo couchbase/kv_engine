@@ -25,7 +25,12 @@ target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 ADD_TEST(NAME memcached-basic-unit-tests-bulk
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp
-                    --gtest_filter=*-PlainOrSSL/*:*PerfTest.*:ShutdownTest.*)
+                    --gtest_filter=*-PlainOrSSL/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*)
+
+ADD_TEST(NAME memcached-basic-unit-tests-require-init
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=RequireInitTest.*)
+
 
 # Run the unit tests for the memcached binary protocol over a plain socket
 ADD_TEST(NAME memcached-mcbp-unit-tests-plain
@@ -51,6 +56,7 @@ ADD_TEST(NAME memcached-basic-perf-tests
 # Test timeouts. Roughly calibrated to be 2x what the expected time is on the
 # slowest Jenkins platform/config.
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 30)
+SET_TESTS_PROPERTIES(memcached-basic-unit-tests-require-init PROPERTIES TIMEOUT 200)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-plain PROPERTIES TIMEOUT 200)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-shutdown-tests PROPERTIES TIMEOUT 60)
