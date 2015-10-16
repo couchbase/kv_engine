@@ -805,6 +805,33 @@ std::vector<vbucket_state *> ForestKVStore::listPersistedVbuckets(void) {
     return cachedVBStates;
 }
 
+size_t ForestKVStore::getNumPersistedDeletes(uint16_t vbid) {
+    size_t delCount = cachedDeleteCount[vbid];
+    if (delCount != (size_t) -1) {
+        return delCount;
+    }
+
+    fdb_kvs_handle *kvsHandle = getKvsHandle(vbid, handleType::READER);
+    if (!kvsHandle) {
+        std::string err("Failed to get reader KV store handle for vbucket:" +
+                        std::to_string(static_cast<int>(vbid)) +
+                        " in ForestKVStore::getNumPersistedDeletes");
+        throw std::invalid_argument(err);
+    }
+
+    fdb_kvs_info kvsInfo;
+    fdb_status status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
+    if (status != FDB_RESULT_SUCCESS) {
+        std::string err("Failed to retrieve KV store info with error:" +
+            std::string(fdb_error_msg(status)) + "vbucket id:" +
+            std::to_string(static_cast<int>(vbid)) +
+            " in ForestKVStore::getNumPersistedDeletes");
+        throw std::runtime_error(err);
+    }
+
+    return kvsInfo.deleted_count;
+}
+
 DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
     DBFileInfo dbInfo;
     fdb_file_info fileInfo;
@@ -1082,11 +1109,10 @@ size_t ForestKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,
     status = fdb_iterator_sequence_init(kvsHandle, &fdb_iter, min_seq,
                                         max_seq, FDB_ITR_NONE);
     if (status != FDB_RESULT_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "ForestDB iterator initialization failed with error: %s "
-            "in ForestKVStore::getNumItems",
-            fdb_error_msg(status));
-        return 0;
+        std::string err("ForestDB iterator initialization failed with "
+            "error: " + std::string(fdb_error_msg(status)) +
+            " in ForestKVStore::getNumItems");
+        throw std::runtime_error(err);
     }
 
     do {

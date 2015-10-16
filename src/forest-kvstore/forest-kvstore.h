@@ -234,6 +234,15 @@ class ForestKVStore : public KVStore
     size_t getNumItems(uint16_t vbid, uint64_t min_seq, uint64_t max_seq);
 
     /**
+     * Get the number of deleted items that are persisted to a vbucket KVStore
+     * instance
+     *
+     * @param vbid The vbucket id of the file to get the number of deletes
+     * @return number of persisted deletes for the given vbucket
+     */
+    size_t getNumPersistedDeletes(uint16_t vbid);
+
+    /**
      * Do a rollback to the specified sequence number on the particular vbucket
      *
      * @param vbid          The vbucket id to be rolled back
