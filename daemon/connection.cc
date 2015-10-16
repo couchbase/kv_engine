@@ -191,9 +191,7 @@ static std::string sockaddr_to_string(const struct sockaddr_storage* addr,
                           port, sizeof(port),
                           NI_NUMERICHOST | NI_NUMERICSERV);
     if (err != 0) {
-        LOG_WARNING(NULL,
-                                        "getnameinfo failed with error %d",
-                                        err);
+        LOG_WARNING(NULL, "getnameinfo failed with error %d", err);
         return NULL;
     }
 
