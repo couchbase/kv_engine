@@ -579,24 +579,6 @@ size_t VBucket::getNumOfKeysInFilter() {
     }
 }
 
-void VBucket::addPersistenceNotification(shared_ptr<Callback<uint64_t> > cb) {
-    LockHolder lh(persistedNotificationsMutex);
-    persistedNotifications.push_back(cb);
-}
-
-void VBucket::notifySeqnoPersisted(uint64_t highSeqno) {
-    LockHolder lh(persistedNotificationsMutex);
-    std::list<shared_ptr<Callback<uint64_t>> >::iterator itr =
-                                                persistedNotifications.begin();
-    for (; itr != persistedNotifications.end(); ++itr) {
-        shared_ptr<Callback<uint64_t> > cb = *itr;
-        cb->callback(highSeqno);
-        if (cb->getStatus() == ENGINE_SUCCESS) {
-            persistedNotifications.erase(itr);
-        }
-    }
-}
-
 uint64_t VBucket::nextHLCCas() {
     int64_t adjusted_time = gethrtime();
     uint64_t final_adjusted_time = 0;

@@ -449,9 +449,6 @@ public:
         return true;
     }
 
-    void addPersistenceNotification(shared_ptr<Callback<uint64_t> > cb);
-    void notifySeqnoPersisted(uint64_t highseqno);
-
     void incrRollbackItemCount(uint64_t val) {
         rollbackItemCount.fetch_add(val, std::memory_order_relaxed);
     }
@@ -535,14 +532,6 @@ private:
     Mutex bfMutex;
     BloomFilter *bFilter;
     BloomFilter *tempFilter;    // Used during compaction.
-
-    /**
-     * The following list is to contain pending notifications
-     * that need to be alerted whenever the desired sequence
-     * numbers have been persisted.
-     */
-    Mutex persistedNotificationsMutex;
-    std::list<shared_ptr<Callback<uint64_t>> > persistedNotifications;
 
     AtomicValue<uint64_t> rollbackItemCount;
 

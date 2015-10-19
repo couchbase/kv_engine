@@ -3351,7 +3351,6 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 if (highSeqno > 0 &&
                     highSeqno != vbMap.getPersistenceSeqno(vbid)) {
                     vbMap.setPersistenceSeqno(vbid, highSeqno);
-                    vb->notifySeqnoPersisted(highSeqno);
                 }
             }
         }
