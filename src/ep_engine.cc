@@ -5784,6 +5784,19 @@ EventuallyPersistentEngine::setClusterConfig(const void* cookie,
         lh.unlock();
     }
 
+    // clusterConfig is opaque to ep-engine, but typically there is a rev id
+    // at the start of it. Print the first 100 bytes which hopefully includes
+    // helpful identifying information.
+    const int CONFIG_LIMIT = 100;
+    if (clusterConfig.len > CONFIG_LIMIT) {
+        LOG(EXTENSION_LOG_WARNING, "Updated cluster configuration - first %d "
+                "bytes: '%.*s'...\n", CONFIG_LIMIT, CONFIG_LIMIT,
+                clusterConfig.config);
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "Updated cluster configuration: '%.*s'\n",
+            clusterConfig.len, clusterConfig.config);
+    }
+
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, cas, cookie);
