@@ -713,7 +713,7 @@ public:
     CompareQueuedItemsBySeqnoAndKey() {}
     bool operator()(const queued_item &i1, const queued_item &i2) {
         return i1->getKey() == i2->getKey()
-            ? i1->getBySeqno() < i2->getBySeqno()
+            ? i1->getBySeqno() > i2->getBySeqno()
             : i1->getKey() < i2->getKey();
     }
 };
