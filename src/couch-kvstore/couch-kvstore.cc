@@ -1130,13 +1130,27 @@ ScanContext* CouchKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
         abort();
     }
 
+    uint64_t count = 0;
+    errorCode = couchstore_changes_count(db,
+                                         startSeqno,
+                                         std::numeric_limits<uint64_t>::max(),
+                                         &count);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        std::string err("Failed to obtain changes count" +
+                        std::to_string(errorCode));
+        LOG(EXTENSION_LOG_WARNING, "%s", err.c_str());
+        closeDatabaseHandle(db);
+        throw std::runtime_error(err);
+    }
+
     size_t backfillId = backfillCounter++;
 
     LockHolder lh(backfillLock);
     backfills[backfillId] = db;
 
     return new ScanContext(cb, cl, vbid, backfillId, startSeqno,
-                           info.last_sequence, options, valOptions);
+                           info.last_sequence, options,
+                           valOptions, count);
 }
 
 scan_error_t CouchKVStore::scan(ScanContext* ctx) {

@@ -158,11 +158,6 @@ backfill_status_t DCPBackfill::create() {
     }
 
     KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
-    size_t numItems = kvstore->getNumItems(vbid, startSeqno,
-                                           std::numeric_limits<uint64_t>::max());
-
-    as->incrBackfillRemaining(numItems);
-
     bool getCompressed = as->isCompressionEnabled();
 
     shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));
@@ -172,7 +167,9 @@ backfill_status_t DCPBackfill::create() {
                                        getCompressed
                                         ? ValueFilter::VALUES_COMPRESSED
                                         : ValueFilter::VALUES_DECOMPRESSED);
+
     if (scanCtx) {
+        as->incrBackfillRemaining(scanCtx->documentCount);
         as->markDiskSnapshot(startSeqno, scanCtx->maxSeqno);
         transitionState(backfill_state_scanning);
     } else {

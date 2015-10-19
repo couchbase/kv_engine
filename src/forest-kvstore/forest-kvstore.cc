@@ -916,12 +916,16 @@ ScanContext* ForestKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
     }
 
     size_t backfillId = backfillCounter++;
+    size_t count = getNumItems(kvsHandle,
+                               startSeqno,
+                               std::numeric_limits<uint64_t>::max());
 
     LockHolder lh(backfillLock);
     backfills[backfillId] = kvsHandle;
 
     return new ScanContext(cb, cl, vbid, backfillId, startSeqno,
-                           (uint64_t)kvsInfo.last_seqnum, options, valOptions);
+                           (uint64_t)kvsInfo.last_seqnum, options,
+                           valOptions, count);
 }
 
 scan_error_t ForestKVStore::scan(ScanContext *ctx) {
@@ -1101,13 +1105,18 @@ bool ForestKVStore::compactVBucket(const uint16_t vbid, compaction_ctx *cookie,
 
 size_t ForestKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,
                                   uint64_t max_seq) {
-    size_t totalCount = 0;
-    fdb_status status;
     fdb_kvs_handle *kvsHandle = NULL;
-    fdb_iterator *fdb_iter;
     kvsHandle = getKvsHandle(vbid, handleType::READER);
-    status = fdb_iterator_sequence_init(kvsHandle, &fdb_iter, min_seq,
-                                        max_seq, FDB_ITR_NONE);
+    return getNumItems(kvsHandle, min_seq, max_seq);
+}
+
+size_t ForestKVStore::getNumItems(fdb_kvs_handle* kvsHandle,
+                                  uint64_t min_seq,
+                                  uint64_t max_seq) {
+    size_t totalCount = 0;
+    fdb_iterator* fdb_iter = nullptr;
+    fdb_status status = fdb_iterator_sequence_init(kvsHandle, &fdb_iter, min_seq,
+                                                   max_seq, FDB_ITR_NONE);
     if (status != FDB_RESULT_SUCCESS) {
         std::string err("ForestDB iterator initialization failed with "
             "error: " + std::string(fdb_error_msg(status)) +

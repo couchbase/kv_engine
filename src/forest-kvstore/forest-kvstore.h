@@ -319,6 +319,9 @@ private:
     GetValue docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc, uint16_t vbId,
                        bool metaOnly = false, bool fetchDelete = false);
     ENGINE_ERROR_CODE forestErr2EngineErr(fdb_status errCode);
+    size_t getNumItems(fdb_kvs_handle* kvsHandle,
+                       uint64_t min_seq,
+                       uint64_t max_seq);
 };
 
 #endif  // SRC_FOREST_KVSTORE_FOREST_KVSTORE_H_

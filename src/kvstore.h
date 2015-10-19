@@ -212,10 +212,10 @@ public:
                 shared_ptr<Callback<CacheLookup> > cl,
                 uint16_t vb, size_t id, uint64_t start,
                 uint64_t end, DocumentFilter _docFilter,
-                ValueFilter _valFilter)
+                ValueFilter _valFilter, uint64_t _documentCount)
     : callback(cb), lookup(cl), lastReadSeqno(0), startSeqno(start),
       maxSeqno(end), scanId(id), vbid(vb), docFilter(_docFilter),
-      valFilter(_valFilter) {}
+      valFilter(_valFilter), documentCount(_documentCount) {}
 
     ~ScanContext() {}
 
@@ -229,6 +229,7 @@ public:
     const uint16_t vbid;
     const DocumentFilter docFilter;
     const ValueFilter valFilter;
+    const uint64_t documentCount;
 };
 
 // First bool is true if an item exists in VB DB file.
