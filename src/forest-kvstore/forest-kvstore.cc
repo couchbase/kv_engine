@@ -208,8 +208,8 @@ void ForestKVStore::close() {
     intransaction = false;
 }
 
-void ForestKVStore::readVBState(uint16_t vbId) {
-    fdb_status status;
+ENGINE_ERROR_CODE ForestKVStore::readVBState(uint16_t vbId) {
+    fdb_status status = FDB_RESULT_SUCCESS;
     vbucket_state_t state = vbucket_state_dead;
     uint64_t checkpointId = 0;
     uint64_t maxDeletedSeqno = 0;
@@ -224,15 +224,18 @@ void ForestKVStore::readVBState(uint16_t vbId) {
     fdb_kvs_handle *kvsHandle = getKvsHandle(vbId, handleType::READER);
     if (kvsHandle != nullptr) {
         status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
+        //TODO: Update the purge sequence number
         if (status == FDB_RESULT_SUCCESS) {
             highSeqno = static_cast<int64_t>(kvsInfo.last_seqnum);
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to read KV Store info for vbucket = %d", vbId);
+            LOG(EXTENSION_LOG_WARNING, "ForestKVStore::readVBState: Failed to "
+                "read KV Store info for vbucket: %d with error: %s", vbId,
+                fdb_error_msg(status));
+            return forestErr2EngineErr(status);
         }
     } else {
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to get reader handle for vbucket = %d", vbId);
+        LOG(EXTENSION_LOG_WARNING, "ForestKVStore::readVBState: Failed to "
+            "get reader handle for vbucket: %d", vbId);
     }
 
     char keybuf[20];
@@ -244,16 +247,16 @@ void ForestKVStore::readVBState(uint16_t vbId) {
     if (status != FDB_RESULT_SUCCESS) {
         LOG(EXTENSION_LOG_DEBUG,
             "Failed to retrieve stat info for vBucket=%d "
-            "error=%s", vbId, fdb_error_msg(status));
+            "with error=%s", vbId , fdb_error_msg(status));
     } else {
         cJSON *jsonObj = cJSON_Parse((char *)statDoc->body);
 
         if (!jsonObj) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to parse the vbstat json doc for vbucket %d: %s",
-                vbId, (char *)statDoc->body);
             fdb_doc_free(statDoc);
-            abort();
+            LOG(EXTENSION_LOG_WARNING, "ForestKVStore::readVBState: Failed to "
+                "parse the vbstat json doc for vbucket: %d: %s", vbId,
+                (char *)statDoc->body);
+            return forestErr2EngineErr(status);
         }
 
         const std::string vb_state = getJSONObjString(
@@ -281,8 +284,11 @@ void ForestKVStore::readVBState(uint16_t vbId) {
         if (vb_state.compare("") == 0 || checkpoint_id.compare("") == 0
                || max_deleted_seqno.compare("") == 0) {
              LOG(EXTENSION_LOG_WARNING,
-                 "State JSON doc for vbucket %d is in the wrong format: %s",
-                 vbId, (char *)statDoc->body);
+                 "ForestKVStore::readVBState: State JSON "
+                 "doc for vbucket: %d is in the wrong format: %s,"
+                 "vb state: %s, checkpoint id: %s and max deleted seqno: %s",
+                 vbId, (char *)statDoc->body, vb_state.c_str(),
+                 checkpoint_id.c_str(), max_deleted_seqno.c_str());
         } else {
             state = VBucket::fromString(vb_state.c_str());
             parseUint64(max_deleted_seqno.c_str(), &maxDeletedSeqno);
@@ -325,6 +331,7 @@ void ForestKVStore::readVBState(uint16_t vbId) {
                                              maxCas, driftCounter,
                                              failovers);
     fdb_doc_free(statDoc);
+    return forestErr2EngineErr(status);
 }
 
 void ForestKVStore::delVBucket(uint16_t vbucket) {
@@ -813,19 +820,19 @@ size_t ForestKVStore::getNumPersistedDeletes(uint16_t vbid) {
 
     fdb_kvs_handle *kvsHandle = getKvsHandle(vbid, handleType::READER);
     if (!kvsHandle) {
-        std::string err("Failed to get reader KV store handle for vbucket:" +
-                        std::to_string(static_cast<int>(vbid)) +
-                        " in ForestKVStore::getNumPersistedDeletes");
+        std::string err("ForestKVStore::getNumPersistedDeletes: Failed to "
+                        "get reader KV store handle for vbucket:" +
+                        std::to_string(static_cast<int>(vbid)));
         throw std::invalid_argument(err);
     }
 
     fdb_kvs_info kvsInfo;
     fdb_status status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
     if (status != FDB_RESULT_SUCCESS) {
-        std::string err("Failed to retrieve KV store info with error:" +
-            std::string(fdb_error_msg(status)) + "vbucket id:" +
-            std::to_string(static_cast<int>(vbid)) +
-            " in ForestKVStore::getNumPersistedDeletes");
+        std::string err("ForestKVStore::getNumPersistedDeletes:Failed to "
+            "retrieve KV store info with error:" +
+            std::string(fdb_error_msg(status)) + " for vbucket id:" +
+            std::to_string(static_cast<int>(vbid)));
         throw std::runtime_error(err);
     }
 
@@ -841,22 +848,26 @@ DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
 
     status = fdb_get_file_info(dbFileHandle, &fileInfo);
     if (status != FDB_RESULT_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to retrieve database file info");
-        return dbInfo;
+        std::string err("ForestKVStore::getDbFileInfo:Failed to retrieve "
+            "file info with error:" + std::string(fdb_error_msg(status)) +
+            " for vbucket id:" + std::to_string(static_cast<int>(vbId)));
+        throw std::runtime_error(err);
     }
 
     kvsHandle = getKvsHandle(vbId, handleType::READER);
     if (!kvsHandle) {
-        return dbInfo;
+        std::string err("ForestKVStore::getDbFileInfo:Failed to get reader "
+            "KV store handle for vbucket:" +
+            std::to_string(static_cast<int>(vbId)));
+        throw std::invalid_argument(err);
     }
 
     status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
     if (status != FDB_RESULT_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to retrieve KV store info with error: %s",
-            fdb_error_msg(status));
-        return dbInfo;
+        std::string err("ForestKVStore::getDbFileInfo:Failed to retrieve "
+            "KV store info with error:" + std::string(fdb_error_msg(status)) +
+            " vbucket id:" + std::to_string(static_cast<int>(vbId)));
+        throw std::runtime_error(err);
     }
 
     dbInfo.itemCount = kvsInfo.doc_count;
@@ -903,16 +914,19 @@ ScanContext* ForestKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
 
     kvsHandle = getKvsHandle(vbid, handleType::READER);
     if (!kvsHandle) {
-        return NULL;
+        std::string err("ForestKVStore::initScanContext: Failed to get reader "
+                        "KV store handle for vbucket:" +
+                        std::to_string(static_cast<int>(vbid)));
+        throw std::invalid_argument(err);
     }
 
     fdb_kvs_info kvsInfo;
     fdb_status status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
     if (status != FDB_RESULT_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Failed to read KV store info for backfill with error: %s",
-            fdb_error_msg(status));
-        return NULL;
+        std::string err("ForestKVStore::initScanContext:Failed to retrieve "
+            "KV store info with error:" + std::string(fdb_error_msg(status)) +
+            "vbucket id:" + std::to_string(static_cast<int>(vbid)));
+        throw std::runtime_error(err);
     }
 
     size_t backfillId = backfillCounter++;
@@ -929,7 +943,6 @@ ScanContext* ForestKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
 }
 
 scan_error_t ForestKVStore::scan(ScanContext *ctx) {
-
      if (!ctx) {
          return scan_failed;
      }
@@ -1118,9 +1131,9 @@ size_t ForestKVStore::getNumItems(fdb_kvs_handle* kvsHandle,
     fdb_status status = fdb_iterator_sequence_init(kvsHandle, &fdb_iter, min_seq,
                                                    max_seq, FDB_ITR_NONE);
     if (status != FDB_RESULT_SUCCESS) {
-        std::string err("ForestDB iterator initialization failed with "
-            "error: " + std::string(fdb_error_msg(status)) +
-            " in ForestKVStore::getNumItems");
+        std::string err("ForestKVStore::getNumItems: ForestDB iterator "
+            "initialization failed with error: " +
+             std::string(fdb_error_msg(status)));
         throw std::runtime_error(err);
     }
 

@@ -313,7 +313,7 @@ private:
     fdb_kvs_config getKVConfig();
     void initForestDb();
     void shutdownForestDb();
-    void readVBState(uint16_t vbId);
+    ENGINE_ERROR_CODE readVBState(uint16_t vbId);
     fdb_kvs_handle *getKvsHandle(uint16_t vbId, handleType htype);
     bool save2forestdb(Callback<kvstats_ctx> *cb);
     GetValue docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc, uint16_t vbId,
