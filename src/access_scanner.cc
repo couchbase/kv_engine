@@ -26,7 +26,7 @@
 class ItemAccessVisitor : public VBucketVisitor {
 public:
     ItemAccessVisitor(EventuallyPersistentStore &_store, EPStats &_stats,
-                      uint16_t sh, AtomicValue<bool> &sfin, AccessScanner *aS) :
+                      uint16_t sh, AtomicValue<bool> &sfin, AccessScanner &aS) :
         store(_store), stats(_stats), startTime(ep_real_time()),
         taskStart(gethrtime()), shardID(sh), stateFinalizer(sfin), as(aS)
     {
@@ -142,7 +142,7 @@ public:
 
 private:
     void updateStateFinalizer() {
-        if (++(as->completedCount) == store.getVBuckets().getNumShards()) {
+        if (++(as.completedCount) == store.getVBuckets().getNumShards()) {
             bool inverse = false;
             stateFinalizer.compare_exchange_strong(inverse, true);
         }
@@ -161,7 +161,7 @@ private:
 
     MutationLog *log;
     AtomicValue<bool> &stateFinalizer;
-    AccessScanner *as;
+    AccessScanner &as;
 };
 
 AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
@@ -251,7 +251,7 @@ bool AccessScanner::run() {
                 stats.accessScannerSkips++;
             } else {
                 shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store,
-                                                 stats, i, available, this));
+                                                 stats, i, available, *this));
                 shared_ptr<VBucketVisitor> vbv(pv);
                 ExTask task = new VBucketVisitorTask(&store, vbv, i,
                                                      "Item Access Scanner",
