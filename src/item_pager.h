@@ -62,10 +62,7 @@ public:
      * @param s the store (where we'll visit)
      * @param st the stats
      */
-    ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
-        GlobalTask(e, Priority::ItemPagerPriority, 10, false),
-        engine(e), stats(st), available(true), phase(PAGING_UNREFERENCED),
-        doEvict(false) {}
+    ItemPager(EventuallyPersistentEngine *e, EPStats &st);
 
     bool run(void);
 
@@ -81,11 +78,11 @@ public:
 
 private:
 
-    EventuallyPersistentEngine *engine;
-    EPStats &stats;
-    AtomicValue<bool> available;
-    item_pager_phase phase;
-    bool doEvict;
+    EventuallyPersistentEngine     *engine;
+    EPStats                        &stats;
+    shared_ptr<AtomicValue<bool>>   available;
+    item_pager_phase                phase;
+    bool                            doEvict;
 };
 
 /**
@@ -118,10 +115,10 @@ private:
      */
     void updateExpPagerTime(double sleepSecs);
 
-    EventuallyPersistentEngine *engine;
-    EPStats                    &stats;
-    double                     sleepTime;
-    AtomicValue<bool>          available;
+    EventuallyPersistentEngine     *engine;
+    EPStats                        &stats;
+    double                          sleepTime;
+    shared_ptr<AtomicValue<bool>>   available;
 };
 
 #endif  // SRC_ITEM_PAGER_H_

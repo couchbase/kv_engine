@@ -58,9 +58,10 @@ public:
      * @param phase pointer to an item_pager_phase to be set
      */
     PagingVisitor(EventuallyPersistentStore &s, EPStats &st, double pcnt,
-                  AtomicValue<bool> &sfin, pager_type_t caller, bool pause = false,
-                  double bias = 1, item_pager_phase *phase = NULL)
-      : store(s), stats(st), percent(pcnt),
+                  shared_ptr<AtomicValue<bool>> &sfin, pager_type_t caller,
+                  bool pause = false, double bias = 1,
+                  item_pager_phase *phase = NULL) :
+        store(s), stats(st), percent(pcnt),
         activeBias(bias), ejected(0),
         startTime(ep_real_time()), stateFinalizer(sfin), owner(caller),
         canPause(pause), completePhase(true),
@@ -172,7 +173,7 @@ public:
         }
 
         bool inverse = false;
-        stateFinalizer.compare_exchange_strong(inverse, true);
+        (*stateFinalizer).compare_exchange_strong(inverse, true);
 
         if (pager_phase && completePhase) {
             if (*pager_phase == PAGING_UNREFERENCED) {
@@ -233,7 +234,7 @@ private:
     double activeBias;
     size_t ejected;
     time_t startTime;
-    AtomicValue<bool> &stateFinalizer;
+    shared_ptr<AtomicValue<bool>> stateFinalizer;
     pager_type_t owner;
     bool canPause;
     bool completePhase;
@@ -241,6 +242,14 @@ private:
     hrtime_t taskStart;
     item_pager_phase *pager_phase;
 };
+
+ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
+    GlobalTask(e, Priority::ItemPagerPriority, 10, false),
+    engine(e),
+    stats(st),
+    available(new AtomicValue<bool>(true)),
+    phase(PAGING_UNREFERENCED),
+    doEvict(false) { }
 
 bool ItemPager::run(void) {
     EventuallyPersistentStore *store = engine->getEpStore();
@@ -255,7 +264,7 @@ bool ItemPager::run(void) {
 
     bool inverse = true;
     if (((current > upper) || doEvict) &&
-        available.compare_exchange_strong(inverse, false)) {
+        (*available).compare_exchange_strong(inverse, false)) {
         if (store->getItemEvictionPolicy() == VALUE_ONLY) {
             doEvict = true;
         }
@@ -287,13 +296,13 @@ bool ItemPager::run(void) {
 
 ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
                                    EPStats &st, size_t stime,
-                                   ssize_t taskTime)
-    : GlobalTask(e, Priority::ItemPagerPriority, static_cast<double>(stime),
-                 false),
-      engine(e),
-      stats(st),
-      sleepTime(static_cast<double>(stime)),
-      available(true) {
+                                   ssize_t taskTime) :
+    GlobalTask(e, Priority::ItemPagerPriority,
+               static_cast<double>(stime), false),
+    engine(e),
+    stats(st),
+    sleepTime(static_cast<double>(stime)),
+    available(new AtomicValue<bool>(true)) {
 
     double initialSleep = sleepTime;
     if (taskTime != -1) {
@@ -332,7 +341,7 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
 bool ExpiredItemPager::run(void) {
     EventuallyPersistentStore *store = engine->getEpStore();
     bool inverse = true;
-    if (available.compare_exchange_strong(inverse, false)) {
+    if ((*available).compare_exchange_strong(inverse, false)) {
         ++stats.expiryPagerRuns;
 
         shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, -1,
