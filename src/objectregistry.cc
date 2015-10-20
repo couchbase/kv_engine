@@ -85,7 +85,6 @@ void ObjectRegistry::onCreateBlob(const Blob *blob)
        stats.currentSize.fetch_add(size);
        stats.totalValueSize.fetch_add(size);
        stats.numBlob++;
-       sanityCheckStat(stats.currentSize, "currentSize");
    }
 }
 
@@ -103,7 +102,6 @@ void ObjectRegistry::onDeleteBlob(const Blob *blob)
        stats.currentSize.fetch_sub(size);
        stats.totalValueSize.fetch_sub(size);
        stats.numBlob--;
-       sanityCheckStat(stats.currentSize, "currentSize");
    }
 }
 
@@ -120,7 +118,6 @@ void ObjectRegistry::onCreateStoredValue(const StoredValue *sv)
        }
        stats.numStoredVal++;
        stats.totalStoredValSize.fetch_add(size);
-       sanityCheckStat(stats.currentSize, "currentSize");
    }
 }
 
@@ -137,7 +134,6 @@ void ObjectRegistry::onDeleteStoredValue(const StoredValue *sv)
        }
        stats.totalStoredValSize.fetch_sub(size);
        stats.numStoredVal--;
-       sanityCheckStat(stats.currentSize, "currentSize");
    }
 }
 
@@ -148,7 +144,6 @@ void ObjectRegistry::onCreateItem(const Item *pItem)
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
        stats.memOverhead.fetch_add(pItem->size() - pItem->getValMemSize());
-       sanityCheckStat(stats.memOverhead, "memOverhead");
        stats.numItem++;
    }
 }
@@ -159,7 +154,6 @@ void ObjectRegistry::onDeleteItem(const Item *pItem)
    if (verifyEngine(engine)) {
        EPStats &stats = engine->getEpStats();
        stats.memOverhead.fetch_sub(pItem->size() - pItem->getValMemSize());
-       sanityCheckStat(stats.memOverhead, "memOverhead");
        stats.numItem--;
    }
 }
@@ -194,12 +188,6 @@ bool ObjectRegistry::memoryAllocated(size_t mem) {
     }
     EPStats &stats = engine->getEpStats();
     stats.totalMemory.fetch_add(mem);
-    if (stats.memoryTrackerEnabled && stats.totalMemory.load() >= GIGANTOR) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Total memory in memoryAllocated() >= GIGANTOR !!! "
-            "Disable the memory tracker...\n");
-        stats.memoryTrackerEnabled.store(false);
-    }
     return true;
 }
 
@@ -213,25 +201,5 @@ bool ObjectRegistry::memoryDeallocated(size_t mem) {
     }
     EPStats &stats = engine->getEpStats();
     stats.totalMemory.fetch_sub(mem);
-    if (stats.memoryTrackerEnabled && stats.totalMemory.load() >= GIGANTOR) {
-        EXTENSION_LOG_LEVEL logSeverity = EXTENSION_LOG_WARNING;
-        if (stats.isShutdown && !stats.forceShutdown) {
-            logSeverity = EXTENSION_LOG_INFO;
-        }
-        LOG(logSeverity,
-            "Total memory in memoryDeallocated() >= GIGANTOR !!! "
-            "Disable the memory tracker...\n");
-        stats.memoryTrackerEnabled.store(false);
-    }
     return true;
-}
-
-void ObjectRegistry::sanityCheckStat(const AtomicValue<size_t>& stat,
-                                     const char* stat_name) {
-    const size_t value = stat.load();
-    if (value >= GIGANTOR) {
-        throw std::runtime_error("ObjectRegistry::onCreateBlob: stats." +
-                                 std::string(stat_name) + " is out of range: " +
-                                 std::to_string(value));
-    }
 }

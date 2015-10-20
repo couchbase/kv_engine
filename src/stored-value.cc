@@ -321,7 +321,6 @@ HashTableStatVisitor HashTable::clear(bool deactivate) {
     }
 
     stats.currentSize.fetch_sub(rv.memSize - rv.valSize);
-    ObjectRegistry::sanityCheckStat(stats.currentSize, "currentSize");
 
     numTotalItems.store(0);
     numItems.store(0);
@@ -392,7 +391,6 @@ void HashTable::resize(size_t newSize) {
     values = newValues;
 
     stats.memOverhead.fetch_add(memorySize());
-    ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
 }
 
 static size_t distance(size_t a, size_t b) {
@@ -716,30 +714,22 @@ void StoredValue::setMutationMemoryThreshold(double memThreshold) {
 
 void StoredValue::increaseCacheSize(HashTable &ht, size_t by) {
     ht.cacheSize.fetch_add(by);
-    ObjectRegistry::sanityCheckStat(ht.cacheSize, "ht.cacheSize");
     ht.memSize.fetch_add(by);
-    ObjectRegistry::sanityCheckStat(ht.memSize, "ht.memSize");
 }
 
 void StoredValue::reduceCacheSize(HashTable &ht, size_t by) {
     ht.cacheSize.fetch_sub(by);
-    ObjectRegistry::sanityCheckStat(ht.cacheSize, "ht.cacheSize");
     ht.memSize.fetch_sub(by);
-    ObjectRegistry::sanityCheckStat(ht.memSize, "ht.memSize");
 }
 
 void StoredValue::increaseMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
     ht.metaDataMemory.fetch_add(by);
-    ObjectRegistry::sanityCheckStat(ht.metaDataMemory, "ht.metaDataMemory");
     st.currentSize.fetch_add(by);
-    ObjectRegistry::sanityCheckStat(st.currentSize, "currentSize");
 }
 
 void StoredValue::reduceMetaDataSize(HashTable &ht, EPStats &st, size_t by) {
     ht.metaDataMemory.fetch_sub(by);
-    ObjectRegistry::sanityCheckStat(ht.metaDataMemory, "ht.metaDataMemory");
     st.currentSize.fetch_sub(by);
-    ObjectRegistry::sanityCheckStat(st.currentSize, "currentSize");
 }
 
 /**

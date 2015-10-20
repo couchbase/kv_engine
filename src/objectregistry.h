@@ -49,11 +49,6 @@ public:
     static void setStats(AtomicValue<size_t>* init_track);
     static bool memoryAllocated(size_t mem);
     static bool memoryDeallocated(size_t mem);
-
-    // Verifies memory stat value appear sane, i.e. less than GIGANTOR.
-    // Throws std::runtime_error() if not.
-    static void sanityCheckStat(const AtomicValue<size_t>& stat,
-                                const char* stat_name);
 };
 
 #endif  // SRC_OBJECTREGISTRY_H_

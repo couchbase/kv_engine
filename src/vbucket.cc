@@ -145,7 +145,6 @@ VBucket::~VBucket() {
 
     stats.memOverhead.fetch_sub(sizeof(VBucket) + ht.memorySize() +
                                 sizeof(CheckpointManager));
-    ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
 
     LOG(EXTENSION_LOG_INFO, "Destroying vbucket %d\n", id);
 }

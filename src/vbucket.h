@@ -189,7 +189,6 @@ public:
         pendingOpsStart = 0;
         stats.memOverhead.fetch_add(sizeof(VBucket)
                                + ht.memorySize() + sizeof(CheckpointManager));
-        ObjectRegistry::sanityCheckStat(stats.memOverhead, "memOverhead");
     }
 
     ~VBucket();
