@@ -72,13 +72,12 @@ void KVStore::createDataDir(const std::string& dbname) {
 
 std::string KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) {
 
-    std::string output;
     vbucket_state *vbState = cachedVBStates[vbid];
 
     if (vbState != nullptr) {
         //Check if the cached state requires any update
         if (*vbState == newState) {
-            return output;
+            return std::string();
         }
 
         vbState->state = newState.state;
