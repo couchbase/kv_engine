@@ -18,16 +18,30 @@
 
 #include "config.h"
 
-#include <cstdlib>
-#include <vector>
-#include <string>
-#include <memcached/openssl.h>
 #include <cJSON.h>
+#include <cstdlib>
+#include <memcached/openssl.h>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 enum class Protocol : uint8_t {
     Memcached,
     Greenstack
 };
+
+// @todo include Greenstack's header which defines the proper datatypes
+namespace Greenstack {
+    class Message;
+    namespace Bucket {
+        typedef uint8_t bucket_type_t;
+        const bucket_type_t Invalid = 0;
+        const bucket_type_t Memcached = 1;
+        const bucket_type_t Couchbase = 2;
+        const bucket_type_t EWouldBlock = 3;
+    }
+}
+
 
 /**
  * The Frame class is used to represent all of the data included in the
@@ -41,9 +55,24 @@ public:
     void reset() {
         payload.resize(0);
     }
+
     std::vector<uint8_t> payload;
     typedef std::vector<uint8_t>::size_type size_type;
 };
+
+class ConnectionError : public std::runtime_error {
+public:
+    explicit ConnectionError(const char* what_arg)
+        : std::runtime_error(what_arg) {
+
+    }
+
+    explicit ConnectionError(const std::string what_arg)
+        : std::runtime_error(what_arg) {
+
+    }
+};
+
 
 /**
  * The MemcachedConnection class is an abstract class representing a
@@ -85,6 +114,14 @@ public:
                               const std::string& password,
                               const std::string& mech) = 0;
 
+    virtual void createBucket(const std::string& name,
+                              const std::string& config,
+                              Greenstack::Bucket::bucket_type_t type) = 0;
+
+    virtual void deleteBucket(const std::string& name) = 0;
+
+    virtual std::vector<std::string> listBuckets() = 0;
+
     /**
      * Sent the given frame over this connection
      * @throws std::runtime_error if an error occurs
@@ -99,6 +136,9 @@ public:
 
     virtual void recvFrame(Frame& frame) = 0;
 
+
+    virtual std::string to_string() = 0;
+
     void reconnect();
 
 protected:
@@ -106,6 +146,7 @@ protected:
                         const Protocol& protocol);
 
     void close();
+
     void connect();
 
     /**
@@ -123,9 +164,11 @@ protected:
     }
 
     void readPlain(Frame& frame, size_t bytes);
+
     void readSsl(Frame& frame, size_t bytes);
 
     void sendFramePlain(const Frame& frame);
+
     void sendFrameSsl(const Frame& frame);
 
 
@@ -136,31 +179,6 @@ protected:
     SSL_CTX* context;
     BIO* bio;
     SOCKET sock;
-};
-
-class MemcachedBinprotConnection : public MemcachedConnection {
-public:
-    MemcachedBinprotConnection(in_port_t port, sa_family_t family, bool ssl)
-        : MemcachedConnection(port, family, ssl, Protocol::Memcached) { }
-
-
-    virtual void authenticate(const std::string& username,
-                              const std::string& password,
-                              const std::string& mech);
-
-    virtual void recvFrame(Frame& frame);
-};
-
-class MemcachedGreenstackConnection : public MemcachedConnection {
-public:
-    MemcachedGreenstackConnection(in_port_t port, sa_family_t family, bool ssl)
-        : MemcachedConnection(port, family, ssl, Protocol::Greenstack) { }
-
-    virtual void authenticate(const std::string& username,
-                              const std::string& password,
-                              const std::string& mech);
-
-    virtual void recvFrame(Frame& frame);
 };
 
 class ConnectionMap {
