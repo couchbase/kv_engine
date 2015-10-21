@@ -1152,7 +1152,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
         VBucketStateVisitor(VBucketMap &vb_map, uint16_t sid)
             : vbuckets(vb_map), shardId(sid) { }
         bool visitBucket(RCPtr<VBucket> &vb) {
-            if (vbuckets.getShard(vb->getId())->getId() == shardId) {
+            if (vbuckets.getShardByVbId(vb->getId())->getId() == shardId) {
                 snapshot_range_t range;
                 vb->getPersistedSnapshot(range);
                 std::string failovers = vb->failovers->toJSON();
@@ -1319,7 +1319,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         scheduleVBStatePersist(Priority::VBucketPersistLowPriority, vbid);
     } else if (vbid < vbMap.getSize()) {
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
-        KVShard* shard = vbMap.getShard(vbid);
+        KVShard* shard = vbMap.getShardByVbId(vbid);
         shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats,
                                          engine.getCheckpointConfig(),
@@ -1983,7 +1983,7 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
                                         std::to_string(vbucket) +
                                         ") is not present in vbMap");
         }
-        KVShard *myShard = vbMap.getShard(vbucket);
+        KVShard *myShard = vbMap.getShardByVbId(vbucket);
 
         // schedule to the current batch of background fetch of the given
         // vbucket
@@ -3236,7 +3236,7 @@ void EventuallyPersistentStore::flushOneDeleteAll() {
 }
 
 int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
-    KVShard *shard = vbMap.getShard(vbid);
+    KVShard *shard = vbMap.getShardByVbId(vbid);
     if (diskFlushAll && !flushAllTaskCtx.delayFlushAll) {
         if (shard->getId() == EP_PRIMARY_SHARD) {
             flushOneDeleteAll();
@@ -3484,7 +3484,7 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
         }
 
         if (rv) {
-            KVShard* shard = vbMap.getShard(vb->getId());
+            KVShard* shard = vbMap.getShardByVbId(vb->getId());
             shard->getFlusher()->notifyFlushEvent();
 
         }
@@ -3914,11 +3914,11 @@ void EventuallyPersistentStore::addKVStoreTimingStats(ADD_STAT add_stat,
 }
 
 KVStore *EventuallyPersistentStore::getOneROUnderlying(void) {
-    return vbMap.getShard(EP_PRIMARY_SHARD)->getROUnderlying();
+    return vbMap.shards[EP_PRIMARY_SHARD]->getROUnderlying();
 }
 
 KVStore *EventuallyPersistentStore::getOneRWUnderlying(void) {
-    return vbMap.getShard(EP_PRIMARY_SHARD)->getRWUnderlying();
+    return vbMap.shards[EP_PRIMARY_SHARD]->getRWUnderlying();
 }
 
 class Rollback : public RollbackCB {
@@ -4000,7 +4000,7 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
                                     (vb->checkpointManager.getHighSeqno());
     if (rollbackSeqno != 0) {
         shared_ptr<Rollback> cb(new Rollback(engine));
-        KVStore* rwUnderlying = vbMap.getShard(vbid)->getRWUnderlying();
+        KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
         RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
 
         if (result.success) {

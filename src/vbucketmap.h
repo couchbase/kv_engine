@@ -60,7 +60,8 @@ public:
     void setPersistenceCheckpointId(id_type id, uint64_t checkpointId);
     uint64_t getPersistenceSeqno(id_type id) const;
     void setPersistenceSeqno(id_type id, uint64_t seqno);
-    KVShard* getShard(id_type id) const;
+    KVShard* getShardByVbId(id_type id) const;
+    KVShard* getShard(KVShard::id_type shardId) const;
     size_t getNumShards() const;
 
 private:

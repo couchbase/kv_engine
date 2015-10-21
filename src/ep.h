@@ -648,7 +648,7 @@ public:
 
 
     KVStore* getRWUnderlying(uint16_t vbId) {
-        return vbMap.getShard(vbId)->getRWUnderlying();
+        return vbMap.getShardByVbId(vbId)->getRWUnderlying();
     }
 
     KVStore* getRWUnderlyingByShard(size_t shardId) {
@@ -660,7 +660,7 @@ public:
     }
 
     KVStore* getROUnderlying(uint16_t vbId) {
-        return vbMap.getShard(vbId)->getROUnderlying();
+        return vbMap.getShardByVbId(vbId)->getROUnderlying();
     }
 
     void deleteExpiredItem(uint16_t, std::string &, time_t, uint64_t,
