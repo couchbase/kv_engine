@@ -498,7 +498,7 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
 }
 
 const Flusher* EventuallyPersistentStore::getFlusher(uint16_t shardId) {
-    return vbMap.getShard(shardId)->getFlusher();
+    return vbMap.shards[shardId]->getFlusher();
 }
 
 uint16_t EventuallyPersistentStore::getCommitInterval(uint16_t shardId) {
