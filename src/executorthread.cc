@@ -142,7 +142,7 @@ void ExecutorThread::run() {
                             currentTask->getDescription().c_str(),
                             currentTask->getId(), new_waketime,
                             currentTask->getWaketime(),
-                            waketime);
+                            waketime.load());
                 }
             } catch (std::exception& e) {
                 LOG(EXTENSION_LOG_WARNING,
