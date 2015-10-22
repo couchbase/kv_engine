@@ -137,7 +137,7 @@ private:
     AtomicValue<executor_state_t> state;
 
     AtomicValue<hrtime_t> now;  // record of current time
-    hrtime_t waketime; // set to the earliest
+    AtomicValue<hrtime_t> waketime; // set to the earliest
 
     hrtime_t taskStart;
 
