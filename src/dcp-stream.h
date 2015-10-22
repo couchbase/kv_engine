@@ -141,7 +141,7 @@ protected:
     stream_state_t state_;
     stream_type_t type_;
 
-    bool itemsReady;
+    AtomicValue<bool> itemsReady;
     Mutex streamMutex;
     std::queue<DcpResponse*> readyQ;
 
@@ -154,7 +154,7 @@ private:
 
 class ActiveStream : public Stream {
 public:
-    ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
+    ActiveStream(EventuallyPersistentEngine* e, DcpProducer& p,
                  const std::string &name, uint32_t flags, uint32_t opaque,
                  uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
                  uint64_t vb_uuid, uint64_t snap_start_seqno,
@@ -245,16 +245,18 @@ private:
     //! Whether ot not this is the first snapshot marker sent
     bool firstMarkerSent;
 
-    int waitForSnapshot;
+    AtomicValue<int> waitForSnapshot;
 
     EventuallyPersistentEngine* engine;
-    DcpProducer* producer;
-    bool isBackfillTaskRunning;
+
+    DcpProducer& producer;
+
+    AtomicValue<bool> isBackfillTaskRunning;
 };
 
 class NotifierStream : public Stream {
 public:
-    NotifierStream(EventuallyPersistentEngine* e, DcpProducer* producer,
+    NotifierStream(EventuallyPersistentEngine* e, DcpProducer& producer,
                    const std::string &name, uint32_t flags, uint32_t opaque,
                    uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
                    uint64_t vb_uuid, uint64_t snap_start_seqno,
@@ -276,7 +278,7 @@ private:
 
     void transitionState(stream_state_t newState);
 
-    DcpProducer* producer;
+    DcpProducer& producer;
 };
 
 class PassiveStream : public Stream {
@@ -349,7 +351,7 @@ private:
     } buffer;
 };
 
-typedef SingleThreadedRCPtr<Stream> stream_t;
+typedef RCPtr<Stream> stream_t;
 typedef RCPtr<PassiveStream> passive_stream_t;
 
 #endif  // SRC_DCP_STREAM_H_
