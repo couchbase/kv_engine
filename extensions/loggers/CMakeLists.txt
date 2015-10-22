@@ -5,7 +5,7 @@ ADD_LIBRARY(file_logger SHARED file_logger.cc)
 SET_TARGET_PROPERTIES(file_logger PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(file_logger mcd_time platform)
 
-INSTALL(TARGETS blackhole_logger file_logger
+INSTALL(TARGETS file_logger
         RUNTIME DESTINATION lib/memcached
         LIBRARY DESTINATION lib/memcached
         ARCHIVE DESTINATION lib/memcached)
