@@ -3395,6 +3395,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
         add_casted_stat("ep_warmup_dups", epstats.warmDups, add_stat, cookie);
     }
 
+    add_casted_stat("ep_dcp_pending_notifications",
+                    dcpConnMap_->notificationsPending() ? "true" : "false",
+                    add_stat, cookie);
     add_casted_stat("ep_num_ops_get_meta", epstats.numOpsGetMeta,
                     add_stat, cookie);
     add_casted_stat("ep_num_ops_set_meta", epstats.numOpsSetMeta,

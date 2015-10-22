@@ -438,6 +438,11 @@
             "dynamic": false,
             "type": "size_t"
         },
+        "dcp_producer_notifier_yield_limit": {
+            "default": "50",
+            "descr": "The number of notifications before DcpProducerNotifier::run yields.",
+            "type": "size_t"
+        },
         "vb0": {
             "default": "false",
             "type": "bool"

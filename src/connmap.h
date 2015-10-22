@@ -41,7 +41,7 @@ class TapProducer;
 class Item;
 class EventuallyPersistentEngine;
 
-typedef SingleThreadedRCPtr<ConnHandler> connection_t;
+typedef RCPtr<ConnHandler> connection_t;
 /**
  * Base class for operations performed on tap connections.
  *
@@ -429,12 +429,13 @@ private:
 
 };
 
-
 class DcpConnMap : public ConnMap {
 
 public:
 
     DcpConnMap(EventuallyPersistentEngine &engine);
+
+    ~DcpConnMap();
 
     /**
      * Find or build a dcp connection for the given cookie and with
@@ -466,7 +467,54 @@ public:
 
     ENGINE_ERROR_CODE addPassiveStream(ConnHandler* conn, uint32_t opaque,
                                        uint16_t vbucket, uint32_t flags);
+
+    bool notifyProducers();
+    bool notificationsPending() {
+        LockHolder lh(notificationsLock);
+        return !notifications.empty();
+    }
+
+    void startProducerNotifier();
+    void wakeProducerNotifier();
+    void stopProducerNotifier();
+
 private:
+
+    class DcpProducerNotifier : public GlobalTask {
+    public:
+        DcpProducerNotifier(EventuallyPersistentEngine *e,
+                            DcpConnMap &dcm) :
+            GlobalTask(e, Priority::TapConnNotificationPriority, INT_MAX, true),
+            dcpConnMap(dcm),
+            notified(false),
+            iterationsBeforeYield(e->getConfiguration()
+                                  .getDcpProducerNotifierYieldLimit()) {}
+
+        std::string getDescription() {
+            std::string rv("Notifying DCP producers on store operations");
+            return rv;
+        }
+
+        bool run();
+
+        bool wakeMeUp() {
+            bool expected = false;
+            return notified.compare_exchange_strong(expected, true);
+        }
+
+    private:
+        DcpConnMap &dcpConnMap;
+        AtomicValue<bool> notified;
+        size_t iterationsBeforeYield;
+    };
+
+    struct DcpProducerNotification {
+        uint16_t vbid;
+        uint64_t seqno;
+    };
+
+    void addNotification(uint16_t vbid, uint64_t bySeqno);
+    bool getNextNotification(uint16_t& vbid, uint64_t& seqno);
 
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
 
@@ -475,6 +523,11 @@ private:
     void closeAllStreams_UNLOCKED();
 
     std::list<connection_t> deadConnections;
+
+    DcpProducerNotifier* producerNotifier;
+
+    std::deque<DcpProducerNotification> notifications;
+    Mutex notificationsLock;
 };
 
 
