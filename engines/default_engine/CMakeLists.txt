@@ -21,6 +21,6 @@ ENDIF (ENABLE_DTRACE)
 TARGET_LINK_LIBRARIES(default_engine mcd_util platform ${COUCHBASE_NETWORK_LIBS})
 
 INSTALL(TARGETS default_engine
-        RUNTIME DESTINATION lib/memcached
-        LIBRARY DESTINATION lib/memcached
-        ARCHIVE DESTINATION lib/memcached)
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)

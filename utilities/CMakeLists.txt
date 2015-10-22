@@ -8,8 +8,8 @@ TARGET_LINK_LIBRARIES(mcd_util platform)
 SET_TARGET_PROPERTIES(mcd_util PROPERTIES SOVERSION 1.0.0)
 INSTALL(TARGETS mcd_util
         RUNTIME DESTINATION bin
-        LIBRARY DESTINATION lib/memcached
-        ARCHIVE DESTINATION lib/memcached)
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
 
 ADD_EXECUTABLE(utilities_testapp
                config_parser.c
