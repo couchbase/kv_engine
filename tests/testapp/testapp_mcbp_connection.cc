@@ -199,11 +199,51 @@ void MemcachedBinprotConnection::authenticate(const std::string& username,
 void MemcachedBinprotConnection::createBucket(const std::string& name,
                                               const std::string& config,
                                               Greenstack::Bucket::bucket_type_t type) {
-    throw std::runtime_error("Not implemented yet");
+
+    std::string module;
+    switch (type) {
+    case Greenstack::Bucket::Memcached:
+        module.assign("default_engine.so");
+        break;
+    case Greenstack::Bucket::EWouldBlock:
+        module.assign("ewouldblock_engine.so");
+        break;
+    case Greenstack::Bucket::Couchbase:
+        module.assign("ep.so");
+        break;
+    default:
+        throw std::runtime_error("Not implemented");
+    }
+
+    std::vector<uint8_t> payload;
+    payload.resize(module.length() + 1 + config.length());
+    memcpy(payload.data(), module.data(), module.length());
+    memcpy(payload.data() + module.length() + 1, config.data(), config.length());
+
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_CREATE_BUCKET,
+                     name.c_str(), name.length(), payload.data(), payload.size());
+
+    sendFrame(frame);
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
+
+    if (rsp->message.header.response.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Create bucket failed: " + std::to_string(rsp->message.header.response.status));
+    }
 }
 
 void MemcachedBinprotConnection::deleteBucket(const std::string& name) {
-    throw std::runtime_error("Not implemented yet");
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_DELETE_BUCKET,
+                     name.c_str(), name.length(), nullptr, 0);
+    sendFrame(frame);
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
+
+    if (rsp->message.header.response.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Delete bucket failed: " + std::to_string(rsp->message.header.response.status));
+    }
 }
 
 std::string MemcachedBinprotConnection::to_string() {

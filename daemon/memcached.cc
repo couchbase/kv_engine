@@ -431,7 +431,8 @@ static void settings_init(void) {
     settings.breakpad.minidump_dir = NULL;
     settings.breakpad.content = CONTENT_DEFAULT;
     settings.require_init = false;
-    settings.max_buckets = COUCHBASE_MAX_NUM_BUCKETS;
+    // (we need entry 0 in the list to represent "no bucket")
+    settings.max_buckets = COUCHBASE_MAX_NUM_BUCKETS + 1;
     settings.admin = strdup("_admin");
 
     char *tmp = getenv("MEMCACHED_TOP_KEYS");
@@ -2252,6 +2253,28 @@ static SERVER_HANDLE_V1 *get_server_api(void)
 
 /* BUCKET FUNCTIONS */
 
+static bool is_bucket_name_legal(const std::string &name) {
+    if (name.empty() || name.length() > MAX_BUCKET_NAME_LENGTH) {
+        return false;
+    }
+
+    // Verify that the bucket name only consists of legal characters
+    for (int ii : name) {
+        if (!(isupper(ii) || islower(ii) || isdigit(ii))) {
+            switch (ii) {
+            case '_':
+            case '-':
+            case '.':
+            case '%':
+                break;
+            default:
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
                                           const char *config,
                                           BucketType bucketType) {
@@ -2260,8 +2283,11 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
     bool found = false;
     ENGINE_ERROR_CODE ret;
 
-    cb_mutex_enter(&buckets_lock);
+    if (!is_bucket_name_legal(bucket_name)) {
+        return ENGINE_EINVAL;
+    }
 
+    cb_mutex_enter(&buckets_lock);
     for (ii = 0; ii < settings.max_buckets && !found; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (first_free == -1 && all_buckets[ii].state == BucketState::None) {

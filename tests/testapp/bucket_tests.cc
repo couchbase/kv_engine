@@ -30,8 +30,8 @@ TEST_P(McdTestappTest, TestMaxBuckets)
     const char *cfg = "default_engine.so";
     char name[80];
 
-    // We've already created two buckets, the "NO-bucket" and default
-    for (int ii = 2; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
+    // We've already created a bucket; "default"
+    for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
         snprintf(name, sizeof(name), "mybucket_%03u", ii);
         size_t plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                        PROTOCOL_BINARY_CMD_CREATE_BUCKET,

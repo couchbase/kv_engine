@@ -7,6 +7,8 @@ ADD_EXECUTABLE(memcached_testapp
                #testapp_audit.cc
                testapp_binprot.cc
                testapp_binprot.h
+               testapp_bucket.cc
+               testapp_bucket.h
                testapp_connection.cc
                testapp_connection.h
                testapp_mcbp_connection.cc
@@ -33,16 +35,26 @@ ADD_TEST(NAME memcached-basic-unit-tests-require-init
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=RequireInitTest.*)
 
+# Run the Bucket tests
+ADD_TEST(NAME memcached-bucket-unit-tests-plain
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/BucketTest.*/0)
+
+ADD_TEST(NAME memcached-bucket-unit-tests-ssl
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/BucketTest.*/1)
+
+
 
 # Run the unit tests for the memcached binary protocol over a plain socket
 ADD_TEST(NAME memcached-mcbp-unit-tests-plain
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/0)
+        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/0:-*/BucketTest*)
 
 # Run the unit tests for the memcached binary protocol over SSL
 ADD_TEST(NAME memcached-mcbp-unit-tests-ssl
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/1)
+        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/1:-*/BucketTest*)
 
 # Run the shutdown tests
 ADD_TEST(NAME memcached-shutdown-tests
