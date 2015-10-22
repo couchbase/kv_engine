@@ -396,9 +396,9 @@ INSTALL(FILES
         DESTINATION share/doc/ep-engine)
 
 INSTALL(TARGETS ep
-        RUNTIME DESTINATION lib/memcached
-        LIBRARY DESTINATION lib/memcached
-        ARCHIVE DESTINATION lib/memcached)
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib)
 
 ADD_CUSTOM_TARGET(engine-tests
                   COMMAND ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7"
