@@ -1132,6 +1132,8 @@ void DcpConnMap::disconnect_UNLOCKED(const void *cookie) {
         if (producer) {
             producer->closeAllStreams();
         } else {
+            // Cancel consumer's processer task before closing all streams
+            static_cast<DcpConsumer*>(conn.get())->cancelTask();
             static_cast<DcpConsumer*>(conn.get())->closeAllStreams();
         }
 
