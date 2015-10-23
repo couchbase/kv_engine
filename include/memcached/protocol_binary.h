@@ -1739,7 +1739,32 @@ extern "C"
     } protocol_binary_request_set_drift_counter_state;
 
     /**
-     * The physical layout for the CMD_COMPACT_DB
+     * Message format for CMD_COMPACT_DB
+     *
+     * The PROTOCOL_BINARY_CMD_COMPACT_DB is used by ns_server to
+     * issue a compaction request to ep-engine to compact the
+     * underlying store's database files
+     *
+     * Request:
+     *
+     * Header: Contains the vbucket id. The vbucket id will be used
+     *         to identify the database file if the backend is
+     *         couchstore.
+     * Body:
+     * - purge_before_ts:  Deleted items whose expiry timestamp is less
+     *                     than purge_before_ts will be purged.
+     * - purge_before_seq: Deleted items whose sequence number is less
+     *                     than purge_before_seq will be purged.
+     * - drop_deletes:     whether to purge deleted items or not.
+     * - db_file_id  :     Database file id for the underlying store.
+     *                     In the case forestdb, this will be the
+     *                     shard id.
+     *
+     * Response:
+     *
+     * The response will return a SUCCESS after compaction is done
+     * successfully and a NOT_MY_VBUCKET (along with cluster config)
+     * if the vbucket isn't found.
      */
     typedef union {
         struct {
@@ -1749,7 +1774,7 @@ extern "C"
                 uint64_t purge_before_seq;
                 uint8_t  drop_deletes;
                 uint8_t  align_pad1;
-                uint16_t align_pad2;
+                uint16_t db_file_id;
                 uint32_t align_pad3;
             } body;
         } message;
