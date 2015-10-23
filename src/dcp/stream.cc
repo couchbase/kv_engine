@@ -1018,37 +1018,18 @@ uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status,
                                          LockHolder *slh) {
     transitionState(STREAM_DEAD);
     slh->unlock();
-    uint32_t unackedBytes = 0;
-
-    /**
-     * Clear out buffered items in case of force shutdown,
-     * otherwise attempt processing them.
-     */
-    uint32_t totalBytes = 0;
-    process_items_error_t process_ret = cannot_process;
-    if (!engine->getEpStats().forceShutdown) {
-        uint32_t bytes_processed;
-        do {
-            bytes_processed = 0;
-            process_ret = processBufferedMessages(bytes_processed);
-            totalBytes += bytes_processed;
-        } while (bytes_processed > 0 && process_ret != cannot_process);
-    }
-    if (process_ret == cannot_process) {
-        unackedBytes = clearBuffer();
-        totalBytes += unackedBytes;
-    }
+    uint32_t unackedBytes = clearBuffer();
 
     EXTENSION_LOG_LEVEL logLevel = EXTENSION_LOG_NOTICE;
     if (END_STREAM_DISCONNECTED == status) {
         logLevel = EXTENSION_LOG_WARNING;
     }
     LOG(logLevel, "%s (vb %" PRId16 ") Setting stream to dead"
-        " state, last_seqno is %" PRIu64 ", totalBytes is %" PRIu32 ","
-        " droppedBytes is %" PRIu32 ", status is %s",
-        consumer->logHeader(), vb_, last_seqno.load(), totalBytes,
+        " state, last_seqno is %" PRIu64 ", unAckedBytes is %" PRIu32 ","
+        " status is %s",
+        consumer->logHeader(), vb_, last_seqno.load(),
         unackedBytes, getEndStreamStatusStr(status));
-    return totalBytes;
+    return unackedBytes;
 }
 
 uint32_t PassiveStream::setDead(end_stream_status_t status) {

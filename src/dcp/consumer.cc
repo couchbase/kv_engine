@@ -35,8 +35,9 @@ const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping
 class Processer : public GlobalTask {
 public:
     Processer(EventuallyPersistentEngine* e, connection_t c,
-                const Priority &p, double sleeptime = 1, bool shutdown = false)
-        : GlobalTask(e, p, sleeptime, shutdown), conn(c) {}
+                const Priority &p, double sleeptime = 1,
+                bool completeBeforeShutdown = true)
+        : GlobalTask(e, p, sleeptime, completeBeforeShutdown), conn(c) {}
 
     bool run();
 
