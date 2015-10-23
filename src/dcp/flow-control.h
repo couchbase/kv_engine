@@ -69,7 +69,7 @@ private:
     bool pendingControl;
 
     /* Flow control buffer size */
-    uint32_t bufferSize;
+    Couchbase::RelaxedAtomic<uint32_t> bufferSize;
 
     /* Lock while updating buffersize and pendingControl */
     SpinLock bufferSizeLock;
