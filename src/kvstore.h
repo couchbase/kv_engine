@@ -57,6 +57,8 @@ static const int MUTATION_FAILED = -1;
 static const int DOC_NOT_FOUND = 0;
 static const int MUTATION_SUCCESS = 1;
 
+static const int64_t INITIAL_DRIFT = -140737488355328; //lowest possible 48-bit integer
+
 typedef struct {
     std::list<VBucketBGFetchItem *> bgfetched_list;
     bool isMetaOnly;
@@ -166,6 +168,18 @@ struct vbucket_state {
     }
 
     std::string toJSON() const;
+
+    void reset() {
+        checkpointId = 0;
+        maxDeletedSeqno = 0;
+        highSeqno = 0;
+        purgeSeqno = 0;
+        lastSnapStart = 0;
+        lastSnapEnd = 0;
+        maxCas = 0;
+        driftCounter = INITIAL_DRIFT;
+        failovers.assign("[{\"id\":0, \"seq\":0}]");
+    }
 
     vbucket_state_t state;
     uint64_t checkpointId;

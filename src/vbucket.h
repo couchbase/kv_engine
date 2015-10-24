@@ -37,7 +37,6 @@
 
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
 const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
-static const int64_t INITIAL_DRIFT = -140737488355328; //lowest possible 48-bit integer
 
 struct HighPriorityVBEntry {
     HighPriorityVBEntry() :

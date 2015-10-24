@@ -345,16 +345,14 @@ void CouchKVStore::reset(uint16_t vbucketId) {
 
     vbucket_state *state = cachedVBStates[vbucketId];
     if (state) {
-        state->checkpointId = 0;
-        state->maxDeletedSeqno = 0;
-        state->highSeqno = 0;
-        state->lastSnapStart = 0;
-        state->lastSnapEnd = 0;
+        state->reset();
 
-        // Unlink the couchstore file upon reset
+        cachedDocCount[vbucketId] = 0;
+        cachedDeleteCount[vbucketId] = 0;
+
+        //Unlink the couchstore file upon reset
         unlinkCouchFile(vbucketId, dbFileRevMap[vbucketId]);
-
-        resetVBucket(vbucketId, *state);
+        setVBucketState(vbucketId, *state, NULL, true);
         updateDbFileMap(vbucketId, 1);
     } else {
         throw std::invalid_argument("CouchKVStore::reset: No entry in cached "
