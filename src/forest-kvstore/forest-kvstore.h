@@ -96,9 +96,7 @@ class ForestKVStore : public KVStore
     /**
      * Reset database to a clean state.
      */
-    void reset(uint16_t vbucketId) {
-        return;
-    }
+    void reset(uint16_t vbucketId);
 
     /**
      * Begin a transaction (if not already in one).

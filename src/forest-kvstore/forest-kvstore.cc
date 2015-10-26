@@ -197,6 +197,82 @@ ForestKVStore::~ForestKVStore() {
    shutdownForestDb();
 }
 
+void ForestKVStore::reset(uint16_t vbucketId) {
+    vbucket_state *state = cachedVBStates[vbucketId];
+    if (!state) {
+        throw std::invalid_argument("ForestKVStore::reset::No entry "
+                "in cached states for vbucket " +
+                std::to_string(vbucketId));
+    }
+
+    state->reset();
+
+    cachedDocCount[vbucketId] = 0;
+    cachedDeleteCount[vbucketId] = 0;
+
+    fdb_kvs_handle *kvsHandle = getKvsHandle(vbucketId, handleType::READER);
+    fdb_status status;
+
+    if (kvsHandle != nullptr) {
+        status = fdb_kvs_close(kvsHandle);
+        if (status != FDB_RESULT_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING,
+                "ForestKVStore::reset:fdb_kvs_close API call failed for "
+                "vbucket %" PRIu16" with error: %s", vbucketId,
+                fdb_error_msg(status));
+        }
+    }
+
+    readHandleMap[vbucketId] = NULL;
+
+    kvsHandle = getKvsHandle(vbucketId, handleType::WRITER);
+
+    if (kvsHandle != nullptr) {
+        status = fdb_kvs_close(kvsHandle);
+        if (status != FDB_RESULT_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING,
+                "ForestKVStore::reset:fdb_kvs_close API call failed for "
+                "vbucket %" PRIu16" with error: %s", vbucketId,
+                fdb_error_msg(status));
+        }
+    }
+
+    writeHandleMap[vbucketId] = NULL;
+
+    char kvsName[20];
+    sprintf(kvsName,"partition%" PRIu16, vbucketId);
+
+    status = fdb_kvs_remove(dbFileHandle, kvsName);
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "ForestKVStore::reset: ForestDB KV Store remove failed for "
+            "vbucket :%" PRIu16" with error: %s", vbucketId,
+            fdb_error_msg(status));
+    }
+
+    std::string stateStr = state->toJSON();
+
+    if (!stateStr.empty()) {
+        char keybuf[20];
+        fdb_doc statDoc;
+        memset(&statDoc, 0, sizeof(statDoc));
+        sprintf(keybuf, "partition%d", vbucketId);
+        statDoc.key = keybuf;
+        statDoc.keylen = strlen(keybuf);
+        statDoc.meta = NULL;
+        statDoc.metalen = 0;
+        statDoc.body = const_cast<char *>(stateStr.c_str());
+        statDoc.bodylen = stateStr.length();
+        fdb_status status = fdb_set(vbStateHandle, &statDoc);
+
+        if (status != FDB_RESULT_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING, "ForestKVStore::reset:Failed to save "
+                "vbucket state for vbucket=%" PRIu16" error=%s", vbucketId,
+                fdb_error_msg(status));
+        }
+    }
+}
+
 ForestRequest::ForestRequest(const Item &it, MutationRequestCallback &cb ,bool del)
     : IORequest(it.getVBucketId(), cb, del, it.getKey()),
       status(MUTATION_SUCCESS) { }
