@@ -231,7 +231,7 @@ ADD_EXECUTABLE(ep-engine_hash_table_test
 TARGET_LINK_LIBRARIES(ep-engine_hash_table_test gtest ${SNAPPY_LIBRARIES} platform)
 
 ADD_EXECUTABLE(ep-engine_histo_test tests/module_tests/histo_test.cc)
-TARGET_LINK_LIBRARIES(ep-engine_histo_test platform)
+TARGET_LINK_LIBRARIES(ep-engine_histo_test platform gtest gtest_main)
 ADD_EXECUTABLE(ep-engine_hrtime_test tests/module_tests/hrtime_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_hrtime_test platform)
 

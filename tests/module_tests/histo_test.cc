@@ -23,6 +23,8 @@
 #include <functional>
 #include <sstream>
 
+#include <gtest/gtest.h>
+
 #include "histo.h"
 
 class PopulatedSamples {
@@ -37,7 +39,7 @@ public:
     std::ostream &s;
 };
 
-static void test_basic() {
+TEST(HistoTest, Basic) {
     GrowingWidthGenerator<int> gen(0, 10, M_E);
     Histogram<int> histo(gen, 10);
     histo.add(3, 1);
@@ -52,23 +54,23 @@ static void test_basic() {
                          "[310, 855) = 0, [855, 2339) = 0, [2339, 6373) = 0, "
                          "[6373, 17339) = 0, [17339, 47148) = 0, "
                          "[47148, 128178) = 0, [128178, 2147483647) = 11}");
-    cb_assert(s.str() == expected);
+    EXPECT_EQ(expected, s.str());
 
     std::stringstream s2;
     PopulatedSamples ps(s2);
     std::for_each(histo.begin(), histo.end(), ps);
     expected = "[-2147483648, 0) = 15; [0, 10) = 1; [128178, 2147483647) = 11; ";
-    cb_assert(s2.str() == expected);
-    cb_assert(27 == histo.total());
+    EXPECT_EQ(expected, s2.str());
+    EXPECT_EQ(27, histo.total());
 
     // I haven't set a 4, but there should be something in that bin.
-    cb_assert(1 == histo.getBin(4)->count());
+    EXPECT_EQ(1, histo.getBin(4)->count());
 
     histo.reset();
-    cb_assert(0 == histo.total());
+    EXPECT_EQ(0, histo.total());
 }
 
-static void test_fixed_input() {
+TEST(HistoTest, FixedInput) {
     std::vector<int> figinput;
     figinput.push_back(1);
     figinput.push_back(10);
@@ -83,10 +85,10 @@ static void test_fixed_input() {
                          "[1000, 10000) = 0, [10000, 2147483647) = 0}");
     std::stringstream s;
     s << histo;
-    cb_assert(s.str() == expected);
+    EXPECT_EQ(expected, s.str());
 }
 
-static void test_exponential() {
+TEST(HistoTest, Exponential) {
     ExponentialGenerator<int> gen(0, 10.0);
     Histogram<int> histo(gen, 5);
     std::string expected("{Histogram: [-2147483648, 1) = 0, [1, 10) = 0, "
@@ -94,10 +96,10 @@ static void test_exponential() {
                          "[10000, 100000) = 0, [100000, 2147483647) = 0}");
     std::stringstream s;
     s << histo;
-    cb_assert(s.str() == expected);
+    EXPECT_EQ(expected, s.str());
 }
 
-static void test_complete_range() {
+TEST(HistoTest, CompleteRange) {
     GrowingWidthGenerator<uint16_t> gen(0, 10, M_E);
     Histogram<uint16_t> histo(gen, 10);
     uint16_t i(0);
@@ -105,12 +107,4 @@ static void test_complete_range() {
         histo.add(i);
         ++i;
     } while (i != 0);
-}
-
-int main() {
-    test_basic();
-    test_fixed_input();
-    test_exponential();
-    test_complete_range();
-    return 0;
 }
