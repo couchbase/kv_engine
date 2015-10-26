@@ -231,9 +231,7 @@ static void perf_latency_core(ENGINE_HANDLE *h,
 
 static enum test_result perf_latency(ENGINE_HANDLE *h,
                                      ENGINE_HANDLE_V1 *h1,
-                                     const char* title) {
-
-    const unsigned int num_docs = 100000;
+                                     const char* title, size_t num_docs) {
 
     // Only timing front-end performance, not considering persistence.
     stop_persistence(h, h1);
@@ -245,7 +243,8 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     delete_timings.reserve(num_docs);
 
     int printed = 0;
-    printf("\n\n=== Latency [%s] - %u items (µs) %n", title, num_docs, &printed);
+    printf("\n\n=== Latency [%s] - %" PRIu64 " items (µs) %n", title,
+           uint64_t(num_docs), &printed);
     fillLineWith('=', 88-printed);
 
     // run and measure on this thread.
@@ -264,21 +263,21 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
  */
 static enum test_result perf_latency_baseline(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    return perf_latency(h, h1, "Baseline");
+    return perf_latency(h, h1, "Baseline", 100000);
 }
 
 /* Benchmark the baseline latency with the defragmenter enabled.
  */
 static enum test_result perf_latency_defragmenter(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
-    return perf_latency(h, h1, "With constant defragmention");
+    return perf_latency(h, h1, "With constant defragmention", 100000);
 }
 
 /* Benchmark the baseline latency with the defragmenter enabled.
  */
 static enum test_result perf_latency_expiry_pager(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
-    return perf_latency(h, h1, "With constant Expiry pager");
+    return perf_latency(h, h1, "With constant Expiry pager", 100000);
 }
 
 struct ThreadArguments {
@@ -618,6 +617,7 @@ static void perf_dcp_client(struct Handle_args *ha) {
         } else {
             switch (dcp_last_op) {
                 case PROTOCOL_BINARY_CMD_DCP_MUTATION:
+                case PROTOCOL_BINARY_CMD_DCP_DELETION:
                     num_mutations++;
                     ha->timings.push_back(gethrtime());
                     ha->bytes_received.push_back(dcp_last_value.length());
@@ -787,6 +787,27 @@ static enum test_result perf_multi_thread_latency(engine_test_t* test) {
                                                      10000/* documents */);
 }
 
+static enum test_result perf_latency_dcp_impact(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    // Spin up a DCP replication background thread, then start the normal
+    // latency test.
+    cb_thread_t dcp_thread;
+    const size_t num_docs = 100000;
+    // Perform 3 DCP-visible operations - add, replace, delete:
+    const size_t num_dcp_ops = num_docs * 3;
+
+    Handle_args dcp_args(h, h1, num_dcp_ops, /*unused*/Doc_format::JSON_PADDED,
+                         "DCP",  /*opaque*/0x1, 0, /*compressed*/false);
+    cb_assert(cb_create_thread(&dcp_thread, dcp_client_thread, &dcp_args,
+                               0) == 0);
+
+    enum test_result result = perf_latency(h, h1, "With background DCP",
+                                           num_docs);
+
+    cb_join_thread(dcp_thread);
+
+    return result;
+}
 
 /*****************************************************************************
  * List of testcases
@@ -836,6 +857,11 @@ BaseTestCase testsuite_testcases[] = {
                    NULL, NULL,
                    "backend=couchdb;dbname=./perf_test;ht_size=393209",
                    prepare, cleanup),
+
+        TestCase("DCP impact on front-end latency", perf_latency_dcp_impact,
+                 test_setup, teardown,
+                 "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                 prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL,
                  "backend=couchdb;dbname=./perf_test", prepare, cleanup)

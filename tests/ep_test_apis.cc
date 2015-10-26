@@ -25,11 +25,18 @@
 
 #include <algorithm>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 
 #include "mock/mock_dcp.h"
 
+// Due to the limitations of the add_stats callback (essentially we cannot pass
+// a context into it) we instead have a single, global `vals` map. This mutex
+// is used to serialise modifications to it to allow multiple threads to request
+// stats.
+std::mutex vals_mutex;
 std::map<std::string, std::string> vals;
+
 bool dump_stats = false;
 AtomicValue<protocol_binary_response_status> last_status(
     static_cast<protocol_binary_response_status>(0));
@@ -929,6 +936,7 @@ bool verify_vbucket_missing(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     // Try up to three times to verify the bucket is missing.  Bucket
     // state changes are async.
+    std::lock_guard<std::mutex> lh(vals_mutex);
     vals.clear();
     check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
@@ -986,6 +994,7 @@ void sendDcpAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                  const char *statkey) {
+    std::lock_guard<std::mutex> lh(vals_mutex);
     vals.clear();
     check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
                         add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
@@ -995,6 +1004,7 @@ int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
 
 float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                      const char *statkey) {
+    std::lock_guard<std::mutex> lh(vals_mutex);
     vals.clear();
     check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
                         add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
@@ -1004,6 +1014,7 @@ float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statnam
 
 uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                       const char *statkey) {
+    std::lock_guard<std::mutex> lh(vals_mutex);
     vals.clear();
     check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
                         add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
@@ -1013,6 +1024,7 @@ uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statna
 
 std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                          const char *statname, const char *statkey) {
+    std::lock_guard<std::mutex> lh(vals_mutex);
     vals.clear();
     check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
                         add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
@@ -1023,6 +1035,7 @@ std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                    const char *statkey) {
+    std::lock_guard<std::mutex> lh(vals_mutex);
       vals.clear();
       check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
                           add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
@@ -1173,15 +1186,19 @@ void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     useconds_t sleepTime = 128;
-    while (h1->get_stats(h, NULL, "warmup", 6, add_stats) == ENGINE_SUCCESS) {
-        std::string s = vals["ep_warmup_thread"];
-        if (strcmp(s.c_str(), "complete") == 0) {
-            break;
+    do {
+        {
+            std::lock_guard<std::mutex> lh(vals_mutex);
+            vals.clear();
+            if (h1->get_stats(h, NULL, "warmup", 6, add_stats) != ENGINE_SUCCESS) {
+                return true;
+            }
+        }
+        if (vals["ep_warmup_thread"] == "complete") {
+            return true;
         }
         decayingSleep(&sleepTime);
-        vals.clear();
-    }
-    return true;
+    } while(true);
 }
 
 void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
