@@ -22,6 +22,7 @@
 #include <cmath>
 #include <functional>
 #include <sstream>
+#include <thread>
 
 #include <gtest/gtest.h>
 
@@ -107,4 +108,26 @@ TEST(HistoTest, CompleteRange) {
         histo.add(i);
         ++i;
     } while (i != 0);
+}
+
+
+TEST(BlockTimerTest, Basic) {
+    Histogram<hrtime_t> histo;
+    ASSERT_EQ(0, histo.total());
+    {
+        BlockTimer timer(&histo);
+    }
+    EXPECT_EQ(1, histo.total());
+}
+
+// TODO: This doesn't fully test the threshold functionality as it doesn't
+// check that the threshold is actually logged.
+TEST(BlockTimerTest, ThresholdTest) {
+    Histogram<hrtime_t> histo;
+    ASSERT_EQ(0, histo.total());
+    {
+        GenericBlockTimer<1> timer(&histo, "thresholdTest");
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    EXPECT_EQ(1, histo.total());
 }

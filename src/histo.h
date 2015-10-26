@@ -391,8 +391,13 @@ private:
 
 /**
  * Times blocks automatically and records the values in a histogram.
+ *
+ * If THRESHOLD_MS is greater than zero, then any blocks taking longer than
+ * THRESHOLD_MS to execute will be reported in the log (at LOG_WARNING).
+ * Note this requires that a name is specified for the BlockTimer.
  */
-class BlockTimer {
+template <uint64_t THRESHOLD_MS = 0>
+class GenericBlockTimer {
 public:
 
     /**
@@ -400,19 +405,32 @@ public:
      * histogram.
      *
      * @param d the histogram that will hold the result
+     * @param n the name to give the histogram, used when logging slow block
+     *        execution to the log.
      */
-    BlockTimer(Histogram<hrtime_t> *d, const char *n=NULL, std::ostream *o=NULL)
-        : dest(d), start(gethrtime()), name(n), out(o) {}
+    GenericBlockTimer(Histogram<hrtime_t> *d, const char *n=NULL,
+                      std::ostream *o=NULL)
+        : dest(d),
+          start(gethrtime()),
+          name(n),
+          out(o) {}
 
-    ~BlockTimer() {
+    ~GenericBlockTimer() {
         hrtime_t spent(gethrtime() - start);
         dest->add(spent / 1000);
         log(spent, name, out);
     }
 
-    static inline void log(hrtime_t spent, const char *name, std::ostream *o) {
+    static void log(hrtime_t spent, const char *name, std::ostream *o) {
         if (o && name) {
             *o << name << "\t" << spent << "\n";
+        }
+        if (THRESHOLD_MS > 0) {
+            const uint64_t msec = spent / 1000000;
+            if (name != nullptr && spent > THRESHOLD_MS) {
+                LOG(EXTENSION_LOG_WARNING, "BlockTimer<%s> Took too long: %"
+                    PRIu64 "ms", name, msec);
+            }
         }
     }
 
@@ -422,6 +440,16 @@ private:
     const char          *name;
     std::ostream        *out;
 };
+
+/* Convenience specialization which only records in a histogram; doesn't log
+ * slow blocks.
+ *
+ * ProTip: If you want to enable logging of slow blocks globally, change the
+ * template parameters here to <MS> where MS is the number of milliseconds
+ * to consider a block "slow".
+ */
+typedef GenericBlockTimer<0> BlockTimer;
+
 
 // How to print a bin.
 template <typename T>
