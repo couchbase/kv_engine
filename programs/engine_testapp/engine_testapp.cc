@@ -5,6 +5,7 @@
 
 #include <cstdlib>
 #include <getopt.h>
+#include <regex>
 #include <string>
 #include <vector>
 
@@ -823,8 +824,8 @@ static void usage(void) {
     printf("\n");
     printf("-h                           Prints this usage text.\n");
     printf("-v                           verbose output\n");
-    printf("-X                           Use stderr logger instead of /dev/zero");
-    printf("\n");
+    printf("-X                           Use stderr logger instead of /dev/zero\n");
+    printf("-n                           Regex specifying name(s) of test(s) to run\n");
 }
 
 static int report_test(const char *name, time_t duration, enum test_result r, bool quiet, bool compact) {
@@ -1246,7 +1247,7 @@ int main(int argc, char **argv) {
     const char *engine = NULL;
     const char *engine_args = NULL;
     const char *test_suite = NULL;
-    const char *test_case = NULL;
+    std::regex test_case_regex(".*");
     engine_test_t *testcases = NULL;
     cb_dlhandle_t handle;
     char *errmsg = NULL;
@@ -1292,7 +1293,7 @@ int main(int argc, char **argv) {
                        "L"  /* Loop until failure */
                        "q"  /* Be more quiet (only report failures) */
                        "."  /* dot mode. */
-                       "n:"  /* test case to run */
+                       "n:"  /* regex for test case(s) to run */
                        "v" /* verbose output */
                        "Z"  /* Terminate on first error */
                        "C:" /* Test case id */
@@ -1329,7 +1330,7 @@ int main(int argc, char **argv) {
             loop = true;
             break;
         case 'n':
-            test_case = optarg;
+            test_case_regex = optarg;
             break;
         case 'v' :
             verbose = true;
@@ -1460,8 +1461,9 @@ int main(int argc, char **argv) {
         bool need_newline = false;
         for (i = 0; testcases[i].name; i++) {
             int error;
-            if (test_case != NULL && strcmp(test_case, testcases[i].name) != 0)
+            if (!std::regex_search(testcases[i].name, test_case_regex)) {
                 continue;
+            }
             if (!quiet) {
                 printf("Running [%04d/%04d]: %s...",
                        i + num_cases * loop_count,
