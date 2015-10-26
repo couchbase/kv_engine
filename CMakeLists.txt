@@ -240,8 +240,10 @@ TARGET_LINK_LIBRARIES(ep-engine_hrtime_test platform)
 ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_misc_test platform)
 ADD_EXECUTABLE(ep-engine_mutex_test
-  tests/module_tests/mutex_test.cc src/testlogger.cc src/mutex.cc)
-TARGET_LINK_LIBRARIES(ep-engine_mutex_test platform)
+               tests/module_tests/mutex_test.cc
+               src/testlogger.cc
+               src/mutex.cc)
+TARGET_LINK_LIBRARIES(ep-engine_mutex_test gtest gtest_main platform)
 
 ADD_EXECUTABLE(ep-engine_priority_test  tests/module_tests/priority_test.cc src/priority.cc)
 TARGET_LINK_LIBRARIES(ep-engine_priority_test platform)

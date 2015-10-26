@@ -22,16 +22,14 @@
 #include "common.h"
 #include "locks.h"
 
-int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+#include <gtest/gtest.h>
 
+TEST(LockHolder, Ownership) {
     Mutex m;
-    cb_assert(!m.ownsLock());
+    ASSERT_FALSE(m.ownsLock());
     {
         LockHolder lh(m);
-        cb_assert(m.ownsLock());
+        EXPECT_TRUE(m.ownsLock());
     }
-    cb_assert(!m.ownsLock());
-
-    return 0;
+    EXPECT_FALSE(m.ownsLock());
 }
