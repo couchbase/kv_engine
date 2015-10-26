@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include <iostream>
+#include <thread>
 
 #include "common.h"
 #include "locks.h"
@@ -32,4 +33,28 @@ TEST(LockHolder, Ownership) {
         EXPECT_TRUE(m.ownsLock());
     }
     EXPECT_FALSE(m.ownsLock());
+}
+
+TEST(LockTimerTest, LockHolder) {
+    Mutex m;
+    {
+        LockTimer<LockHolder, 1, 1> lh(m, "LockHolder");
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+}
+
+TEST(LockTimerTest, ReaderLockHolder) {
+    RWLock m;
+    {
+        LockTimer<ReaderLockHolder, 1, 1> rlh(m, "ReaderLockHolder");
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+}
+
+TEST(LockTimerTest, WriterLockHolder) {
+    RWLock m;
+    {
+        LockTimer<WriterLockHolder, 1, 1> wlh(m, "WriterLockHolder");
+        std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
 }

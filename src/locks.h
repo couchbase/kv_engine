@@ -38,6 +38,9 @@
  */
 class LockHolder {
 public:
+
+    typedef Mutex mutex_type;
+
     /**
      * Acquire the lock in the given mutex.
      */
@@ -166,6 +169,8 @@ private:
 // RAII Reader lock
 class ReaderLockHolder {
 public:
+    typedef RWLock mutex_type;
+
     ReaderLockHolder(RWLock& lock)
       :  rwLock(lock) {
         int locked = rwLock.readerLock();
@@ -196,6 +201,8 @@ private:
 // RAII Writer lock
 class WriterLockHolder {
 public:
+    typedef RWLock mutex_type;
+
     WriterLockHolder(RWLock& lock)
       :  rwLock(lock) {
         int locked = rwLock.writerLock();
@@ -221,6 +228,95 @@ private:
     RWLock& rwLock;
 
     DISALLOW_COPY_AND_ASSIGN(WriterLockHolder);
+};
+
+/**
+ * Lock holder wrapper to assist to debugging locking issues - Logs when the
+ * time taken to acquire a lock, or the duration a lock is held exceeds the
+ * specified thresholds.
+ *
+ * Implemented as a template class around a RAII-style lock holder:
+ *
+ *   T - underlying lock holder type (LockHolder, ReaderLockHolder etc).
+ *   ACQUIRE_MS - Report instances when it takes longer than this to acquire a
+ *                lock.
+ *   HELD_MS - Report instance when a lock is held (locked) for longer than
+ *             this.
+ *
+ * Usage:
+ * To debug a single lock holder - wrap the class with a LockTimer<>, adding
+ * a lock name as an additional argument - e.g.
+ *
+ *   LockHolder lh(mutex)
+ *
+ * becomes:
+ *
+ *   LockTimer<LockHolder> lh(mutex, "my_func_lockholder")
+ *
+ */
+template <typename T,
+          size_t ACQUIRE_MS = 100,
+          size_t HELD_MS = 100>
+class LockTimer {
+public:
+
+    /** Create a new LockTimer, acquiring the underlying lock.
+     *  If it takes longer than ACQUIRE_MS to acquire the lock then report to
+     *  the log file.
+     *  @param m underlying mutex to acquire
+     *  @param name_ A name for this mutex, used in log messages.
+     */
+    LockTimer(typename T::mutex_type& m, const char* name_)
+        : name(name_),
+          start(gethrtime()),
+          lock_holder(m) {
+
+        acquired = gethrtime();
+        const uint64_t msec = (acquired - start) / 1000000;
+        if (msec > ACQUIRE_MS) {
+            LOG(EXTENSION_LOG_WARNING,
+                "LockHolder<%s> Took too long to acquire lock: %" PRIu64 " ms",
+                name, msec);
+        }
+    }
+
+    /** Destroy the DebugLockHolder releasing the underlying lock.
+     *  If the lock was held for longer than HELS_MS to then report to the
+     *  log file.
+     */
+    ~LockTimer() {
+        check_held_duration();
+        // upon destruction the lock_holder will also be destroyed and hence
+        // unlocked...
+    }
+
+    /* explicitly unlock the lock */
+    void unlock() {
+        check_held_duration();
+        lock_holder.unlock();
+    }
+
+private:
+
+    void check_held_duration() {
+        const hrtime_t released = gethrtime();
+        const uint64_t msec = (released - acquired) / 1000000;
+        if (msec > HELD_MS) {
+            LOG(EXTENSION_LOG_WARNING, "LockHolder<%s> Held lock for too long: "
+                    "%" PRIu64 " ms", name, msec);
+        }
+    }
+
+    const char* name;
+
+    // Time when lock acquisition started.
+    hrtime_t start;
+
+    // Time when we completed acquiring the lock.
+    hrtime_t acquired;
+
+    // The underlying 'real' lock holder we are wrapping.
+    T lock_holder;
 };
 
 #endif  // SRC_LOCKS_H_
