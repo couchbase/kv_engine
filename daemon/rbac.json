@@ -108,8 +108,6 @@
                     "HELLO",
                     "INCREMENT",
                     "INCREMENTQ",
-                    "IOCTL_GET",
-                    "IOCTL_SET",
                     "LAST_CLOSED_CHECKPOINT",
                     "NOOP",
                     "NOTIFY_VBUCKET_UPDATE",
