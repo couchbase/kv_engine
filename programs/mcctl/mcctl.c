@@ -235,7 +235,7 @@ static int ioctl_set(BIO *bio, const char *property, const char* value)
     request.message.header.request.magic = PROTOCOL_BINARY_REQ;
     request.message.header.request.opcode = PROTOCOL_BINARY_CMD_IOCTL_SET;
     request.message.header.request.keylen = htons(keylen);
-    request.message.header.request.bodylen = htonl(valuelen);
+    request.message.header.request.bodylen = htonl(keylen + valuelen);
 
     ensure_send(bio, &request, sizeof(request));
     if (keylen > 0) {
