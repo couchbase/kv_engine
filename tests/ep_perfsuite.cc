@@ -653,6 +653,66 @@ static void perf_dcp_client(struct Handle_args *ha) {
     testHarness.destroy_cookie(cookie);
 }
 
+static void perf_tap_client(struct Handle_args *ha) {
+    const void *cookie = testHarness.create_cookie();
+
+    uint64_t end = static_cast<uint64_t>(ha->itemCount);
+
+    testHarness.lock_cookie(cookie);
+    std::string name("perf_tap_client");
+    uint64_t backfill_age = htonll(0);
+    TAP_ITERATOR iter = ha->h1->get_tap_iterator(ha->h, cookie, name.c_str(),
+                                                 name.size(),
+                                                 TAP_CONNECT_FLAG_BACKFILL,
+                                                 &backfill_age,
+                                                 sizeof(backfill_age));
+    check(iter != NULL, "Failed to create a tap iterator");
+
+    bool done = false;
+    size_t num_mutations = 0;
+
+    do {
+        item* item;
+        void* engine;
+        uint16_t nengine;
+        uint8_t ttl;
+        uint16_t flags;
+        uint32_t seqno;
+        uint16_t vbucket;
+        tap_event_t event = iter(ha->h, cookie, &item, &engine, &nengine,
+                                 &ttl, &flags, &seqno, &vbucket);
+
+        switch (event) {
+        case TAP_MUTATION:
+        case TAP_DELETION:
+            num_mutations++;
+            if (num_mutations == end) {
+                done = true;
+            }
+            break;
+
+        case TAP_OPAQUE:
+            break;
+
+        case TAP_PAUSE:
+            break;
+
+        default:
+            fprintf(stderr, "Unexpected TAP event type received: %d\n", event);
+            abort();
+            break;
+        }
+
+    } while (!done);
+
+    checkeq(num_mutations,
+            static_cast<size_t>(ha->itemCount),
+            "Didn't receive expected number of mutations");
+
+    testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
+}
+
 extern "C" {
     static void load_thread(void *args) {
         struct Handle_args *ha = static_cast<Handle_args *>(args);
@@ -667,6 +727,11 @@ extern "C" {
     static void dcp_client_thread(void *args) {
         struct Handle_args *ha = static_cast<Handle_args *>(args);
         perf_dcp_client(ha);
+    }
+
+    static void tap_client_thread(void *args) {
+        struct Handle_args *ha = static_cast<Handle_args *>(args);
+        perf_tap_client(ha);
     }
 }
 
@@ -809,6 +874,29 @@ static enum test_result perf_latency_dcp_impact(ENGINE_HANDLE *h,
     return result;
 }
 
+static enum test_result perf_latency_tap_impact(ENGINE_HANDLE *h,
+                                                ENGINE_HANDLE_V1 *h1) {
+    // Spin up a TAP replication background thread, then start the normal
+    // latency test.
+    cb_thread_t tap_thread;
+    const size_t num_docs = 100000;
+    // Perform 3 TAP-visible operations - add, replace, delete:
+    const size_t num_ops = num_docs * 3;
+
+    Handle_args tap_args(h, h1, num_ops, /*unused*/Doc_format::JSON_PADDED,
+                         "TAP",  /*opaque*/0x1, 0, /*compressed*/false);
+    cb_assert(cb_create_thread(&tap_thread, tap_client_thread, &tap_args,
+                               0) == 0);
+
+    enum test_result result = perf_latency(h, h1, "With background TAP",
+                                           num_docs);
+
+    cb_join_thread(tap_thread);
+
+    return result;
+}
+
+
 /*****************************************************************************
  * List of testcases
  *****************************************************************************/
@@ -859,6 +947,11 @@ BaseTestCase testsuite_testcases[] = {
                    prepare, cleanup),
 
         TestCase("DCP impact on front-end latency", perf_latency_dcp_impact,
+                 test_setup, teardown,
+                 "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                 prepare, cleanup),
+
+        TestCase("TAP impact on front-end latency", perf_latency_tap_impact,
                  test_setup, teardown,
                  "backend=couchdb;dbname=./perf_test;ht_size=393209",
                  prepare, cleanup),
