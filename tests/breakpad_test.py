@@ -94,13 +94,15 @@ else:
 rbac = {"foo": "bar"}
 rbac_json = json.dumps(rbac)
 
+# 'verbosity' isn't functionally needed, but helpful to debug test issues.
 config = {"interfaces": [{"port": 0,
                           "maxconn":  1000,
                           "backlog":  1024,
                           "host": "*"}],
           "breakpad": { "enabled": True,
                         "minidump_dir" : "."
-                      }}
+                      },
+          "verbosity" : 2}
 config_json = json.dumps(config)
 
 # Need a temporary file which can be opened (a second time) by memcached,
@@ -118,7 +120,7 @@ args = [memcached_exe, "-C", os.path.abspath(config_file.name)]
 # Spawn memcached from a child thread. We specify a timeout to prevent the test
 # hanging forever if something goes wrong.
 memcached = Subprocess(args)
-memcached.run(timeout=10)
+memcached.run(timeout=20)
 
 # Wait for memcached to initialise (and consequently crash due to loading
 # crash_engine).
