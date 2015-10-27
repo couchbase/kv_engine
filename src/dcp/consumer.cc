@@ -609,7 +609,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
 
     if (!validOpaque) {
         LOG(EXTENSION_LOG_WARNING, "%s Received response with opaque %"
-            PRIu32 "and that stream no longer exists", logHeader(), opaque);
+            PRIu32 " and that stream no longer exists", logHeader(), opaque);
         return ENGINE_KEY_ENOENT;
     }
 
