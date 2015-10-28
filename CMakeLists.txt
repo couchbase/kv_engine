@@ -409,7 +409,7 @@ ADD_CUSTOM_TARGET(engine-tests
                   VERBATIM)
 
 ADD_TEST(ep-engine-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_testsuite.so -v -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
-SET_TESTS_PROPERTIES(ep-engine-engine-tests PROPERTIES TIMEOUT 900)
+SET_TESTS_PROPERTIES(ep-engine-engine-tests PROPERTIES TIMEOUT 1800)
 
 # ADD_TEST(ep-engine-breakdancer-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T generated_testsuite.so -e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=couchdb')
 
