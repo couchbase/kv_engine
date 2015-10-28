@@ -316,7 +316,7 @@ DcpResponse* ActiveStream::next() {
 
     DcpResponse* response = NULL;
 
-    switch (state_) {
+    switch (initState) {
         case STREAM_PENDING:
             break;
         case STREAM_BACKFILLING:
@@ -340,7 +340,9 @@ DcpResponse* ActiveStream::next() {
             abort();
     }
 
-    if (state_ != STREAM_DEAD && initState != state_ && !response) {
+    stream_state_t newState = state_;
+
+    if (newState != STREAM_DEAD && newState != state_ && !response) {
         lh.unlock();
         return next();
     }
@@ -916,7 +918,7 @@ void ActiveStream::transitionState(stream_state_t newState) {
         return;
     }
 
-    switch (state_) {
+    switch (state_.load()) {
         case STREAM_PENDING:
             cb_assert(newState == STREAM_BACKFILLING || newState == STREAM_DEAD);
             break;
@@ -1099,7 +1101,7 @@ void NotifierStream::transitionState(stream_state_t newState) {
         return;
     }
 
-    switch (state_) {
+    switch (state_.load()) {
         case STREAM_PENDING:
             cb_assert(newState == STREAM_DEAD);
             break;
@@ -1571,7 +1573,7 @@ void PassiveStream::transitionState(stream_state_t newState) {
         return;
     }
 
-    switch (state_) {
+    switch (state_.load()) {
         case STREAM_PENDING:
             cb_assert(newState == STREAM_READING || newState == STREAM_DEAD);
             break;
