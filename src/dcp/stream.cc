@@ -516,8 +516,17 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
     size_t vb_items = vb->getNumItems(iep);
     size_t chk_items = vb_items > 0 ?
                 vb->checkpointManager.getNumItemsForCursor(name_) : 0;
-    size_t del_items = engine->getEpStore()->getRWUnderlying(vb_)->
+
+    size_t del_items = 0;
+    const VBucketMap &vbMap = engine->getEpStore()->getVBuckets();
+
+    /* Get stats from KV Store only when the vbucket database
+     * file has already been created.
+     */
+    if (!vbMap.isBucketCreation(vb_)) {
+        del_items = engine->getEpStore()->getRWUnderlying(vb_)->
                                                     getNumPersistedDeletes(vb_);
+    }
 
     if (end_seqno_ < curChkSeqno) {
         chk_items = 0;

@@ -5740,8 +5740,17 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
     const connection_t &conn = dcpConnMap_->findByName(dcpName);
     if (!conn) {
         size_t vb_items = vb->getNumItems(epstore->getItemEvictionPolicy());
-        size_t del_items = epstore->getRWUnderlying(vbid)->
+
+        size_t del_items = 0;
+        const VBucketMap &vbMap = epstore->getVBuckets();
+
+        /* Get stats from KV Store only when the vbucket database
+         * file has already been created.
+         */
+        if (!vbMap.isBucketCreation(vbid)) {
+            del_items = epstore->getRWUnderlying(vbid)->
                                            getNumPersistedDeletes(vbid);
+        }
         size_t chk_items = vb_items > 0 ?
                            vb->checkpointManager.getNumOpenChkItems() : 0;
         add_casted_stat("status", "does_not_exist", add_stat, cookie);
