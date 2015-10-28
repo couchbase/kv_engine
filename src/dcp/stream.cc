@@ -1271,12 +1271,14 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (mutation->getBySeqno() > cur_snapshot_end.load()) {
+    if (mutation->getBySeqno() < cur_snapshot_start.load() ||
+        mutation->getBySeqno() > cur_snapshot_end.load()) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous mutation [sequence "
-            "number (%" PRIu64 ") greater than current snapshot end seqno "
-            "(%" PRIu64 ")] being processed; Dropping the mutation!",
-            consumer->logHeader(), vb_, mutation->getBySeqno(),
-            cur_snapshot_end.load());
+            "number does not fall in the expected snapshot range : "
+            "{snapshot_start (%" PRIu64 ") <= seq_no (%" PRIu64 ") <= "
+            "snapshot_end (%" PRIu64 ")]; Dropping the mutation!",
+            consumer->logHeader(), vb_, cur_snapshot_start.load(),
+            mutation->getBySeqno(), cur_snapshot_end.load());
         delete mutation;
         return ENGINE_ERANGE;
     }
@@ -1318,12 +1320,14 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (deletion->getBySeqno() > cur_snapshot_end.load()) {
+    if (deletion->getBySeqno() < cur_snapshot_start.load() ||
+        deletion->getBySeqno() > cur_snapshot_end.load()) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous deletion [sequence "
-            "number (%" PRIu64 ") greater than current snapshot end seqno "
-            "(%" PRIu64 ")] being processed; Dropping the deletion!",
-            consumer->logHeader(), vb_, deletion->getBySeqno(),
-            cur_snapshot_end.load());
+            "number does not fall in the expected snapshot range : "
+            "{snapshot_start (%" PRIu64 ") <= seq_no (%" PRIu64 ") <= "
+            "snapshot_end (%" PRIu64 ")]; Dropping the deletion!",
+            consumer->logHeader(), vb_, cur_snapshot_start.load(),
+            deletion->getBySeqno(), cur_snapshot_end.load());
         delete deletion;
         return ENGINE_ERANGE;
     }
