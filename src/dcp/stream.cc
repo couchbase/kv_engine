@@ -192,7 +192,7 @@ DcpResponse* ActiveStream::next() {
     DcpResponse* response = NULL;
 
     bool validTransition = false;
-    switch (state_) {
+    switch (initState) {
         case STREAM_PENDING:
             validTransition = true;
             break;
@@ -227,7 +227,9 @@ DcpResponse* ActiveStream::next() {
                 producer->logHeader() + " vb " + std::to_string(vb_));
     }
 
-    if (state_ != STREAM_DEAD && initState != state_ && !response) {
+    stream_state_t newState = state_;
+
+    if (newState != STREAM_DEAD && newState != state_ && !response) {
         lh.unlock();
         return next();
     }
@@ -781,7 +783,7 @@ void ActiveStream::transitionState(stream_state_t newState) {
     }
 
     bool validTransition = false;
-    switch (state_) {
+    switch (state_.load()) {
         case STREAM_PENDING:
             if (newState == STREAM_BACKFILLING || newState == STREAM_DEAD) {
                 validTransition = true;
@@ -964,7 +966,7 @@ void NotifierStream::transitionState(stream_state_t newState) {
     }
 
     bool validTransition = false;
-    switch (state_) {
+    switch (state_.load()) {
         case STREAM_PENDING:
             if (newState == STREAM_DEAD) {
                 validTransition = true;
@@ -1500,7 +1502,7 @@ void PassiveStream::transitionState(stream_state_t newState) {
     }
 
     bool validTransition = false;
-    switch (state_) {
+    switch (state_.load()) {
         case STREAM_PENDING:
             if (newState == STREAM_READING || newState == STREAM_DEAD) {
                 validTransition = true;
