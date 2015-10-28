@@ -14003,7 +14003,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     prev_cas = curr_cas;
 
     //ensure that the adjusted time will be negative
-    int64_t drift_counter = (-1) * (gethrtime() + 100000);
+    int64_t drift_counter = (-1) * (gethrtime() * 2);
     set_drift_counter_state(h, h1, drift_counter, true);
 
     protocol_binary_request_header *request;
@@ -14018,7 +14018,9 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
             "Bodylen didn't match expected value");
     memcpy(&adjusted_time, last_body.data(), last_body.size());
     adjusted_time = ntohll(adjusted_time);
-    check(adjusted_time < 0, "Adjusted time is supposed to negative");
+    std::string err_msg("Adjusted time " + std::to_string(adjusted_time) +
+                        " is supposed to have been negative!");
+    check(adjusted_time < 0, err_msg.c_str());
 
     check(store(h, h1, NULL, OPERATION_REPLACE, key, "data3", &i, 0, 0)
           == ENGINE_SUCCESS, "Failed to store an item");
