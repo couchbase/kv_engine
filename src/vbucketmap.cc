@@ -126,11 +126,7 @@ VBucketMap::getActiveVBucketsSortedByChkMgrMem(void) const {
     struct SortCtx {
         static bool compareSecond(std::pair<id_type, size_t> a,
                                   std::pair<id_type, size_t> b) {
-            if (a.second <= b.second) {
-                return true;
-            } else {
-                return false;
-            }
+            return (a.second < b.second);
         }
     };
 
