@@ -80,6 +80,9 @@ typedef struct {
 
 typedef uint16_t DBFileId;
 
+typedef std::shared_ptr<Callback<uint16_t&, std::string&, bool&> > BloomFilterCBPtr;
+typedef std::shared_ptr<Callback<uint16_t&, std::string&, uint64_t&, time_t&> > ExpiredItemsCBPtr;
+
 typedef struct {
     uint64_t purge_before_ts;
     uint64_t purge_before_seq;
@@ -87,8 +90,8 @@ typedef struct {
     uint8_t  drop_deletes;
     DBFileId db_file_id;
     uint32_t curr_time;
-    std::shared_ptr<Callback<std::string&, bool&> > bloomFilterCallback;
-    std::shared_ptr<Callback<std::string&, uint64_t&> > expiryCallback;
+    BloomFilterCBPtr bloomFilterCallback;
+    ExpiredItemsCBPtr expiryCallback;
 } compaction_ctx;
 
 /**
@@ -282,26 +285,69 @@ typedef std::map<uint16_t, vbucket_state> vbucket_map_t;
 class StorageProperties {
 public:
 
-    StorageProperties(bool evb, bool evd, bool pd, bool eget)
+    enum class EfficientVBDump {
+        Yes,
+        No
+    };
+
+    enum class EfficientVBDeletion {
+        Yes,
+        No
+    };
+
+    enum class PersistedDeletion {
+        Yes,
+        No
+    };
+
+    enum class EfficientGet {
+        Yes,
+        No
+    };
+
+    enum class ConcurrentWriteCompact {
+        Yes,
+        No
+    };
+
+    StorageProperties(EfficientVBDump evb, EfficientVBDeletion evd, PersistedDeletion pd,
+                      EfficientGet eget, ConcurrentWriteCompact cwc)
         : efficientVBDump(evb), efficientVBDeletion(evd),
-          persistedDeletions(pd), efficientGet(eget) {}
+          persistedDeletions(pd), efficientGet(eget),
+          concWriteCompact(cwc) {}
 
-    //! True if we can efficiently dump a single vbucket.
-    bool hasEfficientVBDump() const { return efficientVBDump; }
-    //! True if we can efficiently delete a vbucket all at once.
-    bool hasEfficientVBDeletion() const { return efficientVBDeletion; }
+    /* True if we can efficiently dump a single vbucket */
+    bool hasEfficientVBDump() const {
+        return (efficientVBDump == EfficientVBDump::Yes);
+    }
 
-    //! True if we can persisted deletions to disk.
-    bool hasPersistedDeletions() const { return persistedDeletions; }
+    /* True if we can efficiently delete a vbucket all at once */
+    bool hasEfficientVBDeletion() const {
+        return (efficientVBDeletion == EfficientVBDeletion::Yes);
+    }
 
-    //! True if we can batch-process multiple get operations at once.
-    bool hasEfficientGet() const { return efficientGet; }
+    /* True if we can persist deletions to disk */
+    bool hasPersistedDeletions() const {
+        return (persistedDeletions == PersistedDeletion::Yes);
+    }
+
+    /* True if we can batch-process multiple get operations at once */
+    bool hasEfficientGet() const {
+        return (efficientGet == EfficientGet::Yes);
+    }
+
+    /* True if the underlying storage supports concurrent writing
+     * and compacting */
+    bool hasConcWriteCompact() const {
+        return (concWriteCompact == ConcurrentWriteCompact::Yes);
+    }
 
 private:
-    bool efficientVBDump;
-    bool efficientVBDeletion;
-    bool persistedDeletions;
-    bool efficientGet;
+    EfficientVBDump efficientVBDump;
+    EfficientVBDeletion efficientVBDeletion;
+    PersistedDeletion persistedDeletions;
+    EfficientGet efficientGet;
+    ConcurrentWriteCompact concWriteCompact;
 };
 
 class RollbackCB;
@@ -532,8 +578,23 @@ public:
     /**
      * Compact a database file.
      */
-    virtual bool compactDB(compaction_ctx *c,
-                           Callback<kvstats_ctx> &kvcb) = 0;
+    virtual bool compactDB(compaction_ctx *c, Callback<kvstats_ctx> &kvcb) = 0;
+
+    /**
+     * Get the list of vbucket ids for compaction
+     * @param db_file_id id of the database file
+     *
+     * return vbucket ids in the vbIds vector
+     */
+    virtual std::vector<uint16_t> getCompactVbList(uint16_t db_file_id) = 0;
+
+    /**
+     * Return the database file id from the compaction request
+     * @param compact_req request structure for compaction
+     *
+     * return database file id
+     */
+    virtual uint16_t getDBFileId(const protocol_binary_request_compact_db& req) = 0;
 
     virtual vbucket_state *getVBucketState(uint16_t vbid) = 0;
 

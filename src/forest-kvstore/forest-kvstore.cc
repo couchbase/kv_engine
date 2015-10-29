@@ -745,7 +745,11 @@ bool ForestKVStore::commit(Callback<kvstats_ctx> *cb) {
 }
 
 StorageProperties ForestKVStore::getStorageProperties(void) {
-    StorageProperties rv(true, true, true, true);
+    StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
+                         StorageProperties::EfficientVBDeletion::Yes,
+                         StorageProperties::PersistedDeletion::Yes,
+                         StorageProperties::EfficientGet::Yes,
+                         StorageProperties::ConcurrentWriteCompact::Yes);
     return rv;
 }
 
@@ -1345,8 +1349,58 @@ void ForestKVStore::destroyScanContext(ScanContext* ctx) {
     delete ctx;
 }
 
+std::vector<uint16_t> ForestKVStore::getCompactVbList(uint16_t db_file_id) {
+   uint16_t maxVbuckets = configuration.getMaxVBuckets();
+   uint16_t numShards = configuration.getMaxShards();
+
+   std::vector<uint16_t> vbIds;
+   for (uint16_t vbId = db_file_id; vbId < maxVbuckets; vbId += numShards) {
+       vbucket_state *vbstate = cachedVBStates[vbId];
+       if (vbstate && vbstate->state != vbucket_state_dead) {
+           vbIds.push_back(vbId);
+       }
+   }
+   return vbIds;
+}
+
 bool ForestKVStore::compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb) {
-    return false;
+
+    uint16_t shardId = ctx->db_file_id;
+    uint64_t prevRevNum = dbFileRevNum;
+
+    dbFileRevNum++;
+
+    std::string dbFileBase = dbname + "/" + std::to_string(shardId) + ".fdb.";
+
+    std::string prevDbFile = dbFileBase + std::to_string(prevRevNum);
+
+    std::string newDbFile = dbFileBase + std::to_string(dbFileRevNum);
+
+    fdb_file_handle *compactFileHandle;
+    fdb_status status = fdb_open(&compactFileHandle, prevDbFile.c_str(),
+                                 &fileConfig);
+
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "ForestKVStore::compactDB: Failed to open database file: %s"
+            " with error: %s", prevDbFile.c_str(), fdb_error_msg(status));
+        return false;
+    }
+
+    status = fdb_compact(compactFileHandle, newDbFile.c_str());
+
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "ForestKVStore::compactDB: Failed to compact from database file: %s"
+            " to database file: %s with error: %s", prevDbFile.c_str(), newDbFile.c_str(),
+            fdb_error_msg(status));
+        fdb_close(compactFileHandle);
+        return false;
+    }
+
+    fdb_close(compactFileHandle);
+
+    return true;
 }
 
 size_t ForestKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,

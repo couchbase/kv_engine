@@ -236,14 +236,14 @@ public:
     /**
      * Reset database to a clean state.
      */
-    void reset(uint16_t vbucketId);
+    void reset(uint16_t vbucketId) override;
 
     /**
      * Begin a transaction (if not already in one).
      *
      * @return true if the transaction is started successfully
      */
-    bool begin(void) {
+    bool begin(void) override {
         if (isReadOnly()) {
             throw std::logic_error("CouchKVStore::begin: Not valid on a "
                     "read-only object.");
@@ -257,12 +257,12 @@ public:
      *
      * @return true if the commit is completed successfully.
      */
-    bool commit(Callback<kvstats_ctx> *cb);
+    bool commit(Callback<kvstats_ctx> *cb) override;
 
     /**
      * Rollback a transaction (unless not currently in one).
      */
-    void rollback(void) {
+    void rollback(void) override {
         if (isReadOnly()) {
             throw std::logic_error("CouchKVStore::rollback: Not valid on a "
                     "read-only object.");
@@ -277,7 +277,7 @@ public:
      *
      * @return properties of the underlying storage system
      */
-    StorageProperties getStorageProperties(void);
+    StorageProperties getStorageProperties(void) override;
 
     /**
      * Insert or update a given document.
@@ -285,7 +285,7 @@ public:
      * @param itm instance representing the document to be inserted or updated
      * @param cb callback instance for SET
      */
-    void set(const Item &itm, Callback<mutation_result> &cb);
+    void set(const Item &itm, Callback<mutation_result> &cb) override;
 
     /**
      * Retrieve the document with a given key from the underlying storage system.
@@ -297,11 +297,11 @@ public:
      *        purged yet.
      */
     void get(const std::string &key, uint16_t vb, Callback<GetValue> &cb,
-             bool fetchDelete = false);
+             bool fetchDelete = false) override;
 
     void getWithHeader(void *dbHandle, const std::string &key,
                        uint16_t vb, Callback<GetValue> &cb,
-                       bool fetchDelete = false);
+                       bool fetchDelete = false) override;
 
     /**
      * Retrieve the multiple documents from the underlying storage system at once.
@@ -309,7 +309,7 @@ public:
      * @param vb vbucket id of a document
      * @param itms list of items whose documents are going to be retrieved
      */
-    void getMulti(uint16_t vb, vb_bgfetch_queue_t &itms);
+    void getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) override;
 
     /**
      * Delete a given document from the underlying storage system.
@@ -317,7 +317,7 @@ public:
      * @param itm instance representing the document to be deleted
      * @param cb callback instance for DELETE
      */
-    void del(const Item &itm, Callback<int> &cb);
+    void del(const Item &itm, Callback<int> &cb) override;
 
     /**
      * Delete a given vbucket database instance from the underlying storage system
@@ -325,7 +325,7 @@ public:
      * @param vbucket vbucket id
      * @param recreate flag to re-create vbucket after deletion
      */
-    void delVBucket(uint16_t vbucket);
+    void delVBucket(uint16_t vbucket) override;
 
     /**
      * Retrieve the list of persisted vbucket states
@@ -333,14 +333,14 @@ public:
      * @return vbucket state vector instance where key is vbucket id and
      * value is vbucket state
      */
-   std::vector<vbucket_state *>  listPersistedVbuckets(void);
+   std::vector<vbucket_state *>  listPersistedVbuckets(void) override;
 
     /**
      * Retrieve ths list of persisted engine stats
      *
      * @param stats map instance where the persisted engine stats will be added
      */
-    void getPersistedStats(std::map<std::string, std::string> &stats);
+    void getPersistedStats(std::map<std::string, std::string> &stats) override;
 
     /**
      * Persist a snapshot of the vbucket states in the underlying storage system.
@@ -352,7 +352,7 @@ public:
      * @return true if the snapshot is done successfully
      */
     bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                         Callback<kvstats_ctx> *cb, bool persist);
+                         Callback<kvstats_ctx> *cb, bool persist) override;
 
      /**
      * Compact a database file in the underlying storage system.
@@ -363,23 +363,41 @@ public:
      * @param kvcb - callback to update kvstore stats
      * @return true if successful
      */
-    bool compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb);
+    bool compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb) override;
 
-    vbucket_state *getVBucketState(uint16_t vbid);
+    /**
+     * Get the list of vbucket ids for compaction
+     * @param db_file_id id of the database file
+     *
+     * return vbucket ids in the vbIds vector
+     */
+    std::vector<uint16_t> getCompactVbList(uint16_t db_file_id) override;
+
+    /**
+     * Return the database file id from the compaction request
+     * @param compact_req request structure for compaction
+     *
+     * return database file id
+     */
+    uint16_t getDBFileId(const protocol_binary_request_compact_db& req) override {
+        return ntohs(req.message.header.request.vbucket);
+    }
+
+    vbucket_state *getVBucketState(uint16_t vbid) override;
 
     /**
      * Get the number of deleted items that are persisted to a vbucket file
      *
      * @param vbid The vbucket if of the file to get the number of deletes for
      */
-    size_t getNumPersistedDeletes(uint16_t vbid);
+    size_t getNumPersistedDeletes(uint16_t vbid) override;
 
     /**
      * Get the vbucket pertaining stats from a vbucket database file
      *
      * @param vbid The vbucket of the file to get the number of docs for
      */
-    DBFileInfo getDbFileInfo(uint16_t vbid);
+    DBFileInfo getDbFileInfo(uint16_t vbid) override;
 
     /**
      * Get the number of non-deleted items from a vbucket database file
@@ -388,7 +406,7 @@ public:
      * @param min_seq The sequence number to start the count from
      * @param max_seq The sequence number to stop the count at
      */
-    size_t getNumItems(uint16_t vbid, uint64_t min_seq, uint64_t max_seq);
+    size_t getNumItems(uint16_t vbid, uint64_t min_seq, uint64_t max_seq) override;
 
     /**
      * Do a rollback to the specified seqNo on the particular vbucket
@@ -399,12 +417,12 @@ public:
      * @param cb getvalue callback
      */
     RollbackResult rollback(uint16_t vbid, uint64_t rollbackSeqno,
-                            std::shared_ptr<RollbackCB> cb);
+                            std::shared_ptr<RollbackCB> cb) override;
 
     /**
      * Perform pending tasks after persisting dirty items
      */
-    void pendingTasks();
+    void pendingTasks() override;
 
     /**
      * Add all the kvstore stats to the stat response
@@ -413,7 +431,7 @@ public:
      * @param add_stat upstream function that allows us to add a stat to the response
      * @param cookie upstream connection cookie
      */
-    void addStats(const std::string &prefix, ADD_STAT add_stat, const void *cookie);
+    void addStats(const std::string &prefix, ADD_STAT add_stat, const void *cookie) override;
 
     /**
      * Add all the kvstore timings stats to the stat response
@@ -423,14 +441,14 @@ public:
      * @param cookie upstream connection cookie
      */
     void addTimingStats(const std::string &prefix, ADD_STAT add_stat,
-                        const void *c);
+                        const void *c) override;
 
     virtual bool getStat(const char* name, size_t& value);
 
     /**
      * Resets couchstore stats
      */
-    void resetStats() {
+    void resetStats() override {
         st.reset();
     }
 
@@ -453,17 +471,17 @@ public:
      */
     ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
                                  uint32_t count,
-                                 std::shared_ptr<Callback<uint16_t&, char*&> > cb);
+                                 std::shared_ptr<Callback<uint16_t&, char*&> > cb) override;
 
     ScanContext* initScanContext(std::shared_ptr<Callback<GetValue> > cb,
                                  std::shared_ptr<Callback<CacheLookup> > cl,
                                  uint16_t vbid, uint64_t startSeqno,
                                  DocumentFilter options,
-                                 ValueFilter valOptions);
+                                 ValueFilter valOptions) override;
 
-    scan_error_t scan(ScanContext* sctx);
+    scan_error_t scan(ScanContext* sctx) override;
 
-    void destroyScanContext(ScanContext* ctx);
+    void destroyScanContext(ScanContext* ctx) override;
 
 private:
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,

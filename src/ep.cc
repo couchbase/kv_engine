@@ -169,52 +169,144 @@ private:
 };
 
 /**
- * Callback class used by EpStore, for adding relevent keys
+ * Callback class used by EpStore, for adding relevant keys
  * to bloomfilter during compaction.
  */
-class BloomFilterCallback : public Callback<std::string&, bool&> {
+class BloomFilterCallback : public Callback<uint16_t&, std::string&, bool&> {
 public:
-    BloomFilterCallback(EventuallyPersistentStore& eps, uint16_t vbid,
-                        bool residentRatioAlert)
-        : store(eps), vbucketId(vbid),
-          residentRatioLessThanThreshold(residentRatioAlert) {
+    BloomFilterCallback(EventuallyPersistentStore& eps)
+        : store(eps) {
     }
 
-    void callback(std::string& key, bool& isDeleted) {
+    void callback(uint16_t& vbucketId, std::string& key, bool& isDeleted) {
         RCPtr<VBucket> vb = store.getVBucket(vbucketId);
         if (vb) {
-            if (vb->isTempFilterAvailable()) {
-                if (store.getItemEvictionPolicy() == VALUE_ONLY) {
-                    /**
-                     * VALUE-ONLY EVICTION POLICY
-                     * Consider deleted items only.
-                     */
-                    if (isDeleted) {
-                        vb->addToTempFilter(key);
-                    }
-                } else {
-                    /**
-                     * FULL EVICTION POLICY
-                     * If vbucket's resident ratio is found to be less than
-                     * the residency threshold, consider all items, otherwise
-                     * consider deleted and non-resident items only.
-                     */
-                    if (residentRatioLessThanThreshold) {
-                        vb->addToTempFilter(key);
-                    } else {
-                        if (isDeleted || !store.isMetaDataResident(vb, key)) {
-                            vb->addToTempFilter(key);
-                        }
-                    }
+            /* Check if a temporary filter has been initialized. If not,
+             * initialize it. If initialization fails, throw an exception
+             * to the caller and let the caller deal with it.
+             */
+            bool tempFilterInitialized = vb->isTempFilterAvailable();
+            if (!tempFilterInitialized) {
+                tempFilterInitialized = initTempFilter(vbucketId);
+            }
+
+            if (!tempFilterInitialized) {
+                throw std::runtime_error("BloomFilterCallback::callback: Failed "
+                    "to initialize temporary filter for vbucket: " +
+                    std::to_string(vbucketId));
+            }
+
+            if (store.getItemEvictionPolicy() == VALUE_ONLY) {
+                /**
+                 * VALUE-ONLY EVICTION POLICY
+                 * Consider deleted items only.
+                 */
+                if (isDeleted) {
+                    vb->addToTempFilter(key);
                 }
+            } else {
+                /**
+                 * FULL EVICTION POLICY
+                 * If vbucket's resident ratio is found to be less than
+                 * the residency threshold, consider all items, otherwise
+                 * consider deleted and non-resident items only.
+                 */
+                 bool residentRatioLessThanThreshold = vb->isResidentRatioUnderThreshold(
+                                                           store.getBfiltersResidencyThreshold(),
+                                                           store.getItemEvictionPolicy());
+                 if (residentRatioLessThanThreshold) {
+                     vb->addToTempFilter(key);
+                 } else {
+                     if (isDeleted || !store.isMetaDataResident(vb, key)) {
+                         vb->addToTempFilter(key);
+                     }
+                 }
             }
         }
     }
 
 private:
+    bool initTempFilter(uint16_t vbucketId);
     EventuallyPersistentStore& store;
-    uint16_t vbucketId;
-    bool residentRatioLessThanThreshold;
+};
+
+bool BloomFilterCallback::initTempFilter(uint16_t vbucketId) {
+    Configuration& config = store.getEPEngine().getConfiguration();
+    RCPtr<VBucket> vb = store.getVBucket(vbucketId);
+    if (!vb) {
+        return false;
+    }
+
+    size_t initial_estimation = config.getBfilterKeyCount();
+    size_t estimated_count;
+    size_t num_deletes = store.getROUnderlying(vbucketId)->
+                                         getNumPersistedDeletes(vbucketId);
+    item_eviction_policy_t eviction_policy = store.getItemEvictionPolicy();
+    if (eviction_policy == VALUE_ONLY) {
+        /**
+         * VALUE-ONLY EVICTION POLICY
+         * Obtain number of persisted deletes from underlying kvstore.
+         * Bloomfilter's estimated_key_count = 1.25 * deletes
+         */
+        estimated_count = round(1.25 * num_deletes);
+    } else {
+        /**
+         * FULL EVICTION POLICY
+         * First determine if the resident ratio of vbucket is less than
+         * the threshold from configuration.
+         */
+        bool residentRatioAlert = vb->isResidentRatioUnderThreshold(
+                                          store.getBfiltersResidencyThreshold(),
+                                          eviction_policy);
+
+        /**
+         * Based on resident ratio against threshold, estimate count.
+         *
+         * 1. If resident ratio is greater than the threshold:
+         * Obtain number of persisted deletes from underlying kvstore.
+         * Obtain number of non-resident-items for vbucket.
+         * Bloomfilter's estimated_key_count =
+         *                              1.25 * (deletes + non-resident)
+         *
+         * 2. Otherwise:
+         * Obtain number of items for vbucket.
+         * Bloomfilter's estimated_key_count =
+         *                              1.25 * (num_items)
+         */
+
+         if (residentRatioAlert) {
+             estimated_count = round(1.25 * vb->getNumItems(eviction_policy));
+         } else {
+             estimated_count = round(1.25 * (num_deletes +
+                                      vb->getNumNonResidentItems(eviction_policy)));
+         }
+    }
+
+    if (estimated_count < initial_estimation) {
+        estimated_count = initial_estimation;
+    }
+
+    vb->initTempFilter(estimated_count, config.getBfilterFpProb());
+
+    return true;
+}
+
+class ExpiredItemsCallback : public Callback<uint16_t&, std::string&, uint64_t&,
+                                             time_t&> {
+    public:
+        ExpiredItemsCallback(EventuallyPersistentStore& store)
+            : epstore(store) { }
+
+        void callback(uint16_t& vbid, std::string& key, uint64_t& revSeqno,
+                      time_t& startTime) {
+            if (epstore.compactionCanExpireItems()) {
+                epstore.deleteExpiredItem(vbid, key, startTime, revSeqno,
+                                              EXP_BY_COMPACTOR);
+            }
+        }
+
+    private:
+        EventuallyPersistentStore& epstore;
 };
 
 class VBucketMemoryDeletionTask : public GlobalTask {
@@ -289,8 +381,6 @@ EventuallyPersistentStore::EventuallyPersistentStore(
                                  engine.getConfiguration().getAlogBlockSize());
         accessLog.push_back(shardlog);
     }
-
-    storageProperties = new StorageProperties(true, true, true, true);
 
     stats.schedulingHisto = new Histogram<hrtime_t>[MAX_TYPE_ID];
     stats.taskRuntimeHisto = new Histogram<hrtime_t>[MAX_TYPE_ID];
@@ -492,7 +582,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete [] stats.taskRuntimeHisto;
     delete conflictResolver;
     delete warmupTask;
-    delete storageProperties;
     defragmenterTask.reset();
 
     std::vector<MutationLog*>::iterator it;
@@ -1515,8 +1604,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::checkForDBExistence(DBFileId db_fil
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(compaction_ctx c,
-                                                       const void *cookie) {
+ENGINE_ERROR_CODE EventuallyPersistentStore::scheduleCompaction(compaction_ctx c,
+                                                                const void *cookie) {
     ENGINE_ERROR_CODE errCode = checkForDBExistence(c.db_file_id);
     if (errCode != ENGINE_SUCCESS) {
         return errCode;
@@ -1548,125 +1637,74 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(compaction_ctx c,
    return ENGINE_EWOULDBLOCK;
 }
 
-class ExpiredItemsCallback : public Callback<std::string&, uint64_t&> {
-    public:
-        ExpiredItemsCallback(EventuallyPersistentStore *store, uint16_t vbid,
-                             time_t start)
-            : epstore(store), vbucket(vbid), startTime(start) { }
+uint16_t EventuallyPersistentStore::getDBFileId(const protocol_binary_request_compact_db& req) {
+    KVStore *store = vbMap.shards[0]->getROUnderlying();
+    return store->getDBFileId(req);
+}
 
-        void callback(std::string& key, uint64_t& revSeqno) {
-            if (epstore->compactionCanExpireItems()) {
-                epstore->deleteExpiredItem(vbucket, key, startTime, revSeqno,
-                                           EXP_BY_COMPACTOR);
-            }
+void EventuallyPersistentStore::compactInternal(compaction_ctx *ctx) {
+    BloomFilterCBPtr filter(new BloomFilterCallback(*this));
+    ctx->bloomFilterCallback = filter;
+
+    ExpiredItemsCBPtr expiry(new ExpiredItemsCallback(*this));
+    ctx->expiryCallback = expiry;
+
+    KVStatsCallback kvcb(this);
+    KVShard* shard = vbMap.getShardByVbId(ctx->db_file_id);
+    KVStore* store = shard->getRWUnderlying();
+    bool result = store->compactDB(ctx, kvcb);
+
+    std::vector<uint16_t> vbIds = store->getCompactVbList(ctx->db_file_id);
+    Configuration& config = getEPEngine().getConfiguration();
+
+    for (auto vbid : vbIds) {
+        RCPtr<VBucket> vb = getVBucket(vbid);
+        if (!vb) {
+            continue;
         }
 
-    private:
-        EventuallyPersistentStore *epstore;
-        uint16_t vbucket;
-        time_t startTime;
-};
+        if (config.isBfilterEnabled() && result) {
+            vb->swapFilter();
+        } else {
+            vb->clearFilter();
+        }
+        vb->setPurgeSeqno(ctx->max_purged_seq);
+    }
+}
 
 bool EventuallyPersistentStore::doCompact(compaction_ctx *ctx,
                                           const void *cookie) {
     ENGINE_ERROR_CODE err = ENGINE_SUCCESS;
-    const uint16_t vbid = ctx->db_file_id;
-    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
-    if (vb) {
-        LockHolder lh(vb_mutexes[vbid], true /*tryLock*/);
-        if (!lh.islocked()) {
-            return true; // Schedule a compaction task again.
-        }
+    StorageProperties storeProp = getStorageProperties();
+    bool concWriteCompact = storeProp.hasConcWriteCompact();
+    uint16_t vbid = ctx->db_file_id;
 
-        Configuration &config = getEPEngine().getConfiguration();
-        if (config.isBfilterEnabled()) {
-            size_t initial_estimation = config.getBfilterKeyCount();
-            size_t estimated_count;
-            size_t num_deletes =
-                    getROUnderlying(vbid)->getNumPersistedDeletes(vbid);
-            if (eviction_policy == VALUE_ONLY) {
-                /**
-                 * VALUE-ONLY EVICTION POLICY
-                 * Obtain number of persisted deletes from underlying kvstore.
-                 * Bloomfilter's estimated_key_count = 1.25 * deletes
-                 */
-
-                estimated_count = round(1.25 * num_deletes);
-                std::shared_ptr<Callback<std::string&, bool&> >
-                    filter(new BloomFilterCallback(*this, vbid, false));
-                ctx->bloomFilterCallback = filter;
-            } else {
-                /**
-                 * FULL EVICTION POLICY
-                 * First determine if the resident ratio of vbucket is less than
-                 * the threshold from configuration.
-                 */
-
-                bool residentRatioAlert = vb->isResidentRatioUnderThreshold(
-                                                getBfiltersResidencyThreshold(),
-                                                eviction_policy);
-                std::shared_ptr<Callback<std::string&, bool&> >
-                    filter(new BloomFilterCallback(*this, vbid, residentRatioAlert));
-                ctx->bloomFilterCallback = filter;
-
-                /**
-                 * Based on resident ratio against threshold, estimate count.
-                 *
-                 * 1. If resident ratio is greater than the threshold:
-                 * Obtain number of persisted deletes from underlying kvstore.
-                 * Obtain number of non-resident-items for vbucket.
-                 * Bloomfilter's estimated_key_count =
-                 *                              1.25 * (deletes + non-resident)
-                 *
-                 * 2. Otherwise:
-                 * Obtain number of items for vbucket.
-                 * Bloomfilter's estimated_key_count =
-                 *                              1.25 * (num_items)
-                 */
-
-                if (residentRatioAlert) {
-                    estimated_count = round(1.25 *
-                                            vb->getNumItems(eviction_policy));
-                } else {
-                    estimated_count = round(1.25 * (num_deletes +
-                                vb->getNumNonResidentItems(eviction_policy)));
-                }
-            }
-            if (estimated_count < initial_estimation) {
-                estimated_count = initial_estimation;
-            }
-            vb->initTempFilter(estimated_count, config.getBfilterFpProb());
-        }
-
-        if (vb->getState() == vbucket_state_active) {
-            // Set the current time ONLY for active vbuckets.
-            ctx->curr_time = ep_real_time();
+    /**
+     * Check if the underlying storage engine allows writes concurrently
+     * as the database file is being compacted. If not, a lock needs to
+     * be held in order to serialize access to the database file between
+     * the writer and compactor threads
+     */ 
+    if (concWriteCompact == false) {
+        RCPtr<VBucket> vb = getVBucket(vbid);
+        if (!vb) {
+            err = ENGINE_NOT_MY_VBUCKET;
+            engine.storeEngineSpecific(cookie, NULL);
+            /**
+             * Decrement session counter here, as memcached thread wouldn't
+             * visit the engine interface in case of a NOT_MY_VB notification
+             */
+            engine.decrementSessionCtr();
         } else {
-            ctx->curr_time = 0;
-        }
-        std::shared_ptr<Callback<std::string&, uint64_t&> >
-           expiry(new ExpiredItemsCallback(this, vbid, ctx->curr_time));
-        ctx->expiryCallback = expiry;
-
-        KVStatsCallback kvcb(this);
-        if (getRWUnderlying(vbid)->compactDB(ctx, kvcb)) {
-            if (config.isBfilterEnabled()) {
-                vb->swapFilter();
-            } else {
-                vb->clearFilter();
+            LockHolder lh(vb_mutexes[vbid], true);
+            if (!lh.islocked()) {
+                return true;
             }
-        } else {
-            LOG(EXTENSION_LOG_WARNING, "Compaction: Not successful for vb %u, "
-                    "clearing bloom filter, if any.", vb->getId());
-            vb->clearFilter();
+
+            compactInternal(ctx);
         }
-        vb->setPurgeSeqno(ctx->max_purged_seq);
     } else {
-        err = ENGINE_NOT_MY_VBUCKET;
-        engine.storeEngineSpecific(cookie, NULL);
-        //Decrement session counter here, as memcached thread wouldn't
-        //visit the engine interface in case of a NOT_MY_VB notification
-        engine.decrementSessionCtr();
+        compactInternal(ctx);
     }
 
     updateCompactionTasks(ctx->db_file_id);

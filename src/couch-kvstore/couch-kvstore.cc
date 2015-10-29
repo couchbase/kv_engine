@@ -770,23 +770,32 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
                     return COUCHSTORE_COMPACT_DROP_ITEM;
                 }
             }
-        } else if (exptime && exptime < ctx->curr_time) {
-            std::string key(info->id.buf, info->id.size);
-            ctx->expiryCallback->callback(key, info->rev_seq);
+        } else {
+            time_t currtime = ep_real_time();
+            if (exptime && exptime < currtime) {
+                std::string key(info->id.buf, info->id.size);
+                ctx->expiryCallback->callback(ctx->db_file_id, key,
+                                              info->rev_seq, currtime);
+            }
         }
     }
 
     if (ctx->bloomFilterCallback) {
         bool deleted = info->deleted;
         std::string key((const char *)info->id.buf, info->id.size);
-        ctx->bloomFilterCallback->callback(key, deleted);
+        ctx->bloomFilterCallback->callback(ctx->db_file_id, key, deleted);
     }
 
     return COUCHSTORE_COMPACT_KEEP_ITEM;
 }
 
-bool CouchKVStore::compactDB(compaction_ctx *hook_ctx,
-                             Callback<kvstats_ctx> &kvcb) {
+std::vector<uint16_t> CouchKVStore::getCompactVbList(uint16_t db_file_id) {
+    std::vector<uint16_t> vbIds;
+    vbIds.push_back(db_file_id);
+    return vbIds;
+}
+
+bool CouchKVStore::compactDB(compaction_ctx *hook_ctx, Callback<kvstats_ctx> &kvcb) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::compactDB: Cannot perform "
                         "on a read-only instance.");
@@ -993,7 +1002,11 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
 }
 
 StorageProperties CouchKVStore::getStorageProperties() {
-    StorageProperties rv(true, true, true, true);
+    StorageProperties rv(StorageProperties::EfficientVBDump::Yes,
+                         StorageProperties::EfficientVBDeletion::Yes,
+                         StorageProperties::PersistedDeletion::Yes,
+                         StorageProperties::EfficientGet::Yes,
+                         StorageProperties::ConcurrentWriteCompact::No);
     return rv;
 }
 

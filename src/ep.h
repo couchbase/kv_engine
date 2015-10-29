@@ -1,8 +1,5 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
- *
- *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
  *   You may obtain a copy of the License at
  *
@@ -559,20 +556,32 @@ public:
     ENGINE_ERROR_CODE checkForDBExistence(uint16_t db_file_id);
 
     /**
-     * Triggers compaction of a vbucket
+     * Triggers compaction of a database file
      *
      * @param c The context for compaction of a DB file
      * @param ck cookie used to notify connection of operation completion
      */
-    ENGINE_ERROR_CODE compactDB(compaction_ctx c, const void *ck);
+    ENGINE_ERROR_CODE scheduleCompaction(compaction_ctx c, const void *ck);
 
     /**
-     * Callback to do the compaction of a vbucket
+     * Compaction of a database file
      *
-     * @param ctx Context for couchstore compaction hooks
+     * @param ctx Context for compaction hooks
      * @param ck cookie used to notify connection of operation completion
+     *
+     * return true if the compaction needs to be rescheduled and false
+     *             otherwise
      */
     bool doCompact(compaction_ctx *ctx, const void *ck);
+
+    /**
+     * Get the database file id for the compaction request
+     *
+     * @param req compaction request structure
+     *
+     * returns the database file id from the underlying KV store
+     */
+    uint16_t getDBFileId(const protocol_binary_request_compact_db& req);
 
     /**
      * Remove completed compaction tasks or wake snoozed tasks
@@ -687,7 +696,8 @@ public:
      * Get the memoized storage properties from the DB.kv
      */
     const StorageProperties getStorageProperties() const {
-        return *storageProperties;
+        KVStore* store  = vbMap.shards[0]->getROUnderlying();
+        return store->getStorageProperties();
     }
 
     /**
@@ -789,7 +799,8 @@ public:
     }
 
     bool multiBGFetchEnabled() {
-        return storageProperties->hasEfficientGet();
+        StorageProperties storeProp = getStorageProperties();
+        return storeProp.hasEfficientGet();
     }
 
     void updateCachedResidentRatio(size_t activePerc, size_t replicaPerc) {
@@ -906,6 +917,12 @@ protected:
     void stopWarmup(void);
 
 private:
+    /**
+     * Compaction of a database file
+     *
+     * @param ctx Context for compaction hooks
+     */
+    void compactInternal(compaction_ctx *ctx);
 
     void scheduleVBDeletion(RCPtr<VBucket> &vb,
                             const void* cookie,
@@ -1001,7 +1018,6 @@ private:
 
     EventuallyPersistentEngine     &engine;
     EPStats                        &stats;
-    StorageProperties              *storageProperties;
     Warmup                         *warmupTask;
     ConflictResolution             *conflictResolver;
     VBucketMap                      vbMap;

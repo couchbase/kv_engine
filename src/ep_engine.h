@@ -657,7 +657,7 @@ public:
 
     ENGINE_ERROR_CODE compactDB(compaction_ctx c,
                                 const void *cookie = NULL) {
-        return epstore->compactDB(c, cookie);
+        return epstore->scheduleCompaction(c, cookie);
     }
 
     bool resetVBucket(uint16_t vbid) {

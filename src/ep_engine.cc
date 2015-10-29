@@ -990,17 +990,6 @@ extern "C" {
         return ENGINE_SUCCESS;
     }
 
-    /**
-     * TODO: This function returns vbucket id as couchstore is the only
-     * supported backend. Once forestdb is supported, this function
-     * should return the database file id (shard id) from the request
-     * header
-     */
-    static uint16_t getDbFileId(EventuallyPersistentEngine *e,
-                                protocol_binary_request_compact_db *req) {
-        return ntohs(req->message.header.request.vbucket);
-    }
-
     static ENGINE_ERROR_CODE compactDB(EventuallyPersistentEngine *e,
                                        const void *cookie,
                                        protocol_binary_request_compact_db *req,
@@ -1029,7 +1018,7 @@ extern "C" {
         compactreq.purge_before_seq =
                                     ntohll(req->message.body.purge_before_seq);
         compactreq.drop_deletes     = req->message.body.drop_deletes;
-        compactreq.db_file_id       = getDbFileId(e, req);
+        compactreq.db_file_id       = e->getEpStore()->getDBFileId(*req);
 
         ENGINE_ERROR_CODE err;
         void* es = e->getEngineSpecific(cookie);
