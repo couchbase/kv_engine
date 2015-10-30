@@ -494,8 +494,6 @@ public:
         return maxActiveSnoozingBackfills;
     }
 
-    bool isPassiveStreamConnected(uint16_t vbucket);
-
     ENGINE_ERROR_CODE addPassiveStream(ConnHandler& conn, uint32_t opaque,
                                        uint16_t vbucket, uint32_t flags);
 
@@ -511,6 +509,8 @@ public:
     float getMinCompressionRatio();
 
 private:
+
+    bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
 
     void disconnect_UNLOCKED(const void *cookie);
 

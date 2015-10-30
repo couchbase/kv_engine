@@ -2720,14 +2720,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::tapNotify(const void *cookie,
             // tap producer is no longer connected..
             return ENGINE_DISCONNECT;
         } else {
-            // Create a new tap consumer only if a dcp stream is
-            // not active for the vbucket
-            if (dcpConnMap_->isPassiveStreamConnected(vbucket)) {
-                LOG(EXTENSION_LOG_WARNING, "(vb %d) Failing to add a TAP "
-                    "consumer, as a DCP passive stream is still live for the "
-                    "vbucket!", vbucket);
-                return ENGINE_KEY_EEXISTS;
-            }
             connection = tapConnMap->newConsumer(cookie);
             if (connection == NULL) {
                 LOG(EXTENSION_LOG_WARNING, "Failed to create new tap consumer."
@@ -5949,6 +5941,19 @@ EventuallyPersistentEngine::setClusterConfig(const void* cookie,
                 bodylen);
         clusterConfig.len = bodylen;
         lh.unlock();
+    }
+
+    // clusterConfig is opaque to ep-engine, but typically there is a rev id
+    // at the start of it. Print the first 100 bytes which hopefully includes
+    // helpful identifying information.
+    const int CONFIG_LIMIT = 100;
+    if (clusterConfig.len > CONFIG_LIMIT) {
+        LOG(EXTENSION_LOG_WARNING, "Updated cluster configuration - first %d "
+                "bytes: '%.*s'...\n", CONFIG_LIMIT, CONFIG_LIMIT,
+                clusterConfig.config);
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "Updated cluster configuration: '%.*s'\n",
+            clusterConfig.len, clusterConfig.config);
     }
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
