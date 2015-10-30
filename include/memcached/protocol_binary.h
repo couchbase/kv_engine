@@ -405,7 +405,10 @@ extern "C"
          * Command to wait for the dcp sequence number persistence
          */
         PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE = 0xb7,
-
+        /**
+         * Command to get all keys
+         */
+        PROTOCOL_BINARY_CMD_GET_KEYS = 0xb8,
         /**
          * Commands for GO-XDCR
          */
