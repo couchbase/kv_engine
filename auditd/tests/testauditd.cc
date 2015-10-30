@@ -306,7 +306,7 @@ int main(int argc, char **argv) {
     }
     assertMinNumberOfFiles(testdir, 10);
 
-    if (shutdown_auditdaemon(configuration.getFilename().c_str()) != AUDIT_SUCCESS) {
+    if (shutdown_auditdaemon() != AUDIT_SUCCESS) {
         std::cerr << "shutdown audit daemon: FAILED" << std::endl;
         return -1;
     }

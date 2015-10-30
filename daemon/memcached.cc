@@ -3054,7 +3054,7 @@ int main (int argc, char **argv) {
     LOG_NOTICE(NULL, "Shutting down audit daemon");
 
     /* Close down the audit daemon cleanly */
-    shutdown_auditdaemon(settings.audit_file);
+    shutdown_auditdaemon();
 
     LOG_NOTICE(NULL, "Shutting down client worker threads");
     threads_shutdown();

@@ -155,8 +155,8 @@ AUDIT_ERROR_CODE put_json_audit_event(uint32_t id, cJSON *event) {
 }
 
 
-AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
-    if (config != NULL && audit.config.is_auditd_enabled()) {
+AUDIT_ERROR_CODE shutdown_auditdaemon(void) {
+    if (audit.config.is_auditd_enabled()) {
         // send event to say we are shutting down the audit daemon
         cJSON *payload = cJSON_CreateObject();
         if ((payload == nullptr) ||
