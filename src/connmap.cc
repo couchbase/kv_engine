@@ -957,8 +957,7 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
 
 }
 
-bool DcpConnMap::isPassiveStreamConnected(uint16_t vbucket) {
-    LockHolder lh(connsLock);
+bool DcpConnMap::isPassiveStreamConnected_UNLOCKED(uint16_t vbucket) {
     std::list<connection_t>::iterator it;
     for(it = all.begin(); it != all.end(); it++) {
         DcpConsumer* dcpConsumer = dynamic_cast<DcpConsumer*>(it->get());
@@ -979,15 +978,15 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler* conn,
 {
     cb_assert(conn);
 
+    LockHolder lh(connsLock);
     /* Check if a stream (passive) for the vbucket is already present */
-    if (isPassiveStreamConnected(vbucket)) {
+    if (isPassiveStreamConnected_UNLOCKED(vbucket)) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Failing to add passive stream, "
             "as one already exists for the vbucket!",
             conn->logHeader(), vbucket);
         return ENGINE_KEY_EEXISTS;
     }
 
-    LockHolder lh(connsLock);
     return conn->addStream(opaque, vbucket, flags);
 }
 
