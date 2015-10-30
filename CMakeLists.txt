@@ -378,6 +378,17 @@ ENDIF(NOT WIN32)
 INSTALL(FILES man/man4/memcached.json.4.pdf
         DESTINATION doc)
 
-ADD_EXECUTABLE(memcached_logger_test tests/logger_test.cc)
+ADD_EXECUTABLE(memcached_logger_test
+               tests/logger_test_common.cc
+               tests/logger_test.cc)
 TARGET_LINK_LIBRARIES(memcached_logger_test mcd_util file_logger dirutils)
 ADD_TEST(memcached-logger-test memcached_logger_test)
+
+IF (NOT WIN32)
+   # Test makes use of {get,set}rlimit() which don't exist on Windows.
+   ADD_EXECUTABLE(memcached_logger_emfile_test
+                  tests/logger_test_common.cc
+                  tests/logger_emfile_test.cc)
+   TARGET_LINK_LIBRARIES(memcached_logger_emfile_test mcd_util file_logger dirutils)
+   ADD_TEST(memcached-logger-emfile-test memcached_logger_emfile_test)
+ENDIF (NOT WIN32)

@@ -167,6 +167,76 @@ static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
     }
 }
 
+/* Formats a log entry (consisting of {severity, message, ...})
+ * into the specified buffer.
+ * Returns the number of characters written to the buffer, or -1 on error.
+ */
+static int vformat_log_entry(char* buffer, size_t buf_len,
+                            EXTENSION_LOG_LEVEL severity, const char* fmt,
+                            va_list ap) {
+    int prefixlen = 0;
+    struct timeval now;
+
+    if (cb_get_timeofday(&now) == 0) {
+        struct tm tval;
+        time_t nsec = (time_t)now.tv_sec;
+        char str[40];
+        int error;
+
+#ifdef WIN32
+        localtime_s(&tval, &nsec);
+        error = (asctime_s(str, sizeof(str), &tval) != 0);
+#else
+        localtime_r(&nsec, &tval);
+        error = (asctime_r(&tval, str) == NULL);
+#endif
+
+        if (error) {
+            prefixlen = snprintf(buffer, buf_len, "%u.%06u",
+                                 (unsigned int)now.tv_sec,
+                                 (unsigned int)now.tv_usec);
+        } else {
+            const char *tz;
+#ifdef HAVE_TM_ZONE
+            tz = tval.tm_zone;
+#else
+            tz = tzname[tval.tm_isdst ? 1 : 0];
+#endif
+            /* trim off ' YYYY\n' */
+            str[strlen(str) - 6] = '\0';
+            prefixlen = snprintf(buffer, buf_len, "%s.%06u %s",
+                                 str, (unsigned int)now.tv_usec,
+                                 tz);
+        }
+    } else {
+        fprintf(stderr, "gettimeofday failed: %s\n", strerror(errno));
+        return -1;
+    }
+
+    if (prettyprint) {
+        prefixlen += snprintf(buffer + prefixlen, buf_len - prefixlen,
+                              " %s: ", severity2string(severity));
+    } else {
+        prefixlen += snprintf(buffer + prefixlen, buf_len - prefixlen,
+                              " %u: ", (unsigned int)severity);
+    }
+
+    buf_len -= prefixlen;
+    const int msglen = vsnprintf(buffer + prefixlen, buf_len, fmt, ap);
+
+    return prefixlen + msglen;
+}
+
+static int format_log_entry(char* buffer, size_t buf_len,
+                            EXTENSION_LOG_LEVEL severity, const char* fmt,
+                            ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    int res = vformat_log_entry(buffer, buf_len, severity, fmt, ap);
+    va_end(ap);
+    return res;
+}
+
 static void logger_log(EXTENSION_LOG_LEVEL severity,
                        const void* client_cookie,
                        const char *fmt, ...)
@@ -179,62 +249,14 @@ static void logger_log(EXTENSION_LOG_LEVEL severity,
          */
         char buffer[2048];
         size_t avail = sizeof(buffer) - 1;
-        int prefixlen = 0;
         va_list ap;
         size_t len;
-        struct timeval now;
 
-        if (cb_get_timeofday(&now) == 0) {
-            struct tm tval;
-            time_t nsec = (time_t)now.tv_sec;
-            char str[40];
-            int error;
-
-#ifdef WIN32
-            localtime_s(&tval, &nsec);
-            error = (asctime_s(str, sizeof(str), &tval) != 0);
-#else
-            localtime_r(&nsec, &tval);
-            error = (asctime_r(&tval, str) == NULL);
-#endif
-
-            if (error) {
-                prefixlen = snprintf(buffer, avail, "%u.%06u",
-                                     (unsigned int)now.tv_sec,
-                                     (unsigned int)now.tv_usec);
-            } else {
-                const char *tz;
-#ifdef HAVE_TM_ZONE
-                tz = tval.tm_zone;
-#else
-                tz = tzname[tval.tm_isdst ? 1 : 0];
-#endif
-                /* trim off ' YYYY\n' */
-                str[strlen(str) - 6] = '\0';
-                prefixlen = snprintf(buffer, avail, "%s.%06u %s",
-                                     str, (unsigned int)now.tv_usec,
-                                     tz);
-            }
-        } else {
-            fprintf(stderr, "gettimeofday failed: %s\n", strerror(errno));
-            return;
-        }
-
-        if (prettyprint) {
-            prefixlen += snprintf(buffer+prefixlen, avail-prefixlen,
-                                  " %s: ", severity2string(severity));
-        } else {
-            prefixlen += snprintf(buffer+prefixlen, avail-prefixlen,
-                                  " %u: ", (unsigned int)severity);
-        }
-
-        avail -= prefixlen;
         va_start(ap, fmt);
-        len = vsnprintf(buffer + prefixlen, avail, fmt, ap);
+        len = vformat_log_entry(buffer, sizeof(buffer), severity, fmt, ap);
         va_end(ap);
 
         if (len < avail) {
-            len += prefixlen;
             if (buffer[len - 1] != '\n') {
                 buffer[len++] = '\n';
                 buffer[len] ='\0';
@@ -258,13 +280,11 @@ static HANDLE open_logfile(const char *fnm) {
     static unsigned int next_id = 0;
     char fname[1024];
     HANDLE ret;
-    do {
-        sprintf(fname, "%s.%d.%s", fnm, next_id++, extension);
-    } while (access(fname, F_OK) == 0);
-    ret = iops.open(fname, "wb");
-    if (!ret) {
-        fprintf(stderr, "Failed to open memcached log file\n");
+    sprintf(fname, "%s.%d.%s", fnm, next_id, extension);
+    while (access(fname, F_OK) == 0) {
+        sprintf(fname, "%s.%d.%s", fnm, ++next_id, extension);
     }
+    ret = iops.open(fname, "wb");
     return ret;
 }
 
@@ -274,26 +294,52 @@ static void close_logfile(HANDLE fp) {
     }
 }
 
-static HANDLE reopen_logfile(HANDLE old, const char *fnm) {
+static HANDLE rotate_logfile(HANDLE old, const char *fnm) {
+    HANDLE new_log = open_logfile(fnm);
+    if (new_log == NULL && old != NULL) {
+        // Can't open the logfile. We already output messages of
+        // sufficient level to stderr, let's hope that's enough.
+        char log_entry[1024];
+        format_log_entry(log_entry, sizeof(log_entry), EXTENSION_LOG_WARNING,
+                         "Failed to open next logfile: %s - disabling file logging. "
+                         "Messages at '%s' or higher still output to "
+                         "babysitter log file\n", strerror(errno),
+                         severity2string(output_level));
+
+        iops.write(old, log_entry, strlen(log_entry));
+        iops.flush(old);
+        // Send to stderr for good measure.
+        (void)fwrite(log_entry, sizeof(char), strlen(log_entry), stderr);
+    }
     close_logfile(old);
-    return open_logfile(fnm);
+    return new_log;
 }
 
 static size_t flush_pending_io(HANDLE file, struct logbuffer *lb) {
     size_t ret = 0;
     if (lb->offset > 0) {
-        char *ptr = lb->data;
-        size_t towrite = ret = lb->offset;
-
-        while (towrite > 0) {
-            int nw = iops.write(file, ptr, towrite);
-            if (nw > 0) {
-                ptr += nw;
-                towrite -= nw;
+        if (file) {
+            char *ptr = lb->data;
+            size_t towrite = ret = lb->offset;
+            while (towrite > 0) {
+                int nw = iops.write(file, ptr, towrite);
+                if (nw > 0) {
+                    ptr += nw;
+                    towrite -= nw;
+                }
             }
+            lb->offset = 0;
+            iops.flush(file);
+        } else {
+            // Cannot write as have no FD, however we also don't want
+            // to leave the logbuffer as-is as that would result in it
+            // filling up and producers being deadlocked. Therefore
+            // discard the logbuffer contents.
+            // Note that any message at output_level is always logged
+            // to stderr (for babysitter) so those messages will not
+            // be lost.
+            lb->offset = 0;
         }
-        lb->offset = 0;
-        iops.flush(file);
     }
 
     return ret;
@@ -305,7 +351,7 @@ static cb_thread_t tid;
 static void logger_thead_main(void* arg)
 {
     size_t currsize = 0;
-    HANDLE fp = open_logfile(arg);
+    HANDLE fp = NULL;
 
     struct timeval tp;
     cb_get_timeofday(&tp);
@@ -326,9 +372,26 @@ static void logger_thead_main(void* arg)
             /* Perform file IO without the lock */
             cb_mutex_exit(&mutex);
 
+            /* In case we failed to open the log file last time (e.g. EMFILE),
+               re-attempt now. */
+            if (fp == NULL) {
+                fp = open_logfile(arg);
+                if (fp != NULL) {
+                    // Record that the log is back online.
+                    char log_entry[1024];
+                    format_log_entry(log_entry, sizeof(log_entry),
+                                     EXTENSION_LOG_WARNING,
+                                     "Restarting file logging\n");
+
+                    iops.write(fp, log_entry, strlen(log_entry));
+                    // Send to stderr for good measure.
+                    (void)fwrite(log_entry, sizeof(char), strlen(log_entry), stderr);
+                }
+            }
+
             currsize += flush_pending_io(fp, buffers + this);
             if (currsize > cyclesz) {
-                fp = reopen_logfile(fp, arg);
+                fp = rotate_logfile(fp, arg);
                 currsize = 0;
             }
             cb_mutex_enter(&mutex);
