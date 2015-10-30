@@ -179,22 +179,10 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(void) {
         }
         cJSON_Free(content);
     }
-    cb_mutex_enter(&audit.producer_consumer_lock);
-    audit.terminate_audit_daemon = true;
-    cb_mutex_exit(&audit.producer_consumer_lock);
-
-    /* consumer thread maybe waiting for an event to arrive so need
-     * to send it a broadcast so it can exit cleanly
-     */
-    cb_mutex_enter(&audit.producer_consumer_lock);
-    cb_cond_broadcast(&audit.events_arrived);
-    cb_mutex_exit(&audit.producer_consumer_lock);
-    if (cb_join_thread(audit.consumer_tid) != 0) {
-        audit.clean_up();
-        return AUDIT_FAILED;
+    if (audit.clean_up()) {
+        return AUDIT_SUCCESS;
     }
-    audit.clean_up();
-    return AUDIT_SUCCESS;
+    return AUDIT_FAILED;
 }
 
 static std::atomic<time_t> auditd_test_timetravel_offset;

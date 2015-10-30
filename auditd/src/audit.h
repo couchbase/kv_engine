@@ -84,9 +84,10 @@ public:
                                const size_t length);
     bool add_reconfigure_event(const void *cookie);
     bool create_audit_event(uint32_t event_id, cJSON *payload);
+    bool terminate_consumer_thread(void);
     void clear_events_map(void);
     void clear_events_queues(void);
-    void clean_up(void);
+    bool clean_up(void);
 
     static void log_error(const AuditErrorCode return_code,
                           const std::string& string = "");

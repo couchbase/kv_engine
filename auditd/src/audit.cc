@@ -551,10 +551,49 @@ void Audit::clear_events_queues(void) {
     }
 }
 
+bool Audit::terminate_consumer_thread(void)
+{
+    cb_mutex_enter(&producer_consumer_lock);
+    terminate_audit_daemon = true;
+    cb_mutex_exit(&producer_consumer_lock);
 
-void Audit::clean_up(void) {
-    clear_events_map();
-    clear_events_queues();
+    /* The consumer thread maybe waiting for an event
+     * to arrive so we need to send it a broadcast so
+     * it can exit cleanly.
+     */
+    cb_mutex_enter(&producer_consumer_lock);
+    cb_cond_broadcast(&events_arrived);
+    cb_mutex_exit(&producer_consumer_lock);
+    if (cb_join_thread(consumer_tid) == 0) {
+        return true;
+    }
+    return false;
+}
+
+bool Audit::clean_up(void) {
+    /* clean_up is called from shutdown_auditdaemon
+     * which in turn is called from memcached when
+     * performing a graceful shutdown.
+     *
+     * However clean_up is also called from ~Audit().
+     * This is required because it possible for the
+     * destructor to be invoked without going through
+     * the memcached graceful shutdown.
+     *
+     * We therefore first check to see if the
+     * terminate_audit_daemon flag has not been set
+     * before trying to terminate the consumer thread.
+     */
+    if (!terminate_audit_daemon) {
+        if (terminate_consumer_thread()) {
+            consumer_tid = cb_thread_self();
+        } else {
+            return false;
+        }
+        clear_events_map();
+        clear_events_queues();
+    }
+    return true;
 }
 
 std::string audit_generate_timestamp(void) {
