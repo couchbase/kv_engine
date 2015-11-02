@@ -874,9 +874,9 @@ extern "C"
      *
      *  SUBDOC_MULTI_LOOKUP:
      *    Header:                24 @0:  <protocol_binary_request_header>
-     *    Extras:            0 OR 4 @24: (optional) expiration
-     *    Body:         <variable>  @24 + extlen:
-     *        Key            keylen @24 + extlen: <variable>
+     *    Extras:                 0 @24:
+     *    Body:         <variable>  @24:
+     *        Key            keylen @24: <variable>
      *        1..MULTI_MAX_PATHS [Lookup Operation Spec]
      *
      *        Lookup Operation Spec:
@@ -900,8 +900,8 @@ extern "C"
      *
      * SUBDOC_MULTI_MUTATION
      *    Header:                24 @0:  <protocol_binary_request_header>
-     *    Extras:                 0 @24:
-     *    Body:           variable  @24:
+     *    Extras:            0 OR 4 @24: (optional) expiration
+     *    Body:           variable  @24 + extlen:
      *        Key            keylen @24: <variable>
      *        1..MULTI_MAX_PATHS [Mutation Operation Spec]
      *
