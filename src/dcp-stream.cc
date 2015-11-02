@@ -152,10 +152,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
         }
     }
 
-    if (start_seqno_ >= end_seqno_) {
-        endStream(END_STREAM_OK);
-        itemsReady.store(true);
-    }
+    LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") Creating %sstream "
+        "with start seqno %" PRIu64 " and end seqno %" PRIu64"",
+        producer->logHeader(), vb, type, st_seqno, en_seqno);
 
     backfillItems.memory = 0;
     backfillItems.disk = 0;
@@ -166,9 +165,13 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
     bufferedBackfill.bytes = 0;
     bufferedBackfill.items = 0;
 
-    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) %sstream created with start seqno "
-        "%llu and end seqno %llu", producer->logHeader(), vb, type, st_seqno,
-        en_seqno);
+    if (start_seqno_ >= end_seqno_) {
+        endStream(END_STREAM_OK);
+        itemsReady.store(true);
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") %sstream created!",
+            producer->logHeader(), vb, type);
+    }
 }
 
 ActiveStream::~ActiveStream() {
