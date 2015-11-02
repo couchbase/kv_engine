@@ -34,6 +34,7 @@
 #include <mutex>
 #include <string>
 #include <unordered_set>
+#include <memory>
 
 /**
     The scrubber task is charged with
@@ -129,7 +130,7 @@ private:
 
 };
 
-static EngineManager engineManager;
+static std::unique_ptr<EngineManager> engineManager;
 
 static void scrubber_task_main(void* arg) {
     ScrubberTask* task = reinterpret_cast<ScrubberTask*>(arg);
@@ -243,20 +244,31 @@ void EngineManager::shutdown() {
     }
 }
 
+EngineManager& getEngineManager() {
+    static std::mutex createLock;
+    if (engineManager.get() == nullptr) {
+        std::lock_guard<std::mutex> lg(createLock);
+        if (engineManager.get() == nullptr) {
+            engineManager.reset(new EngineManager());
+        }
+    }
+    return *engineManager.get();
+}
+
 // C API methods follow.
 struct default_engine* engine_manager_create_engine() {
-    return engineManager.createEngine();
+    return getEngineManager().createEngine();
 }
 
 void engine_manager_delete_engine(struct default_engine* engine) {
-    engineManager.requestDestroyEngine(engine);
+    getEngineManager().requestDestroyEngine(engine);
 }
 
 void engine_manager_scrub_engine(struct default_engine* engine) {
-    engineManager.scrubEngine(engine);
+    getEngineManager().scrubEngine(engine);
 }
 
 void engine_manager_shutdown() {
     // will block waiting for scrubber to finish
-    engineManager.shutdown();
+    getEngineManager().shutdown();
 }
