@@ -58,3 +58,19 @@
     do { \
         LOGGER(EXTENSION_LOG_WARNING, COOKIE, __VA_ARGS__); \
     } while (0)
+
+/*
+ * This macro records a fatal error to the log and
+ * terminates memcached.
+ * It calls exit() and therefore should only be used in
+ * extreme cases because we want to keep memcached
+ * available if at all possible.  Hence it should only be
+ * used where memcached cannot make any sensible progress
+ * or the possbility of data corruption arises.
+ */
+
+#define FATAL_ERROR(EXIT_STATUS, ...) \
+    do { \
+        LOGGER(EXTENSION_LOG_WARNING, NULL, __VA_ARGS__); \
+        exit(EXIT_STATUS); \
+    } while (0)

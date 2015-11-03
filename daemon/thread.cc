@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <platform/platform.h>
+#include <platform/strerror.h>
 #include <queue>
 #include <memory>
 
@@ -96,9 +97,8 @@ static void create_worker(void (*func)(void *), void *arg, cb_thread_t *id,
     int ret;
 
     if ((ret = cb_create_named_thread(id, func, arg, 0, name)) != 0) {
-        log_system_error(EXTENSION_LOG_WARNING, NULL,
-                         "Can't create thread: %s");
-        exit(1);
+        FATAL_ERROR(EXIT_FAILURE, "Can't create thread %s: %s",
+                    name, cb_strerror(GetLastError()).c_str());
     }
 }
 
@@ -151,7 +151,7 @@ static void setup_dispatcher(struct event_base *main_base,
     dispatcher_thread.base = main_base;
 	dispatcher_thread.thread_id = cb_thread_self();
     if (!create_notification_pipe(&dispatcher_thread)) {
-        exit(1);
+        FATAL_ERROR(EXIT_FAILURE, "Unable to create notification pipe");
     }
     /* Listen for notifications from other threads */
     event_set(&dispatcher_thread.notify_event, dispatcher_thread.notify[0],
@@ -159,8 +159,7 @@ static void setup_dispatcher(struct event_base *main_base,
     event_base_set(dispatcher_thread.base, &dispatcher_thread.notify_event);
 
     if (event_add(&dispatcher_thread.notify_event, 0) == -1) {
-        LOG_WARNING(NULL, "Can't monitor libevent notify pipe");
-        exit(1);
+        FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
     }
 }
 
@@ -181,8 +180,7 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     }
 
     if (! me->base) {
-        LOG_WARNING(NULL, "Can't allocate event base");
-        exit(1);
+        FATAL_ERROR(EXIT_FAILURE, "Can't allocate event base");
     }
 
     /* Listen for notifications from other threads */
@@ -192,15 +190,13 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     event_base_set(me->base, &me->notify_event);
 
     if (event_add(&me->notify_event, 0) == -1) {
-        LOG_WARNING(NULL, "Can't monitor libevent notify pipe");
-        exit(1);
+        FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
     }
 
     try {
         me->new_conn_queue = new ConnectionQueue;
     } catch (std::bad_alloc&) {
-        LOG_WARNING(NULL, "Failed to allocate memory for connection queue");
-        exit(EXIT_FAILURE);
+        FATAL_ERROR(EXIT_FAILURE, "Failed to allocate memory for connection queue");
     }
 
     cb_mutex_initialize(&me->mutex);
@@ -211,8 +207,7 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     try {
         me->validator = new JSON_checker::Validator();
     } catch (const std::bad_alloc&) {
-        LOG_WARNING(NULL, "Failed to allocate memory for JSON validator");
-        exit(EXIT_FAILURE);
+        FATAL_ERROR(EXIT_FAILURE, "Failed to allocate memory for JSON validator");
     }
 }
 
@@ -511,20 +506,18 @@ void thread_init(int nthr, struct event_base *main_base,
     threads = reinterpret_cast<LIBEVENT_THREAD*>(calloc(nthreads,
                                                         sizeof(LIBEVENT_THREAD)));
     if (threads == nullptr) {
-        LOG_WARNING(NULL, "Can't allocate thread descriptors");
-        exit(1);
+        FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
     }
     thread_ids = reinterpret_cast<cb_thread_t*>(calloc(nthreads, sizeof(cb_thread_t)));
     if (thread_ids == nullptr) {
-        LOG_WARNING(NULL, "Can't allocate thread descriptors");
-        exit(1);
+        FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
     }
 
     setup_dispatcher(main_base, dispatcher_callback);
 
     for (i = 0; i < nthreads; i++) {
         if (!create_notification_pipe(&threads[i])) {
-            exit(1);
+            FATAL_ERROR(EXIT_FAILURE, "Cannot create notification pipe");
         }
         threads[i].index = i;
 

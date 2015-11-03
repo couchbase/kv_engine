@@ -1180,8 +1180,7 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
         }
 
         if (!(listen_conn_add = conn_new_server(sfd, listenport, main_base))) {
-            LOG_WARNING(NULL, "failed to create listening connection");
-            exit(EXIT_FAILURE);
+            FATAL_ERROR(EXIT_FAILURE, "Failed to create listening connection");
         }
         listen_conn_add->setNext(listen_conn);
         listen_conn = listen_conn_add;
@@ -2162,9 +2161,9 @@ static void setup_parent_monitor(void) {
     if (env != NULL) {
         HANDLE handle = OpenProcess(SYNCHRONIZE, FALSE, atoi(env));
         if (handle == INVALID_HANDLE_VALUE) {
-            log_system_error(EXTENSION_LOG_WARNING, NULL,
-                "Failed to open parent process: %s");
-            exit(EXIT_FAILURE);
+            FATAL_ERROR(EXIT_FAILURE,
+                        "Failed to open parent process: %s",
+                        cb_strerror(GetLastError()).c_str());
         }
         cb_create_thread(NULL, parent_monitor_thread, handle, 1);
     }
@@ -2191,9 +2190,9 @@ static void setup_parent_monitor(void) {
         cb_thread_t t;
         if (cb_create_named_thread(&t, parent_monitor_thread, env, 1,
                                    "mc:parent mon") != 0) {
-            log_system_error(EXTENSION_LOG_WARNING, NULL,
-                "Failed to open parent process: %s");
-            exit(EXIT_FAILURE);
+            FATAL_ERROR(EXIT_FAILURE,
+                        "Failed to open parent process: %s",
+                        cb_strerror(GetLastError()).c_str());
         }
     }
 }
@@ -2202,8 +2201,7 @@ static void set_max_filehandles(void) {
     struct rlimit rlim;
 
     if (getrlimit(RLIMIT_NOFILE, &rlim) != 0) {
-        LOG_WARNING(NULL, "failed to getrlimit number of files");
-        exit(EX_OSERR);
+        FATAL_ERROR(EX_OSERR, "Failed to getrlimit number of files");
     } else {
         const rlim_t maxfiles = settings.maxconns + (3 * (settings.num_threads + 2));
         rlim_t syslimit = rlim.rlim_cur;
@@ -2217,17 +2215,17 @@ static void set_max_filehandles(void) {
             const char *fmt;
             int req;
             fmt = "WARNING: maxconns cannot be set to (%d) connections due to "
-                "system\nresouce restrictions. Increase the number of file "
+                "system\nresource restrictions. Increase the number of file "
                 "descriptors allowed\nto the memcached user process.\n"
                 "The maximum number of connections is set to %d.\n";
             req = settings.maxconns;
             settings.maxconns = syslimit - (3 * (settings.num_threads + 2));
             if (settings.maxconns < 0) {
-                LOG_WARNING(NULL,
-                            "failed to set rlimit for open files. Try "
-                                "starting as root or requesting smaller "
-                                "maxconns value.");
-                exit(EX_OSERR);
+                FATAL_ERROR(EX_OSERR, "Failed to set rlimit to %d for "
+                            "open files. Currently requesting %d more connections"
+                            "than the syslimit of %d.  Try starting as root or "
+                            "requesting smaller maxconns value.", rlim.rlim_max,
+                            abs(settings.maxconns), syslimit);
             }
             LOG_WARNING(NULL, fmt, req, settings.maxconns);
         }
@@ -2248,7 +2246,10 @@ static void load_extensions(void) {
     for (int ii = 0; ii < settings.num_pending_extensions; ii++) {
         if (!load_extension(settings.pending_extensions[ii].soname,
                             settings.pending_extensions[ii].config)) {
-            exit(EXIT_FAILURE);
+            FATAL_ERROR(EXIT_FAILURE, "Unable to load extension %s "
+                        "using the config %s",
+                        settings.pending_extensions[ii].soname,
+                        settings.pending_extensions[ii].config);
         }
     }
 }
@@ -2400,26 +2401,21 @@ int main (int argc, char **argv) {
     audit_extension_data.notify_io_complete = notify_io_complete;
     if (settings.audit_file && configure_auditdaemon(settings.audit_file, NULL)
         != AUDIT_SUCCESS) {
-        LOG_WARNING(NULL,
+        FATAL_ERROR(EXIT_FAILURE,
                     "FATAL: Failed to initialize audit "
-                        "daemon with configuation file: %s",
+                    "daemon with configuation file: %s",
                     settings.audit_file);
-        /* we failed configuring the audit.. run without it */
-        free((void*)settings.audit_file);
-        settings.audit_file = NULL;
     }
     if (start_auditdaemon(&audit_extension_data) != AUDIT_SUCCESS) {
-        LOG_WARNING(NULL, "FATAL: Failed to start audit daemon");
-        abort();
+        FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
     }
 
     /* Initialize RBAC data */
     if (load_rbac_from_file(settings.rbac_file) != 0) {
-        LOG_WARNING(NULL,
+        FATAL_ERROR(EXIT_FAILURE,
                     "FATAL: Failed to load RBAC configuration: %s",
                     (settings.rbac_file) ? settings.rbac_file :
                     "no file specified");
-        abort();
     }
 
     /* inform interested parties of initial verbosity level */
@@ -2433,8 +2429,8 @@ int main (int argc, char **argv) {
     {
         char *errmsg;
         if (!initialize_engine_map(&errmsg, settings.extensions.logger)) {
-            LOG_WARNING(NULL, "%s", errmsg);
-            exit(EXIT_FAILURE);
+            FATAL_ERROR(EXIT_FAILURE, "Unable to initialize engine "
+                        "map: %s", errmsg);
         }
     }
 
@@ -2448,8 +2444,7 @@ int main (int argc, char **argv) {
 
     /* Initialize signal handlers (requires libevent). */
     if (!install_signal_handlers()) {
-        // error already printed!
-        exit(EXIT_FAILURE);
+        FATAL_ERROR(EXIT_FAILURE, "Unable to install signal handlers");
     }
 
     /* initialize other stuff */
@@ -2461,8 +2456,7 @@ int main (int argc, char **argv) {
      * need that information
      */
     if (sigignore(SIGPIPE) == -1) {
-        LOG_WARNING(NULL, "failed to ignore SIGPIPE; sigaction");
-        exit(EX_OSERR);
+        FATAL_ERROR(EX_OSERR, "Failed to ignore SIGPIPE; sigaction");
     }
 #endif
 
@@ -2484,14 +2478,13 @@ int main (int argc, char **argv) {
 
             portnumber_file = fopen(temp_portnumber_filename.c_str(), "a");
             if (portnumber_file == nullptr) {
-                LOG_WARNING(NULL, "Failed to open \"%s\": %s",
+                FATAL_ERROR(EX_OSERR, "Failed to open \"%s\": %s",
                             temp_portnumber_filename.c_str(), strerror(errno));
-                exit(EX_OSERR);
             }
         }
 
         if (server_sockets(portnumber_file)) {
-            exit(EX_OSERR);
+            FATAL_ERROR(EX_OSERR, "Failed to create listening socket");
         }
 
         if (portnumber_file) {
