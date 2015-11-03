@@ -5,7 +5,6 @@ macro(Flatbuffers)
                       COMMAND
                          ${FLATC} -c
                                   -o ${CMAKE_CURRENT_BINARY_DIR}/Greenstack/payload
-                                  --gen-includes
                                   ${CMAKE_CURRENT_SOURCE_DIR}/${ARGV0}.fbs
                       DEPENDS
                          ${CMAKE_CURRENT_SOURCE_DIR}/${ARGV0}.fbs
