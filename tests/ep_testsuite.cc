@@ -8485,26 +8485,31 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
 
 static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
+    std::string err_msg;
     // Check access scanner is enabled and alog_task_time is at default
     cb_assert(get_bool_stat(h, h1, "ep_access_scanner_enabled"));
     cb_assert(get_int_stat(h, h1, "ep_alog_task_time") == 2);
 
     // Ensure access_scanner_task_time is what its expected to be
     std::string str = get_str_stat(h, h1, "ep_access_scanner_task_time");
-    std::string expected_time = "02:00:00";
-    checkeq(str.substr(11).compare(expected_time), 0, "Initial time incorrect");
+    std::string expected_time = "02:00";
+    err_msg.assign("Initial time incorrect, expect: " +
+                   expected_time + ", actual: " + str.substr(11, 5));
+    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
 
     // Update alog_task_time and ensure the update is successful
     set_param(h, h1, protocol_binary_engine_param_flush, "alog_task_time", "5");
-    expected_time = "05:00:00";
+    expected_time = "05:00";
     str = get_str_stat(h, h1, "ep_access_scanner_task_time");
-    checkeq(str.substr(11).compare(expected_time), 0, "Updated time incorrect");
+    err_msg.assign("Updated time incorrect, expect: " +
+                   expected_time + ", actual: " + str.substr(11, 5));
+    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
 
     // Update alog_sleep_time and ensure the update is successful
     time_t now = time(NULL);
-    set_param(h, h1, protocol_binary_engine_param_flush, "alog_sleep_time", "1");
+    set_param(h, h1, protocol_binary_engine_param_flush, "alog_sleep_time", "10");
     struct tm curr = *(gmtime(&now));
-    curr.tm_min += 1;
+    curr.tm_min += 10;
 #ifdef _MSC_VER
     _mkgmtime(&curr);
 #else
@@ -8514,7 +8519,9 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
     strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
     std::string targetTaskTime(timeStr);
     str = get_str_stat(h, h1, "ep_access_scanner_task_time");
-    checkeq(targetTaskTime.compare(str), 0, "Unexpected task time");
+    err_msg.assign("Unexpected task time, expect: " +
+                   targetTaskTime + ", actual: " + str);
+    checkeq(0, targetTaskTime.compare(str), err_msg.c_str());
 
     return SUCCESS;
 }
