@@ -76,9 +76,10 @@ ADD_TEST(NAME memcached-shutdown-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=ShutdownTest.*)
 
-ADD_TEST(NAME memcached-greenstack-tests
-        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=*Greenstack*)
+#Disabled while making greenstack use bufferevents
+#ADD_TEST(NAME memcached-greenstack-tests
+#        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+#        COMMAND memcached_testapp --gtest_filter=*Greenstack*)
 
 # For perf tests we also want GTest to output XML so we can plot the
 # results in Jenkins.

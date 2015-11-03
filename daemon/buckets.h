@@ -174,3 +174,15 @@ extern const char* getBucketName(const Connection* c);
 extern std::vector<Bucket> all_buckets;
 
 cJSON *get_bucket_details(int idx);
+
+/**
+ * Is the connected bucket currently dying?
+ *
+ * If the bucket is dying (being deleted) the connection object will be
+ * disconnected (for MCBP connections this means closed)
+ *
+ * @param c the connection to query
+ * @return true if it is dying, false otherwise
+ */
+bool is_bucket_dying(Connection *c);
+bucket_id_t get_bucket_id(const void *cookie);

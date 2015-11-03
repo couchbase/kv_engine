@@ -120,6 +120,10 @@ extern void notify_dispatcher(void);
 extern bool create_notification_pipe(LIBEVENT_THREAD *me);
 
 #include "connection.h"
+#include "connection_greenstack.h"
+#include "connection_listen.h"
+#include "connection_mcbp.h"
+
 
 typedef union {
     item_info info;
@@ -179,29 +183,12 @@ bool load_extension(const char *soname, const char *config);
 int add_conn_to_pending_io_list(Connection *c);
 
 /* connection state machine */
-bool conn_listening(Connection *c);
-bool conn_new_cmd(Connection *c);
-bool conn_waiting(Connection *c);
-bool conn_read(Connection *c);
-bool conn_parse_cmd(Connection *c);
-bool conn_write(Connection *c);
-bool conn_nread(Connection *c);
-bool conn_pending_close(Connection *c);
-bool conn_immediate_close(Connection *c);
-bool conn_closing(Connection *c);
-bool conn_destroyed(Connection *c);
-bool conn_mwrite(Connection *c);
-bool conn_ship_log(Connection *c);
-bool conn_setup_tap_stream(Connection *c);
-bool conn_refresh_cbsasl(Connection *c);
-bool conn_refresh_ssl_certs(Connection *c);
-bool conn_flush(Connection *c);
-bool conn_audit_configuring(Connection *c);
-bool conn_create_bucket(Connection *c);
-bool conn_delete_bucket(Connection *c);
+bool conn_listening(ListenConnection *c);
 
 void event_handler(evutil_socket_t fd, short which, void *arg);
-void collect_timings(const Connection *c);
+void listen_event_handler(evutil_socket_t, short, void *);
+
+void mcbp_collect_timings(const McbpConnection* c);
 
 void log_socket_error(EXTENSION_LOG_LEVEL severity,
                       const void* client_cookie,
@@ -240,10 +227,10 @@ const char* get_server_version(void);
 int add_iov(Connection *c, const void *buf, size_t len);
 
 /* set up a connection to write a DynamicBuffer then free it once sent. */
-void write_and_free(Connection *c, DynamicBuffer* buf);
+void write_and_free(McbpConnection *c, DynamicBuffer* buf);
 
 /* Increments topkeys count for a key when called by a valid operation. */
-void update_topkeys(const char *key, size_t nkey, Connection *c);
+void update_topkeys(const char *key, size_t nkey, McbpConnection *c);
 
 
 void notify_thread_bucket_deletion(LIBEVENT_THREAD *me);

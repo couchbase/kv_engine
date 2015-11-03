@@ -101,7 +101,6 @@ std::mutex stats_mutex;
  * forward declarations
  */
 static SOCKET new_socket(struct addrinfo *ai);
-static int try_read_command(Connection *c);
 static void register_callback(ENGINE_HANDLE *eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb, const void *cb_data);
@@ -112,9 +111,6 @@ static void stats_init(void);
 
 /* defaults */
 static void settings_init(void);
-
-/* event handling, network IO */
-static void complete_nread(Connection *c);
 
 /** exported globals **/
 struct stats stats;
@@ -497,8 +493,17 @@ static void disable_listen(void) {
     }
 
     for (next = listen_conn; next; next = next->getNext()) {
-        next->updateEvent(0);
-        if (listen(next->getSocketDescriptor(), 1) != 0) {
+        auto* connection = dynamic_cast<ListenConnection*>(next);
+        if (connection == nullptr) {
+            LOG_WARNING(next, "Internal error. Tried to disable listen on"
+                " an illegal connection object");
+            continue;
+        }
+        connection->disable();
+
+        // Set the backlog on the socket to 1, so that people trying to
+        // connect will be rejected.
+        if (listen(connection->getSocketDescriptor(), 1) != 0) {
             log_socket_error(EXTENSION_LOG_WARNING, NULL,
                              "listen() failed: %s");
         }
@@ -527,33 +532,12 @@ void safe_close(SOCKET sfd) {
     }
 }
 
-static bucket_id_t get_bucket_id(const void *cookie) {
+bucket_id_t get_bucket_id(const void *cookie) {
     /* @todo fix this. Currently we're using the index as the id,
      * but this should be changed to be a uniqe ID that won't be
      * reused.
      */
-    return ((Connection *)(cookie))->getBucketIndex();
-}
-
-void collect_timings(const Connection *c) {
-    hrtime_t now = gethrtime();
-    const hrtime_t elapsed_ns = now - c->getStart();
-    // aggregated timing for all buckets
-    all_buckets[0].timings.collect(c->getCmd(), elapsed_ns);
-
-    // timing for current bucket
-    bucket_id_t bucketid = get_bucket_id(c);
-    /* bucketid will be zero initially before you run sasl auth
-     * (unless there is a default bucket), or if someone tries
-     * to delete the bucket you're associated with and your're idle.
-     */
-    if (bucketid != 0) {
-        all_buckets[bucketid].timings.collect(c->getCmd(), elapsed_ns);
-    }
-
-    // Log operations taking longer than 0.5s
-    const hrtime_t elapsed_ms = elapsed_ns / (1000 * 1000);
-    c->maybeLogSlowCommand(std::chrono::milliseconds(elapsed_ms));
+    return bucket_id_t(((Connection*)(cookie))->getBucketIndex());
 }
 
 static void cbsasl_refresh_main(void *c)
@@ -612,39 +596,7 @@ ENGINE_ERROR_CODE refresh_ssl_certs(Connection *c)
     return ENGINE_SUCCESS;
 }
 
-static void complete_nread(Connection *c) {
-    cb_assert(c->getCmd() >= 0);
-
-    if (c->getProtocol() == Protocol::Memcached) {
-        mcbp_complete_nread(c);
-    } else {
-        throw new std::logic_error("greenstack not implemented");
-    }
-}
-
-static void reset_cmd_handler(Connection *c) {
-    c->setCmd(-1);
-    if(c->getItem() != nullptr) {
-        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, c->getItem());
-        c->setItem(nullptr);
-    }
-
-    c->resetCommandContext();
-
-    if (c->read.bytes == 0) {
-        /* Make the whole read buffer available. */
-        c->read.curr = c->read.buf;
-    }
-
-    c->shrinkBuffers();
-    if (c->read.bytes > 0) {
-        c->setState(conn_parse_cmd);
-    } else {
-        c->setState(conn_waiting);
-    }
-}
-
-void write_and_free(Connection *c, DynamicBuffer* buf) {
+void write_and_free(McbpConnection *c, DynamicBuffer* buf) {
     if (buf->getRoot() == nullptr) {
         c->setState(conn_closing);
     } else {
@@ -722,32 +674,14 @@ cJSON *get_bucket_details(int idx)
     return root;
 }
 
-static int try_read_command(Connection *c) {
-    switch (c->getProtocol()) {
-    case Protocol::Memcached:
-        return try_read_mcbp_command(c);
-    case Protocol::Greenstack:
-        return try_read_greenstack_command(c);
-    default:
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
-                                        "%d: Internal error (Illegal "
-                                            "protocol). Disconnecting client",
-                                        c->getId());
-        c->setState(conn_closing);
-    }
-    return 1;
-}
-
-bool conn_listening(Connection *c)
+bool conn_listening(ListenConnection *c)
 {
-    SOCKET sfd;
     struct sockaddr_storage addr;
     socklen_t addrlen = sizeof(addr);
-    int curr_conns;
-    int port_conns;
-    struct listening_port *port_instance;
+    SOCKET sfd = accept(c->getSocketDescriptor(), (struct sockaddr*)&addr,
+                        &addrlen);
 
-    if ((sfd = accept(c->getSocketDescriptor(), (struct sockaddr *)&addr, &addrlen)) == -1) {
+    if (sfd == INVALID_SOCKET) {
         auto error = GetLastNetworkError();
         if (is_emfile(error)) {
 #if defined(WIN32)
@@ -768,7 +702,9 @@ bool conn_listening(Connection *c)
         return false;
     }
 
-    curr_conns = stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
+    int port_conns;
+    struct listening_port *port_instance;
+    int curr_conns = stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
         port_instance = get_listening_port_instance(c->getParentPort());
@@ -797,6 +733,7 @@ bool conn_listening(Connection *c)
             std::lock_guard<std::mutex> guard(stats_mutex);
             --port_instance->curr_conns;
         }
+        LOG_WARNING(c, "Failed to make socket non-blocking. closing it");
         safe_close(sfd);
         return false;
     }
@@ -811,7 +748,7 @@ bool conn_listening(Connection *c)
  * for why a bucket could be dying: It is currently being deleted, or
  * someone initiated a shutdown process.
  */
-static bool is_bucket_dying(Connection *c)
+bool is_bucket_dying(Connection *c)
 {
     bool disconnect = memcached_shutdown;
     Bucket &b = all_buckets.at(c->getBucketIndex());
@@ -823,525 +760,11 @@ static bool is_bucket_dying(Connection *c)
     cb_mutex_exit(&b.mutex);
 
     if (disconnect) {
-        c->setState(conn_closing);
+        c->initateShutdown();
         return true;
     }
 
     return false;
-}
-
-/**
- * Ship tap log to the other end. This state differs with all other states
- * in the way that it support full duplex dialog. We're listening to both read
- * and write events from libevent most of the time. If a read event occurs we
- * switch to the conn_read state to read and execute the input message (that would
- * be an ack message from the other side). If a write event occurs we continue to
- * send tap log to the other end.
- * @param c the tap connection to drive
- * @return true if we should continue to process work for this connection, false
- *              if we should start processing events for other connections.
- */
-bool conn_ship_log(Connection *c) {
-    if (is_bucket_dying(c)) {
-        return true;
-    }
-
-    bool cont = false;
-    short mask = EV_READ | EV_PERSIST | EV_WRITE;
-
-    if (c->isSocketClosed()) {
-        return false;
-    }
-
-    if (c->isReadEvent() || c->read.bytes > 0) {
-        if (c->read.bytes > 0) {
-            if (try_read_command(c) == 0) {
-                c->setState(conn_read);
-            }
-        } else {
-            c->setState(conn_read);
-        }
-
-        /* we're going to process something.. let's proceed */
-        cont = true;
-
-        /* We have a finite number of messages in the input queue */
-        /* so let's process all of them instead of backing off after */
-        /* reading a subset of them. */
-        /* Why? Because we've got every time we're calling ship_tap_log */
-        /* we try to send a chunk of items.. This means that if we end */
-        /* up in a situation where we're receiving a burst of nack messages */
-        /* we'll only process a subset of messages in our input queue, */
-        /* and it will slowly grow.. */
-        c->setNumEvents(c->getMaxReqsPerEvent());
-    } else if (c->isWriteEvent()) {
-        if (c->decrementNumEvents() >= 0) {
-            c->setEwouldblock(false);
-            if (c->isDCP()) {
-                ship_mcbp_dcp_log(c);
-            } else {
-                ship_mcbp_tap_log(c);
-            }
-            if (c->isEwouldblock()) {
-                mask = EV_READ | EV_PERSIST;
-            } else {
-                cont = true;
-            }
-        }
-    }
-
-    if (!c->updateEvent(mask)) {
-        c->setState(conn_closing);
-    }
-
-    return cont;
-}
-
-bool conn_waiting(Connection *c) {
-    if (is_bucket_dying(c)) {
-        return true;
-    }
-
-    if (!c->updateEvent(EV_READ | EV_PERSIST)) {
-        c->setState(conn_closing);
-        return true;
-    }
-    c->setState(conn_read);
-    return false;
-}
-
-bool conn_read(Connection *c) {
-    if (is_bucket_dying(c)) {
-        return true;
-    }
-
-    switch (c->tryReadNetwork()) {
-    case Connection::TryReadResult::NoDataReceived:
-        if (settings.exit_on_connection_close) {
-            // No more data, proceed to close which will exit the process
-            c->setState(conn_closing);
-        } else {
-            c->setState(conn_waiting);
-        }
-        break;
-    case Connection::TryReadResult::DataReceived:
-        c->setState(conn_parse_cmd);
-        break;
-    case Connection::TryReadResult::SocketError:
-        c->setState(conn_closing);
-        break;
-    case Connection::TryReadResult::MemoryError: /* Failed to allocate more memory */
-        /* State already set by try_read_network */
-        break;
-    }
-
-    return true;
-}
-
-bool conn_parse_cmd(Connection *c) {
-    if (try_read_command(c) == 0) {
-        /* wee need more data! */
-        c->setState(conn_waiting);
-    }
-
-    return !c->isEwouldblock();
-}
-
-bool conn_new_cmd(Connection *c) {
-    if (is_bucket_dying(c)) {
-        return true;
-    }
-
-    c->setStart(0);
-
-    /*
-     * In order to ensure that all clients will be served each
-     * connection will only process a certain number of operations
-     * before they will back off.
-     */
-    if (c->decrementNumEvents() >= 0) {
-        reset_cmd_handler(c);
-    } else {
-        get_thread_stats(c)->conn_yields++;
-
-        /*
-         * If we've got data in the input buffer we might get "stuck"
-         * if we're waiting for a read event. Why? because we might
-         * already have all of the data for the next command in the
-         * userspace buffer so the client is idle waiting for the
-         * response to arrive. Lets set up a _write_ notification,
-         * since that'll most likely be true really soon.
-         *
-         * DCP and TAP connections is different from normal
-         * connections in the way that they may not even get data from
-         * the other end so that they'll _have_ to wait for a write event.
-         */
-        if (c->havePendingInputData() || c->isDCP() || c->isTAP()) {
-            short flags = EV_WRITE | EV_PERSIST;
-            // pipe requires EV_READ forcing to ensure we can read until EOF
-            if (c->isPipeConnection()) {
-                flags |= EV_READ;
-            }
-            if (!c->updateEvent(flags)) {
-                c->setState(conn_closing);
-                return true;
-            }
-        }
-        return false;
-    }
-
-    return true;
-}
-
-bool conn_nread(Connection *c) {
-    ssize_t res;
-
-    if (c->getRlbytes() == 0) {
-        c->setEwouldblock(false);
-        bool block = false;
-        complete_nread(c);
-        if (c->isEwouldblock()) {
-            c->unregisterEvent();
-            block = true;
-        }
-        return !block;
-    }
-    /* first check if we have leftovers in the conn_read buffer */
-    if (c->read.bytes > 0) {
-        uint32_t tocopy = c->read.bytes > c->getRlbytes() ? c->getRlbytes() : c->read.bytes;
-        if (c->getRitem() != c->read.curr) {
-            memmove(c->getRitem(), c->read.curr, tocopy);
-        }
-        c->setRitem(c->getRitem() + tocopy);
-        c->setRlbytes(c->getRlbytes() - tocopy);
-        c->read.curr += tocopy;
-        c->read.bytes -= tocopy;
-        if (c->getRlbytes() == 0) {
-            return true;
-        }
-    }
-
-    /*  now try reading from the socket */
-    res = c->recv(c->getRitem(), c->getRlbytes());
-    auto error = GetLastNetworkError();
-    if (res > 0) {
-        get_thread_stats(c)->bytes_read += res;
-        if (c->read.curr == c->getRitem()) {
-            c->read.curr += res;
-        }
-        c->setRitem(c->getRitem() + res);
-        c->setRlbytes(c->getRlbytes() - res);
-        return true;
-    }
-    if (res == 0) { /* end of stream */
-        c->setState(conn_closing);
-        return true;
-    }
-
-    if (res == -1 && is_blocking(error)) {
-        if (!c->updateEvent(EV_READ | EV_PERSIST)) {
-            c->setState(conn_closing);
-            return true;
-        }
-        return false;
-    }
-
-    /* otherwise we have a real error, on which we close the connection */
-    if (!is_closed_conn(error)) {
-        LOG_WARNING(c,
-                    "%u Failed to read, and not due to blocking:\n"
-                        "errno: %d %s \n"
-                        "rcurr=%lx ritem=%lx rbuf=%lx rlbytes=%d rsize=%d\n",
-                    c->getId(), errno, strerror(errno),
-                    (long)c->read.curr, (long)c->getRitem(), (long)c->read.buf,
-                    (int)c->getRlbytes(), (int)c->read.size);
-    }
-    c->setState(conn_closing);
-    return true;
-}
-
-bool conn_write(Connection *c) {
-    /*
-     * We want to write out a simple response. If we haven't already,
-     * assemble it into a msgbuf list (this will be a single-entry
-     * list for TCP).
-     */
-    if (c->getIovUsed() == 0) {
-        if (!c->addIov(c->write.curr, c->write.bytes)) {
-            LOG_WARNING(c, "Couldn't build response, closing connection");
-            c->setState(conn_closing);
-            return true;
-        }
-    }
-
-    return conn_mwrite(c);
-}
-
-bool conn_mwrite(Connection *c) {
-    switch (c->transmit()) {
-    case Connection::TransmitResult::Complete:
-
-        c->releaseTempAlloc();
-        if (c->getState() == conn_mwrite) {
-            c->releaseReservedItems();
-        } else if (c->getState() != conn_write) {
-            LOG_WARNING(c, "%u: Unexpected state %d, closing",
-                        c->getId(), c->getState());
-            c->setState(conn_closing);
-            return true;
-        }
-        c->setState(c->getWriteAndGo());
-        break;
-
-    case Connection::TransmitResult::Incomplete:
-    case Connection::TransmitResult::HardError:
-        break;                   /* Continue in state machine. */
-
-    case Connection::TransmitResult::SoftError:
-        return false;
-    }
-
-    return true;
-}
-
-bool conn_pending_close(Connection *c) {
-    if (c->isSocketClosed() == false) {
-        throw std::logic_error("conn_pending_close: socketDescriptor must be closed");
-    }
-    LOG_DEBUG(c,
-              "Awaiting clients to release the cookie (pending close for %p)",
-              (void*)c);
-    /*
-     * tell the tap connection that we're disconnecting it now,
-     * but give it a grace period
-     */
-    perform_callbacks(ON_DISCONNECT, NULL, c);
-
-    if (c->getRefcount() > 1) {
-        return false;
-    }
-
-    c->setState(conn_immediate_close);
-    return true;
-}
-
-bool conn_immediate_close(Connection *c) {
-    struct listening_port *port_instance;
-    if (c->isSocketClosed() == false) {
-        throw std::logic_error("conn_immediate_close: socketDescriptor must be closed");
-    }
-    LOG_DETAIL(c, "Releasing connection %p", c);
-
-    {
-        std::lock_guard<std::mutex> guard(stats_mutex);
-        port_instance = get_listening_port_instance(c->getParentPort());
-        if (port_instance) {
-        --port_instance->curr_conns;
-        } else if(!c->isPipeConnection()) {
-            throw std::logic_error("null port_instance and connection "
-                                   "is not a pipe");
-        }
-    }
-
-    perform_callbacks(ON_DISCONNECT, NULL, c);
-    disassociate_bucket(c);
-    conn_close(c);
-
-    return false;
-}
-
-bool conn_closing(Connection *c) {
-    /* We don't want any network notifications anymore.. */
-    c->unregisterEvent();
-    safe_close(c->getSocketDescriptor());
-    c->setSocketDescriptor(INVALID_SOCKET);
-
-    /* engine::release any allocated state */
-    conn_cleanup_engine_allocations(c);
-
-    if (c->getRefcount() > 1 || c->isEwouldblock()) {
-        c->setState(conn_pending_close);
-    } else {
-        c->setState(conn_immediate_close);
-    }
-    return true;
-}
-
-/** sentinal state used to represent a 'destroyed' connection which will
- *  actually be freed at the end of the event loop. Always returns false.
- */
-bool conn_destroyed(Connection * c) {
-    (void)c;
-    return false;
-}
-
-bool conn_refresh_cbsasl(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_EWOULDBLOCK) {
-        LOG_WARNING(c,
-                    "conn_refresh_cbsasl: Unexpected AIO stat result "
-                        "EWOULDBLOCK. Shutting down connection");
-        c->setState(conn_closing);
-        return true;
-    }
-
-    if (c->getProtocol() == Protocol::Memcached) {
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            mcbp_write_response(c, NULL, 0, 0, 0);
-            break;
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
-    } else {
-        throw std::logic_error("Not implemented for Greenstack");
-    }
-
-    return true;
-}
-
-bool conn_refresh_ssl_certs(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_EWOULDBLOCK) {
-        LOG_WARNING(c,
-                    "conn_refresh_ssl_certs: Unexpected AIO stat result "
-                        "EWOULDBLOCK. Shutting down connection");
-        c->setState(conn_closing);
-        return true;
-    }
-
-    if (c->getProtocol() == Protocol::Memcached) {
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            mcbp_write_response(c, NULL, 0, 0, 0);
-            break;
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
-    } else {
-        throw std::logic_error("Not implemented for Greenstack");
-    }
-
-    return true;
-}
-
-/**
- * The conn_flush state in the state machinery means that we're currently
- * running a slow (and blocking) flush. The connection is "suspended" in
- * this state and when the connection is signalled this function is called
- * which sends the response back to the client.
- *
- * @param c the connection to send the result back to (currently stored in
- *          c->aiostat).
- * @return true to ensure that we continue to process events for this
- *              connection.
- */
-bool conn_flush(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (c->getProtocol() == Protocol::Memcached) {
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            mcbp_write_response(c, NULL, 0, 0, 0);
-            break;
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            break;
-        default:
-        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        }
-    } else {
-        throw std::logic_error("Not implemented for Greenstack");
-    }
-
-    return true;
-}
-
-bool conn_audit_configuring(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-    if (c->getProtocol() == Protocol::Memcached) {
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            break;
-        default:
-            LOG_WARNING(c,
-                        "configuration of audit daemon failed with config file: %s",
-                        settings.audit_file);
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-        }
-    } else {
-        throw std::logic_error("Not implemented for Greenstack");
-    }
-    return true;
-}
-
-bool conn_create_bucket(Connection* c) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_EWOULDBLOCK) {
-        LOG_WARNING(c,
-                    "conn_create_bucket: Unexpected AIO stat result "
-                        "EWOULDBLOCK. Shutting down connection");
-        c->setState(conn_closing);
-        return true;
-    }
-
-    if (ret == ENGINE_DISCONNECT) {
-        c->setState(conn_closing);
-    } else {
-        if (c->getProtocol() == Protocol::Memcached) {
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        } else {
-            greenstack_write_response(c, ret);
-        }
-    }
-
-    return true;
-}
-
-bool conn_delete_bucket(Connection *c) {
-    ENGINE_ERROR_CODE ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
-
-    if (ret == ENGINE_EWOULDBLOCK) {
-        LOG_WARNING(c,
-                    "conn_delete_bucket: Unexpected AIO stat result "
-                        "EWOULDBLOCK. Shutting down connection");
-        c->setState(conn_closing);
-        return true;
-    }
-
-    if (ret == ENGINE_DISCONNECT) {
-        c->setState(conn_closing);
-    } else {
-        if (c->getProtocol() == Protocol::Memcached) {
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-        } else {
-            greenstack_write_response(c, ret);
-        }
-    }
-
-    return true;
 }
 
 void event_handler(evutil_socket_t fd, short which, void *arg) {
@@ -1352,15 +775,15 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     }
 
     auto *thr = c->getThread();
-    if (memcached_shutdown) {
-        // Someone requested memcached to shut down. The listen thread should
-        // be stopped immediately.
-        if (is_listen_thread()) {
-            LOG_NOTICE(NULL, "Stopping listen thread");
-            c->eventBaseLoopbreak();
-            return;
-        }
+    if (thr == nullptr) {
+        LOG_WARNING(c, "Internal error - connection without a thread found. - "
+            "ignored");
+        return;
+    }
 
+    LOCK_THREAD(thr);
+    if (memcached_shutdown) {
+        // Someone requested memcached to shut down.
         if (signal_idle_clients(thr, -1, false) == 0) {
             cb_assert(thr != nullptr);
             LOG_NOTICE(NULL, "Stopping worker thread %u", thr->index);
@@ -1369,51 +792,61 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
         }
     }
 
-    if (!is_listen_thread()) {
-        cb_assert(thr);
-        LOCK_THREAD(thr);
-        /*
-         * Remove the list from the list of pending io's (in case the
-         * object was scheduled to run in the dispatcher before the
-         * callback for the worker thread is executed.
-         */
-        thr->pending_io = list_remove(thr->pending_io, c);
-    }
-
-    c->setCurrentEvent(which);
+    /*
+     * Remove the list from the list of pending io's (in case the
+     * object was scheduled to run in the dispatcher before the
+     * callback for the worker thread is executed.
+     */
+    thr->pending_io = list_remove(thr->pending_io, c);
 
     /* sanity */
     cb_assert(fd == c->getSocketDescriptor());
 
-    c->setNumEvents(c->getMaxReqsPerEvent());
+    run_event_loop(c, which);
 
-    run_event_loop(c);
-
-    if (thr != nullptr) {
-        if (memcached_shutdown) {
-            // Someone requested memcached to shut down. If we don't have
-            // any connections bound to this thread we can just shut down
-            int connected = signal_idle_clients(thr, -1, true);
-            if (connected == 0) {
-                LOG_NOTICE(NULL, "Stopping worker thread %u", thr->index);
-                event_base_loopbreak(thr->base);
-            } else {
-                // @todo Change loglevel once MB-16255 is resolved
-                LOG_NOTICE(NULL,
-                           "Waiting for %d connected "
-                               "clients on worker thread %u",
-                           connected, thr->index);
-            }
+    if (memcached_shutdown) {
+        // Someone requested memcached to shut down. If we don't have
+        // any connections bound to this thread we can just shut down
+        int connected = signal_idle_clients(thr, -1, true);
+        if (connected == 0) {
+            LOG_NOTICE(NULL, "Stopping worker thread %u", thr->index);
+            event_base_loopbreak(thr->base);
+        } else {
+            LOG_NOTICE(NULL,
+                       "Waiting for %d connected clients on worker thread %u",
+                       connected, thr->index);
         }
-        UNLOCK_THREAD(thr);
     }
+
+    UNLOCK_THREAD(thr);
 }
 
-static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
-    char buffer[80];
+/**
+ * The listen_event_handler is the callback from libevent when someone is
+ * connecting to one of the server sockets. It runs in the context of the
+ * listen thread
+ */
+void listen_event_handler(evutil_socket_t, short which, void *arg) {
+    auto *c = reinterpret_cast<ListenConnection *>(arg);
+    if (c == nullptr) {
+        LOG_WARNING(NULL, "listen_event_handler: internal error, "
+            "arg must be non-NULL");
+        return;
+    }
 
-    (void)which;
-    (void)arg;
+    if (memcached_shutdown) {
+        // Someone requested memcached to shut down. The listen thread should
+        // be stopped immediately.
+        LOG_NOTICE(NULL, "Stopping listen thread");
+        c->eventBaseLoopbreak();
+        return;
+    }
+
+    run_event_loop(c, which);
+}
+
+static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
+    char buffer[80];
     ssize_t nr = recv(fd, buffer, sizeof(buffer), 0);
 
     if (nr != -1 && is_listen_disabled()) {
@@ -1429,9 +862,16 @@ static void dispatch_event_handler(evutil_socket_t fd, short which, void *arg) {
         if (enable) {
             Connection *next;
             for (next = listen_conn; next; next = next->getNext()) {
+                auto* connection = dynamic_cast<ListenConnection*>(next);
+                if (connection == nullptr) {
+                    LOG_WARNING(next, "Internal error: tried to enable listen "
+                        "on an incorrect connection object type");
+                    continue;
+                }
+
                 int backlog = 1024;
                 int ii;
-                next->updateEvent(EV_READ | EV_PERSIST);
+                connection->enable();
                 auto parent_port = next->getParentPort();
                 for (ii = 0; ii < settings.num_interfaces; ++ii) {
                     if (parent_port == settings.interfaces[ii].port) {
@@ -1890,10 +1330,11 @@ static bool is_mutation_extras_supported(const void *cookie) {
 }
 
 static uint8_t get_opcode_if_ewouldblock_set(const void *cookie) {
-    Connection *c = (Connection *)cookie;
     uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
-    if (c->isEwouldblock()) {
-        opcode = c->binary_header.request.opcode;
+    Connection *c = (Connection *)cookie;
+    auto* mc = dynamic_cast<McbpConnection*>(c);
+    if (mc != nullptr && mc->isEwouldblock()) {
+        opcode = mc->binary_header.request.opcode;
     }
     return opcode;
 }
@@ -1957,23 +1398,23 @@ static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {
         throw std::invalid_argument("cookie_set_priority: 'cookie' must be non-NULL");
     }
 
-    Connection * c = (Connection *)cookie;
+    auto* c = (Connection*)(cookie);
     switch (priority) {
     case CONN_PRIORITY_HIGH:
-        c->setMaxReqsPerEvent(settings.reqs_per_event_high_priority);
+        c->setPriority(Connection::Priority::High);
         return;
     case CONN_PRIORITY_MED:
-        c->setMaxReqsPerEvent(settings.reqs_per_event_med_priority);
+        c->setPriority(Connection::Priority::Medium);
         return;
     case CONN_PRIORITY_LOW:
-        c->setMaxReqsPerEvent(settings.reqs_per_event_low_priority);
+        c->setPriority(Connection::Priority::Low);
         return;
     }
 
     LOG_WARNING(c,
                 "%u: cookie_set_priority: priority (which is %d) is not a "
                     "valid CONN_PRIORITY - closing connection", priority);
-    c->setState(conn_closing);
+    c->initateShutdown();
 }
 
 static void count_eviction(const void *cookie, const void *key, int nkey) {
@@ -3090,7 +2531,6 @@ int main (int argc, char **argv) {
 
     release_signal_handlers();
 
-    event_base_free(main_base);
     cbsasl_server_term();
     destroy_connections();
 
@@ -3101,6 +2541,8 @@ int main (int argc, char **argv) {
     free_settings(&settings);
 
     shutdown_openssl();
+
+    event_base_free(main_base);
 
     LOG_NOTICE(NULL, "Shutdown complete.");
     return EXIT_SUCCESS;

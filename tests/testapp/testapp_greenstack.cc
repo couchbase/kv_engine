@@ -17,6 +17,10 @@
 #include "testapp_greenstack.h"
 #include <libgreenstack/Greenstack.h>
 
+#if 0
+
+// Disabled while we're refactoring to bufferevents
+
 #ifdef WIN32
 // There is a pending bug trying to figure out why SSL fails..
 INSTANTIATE_TEST_CASE_P(PlainOrSSL,
@@ -31,6 +35,9 @@ INSTANTIATE_TEST_CASE_P(PlainOrSSL,
                                           Transport::SSL,
                                           Transport::SslIpv6));
 #endif
+
+#endif
+
 
 MemcachedGreenstackConnection& GreenstackTest::getConnection() {
     switch (GetParam()) {

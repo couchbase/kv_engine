@@ -60,6 +60,12 @@ ADD_EXECUTABLE(memcached
                config_util.h
                connection.cc
                connection.h
+               connection_greenstack.cc
+               connection_greenstack.h
+               connection_listen.cc
+               connection_listen.h
+               connection_mcbp.cc
+               connection_mcbp.h
                connections.cc
                connections.h
                debug_helpers.cc
@@ -99,10 +105,6 @@ ADD_EXECUTABLE(memcached
                session_cas.cc
                session_cas.h
                settings.h
-               statemachine.cc
-               statemachine.h
-               statemachine_greenstack.cc
-               statemachine_greenstack.h
                statemachine_mcbp.cc
                statemachine_mcbp.h
                stats.h

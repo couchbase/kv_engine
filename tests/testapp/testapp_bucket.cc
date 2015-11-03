@@ -24,22 +24,17 @@
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         BucketTest,
                         ::testing::Values(TransportProtocols::PlainMcbp,
-                                          TransportProtocols::PlainGreenstack,
-                                          TransportProtocols::PlainIpv6Mcbp,
-                                          TransportProtocols::PlainIpv6Greenstack
+                                          TransportProtocols::PlainIpv6Mcbp
                                          ));
+
 #else
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         BucketTest,
                         ::testing::Values(TransportProtocols::PlainMcbp,
-                                          TransportProtocols::PlainGreenstack,
                                           TransportProtocols::PlainIpv6Mcbp,
-                                          TransportProtocols::PlainIpv6Greenstack,
                                           TransportProtocols::SslMcbp,
-                                          TransportProtocols::SslGreenstack,
-                                          TransportProtocols::SslIpv6Mcbp,
-                                          TransportProtocols::SslIpv6Greenstack
+                                          TransportProtocols::SslIpv6Mcbp
                                          ));
 #endif
 

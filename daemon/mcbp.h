@@ -23,9 +23,9 @@
 
 
 #include <memcached/protocol_binary.h>
-#include "connection.h"
+#include "connection_mcbp.h"
 
-int mcbp_add_header(Connection* c,
+int mcbp_add_header(McbpConnection* c,
                     uint16_t err,
                     uint8_t ext_len,
                     uint16_t key_len,
@@ -37,13 +37,13 @@ int mcbp_add_header(Connection* c,
  *       added to an iovec), and thus must be live until transmit() is later
  *       called - (aka don't use stack for `d`).
  */
-void mcbp_write_response(Connection* c,
+void mcbp_write_response(McbpConnection* c,
                          const void* d,
                          int extlen,
                          int keylen,
                          int dlen);
 
-void mcbp_write_packet(Connection* c, protocol_binary_response_status err);
+void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err);
 
 /**
  * Convert an error code generated from the storage engine to the corresponding

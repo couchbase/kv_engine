@@ -45,15 +45,18 @@ enum class BufferLoan {
 
 /** Function prototypes ******************************************************/
 
-static void conn_loan_buffers(Connection *c);
-static void conn_return_buffers(Connection *c);
-static BufferLoan conn_loan_single_buffer(Connection *c, struct net_buf *thread_buf,
+static BufferLoan conn_loan_single_buffer(McbpConnection *c, struct net_buf *thread_buf,
                                              struct net_buf *conn_buf);
 static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
                                       struct net_buf *conn_buf);
 static void conn_destructor(Connection *c);
-static Connection *allocate_connection(SOCKET sfd, const struct listening_port *interface = nullptr);
-static Connection *allocate_pipe_connection(int fd);
+static Connection *allocate_connection(SOCKET sfd,
+                                       event_base *base,
+                                       const struct listening_port &interface);
+static Connection* allocate_listen_connection(SOCKET sfd,
+                                              event_base* base,
+                                              in_port_t port);
+static Connection *allocate_pipe_connection(int fd, event_base *base);
 static void release_connection(Connection *c);
 
 /** External functions *******************************************************/
@@ -65,23 +68,7 @@ int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging)
         if (c->getThread() == me) {
             ++connected;
             if (bucket_idx == -1 || c->getBucketIndex() == bucket_idx) {
-                auto state = c->getState();
-                if (state == conn_read || state == conn_waiting ||
-                    state == conn_new_cmd) {
-                    /*
-                     * set write access to ensure it's handled (error logged in
-                     * updateEvent().
-                     */
-                    c->updateEvent(EV_READ | EV_WRITE | EV_PERSIST);
-                } else if (logging) {
-                    auto* js = c->toJSON();
-                    char* details = cJSON_PrintUnformatted(js);
-
-                    LOG_NOTICE(NULL, "Worker thread %u: %s", me->index,
-                               details);
-                    cJSON_Free(details);
-                    cJSON_Delete(js);
-                }
+                c->signalIfIdle(logging, me->index);
             }
         }
     }
@@ -147,72 +134,28 @@ void close_all_connections(void)
     } while (!done);
 }
 
-void run_event_loop(Connection * c) {
-
-    if (!is_listen_thread()) {
-        conn_loan_buffers(c);
-    }
-
-    try {
-        c->runStateMachinery();
-    } catch (std::invalid_argument& e) {
-        LOG_WARNING(c,
-                    "%d: exception occurred in runloop - closing connection: %s",
-                    c->getId(), e.what());
-        c->setState(conn_closing);
-    }
-
-    if (!is_listen_thread()) {
-        conn_return_buffers(c);
-    }
-
-    if (c->getState() == conn_destroyed) {
-        /* Actually free the memory from this connection. Unsafe to dereference
-         * c after this point.
-         */
+void run_event_loop(Connection* c, short which) {
+    c->runEventLoop(which);
+    if (c->shouldDelete()) {
         release_connection(c);
-        c = NULL;
     }
 }
 
 Connection* conn_new_server(const SOCKET sfd,
                             in_port_t parent_port,
                             struct event_base* base) {
-    Connection* c = allocate_connection(sfd);
+    Connection* c = allocate_listen_connection(sfd, base, parent_port);
     if (c == nullptr) {
         return nullptr;
     }
-
-    c->resolveConnectionName(true);
-    c->setAuthContext(auth_create(NULL, NULL, NULL));
-    c->setParentPort(parent_port);
-    c->setState(conn_listening);
-    c->setWriteAndGo(conn_listening);
-
-    // Listen connections should not be associated with a bucket
-    c->setBucketEngine(nullptr);
-    c->setBucketIndex(-1);
-
-    if (!c->initializeEvent(base)) {
-        cb_assert(c->getThread() == nullptr);
-        release_connection(c);
-        return nullptr;
-    }
-
-    stats.total_conns++;
-
     c->incrementRefcount();
 
-
     MEMCACHED_CONN_ALLOCATE(c->getId());
+    LOG_DEBUG(c, "<%d server listening on %s", sfd, c->getSockname().c_str());
 
-    if (settings.verbose > 1) {
-        LOG_DEBUG(c, "<%d server listening", sfd);
-    }
-
+    stats.total_conns++;
     return c;
 }
-
 
 Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
                      struct event_base* base,
@@ -222,25 +165,20 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
 
     for (auto& interface : stats.listening_ports) {
         if (parent_port == interface.port) {
-            c = allocate_connection(sfd, &interface);
+            c = allocate_connection(sfd, base, interface);
             if (c == nullptr) {
                 return nullptr;
             }
 
             LOG_INFO(NULL, "%u: Using protocol: %s", c->getId(),
                      to_string(c->getProtocol()));
+            break;
         }
     }
 
     if (c == nullptr) {
         LOG_WARNING(NULL, "%u: failed to locate server port %u. Disconnecting",
                     (unsigned int)sfd, parent_port);
-        return nullptr;
-    }
-
-    if (!c->initializeEvent(base)) {
-        cb_assert(c->getThread() == nullptr);
-        release_connection(c);
         return nullptr;
     }
 
@@ -266,16 +204,9 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
 Connection* conn_pipe_new(const int fd,
                           struct event_base *base,
                           LIBEVENT_THREAD* thread) {
-    Connection *c = allocate_pipe_connection(fd);
+    Connection *c = allocate_pipe_connection(fd, base);
 
     c->setAuthContext(auth_create(NULL, "pipe", "pipe"));
-
-    if (!c->initializeEvent(base)) {
-        cb_assert(c->getThread() == nullptr);
-        release_connection(c);
-        return NULL;
-    }
-
     stats.total_conns++;
     c->incrementRefcount();
     c->setThread(thread);
@@ -286,7 +217,7 @@ Connection* conn_pipe_new(const int fd,
 
 }
 
-void conn_cleanup_engine_allocations(Connection * c) {
+void conn_cleanup_engine_allocations(McbpConnection * c) {
     ENGINE_HANDLE* handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
     if (c->getItem() != nullptr) {
         c->getBucketEngine()->release(handle, c, c->getItem());
@@ -302,31 +233,38 @@ static void conn_cleanup(Connection *c) {
     }
     c->setAdmin(false);
 
-    c->releaseTempAlloc();
+    auto* mcbpc = dynamic_cast<McbpConnection*>(c);
+    if (mcbpc != nullptr) {
+        mcbpc->releaseTempAlloc();
 
-    c->read.curr = c->read.buf;
-    c->read.bytes = 0;
-    c->write.curr = c->write.buf;
-    c->write.bytes = 0;
+        mcbpc->read.curr = mcbpc->read.buf;
+        mcbpc->read.bytes = 0;
+        mcbpc->write.curr = mcbpc->write.buf;
+        mcbpc->write.bytes = 0;
 
-    /* Return any buffers back to the thread; before we disassociate the
-     * connection from the thread. Note we clear TAP / UDP status first, so
-     * conn_return_buffers() will actually free the buffers.
-     */
-    c->setTapIterator(nullptr);
-    c->setDCP(false);
+        /* Return any buffers back to the thread; before we disassociate the
+         * connection from the thread. Note we clear TAP / UDP status first, so
+         * conn_return_buffers() will actually free the buffers.
+         */
+        mcbpc->setTapIterator(nullptr);
+        mcbpc->setDCP(false);
+    }
     conn_return_buffers(c);
-    c->clearDynamicBuffer();
+    if (mcbpc != nullptr) {
+        mcbpc->clearDynamicBuffer();
+    }
     c->setEngineStorage(nullptr);
 
     c->setThread(nullptr);
     cb_assert(c->getNext() == nullptr);
     c->setSocketDescriptor(INVALID_SOCKET);
-    c->setStart(0);
-    c->disableSSL();
+    if (mcbpc != nullptr) {
+        mcbpc->setStart(0);
+        mcbpc->disableSSL();
+    }
 }
 
-void conn_close(Connection *c) {
+void conn_close(McbpConnection *c) {
     if (c == nullptr) {
         throw std::invalid_argument("conn_close: 'c' must be non-NULL");
     }
@@ -409,22 +347,12 @@ void dump_connection_stat_signal_handler(evutil_socket_t, short, void *) {
 }
 #endif
 
-/** Internal functions *******************************************************/
 
-/**
- * If the connection doesn't already have read/write buffers, ensure that it
- * does.
- *
- * In the common case, only one read/write buffer is created per worker thread,
- * and this buffer is loaned to the connection the worker is currently
- * handling. As long as the connection doesn't have a partial read/write (i.e.
- * the buffer is totally consumed) when it goes idle, the buffer is simply
- * returned back to the worker thread.
- *
- * If there is a partial read/write, then the buffer is left loaned to that
- * connection and the worker thread will allocate a new one.
- */
-static void conn_loan_buffers(Connection *c) {
+void conn_loan_buffers(Connection *connection) {
+    auto *c = dynamic_cast<McbpConnection*>(connection);
+    if (c == nullptr) {
+        return;
+    }
 
     auto res = conn_loan_single_buffer(c, &c->getThread()->read, &c->read);
     auto *ts = get_thread_stats(c);
@@ -444,14 +372,12 @@ static void conn_loan_buffers(Connection *c) {
     }
 }
 
-/**
- * Return any empty buffers back to the owning worker thread.
- *
- * Converse of conn_loan_buffer(); if any of the read/write buffers are empty
- * (have no partial data) then return the buffer back to the worker thread.
- * If there is partial data, then keep the buffer with the connection.
- */
-static void conn_return_buffers(Connection *c) {
+void conn_return_buffers(Connection *connection) {
+    auto *c = dynamic_cast<McbpConnection*>(connection);
+    if (c == nullptr) {
+        return;
+    }
+
     auto thread = c->getThread();
 
     if (thread == nullptr) {
@@ -472,6 +398,7 @@ static void conn_return_buffers(Connection *c) {
     conn_return_single_buffer(c, &thread->write, &c->write);
 }
 
+/** Internal functions *******************************************************/
 
 /**
  * Destructor for all connection objects. Release all allocated resources.
@@ -486,20 +413,22 @@ static void conn_destructor(Connection *c) {
  *  else NULL.
  */
 static Connection *allocate_connection(SOCKET sfd,
-                                       const struct listening_port* interface) {
+                                       event_base *base,
+                                       const struct listening_port &interface) {
     Connection *ret = nullptr;
 
     try {
-        if (interface == nullptr) {
-            ret = new Connection;
-        } else {
-            ret = new Connection(sfd, *interface);
+        switch (interface.protocol) {
+        case Protocol::Memcached:
+            ret = new McbpConnection(sfd, base, interface);
+            break;
+        case Protocol::Greenstack:
+            ret = new GreenstackConnection(sfd, base, interface);
         }
-        ret->setSocketDescriptor(sfd);
-        stats.conn_structs++;
 
         std::lock_guard<std::mutex> lock(connections.mutex);
         connections.conns.push_back(ret);
+        stats.conn_structs++;
         return ret;
     } catch (std::bad_alloc) {
         LOG_WARNING(NULL, "Failed to allocate memory for connection");
@@ -508,28 +437,45 @@ static Connection *allocate_connection(SOCKET sfd,
     }
 }
 
+static Connection *allocate_listen_connection(SOCKET sfd,
+                                              event_base *base,
+                                              in_port_t port) {
+    Connection *ret = nullptr;
+
+    try {
+        ret = new ListenConnection(sfd, base, port);
+        std::lock_guard<std::mutex> lock(connections.mutex);
+        connections.conns.push_back(ret);
+        stats.conn_structs++;
+        return ret;
+    } catch (std::bad_alloc) {
+        LOG_WARNING(NULL, "Failed to allocate memory for listen connection");
+        delete ret;
+        return NULL;
+    }
+}
+
+
 /**
  * Allocate a PipeConnection and add it to the conections list.
  *
  * Returns a pointer to the newly-allocated Connection else NULL if failed.
  */
-static Connection *allocate_pipe_connection(int fd) {
+static Connection *allocate_pipe_connection(int fd, event_base *base) {
     Connection *ret;
 
     try {
-        ret = new PipeConnection;
+        ret = new PipeConnection(static_cast<SOCKET>(fd), base);
+
+        std::lock_guard<std::mutex> lock(connections.mutex);
+        connections.conns.push_back(ret);
+        stats.conn_structs++;
+        return ret;
     } catch (std::bad_alloc) {
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
                                         "Failed to allocate memory for PipeConnection");
-        return NULL;
+        return nullptr;
     }
-    ret->setSocketDescriptor(fd);
-    stats.conn_structs++;
-
-    std::lock_guard<std::mutex> lock(connections.mutex);
-    connections.conns.push_back(ret);
-
-    return ret;
 }
 
 /** Release a connection; removing it from the connection list management
@@ -553,7 +499,7 @@ static void release_connection(Connection *c) {
  * it does by either loaning out the threads, or allocating a new one if
  * necessary.
  */
-static BufferLoan conn_loan_single_buffer(Connection *c, struct net_buf *thread_buf,
+static BufferLoan conn_loan_single_buffer(McbpConnection *c, struct net_buf *thread_buf,
                                     struct net_buf *conn_buf)
 {
     /* Already have a (partial) buffer - nothing to do. */

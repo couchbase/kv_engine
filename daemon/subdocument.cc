@@ -37,7 +37,7 @@
  * Declarations
  */
 
-static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
+static bool subdoc_fetch(McbpConnection* c, ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket, uint64_t cas);
 
 static bool subdoc_operate(SubdocCmdContext* context);
@@ -85,7 +85,7 @@ static void subdoc_print_command(Connection* c, protocol_binary_command cmd,
  */
 
 static SubdocCmdContext*
-subdoc_create_context(Connection*c, const SubdocCmdTraits traits,
+subdoc_create_context(McbpConnection* c, const SubdocCmdTraits traits,
                       const void* packet, const_sized_buffer value) {
 
     try {
@@ -238,7 +238,7 @@ uint32_t subdoc_decode_expiration(const protocol_binary_request_header* header,
  * @param packet request packet.
  * @param traits Traits associated with the specific command.
  */
-static void subdoc_executor(Connection *c, const void *packet,
+static void subdoc_executor(McbpConnection *c, const void *packet,
                             const SubdocCmdTraits traits) {
 
     // 0. Parse the request and log it if debug enabled.
@@ -368,7 +368,7 @@ static void subdoc_executor(Connection *c, const void *packet,
  * obtained.
  */
 static protocol_binary_response_status
-get_document_for_searching(Connection * c, const item* item,
+get_document_for_searching(McbpConnection * c, const item* item,
                            const_sized_buffer& document, uint64_t in_cas,
                            uint64_t& cas) {
 
@@ -484,7 +484,7 @@ get_document_for_searching(Connection * c, const item* item,
 // Fetch the item to operate on from the engine.
 // Returns true if the command was successful (and execution should continue),
 // else false.
-static bool subdoc_fetch(Connection * c, ENGINE_ERROR_CODE ret, const char* key,
+static bool subdoc_fetch(McbpConnection* c, ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket, uint64_t cas) {
     auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
 
@@ -1082,67 +1082,67 @@ void subdoc_response(SubdocCmdContext* context) {
     }
 }
 
-void subdoc_get_executor(Connection *c, void* packet) {
+void subdoc_get_executor(McbpConnection* c, void* packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET>());
 }
 
-void subdoc_exists_executor(Connection *c, void* packet) {
+void subdoc_exists_executor(McbpConnection* c, void* packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>());
 }
 
-void subdoc_dict_add_executor(Connection *c, void *packet) {
+void subdoc_dict_add_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>());
 }
 
-void subdoc_dict_upsert_executor(Connection *c, void *packet) {
+void subdoc_dict_upsert_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>());
 }
 
-void subdoc_delete_executor(Connection *c, void *packet) {
+void subdoc_delete_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DELETE>());
 }
 
-void subdoc_replace_executor(Connection *c, void *packet) {
+void subdoc_replace_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>());
 }
 
-void subdoc_array_push_last_executor(Connection *c, void *packet) {
+void subdoc_array_push_last_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>());
 }
 
-void subdoc_array_push_first_executor(Connection *c, void *packet) {
+void subdoc_array_push_first_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>());
 }
 
-void subdoc_array_insert_executor(Connection *c, void *packet) {
+void subdoc_array_insert_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>());
 }
 
-void subdoc_array_add_unique_executor(Connection *c, void *packet) {
+void subdoc_array_add_unique_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>());
 }
 
-void subdoc_counter_executor(Connection *c, void *packet) {
+void subdoc_counter_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
 }
 
-void subdoc_multi_lookup_executor(Connection *c, void *packet) {
+void subdoc_multi_lookup_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>());
 }
 
-void subdoc_multi_mutation_executor(Connection *c, void *packet) {
+void subdoc_multi_mutation_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION>());
 }

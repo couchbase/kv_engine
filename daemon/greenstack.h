@@ -16,6 +16,6 @@
  */
 #pragma once
 
-int try_read_greenstack_command(Connection* c);
+int try_read_greenstack_command(GreenstackConnection* c);
 
-void greenstack_write_response(Connection* c, ENGINE_ERROR_CODE code);
+void greenstack_write_response(GreenstackConnection* c, ENGINE_ERROR_CODE code);

@@ -16,20 +16,84 @@
  */
 #pragma once
 
-#include "statemachine.h"
+class McbpConnection;
+
+typedef bool (* TaskFunction)(McbpConnection* connection);
 
 /**
  * The state machinery for the Memcached Binary Protocol.
  */
-class McbpStateMachine : public StateMachine {
+class McbpStateMachine {
 public:
+    McbpStateMachine() = delete;
+
     McbpStateMachine(TaskFunction task)
-        : StateMachine(task) {
+        : currentTask(task) {
 
     }
 
-    virtual void setCurrentTask(Connection& connection,
-                                TaskFunction task) override;
+    /**
+     * Execute the current task function
+     *
+     * @param connection the associated connection
+     * @return the return value from the task function (true to continue
+     *         execution, false otherwise)
+     */
+    bool execute(McbpConnection& connection) {
+        return currentTask(&connection);
+    }
 
-    virtual const char* getTaskName(TaskFunction task) const override;
+    /**
+     * Get the current task function (for debug purposes)
+     */
+    TaskFunction getCurrentTask() const {
+        return currentTask;
+    }
+
+    /**
+     * Get the name of the current task (for debug purposes)
+     */
+    const char* getCurrentTaskName() const {
+        return getTaskName(currentTask);
+    }
+
+    /**
+     * Set the current task function
+     *
+     * This validates the requested state transition is valid.
+     *
+     * @param connection the associated connection
+     * @param task the new task function
+     * @throws std::logical_error for illegal state transitions
+     */
+    void setCurrentTask(McbpConnection& connection, TaskFunction task);
+
+    /**
+     * Get the name of a given task
+     */
+    const char* getTaskName(TaskFunction task) const;
+
+
+protected:
+    TaskFunction currentTask;
 };
+
+bool conn_new_cmd(McbpConnection* c);
+bool conn_waiting(McbpConnection* c);
+bool conn_read(McbpConnection* c);
+bool conn_parse_cmd(McbpConnection* c);
+bool conn_write(McbpConnection* c);
+bool conn_nread(McbpConnection* c);
+bool conn_pending_close(McbpConnection* c);
+bool conn_immediate_close(McbpConnection* c);
+bool conn_closing(McbpConnection* c);
+bool conn_destroyed(McbpConnection* c);
+bool conn_mwrite(McbpConnection* c);
+bool conn_ship_log(McbpConnection* c);
+bool conn_setup_tap_stream(McbpConnection* c);
+bool conn_refresh_cbsasl(McbpConnection* c);
+bool conn_refresh_ssl_certs(McbpConnection* c);
+bool conn_flush(McbpConnection* c);
+bool conn_audit_configuring(McbpConnection* c);
+bool conn_create_bucket(McbpConnection* c);
+bool conn_delete_bucket(McbpConnection* c);

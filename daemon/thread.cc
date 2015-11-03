@@ -319,18 +319,23 @@ static void thread_libevent_process(evutil_socket_t fd, short which, void *arg) 
         pending = pending->getNext();
         c->setNext(nullptr);
 
-        if (c->getSocketDescriptor() != INVALID_SOCKET && !c->isRegisteredInLibevent()) {
-            /* The socket may have been shut down while we're looping */
-            /* in delayed shutdown */
-            c->registerEvent();
+        auto *mcbp = dynamic_cast<McbpConnection*>(c);
+        if (mcbp != nullptr) {
+            if (c->getSocketDescriptor() != INVALID_SOCKET &&
+                !mcbp->isRegisteredInLibevent()) {
+                /* The socket may have been shut down while we're looping */
+                /* in delayed shutdown */
+                mcbp->registerEvent();
+            }
+
+            /*
+             * We don't want the thread to keep on serving all of the data
+             * from the context of the notification pipe, so just let it
+             * run one time to set up the correct mask in libevent
+             */
+            mcbp->setNumEvents(1);
         }
-        /*
-         * We don't want the thread to keep on serving all of the data
-         * from the context of the notification pipe, so just let it
-         * run one time to set up the correct mask in libevent
-         */
-        c->setNumEvents(1);
-        run_event_loop(c);
+        run_event_loop(c, EV_READ|EV_WRITE);
     }
 
     /*
@@ -426,7 +431,12 @@ void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
     LOG_DEBUG(NULL, "Got notify from %u, status %x", conn->getId(), status);
 
     LOCK_THREAD(thr);
-    conn->setAiostat(status);
+    auto *c = dynamic_cast<McbpConnection*>(conn);
+    if (c == nullptr) {
+        throw std::runtime_error("Internal error: not implemented for !mbcp");
+    } else {
+        c->setAiostat(status);
+    }
     notify = add_conn_to_pending_io_list(conn);
     UNLOCK_THREAD(thr);
 

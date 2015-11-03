@@ -35,6 +35,8 @@
 #include "runtime.h"
 #include "mcaudit.h"
 
+#if 0
+
 Greenstack::Status engineCode2GreenstackCode(ENGINE_ERROR_CODE code);
 
 class GreenstackCommandContext : public CommandContext {
@@ -48,21 +50,21 @@ public:
     Greenstack::UniqueMessagePtr message;
 };
 
-static void handleCreateBucket(Connection* c, Greenstack::Message* message);
+static void handleCreateBucket(GreenstackConnection* c, Greenstack::Message* message);
 
-static void handleDeleteBucket(Connection* c, Greenstack::Message* message);
+static void handleDeleteBucket(GreenstackConnection* c, Greenstack::Message* message);
 
-static void handleListBucket(Connection* c, Greenstack::Message* message);
+static void handleListBucket(GreenstackConnection* c, Greenstack::Message* message);
 
-static void handleGet(Connection* c, Greenstack::Message* message);
+static void handleGet(GreenstackConnection* c, Greenstack::Message* message);
 
-static void handleHello(Connection* c, Greenstack::Message* message);
+static void handleHello(GreenstackConnection* c, Greenstack::Message* message);
 
-static void handleMutation(Connection* c, Greenstack::Message* message);
+static void handleMutation(GreenstackConnection* c, Greenstack::Message* message);
 
-static void handleSaslAuth(Connection* c, Greenstack::Message* message);
+static void handleSaslAuth(GreenstackConnection* c, Greenstack::Message* message);
 
-typedef void (* PacketHandler)(Connection* c, Greenstack::Message* message);
+typedef void (* PacketHandler)(GreenstackConnection* c, Greenstack::Message* message);
 
 static std::map<Greenstack::Opcode, PacketHandler> handlers = {
     {Greenstack::Opcode::CreateBucket, handleCreateBucket},
@@ -74,7 +76,7 @@ static std::map<Greenstack::Opcode, PacketHandler> handlers = {
     {Greenstack::Opcode::SaslAuth,     handleSaslAuth}
 };
 
-static void sendResponse(Connection* c, Greenstack::Message& message,
+static void sendResponse(GreenstackConnection* c, Greenstack::Message& message,
                          Greenstack::Message* request) {
     message.setOpaque(request->getOpaque());
     if (!message.getFlexHeader().isEmpty()) {
@@ -109,7 +111,7 @@ static std::string getMechs() {
     return std::string(cbmechs, cbmechlen);
 }
 
-static void handleHello(Connection* c, Greenstack::Message* message) {
+static void handleHello(GreenstackConnection* c, Greenstack::Message* message) {
     auto request = dynamic_cast<Greenstack::HelloRequest*>(message);
     std::stringstream ss;
     ss << c->getId() << "> HELLO " << request->getUserAgent() << " ("
@@ -132,7 +134,7 @@ static void handleHello(Connection* c, Greenstack::Message* message) {
     }
 }
 
-static void handleSaslAuth(Connection* c, Greenstack::Message* message) {
+static void handleSaslAuth(GreenstackConnection* c, Greenstack::Message* message) {
     using Greenstack::SaslAuthRequest;
     using Greenstack::SaslAuthResponse;
 
@@ -274,7 +276,7 @@ static void handleSaslAuth(Connection* c, Greenstack::Message* message) {
     }
 }
 
-static void handleMutation(Connection* c, Greenstack::Message* message) {
+static void handleMutation(GreenstackConnection* c, Greenstack::Message* message) {
     auto request = dynamic_cast<Greenstack::MutationRequest*>(message);
     request->disassemble();
 
@@ -490,7 +492,7 @@ static void handleMutation(Connection* c, Greenstack::Message* message) {
 }
 
 
-static void handleGet(Connection* c, Greenstack::Message* message) {
+static void handleGet(GreenstackConnection* c, Greenstack::Message* message) {
     auto request = dynamic_cast<Greenstack::GetRequest*>(message);
     std::string id = request->getId();
 
@@ -566,7 +568,7 @@ static void handleGet(Connection* c, Greenstack::Message* message) {
     }
 }
 
-static void handleCreateBucket(Connection* c, Greenstack::Message* message) {
+static void handleCreateBucket(GreenstackConnection* c, Greenstack::Message* message) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     CreateBucketContext* context = nullptr;
     try {
@@ -630,7 +632,7 @@ static void handleCreateBucket(Connection* c, Greenstack::Message* message) {
     }
 }
 
-static void handleDeleteBucket(Connection* c, Greenstack::Message* message) {
+static void handleDeleteBucket(GreenstackConnection* c, Greenstack::Message* message) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     DeleteBucketContext* context = nullptr;
     try {
@@ -676,7 +678,7 @@ static void handleDeleteBucket(Connection* c, Greenstack::Message* message) {
     }
 }
 
-static void handleListBucket(Connection* c, Greenstack::Message* message) {
+static void handleListBucket(GreenstackConnection* c, Greenstack::Message* message) {
     LOG_INFO(c, "%d > LIST BUCKETS", c->getId());
     std::vector<std::string> buckets;
     bool mem_error = false;
@@ -707,7 +709,11 @@ static void handleListBucket(Connection* c, Greenstack::Message* message) {
 
 // @todo I should send back a untagged server message
 // if I'm failing to disconnect
-int try_read_greenstack_command(Connection* c) {
+int try_read_greenstack_command(GreenstackConnection* c) {
+    if (c == nullptr) {
+        throw std::runtime_error("Internal error, read called on non-greens"
+                                     "tack connection");
+    }
     while (c->read.bytes > 4) {
         Greenstack::FixedByteArrayBuffer buffer(
             reinterpret_cast<uint8_t*>(c->read.curr),
@@ -886,7 +892,7 @@ Greenstack::Status engineCode2GreenstackCode(ENGINE_ERROR_CODE code) {
     }
 }
 
-void greenstack_write_response(Connection* c, ENGINE_ERROR_CODE code) {
+void greenstack_write_response(GreenstackConnection* c, ENGINE_ERROR_CODE code) {
     auto* ctx = dynamic_cast<GreenstackCommandContext*>(c->getCommandContext());
     if (ctx == nullptr) {
         throw std::logic_error(
@@ -898,3 +904,5 @@ void greenstack_write_response(Connection* c, ENGINE_ERROR_CODE code) {
     response.setStatus(engineCode2GreenstackCode(code));
     sendResponse(c, response, ctx->message.get());
 }
+
+#endif

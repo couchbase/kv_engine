@@ -26,7 +26,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void* cookie,
                                        const void* map,
                                        size_t mapsize) {
     char* buf;
-    Connection* c = (Connection*)cookie;
+    McbpConnection* c = (McbpConnection*)cookie;
     protocol_binary_response_header header;
     size_t needed = mapsize + sizeof(protocol_binary_response_header);
     if (!c->growDynamicBuffer(needed)) {
@@ -54,7 +54,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-void mcbp_write_response(Connection* c,
+void mcbp_write_response(McbpConnection* c,
                          const void* d,
                          int extlen,
                          int keylen,
@@ -71,14 +71,14 @@ void mcbp_write_response(Connection* c,
         c->setWriteAndGo(conn_new_cmd);
     } else {
         if (c->getStart() != 0) {
-            collect_timings(c);
+            mcbp_collect_timings(reinterpret_cast<McbpConnection*>(c));
             c->setStart(0);
         }
         c->setState(conn_new_cmd);
     }
 }
 
-void mcbp_write_packet(Connection* c, protocol_binary_response_status err) {
+void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
     if (err == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         mcbp_write_response(c, NULL, 0, 0, 0);
         return;
@@ -120,7 +120,7 @@ void mcbp_write_packet(Connection* c, protocol_binary_response_status err) {
     }
 }
 
-int mcbp_add_header(Connection* c,
+int mcbp_add_header(McbpConnection* c,
                     uint16_t err,
                     uint8_t ext_len,
                     uint16_t key_len,
@@ -212,7 +212,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
 {
     protocol_binary_response_header header;
     char *buf;
-    Connection *c = (Connection *)cookie;
+    McbpConnection* c = (McbpConnection*)cookie;
     /* Look at append_bin_stats */
     size_t needed;
     bool need_inflate = false;
@@ -296,4 +296,25 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
 
     dbuf.moveOffset(needed);
     return true;
+}
+
+void mcbp_collect_timings(const McbpConnection* c) {
+    hrtime_t now = gethrtime();
+    const hrtime_t elapsed_ns = now - c->getStart();
+    // aggregated timing for all buckets
+    all_buckets[0].timings.collect(c->getCmd(), elapsed_ns);
+
+    // timing for current bucket
+    bucket_id_t bucketid = get_bucket_id(c);
+    /* bucketid will be zero initially before you run sasl auth
+     * (unless there is a default bucket), or if someone tries
+     * to delete the bucket you're associated with and your're idle.
+     */
+    if (bucketid != 0) {
+        all_buckets[bucketid].timings.collect(c->getCmd(), elapsed_ns);
+    }
+
+    // Log operations taking longer than 0.5s
+    const hrtime_t elapsed_ms = elapsed_ns / (1000 * 1000);
+    c->maybeLogSlowCommand(std::chrono::milliseconds(elapsed_ms));
 }

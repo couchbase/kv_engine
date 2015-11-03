@@ -61,7 +61,7 @@ std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
 std::array<mcbp_package_validate, 0x100>& validators = get_mcbp_validators();
 std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
 
-static bool authenticated(Connection* c) {
+static bool authenticated(McbpConnection* c) {
     bool rv;
 
     switch (c->getCmd()) {
@@ -87,7 +87,7 @@ static bool authenticated(Connection* c) {
 /**
  * get a pointer to the start of the request struct for the current command
  */
-static void* binary_get_request(Connection* c) {
+static void* binary_get_request(McbpConnection* c) {
     char* ret = c->read.curr;
     ret -= (sizeof(c->binary_header) + c->binary_header.request.keylen +
             c->binary_header.request.extlen);
@@ -99,12 +99,12 @@ static void* binary_get_request(Connection* c) {
 /**
  * get a pointer to the key in this request
  */
-static char* binary_get_key(Connection* c) {
+static char* binary_get_key(McbpConnection* c) {
     return c->read.curr - (c->binary_header.request.keylen);
 }
 
 
-static void bin_read_chunk(Connection* c, uint32_t chunk) {
+static void bin_read_chunk(McbpConnection* c, uint32_t chunk) {
     ptrdiff_t offset;
     c->setRlbytes(chunk);
 
@@ -155,7 +155,7 @@ static void bin_read_chunk(Connection* c, uint32_t chunk) {
 }
 
 /* Just write an error message and disconnect the client */
-static void handle_binary_protocol_error(Connection* c) {
+static void handle_binary_protocol_error(McbpConnection* c) {
     mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
     LOG_NOTICE(c, "%u: Protocol error (opcode %02x), close connection",
                c->getId(), c->binary_header.request.opcode);
@@ -166,7 +166,7 @@ static void handle_binary_protocol_error(Connection* c) {
  * Triggers topkeys_update (i.e., increments topkeys stats) if called by a
  * valid operation.
  */
-void update_topkeys(const char* key, size_t nkey, Connection* c) {
+void update_topkeys(const char* key, size_t nkey, McbpConnection* c) {
 
     if (topkey_commands[c->binary_header.request.opcode]) {
         if (all_buckets[c->getBucketIndex()].topkeys != nullptr) {
@@ -491,7 +491,7 @@ void process_stat_settings(ADD_STAT add_stat_callback, void* c) {
 }
 
 
-static void process_bin_get(Connection* c) {
+static void process_bin_get(McbpConnection* c) {
     item* it;
     protocol_binary_response_get* rsp = (protocol_binary_response_get*)c->write.buf;
     char* key = binary_get_key(c);
@@ -632,7 +632,7 @@ static void process_bin_get(Connection* c) {
 
 static void append_bin_stats(const char* key, const uint16_t klen,
                              const char* val, const uint32_t vlen,
-                             Connection* c) {
+                             McbpConnection* c) {
     auto& dbuf = c->getDynamicBuffer();
     // We've ensured that there is enough room in the buffer before calling
     // this method
@@ -670,7 +670,7 @@ static void append_stats(const char* key, const uint16_t klen,
                          const char* val, const uint32_t vlen,
                          const void* cookie) {
     size_t needed;
-    Connection* c = (Connection*)cookie;
+    McbpConnection* c = (McbpConnection*)cookie;
     /* value without a key is invalid */
     if (klen == 0 && vlen > 0) {
         return;
@@ -684,7 +684,7 @@ static void append_stats(const char* key, const uint16_t klen,
 }
 
 
-void ship_mcbp_tap_log(Connection* c) {
+void ship_mcbp_tap_log(McbpConnection* c) {
     bool more_data = true;
     bool send_data = false;
     bool disconnect = false;
@@ -1020,7 +1020,7 @@ static ENGINE_ERROR_CODE default_unknown_command(
     const void* cookie,
     protocol_binary_request_header* request,
     ADD_RESPONSE response) {
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (!c->isSupportsDatatype() &&
         request->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
@@ -1042,7 +1042,7 @@ struct request_lookup {
 
 static struct request_lookup request_handlers[0x100];
 
-typedef void (* RESPONSE_HANDLER)(Connection*);
+typedef void (* RESPONSE_HANDLER)(McbpConnection*);
 
 /**
  * A map between the response packets op-code and the function to handle
@@ -1058,7 +1058,7 @@ void setup_mcbp_lookup_cmd(
     request_handlers[cmd].callback = new_handler;
 }
 
-static void process_bin_unknown_packet(Connection* c) {
+static void process_bin_unknown_packet(McbpConnection* c) {
     char* packet = c->read.curr -
                    (c->binary_header.request.bodylen +
                     sizeof(c->binary_header));
@@ -1103,7 +1103,7 @@ static void process_bin_unknown_packet(Connection* c) {
     }
 }
 
-static void process_bin_tap_connect(Connection* c) {
+static void process_bin_tap_connect(McbpConnection* c) {
     TAP_ITERATOR iterator;
     char* packet = (c->read.curr - (c->binary_header.request.bodylen +
                                     sizeof(c->binary_header)));
@@ -1155,14 +1155,14 @@ static void process_bin_tap_connect(Connection* c) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         c->setWriteAndGo(conn_closing);
     } else {
-        c->setMaxReqsPerEvent(settings.reqs_per_event_high_priority);
+        c->setPriority(Connection::Priority::High);
         c->setTapIterator(iterator);
         c->setCurrentEvent(EV_WRITE);
         c->setState(conn_ship_log);
     }
 }
 
-static void process_bin_tap_packet(tap_event_t event, Connection* c) {
+static void process_bin_tap_packet(tap_event_t event, McbpConnection* c) {
     char* packet;
     uint16_t nengine;
     uint16_t tap_flags;
@@ -1262,7 +1262,7 @@ static void process_bin_tap_packet(tap_event_t event, Connection* c) {
     }
 }
 
-static void process_bin_tap_ack(Connection* c) {
+static void process_bin_tap_ack(McbpConnection* c) {
     char* packet;
     uint32_t seqno;
     uint16_t status;
@@ -1299,7 +1299,7 @@ static void process_bin_tap_ack(Connection* c) {
 /**
  * We received a noop response.. just ignore it
  */
-static void process_bin_noop_response(Connection* c) {
+static void process_bin_noop_response(McbpConnection* c) {
     c->setState(conn_new_cmd);
 }
 
@@ -1310,7 +1310,7 @@ static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* cookie,
                                                       uint32_t opaque,
                                                       uint16_t vbucket) {
     protocol_binary_request_dcp_get_failover_log packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1341,7 +1341,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(const void* cookie,
                                                 uint64_t snap_start_seqno,
                                                 uint64_t snap_end_seqno) {
     protocol_binary_request_dcp_stream_req packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1376,7 +1376,7 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void* cookie,
                                                          uint32_t dialogopaque,
                                                          uint8_t status) {
     protocol_binary_response_dcp_add_stream packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1404,7 +1404,7 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(const void* cookie,
                                                      uint32_t opaque,
                                                      uint8_t status) {
     protocol_binary_response_dcp_snapshot_marker packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1432,7 +1432,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
     uint32_t opaque,
     uint8_t status) {
     protocol_binary_response_dcp_set_vbucket_state packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1460,7 +1460,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(const void* cookie,
                                                 uint16_t vbucket,
                                                 uint32_t flags) {
     protocol_binary_request_dcp_stream_end packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1491,7 +1491,7 @@ static ENGINE_ERROR_CODE dcp_message_marker(const void* cookie,
                                             uint64_t end_seqno,
                                             uint32_t flags) {
     protocol_binary_request_dcp_snapshot_marker packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1527,7 +1527,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
                                               const void* meta,
                                               uint16_t nmeta,
                                               uint8_t nru) {
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
     item_info_holder info;
     protocol_binary_request_dcp_mutation packet;
     int xx;
@@ -1597,7 +1597,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion(const void* cookie,
                                               uint64_t rev_seqno,
                                               const void* meta,
                                               uint16_t nmeta) {
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
     protocol_binary_request_dcp_deletion packet;
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
         return ENGINE_E2BIG;
@@ -1640,7 +1640,7 @@ static ENGINE_ERROR_CODE dcp_message_expiration(const void* cookie,
                                                 uint64_t rev_seqno,
                                                 const void* meta,
                                                 uint16_t nmeta) {
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
     protocol_binary_request_dcp_deletion packet;
 
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
@@ -1678,7 +1678,7 @@ static ENGINE_ERROR_CODE dcp_message_flush(const void* cookie,
                                            uint32_t opaque,
                                            uint16_t vbucket) {
     protocol_binary_request_dcp_flush packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1704,7 +1704,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
                                                        uint16_t vbucket,
                                                        vbucket_state_t state) {
     protocol_binary_request_dcp_set_vbucket_state packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1735,7 +1735,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
 static ENGINE_ERROR_CODE dcp_message_noop(const void* cookie,
                                           uint32_t opaque) {
     protocol_binary_request_dcp_noop packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1760,7 +1760,7 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* cookie,
                                                             uint16_t vbucket,
                                                             uint32_t buffer_bytes) {
     protocol_binary_request_dcp_buffer_acknowledgement packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1791,7 +1791,7 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* cookie,
                                              const void* value,
                                              uint32_t nvalue) {
     protocol_binary_request_dcp_control packet;
-    Connection* c = const_cast<Connection*>(reinterpret_cast<const Connection*>(cookie));
+    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
 
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nvalue >=
         c->write.size) {
@@ -1822,7 +1822,7 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-void ship_mcbp_dcp_log(Connection* c) {
+void ship_mcbp_dcp_log(McbpConnection* c) {
     static struct dcp_message_producers producers = {
         dcp_message_get_failover_log,
         dcp_message_stream_req,
@@ -1877,7 +1877,7 @@ void ship_mcbp_dcp_log(Connection* c) {
 /******************************************************************************
  *                        TAP packet executors                                *
  ******************************************************************************/
-static void tap_connect_executor(Connection* c, void* packet) {
+static void tap_connect_executor(McbpConnection* c, void* packet) {
     (void)packet;
     if (c->getBucketEngine()->get_tap_iterator == NULL) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -1887,7 +1887,7 @@ static void tap_connect_executor(Connection* c, void* packet) {
     }
 }
 
-static void tap_mutation_executor(Connection* c, void* packet) {
+static void tap_mutation_executor(McbpConnection* c, void* packet) {
     (void)packet;
     if (c->getBucketEngine()->tap_notify == NULL) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -1897,7 +1897,7 @@ static void tap_mutation_executor(Connection* c, void* packet) {
     }
 }
 
-static void tap_delete_executor(Connection* c, void* packet) {
+static void tap_delete_executor(McbpConnection* c, void* packet) {
     (void)packet;
     if (c->getBucketEngine()->tap_notify == NULL) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -1907,7 +1907,7 @@ static void tap_delete_executor(Connection* c, void* packet) {
     }
 }
 
-static void tap_flush_executor(Connection* c, void* packet) {
+static void tap_flush_executor(McbpConnection* c, void* packet) {
     (void)packet;
     if (c->getBucketEngine()->tap_notify == NULL) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -1917,7 +1917,7 @@ static void tap_flush_executor(Connection* c, void* packet) {
     }
 }
 
-static void tap_opaque_executor(Connection* c, void* packet) {
+static void tap_opaque_executor(McbpConnection* c, void* packet) {
     (void)packet;
     if (c->getBucketEngine()->tap_notify == NULL) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -1927,7 +1927,7 @@ static void tap_opaque_executor(Connection* c, void* packet) {
     }
 }
 
-static void tap_vbucket_set_executor(Connection* c, void* packet) {
+static void tap_vbucket_set_executor(McbpConnection* c, void* packet) {
     (void)packet;
     if (c->getBucketEngine()->tap_notify == NULL) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -1937,7 +1937,7 @@ static void tap_vbucket_set_executor(Connection* c, void* packet) {
     }
 }
 
-static void tap_checkpoint_start_executor(Connection* c, void* packet) {
+static void tap_checkpoint_start_executor(McbpConnection* c, void* packet) {
     (void)packet;
     if (c->getBucketEngine()->tap_notify == NULL) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -1947,7 +1947,7 @@ static void tap_checkpoint_start_executor(Connection* c, void* packet) {
     }
 }
 
-static void tap_checkpoint_end_executor(Connection* c, void* packet) {
+static void tap_checkpoint_end_executor(McbpConnection* c, void* packet) {
     (void)packet;
     if (c->getBucketEngine()->tap_notify == NULL) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
@@ -1960,7 +1960,7 @@ static void tap_checkpoint_end_executor(Connection* c, void* packet) {
 /*******************************************************************************
  *                         DCP packet executors                                *
  ******************************************************************************/
-static void dcp_open_executor(Connection* c, void* packet) {
+static void dcp_open_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_open*>(packet);
 
     if (c->getBucketEngine()->dcp.open == NULL) {
@@ -2002,7 +2002,7 @@ static void dcp_open_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_add_stream_executor(Connection* c, void* packet) {
+static void dcp_add_stream_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_add_stream*>(packet);
 
     if (c->getBucketEngine()->dcp.add_stream == NULL) {
@@ -2041,7 +2041,7 @@ static void dcp_add_stream_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_close_stream_executor(Connection* c, void* packet) {
+static void dcp_close_stream_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_close_stream*>(packet);
 
     if (c->getBucketEngine()->dcp.close_stream == NULL) {
@@ -2107,7 +2107,7 @@ static ENGINE_ERROR_CODE add_failover_log(vbucket_failover_t* entries,
     return ret;
 }
 
-static void dcp_get_failover_log_executor(Connection* c, void* packet) {
+static void dcp_get_failover_log_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_get_failover_log*>(packet);
 
     if (c->getBucketEngine()->dcp.get_failover_log == NULL) {
@@ -2148,7 +2148,7 @@ static void dcp_get_failover_log_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_stream_req_executor(Connection* c, void* packet) {
+static void dcp_stream_req_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_stream_req*>(packet);
 
     if (c->getBucketEngine()->dcp.stream_req == NULL) {
@@ -2192,7 +2192,7 @@ static void dcp_stream_req_executor(Connection* c, void* packet) {
         switch (ret) {
         case ENGINE_SUCCESS:
             c->setDCP(true);
-            c->setMaxReqsPerEvent(settings.reqs_per_event_med_priority);
+            c->setPriority(Connection::Priority::Medium);
             if (c->getDynamicBuffer().getRoot() != nullptr) {
                 write_and_free(c, &c->getDynamicBuffer());
             } else {
@@ -2226,7 +2226,7 @@ static void dcp_stream_req_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_stream_end_executor(Connection* c, void* packet) {
+static void dcp_stream_end_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_stream_end*>(packet);
 
     if (c->getBucketEngine()->dcp.stream_end == NULL) {
@@ -2265,7 +2265,7 @@ static void dcp_stream_end_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_snapshot_marker_executor(Connection* c, void* packet) {
+static void dcp_snapshot_marker_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_snapshot_marker*>(packet);
 
     if (c->getBucketEngine()->dcp.snapshot_marker == NULL) {
@@ -2308,7 +2308,7 @@ static void dcp_snapshot_marker_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_mutation_executor(Connection* c, void* packet) {
+static void dcp_mutation_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_mutation*>(packet);
 
     if (c->getBucketEngine()->dcp.mutation == NULL) {
@@ -2366,7 +2366,7 @@ static void dcp_mutation_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_deletion_executor(Connection* c, void* packet) {
+static void dcp_deletion_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_deletion*>(packet);
 
     if (c->getBucketEngine()->dcp.deletion == NULL) {
@@ -2412,7 +2412,7 @@ static void dcp_deletion_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_expiration_executor(Connection* c, void* packet) {
+static void dcp_expiration_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_expiration*>(packet);
 
     if (c->getBucketEngine()->dcp.expiration == NULL) {
@@ -2458,7 +2458,7 @@ static void dcp_expiration_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_flush_executor(Connection* c, void* packet) {
+static void dcp_flush_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_flush*>(packet);
 
     if (c->getBucketEngine()->dcp.flush == NULL) {
@@ -2494,7 +2494,7 @@ static void dcp_flush_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_set_vbucket_state_executor(Connection* c, void* packet) {
+static void dcp_set_vbucket_state_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_set_vbucket_state*>(packet);
 
     if (c->getBucketEngine()->dcp.set_vbucket_state == NULL) {
@@ -2532,7 +2532,7 @@ static void dcp_set_vbucket_state_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_noop_executor(Connection* c, void* packet) {
+static void dcp_noop_executor(McbpConnection* c, void* packet) {
     (void)packet;
 
     if (c->getBucketEngine()->dcp.noop == NULL) {
@@ -2566,7 +2566,7 @@ static void dcp_noop_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_buffer_acknowledgement_executor(Connection* c, void* packet) {
+static void dcp_buffer_acknowledgement_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_dcp_buffer_acknowledgement*>(packet);
 
     if (c->getBucketEngine()->dcp.buffer_acknowledgement == NULL) {
@@ -2605,7 +2605,7 @@ static void dcp_buffer_acknowledgement_executor(Connection* c, void* packet) {
     }
 }
 
-static void dcp_control_executor(Connection* c, void* packet) {
+static void dcp_control_executor(McbpConnection* c, void* packet) {
     if (c->getBucketEngine()->dcp.control == NULL) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
     } else {
@@ -2643,7 +2643,7 @@ static void dcp_control_executor(Connection* c, void* packet) {
     }
 }
 
-static void add_set_replace_executor(Connection* c, void* packet,
+static void add_set_replace_executor(McbpConnection* c, void* packet,
                                      ENGINE_STORE_OPERATION store_op) {
     auto* req = reinterpret_cast<protocol_binary_request_add*>(packet);
     ENGINE_ERROR_CODE ret = c->getAiostat();
@@ -2805,37 +2805,37 @@ static void add_set_replace_executor(Connection* c, void* packet,
 }
 
 
-static void add_executor(Connection* c, void* packet) {
+static void add_executor(McbpConnection* c, void* packet) {
     c->setNoReply(false);
     add_set_replace_executor(c, packet, OPERATION_ADD);
 }
 
-static void addq_executor(Connection* c, void* packet) {
+static void addq_executor(McbpConnection* c, void* packet) {
     c->setNoReply(true);
     add_set_replace_executor(c, packet, OPERATION_ADD);
 }
 
-static void set_executor(Connection* c, void* packet) {
+static void set_executor(McbpConnection* c, void* packet) {
     c->setNoReply(false);
     add_set_replace_executor(c, packet, OPERATION_SET);
 }
 
-static void setq_executor(Connection* c, void* packet) {
+static void setq_executor(McbpConnection* c, void* packet) {
     c->setNoReply(true);
     add_set_replace_executor(c, packet, OPERATION_SET);
 }
 
-static void replace_executor(Connection* c, void* packet) {
+static void replace_executor(McbpConnection* c, void* packet) {
     c->setNoReply(false);
     add_set_replace_executor(c, packet, OPERATION_REPLACE);
 }
 
-static void replaceq_executor(Connection* c, void* packet) {
+static void replaceq_executor(McbpConnection* c, void* packet) {
     c->setNoReply(true);
     add_set_replace_executor(c, packet, OPERATION_REPLACE);
 }
 
-static void append_prepend_executor(Connection* c,
+static void append_prepend_executor(McbpConnection* c,
                                     void* packet,
                                     ENGINE_STORE_OPERATION store_op) {
     auto* req = reinterpret_cast<protocol_binary_request_append*>(packet);
@@ -2957,28 +2957,28 @@ static void append_prepend_executor(Connection* c,
     }
 }
 
-static void append_executor(Connection* c, void* packet) {
+static void append_executor(McbpConnection* c, void* packet) {
     c->setNoReply(false);
     append_prepend_executor(c, packet, OPERATION_APPEND);
 }
 
-static void appendq_executor(Connection* c, void* packet) {
+static void appendq_executor(McbpConnection* c, void* packet) {
     c->setNoReply(true);
     append_prepend_executor(c, packet, OPERATION_APPEND);
 }
 
-static void prepend_executor(Connection* c, void* packet) {
+static void prepend_executor(McbpConnection* c, void* packet) {
     c->setNoReply(false);
     append_prepend_executor(c, packet, OPERATION_PREPEND);
 }
 
-static void prependq_executor(Connection* c, void* packet) {
+static void prependq_executor(McbpConnection* c, void* packet) {
     c->setNoReply(true);
     append_prepend_executor(c, packet, OPERATION_PREPEND);
 }
 
 
-static void get_executor(Connection* c, void* packet) {
+static void get_executor(McbpConnection* c, void* packet) {
     (void)packet;
 
     switch (c->getCmd()) {
@@ -3010,7 +3010,7 @@ static void get_executor(Connection* c, void* packet) {
  *
  * @param c the connection to return the details for
  */
-static void process_bucket_details(Connection* c) {
+static void process_bucket_details(McbpConnection* c) {
     cJSON* obj = cJSON_CreateObject();
 
     cJSON* array = cJSON_CreateArray();
@@ -3029,7 +3029,7 @@ static void process_bucket_details(Connection* c) {
     cJSON_Delete(obj);
 }
 
-static void stat_executor(Connection* c, void* packet) {
+static void stat_executor(McbpConnection* c, void* packet) {
     char* subcommand = binary_get_key(c);
     size_t nkey = c->binary_header.request.keylen;
     ENGINE_ERROR_CODE ret;
@@ -3152,7 +3152,7 @@ static void stat_executor(Connection* c, void* packet) {
     }
 }
 
-static void isasl_refresh_executor(Connection* c, void* packet) {
+static void isasl_refresh_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     (void)packet;
 
@@ -3179,7 +3179,7 @@ static void isasl_refresh_executor(Connection* c, void* packet) {
     }
 }
 
-static void ssl_certs_refresh_executor(Connection* c, void* packet) {
+static void ssl_certs_refresh_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     (void)packet;
 
@@ -3206,7 +3206,7 @@ static void ssl_certs_refresh_executor(Connection* c, void* packet) {
     }
 }
 
-static void verbosity_executor(Connection* c, void* packet) {
+static void verbosity_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_verbosity*>(packet);
     uint32_t level = (uint32_t)ntohl(req->message.body.level);
     if (level > MAX_VERBOSITY_LEVEL) {
@@ -3218,7 +3218,7 @@ static void verbosity_executor(Connection* c, void* packet) {
 }
 
 
-static void process_hello_packet_executor(Connection* c, void* packet) {
+static void process_hello_packet_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_hello*>(packet);
     char log_buffer[512];
     int offset = snprintf(log_buffer, sizeof(log_buffer), "HELO ");
@@ -3317,21 +3317,21 @@ static void process_hello_packet_executor(Connection* c, void* packet) {
     LOG_NOTICE(c, "%u: %s", c->getId(), log_buffer);
 }
 
-static void version_executor(Connection* c, void*) {
+static void version_executor(McbpConnection* c, void*) {
     mcbp_write_response(c, get_server_version(), 0, 0,
                         (uint32_t)strlen(get_server_version()));
 }
 
-static void quit_executor(Connection* c, void*) {
+static void quit_executor(McbpConnection* c, void*) {
     mcbp_write_response(c, NULL, 0, 0, 0);
     c->setWriteAndGo(conn_closing);
 }
 
-static void quitq_executor(Connection* c, void*) {
+static void quitq_executor(McbpConnection* c, void*) {
     c->setState(conn_closing);
 }
 
-static void sasl_list_mech_executor(Connection* c, void*) {
+static void sasl_list_mech_executor(McbpConnection* c, void*) {
     const char* result_string = NULL;
     unsigned int string_length = 0;
 
@@ -3344,7 +3344,7 @@ static void sasl_list_mech_executor(Connection* c, void*) {
     mcbp_write_response(c, (char*)result_string, 0, 0, string_length);
 }
 
-static void sasl_auth_executor(Connection* c, void* packet) {
+static void sasl_auth_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
     char mech[1024];
     int nkey = c->binary_header.request.keylen;
@@ -3468,11 +3468,11 @@ static void sasl_auth_executor(Connection* c, void* packet) {
     }
 }
 
-static void noop_executor(Connection* c, void*) {
+static void noop_executor(McbpConnection* c, void*) {
     mcbp_write_response(c, NULL, 0, 0, 0);
 }
 
-static void flush_executor(Connection* c, void*) {
+static void flush_executor(McbpConnection* c, void*) {
     ENGINE_ERROR_CODE ret;
     if (c->getCmd() == PROTOCOL_BINARY_CMD_FLUSHQ) {
         c->setNoReply(true);
@@ -3499,7 +3499,7 @@ static void flush_executor(Connection* c, void*) {
     }
 }
 
-static void delete_executor(Connection* c, void*) {
+static void delete_executor(McbpConnection* c, void*) {
     if (c->getCmd() == PROTOCOL_BINARY_CMD_DELETEQ) {
         c->setNoReply(true);
     }
@@ -3570,7 +3570,7 @@ static void delete_executor(Connection* c, void*) {
     }
 }
 
-static void arithmetic_executor(Connection* c, void* packet) {
+static void arithmetic_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_incr*>(binary_get_request(
         c));
     ENGINE_ERROR_CODE ret;
@@ -3740,7 +3740,7 @@ static void arithmetic_executor(Connection* c, void* packet) {
     }
 }
 
-static void get_cmd_timer_executor(Connection* c, void* packet) {
+static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
     std::string str;
     auto* req = reinterpret_cast<protocol_binary_request_get_cmd_timer*>(packet);
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
@@ -3797,7 +3797,7 @@ static void get_cmd_timer_executor(Connection* c, void* packet) {
     }
 }
 
-static void set_ctrl_token_executor(Connection* c, void* packet) {
+static void set_ctrl_token_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_set_ctrl_token*>(packet);
     uint64_t casval = ntohll(req->message.header.request.cas);
     uint64_t newval = ntohll(req->message.body.new_cas);
@@ -3812,7 +3812,7 @@ static void set_ctrl_token_executor(Connection* c, void* packet) {
     write_and_free(c, &c->getDynamicBuffer());
 }
 
-static void get_ctrl_token_executor(Connection* c, void*) {
+static void get_ctrl_token_executor(McbpConnection* c, void*) {
     mcbp_response_handler(NULL, 0, NULL, 0, NULL, 0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
@@ -3820,7 +3820,7 @@ static void get_ctrl_token_executor(Connection* c, void*) {
     write_and_free(c, &c->getDynamicBuffer());
 }
 
-static void init_complete_executor(Connection* c, void* packet) {
+static void init_complete_executor(McbpConnection* c, void* packet) {
     auto* init = reinterpret_cast<protocol_binary_request_init_complete*>(packet);
     uint64_t cas = ntohll(init->message.header.request.cas);;
 
@@ -3833,7 +3833,7 @@ static void init_complete_executor(Connection* c, void* packet) {
     }
 }
 
-static void ioctl_get_executor(Connection* c, void* packet) {
+static void ioctl_get_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
     size_t keylen = ntohs(req->message.header.request.keylen);
@@ -3858,7 +3858,7 @@ static void ioctl_get_executor(Connection* c, void* packet) {
     }
 }
 
-static void ioctl_set_executor(Connection* c, void* packet) {
+static void ioctl_set_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
     size_t keylen = ntohs(req->message.header.request.keylen);
@@ -3871,7 +3871,7 @@ static void ioctl_set_executor(Connection* c, void* packet) {
     mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(status));
 }
 
-static void config_validate_executor(Connection* c, void* packet) {
+static void config_validate_executor(McbpConnection* c, void* packet) {
     const char* val_ptr = NULL;
     cJSON* errors = NULL;
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
@@ -3926,12 +3926,12 @@ static void config_validate_executor(Connection* c, void* packet) {
 
 }
 
-static void config_reload_executor(Connection* c, void*) {
+static void config_reload_executor(McbpConnection* c, void*) {
     reload_config_file();
     mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
-static void audit_config_reload_executor(Connection* c, void*) {
+static void audit_config_reload_executor(McbpConnection* c, void*) {
     if (settings.audit_file) {
         if (configure_auditdaemon(settings.audit_file, c) ==
             AUDIT_EWOULDBLOCK) {
@@ -3949,7 +3949,7 @@ static void audit_config_reload_executor(Connection* c, void*) {
     }
 }
 
-static void assume_role_executor(Connection* c, void* packet) {
+static void assume_role_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_assume_role*>(packet);
     size_t rlen = ntohs(req->message.header.request.keylen);
     AuthResult err;
@@ -3986,7 +3986,7 @@ static void assume_role_executor(Connection* c, void* packet) {
     c->setState(conn_closing);
 }
 
-static void audit_put_executor(Connection* c, void* packet) {
+static void audit_put_executor(McbpConnection* c, void* packet) {
 
     auto* req = reinterpret_cast<const protocol_binary_request_audit_put*>(packet);
     const void* payload = req->bytes + sizeof(req->message.header) +
@@ -4008,7 +4008,7 @@ static void audit_put_executor(Connection* c, void* packet) {
  *    key: bucket name
  *    body: module\nconfig
  */
-static void create_bucket_executor(Connection* c, void* packet) {
+static void create_bucket_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
 
     c->setAiostat(ENGINE_SUCCESS);
@@ -4075,7 +4075,7 @@ static void create_bucket_executor(Connection* c, void* packet) {
     }
 }
 
-static void list_bucket_executor(Connection* c, void*) {
+static void list_bucket_executor(McbpConnection* c, void*) {
     try {
         std::string blob;
         for (auto& bucket : all_buckets) {
@@ -4103,7 +4103,7 @@ static void list_bucket_executor(Connection* c, void*) {
     }
 }
 
-static void delete_bucket_executor(Connection* c, void* packet) {
+static void delete_bucket_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     (void)packet;
 
@@ -4169,7 +4169,7 @@ static void delete_bucket_executor(Connection* c, void* packet) {
     }
 }
 
-static void select_bucket_executor(Connection* c, void* packet) {
+static void select_bucket_executor(McbpConnection* c, void* packet) {
     /* The validator ensured that we're not doing a buffer overflow */
     char bucketname[1024];
     auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
@@ -4184,7 +4184,7 @@ static void select_bucket_executor(Connection* c, void* packet) {
     }
 }
 
-static void shutdown_executor(Connection* c, void* packet) {
+static void shutdown_executor(McbpConnection* c, void* packet) {
     auto req = reinterpret_cast<protocol_binary_request_shutdown*>(packet);
     uint64_t cas = ntohll(req->message.header.request.cas);
 
@@ -4292,7 +4292,7 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     return executors;
 }
 
-static void process_bin_dcp_response(Connection* c) {
+static void process_bin_dcp_response(McbpConnection* c) {
     ENGINE_ERROR_CODE ret = ENGINE_DISCONNECT;
 
     c->setSupportsDatatype(true);
@@ -4347,12 +4347,12 @@ void initialize_mbcp_lookup_map(void) {
     response_handlers[PROTOCOL_BINARY_CMD_DCP_RESERVED4] = process_bin_dcp_response;
 }
 
-bool conn_setup_tap_stream(Connection* c) {
+bool conn_setup_tap_stream(McbpConnection* c) {
     process_bin_tap_connect(c);
     return true;
 }
 
-static int invalid_datatype(Connection* c) {
+static int invalid_datatype(McbpConnection* c) {
     switch (c->binary_header.request.datatype) {
     case PROTOCOL_BINARY_RAW_BYTES:
         return 0;
@@ -4369,7 +4369,7 @@ static int invalid_datatype(Connection* c) {
     }
 }
 
-static protocol_binary_response_status validate_bin_header(Connection* c) {
+static protocol_binary_response_status validate_bin_header(McbpConnection* c) {
     if (c->binary_header.request.bodylen >=
         (c->binary_header.request.keylen + c->binary_header.request.extlen)) {
         return PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -4378,7 +4378,7 @@ static protocol_binary_response_status validate_bin_header(Connection* c) {
     }
 }
 
-static void process_bin_packet(Connection* c) {
+static void process_bin_packet(McbpConnection* c) {
 
     char* packet = (c->read.curr - (c->binary_header.request.bodylen +
                                     sizeof(c->binary_header)));
@@ -4433,7 +4433,7 @@ static void process_bin_packet(Connection* c) {
 }
 
 
-static CB_INLINE bool is_initialized(Connection* c, uint8_t opcode) {
+static CB_INLINE bool is_initialized(McbpConnection* c, uint8_t opcode) {
     if (c->isAdmin() || is_server_initialized()) {
         return true;
     }
@@ -4448,7 +4448,7 @@ static CB_INLINE bool is_initialized(Connection* c, uint8_t opcode) {
     }
 }
 
-static void dispatch_bin_command(Connection* c) {
+static void dispatch_bin_command(McbpConnection* c) {
     uint16_t keylen = c->binary_header.request.keylen;
 
     /* @trond this should be in the Connection-connect part.. */
@@ -4501,7 +4501,7 @@ static void dispatch_bin_command(Connection* c) {
     }
 }
 
-void mcbp_complete_nread(Connection* c) {
+void mcbp_complete_nread(McbpConnection* c) {
     if (c->binary_header.request.magic == PROTOCOL_BINARY_RES) {
         RESPONSE_HANDLER handler;
         handler = response_handlers[c->binary_header.request.opcode];
@@ -4518,7 +4518,10 @@ void mcbp_complete_nread(Connection* c) {
     }
 }
 
-int try_read_mcbp_command(Connection* c) {
+int try_read_mcbp_command(McbpConnection* c) {
+    if (c == nullptr) {
+        throw std::runtime_error("Internal eror, connection is not mcbp");
+    }
     cb_assert(c->read.curr <= (c->read.buf + c->read.size));
     cb_assert(c->read.bytes > 0);
 

@@ -23,19 +23,19 @@
 
 #include "config.h"
 
-class Connection;
+class McbpConnection;
 
 /* Subdocument executor functions. */
-void subdoc_get_executor(Connection *c, void *packet);
-void subdoc_exists_executor(Connection *c, void *packet);
-void subdoc_dict_add_executor(Connection *c, void *packet);
-void subdoc_dict_upsert_executor(Connection *c, void *packet);
-void subdoc_delete_executor(Connection *c, void *packet);
-void subdoc_replace_executor(Connection *c, void *packet);
-void subdoc_array_push_last_executor(Connection *c, void *packet);
-void subdoc_array_push_first_executor(Connection *c, void *packet);
-void subdoc_array_insert_executor(Connection * c, void* packet);
-void subdoc_array_add_unique_executor(Connection * c, void* packet);
-void subdoc_counter_executor(Connection *c, void *packet);
-void subdoc_multi_lookup_executor(Connection *c, void *packet);
-void subdoc_multi_mutation_executor(Connection *c, void *packet);
+void subdoc_get_executor(McbpConnection *c, void *packet);
+void subdoc_exists_executor(McbpConnection *c, void *packet);
+void subdoc_dict_add_executor(McbpConnection *c, void *packet);
+void subdoc_dict_upsert_executor(McbpConnection *c, void *packet);
+void subdoc_delete_executor(McbpConnection *c, void *packet);
+void subdoc_replace_executor(McbpConnection *c, void *packet);
+void subdoc_array_push_last_executor(McbpConnection *c, void *packet);
+void subdoc_array_push_first_executor(McbpConnection *c, void *packet);
+void subdoc_array_insert_executor(McbpConnection * c, void* packet);
+void subdoc_array_add_unique_executor(McbpConnection * c, void* packet);
+void subdoc_counter_executor(McbpConnection *c, void *packet);
+void subdoc_multi_lookup_executor(McbpConnection *c, void *packet);
+void subdoc_multi_mutation_executor(McbpConnection *c, void *packet);

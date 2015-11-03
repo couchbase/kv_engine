@@ -50,7 +50,7 @@ struct SubdocCmdContext : public CommandContext {
     class OperationSpec;
     typedef std::vector<OperationSpec> Operations;
 
-    SubdocCmdContext(Connection * connection, const SubdocCmdTraits traits_)
+    SubdocCmdContext(McbpConnection * connection, const SubdocCmdTraits traits_)
       : c(connection),
         traits(traits_),
         in_doc({NULL, 0}),
@@ -67,7 +67,7 @@ struct SubdocCmdContext : public CommandContext {
 
     // Cookie this command is associated with. Needed for the destructor
     // to release items.
-    Connection * c;
+    McbpConnection* c;
 
     // The traits for this command.
     SubdocCmdTraits traits;

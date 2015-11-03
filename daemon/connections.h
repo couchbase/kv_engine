@@ -37,7 +37,31 @@ void destroy_connections(void);
 void close_all_connections(void);
 
 /* Run the connection event loop; until an event handler returns false. */
-void run_event_loop(Connection * c);
+void run_event_loop(Connection* c, short which);
+
+/**
+ * If the connection doesn't already have read/write buffers, ensure that it
+ * does.
+ *
+ * In the common case, only one read/write buffer is created per worker thread,
+ * and this buffer is loaned to the connection the worker is currently
+ * handling. As long as the connection doesn't have a partial read/write (i.e.
+ * the buffer is totally consumed) when it goes idle, the buffer is simply
+ * returned back to the worker thread.
+ *
+ * If there is a partial read/write, then the buffer is left loaned to that
+ * connection and the worker thread will allocate a new one.
+ */
+void conn_loan_buffers(Connection *c);
+
+/**
+ * Return any empty buffers back to the owning worker thread.
+ *
+ * Converse of conn_loan_buffer(); if any of the read/write buffers are empty
+ * (have no partial data) then return the buffer back to the worker thread.
+ * If there is partial data, then keep the buffer with the connection.
+ */
+void conn_return_buffers(Connection *c);
 
 /**
  * Cerate a new client connection
@@ -75,7 +99,7 @@ Connection *conn_pipe_new(const int fd,
  * be used), but it's memory is still allocated. See conn_destructor() to
  * actually free it's resources.
  */
-void conn_close(Connection *c);
+void conn_close(McbpConnection *c);
 
 /**
  * Return the TCP or domain socket listening_port structure that
@@ -92,7 +116,7 @@ void connection_stats(ADD_STAT add_stats, Connection *c, const int64_t fd);
 /*
  * Use engine::release to drop any data we may have allocated with engine::allocate
  */
-void conn_cleanup_engine_allocations(Connection * c);
+void conn_cleanup_engine_allocations(McbpConnection * c);
 
 /**
  * Signal (set writable) all idle clients bound to either a specific

@@ -99,7 +99,7 @@ void audit_dcp_open(const Connection *c) {
     }
 }
 
-void audit_command_access_failed(const Connection *c) {
+void audit_command_access_failed(const McbpConnection *c) {
     cJSON *root = create_memcached_audit_object(c);
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));
@@ -113,7 +113,7 @@ void audit_command_access_failed(const Connection *c) {
     do_audit(c, MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE, root, buffer);
 }
 
-void audit_invalid_packet(const Connection *c) {
+void audit_invalid_packet(const McbpConnection *c) {
     cJSON *root = create_memcached_audit_object(c);
     char buffer[256];
     memset(buffer, 0, sizeof(buffer));

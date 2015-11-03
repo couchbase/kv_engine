@@ -51,12 +51,12 @@ void audit_dcp_open(const Connection* c);
  *
  * param c the connection object performing DCP Open
  */
-void audit_command_access_failed(const Connection* c);
+void audit_command_access_failed(const McbpConnection* c);
 
 /**
  * Send an audit event for a invalid and thus rejected packet
  *
  * param c the connection object performing DCP Open
  */
-void audit_invalid_packet(const Connection* c);
+void audit_invalid_packet(const McbpConnection* c);
 

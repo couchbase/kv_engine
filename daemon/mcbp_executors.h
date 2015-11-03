@@ -23,9 +23,9 @@
 
 #include <array>
 #include <memcached/protocol_binary.h>
-#include "connection.h"
+#include "connection_mcbp.h"
 
-typedef void (* mcbp_package_execute)(Connection *c, void* packet);
+typedef void (* mcbp_package_execute)(McbpConnection *c, void* packet);
 
 /**
  * Get the memcached binary protocol executors
@@ -35,14 +35,14 @@ typedef void (* mcbp_package_execute)(Connection *c, void* packet);
  */
 std::array<mcbp_package_execute, 0x100>& get_mcbp_executors();
 
-void mcbp_complete_nread(Connection *c);
+void mcbp_complete_nread(McbpConnection *c);
 
-int try_read_mcbp_command(Connection *c);
+int try_read_mcbp_command(McbpConnection *c);
 
 void initialize_mbcp_lookup_map(void);
 
-void ship_mcbp_tap_log(Connection* c);
-void ship_mcbp_dcp_log(Connection* c);
+void ship_mcbp_tap_log(McbpConnection* c);
+void ship_mcbp_dcp_log(McbpConnection* c);
 void setup_mcbp_lookup_cmd(
     EXTENSION_BINARY_PROTOCOL_DESCRIPTOR* descriptor,
     uint8_t cmd,

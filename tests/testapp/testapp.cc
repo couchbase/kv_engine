@@ -337,6 +337,9 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddItemToObject(obj, "ssl", obj_ssl);
     cJSON_AddItemToArray(array, obj);
 
+#if 0
+    // Disable the greenstack while we're refactoring to use bufferevents
+
     // One interface using the greenstack protocol
     obj = cJSON_CreateObject();
     cJSON_AddNumberToObject(obj, "port", 0);
@@ -362,6 +365,7 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
     cJSON_AddItemToObject(obj, "ssl", obj_ssl);
     cJSON_AddItemToArray(array, obj);
+#endif
 
     cJSON_AddItemToObject(root, "interfaces", array);
 
