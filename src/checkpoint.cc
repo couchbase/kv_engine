@@ -934,7 +934,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
 }
 
 void CheckpointManager::getAllItemsForCursor(const std::string& name,
-                                             std::list<queued_item> &items) {
+                                             std::deque<queued_item> &items) {
     LockHolder lh(queueLock);
     cursor_index::iterator it = tapCursors.find(name);
     if (it == tapCursors.end()) {
