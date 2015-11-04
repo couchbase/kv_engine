@@ -650,10 +650,9 @@ public:
     std::string validateKey(const std::string &key,  uint16_t vbucket,
                             Item &diskItem);
 
-    bool getLocked(const std::string &key, uint16_t vbucket,
-                   Callback<GetValue> &cb,
-                   rel_time_t currentTime, uint32_t lockTimeout,
-                   const void *cookie);
+    GetValue getLocked(const std::string &key, uint16_t vbucket,
+                       rel_time_t currentTime, uint32_t lockTimeout,
+                       const void *cookie);
 
     ENGINE_ERROR_CODE unlockKey(const std::string &key,
                                 uint16_t vbucket,

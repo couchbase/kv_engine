@@ -2533,18 +2533,15 @@ void EventuallyPersistentStore::completeStatsVKey(const void* cookie,
     engine.notifyIOComplete(cookie, ENGINE_SUCCESS);
 }
 
-bool EventuallyPersistentStore::getLocked(const std::string &key,
-                                          uint16_t vbucket,
-                                          Callback<GetValue> &cb,
-                                          rel_time_t currentTime,
-                                          uint32_t lockTimeout,
-                                          const void *cookie) {
+GetValue EventuallyPersistentStore::getLocked(const std::string &key,
+                                              uint16_t vbucket,
+                                              rel_time_t currentTime,
+                                              uint32_t lockTimeout,
+                                              const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || vb->getState() != vbucket_state_active) {
         ++stats.numNotMyVBuckets;
-        GetValue rv(NULL, ENGINE_NOT_MY_VBUCKET);
-        cb.callback(rv);
-        return false;
+        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     }
 
     int bucket_num(0);
@@ -2554,16 +2551,12 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
     if (v) {
         if (v->isDeleted() || v->isTempNonExistentItem() ||
             v->isTempDeletedItem()) {
-            GetValue rv;
-            cb.callback(rv);
-            return true;
+            return GetValue(NULL, ENGINE_KEY_ENOENT);
         }
 
         // if v is locked return error
         if (v->isLocked(currentTime)) {
-            GetValue rv;
-            cb.callback(rv);
-            return false;
+            return GetValue(NULL, ENGINE_TMPFAIL);
         }
 
         // If the value is not resident, wait for it...
@@ -2571,9 +2564,7 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
             if (cookie) {
                 bgFetch(key, vbucket, cookie);
             }
-            GetValue rv(NULL, ENGINE_EWOULDBLOCK, -1, true);
-            cb.callback(rv);
-            return false;
+            return GetValue(NULL, ENGINE_EWOULDBLOCK, -1, true);
         }
 
         // acquire lock and increment cas value
@@ -2583,28 +2574,24 @@ bool EventuallyPersistentStore::getLocked(const std::string &key,
         it->setCas(vb->nextHLCCas());
         v->setCas(it->getCas());
 
-        GetValue rv(it);
-        cb.callback(rv);
-        return true;
+        return GetValue(it);
+
     } else {
-        if (eviction_policy == VALUE_ONLY) {
-            GetValue rv;
-            cb.callback(rv);
-            return true;
-        } else {
+        // No value found in the hashtable.
+        switch (eviction_policy) {
+        case VALUE_ONLY:
+            return GetValue(NULL, ENGINE_KEY_ENOENT);
+
+        case FULL_EVICTION:
             if (vb->maybeKeyExistsInFilter(key)) {
                 ENGINE_ERROR_CODE ec = addTempItemForBgFetch(lh, bucket_num,
                                                              key, vb, cookie,
                                                              false);
-                GetValue rv(NULL, ec, -1, true);
-                cb.callback(rv);
-                return false;
+                return GetValue(NULL, ec, -1, true);
             } else {
                 // As bloomfilter predicted that item surely doesn't exist
                 // on disk, return ENOENT for getLocked().
-                GetValue rv;
-                cb.callback(rv);
-                return true;
+                return GetValue(NULL, ENGINE_KEY_ENOENT);
             }
         }
     }

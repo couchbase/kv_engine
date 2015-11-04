@@ -649,7 +649,6 @@ extern "C" {
         std::string key(keyp, ntohs(req->request.keylen));
         uint16_t vbucket = ntohs(req->request.vbucket);
 
-        RememberingCallback<GetValue> getCb;
         uint32_t max_timeout = (unsigned int)e->getGetlMaxTimeout();
         uint32_t default_timeout = (unsigned int)e->getGetlDefaultTimeout();
         uint32_t lockTimeout = default_timeout;
@@ -664,41 +663,45 @@ extern "C" {
             lockTimeout = default_timeout;
         }
 
-        bool gotLock = e->getLocked(key, vbucket, getCb,
-                                    ep_current_time(),
-                                    lockTimeout, cookie);
+        GetValue result = e->getLocked(key, vbucket, ep_current_time(),
+                                       lockTimeout, cookie);
 
-        getCb.waitForValue();
-        ENGINE_ERROR_CODE rv = getCb.val.getStatus();
-
-        if (rv == ENGINE_SUCCESS) {
-            *itm = getCb.val.getValue();
+        switch (result.getStatus()) {
+        case ENGINE_SUCCESS:
+            *itm = result.getValue();
             ++(e->getEpStats().numOpsGet);
-        } else if (rv == ENGINE_EWOULDBLOCK) {
+            break;
 
+        case ENGINE_EWOULDBLOCK:
             // need to wait for value
-            return rv;
-        } else if (rv == ENGINE_NOT_MY_VBUCKET) {
+            break;
+
+        case ENGINE_NOT_MY_VBUCKET:
             *msg = "That's not my bucket.";
             *res = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-            return ENGINE_NOT_MY_VBUCKET;
-        } else if (!gotLock){
-            *msg =  "LOCK_ERROR";
-            *res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-            return ENGINE_TMPFAIL;
-        } else {
+            break;
+
+        case ENGINE_TMPFAIL:
             if (e->isDegradedMode()) {
                 *msg = "LOCK_TMP_ERROR";
-                *res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-                return ENGINE_TMPFAIL;
+            } else {
+                *msg = "LOCK_ERROR";
             }
+            *res = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+            break;
 
+        case ENGINE_KEY_ENOENT:
             *msg = "NOT_FOUND";
             *res = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-            return ENGINE_KEY_ENOENT;
+            break;
+
+        default:
+            // Unexpected / unhandled status code.
+            *res = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
+            break;
         }
 
-        return rv;
+        return result.getStatus();
     }
 
     static protocol_binary_response_status unlockKey(

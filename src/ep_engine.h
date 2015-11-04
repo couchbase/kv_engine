@@ -686,13 +686,10 @@ public:
         return epstore->evictKey(key, vbucket, msg, msg_size);
     }
 
-    bool getLocked(const std::string &key,
-                   uint16_t vbucket,
-                   Callback<GetValue> &cb,
-                   rel_time_t currentTime,
-                   uint32_t lockTimeout,
-                   const void *cookie) {
-        return epstore->getLocked(key, vbucket, cb, currentTime, lockTimeout, cookie);
+    GetValue getLocked(const std::string &key, uint16_t vbucket,
+                       rel_time_t currentTime, uint32_t lockTimeout,
+                       const void *cookie) {
+        return epstore->getLocked(key, vbucket, currentTime, lockTimeout, cookie);
     }
 
     ENGINE_ERROR_CODE unlockKey(const std::string &key,
