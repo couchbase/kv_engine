@@ -899,30 +899,22 @@ bool MutationLogHarvester::load() {
             break;
         case ML_COMMIT2: {
             clean = true;
-            for (std::set<uint16_t>::iterator vit(shouldClear.begin());
-                 vit != shouldClear.end(); ++vit) {
-                committed[*vit].clear();
+            for (const uint16_t vb :shouldClear) {
+                committed[vb].clear();
             }
             shouldClear.clear();
 
-            for (std::set<uint16_t>::const_iterator vit = vbid_set.begin();
-                 vit != vbid_set.end(); ++vit) {
-                uint16_t vb(*vit);
+            for (const uint16_t vb : vbid_set) {
+                for (auto& copyit2 : loading[vb]) {
 
-                unordered_map<std::string, mutation_log_event_t>::iterator
-                              copyit2;
-                for (copyit2 = loading[vb].begin();
-                     copyit2 != loading[vb].end();
-                     ++copyit2) {
-
-                    mutation_log_event_t t = copyit2->second;
+                    mutation_log_event_t t = copyit2.second;
 
                     switch (t.second) {
                     case ML_NEW:
-                        committed[vb][copyit2->first] = t.first;
+                        committed[vb][copyit2.first] = t.first;
                         break;
                     case ML_DEL:
-                        committed[vb].erase(copyit2->first);
+                        committed[vb].erase(copyit2.first);
                         break;
                     default:
                         abort();
@@ -949,14 +941,9 @@ bool MutationLogHarvester::load() {
 }
 
 void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
-    for (std::set<uint16_t>::const_iterator it = vbid_set.begin();
-         it != vbid_set.end(); ++it) {
-        uint16_t vb(*it);
-
-        for (unordered_map<std::string, uint64_t>::iterator it2 =
-                                                       committed[vb].begin();
-             it2 != committed[vb].end(); ++it2) {
-            const std::string key(it2->first);
+    for (const uint16_t vb : vbid_set) {
+        for (const auto& it2 : committed[vb]) {
+            const std::string& key = it2.first;
             if (!mlc(arg, vb, key)) { // Stop loading from an access log
                 return;
             }
@@ -970,21 +957,19 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
                 "when engine is NULL");
     }
     std::vector<std::pair<std::string, uint64_t> > fetches;
-    std::set<uint16_t>::const_iterator it = vbid_set.begin();
-    for (; it != vbid_set.end(); ++it) {
-        uint16_t vb(*it);
+    for (const uint16_t vb : vbid_set) {
+
         RCPtr<VBucket> vbucket = engine->getEpStore()->getVBucket(vb);
         if (!vbucket) {
             continue;
         }
-        unordered_map<std::string, uint64_t>::iterator it2 =
-                                                         committed[vb].begin();
-        for (; it2 != committed[vb].end(); ++it2) {
+
+        for (const auto& it2 : committed[vb]) {
             // cannot use rowid from access log, so must read from hashtable
-            std::string key = it2->first;
+            const std::string& key = it2.first;
             StoredValue *v = NULL;
             if ((v = vbucket->ht.find(key, false))) {
-                fetches.push_back(std::make_pair(it2->first, v->getBySeqno()));
+                fetches.push_back(std::make_pair(it2.first, v->getBySeqno()));
             }
         }
         if (!mlc(vb, fetches, arg)) {
@@ -997,19 +982,14 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
 void MutationLogHarvester::getUncommitted(
                              std::vector<mutation_log_uncommitted_t> &uitems) {
 
-    for (std::set<uint16_t>::const_iterator vit = vbid_set.begin();
-         vit != vbid_set.end(); ++vit) {
-        uint16_t vb(*vit);
+    for (const uint16_t vb : vbid_set) {
         mutation_log_uncommitted_t leftover;
         leftover.vbucket = vb;
 
-        unordered_map<std::string, mutation_log_event_t>::iterator copyit2;
-        for (copyit2 = loading[vb].begin();
-             copyit2 != loading[vb].end();
-             ++copyit2) {
+        for (const auto& copyit2 : loading[vb]) {
 
-            mutation_log_event_t t = copyit2->second;
-            leftover.key = copyit2->first;
+            const mutation_log_event_t& t = copyit2.second;
+            leftover.key = copyit2.first;
             leftover.rowid = t.first;
             leftover.type = static_cast<mutation_log_type_t>(t.second);
 

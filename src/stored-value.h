@@ -971,7 +971,7 @@ public:
      * @param key the key to find
      * @return a pointer to a StoredValue -- NULL if not found
      */
-    StoredValue *find(std::string &key, bool trackReference=true) {
+    StoredValue *find(const std::string &key, bool trackReference=true) {
         if (!isActive()) {
             throw std::logic_error("HashTable::find: Cannot call on a "
                     "non-active object");

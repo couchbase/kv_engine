@@ -626,8 +626,10 @@ private:
     EventuallyPersistentEngine *engine;
     std::set<uint16_t> vbid_set;
 
-    unordered_map<uint16_t, unordered_map<std::string, uint64_t> > committed;
-    unordered_map<uint16_t, unordered_map<std::string, mutation_log_event_t> > loading;
+    std::unordered_map<uint16_t,
+                       std::unordered_map<std::string, uint64_t> > committed;
+    std::unordered_map<uint16_t,
+                       std::unordered_map<std::string, mutation_log_event_t> > loading;
     size_t itemsSeen[MUTATION_LOG_TYPES];
 };
 
