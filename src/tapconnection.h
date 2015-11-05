@@ -28,10 +28,10 @@
 #include <vector>
 
 #include "atomic.h"
-#include "common.h"
 #include "locks.h"
 #include "mutex.h"
 #include "statwriter.h"
+#include "utility.h"
 
 // forward decl
 class ConnHandler;

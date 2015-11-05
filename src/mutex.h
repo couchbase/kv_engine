@@ -19,7 +19,8 @@
 #define SRC_MUTEX_H_ 1
 
 #include "config.h"
-#include "common.h"
+
+#include "utility.h"
 
 /**
  * Abstraction built on top of pthread mutexes

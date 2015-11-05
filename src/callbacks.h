@@ -23,6 +23,7 @@
 #include <string>
 
 #include "locks.h"
+#include "utility.h"
 
 class Item;
 

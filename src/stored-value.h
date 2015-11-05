@@ -25,13 +25,13 @@
 #include <cstring>
 #include <string>
 
-#include "common.h"
 #include "ep_time.h"
 #include "histo.h"
 #include "item.h"
 #include "item_pager.h"
 #include "locks.h"
 #include "stats.h"
+#include "utility.h"
 
 // Forward declaration for StoredValue
 class HashTable;

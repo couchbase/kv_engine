@@ -31,7 +31,7 @@
 #include "bgfetcher.h"
 #include "callbacks.h"
 #include "kvstore.h"
-
+#include "utility.h"
 
 /**
  * Base class encapsulating individual couchstore(vbucket) into a

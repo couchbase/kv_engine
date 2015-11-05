@@ -19,8 +19,9 @@
 #define SRC_SYNCOBJECT_H_ 1
 
 #include "config.h"
-#include "common.h"
+
 #include "time.h"
+#include "utility.h"
 
 /**
  * Abstraction built on top our own condition variable implemntation

@@ -25,10 +25,10 @@
 #include <map>
 
 #include "atomic.h"
-#include "common.h"
 #include "histo.h"
 #include "memory_tracker.h"
 #include "mutex.h"
+#include "utility.h"
 
 #ifndef DEFAULT_MAX_DATA_SIZE
 /* Something something something ought to be enough for anybody */

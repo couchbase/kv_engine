@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "locks.h"
+#include "utility.h"
 
 /**
  * The value changed listeners runs _without_ the global mutex for

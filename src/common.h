@@ -49,22 +49,6 @@
 #define UINT16_MAX 65535
 #endif /* UINT16_MAX */
 
-// Stolen from http://google-styleguide.googlecode.com/svn/trunk/cppguide.xml
-// A macro to disallow the copy constructor and operator= functions
-// This should be used in the private: declarations for a class
-#define DISALLOW_COPY_AND_ASSIGN(TypeName)      \
-    TypeName(const TypeName&);                  \
-    void operator=(const TypeName&)
-
-#define DISALLOW_ASSIGN(TypeName)               \
-    void operator=(const TypeName&)
-
-// Utility functions implemented in various modules.
-
-extern void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) CB_FORMAT_PRINTF(2, 3);
-
-extern ALLOCATOR_HOOKS_API *getHooksApi(void);
-
 // Time handling functions
 inline void advance_tv(struct timeval &tv, const double secs) {
     double ip, fp;
@@ -297,5 +281,4 @@ inline const std::string getJSONObjString(const cJSON *i) {
     return i->valuestring;
 }
 
-#define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
 #endif  // SRC_COMMON_H_

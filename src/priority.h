@@ -22,7 +22,7 @@
 
 #include <string>
 
-#include "common.h"
+#include "utility.h"
 
 enum type_id_t {
     BGFETCHER_ID=0,

@@ -26,9 +26,9 @@
 #include <string>
 #include <vector>
 
-#include "common.h"
 #include "ep.h"
 #include "executorthread.h"
+#include "utility.h"
 
 #define NO_VBUCKETS_INSTANTIATED 0xFFFF
 #define RETRY_FLUSH_VBUCKET (-1)

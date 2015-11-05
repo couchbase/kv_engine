@@ -25,10 +25,10 @@
 #include <sstream>
 #include <stdexcept>
 
-#include "common.h"
 #include "mutex.h"
-#include "syncobject.h"
 #include "rwlock.h"
+#include "syncobject.h"
+#include "utility.h"
 
 /**
  * RAII lock holder to guarantee release of the lock.

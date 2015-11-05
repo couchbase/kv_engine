@@ -60,6 +60,7 @@ private:
 
 #include "atomic.h"
 #include "threadlocal.h"
+#include "utility.h"
 
 /**
  * Efficient approximate-FIFO queue optimize for concurrent writers.

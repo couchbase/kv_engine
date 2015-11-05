@@ -15,11 +15,12 @@
  *   limitations under the License.
  */
 
+#define _USE_MATH_DEFINES
+#include <cmath>
+
 #include "config.h"
 
 #include <algorithm>
-#define _USE_MATH_DEFINES
-#include <cmath>
 #include <functional>
 #include <sstream>
 #include <thread>

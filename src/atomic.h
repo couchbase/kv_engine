@@ -26,6 +26,7 @@
 
 #include "callbacks.h"
 #include "locks.h"
+#include "utility.h"
 
 template <typename T>
 void atomic_setIfBigger(AtomicValue<T> &obj, const T &newValue) {

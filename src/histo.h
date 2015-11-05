@@ -30,7 +30,7 @@
 #include <vector>
 
 #include "atomic.h"
-#include "common.h"
+#include "utility.h"
 
 // Forward declaration.
 template <typename T>

@@ -28,10 +28,11 @@
 #include <vector>
 
 #include "atomic.h"
-#include "common.h"
 #include "item.h"
 #include "locks.h"
 #include "stats.h"
+
+#define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
 
 #define MIN_CHECKPOINT_ITEMS 10
 #define MAX_CHECKPOINT_ITEMS 50000

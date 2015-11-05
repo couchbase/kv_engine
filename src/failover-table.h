@@ -26,11 +26,12 @@
 #include <stddef.h>
 #include <stdlib.h>
 
+#include <memcached/engine.h>
 #include <platform/random.h>
 #include "cJSON.h"
-#include "common.h"
 #include "mutex.h"
 #include "atomic.h"
+#include "utility.h"
 
 typedef struct {
     uint64_t vb_uuid;

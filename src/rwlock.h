@@ -17,7 +17,8 @@
 #pragma once
 
 #include "platform/platform.h"
-#include "common.h"
+
+#include "utility.h"
 
 /**
  *   Reader/Write lock abstraction for platform provided cb_rw_lock

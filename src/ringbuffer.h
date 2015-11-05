@@ -23,7 +23,7 @@
 #include <algorithm>
 #include <vector>
 
-#include "common.h"
+#include "utility.h"
 
 /**
  * A RingBuffer holds a fixed number of elements of type T.

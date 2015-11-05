@@ -25,6 +25,7 @@
 #include "configuration.h"
 #include "kvshard.h"
 #include "vbucket.h"
+#include "utility.h"
 
 /**
  * A map of known vbuckets.

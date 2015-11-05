@@ -48,6 +48,7 @@
 #include "stored-value.h"
 #include "vbucket.h"
 #include "vbucketmap.h"
+#include "utility.h"
 
 /**
  * vbucket-aware hashtable visitor.

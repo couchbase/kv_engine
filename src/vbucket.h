@@ -31,9 +31,9 @@
 #include "atomic.h"
 #include "bloomfilter.h"
 #include "checkpoint.h"
-#include "common.h"
 #include "kvstore.h"
 #include "stored-value.h"
+#include "utility.h"
 
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
 const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.
