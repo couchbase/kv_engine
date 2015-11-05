@@ -695,7 +695,7 @@ private:
 typedef SingleThreadedRCPtr<Item> queued_item;
 
 /**
- * Order queued_item objects pointed by shared_ptr by their keys.
+ * Order queued_item objects pointed by std::shared_ptr by their keys.
  */
 class CompareQueuedItemsByKey {
 public:

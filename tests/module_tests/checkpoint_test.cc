@@ -102,7 +102,7 @@ protected:
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
 
-    shared_ptr<Callback<uint16_t> > callback;
+    std::shared_ptr<Callback<uint16_t> > callback;
     RCPtr<VBucket> vbucket;
     std::unique_ptr<CheckpointManager> manager;
 };
@@ -208,7 +208,7 @@ static void launch_set_thread(void *arg) {
 }
 
 TEST_F(CheckpointTest, basic_chk_test) {
-    shared_ptr<Callback<uint16_t> > cb(new DummyCB());
+    std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
                                        checkpoint_config, NULL, 0, 0, 0, NULL,
                                        cb));
@@ -310,7 +310,7 @@ TEST_F(CheckpointTest, basic_chk_test) {
 }
 
 TEST_F(CheckpointTest, reset_checkpoint_id) {
-    shared_ptr<Callback<uint16_t> > cb(new DummyCB());
+    std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     RCPtr<VBucket> vbucket(new VBucket(0, vbucket_state_active, global_stats,
                                        checkpoint_config, NULL, 0, 0, 0, NULL,
                                        cb));

@@ -483,7 +483,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
                 table = new FailoverTable(vbs.failovers, maxEntries);
             }
             KVShard* shard = store.getVBuckets().getShardByVbId(vbid);
-            shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
+            std::shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
             vb.reset(new VBucket(vbid, vbs.state,
                                  store.getEPEngine().getEpStats(),
                                  store.getEPEngine().getCheckpointConfig(),
@@ -579,8 +579,8 @@ void Warmup::keyDumpforShard(uint16_t shardId)
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
     LoadStorageKVPairCallback *load_cb =
             new LoadStorageKVPairCallback(store, false, state.getState());
-    shared_ptr<Callback<GetValue> > cb(load_cb);
-    shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
+    std::shared_ptr<Callback<GetValue> > cb(load_cb);
+    std::shared_ptr<Callback<CacheLookup> > cl(new NoLookupCallback());
 
     std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
 
@@ -791,8 +791,8 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
     LoadStorageKVPairCallback *load_cb =
         new LoadStorageKVPairCallback(store, maybe_enable_traffic,
                                       state.getState());
-    shared_ptr<Callback<GetValue> > cb(load_cb);
-    shared_ptr<Callback<CacheLookup> >
+    std::shared_ptr<Callback<GetValue> > cb(load_cb);
+    std::shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store.vbMap, state.getState()));
 
     std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();
@@ -828,8 +828,8 @@ void Warmup::loadDataforShard(uint16_t shardId)
     KVStore* kvstore = store.getROUnderlyingByShard(shardId);
     LoadStorageKVPairCallback *load_cb =
         new LoadStorageKVPairCallback(store, true, state.getState());
-    shared_ptr<Callback<GetValue> > cb(load_cb);
-    shared_ptr<Callback<CacheLookup> >
+    std::shared_ptr<Callback<GetValue> > cb(load_cb);
+    std::shared_ptr<Callback<CacheLookup> >
         cl(new LoadValueCallback(store.vbMap, state.getState()));
 
     std::vector<uint16_t>::iterator itr = shardVbIds[shardId].begin();

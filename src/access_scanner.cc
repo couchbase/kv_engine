@@ -250,9 +250,9 @@ bool AccessScanner::run() {
                 deleteAlogFile(name);
                 stats.accessScannerSkips++;
             } else {
-                shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store,
+                std::shared_ptr<ItemAccessVisitor> pv(new ItemAccessVisitor(store,
                                                  stats, i, available, *this));
-                shared_ptr<VBucketVisitor> vbv(pv);
+                std::shared_ptr<VBucketVisitor> vbv(pv);
                 ExTask task = new VBucketVisitorTask(&store, vbv, i,
                                                      "Item Access Scanner",
                                                      sleepTime, true);

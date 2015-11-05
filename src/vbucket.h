@@ -146,7 +146,7 @@ public:
             CheckpointConfig &chkConfig, KVShard *kvshard,
             int64_t lastSeqno, uint64_t lastSnapStart,
             uint64_t lastSnapEnd, FailoverTable *table,
-            shared_ptr<Callback<id_type> > cb,
+            std::shared_ptr<Callback<id_type> > cb,
             vbucket_state_t initState = vbucket_state_dead,
             uint64_t chkId = 1, uint64_t purgeSeqno = 0,
             uint64_t maxCas = 0, int64_t driftCounter = INITIAL_DRIFT):

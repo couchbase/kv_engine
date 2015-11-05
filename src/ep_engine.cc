@@ -4200,7 +4200,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
     ENGINE_ERROR_CODE rv = ENGINE_FAILED;
 
     Item *it = NULL;
-    shared_ptr<Item> diskItem;
+    std::shared_ptr<Item> diskItem;
     struct key_stats kstats;
 
     if (fetchLookupResult(cookie, &it)) {
@@ -6052,7 +6052,7 @@ public:
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                                cookie);
         } else {
-            shared_ptr<Callback<uint16_t&, char*&> > cb(new AllKeysCallback());
+            std::shared_ptr<Callback<uint16_t&, char*&> > cb(new AllKeysCallback());
             err = engine->getEpStore()->getROUnderlying(vbid)->getAllKeys(
                                                     vbid, start_key, count, cb);
             if (err == ENGINE_SUCCESS) {
@@ -6084,7 +6084,7 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
                                 ADD_RESPONSE response) {
 
     LockHolder lh(lookupMutex);
-    unordered_map<const void*, ENGINE_ERROR_CODE>::iterator it =
+    std::unordered_map<const void*, ENGINE_ERROR_CODE>::iterator it =
         allKeysLookups.find(cookie);
     if (it != allKeysLookups.end()) {
         ENGINE_ERROR_CODE err = it->second;

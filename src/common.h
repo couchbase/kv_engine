@@ -33,12 +33,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <unordered_map>
-#include <unordered_set>
-#include <memory>
-using std::unordered_map;
-using std::shared_ptr;
-
 #include <list>
 #include <sstream>
 #include <string>

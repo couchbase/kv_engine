@@ -160,8 +160,8 @@ backfill_status_t DCPBackfill::create() {
     KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
     bool getCompressed = as->isCompressionEnabled();
 
-    shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));
-    shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(engine, stream));
+    std::shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));
+    std::shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(engine, stream));
     scanCtx = kvstore->initScanContext(cb, cl, vbid, startSeqno,
                                        DocumentFilter::ALL_ITEMS,
                                        getCompressed

@@ -24,6 +24,7 @@
 #include <map>
 #include <string>
 #include <utility>
+#include <unordered_map>
 #include <vector>
 #include <relaxed_atomic.h>
 
@@ -64,7 +65,7 @@ typedef struct {
     bool isMetaOnly;
 } vb_bgfetch_item_ctx_t;
 
-typedef unordered_map<std::string, vb_bgfetch_item_ctx_t> vb_bgfetch_queue_t;
+typedef std::unordered_map<std::string, vb_bgfetch_item_ctx_t> vb_bgfetch_queue_t;
 typedef std::pair<std::string, VBucketBGFetchItem *> bgfetched_item_t;
 
 /**
@@ -85,8 +86,8 @@ typedef struct {
     uint8_t  drop_deletes;
     DBFileId db_file_id;
     uint32_t curr_time;
-    shared_ptr<Callback<std::string&, bool&> > bloomFilterCallback;
-    shared_ptr<Callback<std::string&, uint64_t&> > expiryCallback;
+    std::shared_ptr<Callback<std::string&, bool&> > bloomFilterCallback;
+    std::shared_ptr<Callback<std::string&, uint64_t&> > expiryCallback;
 } compaction_ctx;
 
 /**
@@ -225,8 +226,8 @@ enum class ValueFilter {
 
 class ScanContext {
 public:
-    ScanContext(shared_ptr<Callback<GetValue> > cb,
-                shared_ptr<Callback<CacheLookup> > cl,
+    ScanContext(std::shared_ptr<Callback<GetValue> > cb,
+                std::shared_ptr<Callback<CacheLookup> > cl,
                 uint16_t vb, size_t id, uint64_t start,
                 uint64_t end, DocumentFilter _docFilter,
                 ValueFilter _valFilter, uint64_t _documentCount)
@@ -236,8 +237,8 @@ public:
 
     ~ScanContext() {}
 
-    const shared_ptr<Callback<GetValue> > callback;
-    const shared_ptr<Callback<CacheLookup> > lookup;
+    const std::shared_ptr<Callback<GetValue> > callback;
+    const std::shared_ptr<Callback<CacheLookup> > lookup;
 
     uint64_t lastReadSeqno;
     const uint64_t startSeqno;
@@ -260,7 +261,7 @@ struct KVStatsCtx{
     uint16_t vbucket;
     size_t fileSpaceUsed;
     size_t fileSize;
-    unordered_map<std::string, kstat_entry_t> keyStats;
+    std::unordered_map<std::string, kstat_entry_t> keyStats;
 };
 
 typedef struct KVStatsCtx kvstats_ctx;
@@ -543,7 +544,7 @@ public:
     }
 
     virtual RollbackResult rollback(uint16_t vbid, uint64_t rollbackseqno,
-                                    shared_ptr<RollbackCB> cb) = 0;
+                                    std::shared_ptr<RollbackCB> cb) = 0;
 
     /**
      * This method is called before persisting a batch of data if you'd like to
@@ -590,10 +591,10 @@ public:
 
     virtual ENGINE_ERROR_CODE getAllKeys(uint16_t vbid,
                             std::string &start_key, uint32_t count,
-                            shared_ptr<Callback<uint16_t&, char*&> > cb) = 0;
+                            std::shared_ptr<Callback<uint16_t&, char*&> > cb) = 0;
 
-    virtual ScanContext* initScanContext(shared_ptr<Callback<GetValue> > cb,
-                                         shared_ptr<Callback<CacheLookup> > cl,
+    virtual ScanContext* initScanContext(std::shared_ptr<Callback<GetValue> > cb,
+                                         std::shared_ptr<Callback<CacheLookup> > cl,
                                          uint16_t vbid, uint64_t startSeqno,
                                          DocumentFilter options,
                                          ValueFilter valOptions) = 0;

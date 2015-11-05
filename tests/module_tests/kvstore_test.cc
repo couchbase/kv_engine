@@ -24,6 +24,8 @@
 #include "compress.h"
 #include "kvstore.h"
 
+#include <unordered_map>
+
 extern "C" {
     static rel_time_t basic_current_time(void) {
         return 0;
@@ -158,8 +160,8 @@ void kvstore_get_compressed_test(std::string& backend) {
     }
     kvstore->commit(&sc);
 
-    shared_ptr<Callback<GetValue> > cb(new GetCallback(true));
-    shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(1, 5, 0));
+    std::shared_ptr<Callback<GetValue> > cb(new GetCallback(true));
+    std::shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(1, 5, 0));
     ScanContext* scanCtx;
     scanCtx = kvstore->initScanContext(cb, cl, 0, 1,
                                        DocumentFilter::ALL_ITEMS,

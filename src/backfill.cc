@@ -119,9 +119,9 @@ bool BackfillDiskLoad::run() {
         size_t num_deleted = store->getNumPersistedDeletes(vbucket);
         connMap.incrBackfillRemaining(name, num_items + num_deleted);
 
-        shared_ptr<Callback<GetValue> >
+        std::shared_ptr<Callback<GetValue> >
             cb(new BackfillDiskCallback(connToken, name, connMap));
-        shared_ptr<Callback<CacheLookup> >
+        std::shared_ptr<Callback<CacheLookup> >
             cl(new ItemResidentCallback(connToken, name, connMap, engine));
 
         ScanContext* ctx = store->initScanContext(cb, cl, vbucket, startSeqno,

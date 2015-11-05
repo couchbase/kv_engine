@@ -39,7 +39,7 @@ public:
 };
 
 bool HashtableResizerTask::run(void) {
-    shared_ptr<ResizingVisitor> pv(new ResizingVisitor);
+    std::shared_ptr<ResizingVisitor> pv(new ResizingVisitor);
     store->visit(pv, "Hashtable resizer", NONIO_TASK_IDX,
             Priority::ItemPagerPriority);
 

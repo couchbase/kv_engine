@@ -23,6 +23,7 @@
 #include <map>
 #include <ostream>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 #include "ep_engine.h"

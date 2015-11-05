@@ -398,7 +398,7 @@ public:
      * @param cb getvalue callback
      */
     RollbackResult rollback(uint16_t vbid, uint64_t rollbackSeqno,
-                            shared_ptr<RollbackCB> cb);
+                            std::shared_ptr<RollbackCB> cb);
 
     /**
      * Perform pending tasks after persisting dirty items
@@ -450,10 +450,10 @@ public:
      */
     ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
                                  uint32_t count,
-                                 shared_ptr<Callback<uint16_t&, char*&> > cb);
+                                 std::shared_ptr<Callback<uint16_t&, char*&> > cb);
 
-    ScanContext* initScanContext(shared_ptr<Callback<GetValue> > cb,
-                                 shared_ptr<Callback<CacheLookup> > cl,
+    ScanContext* initScanContext(std::shared_ptr<Callback<GetValue> > cb,
+                                 std::shared_ptr<Callback<CacheLookup> > cl,
                                  uint16_t vbid, uint64_t startSeqno,
                                  DocumentFilter options,
                                  ValueFilter valOptions);

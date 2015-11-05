@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include "common.h"
+#include <memory>
 
 enum snap_ret_t {
     SNAP_SUCCESS,

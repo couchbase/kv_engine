@@ -120,7 +120,7 @@ class VBCBAdaptor : public GlobalTask {
 public:
 
     VBCBAdaptor(EventuallyPersistentStore *s,
-                shared_ptr<VBucketVisitor> v, const char *l, const Priority &p,
+                std::shared_ptr<VBucketVisitor> v, const char *l, const Priority &p,
                 double sleep=0);
 
     std::string getDescription() {
@@ -134,7 +134,7 @@ public:
 private:
     std::queue<uint16_t>        vbList;
     EventuallyPersistentStore  *store;
-    shared_ptr<VBucketVisitor>  visitor;
+    std::shared_ptr<VBucketVisitor>  visitor;
     const char                 *label;
     double                      sleepTime;
     AtomicValue<uint16_t>       currentvb;
@@ -150,7 +150,7 @@ class VBucketVisitorTask : public GlobalTask {
 public:
 
     VBucketVisitorTask(EventuallyPersistentStore *s,
-                       shared_ptr<VBucketVisitor> v, uint16_t sh,
+                       std::shared_ptr<VBucketVisitor> v, uint16_t sh,
                        const char *l, double sleep=0, bool shutdown=true);
 
     std::string getDescription() {
@@ -164,7 +164,7 @@ public:
 private:
     std::queue<uint16_t>         vbList;
     EventuallyPersistentStore   *store;
-    shared_ptr<VBucketVisitor>   visitor;
+    std::shared_ptr<VBucketVisitor>   visitor;
     const char                  *label;
     double                       sleepTime;
     uint16_t                     currentvb;
@@ -597,7 +597,7 @@ public:
      *
      * Note that this is asynchronous.
      */
-    size_t visit(shared_ptr<VBucketVisitor> visitor, const char *lbl,
+    size_t visit(std::shared_ptr<VBucketVisitor> visitor, const char *lbl,
                task_type_t taskGroup, const Priority &prio,
                double sleepTime=0) {
         return ExecutorPool::get()->schedule(new VBCBAdaptor(this, visitor,

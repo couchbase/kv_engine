@@ -1320,7 +1320,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     } else if (vbid < vbMap.getSize()) {
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
-        shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
+        std::shared_ptr<Callback<uint16_t> > cb(new NotifyFlusherCB(shard));
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats,
                                          engine.getCheckpointConfig(),
                                          shard, 0, 0, 0, ft, cb));
@@ -1557,7 +1557,7 @@ bool EventuallyPersistentStore::doCompact(compaction_ctx *ctx,
                  */
 
                 estimated_count = round(1.25 * num_deletes);
-                shared_ptr<Callback<std::string&, bool&> >
+                std::shared_ptr<Callback<std::string&, bool&> >
                     filter(new BloomFilterCallback(*this, vbid, false));
                 ctx->bloomFilterCallback = filter;
             } else {
@@ -1570,7 +1570,7 @@ bool EventuallyPersistentStore::doCompact(compaction_ctx *ctx,
                 bool residentRatioAlert = vb->isResidentRatioUnderThreshold(
                                                 getBfiltersResidencyThreshold(),
                                                 eviction_policy);
-                shared_ptr<Callback<std::string&, bool&> >
+                std::shared_ptr<Callback<std::string&, bool&> >
                     filter(new BloomFilterCallback(*this, vbid, residentRatioAlert));
                 ctx->bloomFilterCallback = filter;
 
@@ -1609,7 +1609,7 @@ bool EventuallyPersistentStore::doCompact(compaction_ctx *ctx,
         } else {
             ctx->curr_time = 0;
         }
-        shared_ptr<Callback<std::string&, uint64_t&> >
+        std::shared_ptr<Callback<std::string&, uint64_t&> >
            expiry(new ExpiredItemsCallback(this, vbid, ctx->curr_time));
         ctx->expiryCallback = expiry;
 
@@ -3800,7 +3800,7 @@ EventuallyPersistentStore::endPosition() const
 }
 
 VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
-                         shared_ptr<VBucketVisitor> v,
+                         std::shared_ptr<VBucketVisitor> v,
                          const char *l, const Priority &p, double sleep) :
     GlobalTask(&s->getEPEngine(), p, 0, false), store(s),
     visitor(v), label(l), sleepTime(sleep), currentvb(0)
@@ -3838,7 +3838,7 @@ bool VBCBAdaptor::run(void) {
 }
 
 VBucketVisitorTask::VBucketVisitorTask(EventuallyPersistentStore *s,
-                                       shared_ptr<VBucketVisitor> v,
+                                       std::shared_ptr<VBucketVisitor> v,
                                        uint16_t sh, const char *l,
                                        double sleep, bool shutdown):
     GlobalTask(&(s->getEPEngine()), Priority::AccessScannerPriority,
@@ -4008,7 +4008,7 @@ EventuallyPersistentStore::rollback(uint16_t vbid,
     uint64_t prevHighSeqno = static_cast<uint64_t>
                                     (vb->checkpointManager.getHighSeqno());
     if (rollbackSeqno != 0) {
-        shared_ptr<Rollback> cb(new Rollback(engine));
+        std::shared_ptr<Rollback> cb(new Rollback(engine));
         KVStore* rwUnderlying = vbMap.getShardByVbId(vbid)->getRWUnderlying();
         RollbackResult result = rwUnderlying->rollback(vbid, rollbackSeqno, cb);
 

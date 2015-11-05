@@ -174,7 +174,7 @@ ForestKVStore::~ForestKVStore() {
    }
 
    /* Close all the KV store instances */
-   unordered_map<uint16_t, fdb_kvs_handle *>::iterator handleItr;
+   std::unordered_map<uint16_t, fdb_kvs_handle *>::iterator handleItr;
    for (handleItr = writeHandleMap.begin(); handleItr != writeHandleMap.end();
         handleItr++) {
        fdb_kvs_handle *kvsHandle = handleItr->second;
@@ -489,7 +489,7 @@ void ForestKVStore::getWithHeader(void *dbHandle, const std::string &key,
     char kvsName[20];
     sprintf(kvsName, "partition%d", vb);
 
-    unordered_map<uint16_t, fdb_kvs_handle*>::iterator found =
+    std::unordered_map<uint16_t, fdb_kvs_handle*>::iterator found =
                                                        readHandleMap.find(vb);
 
     //There will always be a handle in the handle map for readers. It will be
@@ -669,7 +669,7 @@ fdb_kvs_handle* ForestKVStore::getKvsHandle(uint16_t vbucketId, handleType htype
     sprintf(kvsName, "partition%d", vbucketId);
     fdb_kvs_handle *kvsHandle = NULL;
     fdb_status status;
-    unordered_map<uint16_t, fdb_kvs_handle*>::iterator found;
+    std::unordered_map<uint16_t, fdb_kvs_handle*>::iterator found;
 
     switch (htype) {
         case handleType::WRITER:
@@ -981,8 +981,8 @@ bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
     return true;
 }
 
-ScanContext* ForestKVStore::initScanContext(shared_ptr<Callback<GetValue> > cb,
-                                           shared_ptr<Callback<CacheLookup> > cl,
+ScanContext* ForestKVStore::initScanContext(std::shared_ptr<Callback<GetValue> > cb,
+                                           std::shared_ptr<Callback<CacheLookup> > cl,
                                            uint16_t vbid, uint64_t startSeqno,
                                            DocumentFilter options,
                                            ValueFilter valOptions) {
@@ -1041,8 +1041,8 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
      fdb_status status;
      fdb_doc *rdoc;
 
-     shared_ptr<Callback<GetValue> > cb = ctx->callback;
-     shared_ptr<Callback<CacheLookup> > cl = ctx->lookup;
+     std::shared_ptr<Callback<GetValue> > cb = ctx->callback;
+     std::shared_ptr<Callback<CacheLookup> > cl = ctx->lookup;
 
      bool validFilter = false;
      switch (ctx->docFilter) {
@@ -1222,7 +1222,7 @@ size_t ForestKVStore::getNumItems(fdb_kvs_handle* kvsHandle,
 }
 
 RollbackResult ForestKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
-                                       shared_ptr<RollbackCB> cb) {
+                                       std::shared_ptr<RollbackCB> cb) {
    fdb_kvs_handle *kvsHandle = NULL;
    fdb_kvs_info kvsInfo;
 

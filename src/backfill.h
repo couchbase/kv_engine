@@ -134,7 +134,7 @@ public:
         return std::string("Backfilling items from memory and disk.");
     }
 
-    shared_ptr<BackFillVisitor> bfv;
+    std::shared_ptr<BackFillVisitor> bfv;
     EventuallyPersistentEngine *engine;
 };
 

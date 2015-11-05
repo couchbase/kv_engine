@@ -80,7 +80,7 @@ private:
 
     EventuallyPersistentEngine     *engine;
     EPStats                        &stats;
-    shared_ptr<AtomicValue<bool>>   available;
+    std::shared_ptr<AtomicValue<bool>>   available;
     item_pager_phase                phase;
     bool                            doEvict;
 };
@@ -118,7 +118,7 @@ private:
     EventuallyPersistentEngine     *engine;
     EPStats                        &stats;
     double                          sleepTime;
-    shared_ptr<AtomicValue<bool>>   available;
+    std::shared_ptr<AtomicValue<bool>>   available;
 };
 
 #endif  // SRC_ITEM_PAGER_H_

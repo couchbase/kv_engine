@@ -24,6 +24,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "atomic.h"
@@ -72,7 +73,7 @@ typedef struct {
 /**
  * The checkpoint index maps a key to a checkpoint index_entry.
  */
-typedef unordered_map<std::string, index_entry> checkpoint_index;
+typedef std::unordered_map<std::string, index_entry> checkpoint_index;
 
 class Checkpoint;
 class CheckpointManager;
@@ -406,7 +407,7 @@ public:
     CheckpointManager(EPStats &st, uint16_t vbucket, CheckpointConfig &config,
                       int64_t lastSeqno, uint64_t lastSnapStart,
                       uint64_t lastSnapEnd,
-                      shared_ptr<Callback<uint16_t> > cb,
+                      std::shared_ptr<Callback<uint16_t> > cb,
                       uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         lastBySeqno(lastSeqno), lastClosedChkBySeqno(lastSeqno),
@@ -714,7 +715,7 @@ private:
     uint64_t                 pCursorPreCheckpointId;
     cursor_index             connCursors;
 
-    shared_ptr<Callback<uint16_t> > flusherCB;
+    std::shared_ptr<Callback<uint16_t> > flusherCB;
 };
 
 /**

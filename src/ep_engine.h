@@ -1006,7 +1006,7 @@ private:
 
     ReplicationThrottle *replicationThrottle;
     std::map<const void*, Item*> lookups;
-    unordered_map<const void*, ENGINE_ERROR_CODE> allKeysLookups;
+    std::unordered_map<const void*, ENGINE_ERROR_CODE> allKeysLookups;
     Mutex lookupMutex;
     GET_SERVER_API getServerApiFunc;
     union {

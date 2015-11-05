@@ -118,7 +118,7 @@ int main(void) {
     /* Create and populate a vbucket */
     EPStats stats;
     CheckpointConfig config;
-    shared_ptr<Callback<uint16_t> > cb(new DummyCB());
+    std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
     VBucket vbucket(0, vbucket_state_active, stats, config, NULL, 0, 0, 0, NULL,
                     cb);
 

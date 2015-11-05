@@ -58,7 +58,7 @@ public:
      * @param phase pointer to an item_pager_phase to be set
      */
     PagingVisitor(EventuallyPersistentStore &s, EPStats &st, double pcnt,
-                  shared_ptr<AtomicValue<bool>> &sfin, pager_type_t caller,
+                  std::shared_ptr<AtomicValue<bool>> &sfin, pager_type_t caller,
                   bool pause = false, double bias = 1,
                   item_pager_phase *phase = NULL) :
         store(s), stats(st), percent(pcnt),
@@ -234,7 +234,7 @@ private:
     double activeBias;
     size_t ejected;
     time_t startTime;
-    shared_ptr<AtomicValue<bool>> stateFinalizer;
+    std::shared_ptr<AtomicValue<bool>> stateFinalizer;
     pager_type_t owner;
     bool canPause;
     bool completePhase;
@@ -283,7 +283,7 @@ bool ItemPager::run(void) {
         size_t activeEvictPerc = cfg.getPagerActiveVbPcnt();
         double bias = static_cast<double>(activeEvictPerc) / 50;
 
-        shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, toKill,
+        std::shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, toKill,
                                                        available, ITEM_PAGER,
                                                        false, bias, &phase));
         store->visit(pv, "Item pager", NONIO_TASK_IDX,
@@ -344,7 +344,7 @@ bool ExpiredItemPager::run(void) {
     if ((*available).compare_exchange_strong(inverse, false)) {
         ++stats.expiryPagerRuns;
 
-        shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, -1,
+        std::shared_ptr<PagingVisitor> pv(new PagingVisitor(*store, stats, -1,
                                                        available, EXPIRY_PAGER,
                                                        true, 1, NULL));
         // track spawned tasks for shutdown..

@@ -140,7 +140,7 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
     if (available.compare_exchange_strong(inverse, false)) {
         cursorDroppingIfNeeded();
         EventuallyPersistentStore *store = engine->getEpStore();
-        shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats,
+        std::shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats,
                                                                available));
         store->visit(pv, "Checkpoint Remover", NONIO_TASK_IDX,
                      Priority::CheckpointRemoverPriority);

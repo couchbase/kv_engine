@@ -246,7 +246,7 @@ class ForestKVStore : public KVStore
      * @param cb            callback function to be invoked
      */
     RollbackResult rollback(uint16_t vbid, uint64_t rollbackSeqno,
-                            shared_ptr<RollbackCB> cb);
+                            std::shared_ptr<RollbackCB> cb);
 
     void pendingTasks() {
         return;
@@ -269,12 +269,12 @@ class ForestKVStore : public KVStore
 
     ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
                                  uint32_t count,
-                                 shared_ptr<Callback<uint16_t&, char*&> > cb) {
+                                 std::shared_ptr<Callback<uint16_t&, char*&> > cb) {
         return ENGINE_SUCCESS;
     }
 
-    ScanContext *initScanContext(shared_ptr<Callback<GetValue> > cb,
-                                 shared_ptr<Callback<CacheLookup> > cl,
+    ScanContext *initScanContext(std::shared_ptr<Callback<GetValue> > cb,
+                                 std::shared_ptr<Callback<CacheLookup> > cl,
                                  uint16_t vbid, uint64_t startSeqno,
                                  DocumentFilter options,
                                  ValueFilter valOptions);
@@ -288,8 +288,8 @@ private:
     const std::string dbname;
     uint64_t dbFileRevNum;
     fdb_file_handle *dbFileHandle;
-    unordered_map<uint16_t, fdb_kvs_handle *> writeHandleMap;
-    unordered_map<uint16_t, fdb_kvs_handle *> readHandleMap;
+    std::unordered_map<uint16_t, fdb_kvs_handle *> writeHandleMap;
+    std::unordered_map<uint16_t, fdb_kvs_handle *> readHandleMap;
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
     fdb_kvs_handle *vbStateHandle;
