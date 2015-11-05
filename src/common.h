@@ -33,27 +33,11 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HAVE_CXX11_SUPPORT
 #include <unordered_map>
 #include <unordered_set>
 #include <memory>
 using std::unordered_map;
 using std::shared_ptr;
-#else
-
-#ifndef HAVE_TR1_MEMORY
-#error "You need to install tr1/memory or upgrade your C++ compiler"
-#endif
-#include <tr1/memory>
-using std::tr1::shared_ptr;
-
-#ifndef HAVE_TR1_UNORDERED_MAP
-#error "You need to install tr1/unordered_map or upgrade your C++ compiler"
-#endif
-
-#include <tr1/unordered_map>
-using std::tr1::unordered_map;
-#endif
 
 #include <list>
 #include <sstream>

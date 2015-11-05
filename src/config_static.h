@@ -119,14 +119,6 @@ typedef unsigned int useconds_t;
 #undef htonl
 #endif
 
-#if __cplusplus >= 201103L || _MSC_VER >= 1800
-#define HAVE_CXX11_SUPPORT 1
-#endif
-
-#if !defined(HAVE_UNORDERED_MAP) || !defined(HAVE_ATOMIC) || !defined(HAVE_THREAD)
-#undef HAVE_CXX11_SUPPORT
-#endif
-
 #ifdef HAVE_SCHED_H
 #include <sched.h>
 #endif
