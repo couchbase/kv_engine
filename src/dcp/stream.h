@@ -20,7 +20,6 @@
 
 #include "config.h"
 
-#include "atomic.h"
 #include "vbucket.h"
 #include "ext_meta_parser.h"
 

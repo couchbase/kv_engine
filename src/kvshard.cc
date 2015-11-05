@@ -19,6 +19,7 @@
 
 #include <functional>
 
+#include "bgfetcher.h"
 #include "ep_engine.h"
 #include "flusher.h"
 #include "kvshard.h"

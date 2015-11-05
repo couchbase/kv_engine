@@ -27,7 +27,6 @@
 
 #include "mutex.h"
 #include "rwlock.h"
-#include "syncobject.h"
 #include "utility.h"
 
 /**

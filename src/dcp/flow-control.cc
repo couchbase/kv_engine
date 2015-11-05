@@ -20,6 +20,7 @@
 #include "objectregistry.h"
 
 #include "dcp/flow-control.h"
+#include "dcp/flow-control-manager.h"
 
 FlowControl::FlowControl(EventuallyPersistentEngine &engine,
                          DcpConsumer* consumer) :

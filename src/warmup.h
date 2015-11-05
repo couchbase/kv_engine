@@ -19,15 +19,17 @@
 
 #include "config.h"
 
-#include <list>
+#include "atomic.h"
+#include "ep.h"
+#include "ep_engine.h"
+#include "utility.h"
+
 #include <map>
 #include <ostream>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
-#include "ep_engine.h"
-#include "utility.h"
 
 class WarmupState {
 public:

@@ -19,7 +19,6 @@
 
 #include "config.h"
 
-#include <deque>
 #include <list>
 #include <string>
 #include <stdint.h>
@@ -28,6 +27,7 @@
 
 #include <memcached/engine.h>
 #include <platform/random.h>
+
 #include "cJSON.h"
 #include "mutex.h"
 #include "atomic.h"

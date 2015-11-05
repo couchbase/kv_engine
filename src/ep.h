@@ -20,35 +20,14 @@
 
 #include "config.h"
 
-#include <memcached/engine.h>
-#include <stdlib.h>
-#include <string.h>
-#include <time.h>
-
-#include <algorithm>
-#include <iostream>
-#include <limits>
-#include <list>
-#include <map>
-#include <queue>
-#include <set>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
-
-#include "atomic.h"
-#include "bgfetcher.h"
-#include "item_pager.h"
-#include "kvstore.h"
-#include "locks.h"
 #include "executorpool.h"
-#include "ext_meta_parser.h"
-#include "stats.h"
 #include "stored-value.h"
+#include "task_type.h"
 #include "vbucket.h"
 #include "vbucketmap.h"
 #include "utility.h"
+
+class ExtendedMetaData;
 
 /**
  * vbucket-aware hashtable visitor.

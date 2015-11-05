@@ -16,6 +16,9 @@
  */
 
 #include "forest-kvstore/forest-kvstore.h"
+
+#include "common.h"
+
 #include <sys/stat.h>
 #include <platform/dirutils.h>
 #include <vbucket.h>

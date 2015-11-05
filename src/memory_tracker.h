@@ -23,8 +23,9 @@
 #include <map>
 #include <string>
 
+#include <memcached/allocator_hooks.h>
+
 #include "atomic.h"
-#include "common.h"
 
 /**
  * This class is used by ep-engine to hook into memcached's memory tracking

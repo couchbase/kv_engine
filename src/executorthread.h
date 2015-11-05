@@ -28,7 +28,6 @@
 #include <vector>
 
 #include "atomic.h"
-#include "common.h"
 #include "mutex.h"
 #include "objectregistry.h"
 #include "tasks.h"

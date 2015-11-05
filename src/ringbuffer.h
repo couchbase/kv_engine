@@ -43,6 +43,9 @@ public:
         delete[] storage;
     }
 
+    RingBuffer(const RingBuffer&) = delete;
+    RingBuffer& operator=(const RingBuffer&) = delete;
+
     /**
      * How many elements are currently stored in this ring buffer?
      */
@@ -90,8 +93,6 @@ private:
     size_t pos;
     size_t max;
     bool wrapped;
-
-    DISALLOW_COPY_AND_ASSIGN(RingBuffer);
 };
 
 #endif  // SRC_RINGBUFFER_H_

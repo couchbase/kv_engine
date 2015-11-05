@@ -19,10 +19,6 @@
 
 #include "config.h"
 
-#include <map>
-#include <set>
-#include <queue>
-
 #include "tasks.h"
 #include "ringbuffer.h"
 #include "task_type.h"

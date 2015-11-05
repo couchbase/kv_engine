@@ -20,15 +20,15 @@
 
 #include "config.h"
 
-#include "tapconnection.h"
-#include "dcp/response.h"
-#include "dcp/stream.h"
 #include "dcp/flow-control.h"
+#include "dcp/stream.h"
+#include "tapconnection.h"
 
 #include <relaxed_atomic.h>
 
 class PassiveStream;
 class DcpResponse;
+class StreamEndResponse;
 
 class DcpConsumer : public Consumer, public Notifiable {
 typedef std::map<uint32_t, std::pair<uint32_t, uint16_t> > opaque_map;

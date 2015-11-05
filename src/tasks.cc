@@ -23,6 +23,8 @@
 #include "warmup.h"
 #include "ep_engine.h"
 
+#include <climits>
+
 static const double VBSTATE_SNAPSHOT_FREQ(300.0);
 static const double WORKLOAD_MONITOR_FREQ(5.0);
 

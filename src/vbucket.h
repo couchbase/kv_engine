@@ -20,20 +20,15 @@
 
 #include "config.h"
 
-#include <list>
-#include <queue>
-#include <set>
-#include <sstream>
-#include <string>
-#include <utility>
-#include <vector>
-
-#include "atomic.h"
 #include "bloomfilter.h"
 #include "checkpoint.h"
 #include "kvstore.h"
 #include "stored-value.h"
 #include "utility.h"
+
+#include <queue>
+
+class BgFetcher;
 
 const size_t MIN_CHK_FLUSH_TIMEOUT = 10; // 10 sec.
 const size_t MAX_CHK_FLUSH_TIMEOUT = 30; // 30 sec.

@@ -20,7 +20,6 @@
 
 #include "memcached/types.h"
 #include "dcp/consumer.h"
-#include "ep_engine.h"
 
 /**
  * DcpFlowControlManager is a base class for handling/enforcing flow control

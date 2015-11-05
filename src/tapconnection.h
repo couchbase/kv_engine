@@ -27,10 +27,8 @@
 #include <string>
 #include <vector>
 
-#include "atomic.h"
-#include "locks.h"
-#include "mutex.h"
 #include "statwriter.h"
+#include "vbucket.h"
 #include "utility.h"
 
 // forward decl

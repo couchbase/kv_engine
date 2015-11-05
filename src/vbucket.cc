@@ -23,11 +23,14 @@
 #include <string>
 
 #include "atomic.h"
+#include "bgfetcher.h"
 #include "ep_engine.h"
 #include "failover-table.h"
+
 #define STATWRITER_NAMESPACE vbucket
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+
 #include "vbucket.h"
 
 VBucketFilter VBucketFilter::filter_diff(const VBucketFilter &other) const {

@@ -22,7 +22,6 @@
 
 #include <vector>
 
-#include "configuration.h"
 #include "kvshard.h"
 #include "vbucket.h"
 #include "utility.h"

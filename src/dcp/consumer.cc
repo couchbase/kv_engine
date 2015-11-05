@@ -15,14 +15,14 @@
  *   limitations under the License.
  */
 
-#include "config.h"
+#include "dcp/consumer.h"
 
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "connmap.h"
 #include "replicationthrottle.h"
-#include "dcp/consumer.h"
 #include "dcp/stream.h"
+#include "dcp/response.h"
 
 const std::string DcpConsumer::noopCtrlMsg = "enable_noop";
 const std::string DcpConsumer::noopIntervalCtrlMsg = "set_noop_interval";

@@ -21,6 +21,8 @@
 
 class EventuallyPersistentEngine;
 class Blob;
+class Item;
+class StoredValue;
 
 extern "C" {
     typedef size_t (*get_allocation_size)(const void *ptr);

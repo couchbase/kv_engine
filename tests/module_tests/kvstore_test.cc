@@ -20,7 +20,6 @@
 #include <platform/dirutils.h>
 
 #include "callbacks.h"
-#include "common.h"
 #include "compress.h"
 #include "kvstore.h"
 

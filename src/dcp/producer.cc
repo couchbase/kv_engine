@@ -15,14 +15,14 @@
  *   limitations under the License.
  */
 
-#include "config.h"
+#include "dcp/producer.h"
 
 #include "backfill.h"
 #include "compress.h"
+#include "common.h"
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "dcp/backfill-manager.h"
-#include "dcp/producer.h"
 #include "dcp/response.h"
 #include "dcp/stream.h"
 

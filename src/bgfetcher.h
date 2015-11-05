@@ -24,7 +24,6 @@
 #include <set>
 #include <string>
 
-#include "common.h"
 #include "item.h"
 #include "kvstore.h"
 #include "stats.h"

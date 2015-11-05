@@ -18,9 +18,11 @@
 #ifndef SRC_EXT_META_PARSER_H_
 #define SRC_EXT_META_PARSER_H_ 1
 
-#include "common.h"
+#include "config.h"
 
-#include <string>
+#include <memcached/types.h>
+
+#include <utility>
 
 /**
  * Version for extras-detail in setWithMeta/delWithMeta and

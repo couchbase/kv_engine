@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -15,7 +15,11 @@
  *   limitations under the License.
  */
 
-#include "config.h"
+#include "item_pager.h"
+
+#include "connmap.h"
+#include "ep.h"
+#include "ep_engine.h"
 
 #include <cstdlib>
 #include <iostream>
@@ -24,11 +28,6 @@
 #include <string>
 #include <utility>
 
-#include "common.h"
-#include "ep.h"
-#include "ep_engine.h"
-#include "item_pager.h"
-#include "connmap.h"
 
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 

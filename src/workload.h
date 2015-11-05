@@ -19,8 +19,10 @@
 #define SRC_WORKLOAD_H_ 1
 
 #include "config.h"
+
+#include "atomic.h"
+
 #include <string>
-#include "common.h"
 
 enum bucket_priority_t {
     HIGH_BUCKET_PRIORITY=6,

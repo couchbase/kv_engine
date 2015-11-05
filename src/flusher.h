@@ -24,7 +24,6 @@
 #include <map>
 #include <queue>
 #include <string>
-#include <vector>
 
 #include "ep.h"
 #include "executorthread.h"

@@ -29,6 +29,7 @@
 
 #include "atomic.h"
 #include "compress.h"
+#include "ep_time.h"
 #include "locks.h"
 #include "mutex.h"
 #include "objectregistry.h"

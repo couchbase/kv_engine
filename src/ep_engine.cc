@@ -34,12 +34,15 @@
 #include <vector>
 #include <mutex>
 #include <memcached/extension.h>
+#include <JSON_checker.h>
 
 #include "backfill.h"
+#include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "flusher.h"
 #include "connmap.h"
+#include "common.h"
 #include "htresizer.h"
 #include "memory_tracker.h"
 #include "stats-info.h"

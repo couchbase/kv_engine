@@ -20,17 +20,7 @@
 
 #include "config.h"
 
-#include <memcached/engine.h>
-
-#include <algorithm>
-#include <map>
-#include <set>
-#include <sstream>
-#include <vector>
-
-#include "bgfetcher.h"
-#include "callbacks.h"
-#include "kvstore.h"
+#include "atomic.h"
 #include "utility.h"
 
 /**
@@ -61,6 +51,7 @@
  *   -----------------------------------
  *
  */
+class EventuallyPersistentStore;
 class Flusher;
 
 class KVShard {

@@ -24,9 +24,9 @@
 #include <map>
 #include <set>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
-#include "common.h"
 #include "ep_engine.h"
 #include "stats.h"
 #include "tasks.h"

@@ -23,8 +23,6 @@
 
 #include "workload.h"
 #include "priority.h"
-#include "platform/platform.h"
-#include <stdint.h>
 
 /*
     A type for identifying all tasks belonging to a task owner.

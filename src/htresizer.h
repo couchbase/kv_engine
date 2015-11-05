@@ -22,6 +22,7 @@
 
 #include <string>
 
+#include "ep.h"
 #include "tasks.h"
 
 class EventuallyPersistentStore;

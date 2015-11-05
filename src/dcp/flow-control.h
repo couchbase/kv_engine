@@ -18,12 +18,15 @@
 #ifndef SRC_DCP_FLOW_CONTROL_H_
 #define SRC_DCP_FLOW_CONTROL_H_ 1
 
-#include "atomic.h"
-#include "dcp/consumer.h"
-#include "ep_engine.h"
+#include "config.h"
 
-#include "memcached/dcp.h"
-#include "memcached/types.h"
+#include "atomic.h"
+#include "memcached/engine.h"
+
+#include <relaxed_atomic.h>
+
+class DcpConsumer;
+class EventuallyPersistentEngine;
 
 /**
  * This class handles the consumer side flow control in a DCP connection.

@@ -19,7 +19,9 @@
 #define SRC_BLOOMFILTER_H_ 1
 
 #include "config.h"
-#include "common.h"
+
+#include <string>
+#include <vector>
 
 enum bfilter_status_t {
     BFILTER_DISABLED,

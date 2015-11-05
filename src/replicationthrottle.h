@@ -20,7 +20,6 @@
 
 #include "config.h"
 
-#include "common.h"
 #include "stats.h"
 
 class Configuration;

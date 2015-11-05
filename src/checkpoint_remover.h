@@ -23,11 +23,10 @@
 #include <set>
 #include <string>
 
-#include "common.h"
 #include "tasks.h"
-#include "stats.h"
 
 class EventuallyPersistentEngine;
+class EPstats;
 
 /**
  * Dispatcher job responsible for removing closed unreferenced checkpoints

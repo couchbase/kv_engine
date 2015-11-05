@@ -20,31 +20,20 @@
 
 #include "config.h"
 
-#include <errno.h>
-
-#include <algorithm>
-#include <cstdio>
-#include <limits>
-#include <list>
-#include <map>
-#include <sstream>
-#include <string>
-
-#include "configuration.h"
 #include "ep.h"
 #include "ep-engine/command_ids.h"
-#include "ext_meta_parser.h"
-#include "item_pager.h"
-#include "kvstore.h"
-#include "locks.h"
 #include "tapconnection.h"
-#include "workload.h"
 #include "taskable.h"
-#include "dcp/flow-control-manager.h"
+#include "vbucket.h"
 
-#include <JSON_checker.h>
+#include <memcached/engine.h>
 
+#include <string>
+
+class StoredValue;
 class DcpConnMap;
+class DcpFlowControlManager;
+class Producer;
 class TapConnMap;
 class ReplicationThrottle;
 

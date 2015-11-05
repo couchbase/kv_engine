@@ -37,12 +37,15 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <cJSON.h>
 #include <platform/dirutils.h>
 
+#include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #define STATWRITER_NAMESPACE couchstore_engine
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
+#include "vbucket.h"
 
 #include <JSON_checker.h>
 #include <snappy-c.h>

@@ -22,6 +22,7 @@
 #include <limits>
 
 #include "checkpoint.h"
+#include "common.h"
 #include "ep.h"
 #include "histo.h"
 #include "item.h"

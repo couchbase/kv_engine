@@ -15,25 +15,22 @@
  *   limitations under the License.
  */
 
-#include "config.h"
+#include "warmup.h"
 
 #include <limits>
-#include <list>
-#include <map>
 #include <string>
 #include <utility>
-#include <vector>
 #include <array>
 #include <random>
 
+#include "common.h"
+#include "connmap.h"
 #include "ep_engine.h"
 #include "failover-table.h"
+#include "mutation_log.h"
 #define STATWRITER_NAMESPACE warmup
 #include "statwriter.h"
 #undef STATWRITER_NAMESPACE
-#include "mutation_log.h"
-#include "connmap.h"
-#include "warmup.h"
 
 struct WarmupCookie {
     WarmupCookie(EventuallyPersistentStore *s, Callback<GetValue>&c) :

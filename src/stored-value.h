@@ -20,17 +20,7 @@
 
 #include "config.h"
 
-#include <algorithm>
-#include <climits>
-#include <cstring>
-#include <string>
-
-#include "ep_time.h"
-#include "histo.h"
-#include "item.h"
 #include "item_pager.h"
-#include "locks.h"
-#include "stats.h"
 #include "utility.h"
 
 // Forward declaration for StoredValue

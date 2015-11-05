@@ -18,6 +18,8 @@
 #include "bloomfilter.h"
 #include "murmurhash3.h"
 
+#include <cmath>
+
 #if __x86_64__ || __ppc64__
 #define MURMURHASH_3 MurmurHash3_x64_128
 #else

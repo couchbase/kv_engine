@@ -30,11 +30,13 @@
 #include <vector>
 
 #include "access_scanner.h"
+#include "bgfetcher.h"
 #include "checkpoint_remover.h"
 #include "conflict_resolution.h"
 #include "defragmenter.h"
 #include "ep.h"
 #include "ep_engine.h"
+#include "ext_meta_parser.h"
 #include "failover-table.h"
 #include "flusher.h"
 #include "htresizer.h"

@@ -27,9 +27,9 @@
 #include <string>
 #include <vector>
 
-#include "common.h"
 #include "locks.h"
 #include "syncobject.h"
+#include "tapconnection.h"
 #include "atomicqueue.h"
 
 // Forward declaration

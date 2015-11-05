@@ -20,8 +20,6 @@
 
 #include "config.h"
 
-#include <string>
-
 #include "utility.h"
 
 enum type_id_t {

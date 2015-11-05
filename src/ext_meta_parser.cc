@@ -17,6 +17,8 @@
 
 #include "ext_meta_parser.h"
 
+#include <cstring>
+
 ExtendedMetaData::ExtendedMetaData(const void *meta, uint16_t nmeta) {
     len = nmeta;
     data = static_cast<const char*>(meta);
