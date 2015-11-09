@@ -958,16 +958,11 @@ cJSON* McbpConnection::toJSON() const {
         cJSON_AddNumberToObject(obj, "nevents", numEvents);
         cJSON_AddStringToObject(obj, "state", getStateName());
 
-        {
-            cJSON* cmdarr = cJSON_CreateArray();
-            cJSON_AddItemToArray(cmdarr, json_create_uintptr(cmd));
-            const char* cmd_name = memcached_opcode_2_text(cmd);
-            if (cmd_name == NULL) {
-                cmd_name = "";
-            }
-            cJSON_AddItemToArray(cmdarr, cJSON_CreateString(cmd_name));
-
-            cJSON_AddItemToObject(obj, "cmd", cmdarr);
+        const char* cmd_name = memcached_opcode_2_text(cmd);
+        if (cmd_name == nullptr) {
+            json_add_uintptr_to_object(obj, "cmd", cmd);
+        } else {
+            cJSON_AddStringToObject(obj, "cmd", cmd_name);
         }
 
         json_add_bool_to_object(obj, "registered_in_libevent",
@@ -985,13 +980,27 @@ cJSON* McbpConnection::toJSON() const {
         json_add_uintptr_to_object(obj, "ritem", (uintptr_t)ritem);
         cJSON_AddNumberToObject(obj, "rlbytes", rlbytes);
         json_add_uintptr_to_object(obj, "item", (uintptr_t)item);
+
         {
             cJSON* iovobj = cJSON_CreateObject();
             cJSON_AddNumberToObject(iovobj, "size", iov.size());
             cJSON_AddNumberToObject(iovobj, "used", iovused);
 
+            cJSON* array = cJSON_CreateArray();
+            for (size_t ii = 0; ii < iovused; ++ii) {
+                cJSON* o = cJSON_CreateObject();
+                json_add_uintptr_to_object(o, "base", (uintptr_t)iov[ii].iov_base);
+                json_add_uintptr_to_object(o, "len", (uintptr_t)iov[ii].iov_len);
+                cJSON_AddItemToArray(array, o);
+            }
+            if (cJSON_GetArraySize(array) > 0) {
+                cJSON_AddItemToObject(iovobj, "vector", array);
+            } else {
+                cJSON_Delete(array);
+            }
             cJSON_AddItemToObject(obj, "iov", iovobj);
         }
+
         {
             cJSON* msg = cJSON_CreateObject();
             cJSON_AddNumberToObject(msg, "size", msglist.capacity());
