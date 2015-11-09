@@ -986,8 +986,11 @@ cJSON* McbpConnection::toJSON() const {
         cJSON_AddItemToObject(obj, "read", to_json(read));
         cJSON_AddItemToObject(obj, "write", to_json(write));
 
-        json_add_uintptr_to_object(obj, "write_and_go",
-                                   (uintptr_t)write_and_go);
+        if (write_and_go != nullptr) {
+            cJSON_AddStringToObject(obj, "write_and_go",
+                                    stateMachine->getTaskName(write_and_go));
+
+        }
         json_add_uintptr_to_object(obj, "write_and_free",
                                    (uintptr_t)write_and_free);
         json_add_uintptr_to_object(obj, "ritem", (uintptr_t)ritem);
