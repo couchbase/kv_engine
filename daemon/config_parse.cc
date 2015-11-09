@@ -20,6 +20,7 @@
 #include "config_parse.h"
 #include "connections.h"
 #include "runtime.h"
+#include "settings.h"
 
 static void do_asprintf(char **strp, const char *fmt, ...)
 {
@@ -375,6 +376,18 @@ static bool get_verbosity(cJSON *o, struct settings *settings,
     if (get_int_value(o, o->string, &verbosity, error_msg)) {
         settings->verbose.store(verbosity);
         settings->has.verbose = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+static bool get_connection_idle_time(cJSON *o, struct settings *settings,
+                          char **error_msg) {
+    int value;
+    if (get_int_value(o, o->string, &value, error_msg)) {
+        settings->connection_idle_time = (size_t)value;
+        settings->has.connection_idle_time = true;
         return true;
     } else {
         return false;
@@ -1145,6 +1158,13 @@ static bool dyna_validate_verbosity(const struct settings *new_settings,
     return true;
 }
 
+static bool dyna_validate_connection_idle_time(const struct settings *new_settings,
+                                               cJSON* errors)
+{
+    /* connection_idle_time *is* dynamic */
+    return true;
+}
+
 static bool dyna_validate_bio_drain_sz(const struct settings *new_settings,
                                               cJSON* errors)
 {
@@ -1335,6 +1355,19 @@ static void dyna_reconfig_verbosity(const struct settings *new_settings) {
     }
 }
 
+static void dyna_reconfig_connection_idle_time(
+    const struct settings* new_settings) {
+    if (new_settings->has.connection_idle_time) {
+        if (new_settings->connection_idle_time !=
+            settings.connection_idle_time) {
+            LOG_NOTICE(nullptr, "Changed connection_idle_time from %us to %us",
+                       (unsigned int)settings.connection_idle_time,
+                       (unsigned int)new_settings->connection_idle_time);
+            settings.connection_idle_time = new_settings->connection_idle_time;
+        }
+    }
+}
+
 static void dyna_reconfig_rbac_privilege_debug(const struct settings *new_settings) {
     if (new_settings->has.rbac_privilege_debug) {
         auth_set_privilege_debug(new_settings->rbac_privilege_debug);
@@ -1417,6 +1450,8 @@ struct {
     { "reqs_per_event_low_priority", get_reqs_per_event_low_priority,
       dyna_validate_reqs_per_event_low_priority, dyna_reconfig_reqs_per_event_low_priority },
     { "verbosity", get_verbosity, dyna_validate_verbosity, dyna_reconfig_verbosity },
+    { "connection_idle_time", get_connection_idle_time,
+        dyna_validate_connection_idle_time, dyna_reconfig_connection_idle_time },
     { "bio_drain_buffer_sz", get_bio_drain_sz, dyna_validate_bio_drain_sz, NULL },
     { "datatype_support", get_datatype, dyna_validate_datatype, NULL },
     { "root", get_root, dyna_validate_root, NULL},

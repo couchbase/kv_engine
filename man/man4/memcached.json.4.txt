@@ -234,6 +234,16 @@ meaningless for most people.
 *verbosity* may be updated by instructing memcached to reread
 the configuration file.
 
+=== connection_idle_time
+
+The *connection_idle_time* attribute is an integral value specifying the
+number of seconds a connection may be idle until the server will disconnect.
+
+By default the connection idle time is set to 5 minutes.
+
+*connection_idle_time* may be updated by instructing memcached to reread the
+configuration file.
+
 === datatype_support
 
 The *datatype_support* attribute is a boolean value to enable the support

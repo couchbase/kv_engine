@@ -192,6 +192,7 @@ static cJSON* get_baseline_settings(const char* temp_file)
     cJSON_AddNumberToObject(baseline, "reqs_per_event_med_priority", 10);
     cJSON_AddNumberToObject(baseline, "reqs_per_event_high_priority", 20);
     cJSON_AddNumberToObject(baseline, "verbosity", 1);
+    cJSON_AddNumberToObject(baseline, "connection_idle_time", 300);
     cJSON_AddNumberToObject(baseline, "bio_drain_buffer_sz", 1);
     cJSON_AddFalseToObject(baseline, "rbac_privilege_debug");
     cJSON_AddTrueToObject(baseline, "datatype_support");
@@ -602,6 +603,13 @@ static void test_dynamic_verbosity(struct test_ctx *ctx) {
     cb_assert(validate_dynamic_JSON_changes(ctx));
 }
 
+static void test_dynamic_connection_idle_time(struct test_ctx *ctx) {
+    /* CAN change connection_idle_time */
+    cJSON_ReplaceItemInObject(ctx->dynamic, "connection_idle_time",
+                              cJSON_CreateNumber(600));
+    cb_assert(validate_dynamic_JSON_changes(ctx));
+}
+
 static void test_dynamic_bio_drain_buffer_sz(struct test_ctx *ctx) {
     /* Cannot change dynamic_bio_drain_buffer_sz */
     cJSON_ReplaceItemInObject(ctx->dynamic, "bio_drain_buffer_sz",
@@ -757,6 +765,7 @@ int main(void)
         { "dynamic_require_init", setup_dynamic, test_dynamic_require_init, teardown_dynamic },
         { "dynamic_reqs_per_event", setup_dynamic, test_dynamic_reqs_per_event, teardown_dynamic },
         { "dynamic_verbosity", setup_dynamic, test_dynamic_verbosity, teardown_dynamic },
+        { "dynamic_connection_idle_time", setup_dynamic, test_dynamic_connection_idle_time, teardown_dynamic },
         { "dynamic_bio_drain_buffer_sz", setup_dynamic, test_dynamic_bio_drain_buffer_sz, teardown_dynamic },
         { "dynamic_datatype", setup_dynamic, test_dynamic_datatype, teardown_dynamic },
         { "root", setup_dynamic, test_dynamic_root, teardown_dynamic },

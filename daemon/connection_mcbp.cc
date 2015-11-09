@@ -19,11 +19,11 @@
 #include "memcached.h"
 #include "runtime.h"
 #include "statemachine_mcbp.h"
+#include "mc_time.h"
 
 #include <exception>
 #include <utilities/protocol2text.h>
 #include <platform/strerror.h>
-
 
 /* cJSON uses double for all numbers, so only has 53 bits of precision.
  * Therefore encode 64bit integers as string.
@@ -82,15 +82,18 @@ bool McbpConnection::registerEvent() {
 
     cb_assert(socketDescriptor != INVALID_SOCKET);
 
-    if (event_add(&event, NULL) == -1) {
-        log_system_error(EXTENSION_LOG_WARNING,
-                         NULL,
+    struct timeval tv;
+    tv.tv_sec = settings.connection_idle_time;
+    tv.tv_usec = 0;
+    ev_insert_time = mc_time_get_current_time();
+
+    if (event_add(&event, &tv) == -1) {
+        log_system_error(EXTENSION_LOG_WARNING, nullptr,
                          "Failed to add connection to libevent: %s");
         return false;
     }
 
     registered_in_libevent = true;
-
     return true;
 }
 
@@ -115,15 +118,25 @@ bool McbpConnection::updateEvent(const short new_flags) {
     }
 
     if (ev_flags == new_flags) {
-        // There is no change in the event flags!
-        return true;
+        // We do "cache" the current libevent state (using EV_PERSIST) to avoid
+        // having to re-register it when it doesn't change (which it mostly don't).
+        // In order to avoid having clients to falsely "time out" due to that they
+        // never update their libevent state we'll forcibly re-enter it half way
+        // into the timeout.
+        rel_time_t now = mc_time_get_current_time();
+        const int reinsert_time = settings.connection_idle_time / 2;
+
+        if (ev_insert_time + reinsert_time < now) {
+            return true;
+        } else {
+            LOG_DEBUG(this, "%u: Forcibly reset the event connection flags to"
+                " avoid premature timeout", getId());
+        }
     }
 
-    if (settings.verbose > 1) {
-        LOG_DEBUG(NULL, "Updated event for %u to read=%s, write=%s\n",
-                  getId(), (new_flags & EV_READ ? "yes" : "no"),
-                  (new_flags & EV_WRITE ? "yes" : "no"));
-    }
+    LOG_DEBUG(NULL, "%u: Updated event to read=%s, write=%s\n",
+              getId(), (new_flags & EV_READ ? "yes" : "no"),
+              (new_flags & EV_WRITE ? "yes" : "no"));
 
     if (!unregisterEvent()) {
         LOG_DEBUG(this,

@@ -20,6 +20,7 @@
 #include <memcached/engine.h>
 
 #include <atomic>
+#include <relaxed_atomic.h>
 
 /**
  * An enumeration with constants for the various protocols supported
@@ -94,6 +95,8 @@ struct settings {
     bool rbac_privilege_debug; /* see manpage */
     bool require_sasl;      /* require SASL auth */
     std::atomic<int> verbose;            /* level of versosity to log at. */
+    /** The number of seconds a client may be idle before it is disconnected */
+    Couchbase::RelaxedAtomic<size_t> connection_idle_time;
     unsigned int bio_drain_buffer_sz; /* size of the SSL bio buffers */
     bool datatype;          /* is datatype support enabled? */
     const char *root; /* The root directory of the installation */
@@ -151,6 +154,7 @@ struct settings {
         bool reqs_per_event_low_priority;
         bool default_reqs_per_event;
         bool verbose;
+        bool connection_idle_time;
         bool bio_drain_buffer_sz;
         bool datatype;
         bool root;

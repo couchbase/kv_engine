@@ -708,6 +708,8 @@ protected:
     short ev_flags;
     /** which events were just triggered */
     short currentEvent;
+    /** When we inserted the object in libevent */
+    rel_time_t ev_insert_time;
 
     /** which state to go into after finishing current write */
     TaskFunction write_and_go;

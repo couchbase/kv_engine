@@ -406,6 +406,7 @@ static void settings_init(void) {
     settings.bio_drain_buffer_sz = 8192;
 
     settings.verbose = 0;
+    settings.connection_idle_time = 5 * 60; // 5 minutes
     settings.num_threads = get_number_of_worker_threads();
     settings.require_sasl = false;
     settings.extensions.logger = get_stderr_logger();
@@ -801,6 +802,11 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
 
     /* sanity */
     cb_assert(fd == c->getSocketDescriptor());
+
+    if ((which & EV_TIMEOUT) == EV_TIMEOUT) {
+        LOG_NOTICE(c, "%u: Shutting down idle client", c->getId());
+        c->initateShutdown();
+    }
 
     run_event_loop(c, which);
 
