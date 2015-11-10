@@ -1355,6 +1355,11 @@ extern "C"
 #define DCP_ADD_STREAM_FLAG_TAKEOVER 1
 #define DCP_ADD_STREAM_FLAG_DISKONLY 2
 #define DCP_ADD_STREAM_FLAG_LATEST   4
+                /**
+                 * Indicate the server to stream only item key and metadata in
+                 * the mutations. Value of the item is not streamed.
+                 */
+#define DCP_ADD_STREAM_FLAG_NO_VALUE 8
                 uint32_t flags;
             } body;
         } message;
