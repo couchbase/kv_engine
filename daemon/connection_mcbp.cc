@@ -960,6 +960,35 @@ static cJSON* to_json(const struct net_buf &buffer) {
     return json;
 }
 
+/**
+ * Get a JSON representation of an event mask
+ *
+ * @param mask the mask to convert to JSON
+ * @return the json representation. Caller is responsible for calling
+ *         cJSON_Delete()
+ */
+static cJSON* event_mask_to_json(const short mask) {
+    cJSON* ret = cJSON_CreateObject();
+    cJSON* array = cJSON_CreateArray();
+
+    json_add_uintptr_to_object(ret, "raw", mask);
+    if (mask & EV_READ) {
+        cJSON_AddItemToArray(array, cJSON_CreateString("read"));
+    }
+    if (mask & EV_WRITE) {
+        cJSON_AddItemToArray(array, cJSON_CreateString("write"));
+    }
+    if (mask & EV_PERSIST) {
+        cJSON_AddItemToArray(array, cJSON_CreateString("persist"));
+    }
+    if (mask & EV_TIMEOUT) {
+        cJSON_AddItemToArray(array, cJSON_CreateString("timeout"));
+    }
+
+    cJSON_AddItemToObject(ret, "decoded", array);
+    return ret;
+}
+
 cJSON* McbpConnection::toJSON() const {
     cJSON* obj = Connection::toJSON();
     if (obj != nullptr) {
@@ -978,11 +1007,16 @@ cJSON* McbpConnection::toJSON() const {
             cJSON_AddStringToObject(obj, "cmd", cmd_name);
         }
 
-        json_add_bool_to_object(obj, "registered_in_libevent",
-                                isRegisteredInLibevent());
-        json_add_uintptr_to_object(obj, "ev_flags",
-                                   (uintptr_t)getEventFlags());
-        json_add_uintptr_to_object(obj, "which", (uintptr_t)getCurrentEvent());
+        {
+            cJSON* o = cJSON_CreateObject();
+            json_add_bool_to_object(o, "registered",
+                                    isRegisteredInLibevent());
+            cJSON_AddItemToObject(o, "ev_flags", event_mask_to_json(ev_flags));
+            cJSON_AddItemToObject(o, "which", event_mask_to_json(currentEvent));
+
+            cJSON_AddItemToObject(obj, "libevent", o);
+        }
+
         cJSON_AddItemToObject(obj, "read", to_json(read));
         cJSON_AddItemToObject(obj, "write", to_json(write));
 
