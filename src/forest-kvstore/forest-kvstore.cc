@@ -460,6 +460,27 @@ void ForestKVStore::delVBucket(uint16_t vbucket) {
     cachedVBStates[vbucket] = new vbucket_state(vbucket_state_dead, 0, 0, 0, 0,
                                                 0, 0, 0, INITIAL_DRIFT,
                                                 failovers);
+
+    vbucket_state *state = cachedVBStates[vbucket];
+    std::string stateStr = state->toJSON();
+
+    if (!stateStr.empty()) {
+        fdb_doc statDoc;
+        memset(&statDoc, 0, sizeof(statDoc));
+        statDoc.key = kvsName;
+        statDoc.keylen = strlen(kvsName);
+        statDoc.meta = NULL;
+        statDoc.metalen = 0;
+        statDoc.body = const_cast<char *>(stateStr.c_str());
+        statDoc.bodylen = stateStr.length();
+        fdb_status status = fdb_set(vbStateHandle, &statDoc);
+
+        if (status != FDB_RESULT_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING, "ForestKVStore::delVBucket: Failed to "
+                    "save vbucket state for vbucket=%" PRIu16" error=%s",
+                    vbucket, fdb_error_msg(status));
+        }
+    }
 }
 
 ENGINE_ERROR_CODE ForestKVStore::forestErr2EngineErr(fdb_status errCode) {
