@@ -62,6 +62,11 @@ static void release_connection(Connection *c);
 /** External functions *******************************************************/
 int signal_idle_clients(LIBEVENT_THREAD *me, int bucket_idx, bool logging)
 {
+    // We've got a situation right now where we're seeing that
+    // some of the connections is "stuck". Let's dump all
+    // information until we solve the bug.
+    logging = true;
+
     int connected = 0;
     std::lock_guard<std::mutex> lock(connections.mutex);
     for (auto* c : connections.conns) {
