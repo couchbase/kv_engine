@@ -796,7 +796,7 @@ static bool parse_breakpad(cJSON *o, struct settings *settings,
     bool error = false;
 
 
-    for(cJSON *p = o->child; p != NULL && error == false; p = p->next) {
+    for(cJSON *p = o->child; p != NULL && !error; p = p->next) {
         if (strcasecmp("enabled", p->string) == 0) {
             if (!get_bool_value(p, "breapad enabled", &enabled,
                                   error_msg)) {

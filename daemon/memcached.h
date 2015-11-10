@@ -105,14 +105,14 @@ struct LIBEVENT_THREAD {
     JSON_checker::Validator *validator;
 };
 
-#define LOCK_THREAD(t)                          \
-    cb_mutex_enter(&t->mutex);                  \
-    cb_assert(t->is_locked == false);              \
+#define LOCK_THREAD(t) \
+    cb_mutex_enter(&t->mutex); \
+    cb_assert(!t->is_locked); \
     t->is_locked = true;
 
-#define UNLOCK_THREAD(t)                         \
-    cb_assert(t->is_locked == true);                \
-    t->is_locked = false;                        \
+#define UNLOCK_THREAD(t) \
+    cb_assert(t->is_locked); \
+    t->is_locked = false; \
     cb_mutex_exit(&t->mutex);
 
 extern void notify_thread(LIBEVENT_THREAD *thread);
