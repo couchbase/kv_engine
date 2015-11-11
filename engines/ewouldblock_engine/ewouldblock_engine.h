@@ -60,24 +60,26 @@ extern "C" {
 // inject EWOULDBLOCK instead of the real return code.
 enum EWBEngine_Mode {
     EWBEngineMode_NEXT_N, // Make the next_N calls into engine return
-                          // EWOULDBLOCK. N specified by the {value} field.
+                          // {inject_error}. N specified by the {value} field.
   
-    EWBEngineMode_RANDOM, // Randomly return EWOULDBLOCK. Chance to return
-                          // EWOULDBLOCK is specified as an integer
+    EWBEngineMode_RANDOM, // Randomly return {inject_error}. Chance to return
+                          // {inject_error} is specified as an integer
                           // percentage (1,100) in the {value} field.
   
     EWBEngineMode_FIRST,  // The first call to a given function from each
-                          // connection will return EWOULDBLOCK, with the
+                          // connection will return {inject_error}, with the
                           // next (and subsequent) calls to he *same*
                           // function operating normally. Calling a
                           // different function will reset back to
                           // failing again.  In other words, return
-                          // EWOULDBLOCK iif the previous function was not
+                          // {inject_error} iif the previous function was not
                           // this one.
+
     EWBEngineMode_SEQUENCE, // Make the next N calls return a sequence of either
                           // their normal value or the injected error code.
                           // The sequence can be up to 32 elements long.
-    EWBEngineMode_CAS_MISMATCH // Simulate CAS mismatch - make the next N
+
+    EWBEngineMode_CAS_MISMATCH, // Simulate CAS mismatch - make the next N
                           // store operations return KEY_EEXISTS. N specified
                           // by the {value} field.
 };

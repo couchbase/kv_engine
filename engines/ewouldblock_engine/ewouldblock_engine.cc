@@ -55,6 +55,7 @@
 #include <mutex>
 #include <queue>
 #include <random>
+#include <sstream>
 #include <string>
 
 #include <memcached/engine.h>
@@ -427,6 +428,21 @@ public:
         abort();
     }
 
+    static ENGINE_ERROR_CODE get_engine_vb_map(ENGINE_HANDLE* handle,
+                                               const void * cookie,
+                                               engine_get_vb_map_cb callback) {
+        // Used to test NOT_MY_VBUCKET - just return a dummy config.
+        EWB_Engine* ewb = to_engine(handle);
+        auto logger = ewb->gsa()->log->get_logger();
+        logger->log(EXTENSION_LOG_DEBUG, NULL, "EWB_Engine::get_engine_vb_map");
+
+        const char dummy_vb_map[] = "EWB_Engine dummy vb map";
+        callback(cookie, dummy_vb_map, strlen(dummy_vb_map));
+
+        return ENGINE_SUCCESS;
+    }
+
+
     GET_SERVER_API gsa;
     union {
         engine_info eng_info;
@@ -562,10 +578,11 @@ private:
         }
 
         std::string to_string() const {
-            return std::string("ErrSequence") +
-                   " inject_error=" + std::to_string(injected_error) +
-                   " sequence=" + std::to_string(sequence) +
-                   " pos=" + std::to_string(pos);
+            std::stringstream ss;
+            ss << "ErrSequence inject_error=" << injected_error
+               << " sequence=0x" << std::hex << sequence
+               << " pos=" << pos;
+            return ss.str();
         }
 
     private:
@@ -644,7 +661,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::item_set_cas = item_set_cas;
     ENGINE_HANDLE_V1::get_item_info = get_item_info;
     ENGINE_HANDLE_V1::set_item_info = set_item_info;
-    ENGINE_HANDLE_V1::get_engine_vb_map = NULL;
+    ENGINE_HANDLE_V1::get_engine_vb_map = get_engine_vb_map;
     ENGINE_HANDLE_V1::get_stats_struct = NULL;
     ENGINE_HANDLE_V1::set_log_level = NULL;
 
