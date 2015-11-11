@@ -12434,7 +12434,7 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         ss << "key-" << j;
         std::string key(ss.str());
 
-        item *i;
+        item *i = NULL;
         ENGINE_ERROR_CODE err = store(h, h1, NULL, OPERATION_SET, key.c_str(),
                                       data, &i);
         h1->release(h, NULL, i);
