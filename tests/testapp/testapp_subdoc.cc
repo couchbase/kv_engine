@@ -1815,6 +1815,56 @@ TEST_P(McdTestappTest, SubdocExpiry_Single)
     EXPECT_EQ("[\"b\"]", result.second);
 }
 
+// Test handling of not-my-vbucket for a SUBDOC_GET
+TEST_P(McdTestappTest, SubdocGet_NotMyVbucket)
+{
+    const char array[] = "[0]";
+    store_object("array", array);
+
+    // Make the next engine operation (get) return NOT_MY_VBUCKET.
+    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode_NEXT_N, 1);
+
+    // Should fail with NOT-MY-VBUCKET, and a non-zero length body including the
+    // cluster config.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[0]"),
+                      PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+                      "EWB_Engine dummy vb map");
+
+    // Second attempt should succced (as only next 1 engine op was set to fail).
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[0]"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "0");
+
+    delete_object("array");
+}
+
+// Test handling of not-my-vbucket for a SUBDOC_DICT_ADD
+TEST_P(McdTestappTest, SubdocArrayPushLast_NotMyVbucket)
+{
+    const char array[] = "[0]";
+    store_object("array", array);
+
+    // Configure the ewouldblock_engine to inject fake NOT-MY-VBUCKET failure
+    // for the 3rd call (i.e. the 1st engine->store() attempt). We only expect 6 calls
+    // total, so also make anything after that fail.
+    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode_SEQUENCE,
+                                 0xffffffc4 /* <3 MSBytes all-ones>, 0b11,000,100 */);
+
+    // Should fail with NOT-MY-VBUCKET, and a non-zero length body including the
+    // cluster config.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+                                "array", "", "1"),
+                      PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+                      "EWB_Engine dummy vb map");
+
+    // Second attempt should succced (as only next 1 engine op was set to fail).
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+                                "array", "", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+    // Cleanup.
+    ewouldblock_engine_disable();
+    delete_object("array");
+}
 
 // Tests how a single worker handles multiple "concurrent" connections
 // performing operations.
