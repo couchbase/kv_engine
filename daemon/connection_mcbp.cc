@@ -139,21 +139,27 @@ bool McbpConnection::updateEvent(const short new_flags) {
               (new_flags & EV_WRITE ? "yes" : "no"));
 
     if (!unregisterEvent()) {
-        LOG_DEBUG(this,
-                  "Failed to remove connection from event notification "
-                      "library. Shutting down connection [%s - %s]",
-                  getPeername().c_str(),
-                  getSockname().c_str());
+        LOG_WARNING(this,
+                    "Failed to remove connection from event notification "
+                        "library. Shutting down connection [%s - %s]",
+                    getPeername().c_str(),
+                    getSockname().c_str());
         return false;
     }
 
-    event_set(&event, socketDescriptor, new_flags, event_handler,
-              reinterpret_cast<void*>(this));
-    event_base_set(base, &event);
+    if (event_assign(&event, base, socketDescriptor, new_flags, event_handler,
+              reinterpret_cast<void*>(this)) == -1) {
+        LOG_WARNING(this,
+                    "Failed to set up event notification. "
+                        "Shutting down connection [%s - %s]",
+                    getPeername().c_str(),
+                    getSockname().c_str());
+        return false;
+    }
     ev_flags = new_flags;
 
     if (!registerEvent()) {
-        LOG_DEBUG(this,
+        LOG_WARNING(this,
                   "Failed to add connection to the event notification "
                       "library. Shutting down connection [%s - %s]",
                   getPeername().c_str(),
@@ -166,9 +172,11 @@ bool McbpConnection::updateEvent(const short new_flags) {
 
 bool McbpConnection::initializeEvent() {
     short event_flags = (EV_READ | EV_PERSIST);
-    event_set(&event, socketDescriptor, event_flags, event_handler,
-              reinterpret_cast<void*>(this));
-    event_base_set(base, &event);
+
+    if (event_assign(&event, base, socketDescriptor, event_flags, event_handler,
+                     reinterpret_cast<void*>(this)) == -1) {
+        return false;
+    }
     ev_flags = event_flags;
 
     return registerEvent();

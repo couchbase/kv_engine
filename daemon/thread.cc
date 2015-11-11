@@ -153,12 +153,15 @@ static void setup_dispatcher(struct event_base *main_base,
     if (!create_notification_pipe(&dispatcher_thread)) {
         FATAL_ERROR(EXIT_FAILURE, "Unable to create notification pipe");
     }
-    /* Listen for notifications from other threads */
-    event_set(&dispatcher_thread.notify_event, dispatcher_thread.notify[0],
-              EV_READ | EV_PERSIST, dispatcher_callback, &dispatcher_callback);
-    event_base_set(dispatcher_thread.base, &dispatcher_thread.notify_event);
 
-    if (event_add(&dispatcher_thread.notify_event, 0) == -1) {
+    /* Listen for notifications from other threads */
+    if ((event_assign(&dispatcher_thread.notify_event,
+                      dispatcher_thread.base,
+                      dispatcher_thread.notify[0],
+                      EV_READ | EV_PERSIST,
+                      dispatcher_callback,
+                      nullptr) == -1) ||
+        (event_add(&dispatcher_thread.notify_event, 0) == -1)) {
         FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
     }
 }
@@ -184,12 +187,11 @@ static void setup_thread(LIBEVENT_THREAD *me) {
     }
 
     /* Listen for notifications from other threads */
-    event_set(&me->notify_event, me->notify[0],
-              EV_READ | EV_PERSIST,
-              thread_libevent_process, me);
-    event_base_set(me->base, &me->notify_event);
-
-    if (event_add(&me->notify_event, 0) == -1) {
+    if ((event_assign(&me->notify_event, me->base, me->notify[0],
+                      EV_READ | EV_PERSIST,
+                      thread_libevent_process,
+                      me) == -1) ||
+        (event_add(&me->notify_event, 0) == -1)) {
         FATAL_ERROR(EXIT_FAILURE, "Can't monitor libevent notify pipe");
     }
 
