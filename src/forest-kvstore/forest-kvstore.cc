@@ -662,11 +662,61 @@ bool ForestKVStore::save2forestdb(Callback<kvstats_ctx> *cb) {
         return true;
     }
 
+    uint16_t maxVbuckets = configuration.getMaxVBuckets();
+    uint16_t numShards = configuration.getMaxShards();
+    uint16_t shardId = configuration.getShardId();
+
+    for (uint16_t vbid = shardId; vbid < maxVbuckets; vbid += numShards) {
+        vbucket_state *state = cachedVBStates[vbid];
+        if (state != nullptr) {
+            std::string stateStr = state->toJSON();
+            if (!stateStr.empty()) {
+                fdb_doc statDoc;
+                memset(&statDoc, 0, sizeof(statDoc));
+                char kvsName[20];
+                statDoc.keylen = snprintf(kvsName, sizeof(kvsName),"partition%d", vbid);
+                statDoc.key = kvsName;
+                statDoc.meta = NULL;
+                statDoc.metalen = 0;
+                statDoc.body = const_cast<char *>(stateStr.c_str());
+                statDoc.bodylen = stateStr.length();
+                fdb_status status = fdb_set(vbStateHandle, &statDoc);
+
+                if (status != FDB_RESULT_SUCCESS) {
+                    throw std::runtime_error("ForestKVStore::save2forestdb: "
+                        "Failed to save vbucket state for vbucket id: " +
+                        std::to_string(vbid) + " with error: " +
+                        std::string(fdb_error_msg(status)));
+                }
+            }
+        }
+    }
+
     fdb_status status = fdb_commit(dbFileHandle, FDB_COMMIT_NORMAL);
     if (status != FDB_RESULT_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "fdb_commit failed with error: %s", fdb_error_msg(status));
-        return false;
+        throw std::runtime_error("ForestKVStore::save2forestdb: "
+            "fdb_commit failed for shard id: " + std::to_string(shardId) +
+            "with error: " + std::string(fdb_error_msg(status)));
+    }
+
+    for (uint16_t vbId = shardId; vbId < maxVbuckets; vbId += numShards) {
+        fdb_kvs_handle *kvsHandle = getKvsHandle(vbId, handleType::READER);
+        fdb_kvs_info kvsInfo;
+        fdb_status status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
+
+        if (status == FDB_RESULT_SUCCESS) {
+            cachedDeleteCount[vbId] = kvsInfo.deleted_count;
+            cachedDocCount[vbId] = kvsInfo.doc_count;
+            vbucket_state *state = cachedVBStates[vbId];
+            if (state) {
+                state->highSeqno = kvsInfo.last_seqnum;
+            }
+        } else {
+            throw std::runtime_error("ForestKVStore::save2forestdb: "
+                "Failed to get KV store info for vbucket id: " +
+                std::to_string(vbId) + " with error: " +
+                std::string(fdb_error_msg(status)));
+        }
     }
 
     commitCallback(pendingReqsQ);
