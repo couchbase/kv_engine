@@ -19,7 +19,6 @@
 
 #include "ep_engine.h"
 #include "failover-table.h"
-#include "connmap.h"
 #include "replicationthrottle.h"
 #include "dcp/stream.h"
 #include "dcp/response.h"
@@ -584,6 +583,10 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
 }
 
 bool RollbackTask::run() {
+    DcpConsumer* cons = static_cast<DcpConsumer*>(conn.get());
+    if (cons->doDisconnect()) {
+        return false;
+    }
     if (cons->doRollback(opaque, vbid, rollbackSeqno)) {
         return true;
     }

@@ -5437,8 +5437,6 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_ROLLBACK);
 
-    testHarness.destroy_cookie(cookie);
-
     wait_for_flusher_to_settle(h, h1);
     wait_for_rollback_to_finish(h, h1);
 
@@ -5448,6 +5446,8 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
             "Replica rollback count does not match");
     checkeq(num_items, get_int_stat(h, h1, "rollback_item_count"),
             "Aggr rollback count does not match");
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }

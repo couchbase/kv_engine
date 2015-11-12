@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include "connmap.h"
 #include "dcp/flow-control.h"
 #include "dcp/stream.h"
 #include "tapconnection.h"
@@ -178,11 +179,11 @@ class RollbackTask : public GlobalTask {
 public:
     RollbackTask(EventuallyPersistentEngine* e,
                  uint32_t opaque_, uint16_t vbid_,
-                 uint64_t rollbackSeqno_, DcpConsumer *conn,
+                 uint64_t rollbackSeqno_, connection_t c,
                  const Priority &p):
         GlobalTask(e, p, 0, false), engine(e),
         opaque(opaque_), vbid(vbid_), rollbackSeqno(rollbackSeqno_),
-        cons(conn) { }
+        conn(c) { }
 
     std::string getDescription() {
         return std::string("Running rollback task for vbucket %d", vbid);
@@ -195,7 +196,7 @@ private:
     uint32_t opaque;
     uint16_t vbid;
     uint64_t rollbackSeqno;
-    DcpConsumer* cons;
+    connection_t conn;
 };
 
 #endif  // SRC_DCP_CONSUMER_H_
