@@ -105,6 +105,8 @@ private:
 
     void operator=(const LockHolder&);
 };
+#define LockHolder(x) \
+    static_assert(false, "LockHolder: missing variable name for scoped lock.")
 
 /**
  * RAII lock holder over multiple locks.
@@ -164,6 +166,8 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(MultiLockHolder);
 };
+#define MultiLockHolder(x) \
+    static_assert(false, "MultiLockHolder: missing variable name for scoped lock.")
 
 // RAII Reader lock
 class ReaderLockHolder {
@@ -196,6 +200,8 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(ReaderLockHolder);
 };
+#define ReaderLockHolder(x) \
+    static_assert(false, "ReaderLockHolder: missing variable name for scoped lock.")
 
 // RAII Writer lock
 class WriterLockHolder {
@@ -228,6 +234,8 @@ private:
 
     DISALLOW_COPY_AND_ASSIGN(WriterLockHolder);
 };
+#define WriterLockHolder(x) \
+    static_assert(false, "WriterLockHolder: missing variable name for scoped lock.")
 
 /**
  * Lock holder wrapper to assist to debugging locking issues - Logs when the
