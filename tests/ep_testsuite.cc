@@ -8507,10 +8507,10 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
     checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
 
     // Update alog_sleep_time and ensure the update is successful
+    int update_by = 10;
     time_t now = time(NULL);
-    set_param(h, h1, protocol_binary_engine_param_flush, "alog_sleep_time", "10");
     struct tm curr = *(gmtime(&now));
-    curr.tm_min += 10;
+    curr.tm_min += update_by;
 #ifdef _MSC_VER
     _mkgmtime(&curr);
 #else
@@ -8518,11 +8518,29 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
 #endif
     char timeStr[20];
     strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
-    std::string targetTaskTime(timeStr);
+    std::string targetTaskTime1(timeStr);
+
+    set_param(h, h1, protocol_binary_engine_param_flush, "alog_sleep_time",
+              std::to_string(update_by).c_str());
     str = get_str_stat(h, h1, "ep_access_scanner_task_time");
-    err_msg.assign("Unexpected task time, expect: " +
-                   targetTaskTime + ", actual: " + str);
-    checkeq(0, targetTaskTime.compare(str), err_msg.c_str());
+
+    now = time(NULL);
+    curr = *(gmtime(&now));
+    curr.tm_min += update_by;
+#ifdef _MSC_VER
+    _mkgmtime(&curr);
+#else
+    timegm(&curr);
+#endif
+    strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
+    std::string targetTaskTime2(timeStr);
+
+    // ep_access_scanner_task_time should fall within the range of
+    // targetTaskTime1 and targetTaskTime2
+    err_msg.assign("Unexpected task time range, expect: " +
+                   targetTaskTime1 + " <= " + str + " <= " + targetTaskTime2);
+    check(targetTaskTime1 <= str, err_msg.c_str());
+    check(str <= targetTaskTime2, err_msg.c_str());
 
     return SUCCESS;
 }
