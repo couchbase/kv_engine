@@ -23,8 +23,6 @@
 #include "tapconnection.h"
 #include "dcp-stream.h"
 
-typedef SingleThreadedRCPtr<Stream> stream_t;
-
 class DcpResponse;
 
 class DcpProducer : public Producer {
@@ -32,6 +30,8 @@ public:
 
     DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
                 const std::string &n, bool notifyOnly);
+
+    ~DcpProducer();
 
     ENGINE_ERROR_CODE streamRequest(uint32_t flags, uint32_t opaque,
                                     uint16_t vbucket, uint64_t start_seqno,
@@ -219,6 +219,7 @@ private:
     AtomicValue<size_t> totalBytesSent;
 
     size_t roundRobinVbReady;
+    ExTask checkpointCreatorTask;
     static const uint32_t defaultNoopInerval;
 };
 
