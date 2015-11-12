@@ -231,6 +231,40 @@ static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
     }
 }
 
+/* Formats a log entry (consisting {time, frac_of_second, severity, message})
+ * into the specified buffer.
+ * Returns the number of characters for the prefix (timestamp / severity).
+ */
+static int format_log_entry(char* buffer, size_t buf_len, time_t time,
+                            uint32_t frac_of_second,
+                            EXTENSION_LOG_LEVEL severity, const char* message) {
+    ISOTime::ISO8601String timestamp;
+    ISOTime::generatetimestamp(timestamp, time, frac_of_second);
+    const int prefix_len = snprintf(buffer, buf_len, "%s %s ", timestamp.data(),
+                                   severity2string(severity));
+    if (prefix_len < 0) {
+        return 0;
+    }
+
+    const int msglen = snprintf(buffer + prefix_len, buf_len - prefix_len,
+                                "%s", message);
+    if (msglen < 0) {
+        return 0;
+    }
+
+    if (size_t(prefix_len + msglen) > (buf_len - 1)) {
+        // Message cropped.
+        std::cerr << "Message too big to fit in event. Full message: "
+                  << message;
+        std::cerr.flush();
+
+        const char cropped[] = " [cut]";
+        snprintf(buffer + (buf_len - sizeof(cropped)), sizeof(cropped),
+                 "%s", cropped);
+    }
+    return prefix_len;
+}
+
 /* Takes the syslog compliant event and calls the native logging functionality */
 static void syslog_event_receiver(SyslogEvent *event) {
     uint8_t syslog_severity = event->prival & 7; /* Mask out all but 3 least-significant bits */
@@ -254,25 +288,9 @@ static void syslog_event_receiver(SyslogEvent *event) {
     }
 
     char buffer[2048];
-    ISOTime::ISO8601String timestamp;
-    ISOTime::generatetimestamp(timestamp, event->time, event->time_secfrac);
-    int offset = snprintf(buffer, sizeof(buffer), "%s %s ", timestamp.data(),
-                          severity2string(severity));
-    int prefixlen = offset;
-    int datalen = static_cast<int>(strlen(event->msg));
-
-    if (static_cast<size_t>((prefixlen + datalen)) >= sizeof(buffer)) {
-        std::cerr << buffer
-                  << "Message too big to fit in event. Full message: "
-                  << event->msg;
-        std::cerr.flush();
-
-        memcpy(buffer + offset, event->msg, sizeof(buffer) - prefixlen - 7);
-        memcpy(buffer + sizeof(buffer) - 7, " [cut]", 6);
-        buffer[sizeof(buffer) - 1] = '\0';
-    } else {
-        strcat(buffer + offset, event->msg);
-    }
+    const int prefixlen = format_log_entry(buffer, sizeof(buffer),
+                                           event->time, event->time_secfrac,
+                                           severity, event->msg);
 
     if (severity >= current_log_level || severity >= output_level) {
         if (severity >= output_level) {
@@ -364,13 +382,13 @@ static FILE *open_logfile(const char *fnm) {
     static unsigned int next_id = 0;
     char fname[1024];
     FILE *ret;
-    do {
-        sprintf(fname, "%s.%d.%s", fnm, next_id++, extension);
-    } while (access(fname, F_OK) == 0);
-    ret = iops.open(fname, "wb");
-    if (!ret) {
-        fprintf(stderr, "Failed to open memcached log file\n");
+    sprintf(fname, "%s.%d.%s", fnm, next_id, extension);
+    fprintf(stderr, "open_logfile() - testing '%s'\n", fname);
+    while (access(fname, F_OK) == 0) {
+        sprintf(fname, "%s.%d.%s", fnm, ++next_id, extension);
+        fprintf(stderr, "open_logfile() - testing '%s'\n", fname);
     }
+    ret = iops.open(fname, "wb");
     return ret;
 }
 
@@ -380,26 +398,56 @@ static void close_logfile(FILE *fp) {
     }
 }
 
-static FILE *reopen_logfile(FILE *old, const char *fnm) {
+static FILE *rotate_logfile(FILE *old, const char *fnm) {
+    FILE* new_log = open_logfile(fnm);
+    if (new_log == NULL && old != NULL) {
+        // Can't open the logfile. We already output messages of
+        // sufficient level to stderr, let's hope that's enough.
+        std::string msg("Failed to open next logfile: " +
+                        std::string(strerror(errno)) +
+                        " - disabling file logging. Messages at '" +
+                        severity2string(output_level) +
+                        "' or higher still output to babysitter log file\n");
+        struct timeval now;
+        cb_get_timeofday(&now);
+        char log_entry[1024];
+        format_log_entry(log_entry, sizeof(log_entry), now.tv_sec, now.tv_usec,
+                         EXTENSION_LOG_WARNING, msg.c_str());
+
+        iops.write(old, log_entry, strlen(log_entry));
+        iops.flush(old);
+        // Send to stderr for good measure.
+        (void)fwrite(log_entry, sizeof(char), strlen(log_entry), stderr);
+    }
     close_logfile(old);
-    return open_logfile(fnm);
+    return new_log;
 }
 
 static size_t flush_pending_io(FILE *file, struct logbuffer *lb) {
     size_t ret = 0;
     if (lb->offset > 0) {
-        char *ptr = lb->data;
-        size_t towrite = ret = lb->offset;
-
-        while (towrite > 0) {
-            int nw = iops.write(file, ptr, towrite);
-            if (nw > 0) {
-                ptr += nw;
-                towrite -= nw;
+        if (file) {
+            char *ptr = lb->data;
+            size_t towrite = ret = lb->offset;
+            while (towrite > 0) {
+                int nw = iops.write(file, ptr, towrite);
+                if (nw > 0) {
+                    ptr += nw;
+                    towrite -= nw;
+                }
             }
+            lb->offset = 0;
+            iops.flush(file);
+        } else {
+            // Cannot write as have no FD, however we also don't want
+            // to leave the logbuffer as-is as that would result in it
+            // filling up and producers being deadlocked. Therefore
+            // discard the logbuffer contents.
+            // Note that any message at output_level is always logged
+            // to stderr (for babysitter) so those messages will not
+            // be lost.
+            lb->offset = 0;
         }
-        lb->offset = 0;
-        iops.flush(file);
     }
 
     return ret;
@@ -420,7 +468,6 @@ static FILE *fp;
 static void logger_thead_main(void* arg)
 {
     size_t currsize = 0;
-    fp = open_logfile(reinterpret_cast<const char*>(arg));
 
     struct timeval tp;
     cb_get_timeofday(&tp);
@@ -441,9 +488,29 @@ static void logger_thead_main(void* arg)
             /* Perform file IO without the lock */
             cb_mutex_exit(&mutex);
 
+            /* In case we failed to open the log file last time (e.g. EMFILE),
+               re-attempt now. */
+            if (fp == NULL) {
+                fp = open_logfile(reinterpret_cast<const char*>(arg));
+                if (fp != NULL) {
+                    // Record that the log is back online.
+                    struct timeval now;
+                    cb_get_timeofday(&now);
+                    char log_entry[1024];
+                    format_log_entry(log_entry, sizeof(log_entry),
+                                     now.tv_sec, now.tv_usec,
+                                     EXTENSION_LOG_WARNING,
+                                     "Restarting file logging\n");
+
+                    iops.write(fp, log_entry, strlen(log_entry));
+                    // Send to stderr for good measure.
+                    (void)fwrite(log_entry, sizeof(char), strlen(log_entry), stderr);
+                }
+            }
+
             currsize += flush_pending_io(fp, buffers + curr);
             if (currsize > cyclesz) {
-                fp = reopen_logfile(fp, reinterpret_cast<const char*>(arg));
+                fp = rotate_logfile(fp, reinterpret_cast<const char*>(arg));
                 currsize = 0;
             }
             cb_mutex_enter(&mutex);
