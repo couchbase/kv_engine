@@ -1552,9 +1552,16 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
                                 "a", "[1]", "1"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
     validate_object("a", "[]");
+
+    // e). A path whose has component isn't an array subscript should fail.
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                                "a", "[0].foo", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL, "");
+    validate_object("a", "[]");
+
     delete_object("a");
 
-    // e). Attempt to insert to a dict should fail.
+    // f). Attempt to insert to a dict should fail.
     store_object("b", "{}", /*JSON*/true, /*compress*/false);
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "b", "[0]", "0"),
