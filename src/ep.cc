@@ -486,7 +486,7 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
     if (vb) {
         // Obtain reader access to the VB state change lock so that
         // the VB can't switch state whilst we're processing
-        ReaderLockHolder(vb->getStateLock());
+        ReaderLockHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_active) {
             int bucket_num(0);
             incExpirationStat(vb);
