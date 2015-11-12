@@ -4451,6 +4451,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
             return ENGINE_NOT_MY_VBUCKET;
         }
 
+        ReaderLockHolder(vb->getStateLock());
+        if (vb->getState() == vbucket_state_dead) {
+            return ENGINE_NOT_MY_VBUCKET;
+        }
+
         uint64_t relHighSeqno = vb->getHighSeqno();
         if (vb->getState() != vbucket_state_active) {
             relHighSeqno = vb->checkpointManager.getLastClosedChkBySeqno();
@@ -4473,8 +4478,14 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
     for (auto vbid : vbuckets) {
         RCPtr<VBucket> vb = getVBucket(vbid);
         if (vb) {
+            ReaderLockHolder(vb->getStateLock());
+            vbucket_state_t vbstate = vb->getState();
+            if (vbstate == vbucket_state_dead) {
+                continue;
+            }
+
             uint64_t relHighSeqno = vb->getHighSeqno();
-            if (vb->getState() != vbucket_state_active) {
+            if (vbstate != vbucket_state_active) {
                 relHighSeqno = vb->checkpointManager.getLastClosedChkBySeqno();
             }
 
@@ -4849,6 +4860,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
     RCPtr<VBucket> vb = epstore->getVBucket(vb_id);
 
     if (!vb) {
+        LockHolder lh(clusterConfig.lock);
+        return sendResponse(response, NULL, 0, NULL, 0,
+                            clusterConfig.config, clusterConfig.len,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
+                            cookie);
+    }
+
+    ReaderLockHolder(vb->getStateLock());
+    if (vb->getState() == vbucket_state_dead) {
         LockHolder lh(clusterConfig.lock);
         return sendResponse(response, NULL, 0, NULL, 0,
                             clusterConfig.config, clusterConfig.len,
