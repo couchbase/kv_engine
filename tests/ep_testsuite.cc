@@ -2208,18 +2208,21 @@ static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
     checkeq(get_int_stat(h, h1, "ep_exp_pager_initial_run_time"), -1,
             "Task time should be disable upon warmup");
 
+    std::string err_msg;
     // Update exp_pager_initial_run_time and ensure the update is successful
     set_param(h, h1, protocol_binary_engine_param_flush,
               "exp_pager_initial_run_time", "3");
-    std::string expected_time = "03:00:00";
+    std::string expected_time = "03:00";
     std::string str = get_str_stat(h, h1, "ep_expiry_pager_task_time");
-    checkeq(str.substr(11).compare(expected_time), 0, "Updated time incorrect");
+    err_msg.assign("Updated time incorrect, expect: " +
+                   expected_time + ", actual: " + str.substr(11, 5));
+    checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
 
     // Update exp_pager_stime by 30 minutes and ensure that the update is successful
+    int update_by = 30;
     time_t now = time(NULL);
-    set_param(h, h1, protocol_binary_engine_param_flush, "exp_pager_stime", "1800");
     struct tm curr = *(gmtime(&now));
-    curr.tm_min += 30;
+    curr.tm_min += update_by;
 #ifdef _MSC_VER
     _mkgmtime(&curr);
 #else
@@ -2227,9 +2230,29 @@ static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
 #endif
     char timeStr[20];
     strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
-    std::string targetTaskTime(timeStr);
+    std::string targetTaskTime1(timeStr);
+
+    set_param(h, h1, protocol_binary_engine_param_flush, "exp_pager_stime",
+              std::to_string(update_by * 60).c_str());
     str = get_str_stat(h, h1, "ep_expiry_pager_task_time");
-    checkeq(targetTaskTime.compare(str), 0, "Unexpected task time");
+
+    now = time(NULL);
+    curr = *(gmtime(&now));
+    curr.tm_min += update_by;
+#ifdef _MSC_VER
+    _mkgmtime(&curr);
+#else
+    timegm(&curr);
+#endif
+    strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
+    std::string targetTaskTime2(timeStr);
+
+    // ep_expiry_pager_task_time should fall within the range of
+    // targetTaskTime1 and targetTaskTime2
+    err_msg.assign("Unexpected task time range, expect: " +
+                   targetTaskTime1 + " <= " + str + " <= " + targetTaskTime2);
+    check(targetTaskTime1 <= str, err_msg.c_str());
+    check(str <= targetTaskTime2, err_msg.c_str());
 
     return SUCCESS;
 }
