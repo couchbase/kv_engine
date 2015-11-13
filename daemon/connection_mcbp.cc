@@ -358,6 +358,14 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
                     (unsigned char*)m->msg_iov->iov_base + res);
                 m->msg_iov->iov_len -= res;
             }
+
+            if (m->msg_iov->iov_len == 0) {
+               msgcurr++;
+               if (msgcurr == msglist.size()) {
+                   return TransmitResult::Complete;
+               }
+            }
+
             return TransmitResult::Incomplete;
         }
 
