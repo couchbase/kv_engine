@@ -392,8 +392,12 @@ bool conn_mwrite(McbpConnection *c) {
         break;
 
     case McbpConnection::TransmitResult::Incomplete:
+        LOG_INFO(c, "%d - Incomplete transfer. Will retry", c->getId());
+        break;
+
     case McbpConnection::TransmitResult::HardError:
-        break;                   /* Continue in state machine. */
+        LOG_NOTICE(c, "%d - Hard error, closing connection", c->getId());
+        break;
 
     case McbpConnection::TransmitResult::SoftError:
         return false;

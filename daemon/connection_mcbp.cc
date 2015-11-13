@@ -368,19 +368,23 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
             }
             return TransmitResult::SoftError;
         }
-        /* if res == 0 or res == -1 and error is not EAGAIN or EWOULDBLOCK,
-           we have a real error, on which we close the connection */
-        if (settings.verbose > 0) {
-            if (res == -1) {
-                log_socket_error(EXTENSION_LOG_WARNING, this,
-                                 "Failed to write, and not due to blocking: %s");
-            } else {
-                LOG_WARNING(this, "%d - sendmsg returned 0\n",
-                            socketDescriptor);
-                for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
-                    LOG_WARNING(this, "\t%d - %zu\n",
-                                socketDescriptor, m->msg_iov[ii].iov_len);
-                }
+
+        // if res == 0 or res == -1 and error is not EAGAIN or EWOULDBLOCK,
+        // we have a real error, on which we close the connection
+        if (res == -1) {
+            log_socket_error(EXTENSION_LOG_WARNING, this,
+                             "Failed to write, and not due to blocking: %s");
+        } else {
+            // sendmsg should return the number of bytes written, but we
+            // sent 0 bytes. That shouldn't be possible unless we
+            // requested to write 0 bytes (otherwise we should have gotten
+            // -1 with EWOULDBLOCK)
+            // Log the request buffer so that we can look into this
+            LOG_WARNING(this, "%d - sendmsg returned 0\n",
+                        socketDescriptor);
+            for (int ii = 0; ii < int(m->msg_iovlen); ++ii) {
+                LOG_WARNING(this, "\t%d - %zu\n",
+                            socketDescriptor, m->msg_iov[ii].iov_len);
             }
         }
 
