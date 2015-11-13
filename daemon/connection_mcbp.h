@@ -369,7 +369,7 @@ public:
      * @param m the message header to send
      * @return the number of bytes sent, or -1 for an error
      */
-    int sendmsg(struct msghdr* m);
+    virtual int sendmsg(struct msghdr* m);
 
 
     enum class TransmitResult {
@@ -858,7 +858,9 @@ public:
 
     ~PipeConnection();
 
-    virtual bool isPipeConnection() {
+    virtual int sendmsg(struct msghdr* m) override;
+
+    virtual bool isPipeConnection() override {
         return true;
     }
 };

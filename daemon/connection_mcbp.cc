@@ -321,17 +321,7 @@ int McbpConnection::sendmsg(struct msghdr* m) {
         ssl.drainBioSendPipe(socketDescriptor);
         return res;
     } else {
-        if (isPipeConnection()) {
-            // Windows and POSIX safe, manually write the scatter/gather
-            for (size_t ii = 0; ii < size_t(m->msg_iovlen); ii++) {
-                res = ::write(fileno(stdout),
-                              m->msg_iov[ii].iov_base,
-                              m->msg_iov[ii].iov_len);
-            }
-        }
-        else {
-            res = ::sendmsg(socketDescriptor, m, 0);
-        }
+        res = int(::sendmsg(socketDescriptor, m, 0));
     }
 
     return res;
@@ -1253,4 +1243,24 @@ void McbpConnection::setPriority(const Connection::Priority& priority) {
     }
     throw std::invalid_argument(
         "Unkown priority: " + std::to_string(int(priority)));
+}
+
+int PipeConnection::sendmsg(struct msghdr* m) {
+    int res = 0;
+    // Windows and POSIX safe, manually write the scatter/gather
+    for (size_t ii = 0; ii < size_t(m->msg_iovlen); ii++) {
+        auto nw = ::write(fileno(stdout),
+                          m->msg_iov[ii].iov_base,
+                          m->msg_iov[ii].iov_len);
+        if (nw == -1) {
+            if (res == 0) {
+                return -1;
+            }
+            break;
+        } else {
+            res += nw;
+        }
+    }
+
+    return res;
 }
