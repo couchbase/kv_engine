@@ -2595,6 +2595,8 @@ GetValue EventuallyPersistentStore::getLocked(const std::string &key,
                 // on disk, return ENOENT for getLocked().
                 return GetValue(NULL, ENGINE_KEY_ENOENT);
             }
+        default:
+            throw std::logic_error("Unknown eviction policy");
         }
     }
 }
