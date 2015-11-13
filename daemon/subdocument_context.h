@@ -19,25 +19,11 @@
 
 #include "memcached.h"
 
+#include "buffer.h"
 #include "subdocument_traits.h"
 
 #include <cstddef>
 #include <memory>
-
-/* Struct repesenting a buffer of some known size. This is typically used to
- * refer to some existing region of memory which is owned elsewhere - i.e.
- * a user should not normally be free()ing the buf member themselves!
- */
-struct sized_buffer {
-    char* buf;
-    size_t len;
-};
-
-/* Const variant of sized_buffer. */
-struct const_sized_buffer {
-    const char* buf;
-    size_t len;
-};
 
 /** Subdoc command context. An instance of this exists for the lifetime of
  *  each subdocument command, and it used to hold information which needs to

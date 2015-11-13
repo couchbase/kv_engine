@@ -16,14 +16,25 @@
  */
 #pragma once
 
+#include "buffer.h"
+
 #include <array>
 #include <platform/cbassert.h>
 #include <memcached/engine.h>
 #include <cJSON.h>
+
 #include <mutex>
 #include <list>
 #include <string>
-#include <unordered_map>
+#include <vector>
+
+/*
+ * TopKeys
+ *
+ * Tracks the top N most recently accessed keys. The details are
+ * accessible by a stats call, which is used by ns_server to print the
+ * top keys list in the GUI.
+ */
 
 struct topkey_item_t {
     topkey_item_t(rel_time_t create_time)
@@ -78,13 +89,19 @@ private:
 
     class Shard;
 
-    Shard& getShard(const std::string& key);
+    Shard& getShard(size_t key_hash);
 
+    // One of N Shards which the keyspace has been broken
+    // into.
+    // Responsible for tracking the top {mkeys} within it's keyspace.
     class Shard {
     public:
 
         void setMaxKeys(int mkeys) {
             max_keys = mkeys;
+            storage.reserve(max_keys);
+            // reallocating storage invalidates the LRU list.
+            list.clear();
         }
 
         // Updates the topkey 'ranking' for the specified key.
@@ -93,7 +110,8 @@ private:
         // updated.
         // On success returns true, If insufficient memory to create a
         // new item, returns false.
-        bool updateKey(const std::string& key,
+        bool updateKey(const const_sized_buffer& key,
+                       size_t key_hash,
                        rel_time_t operation_time);
 
         typedef void (*iterfunc_t)(const std::string& key,
@@ -106,6 +124,24 @@ private:
 
     private:
 
+        struct KeyId {
+            size_t hash;
+            std::string key;
+        };
+
+        // Pair of the key's string and the statistics related to it.
+        typedef std::pair<KeyId, topkey_item_t> topkey_t;
+
+        // An ordered list of topkey_t*, used for LRU.
+        typedef std::list<topkey_t*> key_history_t;
+
+        // Vector topket_t, used for actual topke storage.
+        typedef std::vector<topkey_t> key_storage_t;
+
+        // Searches for the given key. If found returns a pointer to the
+        // topkey_t, else returns NULL.
+        topkey_t* searchForKey(size_t hash, const const_sized_buffer& key);
+
         // Maxumum numbers of keys to be tracked per shard.
         unsigned int max_keys;
 
@@ -114,13 +150,10 @@ private:
 
         // list of keys, ordered from most-recently used (front) to least recently
         // used (back).
-        typedef std::list<const std::string*> key_history_t;
         key_history_t list;
 
-        // map of key to topkey stats.
-        typedef std::unordered_map<std::string, topkey_item_t> key_hash_t;
-        key_hash_t hash;
-
+        // Underlying topkey storage.
+        key_storage_t storage;
     };
 
     // array of topkey shards.

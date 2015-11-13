@@ -50,6 +50,7 @@ ADD_EXECUTABLE(memcached
                ${MEMORY_TRACKING_SRCS}
                breakpad.h
                buckets.h
+               buffer.h
                cmdline.cc
                cmdline.h
                command_timings.cc
