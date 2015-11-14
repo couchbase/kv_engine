@@ -226,6 +226,12 @@ enum class ValueFilter {
     VALUES_DECOMPRESSED
 };
 
+enum class VBStatePersist {
+    VBSTATE_CACHE_UPDATE_ONLY,       //Update only cached state in-memory
+    VBSTATE_PERSIST_WITHOUT_COMMIT,  //Persist without committing to disk
+    VBSTATE_PERSIST_WITH_COMMIT      //Persist with commit to disk
+};
+
 class ScanContext {
 public:
     ScanContext(std::shared_ptr<Callback<GetValue> > cb,
@@ -533,6 +539,13 @@ public:
     }
 
     /**
+     * Get the number of vbuckets in a single database file
+     *
+     * returns - the number of vbuckets in the file
+     */
+    virtual uint16_t getNumVbsPerFile(void) = 0;
+
+    /**
      * Delete an item from the kv store.
      */
     virtual void del(const Item &itm, Callback<int> &cb) = 0;
@@ -569,10 +582,10 @@ public:
      * @param vbucketId id of the vbucket that needs to be snapshotted
      * @param vbstate   state of the vbucket
      * @param cb        stats callback
-     * @param persist   whether state needs to be persisted to disk
+     * @param options   options for persisting the state
      */
     virtual bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                                 bool persist = true) = 0;
+                                 VBStatePersist options) = 0;
 
     /**
      * Compact a database file.
@@ -684,6 +697,7 @@ protected:
     /* non-deleted docs in each file, indexed by vBucket.
        RelaxedAtomic to allow stats access without lock. */
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
+    Couchbase::RelaxedAtomic<uint16_t> cachedValidVBCount;
     std::list<PersistenceCallback *> pcbs;
     void createDataDir(const std::string& dbname);
 

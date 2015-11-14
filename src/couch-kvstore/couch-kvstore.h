@@ -313,6 +313,15 @@ public:
     void getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) override;
 
     /**
+     * Get the number of vbuckets in a single database file
+     *
+     * returns - the number of vbuckets in a database file
+     */
+    uint16_t getNumVbsPerFile(void) override {
+        return 1;
+    }
+
+    /**
      * Delete a given document from the underlying storage system.
      *
      * @param itm instance representing the document to be deleted
@@ -348,11 +357,11 @@ public:
      *
      * @param vbucketId - vbucket id
      * @param vbstate   - vbucket state
-     * @param persist   - whether to persist snapshot state or not
+     * @param options   - options used for persisting the state to disk
      * @return true if the snapshot is done successfully
      */
     bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                         bool persist) override;
+                         VBStatePersist options) override;
 
      /**
      * Compact a database file in the underlying storage system.
@@ -492,7 +501,7 @@ public:
 
 private:
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
-                         bool reset=false);
+                         VBStatePersist options, bool reset=false);
 
     template <typename T>
     void addStat(const std::string &prefix, const char *nm, T &val,

@@ -99,6 +99,9 @@ bool KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) 
         vbState->driftCounter = newState.driftCounter;
     } else {
         cachedVBStates[vbid] = new vbucket_state(newState);
+        if (cachedVBStates[vbid]->state != vbucket_state_dead) {
+            cachedValidVBCount++;
+        }
     }
 
     return state_change_detected;

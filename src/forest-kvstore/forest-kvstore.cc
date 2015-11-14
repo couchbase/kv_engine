@@ -141,11 +141,15 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     }
 
     cachedVBStates.reserve(maxVbuckets);
+    cachedValidVBCount = 0;
     for (uint16_t i = 0; i < maxVbuckets; ++i) {
         cachedVBStates.push_back((vbucket_state *)NULL);
         if (i == shardId) {
             if (files.size() != 0) {
                 readVBState(i);
+                if (cachedVBStates[i] && cachedVBStates[i]->state != vbucket_state_dead) {
+                    cachedValidVBCount++;
+                }
             }
             shardId += maxShards; // jump to next vbucket in shard
         }
@@ -510,6 +514,7 @@ void ForestKVStore::delVBucket(uint16_t vbucket) {
     }
 
     updateFileInfo();
+    cachedValidVBCount--;
 }
 
 ENGINE_ERROR_CODE ForestKVStore::forestErr2EngineErr(fdb_status errCode) {
@@ -1141,9 +1146,10 @@ DBFileInfo ForestKVStore::getAggrDbFileInfo() {
 }
 
 bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                                    bool persist) {
-
-    if (updateCachedVBState(vbucketId, vbstate) && persist) {
+                                    VBStatePersist options) {
+    if (updateCachedVBState(vbucketId, vbstate) &&
+         (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
+          options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
         std::string stateStr = cachedVBStates[vbucketId]->toJSON();
         char keybuf[20];
         fdb_doc statDoc;
@@ -1158,9 +1164,21 @@ bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
         fdb_status status = fdb_set(vbStateHandle, &statDoc);
 
         if (status != FDB_RESULT_SUCCESS) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to save vbucket state for "
-                    "vbucket=%d error=%s", vbucketId, fdb_error_msg(status));
+            LOG(EXTENSION_LOG_WARNING, "ForestKVStore::snapshotVBucket:Failed to "
+                "save vbucket state for vbucket=%d error=%s", vbucketId,
+                fdb_error_msg(status));
             return false;
+        }
+
+        if (options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT) {
+            status = fdb_commit(dbFileHandle, FDB_COMMIT_NORMAL);
+
+            if (status != FDB_RESULT_SUCCESS) {
+                LOG(EXTENSION_LOG_WARNING, "ForestKVStore::snapshotVBucket::Failed "
+                    "to commit vbucket state for vbucket=%d error=%s", vbucketId,
+                    fdb_error_msg(status));
+                return false;
+            }
         }
     }
 

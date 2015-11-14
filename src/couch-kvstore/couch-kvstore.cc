@@ -338,7 +338,8 @@ void CouchKVStore::reset(uint16_t vbucketId) {
 
         //Unlink the couchstore file upon reset
         unlinkCouchFile(vbucketId, dbFileRevMap[vbucketId]);
-        setVBucketState(vbucketId, *state, true);
+        setVBucketState(vbucketId, *state, VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT,
+                        true);
         updateDbFileMap(vbucketId, 1);
     } else {
         throw std::invalid_argument("CouchKVStore::reset: No entry in cached "
@@ -904,6 +905,7 @@ vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {
 }
 
 bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
+                                   VBStatePersist options,
                                    bool reset) {
     Db *db = NULL;
     uint64_t fileRev, newFileRev;
@@ -912,67 +914,77 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     std::map<uint16_t, uint64_t>::iterator mapItr;
     kvstats_ctx kvctx;
     kvctx.vbucket = vbucketId;
-
-    id << vbucketId;
-    fileRev = dbFileRevMap[vbucketId];
-    rev << fileRev;
-    dbFileName = dbname + "/" + id.str() + ".couch." + rev.str();
-
     couchstore_error_t errorCode;
-    errorCode = openDB(vbucketId, fileRev, &db,
-            (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE, &newFileRev, reset);
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        ++st.numVbSetFailure;
-        LOG(EXTENSION_LOG_WARNING,
-                "Failed to open database, name=%s",
-                dbFileName.c_str());
-        return false;
-    }
 
-    fileRev = newFileRev;
-    rev << fileRev;
-    dbFileName = dbname + "/" + id.str() + ".couch." + rev.str();
+    if (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
+            options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT) {
+        id << vbucketId;
+        fileRev = dbFileRevMap[vbucketId];
+        rev << fileRev;
+        dbFileName = dbname + "/" + id.str() + ".couch." + rev.str();
 
-    errorCode = saveVBState(db, vbstate);
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        ++st.numVbSetFailure;
-        LOG(EXTENSION_LOG_WARNING,
-                "Failed to save local doc, name=%s",
-                dbFileName.c_str());
+        errorCode = openDB(vbucketId, fileRev, &db,
+                           (uint64_t)COUCHSTORE_OPEN_FLAG_CREATE,
+                           &newFileRev, reset);
+        if (errorCode != COUCHSTORE_SUCCESS) {
+            ++st.numVbSetFailure;
+            LOG(EXTENSION_LOG_WARNING,
+                "CouchKVStore::setVBucketState: Failed to open database,"
+                "name=%s, error=%s",dbFileName.c_str(), couchstore_strerror(errorCode));
+            return false;
+        }
+
+        fileRev = newFileRev;
+        rev << fileRev;
+        dbFileName = dbname + "/" + id.str() + ".couch." + rev.str();
+
+        errorCode = saveVBState(db, vbstate);
+        if (errorCode != COUCHSTORE_SUCCESS) {
+            ++st.numVbSetFailure;
+            LOG(EXTENSION_LOG_WARNING,
+                "CouchKVStore:setVBucketState: Failed to save local doc,"
+                "name=%s, error=%s", dbFileName.c_str(), couchstore_strerror(errorCode));
+            closeDatabaseHandle(db);
+            return false;
+        }
+
+        if (options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT) {
+            errorCode = couchstore_commit(db);
+            if (errorCode != COUCHSTORE_SUCCESS) {
+                ++st.numVbSetFailure;
+                LOG(EXTENSION_LOG_WARNING,
+                    "CouchKVStore:setVBucketState:Commit failed, vbid=%u rev=%" PRIu64 ""
+                    " error=%s [%s]",vbucketId, fileRev, couchstore_strerror(errorCode),
+                    couchkvstore_strerrno(db, errorCode).c_str());
+                closeDatabaseHandle(db);
+                return false;
+            }
+        }
+
+        DbInfo info;
+        errorCode = couchstore_db_info(db, &info);
+        if (errorCode != COUCHSTORE_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING,
+                "CouchKVStore::setVBucketState: Retrieving database file failed "
+                "for vbid=%" PRIu16" with error=%s", vbucketId,
+                couchstore_strerror(errorCode));
+        } else {
+            cachedSpaceUsed[vbucketId] = info.space_used;
+            cachedFileSize[vbucketId] = info.file_size;
+        }
+
         closeDatabaseHandle(db);
-        return false;
-    }
-
-    errorCode = couchstore_commit(db);
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        ++st.numVbSetFailure;
-        LOG(EXTENSION_LOG_WARNING,
-                "Commit failed, vbid=%u rev=%" PRIu64 " error=%s [%s]",
-                vbucketId, fileRev, couchstore_strerror(errorCode),
-                couchkvstore_strerrno(db, errorCode).c_str());
-        closeDatabaseHandle(db);
-        return false;
-    }
-
-    DbInfo info;
-    errorCode = couchstore_db_info(db, &info);
-    if (errorCode != COUCHSTORE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING,
-            "CouchKVStore::setVBucketState: Retrieving database file failed "
-            "for vbid=%" PRIu16" with error=%s", vbucketId,
-            couchstore_strerror(errorCode));
     } else {
-         cachedSpaceUsed[vbucketId] = info.space_used;
-         cachedFileSize[vbucketId] = info.file_size;
+        throw std::invalid_argument("CouchKVStore::setVBucketState: invalid vb state "
+                        "persist option specified for vbucket id:" +
+                        std::to_string(vbucketId));
     }
-
-    closeDatabaseHandle(db);
 
     return true;
 }
 
 bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                                   bool persist) {
+                                   VBStatePersist options) {
     if (isReadOnly()) {
         LOG(EXTENSION_LOG_WARNING,
             "Snapshotting a vbucket cannot be performed on a read-only "
@@ -982,13 +994,15 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
 
     hrtime_t start = gethrtime();
 
-    if (updateCachedVBState(vbucketId, vbstate) && persist) {
+    if (updateCachedVBState(vbucketId, vbstate) &&
+         (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
+          options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
         vbucket_state *vbs = cachedVBStates[vbucketId];
-        if (!setVBucketState(vbucketId, *vbs)) {
+        if (!setVBucketState(vbucketId, *vbs, options)) {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to persist new state, %s, for vbucket %d\n",
                 VBucket::toString(vbstate.state), vbucketId);
-           return false;
+            return false;
         }
     }
 

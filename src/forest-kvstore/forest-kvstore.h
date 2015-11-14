@@ -183,6 +183,15 @@ class ForestKVStore : public KVStore
     void getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) override;
 
     /**
+     * Get the number of the vbuckets in the underlying database file
+     *
+     * returns - the number of vbuckets in the file
+     */
+    uint16_t getNumVbsPerFile(void) override {
+        return cachedValidVBCount.load();
+    }
+
+    /**
      * Delete a given document from the underlying storage system.
      *
      * @param itm instance representing the document to be deleted
@@ -211,12 +220,11 @@ class ForestKVStore : public KVStore
      *
      * @param vbucketId vbucket id
      * @param vbstate vbucket state
-     * @param persist whether to persist the vbucket state or not
-     *
+     * @param options - options used for persisting state to disk
      * @return true if the snapshot is done successfully
      */
     bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                         bool persist) override;
+                         VBStatePersist options) override;
 
     /**
      * Compact a forestdb database file

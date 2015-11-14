@@ -1277,6 +1277,10 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     visit(v);
     hrtime_t start = gethrtime();
 
+    const uint16_t snapInterval = shard->getROUnderlying()->getNumVbsPerFile();
+    uint16_t currSnapInterval = snapInterval;
+    VBStatePersist persistOption = VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT;
+
     bool success = true;
     vbucket_map_t::reverse_iterator iter = v.states.rbegin();
     for (; iter != v.states.rend(); ++iter) {
@@ -1285,11 +1289,23 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
             continue;
         }
         KVStore *rwUnderlying = getRWUnderlying(iter->first);
-        if (!rwUnderlying->snapshotVBucket(iter->first, iter->second)) {
+
+        currSnapInterval--;
+        if (!currSnapInterval) {
+            persistOption = VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT;
+        }
+
+        if (!rwUnderlying->snapshotVBucket(iter->first, iter->second,
+                                           persistOption)) {
             LOG(EXTENSION_LOG_WARNING,
                     "VBucket snapshot task failed!!! Rescheduling");
             success = false;
             break;
+        }
+
+        if (!currSnapInterval) {
+            currSnapInterval = snapInterval;
+            persistOption = VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT;
         }
 
         if (priority == Priority::VBucketPersistHighPriority) {
@@ -1339,7 +1355,8 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
                            failovers);
 
     KVStore *rwUnderlying = getRWUnderlying(vbid);
-    if (rwUnderlying->snapshotVBucket(vbid, vb_state)) {
+    if (rwUnderlying->snapshotVBucket(vbid, vb_state,
+                                      VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
         if (vbMap.setBucketCreation(vbid, false)) {
             LOG(EXTENSION_LOG_INFO, "VBucket %d created", vbid);
         }
@@ -3456,7 +3473,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                                       failovers);
 
                 if (rwUnderlying->snapshotVBucket(vb->getId(), vbState,
-                                                  false) != true) {
+                                  VBStatePersist::VBSTATE_CACHE_UPDATE_ONLY) != true) {
                     return RETRY_FLUSH_VBUCKET;
                 }
             }
