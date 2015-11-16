@@ -83,11 +83,19 @@ bool McbpConnection::registerEvent() {
     cb_assert(socketDescriptor != INVALID_SOCKET);
 
     struct timeval tv;
-    tv.tv_sec = settings.connection_idle_time;
-    tv.tv_usec = 0;
+    struct timeval* tp = nullptr;
+
+    if (isAdmin() || isDCP()) {
+        tp = nullptr;
+    } else {
+        tv.tv_sec = settings.connection_idle_time;
+        tv.tv_usec = 0;
+        tp = &tv;
+    }
+
     ev_insert_time = mc_time_get_current_time();
 
-    if (event_add(&event, &tv) == -1) {
+    if (event_add(&event, tp) == -1) {
         log_system_error(EXTENSION_LOG_WARNING, nullptr,
                          "Failed to add connection to libevent: %s");
         return false;
