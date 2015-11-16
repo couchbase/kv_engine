@@ -302,7 +302,7 @@ public:
      *
      * @return the ID for the item; 0 if the item has no ID
      */
-    int64_t getBySeqno() {
+    int64_t getBySeqno() const {
         return bySeqno;
     }
 
@@ -465,6 +465,14 @@ public:
      * @param vbucket the vbucket containing this item.
      */
     Item *toItem(bool lck, uint16_t vbucket) const;
+
+    /**
+     * Generate a new Item with only key and metadata out of this object.
+     * The item generated will not contain value
+     *
+     * @param vbucket the vbucket containing this item.
+     */
+    Item *toValuelessItem(uint16_t vbucket) const;
 
     /**
      * Set the memory threshold on the current bucket quota for accepting a new mutation

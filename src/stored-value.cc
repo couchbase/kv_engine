@@ -764,6 +764,13 @@ Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
     return itm;
 }
 
+Item* StoredValue::toValuelessItem(uint16_t vbucket) const {
+    return new Item((void *)getKeyBytes(), getKeyLen(), getFlags(),
+                    getExptime(), NULL /* valuePtr */, 0 /* valuelen */,
+                    NULL /* ext_meta*/, 0 /* ext_len */, getCas(),
+                    getBySeqno(), vbucket, getRevSeqno());
+}
+
 void StoredValue::reallocate() {
     // Allocate a new Blob for this stored value; copy the existing Blob to
     // the new one and free the old.

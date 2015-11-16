@@ -276,7 +276,24 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
 
     Item* itmCpy = NULL;
     if (resp->getEvent() == DCP_MUTATION) {
-        itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
+        try {
+            itmCpy = static_cast<MutationResponse*>(resp)->getItemCopy();
+        } catch (const std::bad_alloc&) {
+            rejectResp = resp;
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) ENOMEM while trying to copy "
+                "item with seqno %" PRIu64 "before streaming it", logHeader(),
+                static_cast<MutationResponse*>(resp)->getVBucket(),
+                static_cast<MutationResponse*>(resp)->getBySeqno());
+            return ENGINE_ENOMEM;
+        } catch (const std::logic_error&) {
+            rejectResp = resp;
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) illegal mutation payload "
+                "type while copying an item with seqno %" PRIu64 "before "
+                "streaming it", logHeader(),
+                static_cast<MutationResponse*>(resp)->getVBucket(),
+                static_cast<MutationResponse*>(resp)->getBySeqno());
+            return ENGINE_ENOTSUP;
+        }
 
         if (enableValueCompression) {
             /**

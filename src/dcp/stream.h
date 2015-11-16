@@ -22,6 +22,7 @@
 
 #include "vbucket.h"
 #include "ext_meta_parser.h"
+#include "response.h"
 
 #include <atomic>
 #include <queue>
@@ -219,6 +220,8 @@ public:
 
     const char* logHeader();
 
+    bool isSendMutationKeyOnlyEnabled() const;
+
 private:
 
     void transitionState(stream_state_t newState);
@@ -293,6 +296,10 @@ private:
 
     rel_time_t takeoverStart;
     size_t takeoverSendMaxTime;
+
+    /* Enum indicating whether the stream mutations should contain key only or
+       both key and value */
+    MutationPayload payloadType;
 };
 
 class NotifierStream : public Stream {

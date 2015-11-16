@@ -43,6 +43,11 @@ enum dcp_marker_flag_t {
     MARKER_FLAG_ACK    = 0x08
 };
 
+typedef enum {
+    KEY_VALUE,
+    KEY_ONLY
+} MutationPayload;
+
 class DcpResponse {
 public:
     DcpResponse(dcp_event_t event, uint32_t opaque)
@@ -275,9 +280,10 @@ private:
 class MutationResponse : public DcpResponse {
 public:
     MutationResponse(queued_item item, uint32_t opaque,
-                     ExtendedMetaData *e = NULL)
+                     ExtendedMetaData *e = NULL,
+                     MutationPayload mutationPayloadType = KEY_VALUE)
         : DcpResponse(item->isDeleted() ? DCP_DELETION : DCP_MUTATION, opaque),
-          item_(item), emd(e) {}
+          item_(item), emd(e), payloadType(mutationPayloadType) {}
 
     ~MutationResponse() {
         if (emd) {
@@ -290,7 +296,16 @@ public:
     }
 
     Item* getItemCopy() {
-        return new Item(*item_);
+        switch (payloadType) {
+        case KEY_VALUE:
+            return new Item(*item_);
+        case KEY_ONLY:
+            return new Item(*item_, true);
+        default:
+            throw std::logic_error("Unsupported MutationPayload type while "
+                                   "copying an item from mutation response: "
+                                   + std::to_string(payloadType));
+        }
     }
 
     uint16_t getVBucket() {
@@ -325,6 +340,7 @@ public:
 private:
     queued_item item_;
     ExtendedMetaData *emd;
+    MutationPayload payloadType;
 };
 
 #endif  // SRC_DCP_RESPONSE_H_

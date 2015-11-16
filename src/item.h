@@ -398,9 +398,8 @@ public:
     }
 
     /* Copy constructor */
-    Item(const Item& other) :
+    Item(const Item& other, bool copyKeyOnly = false) :
         metaData(other.metaData),
-        value(other.value),
         key(other.key),
         bySeqno(other.bySeqno),
         queuedTime(other.queuedTime),
@@ -409,6 +408,11 @@ public:
         nru(other.nru),
         conflictResMode(other.conflictResMode)
     {
+        if (copyKeyOnly) {
+            setData(nullptr, 0, nullptr, 0);
+        } else {
+            value = other.value;
+        }
         ObjectRegistry::onCreateItem(this);
     }
 

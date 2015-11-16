@@ -60,9 +60,22 @@ void CacheCallback::callback(CacheLookup &lookup) {
     LockHolder lh = vb->ht.getLockedBucket(lookup.getKey(), &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(lookup.getKey(), bucket_num, false, false);
     if (v && v->isResident() && v->getBySeqno() == lookup.getBySeqno()) {
-        Item* it = v->toItem(false, lookup.getVBucketId());
-        lh.unlock();
         ActiveStream* as = static_cast<ActiveStream*>(stream_.get());
+        Item* it;
+        try {
+            it = as->isSendMutationKeyOnlyEnabled() ?
+                        v->toValuelessItem(lookup.getVBucketId()) :
+                        v->toItem(false, lookup.getVBucketId());
+        } catch (const std::bad_alloc&) {
+            setStatus(ENGINE_ENOMEM);
+            LOG(EXTENSION_LOG_WARNING, "Alloc error when trying to create an "
+                "item copy from hash table. Item key %s; seqno %" PRIi64 "; "
+                "vb %u; isSendMutationKeyOnlyEnabled %d", v->getKey().c_str(),
+                v->getBySeqno(), lookup.getVBucketId(),
+                as->isSendMutationKeyOnlyEnabled());
+            return;
+        }
+        lh.unlock();
         if (!as->backfillReceived(it, BACKFILL_FROM_MEMORY)) {
             setStatus(ENGINE_ENOMEM); // Pause the backfill
         } else {
@@ -158,15 +171,19 @@ backfill_status_t DCPBackfill::create() {
     }
 
     KVStore* kvstore = engine->getEpStore()->getROUnderlying(vbid);
-    bool getCompressed = as->isCompressionEnabled();
+    ValueFilter valFilter = ValueFilter::VALUES_DECOMPRESSED;
+    if (as->isSendMutationKeyOnlyEnabled()) {
+        valFilter = ValueFilter::KEYS_ONLY;
+    } else {
+        if (as->isCompressionEnabled()) {
+            valFilter = ValueFilter::VALUES_COMPRESSED;
+        }
+    }
 
     std::shared_ptr<Callback<GetValue> > cb(new DiskCallback(stream));
     std::shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(engine, stream));
     scanCtx = kvstore->initScanContext(cb, cl, vbid, startSeqno,
-                                       DocumentFilter::ALL_ITEMS,
-                                       getCompressed
-                                        ? ValueFilter::VALUES_COMPRESSED
-                                        : ValueFilter::VALUES_DECOMPRESSED);
+                                       DocumentFilter::ALL_ITEMS, valFilter);
 
     if (scanCtx) {
         as->incrBackfillRemaining(scanCtx->documentCount);

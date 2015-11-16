@@ -139,7 +139,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
        lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
        takeoverState(vbucket_state_pending), backfillRemaining(0),
        itemsFromMemoryPhase(0), firstMarkerSent(false), waitForSnapshot(0),
-       engine(e), producer(p), isBackfillTaskRunning(false) {
+       engine(e), producer(p), isBackfillTaskRunning(false),
+       payloadType((flags & DCP_ADD_STREAM_FLAG_NO_VALUE) ? KEY_ONLY :
+                                                            KEY_VALUE) {
 
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -273,6 +275,9 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
 }
 
 bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source) {
+    if (nullptr == itm) {
+        return false;
+    }
     LockHolder lh(streamMutex);
     if (state_ == STREAM_BACKFILLING) {
         if (!producer->getBackfillManager()->bytesRead(itm->size())) {
@@ -601,7 +606,9 @@ void ActiveStream::nextCheckpointItem() {
 
             mutations.push_back(new MutationResponse(qi, opaque_,
                            prepareExtendedMetaData(qi->getVBucketId(),
-                                                   qi->getConflictResMode())));
+                                                   qi->getConflictResMode()),
+                           isSendMutationKeyOnlyEnabled() ? KEY_ONLY :
+                                                            KEY_VALUE));
         } else if (qi->getOperation() == queue_op_checkpoint_start) {
             if (!mutations.empty()) {
                 throw std::logic_error("ActiveStream::nextCheckpointItem: "
@@ -888,6 +895,11 @@ ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId,
 const char* ActiveStream::logHeader()
 {
     return producer->logHeader();
+}
+
+bool ActiveStream::isSendMutationKeyOnlyEnabled() const
+{
+    return (KEY_ONLY == payloadType);
 }
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e, DcpProducer* p,

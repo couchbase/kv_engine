@@ -4094,10 +4094,10 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                 == ENGINE_SUCCESS,
           "Failed to initiate stream request");
 
-    if (flags == DCP_ADD_STREAM_FLAG_TAKEOVER) {
+    if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         end  = -1;
-    } else if (flags == DCP_ADD_STREAM_FLAG_LATEST ||
-               flags == DCP_ADD_STREAM_FLAG_DISKONLY) {
+    } else if (flags & DCP_ADD_STREAM_FLAG_LATEST ||
+               flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
         std::string high_seqno("vb_" + std::to_string(vbucket) + ":high_seqno");
         end = get_int_stat(h, h1, high_seqno.c_str(), "vbucket-seqno");
     }
@@ -4867,6 +4867,137 @@ static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
             "Value received is not what is expected");
 
     testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_producer_stream_backfill_no_value(
+                                                        ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+    uint64_t num_items = 0, total_bytes = 0, est_bytes = 0;
+    const int rr_thresh = 80;
+    const std::string value("somevalue");
+    /* We want a DGM case to test both in memory backfill and disk backfill */
+    while (true) {
+        /* Gathering stats on every store is expensive, just check every 100
+         iterations */
+        if ((num_items % 10) == 0) {
+            if (get_int_stat(h, h1, "vb_active_perc_mem_resident") <
+                rr_thresh) {
+                break;
+            }
+        }
+
+        item *itm = NULL;
+        std::string key("key" + std::to_string(num_items));
+        ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET, key.c_str(),
+                                      value.c_str(), &itm);
+        if (ret == ENGINE_SUCCESS) {
+            num_items++;
+            est_bytes += key.length();
+        }
+        h1->release(h, NULL, itm);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong number of items");
+    int num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
+    cb_assert(num_non_resident >= (((float)(100 - rr_thresh)/100) * num_items));
+
+    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
+              "52428800");
+    cb_assert(get_int_stat(h, h1, "vb_active_perc_mem_resident") < rr_thresh);
+
+    const void *cookie = testHarness.create_cookie();
+
+    /* Stream mutations with "no_value" flag set */
+    dcp_stream(h, h1, "unittest", cookie, 0, DCP_ADD_STREAM_FLAG_NO_VALUE, 0,
+               end, vb_uuid, 0, 0, num_items, 0, 1, 0, false, false, 0, false,
+               &total_bytes);
+
+    /* basebytes mutation + nmeta (when no ext_meta is expected) */
+    const int packet_fixed_size = dcp_mutation_base_msg_bytes +
+                                  dcp_meta_size_none;
+    est_bytes += (num_items * packet_fixed_size);
+    /* Add DCP_SNAPSHOT_MARKER bytes and DCP_STREAM_END bytes */
+    est_bytes += (dcp_snapshot_marker_base_msg_bytes +
+                  dcp_stream_end_resp_base_msg_bytes);
+    checkeq(est_bytes, total_bytes, "Maybe values streamed in stream no_value");
+    testHarness.destroy_cookie(cookie);
+
+    /* Stream without NO_VALUE flag (default) and expect both key and value for
+       all mutations */
+    total_bytes = 0;
+    const void *cookie1 = testHarness.create_cookie();
+
+    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, 0, end, vb_uuid, 0, 0,
+               num_items, 0, 1, 0, false, false, 0, false, &total_bytes);
+
+    /* Just add total value size to estimated bytes */
+    est_bytes += (value.length() * num_items);
+    checkeq(est_bytes, total_bytes, "Maybe key values are not streamed");
+    testHarness.destroy_cookie(cookie1);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_producer_stream_mem_no_value(
+                                                        ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+    uint64_t num_items = 300, total_bytes = 0, est_bytes = 0;
+    const uint64_t start = 200, end = 300;
+    const std::string value("data");
+
+    for (uint64_t j = 0; j < num_items; ++j) {
+        if (j % 100 == 0) {
+            wait_for_flusher_to_settle(h, h1);
+        }
+        item *i = NULL;
+        std::string key("key" + std::to_string(j));
+        check(store(h, h1, NULL, OPERATION_SET, key.c_str(), value.c_str(), &i)
+              == ENGINE_SUCCESS, "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    const void *cookie = testHarness.create_cookie();
+
+    /* Stream mutations with "no_value" flag set */
+    dcp_stream(h, h1, "unittest", cookie, 0, DCP_ADD_STREAM_FLAG_NO_VALUE,
+               start, end, vb_uuid, 200, 200, (end-start), 0, 1, 0, false,
+               false, 0, false, &total_bytes);
+
+    /* basebytes mutation + nmeta (when no ext_meta is expected) */
+    const int packet_fixed_size = dcp_mutation_base_msg_bytes +
+                                  dcp_meta_size_none;
+    est_bytes += ((end-start) * packet_fixed_size);
+    /* Add DCP_SNAPSHOT_MARKER bytes and DCP_STREAM_END bytes */
+    est_bytes += (dcp_snapshot_marker_base_msg_bytes +
+                  dcp_stream_end_resp_base_msg_bytes);
+    /* Add key size (keys from "key201" till "key300") */
+    est_bytes += (6 * 100);
+    checkeq(est_bytes, total_bytes, "Maybe values streamed in stream no_value");
+    testHarness.destroy_cookie(cookie);
+
+    /* Stream without NO_VALUE flag (default) and expect both key and value for
+     all mutations */
+    total_bytes = 0;
+    const void *cookie1 = testHarness.create_cookie();
+
+    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, start, end, vb_uuid, 200, 200,
+               (end-start), 0, 1, 0, false, false, 0, false, &total_bytes);
+
+    /* Just add total value size to estimated bytes */
+    est_bytes += (value.length() * (end-start));
+    checkeq(est_bytes, total_bytes, "Maybe key values are not streamed");
+    testHarness.destroy_cookie(cookie1);
 
     return SUCCESS;
 }
@@ -15075,6 +15206,13 @@ BaseTestCase testsuite_testcases[] = {
                  test_dcp_value_compression, test_setup, teardown,
                  "dcp_value_compression_enabled=true",
                  prepare, cleanup),
+        TestCase("test producer stream request backfill no value",
+                 test_dcp_producer_stream_backfill_no_value, test_setup,
+                 teardown, "chk_remover_stime=1;max_size=2621440", prepare,
+                 cleanup),
+        TestCase("test producer stream request mem no value",
+                 test_dcp_producer_stream_mem_no_value, test_setup, teardown,
+                 "chk_remover_stime=1;max_size=2621440", prepare, cleanup),
         TestCase("test dcp stream takeover", test_dcp_takeover, test_setup,
                 teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test dcp stream takeover no items", test_dcp_takeover_no_items,
