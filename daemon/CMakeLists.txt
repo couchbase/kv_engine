@@ -111,6 +111,7 @@ ADD_EXECUTABLE(memcached
                stats.h
                subdocument.cc
                subdocument.h
+               subdocument_context.h
                subdocument_traits.cc
                subdocument_traits.h
                subdocument_validators.cc
