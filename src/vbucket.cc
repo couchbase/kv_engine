@@ -443,6 +443,20 @@ bool VBucket::isResidentRatioUnderThreshold(float threshold,
     }
 }
 
+void VBucket::createFilter(size_t key_count, double probability) {
+    // Create the actual bloom filter upon vbucket creation during
+    // scenarios:
+    //      - Bucket creation
+    //      - Rebalance
+    LockHolder lh(bfMutex);
+    if (bFilter == nullptr && tempFilter == nullptr) {
+        bFilter = new BloomFilter(key_count, probability, BFILTER_ENABLED);
+    } else {
+        LOG(EXTENSION_LOG_WARNING, "(vb %" PRIu16 ") Bloom filter / Temp filter"
+            " already exist!", id);
+    }
+}
+
 void VBucket::initTempFilter(size_t key_count, double probability) {
     // Create a temp bloom filter with status as COMPACTING,
     // if the main filter is found to exist, set its state to

@@ -1326,6 +1326,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         RCPtr<VBucket> newvb(new VBucket(vbid, to, stats,
                                          engine.getCheckpointConfig(),
                                          shard, 0, 0, 0, ft, cb));
+        Configuration& config = engine.getConfiguration();
+        if (config.isBfilterEnabled()) {
+            // Initialize bloom filters upon vbucket creation during
+            // bucket creation and rebalance
+            newvb->createFilter(config.getBfilterKeyCount(),
+                                config.getBfilterFpProb());
+        }
+
         // The first checkpoint for active vbucket should start with id 2.
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
         newvb->checkpointManager.setOpenCheckpointId(start_chk_id);

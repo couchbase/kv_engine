@@ -8057,7 +8057,8 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     check(get_meta(h, h1, "k2"), "Get meta failed");
     checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
-    checkeq(2, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 2");
+    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+            "Expected bg_meta_fetched to remain at 1");
 
     return SUCCESS;
 }
@@ -8271,12 +8272,10 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     int num_read_attempts = get_int_stat_or_default(h, h1, 0,
                                                     "ep_bg_num_samples");
 
-    // Run compaction to start using the bloomfilter
-    useconds_t sleepTime = 128;
-    compact_db(h, h1, 0, 1, 1, 0);
-    while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
-        decayingSleep(&sleepTime);
-    }
+    // Ensure vbucket's bloom filter is enabled
+    checkeq(std::string("ENABLED"),
+            get_str_stat(h, h1, "vb_0:bloom_filter", "vbucket-details 0"),
+            "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
     int i;
     item *it = NULL;
@@ -8320,6 +8319,8 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
           "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+
+    useconds_t sleepTime = 128;
 
     if (eviction_policy == "value_only") {  // VALUE-ONLY EVICTION MODE
 
@@ -8399,12 +8400,10 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
     int num_read_attempts = get_int_stat_or_default(h, h1, 0,
                                                     "ep_bg_num_samples");
 
-    // Run compaction to start using the bloomfilter
-    useconds_t sleepTime = 128;
-    compact_db(h, h1, 0, 1, 1, 0);
-    while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
-        decayingSleep(&sleepTime);
-    }
+    // Ensure vbucket's bloom filter is enabled
+    checkeq(std::string("ENABLED"),
+            get_str_stat(h, h1, "vb_0:bloom_filter", "vbucket-details 0"),
+            "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
     for (int i = 0; i < 1000; i++) {
         std::stringstream key;
@@ -8482,12 +8481,10 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
     check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
             "Bloom filter wasn't enabled");
 
-    // Run compaction to start using the bloomfilter
-    useconds_t sleepTime = 128;
-    compact_db(h, h1, 0, 1, 1, 0);
-    while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
-        decayingSleep(&sleepTime);
-    }
+    // Ensure vbucket's bloom filter is enabled
+    checkeq(std::string("ENABLED"),
+            get_str_stat(h, h1, "vb_0:bloom_filter", "vbucket-details 0"),
+            "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
     item *itm = NULL;
     check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &itm) == ENGINE_SUCCESS,
@@ -10646,13 +10643,13 @@ static enum test_result test_get_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_HANDL
     // wait until the vb snapshot has run
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
     check(!get_meta(h, h1, key), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 1, "Failed operation should also count");
+    checkeq(0, temp, "Expect zero getMeta ops, thanks to bloom filters");
 
     return SUCCESS;
 }
@@ -10669,7 +10666,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
     check(get_meta(h, h1, key1), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -10696,7 +10693,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(h1->get(h, NULL, &i, key2, strlen(key2), 0) == ENGINE_KEY_ENOENT, "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 3, "Failed operation should also count");
+    checkeq(2, temp, "No extra getMeta ops, thanks to bloom filters");
 
     return SUCCESS;
 }
@@ -10759,8 +10756,8 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     check(store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i) == ENGINE_SUCCESS,
           "Failed set.");
     // check the stat again
-    check(get_int_stat(h, h1, "ep_num_ops_get_meta") == 3,
-          "Failed operation should also count");
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_get_meta"),
+            "Unexpected getMeta ops, considering bloom filter assist");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -10779,7 +10776,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
     check(get_meta(h, h1, key1), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
@@ -10804,7 +10801,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     check(del(h, h1, key2, 0, 0) == ENGINE_KEY_ENOENT, "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 3, "Failed operation should also count");
+    checkeq(2, temp, "Bloom filter did not assist!");
 
     return SUCCESS;
 }
@@ -10994,7 +10991,6 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     check(!get_meta(h, h1, key), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // this is the cas to be used with a subsequent delete with meta
     uint64_t valid_cas = last_cas;
@@ -11457,7 +11453,6 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     check(!get_meta(h, h1, key), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected no temp_items");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -11475,7 +11470,6 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     // check the stat
     check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Failed op does not count");
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, val, valLen, 0, &itm_meta, cas_for_set);
@@ -11662,10 +11656,11 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     char const *k2 = "k2";
     check(!get_meta(h, h1, k2), "Expected get meta to return false");
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+    checkeq(1, get_int_stat(h, h1, "curr_temp_items"),
+            "No additional bg fetches, thanks to bloom filters");
 
     // Trigger the expiry pager and verify that two temp items are deleted
-    testHarness.time_travel(30);
-    wait_for_stat_to_be(h, h1, "ep_expired_pager", 2);
+    wait_for_stat_to_be(h, h1, "ep_expired_pager", 1);
     check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
@@ -11684,8 +11679,8 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
 
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
-          "Expected one bg meta fetch");
+    checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+            "Expected no bg meta fetches, thanks to bloom filters");
 
     check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
     wait_for_flusher_to_settle(h, h1);
@@ -11696,8 +11691,8 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.cas++;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 2,
-          "Expected two be meta fetches");
+    checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+            "Expected one bg meta fetch");
     check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 1,
           "Expected set meta conflict resolution failure");
 
@@ -11738,8 +11733,8 @@ static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
 
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
-          "Expected one bg meta fetch");
+    checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+            "Expected no bg meta fetches, thanks to bloom filters");
 
     // Check all meta data is the same
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
@@ -11784,8 +11779,8 @@ static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 4,
           "Expected set meta conflict resolution failure");
 
-    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
-          "Expect one bg meta fetch");
+    checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+            "Expect no bg meta fetches");
 
     return SUCCESS;
 }
@@ -11808,8 +11803,8 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
                   PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 1);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(get_int_stat(h, h1, "ep_bg_meta_fetched") == 1,
-          "Expected one bg meta fetch");
+    checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
+            "Expected no bg meta fetchs, thanks to bloom filters");
 
     // Check all meta data is the same
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
@@ -15106,7 +15101,7 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("temp item deletion", test_temp_item_deletion,
                  test_setup, teardown,
-                 "exp_pager_stime=3", prepare, cleanup),
+                 "exp_pager_stime=1", prepare, cleanup),
         TestCase("test estimate vb move", test_est_vb_move,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test getAdjustedTime, setDriftCounter apis",

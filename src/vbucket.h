@@ -398,6 +398,7 @@ public:
     /**
      * BloomFilter operations for vbucket
      */
+    void createFilter(size_t key_count, double probability);
     void initTempFilter(size_t key_count, double probability);
     void addToFilter(const std::string &key);
     bool maybeKeyExistsInFilter(const std::string &key);
