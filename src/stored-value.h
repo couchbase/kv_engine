@@ -212,6 +212,8 @@ public:
             itm.setRevSeqno(revSeqno);
         }
 
+        conflictResMode = itm.getConflictResMode();
+
         markDirty();
         size_t newSize = size();
         increaseCacheSize(ht, newSize);
@@ -525,7 +527,7 @@ private:
         lock_expiry = 0;
         keylen = itm.getNKey();
         revSeqno = itm.getRevSeqno();
-        conflictResMode = revision_seqno;
+        conflictResMode = itm.getConflictResMode();
 
         if (setDirty) {
             markDirty();

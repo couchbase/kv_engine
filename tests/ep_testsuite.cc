@@ -134,6 +134,15 @@ static void check_observe_seqno(bool failover, uint8_t format_type, uint16_t vb_
     }
 }
 
+void verifyLastMetaData(ItemMetaData imd, uint8_t conflict_res_mode) {
+    checkeq(imd.revSeqno, last_meta.revSeqno, "Seqno didn't match");
+    checkeq(imd.cas, last_meta.cas, "Cas didn't match");
+    checkeq(imd.exptime, last_meta.exptime, "Expiration time didn't match");
+    checkeq(imd.flags, last_meta.flags, "Flags didn't match");
+    checkeq(conflict_res_mode, last_conflict_resolution_mode,
+            "Conflict resolution mode didn't match");
+}
+
 static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "k1";
     uint16_t vbucketId = 0;
@@ -10537,12 +10546,10 @@ static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.revSeqno == it->getRevSeqno(), "Expected seqno to match");
-    check(last_meta.cas == it->getCas(), "Expected cas to match");
-    check(last_meta.exptime == it->getExptime(), "Expected exptime to match");
-    check(last_meta.flags == it->getFlags(), "Expected flags to match");
-    check(last_conflict_resolution_mode == static_cast<uint8_t>(-1),
-            "Expected to not receive the conflict resolution mode");
+    ItemMetaData metadata(it->getCas(), it->getRevSeqno(),
+                          it->getFlags(), it->getExptime());
+    verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
+
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
@@ -10566,12 +10573,9 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
 
     check(get_meta(h, h1, key1, true), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.revSeqno == it1->getRevSeqno(), "Expected seqno to match");
-    check(last_meta.cas == it1->getCas(), "Expected cas to match");
-    check(last_meta.exptime == it1->getExptime(), "Expected exptime to match");
-    check(last_meta.flags == it1->getFlags(), "Expected flags to match");
-    check(last_conflict_resolution_mode == 0,
-            "Expected to receive the conflict resolution mode revid_based");
+    ItemMetaData metadata1(it1->getCas(), it1->getRevSeqno(),
+                           it1->getFlags(), it1->getExptime());
+    verifyLastMetaData(metadata1, static_cast<uint8_t>(revision_seqno));
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
@@ -10587,15 +10591,25 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
     Item *it2 = reinterpret_cast<Item*>(i);
     check(get_meta(h, h1, key2, true), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.revSeqno == it2->getRevSeqno(), "Expected seqno to match");
-    check(last_meta.cas == it2->getCas(), "Expected cas to match");
-    check(last_meta.exptime == it2->getExptime(), "Expected exptime to match");
-    check(last_meta.flags == it2->getFlags(), "Expected flags to match");
-    check(last_conflict_resolution_mode == 1,
-            "Expected to receive the conflict resolution mode lww_based");
+    ItemMetaData metadata2(it2->getCas(), it2->getRevSeqno(),
+                           it2->getFlags(), it2->getExptime());
+    verifyLastMetaData(metadata2, static_cast<uint8_t>(last_write_wins));
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 2, "Expect one getMeta op");
     h1->release(h, NULL, i);
+
+    wait_for_flusher_to_settle(h, h1);
+
+    // restart
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, true);
+    wait_for_warmup_complete(h, h1);
+
+    check(get_meta(h, h1, key2, true), "Expected to get meta");
+    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    verifyLastMetaData(metadata2, static_cast<uint8_t>(last_write_wins));
 
     return SUCCESS;
 }
@@ -11427,10 +11441,8 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.revSeqno == 10, "Expected seqno to match");
-    check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
-    check(last_meta.exptime == 1735689600, "Expected exptime to match");
-    check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
+    ItemMetaData metadata(0xdeadbeef, 10, 0xdeadbeef, 1735689600);
+    verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
     check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
 
@@ -11482,10 +11494,8 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.revSeqno == 10, "Expected seqno to match");
-    check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
-    check(last_meta.exptime == 1735689600, "Expected exptime to match");
-    check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
+    ItemMetaData metadata(0xdeadbeef, 10, 0xdeadbeef, 1735689600);
+    verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
     check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
     check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
 
@@ -11832,7 +11842,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.cas = 0xdeadbfff;
     itemMeta.revSeqno = 9;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
-		  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 0);
+                  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
     check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
           "Expected set meta conflict resolution failure");
@@ -11841,7 +11851,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     // with revision seqno will pass
     itemMeta.revSeqno = 11;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
-		  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 0);
+                  PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 0);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
     return SUCCESS;
 }
@@ -13560,10 +13570,9 @@ static enum test_result test_getMeta_with_item_eviction(ENGINE_HANDLE *h,
 
     check(get_meta(h, h1, key), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_meta.revSeqno == it->getRevSeqno(), "Expected seqno to match");
-    check(last_meta.cas == it->getCas(), "Expected cas to match");
-    check(last_meta.exptime == it->getExptime(), "Expected exptime to match");
-    check(last_meta.flags == it->getFlags(), "Expected flags to match");
+    ItemMetaData metadata(it->getCas(), it->getRevSeqno(),
+                          it->getFlags(), it->getExptime());
+    verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
 
     h1->release(h, NULL, i);
     return SUCCESS;
