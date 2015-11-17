@@ -775,10 +775,12 @@ const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
         return "The stream closed early because the vbucket state changed";
     case END_STREAM_DISCONNECTED:
         return "The stream closed early because the conn was disconnected";
-    default:
-        break;
+    case END_STREAM_SLOW:
+        return "The stream was closed early because it was too slow";
     }
-    return "Status unknown; this should not happen";
+    std::string msg("Status unknown: " + std::to_string(status) +
+                    "; this should not have happened!");
+    return msg.c_str();
 }
 
 void ActiveStream::transitionState(stream_state_t newState) {
