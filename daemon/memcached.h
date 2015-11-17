@@ -22,6 +22,7 @@
 #include <JSON_checker.h>
 
 #include "dynamic_buffer.h"
+#include "executorpool.h"
 #include "log_macros.h"
 #include "net_buf.h"
 #include "rbac.h"
@@ -401,5 +402,12 @@ static inline ENGINE_ERROR_CODE bucket_get(Connection* c,
     return c->getBucketEngine()->get(c->getBucketEngineAsV0(), c, item_,
                                      key, nkey, vbucket);
 }
+
+/**
+ * The executor pool used to pick up the result for requests spawn by the
+ * client io threads and dispatched over to a background thread (in order
+ * to allow for out of order replies).
+ */
+extern std::unique_ptr<ExecutorPool> executorPool;
 
 #endif

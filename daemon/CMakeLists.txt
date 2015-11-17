@@ -75,6 +75,10 @@ ADD_EXECUTABLE(memcached
                dynamic_buffer.h
                enginemap.cc
                enginemap.h
+               executor.cc
+               executor.h
+               executorpool.cc
+               executorpool.h
                greenstack.cc
                greenstack.h
                ioctl.cc
@@ -116,6 +120,8 @@ ADD_EXECUTABLE(memcached
                subdocument_traits.h
                subdocument_validators.cc
                subdocument_validators.h
+               task.h
+               task.cc
                thread.cc
                timings.cc
                timings.h

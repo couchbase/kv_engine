@@ -94,6 +94,8 @@ const char* getBucketName(const Connection* c) {
 std::atomic<bool> memcached_shutdown;
 std::atomic<bool> service_online;
 
+std::unique_ptr<ExecutorPool> executorPool;
+
 /* Mutex for global stats */
 std::mutex stats_mutex;
 
@@ -2464,6 +2466,8 @@ int main (int argc, char **argv) {
     /* start up worker threads if MT mode */
     thread_init(settings.num_threads, main_base, dispatch_event_handler);
 
+    executorPool.reset(new ExecutorPool(size_t(settings.num_threads)));
+
     /* Initialise memcached time keeping */
     mc_time_init(main_base);
 
@@ -2528,6 +2532,9 @@ int main (int argc, char **argv) {
 
     LOG_NOTICE(NULL, "Releasing thread resources");
     threads_cleanup();
+
+    LOG_NOTICE(nullptr, "Shutting down executor pool");
+    delete executorPool.release();
 
     release_signal_handlers();
 
