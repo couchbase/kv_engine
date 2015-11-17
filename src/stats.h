@@ -542,6 +542,7 @@ public:
         io_num_write.store(0);
         io_read_bytes.store(0);
         io_write_bytes.store(0);
+        bg_fetched.store(0);
         bgNumOperations.store(0);
         bgWait.store(0);
         bgLoad.store(0);
