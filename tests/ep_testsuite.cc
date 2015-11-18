@@ -7415,6 +7415,9 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(get_int_stat(h, h1, "ep_bg_num_samples") == 2,
           "Expected one sample");
 
+    h1->reset_stats(h, NULL);
+    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"),
+            "ep_bg_fetched is not reset to 0");
     return SUCCESS;
 }
 
