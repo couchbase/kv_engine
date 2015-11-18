@@ -73,6 +73,10 @@ Connection::~Connection() {
     MEMCACHED_CONN_DESTROY(this);
     auth_destroy(auth_context);
     cbsasl_dispose(&sasl_conn);
+    if (socketDescriptor != INVALID_SOCKET) {
+        LOG_INFO(this, "%u - Closing socket descriptor", getId());
+        safe_close(socketDescriptor);
+    }
 }
 
 /**
