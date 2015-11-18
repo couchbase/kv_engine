@@ -35,7 +35,8 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
 
 void clear_dcp_data();
 
-struct dcp_message_producers* get_dcp_producers();
+struct dcp_message_producers* get_dcp_producers(ENGINE_HANDLE *_h,
+                                                ENGINE_HANDLE_V1 *_h1);
 
 
 

@@ -3904,7 +3904,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
                                        ((max_conns - max_conns/2)));
     /* Also check if we get control message indicating the flow control buffer
        size change from the consumer connections */
-    struct dcp_message_producers* producers = get_dcp_producers();
+    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
 
     for (int i = max_conns/2; i < max_conns; i++) {
         /* Check if the buffer size of all connections has changed */
@@ -3984,7 +3984,7 @@ static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     testHarness.time_travel(201);
 
-    struct dcp_message_producers* producers = get_dcp_producers();
+    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
     bool done = false;
     while (!done) {
         ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
@@ -4032,7 +4032,7 @@ static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
 
     testHarness.time_travel(201);
 
-    struct dcp_message_producers* producers = get_dcp_producers();
+    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
     bool done = false;
     bool disconnected = false;
     while (!done) {
@@ -4132,7 +4132,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     check((uint64_t)get_ull_stat(h, h1, stats_snap_seqno.str().c_str(), "dcp")
           == snap_start_seqno, "snap start seqno didn't match");
 
-    struct dcp_message_producers* producers = get_dcp_producers();
+    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
 
     if ((flags & DCP_ADD_STREAM_FLAG_TAKEOVER) == 0 &&
         (flags & DCP_ADD_STREAM_FLAG_DISKONLY) == 0 &&
@@ -4807,7 +4807,7 @@ static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
             ENGINE_SUCCESS,
             "Failed to initiate stream request");
 
-    struct dcp_message_producers* producers = get_dcp_producers();
+    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
 
     bool done = false;
     uint32_t bytes_read = 0;
@@ -5072,7 +5072,7 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
                 == ENGINE_SUCCESS,
           "Failed to initiate stream request");
 
-    struct dcp_message_producers* producers = get_dcp_producers();
+    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
 
     bool done = false;
     int num_snapshot_markers = 0;
@@ -6577,7 +6577,7 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    struct dcp_message_producers* producers = get_dcp_producers();
+    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
     testHarness.time_travel(201);
 
     // No-op not recieved for 201 seconds. Should be ok.

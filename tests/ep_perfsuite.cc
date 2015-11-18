@@ -596,7 +596,7 @@ static void perf_dcp_client(struct Handle_args *ha) {
             ENGINE_SUCCESS,
             "Failed to initiate stream request");
 
-    struct dcp_message_producers* producers = get_dcp_producers();
+    struct dcp_message_producers* producers = get_dcp_producers(ha->h, ha->h1);
 
     bool done = false;
     uint32_t bytes_read = 0;

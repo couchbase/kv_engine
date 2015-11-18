@@ -44,6 +44,9 @@ std::string dcp_last_value;
 std::string dcp_last_key;
 vbucket_state_t dcp_last_vbucket_state;
 
+static ENGINE_HANDLE *engine_handle = nullptr;
+static ENGINE_HANDLE_V1 *engine_handle_v1 = nullptr;
+
 extern "C" {
 
 std::vector<std::pair<uint64_t, uint64_t> > dcp_failover_log;
@@ -186,6 +189,9 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     dcp_last_nru = nru;
     dcp_last_packet_size = 55 + dcp_last_key.length() +
                            item->getNBytes() + nmeta;
+    if (engine_handle_v1 && engine_handle) {
+        engine_handle_v1->release(engine_handle, NULL, item);
+    }
     return ENGINE_SUCCESS;
 }
 
@@ -320,7 +326,8 @@ void clear_dcp_data() {
     dcp_last_vbucket_state = (vbucket_state_t)0;
 }
 
-struct dcp_message_producers* get_dcp_producers() {
+struct dcp_message_producers* get_dcp_producers(ENGINE_HANDLE *_h,
+                                                ENGINE_HANDLE_V1 *_h1) {
     dcp_message_producers* producers =
         (dcp_message_producers*)malloc(sizeof(dcp_message_producers));
 
@@ -339,5 +346,7 @@ struct dcp_message_producers* get_dcp_producers() {
     producers->buffer_acknowledgement = mock_buffer_acknowledgement;
     producers->control = mock_control;
 
+    engine_handle = _h;
+    engine_handle_v1 = _h1;
     return producers;
 }
