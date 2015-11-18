@@ -134,7 +134,7 @@ bool McbpConnection::updateEvent(const short new_flags) {
         rel_time_t now = mc_time_get_current_time();
         const int reinsert_time = settings.connection_idle_time / 2;
 
-        if (ev_insert_time + reinsert_time < now) {
+        if ((ev_insert_time + reinsert_time) > now) {
             return true;
         } else {
             LOG_DEBUG(this, "%u: Forcibly reset the event connection flags to"
