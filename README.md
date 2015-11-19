@@ -81,14 +81,14 @@ RWLock rwLock;
 Object thing;
 
 void foo1() {
-    ReaderLockHolder(&rwLock);
+    ReaderLockHolder rlh(&rwLock);
     if (thing.getData()) {
     ...
     }
 }
 
 void foo2() {
-    WriterLockHolder(&rwLock);
+    WriterLockHolder wlh(&rwLock);
     thing.setData(...);
 }
 ```

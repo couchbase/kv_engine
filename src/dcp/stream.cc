@@ -343,12 +343,11 @@ void ActiveStream::snapshotMarkerAckReceived() {
 
 void ActiveStream::setVBucketStateAckRecieved() {
     LockHolder lh(streamMutex);
+    bool transitionVbucket = false;
     if (state_ == STREAM_TAKEOVER_WAIT) {
         if (takeoverState == vbucket_state_pending) {
-            RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
-            engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
-                                                  false, false);
             takeoverState = vbucket_state_active;
+            transitionVbucket = true;
             transitionState(STREAM_TAKEOVER_SEND);
             LOG(EXTENSION_LOG_INFO, "%s (vb %d) Receive ack for set vbucket "
                 "state to pending message", producer->logHeader(), vb_);
@@ -361,13 +360,22 @@ void ActiveStream::setVBucketStateAckRecieved() {
         if (!itemsReady) {
             itemsReady = true;
             lh.unlock();
+            if (transitionVbucket) {
+                engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
+                                                      false, false);
+            }
             producer->notifyStreamReady(vb_, true);
+        } else if(transitionVbucket) {
+            lh.unlock();
+            engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
+                                                  false, false);
         }
     } else {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Unexpected ack for set vbucket "
             "op on stream '%s' state '%s'", producer->logHeader(), vb_,
             name_.c_str(), stateName(state_));
     }
+
 }
 
 DcpResponse* ActiveStream::backfillPhase() {

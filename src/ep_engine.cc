@@ -4451,7 +4451,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
             return ENGINE_NOT_MY_VBUCKET;
         }
 
-        ReaderLockHolder(vb->getStateLock());
+        ReaderLockHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_dead) {
             return ENGINE_NOT_MY_VBUCKET;
         }
@@ -4478,7 +4478,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
     for (auto vbid : vbuckets) {
         RCPtr<VBucket> vb = getVBucket(vbid);
         if (vb) {
-            ReaderLockHolder(vb->getStateLock());
+            ReaderLockHolder rlh(vb->getStateLock());
             vbucket_state_t vbstate = vb->getState();
             if (vbstate == vbucket_state_dead) {
                 continue;
@@ -4868,7 +4868,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
                             cookie);
     }
 
-    ReaderLockHolder(vb->getStateLock());
+    ReaderLockHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
         LockHolder lh(clusterConfig.lock);
         return sendResponse(response, NULL, 0, NULL, 0,
