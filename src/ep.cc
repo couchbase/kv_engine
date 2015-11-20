@@ -2891,7 +2891,14 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                                                      bool isReplication)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || (vb->getState() == vbucket_state_dead && !force)) {
+
+    if (!vb) {
+        ++stats.numNotMyVBuckets;
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    ReaderLockHolder rlh(vb->getStateLock());
+    if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
     } else if (vb->getState() == vbucket_state_replica && !force) {
@@ -2903,7 +2910,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         }
     } else if (vb->isTakeoverBackedUp()) {
         LOG(EXTENSION_LOG_DEBUG, "(vb %u) Returned TMPFAIL to a deleteWithMeta "
-                "op, becuase takeover is lagging", vb->getId());
+                "op, because takeover is lagging", vb->getId());
         return ENGINE_TMPFAIL;
     }
 
