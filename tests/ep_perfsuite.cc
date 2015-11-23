@@ -906,61 +906,60 @@ static enum test_result perf_latency_tap_impact(ENGINE_HANDLE *h,
  * List of testcases
  *****************************************************************************/
 
-/* NOTE: Please pass "backend=couchdb;dbname=./perf_test" as the test cfg
-         parameter always. This ensures that the perf test doesn't not use the
-         same file as the functional test when they are running concurrently. */
+const char *default_dbname = "./perf_test";
+
 BaseTestCase testsuite_testcases[] = {
         TestCase("Baseline latency", perf_latency_baseline,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                 "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
         TestCase("Defragmenter latency", perf_latency_defragmenter,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=./perf_test;ht_size=393209"
+                 "backend=couchdb;ht_size=393209"
                  // Run defragmenter constantly.
                  ";defragmenter_interval=0",
                  prepare, cleanup),
         TestCase("Expiry pager latency", perf_latency_expiry_pager,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=./perf_test;ht_size=393209"
+                 "backend=couchdb;ht_size=393209"
                  // Run expiry pager constantly.
                  ";exp_pager_stime=0",
                  prepare, cleanup),
         TestCaseV2("Multi bucket latency", perf_latency_baseline_multi_bucket_2,
                    NULL, NULL,
-                   "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                   "backend=couchdb;ht_size=393209",
                    prepare, cleanup),
         TestCaseV2("Multi bucket latency", perf_latency_baseline_multi_bucket_4,
                    NULL, NULL,
-                   "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                   "backend=couchdb;ht_size=393209",
                    prepare, cleanup),
         TestCase("DCP latency (Padded JSON)", perf_dcp_latency_with_padded_json,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                 "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
         TestCase("DCP latency (Random JSON)", perf_dcp_latency_with_random_json,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                 "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
         TestCase("DCP latency (Random BIN)", perf_dcp_latency_with_random_binary,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                 "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
         TestCaseV2("Multi thread latency", perf_multi_thread_latency,
                    NULL, NULL,
-                   "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                   "backend=couchdb;ht_size=393209",
                    prepare, cleanup),
 
         TestCase("DCP impact on front-end latency", perf_latency_dcp_impact,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                 "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
 
         TestCase("TAP impact on front-end latency", perf_latency_tap_impact,
                  test_setup, teardown,
-                 "backend=couchdb;dbname=./perf_test;ht_size=393209",
+                 "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL,
-                 "backend=couchdb;dbname=./perf_test", prepare, cleanup)
+                 "backend=couchdb", prepare, cleanup)
 };

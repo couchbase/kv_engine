@@ -29,8 +29,6 @@
 
 #include "ep_test_apis.h"
 
-#define WHITESPACE_DB "whitespace sucks.db"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -112,6 +110,9 @@ extern const char *dbname_env;
 // Handle of the test_harness, provided by engine_testapp.
 extern struct test_harness testHarness;
 
+// Default DB name. Provided by the specific testsuite.
+extern const char* default_dbname;
+
 enum test_result rmdb(const char* path);
 enum test_result rmdb(void);
 
@@ -152,6 +153,10 @@ int create_buckets(const char* cfg, int n_buckets, std::vector<BucketHolder> &bu
 */
 void destroy_buckets(std::vector<BucketHolder> &buckets);
 
+// Verifies that the given key and value exist in the store.
+void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                     const char* key, const char* val, size_t vlen,
+                     uint16_t vbucket = 0);
 
 
 #endif /* TESTS_EP_TESTSUITE_COMMON_H_ */

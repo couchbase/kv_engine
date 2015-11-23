@@ -309,6 +309,16 @@ ADD_LIBRARY(ep_testsuite SHARED
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 
+ADD_LIBRARY(ep_testsuite_basic SHARED
+   tests/ep_testsuite_basic.cc
+   src/compress.cc
+   src/ext_meta_parser.cc
+   tests/ep_testsuite_common.cc
+   tests/ep_test_apis.cc
+   tests/mock/mock_dcp.cc
+)
+SET_TARGET_PROPERTIES(ep_testsuite_basic PROPERTIES PREFIX "")
+TARGET_LINK_LIBRARIES(ep_testsuite_basic JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 
 ADD_LIBRARY(ep_perfsuite SHARED
    tests/ep_perfsuite.cc
@@ -394,6 +404,10 @@ ADD_CUSTOM_TARGET(engine-tests
 
 ADD_TEST(ep-engine-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite.so -v -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
 SET_TESTS_PROPERTIES(ep-engine-engine-tests PROPERTIES TIMEOUT 3600)
+
+ADD_TEST(ep_testsuite_basic
+         ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_basic.so -v -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
+SET_TESTS_PROPERTIES(ep_testsuite_basic PROPERTIES TIMEOUT 100)
 
 # ADD_TEST(ep-engine-breakdancer-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T generated_testsuite.so -e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=couchdb')
 

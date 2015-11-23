@@ -33,7 +33,6 @@
 
 #include <platform/dirutils.h>
 
-static const char *default_dbname = "./test";
 const char *dbname_env = NULL;
 
 static enum test_result skipped_test_function(ENGINE_HANDLE *h,
@@ -100,6 +99,13 @@ engine_test_t* BaseTestCase::getTest() {
         ss << cfg << ";";
     } else {
         ss << "flushall_enabled=true;";
+    }
+
+    // Default to the suite's dbname if the test config didn't already
+    // specify it.
+    if ((cfg == nullptr) ||
+        (std::string(cfg).find("dbname=") == std::string::npos)) {
+        ss << "dbname=" << default_dbname << ";";
     }
 
     if (skip) {
@@ -221,6 +227,7 @@ static int oneTestIdx;
 
 struct test_harness testHarness;
 
+// Array of testcases. Provided by the specific testsuite.
 extern BaseTestCase testsuite_testcases[];
 
 // Examines the list of tests provided by the specific testsuite
@@ -324,4 +331,14 @@ void destroy_buckets(std::vector<BucketHolder> &buckets) {
         testHarness.destroy_bucket(bucket.h, bucket.h1, false);
         rmdb(bucket.dbpath.c_str());
     }
+}
+
+void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                     const char* key, const char* val, size_t vlen,
+                     uint16_t vbucket) {
+    item_info info;
+    check(get_item_info(h, h1, &info, key, vbucket), "checking key and value");
+    checkeq(static_cast<uint16_t>(1), info.nvalue, "Unexpected info.nvalue");
+    checkeq(vlen, info.value[0].iov_len, "Value length mismatch");
+    check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
 }
