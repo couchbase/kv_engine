@@ -170,10 +170,11 @@ bool DCPBackfill::run() {
 
     static_cast<ActiveStream*>(stream.get())->completeBackfill();
 
-    LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill task (%llu to %llu) "
-        "finished. disk seqno %llu memory seqno %llu",
-        static_cast<ActiveStream*>(stream.get())->logHeader(), startSeqno,
-        endSeqno, vbid, diskSeqno, lastPersistedSeqno);
+    LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") "
+        "Backfill task (%" PRIu64 " to %" PRIu64 ") "
+        "finished. disk seqno %" PRIu64 " memory seqno %" PRIu64 "",
+        static_cast<ActiveStream*>(stream.get())->logHeader(), vbid,
+        startSeqno, endSeqno, diskSeqno, lastPersistedSeqno);
 
     return false;
 }
