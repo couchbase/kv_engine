@@ -117,33 +117,6 @@ static struct {
     time_t created;
 } lastlog;
 
-static FILE *stdio_open(const char *path, const char *mode) {
-    FILE *ret = fopen(path, mode);
-    if (ret) {
-        setbuf(ret, NULL);
-    }
-    return ret;
-}
-
-static void stdio_close(FILE *handle) {
-    (void)fclose(handle);
-}
-
-static void stdio_flush(FILE *handle) {
-    fflush(handle);
-}
-
-static ssize_t stdio_write(FILE *handle, const void *ptr, size_t nbytes) {
-    return (ssize_t)fwrite(ptr, 1, nbytes, handle);
-}
-
-struct io_ops {
-    FILE *(*open)(const char *path, const char *mode);
-    void (*close)(FILE *handle);
-    void (*flush)(FILE *handle);
-    ssize_t (*write)(FILE *handle, const void *ptr, size_t nbytes);
-} iops;
-
 static const char *extension = "txt";
 
 static void do_add_log_entry(const char *msg, size_t size) {
@@ -388,13 +361,18 @@ static FILE *open_logfile(const char *fnm) {
         sprintf(fname, "%s.%d.%s", fnm, ++next_id, extension);
         fprintf(stderr, "open_logfile() - testing '%s'\n", fname);
     }
-    ret = iops.open(fname, "wb");
+
+    ret = fopen(fname, "wb");
+    if (ret != nullptr) {
+        setbuf(ret, nullptr);
+    }
+
     return ret;
 }
 
 static void close_logfile(FILE *fp) {
     if (fp) {
-        iops.close(fp);
+        fclose(fp);
     }
 }
 
@@ -414,8 +392,8 @@ static FILE *rotate_logfile(FILE *old, const char *fnm) {
         format_log_entry(log_entry, sizeof(log_entry), now.tv_sec, now.tv_usec,
                          EXTENSION_LOG_WARNING, msg.c_str());
 
-        iops.write(old, log_entry, strlen(log_entry));
-        iops.flush(old);
+        fwrite(log_entry, 1, strlen(log_entry), old);
+        fflush(old);
         // Send to stderr for good measure.
         (void)fwrite(log_entry, sizeof(char), strlen(log_entry), stderr);
     }
@@ -430,14 +408,14 @@ static size_t flush_pending_io(FILE *file, struct logbuffer *lb) {
             char *ptr = lb->data;
             size_t towrite = ret = lb->offset;
             while (towrite > 0) {
-                int nw = iops.write(file, ptr, towrite);
+                auto nw = fwrite(ptr, 1, towrite, file);
                 if (nw > 0) {
                     ptr += nw;
                     towrite -= nw;
                 }
             }
             lb->offset = 0;
-            iops.flush(file);
+            fflush(file);
         } else {
             // Cannot write as have no FD, however we also don't want
             // to leave the logbuffer as-is as that would result in it
@@ -502,7 +480,7 @@ static void logger_thead_main(void* arg)
                                      EXTENSION_LOG_WARNING,
                                      "Restarting file logging\n");
 
-                    iops.write(fp, log_entry, strlen(log_entry));
+                    fwrite(log_entry, 1, strlen(log_entry), fp);
                     // Send to stderr for good measure.
                     (void)fwrite(log_entry, sizeof(char), strlen(log_entry), stderr);
                 }
@@ -606,10 +584,6 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     cb_cond_initialize(&cond);
     cb_cond_initialize(&space_cond);
 
-    iops.open = stdio_open;
-    iops.close = stdio_close;
-    iops.flush = stdio_flush;
-    iops.write = stdio_write;
     descriptor.get_name = get_name;
     descriptor.log = logger_log_wrapper;
     descriptor.shutdown = logger_shutdown;
