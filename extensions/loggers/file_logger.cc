@@ -356,10 +356,8 @@ static FILE *open_logfile(const char *fnm) {
     char fname[1024];
     FILE *ret;
     sprintf(fname, "%s.%d.%s", fnm, next_id, extension);
-    fprintf(stderr, "open_logfile() - testing '%s'\n", fname);
     while (access(fname, F_OK) == 0) {
         sprintf(fname, "%s.%d.%s", fnm, ++next_id, extension);
-        fprintf(stderr, "open_logfile() - testing '%s'\n", fname);
     }
 
     ret = fopen(fname, "wb");
