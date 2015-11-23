@@ -97,8 +97,8 @@ static void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             uint16_t vbucket = 0) {
     item_info info;
     check(get_item_info(h, h1, &info, key, vbucket), "checking key and value");
-    check(info.nvalue == 1, "info.nvalue != 1");
-    check(vlen == info.value[0].iov_len, "Value length mismatch");
+    checkeq(static_cast<uint16_t>(1), info.nvalue, "Unexpected info.nvalue");
+    checkeq(vlen, info.value[0].iov_len, "Value length mismatch");
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
 }
 
@@ -115,22 +115,24 @@ static void check_observe_seqno(bool failover, uint8_t format_type, uint16_t vb_
     uint64_t recv_failover_seqno;
 
     memcpy(&recv_format_type, last_body.data(), sizeof(uint8_t));
-    check(recv_format_type == format_type, "Wrong format type in result");
+    checkeq(format_type, recv_format_type, "Wrong format type in result");
     memcpy(&recv_vb_id, last_body.data() + 1, sizeof(uint16_t));
-    check(ntohs(recv_vb_id) == vb_id, "Wrong vbucket id in result");
+    checkeq(vb_id, ntohs(recv_vb_id), "Wrong vbucket id in result");
     memcpy(&recv_vb_uuid, last_body.data() + 3, sizeof(uint64_t));
-    check(ntohll(recv_vb_uuid) == vb_uuid, "Wrong vbucket uuid in result");
+    checkeq(vb_uuid, ntohll(recv_vb_uuid), "Wrong vbucket uuid in result");
     memcpy(&recv_last_persisted_seqno, last_body.data() + 11, sizeof(uint64_t));
-    check(ntohll(recv_last_persisted_seqno) == last_persisted_seqno,
-          "Wrong persisted seqno in result");
+    checkeq(last_persisted_seqno, ntohll(recv_last_persisted_seqno),
+            "Wrong persisted seqno in result");
     memcpy(&recv_current_seqno, last_body.data() + 19, sizeof(uint64_t));
-    check(ntohll(recv_current_seqno) == current_seqno, "Wrong current seqno in result");
+    checkeq(current_seqno, ntohll(recv_current_seqno), "Wrong current seqno in result");
 
     if (failover) {
         memcpy(&recv_failover_vbuuid, last_body.data() + 27, sizeof(uint64_t));
-        check(ntohll(recv_failover_vbuuid) == failover_vbuuid, "Wrong failover uuid in result");
+        checkeq(failover_vbuuid, ntohll(recv_failover_vbuuid),
+                "Wrong failover uuid in result");
         memcpy(&recv_failover_seqno, last_body.data() + 35, sizeof(uint64_t));
-        check(ntohll(recv_failover_seqno) == failover_seqno, "Wrong failover seqno in result");
+        checkeq(failover_seqno, ntohll(recv_failover_seqno),
+                "Wrong failover seqno in result");
     }
 }
 
@@ -149,7 +151,8 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint32_t expiration = 25;
 
     getl(h, h1, key, vbucketId, expiration);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+            last_status.load(),
           "expected the key to be missing...");
     if (!last_body.empty() && last_body != "NOT_FOUND") {
         fprintf(stderr, "Should have returned NOT_FOUND. Getl Failed");
@@ -157,17 +160,20 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, "{\"lock\":\"data\"}",
-                &i, 0, vbucketId, 3600, PROTOCOL_BINARY_DATATYPE_JSON)
-          == ENGINE_SUCCESS, "Failed to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "{\"lock\":\"data\"}",
+                  &i, 0, vbucketId, 3600, PROTOCOL_BINARY_DATATYPE_JSON),
+            "Failed to store an item.");
     h1->release(h, NULL, i);
 
     /* retry getl, should succeed */
     getl(h, h1, key, vbucketId, expiration);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected to be able to getl on first try");
-    check(last_body == "{\"lock\":\"data\"}", "Body was malformed.");
-    check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected to be able to getl on first try");
+    checkeq(std::string("{\"lock\":\"data\"}"), last_body,
+            "Body was malformed.");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            last_datatype.load(),
             "Expected datatype to be JSON");
 
     /* wait 16 seconds */
@@ -175,8 +181,8 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* lock's taken so this should fail */
     getl(h, h1, key, vbucketId, expiration);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
-          "Expected to fail getl on second try");
+    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+            "Expected to fail getl on second try");
 
     if (!last_body.empty() && last_body != "LOCK_ERROR") {
         fprintf(stderr, "Should have returned LOCK_ERROR. Getl Failed");
@@ -191,32 +197,35 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(10);
 
     /* retry set, should succeed */
-    check(store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId)
-          == ENGINE_SUCCESS, "Failed to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId),
+            "Failed to store an item.");
     h1->release(h, NULL, i);
 
     /* point to wrong vbucket, to test NOT_MY_VB response */
     getl(h, h1, key, 10, expiration);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-          "Should have received not my vbucket response");
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+            "Should have received not my vbucket response");
 
     /* acquire lock, should succeed */
     getl(h, h1, key, vbucketId, expiration);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Aquire lock should have succeeded");
-    check(last_datatype == PROTOCOL_BINARY_RAW_BYTES,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Aquire lock should have succeeded");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES),
+            last_datatype.load(),
             "Expected datatype to be RAW BYTES");
 
     /* try an incr operation followed by a delete, both of which should fail */
     uint64_t cas = 0;
     uint64_t result = 0;
     i = NULL;
-    check(h1->arithmetic(h, NULL, key, 2, true, false, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         0) == ENGINE_TMPFAIL, "Incr failed");
+    checkeq(ENGINE_TMPFAIL,
+            h1->arithmetic(h, NULL, key, 2, true, false, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
+            "Incr failed");
     h1->release(h, NULL, i);
 
-    check(del(h, h1, key, 0, 0) == ENGINE_TMPFAIL, "Delete failed");
+    checkeq(ENGINE_TMPFAIL, del(h, h1, key, 0, 0), "Delete failed");
 
 
     /* bug MB 2699 append after getl should fail with ENGINE_TMPFAIL */
@@ -226,38 +235,38 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char binaryData1[] = "abcdefg\0gfedcba";
     char binaryData2[] = "abzdefg\0gfedcba";
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, key,
-                       binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, key,
+                         binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0),
+            "Failed set.");
     h1->release(h, NULL, i);
 
     /* acquire lock, should succeed */
     getl(h, h1, key, vbucketId, expiration);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Aquire lock should have succeeded");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Aquire lock should have succeeded");
     auto locked_cas = last_cas.load();
     /* append should fail */
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
-                       binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
-          == ENGINE_TMPFAIL,
-          "Append should fail.");
+    checkeq(ENGINE_TMPFAIL,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
+                         binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0),
+            "Append should fail.");
     h1->release(h, NULL, i);
 
     // append should fail if we used invalid cas!
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
-                       binaryData2, sizeof(binaryData2) - 1, 82758, &i,
-                       locked_cas-1, 0)
-          == ENGINE_TMPFAIL,
-          "Append should fail for locked key with invalid cas.");
+    checkeq(ENGINE_TMPFAIL,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
+                         binaryData2, sizeof(binaryData2) - 1, 82758, &i,
+                         locked_cas-1, 0),
+            "Append should fail for locked key with invalid cas.");
     h1->release(h, NULL, i);
 
     // append should succeed if we used correct cas!
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
-                       binaryData2, sizeof(binaryData2) - 1, 82758, &i,
-                       locked_cas, 0)
-          == ENGINE_SUCCESS,
-          "Append should Succeed for locked key with correct cas.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, key,
+                         binaryData2, sizeof(binaryData2) - 1, 82758, &i,
+                         locked_cas, 0),
+            "Append should Succeed for locked key with correct cas.");
     h1->release(h, NULL, i);
 
     /* bug MB 3252 & MB 3354.
@@ -272,8 +281,10 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     item *it = NULL;
 
-    check(h1->allocate(h, NULL, &it, ekey, strlen(ekey), strlen(edata), 0, 2,
-          PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS, "Allocation Failed");
+    checkeq(ENGINE_SUCCESS,
+            h1->allocate(h, NULL, &it, ekey, strlen(ekey), strlen(edata), 0, 2,
+                         PROTOCOL_BINARY_RAW_BYTES),
+            "Allocation Failed");
 
     item_info info;
     info.nvalue = 1;
@@ -282,8 +293,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
     memcpy(info.value[0].iov_base, edata, strlen(edata));
 
-    check(h1->store(h, NULL, it, &cas, OPERATION_SET, 0) ==
-        ENGINE_SUCCESS, "Failed to Store item");
+    checkeq(ENGINE_SUCCESS,
+            h1->store(h, NULL, it, &cas, OPERATION_SET, 0),
+           "Failed to Store item");
     check_key_value(h, h1, ekey, edata, strlen(edata));
     h1->release(h, NULL, it);
 
@@ -298,8 +310,9 @@ static enum test_result test_getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     h1->release(h, NULL, i);
 
     /* but a simple store should succeed */
-    check(store(h, h1, NULL, OPERATION_SET, ekey, edata, &i, 0, vbucketId)
-          == ENGINE_SUCCESS, "Failed to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, ekey, edata, &i, 0, vbucketId),
+            "Failed to store an item.");
     h1->release(h, NULL, i);
     return SUCCESS;
 }
@@ -314,22 +327,23 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "expected the key to be missing...");
 
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId)
-          == ENGINE_SUCCESS, "Failed to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "lockdata", &i, 0, vbucketId),
+            "Failed to store an item.");
     h1->release(h, NULL, i);
 
     /* getl, should succeed */
     getl(h, h1, key, vbucketId, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected to be able to getl on first try");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected to be able to getl on first try");
 
     /* save the returned cas value for later */
     uint64_t cas = last_cas;
 
     /* lock's taken unlocking with a random cas value should fail */
     unl(h, h1, key, vbucketId);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
-          "Expected to fail getl on second try");
+    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+            "Expected to fail getl on second try");
 
     if (!last_body.empty() && last_body != "UNLOCK_ERROR") {
         fprintf(stderr, "Should have returned UNLOCK_ERROR. Unl Failed");
@@ -337,8 +351,8 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 
     unl(h, h1, key, vbucketId, cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected to succed unl with correct cas");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected to succed unl with correct cas");
 
     /* acquire lock, should succeed */
     getl(h, h1, key, vbucketId, 0);
@@ -348,8 +362,8 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* lock has expired, unl should fail */
     unl(h, h1, key, vbucketId, last_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
-          "Expected to fail unl on lock timeout");
+    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+            "Expected to fail unl on lock timeout");
 
     return SUCCESS;
 }
@@ -363,9 +377,9 @@ static enum test_result test_wrong_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V
         // Add operation with cas != 0 doesn't make sense
         cas = 0;
     }
-    check(store(h, h1, NULL, op,
-                "key", "somevalue", &i, cas, 1) == ENGINE_NOT_MY_VBUCKET,
-        "Expected not_my_vbucket");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            store(h, h1, NULL, op, "key", "somevalue", &i, cas, 1),
+            "Expected not_my_vbucket");
     h1->release(h, NULL, i);
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -376,16 +390,18 @@ static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
     item *i = NULL;
-    check(set_vbucket_state(h, h1, 1, vbucket_state_pending), "Failed to set vbucket state.");
-    check(verify_vbucket_state(h, h1, 1, vbucket_state_pending), "Bucket state was not set to pending.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
+          "Failed to set vbucket state.");
+    check(verify_vbucket_state(h, h1, 1, vbucket_state_pending),
+          "Bucket state was not set to pending.");
     uint64_t cas = 11;
     if (op == OPERATION_ADD) {
         // Add operation with cas != 0 doesn't make sense..
         cas = 0;
     }
-    check(store(h, h1, cookie, op,
-                "key", "somevalue", &i, cas, 1) == ENGINE_EWOULDBLOCK,
-        "Expected woodblock");
+    checkeq(ENGINE_EWOULDBLOCK,
+            store(h, h1, cookie, op, "key", "somevalue", &i, cas, 1),
+            "Expected ewouldblock");
     h1->release(h, NULL, i);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -394,8 +410,10 @@ static enum test_result test_pending_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
 static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                  ENGINE_STORE_OPERATION op) {
     item *i = NULL;
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
-    check(verify_vbucket_state(h, h1, 1, vbucket_state_replica), "Bucket state was not set to replica.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    check(verify_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Bucket state was not set to replica.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
 
     uint64_t cas = 11;
@@ -403,9 +421,9 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
         // performing add with a CAS != 0 doesn't make sense...
         cas = 0;
     }
-    check(store(h, h1, NULL, op,
-                "key", "somevalue", &i, cas, 1) == ENGINE_NOT_MY_VBUCKET,
-        "Expected not my vbucket");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            store(h, h1, NULL, op, "key", "somevalue", &i, cas, 1),
+            "Expected not my vbucket");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -418,7 +436,7 @@ static enum test_result test_replica_vb_mutation(ENGINE_HANDLE *h, ENGINE_HANDLE
 //
 
 static enum test_result test_get_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(verify_key(h, h1, "k") == ENGINE_KEY_ENOENT, "Expected miss.");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "k"), "Expected miss.");
     return SUCCESS;
 }
 
@@ -500,10 +518,11 @@ extern "C" {
 
         for (int i = 0; i < 10; i++) {
             item *it = NULL;
-            check(hp->h1->arithmetic(hp->h, NULL, "key", 3, true, true, 1, 1, 0,
-                                     &it, PROTOCOL_BINARY_RAW_BYTES, &result,
-                                     0) == ENGINE_SUCCESS,
-                                     "Failed arithmetic operation");
+            checkeq(ENGINE_SUCCESS,
+                    hp->h1->arithmetic(hp->h, NULL, "key", 3, true, true, 1, 1,
+                                       0, &it, PROTOCOL_BINARY_RAW_BYTES,
+                                       &result, 0),
+                    "Failed arithmetic operation");
             hp->h1->release(hp->h, NULL, it);
         }
     }
@@ -545,8 +564,9 @@ static enum test_result test_conc_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cb_thread_t threads[n_threads];
     struct handle_pair hp = {h, h1};
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "0", &i) == ENGINE_SUCCESS,
-          "store failure");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "0", &i),
+            "store failure");
     h1->release(h, NULL, i);
 
     for (int i = 0; i < n_threads; i++) {
@@ -601,8 +621,10 @@ extern "C" {
             std::stringstream s;
             s << msa->prefix << i;
             std::string key(s.str());
-            check(ENGINE_SUCCESS == store(msa->h, msa->h1, NULL, OPERATION_SET,
-                          key.c_str(), "somevalue", &it), "Set failure!");
+            checkeq(ENGINE_SUCCESS,
+                    store(msa->h, msa->h1, NULL, OPERATION_SET,
+                          key.c_str(), "somevalue", &it),
+                    "Set failure!");
             msa->h1->release(msa->h, NULL, it);
         }
     }
@@ -629,18 +651,19 @@ static enum test_result test_multi_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     wait_for_flusher_to_settle(h, h1);
 
-    check(get_int_stat(h, h1, "curr_items") == 100000,
-          "Mismatch in number of items inserted");
-    check(get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno") == 100000,
-          "Unexpected high sequence number");
+    checkeq(100000, get_int_stat(h, h1, "curr_items"),
+            "Mismatch in number of items inserted");
+    checkeq(100000, get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
+            "Unexpected high sequence number");
 
     return SUCCESS;
 }
 
 static enum test_result test_set_get_hit(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "store failure");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "store failure");
     check_key_value(h, h1, "key", "somevalue", 9);
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -651,10 +674,10 @@ static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     cb_assert(sizeof(binaryData) != strlen(binaryData));
 
     item *i = NULL;
-    check(ENGINE_SUCCESS ==
-          storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                       binaryData, sizeof(binaryData), 82758, &i, 0, 0),
-          "Failed to set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                         binaryData, sizeof(binaryData), 82758, &i, 0, 0),
+            "Failed to set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", binaryData, sizeof(binaryData));
     return SUCCESS;
@@ -665,15 +688,18 @@ static enum test_result test_set_with_cas_non_existent(ENGINE_HANDLE *h,
     const char *key = "test_expiry_flush";
     item *i = NULL;
 
-    check(h1->allocate(h, NULL, &i, key, strlen(key), 10, 0, 0,
-          PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS, "Allocation failed.");
+    checkeq(ENGINE_SUCCESS,
+            h1->allocate(h, NULL, &i, key, strlen(key), 10, 0, 0,
+            PROTOCOL_BINARY_RAW_BYTES),
+            "Allocation failed.");
 
     Item *it = reinterpret_cast<Item*>(i);
     it->setCas(1234);
 
     uint64_t cas = 0;
-    check(h1->store(h, NULL, i, &cas, OPERATION_SET, 0) == ENGINE_KEY_ENOENT,
-          "Expected not found");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->store(h, NULL, i, &cas, OPERATION_SET, 0),
+            "Expected not found");
     h1->release(h, NULL, i);
 
     return SUCCESS;
@@ -681,8 +707,9 @@ static enum test_result test_set_with_cas_non_existent(ENGINE_HANDLE *h,
 
 static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed to set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed to set.");
     h1->release(h, NULL, i);
 
     item_info info;
@@ -690,9 +717,10 @@ static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     check(get_item_info(h, h1, &info, "key"), "Failed to get value.");
     cb_assert(info.flags != flags);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                       "newvalue", strlen("newvalue"), flags, &i, 0, 0) == ENGINE_SUCCESS,
-          "Failed to set again.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                         "newvalue", strlen("newvalue"), flags, &i, 0, 0),
+            "Failed to set again.");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, "key"), "Failed to get value.");
@@ -702,32 +730,35 @@ static enum test_result test_set_change_flags(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
 static enum test_result test_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed to do initial set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed to do initial set.");
     h1->release(h, NULL, i);
     check(store(h, h1, NULL, OPERATION_CAS, "key", "failcas", &i) != ENGINE_SUCCESS,
           "Failed to fail initial CAS.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
 
-    check(h1->get(h, NULL, &i, "key", 3, 0) == ENGINE_SUCCESS,
-          "Failed to get value.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &i, "key", 3, 0),
+            "Failed to get value.");
 
     item_info info;
     info.nvalue = 1;
     check(h1->get_item_info(h, NULL, i, &info), "Failed to get item info.");
     h1->release(h, NULL, i);
 
-    check(store(h, h1, NULL, OPERATION_CAS, "key", "winCas", &i,
-                info.cas) == ENGINE_SUCCESS,
-          "Failed to store CAS");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_CAS, "key", "winCas", &i, info.cas),
+            "Failed to store CAS");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "winCas", 6);
 
     uint64_t cval = 99999;
-    check(store(h, h1, NULL, OPERATION_CAS, "non-existing", "winCas", &i,
-                cval) == ENGINE_KEY_ENOENT,
-          "CAS for non-existing key returned the wrong error code");
+    checkeq(ENGINE_KEY_ENOENT,
+            store(h, h1, NULL, OPERATION_CAS, "non-existing", "winCas",
+                  &i, cval),
+            "CAS for non-existing key returned the wrong error code");
     h1->release(h, NULL, i);
     return SUCCESS;
 }
@@ -736,23 +767,25 @@ static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     item_info info;
     uint64_t vb_uuid = 0;
-    uint32_t high_seqno = 0;
+    uint64_t high_seqno = 0;
 
     memset(&info, 0, sizeof(info));
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
-    check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed to add value.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i),
+            "Failed to add value.");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, "key"), "Error getting item info");
-    check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
-    check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
+    checkeq(vb_uuid, info.vbucket_uuid, "Expected valid vbucket uuid");
+    checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");
 
-    check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_NOT_STORED,
-          "Failed to fail to re-add value.");
+    checkeq(ENGINE_NOT_STORED,
+            store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i),
+            "Failed to fail to re-add value.");
     h1->release(h, NULL, i);
 
     // This aborts on failure.
@@ -761,8 +794,9 @@ static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Expiration above was an hour, so let's go to The Future
     testHarness.time_travel(3800);
 
-    check(store(h, h1, NULL, OPERATION_ADD,"key", "newvalue", &i) == ENGINE_SUCCESS,
-          "Failed to add value again.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD,"key", "newvalue", &i),
+            "Failed to add value again.");
 
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "newvalue", 8);
@@ -771,21 +805,21 @@ static enum test_result test_add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_add_add_with_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_ADD, "key",
-                "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD, "key", "somevalue", &i),
+            "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
     item_info info;
     info.nvalue = 1;
     info.nvalue = 1;
-    check(h1->get_item_info(h, NULL, i, &info) == true,
+    check(h1->get_item_info(h, NULL, i, &info),
           "Should be able to get info");
 
     item *i2 = NULL;
-    ENGINE_ERROR_CODE ret;
-    check((ret = store(h, h1, NULL, OPERATION_ADD, "key",
-                       "somevalue", &i2, info.cas)) == ENGINE_KEY_EEXISTS,
-          "Should not be able to add the key two times");
+    checkeq(ENGINE_KEY_EEXISTS,
+            store(h, h1, NULL, OPERATION_ADD, "key",
+                  "somevalue", &i2, info.cas),
+            "Should not be able to add the key two times");
 
     h1->release(h, NULL, i);
     h1->release(h, NULL, i2);
@@ -796,7 +830,7 @@ static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     item_info info;
     uint64_t vb_uuid = 0;
-    uint32_t high_seqno = 0;
+    uint64_t high_seqno = 0;
 
     memset(&info, 0, sizeof(info));
 
@@ -804,21 +838,23 @@ static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to fail to replace non-existing value.");
 
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET,"key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed to set value.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"key", "somevalue", &i),
+            "Failed to set value.");
     h1->release(h, NULL, i);
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
-    check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed to replace existing value.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue", &i),
+            "Failed to replace existing value.");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, "key"), "Error getting item info");
 
-    check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
-    check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
+    checkeq(vb_uuid, info.vbucket_uuid, "Expected valid vbucket uuid");
+    checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");
 
     check_key_value(h, h1, "key", "somevalue", 9);
     return SUCCESS;
@@ -827,25 +863,29 @@ static enum test_result test_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_replace_with_eviction(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET,"key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed to set value.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"key", "somevalue", &i),
+            "Failed to set value.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "key");
     int numBgFetched = get_int_stat(h, h1, "ep_bg_fetched");
 
-    check(store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue1", &i) == ENGINE_SUCCESS,
-          "Failed to replace existing value.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_REPLACE,"key", "somevalue1", &i),
+            "Failed to replace existing value.");
 
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     if (eviction_policy == "full_eviction") {
         numBgFetched++;
     }
 
-    check(get_int_stat(h, h1, "ep_bg_fetched") == numBgFetched,
-          "Bg fetched value didn't match");
+    checkeq(numBgFetched,
+            get_int_stat(h, h1, "ep_bg_fetched"),
+            "Bg fetched value didn't match");
 
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue1", 10);
@@ -859,7 +899,8 @@ static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                    &i, PROTOCOL_BINARY_RAW_BYTES, &result,
                    0);
     h1->release(h, NULL, i);
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected to not find key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"),
+            "Expected to not find key");
     return SUCCESS;
 }
 
@@ -869,45 +910,53 @@ static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     uint64_t result = 0;
     item *i = NULL;
-    check(h1->arithmetic(h, cookie, "key", 3, true, true, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         0) == ENGINE_SUCCESS,
-          "Failed first arith");
+    checkeq(ENGINE_SUCCESS,
+            h1->arithmetic(h, cookie, "key", 3, true, true, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
+            "Failed first arith");
     h1->release(h, cookie, i);
-    check(result == 1, "Failed result verification.");
+    checkeq(static_cast<uint64_t>(1), result, "Failed result verification.");
 
     // Check datatype of counter
-    check(h1->get(h, cookie, &i, "key", 3, 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, cookie, &i, "key", 3, 0),
             "Unable to get stored item");
     item_info info;
     info.nvalue = 1;
     h1->get_item_info(h, cookie, i, &info);
     h1->release(h, cookie, i);
-    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype,
+            "Invalid datatype");
 
-    check(h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         0) == ENGINE_SUCCESS,
-          "Failed second arith.");
+    checkeq(ENGINE_SUCCESS,
+            h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
+            "Failed second arith.");
     h1->release(h, cookie, i);
-    check(result == 2, "Failed second result verification.");
+    checkeq(static_cast<uint64_t>(2), result,
+            "Failed second result verification.");
 
-    check(h1->arithmetic(h, cookie, "key", 3, true, true, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         0) == ENGINE_SUCCESS,
-          "Failed third arith.");
+    checkeq(ENGINE_SUCCESS,
+            h1->arithmetic(h, cookie, "key", 3, true, true, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
+            "Failed third arith.");
     h1->release(h, cookie, i);
-    check(result == 3, "Failed third result verification.");
+    checkeq(static_cast<uint64_t>(3), result,
+            "Failed third result verification.");
 
     check_key_value(h, h1, "key", "3", 1);
 
     // Check datatype of counter
-    check(h1->get(h, cookie, &i, "key", 3, 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, cookie, &i, "key", 3, 0),
             "Unable to get stored item");
     info.nvalue = 1;
     h1->get_item_info(h, cookie, i, &info);
     h1->release(h, cookie, i);
-    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype,
+            "Invalid datatype");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -917,37 +966,37 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     item_info info;
     uint64_t vb_uuid = 0;
-    uint32_t high_seqno = 0;
+    uint64_t high_seqno = 0;
 
     memset(&info, 0, sizeof(info));
 
     // MB-11332: append on non-existing key should return NOT_STORED
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
-                       "foo\r\n", 5, 82758, &i, 0, 0)
-          == ENGINE_NOT_STORED,
-          "MB-11332: Failed append.");
+    checkeq(ENGINE_NOT_STORED,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
+                         "foo\r\n", 5, 82758, &i, 0, 0),
+            "MB-11332: Failed append.");
     h1->release(h, NULL, i);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                       "\r\n", 2, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                         "\r\n", 2, 82758, &i, 0, 0),
+            "Failed set.");
 
     h1->release(h, NULL, i);
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
-                       "foo\r\n", 5, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed append.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
+                         "foo\r\n", 5, 82758, &i, 0, 0),
+            "Failed append.");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, "key"), "Error in getting item info");
 
-    check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
-    check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
+    checkeq(vb_uuid, info.vbucket_uuid, "Expected valid vbucket uuid");
+    checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");
 
     check_key_value(h, h1, "key", "\r\nfoo\r\n", 7);
 
@@ -957,23 +1006,23 @@ static enum test_result test_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char *bigBinaryData3 = new char[dataSize];
     memset(bigBinaryData3, '\0', dataSize);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                       binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                         binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0),
+            "Failed set.");
     h1->release(h, NULL, i);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
-                       bigBinaryData3, dataSize, 82758, &i, 0, 0)
-          == ENGINE_E2BIG,
-          "Expected append failure.");
+    checkeq(ENGINE_E2BIG,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
+                         bigBinaryData3, dataSize, 82758, &i, 0, 0),
+            "Expected append failure.");
     h1->release(h, NULL, i);
     delete[] bigBinaryData3;
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
-                       binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed append.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key",
+                         binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0),
+            "Failed append.");
     h1->release(h, NULL, i);
 
     std::string expected;
@@ -988,35 +1037,35 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     item_info info;
     uint64_t vb_uuid = 0;
-    uint32_t high_seqno = 0;
+    uint64_t high_seqno = 0;
 
     memset(&info, 0, sizeof(info));
 
     // MB-11332: prepend on non-existing key should return NOT_STORED
-    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
-                       "foo\r\n", 5, 82758, &i, 0, 0)
-          == ENGINE_NOT_STORED,
-          "MB-11332: Failed prepend.");
+    checkeq(ENGINE_NOT_STORED,
+            storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
+                         "foo\r\n", 5, 82758, &i, 0, 0),
+            "MB-11332: Failed prepend.");
     h1->release(h, NULL, i);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                       "\r\n", 2, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                         "\r\n", 2, 82758, &i, 0, 0),
+            "Failed set.");
     h1->release(h, NULL, i);
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
-                       "foo\r\n", 5, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed prepend.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
+                         "foo\r\n", 5, 82758, &i, 0, 0),
+            "Failed prepend.");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, "key"), "Error getting item info");
-    check(vb_uuid == info.vbucket_uuid, "Expected valid vbucket uuid");
-    check(high_seqno + 1 == info.seqno, "Expected valid sequence number");
+    checkeq(vb_uuid, info.vbucket_uuid, "Expected valid vbucket uuid");
+    checkeq(high_seqno + 1, info.seqno, "Expected valid sequence number");
 
     check_key_value(h, h1, "key", "foo\r\n\r\n", 7);
 
@@ -1026,23 +1075,23 @@ static enum test_result test_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char *bigBinaryData3 = new char[dataSize];
     memset(bigBinaryData3, '\0', dataSize);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                       binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                         binaryData1, sizeof(binaryData1) - 1, 82758, &i, 0, 0),
+            "Failed set.");
     h1->release(h, NULL, i);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
-                       bigBinaryData3, dataSize, 82758, &i, 0, 0)
-          == ENGINE_E2BIG,
-          "Expected prepend failure.");
+    checkeq(ENGINE_E2BIG,
+            storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
+                         bigBinaryData3, dataSize, 82758, &i, 0, 0),
+            "Expected prepend failure.");
     h1->release(h, NULL, i);
     delete[] bigBinaryData3;
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
-                       binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed append.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key",
+                         binaryData2, sizeof(binaryData2) - 1, 82758, &i, 0, 0),
+            "Failed append.");
     h1->release(h, NULL, i);
 
     std::string expected;
@@ -1060,33 +1109,36 @@ static enum test_result test_append_compressed(ENGINE_HANDLE *h,
 
     snap_buf output1;
     doSnappyCompress("\r\n", 2, output1);
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key1",
-                       (const char *)output1.buf.get(), output1.len, 82758, &i, 0,
-                       0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED)
-          == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key1",
+                         (const char *)output1.buf.get(), output1.len, 82758,
+                         &i, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED),
+            "Failed set.");
     h1->release(h, NULL, i);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key1",
-                       "foo\n\r", 5, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed append uncompressed to compressed.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key1",
+                         "foo\n\r", 5, 82758, &i, 0, 0),
+            "Failed append uncompressed to compressed.");
     h1->release(h, NULL, i);
 
     snap_buf output2;
     doSnappyCompress("\r\nfoo\n\r", 7, output2);
     item_info info;
     check(get_item_info(h, h1, &info, "key1", 0), "checking key and value");
-    check(info.nvalue == 1, "info.nvalue != 1");
-    check(output2.len == info.value[0].iov_len, "Value length mismatch");
-    check(memcmp(info.value[0].iov_base, output2.buf.get(), output2.len) == 0, "Data mismatch");
-    check(info.datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED, "Datatype mismatch");
+    checkeq(static_cast<uint16_t>(1), info.nvalue, "info.nvalue != 1");
+    checkeq(output2.len, info.value[0].iov_len, "Value length mismatch");
+    checkeq(0, memcmp(info.value[0].iov_base, output2.buf.get(), output2.len),
+            "Data mismatch");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_COMPRESSED),
+            info.datatype, "Datatype mismatch");
 
     snap_buf output3;
     doSnappyCompress("bar", 3, output3);
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key1",
-                       (const char*)output3.buf.get(), output3.len, 82758, &i, 0,
-                       0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED)
-            == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key1",
+                         (const char*)output3.buf.get(), output3.len, 82758, &i, 0,
+                         0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED),
             "Failed append compressed to compressed.");
     h1->release(h, NULL, i);
 
@@ -1094,31 +1146,36 @@ static enum test_result test_append_compressed(ENGINE_HANDLE *h,
     doSnappyCompress("\r\nfoo\n\rbar", 10, output4);
 
     check(get_item_info(h, h1, &info, "key1", 0), "checking key and value");
-    check(info.nvalue == 1, "info.nvalue != 1");
-    check(output4.len == info.value[0].iov_len, "Value length mismatch");
-    check(memcmp(info.value[0].iov_base, output4.buf.get(), output4.len) == 0, "Data mismatch");
-    check(info.datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED, "Datatype mismatch");
+    checkeq(static_cast<uint16_t>(1), info.nvalue, "info.nvalue != 1");
+    checkeq(output4.len, info.value[0].iov_len, "Value length mismatch");
+    checkeq(0, memcmp(info.value[0].iov_base, output4.buf.get(), output4.len),
+            "Data mismatch");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_COMPRESSED),
+            info.datatype,
+            "Datatype mismatch");
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key2",
-                       "foo", 3, 82758, &i, 0, 0, 3600,
-                       PROTOCOL_BINARY_RAW_BYTES)
-          == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key2",
+                         "foo", 3, 82758, &i, 0, 0, 3600,
+                         PROTOCOL_BINARY_RAW_BYTES),
+            "Failed set.");
     h1->release(h, NULL, i);
 
     snap_buf output5;
     doSnappyCompress("bar", 3, output5);
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key2",
-                       (const char*)output5.buf.get(), output5.len, 82758, &i, 0,
-                       0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED)
-            == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, "key2",
+                         (const char*)output5.buf.get(), output5.len, 82758, &i,
+                         0, 0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED),
             "Failed append compressed to uncompressed.");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, "key2", 0), "checking key and value");
-    check(info.nvalue == 1, "info.nvalue != 1");
-    check(info.value[0].iov_len == 6, "Value length mismatch");
-    check(memcmp(info.value[0].iov_base, "foobar", 6) == 0, "Data mismatch");
-    check(info.datatype == PROTOCOL_BINARY_RAW_BYTES, "Datatype mismatch");
+    checkeq(static_cast<uint16_t>(1), info.nvalue, "info.nvalue != 1");
+    checkeq(static_cast<size_t>(6), info.value[0].iov_len, "Value length mismatch");
+    checkeq(0, memcmp(info.value[0].iov_base, "foobar", 6), "Data mismatch");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES),
+            info.datatype, "Datatype mismatch");
 
     return SUCCESS;
 }
@@ -1130,16 +1187,17 @@ static enum test_result test_prepend_compressed(ENGINE_HANDLE *h,
 
     snap_buf output1;
     doSnappyCompress("\r\n", 2, output1);
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key1",
-                       (const char *)output1.buf.get(), output1.len, 82758, &i, 0,
-                       0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED)
-          == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key1",
+                         (const char *)output1.buf.get(), output1.len, 82758,
+                         &i, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED),
+            "Failed set.");
     h1->release(h, NULL, i);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key1",
-                       "foo\r\n", 5, 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed prepend uncompressed to compressed.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key1",
+                         "foo\r\n", 5, 82758, &i, 0, 0),
+            "Failed prepend uncompressed to compressed.");
     h1->release(h, NULL, i);
 
     snap_buf output2;
@@ -1147,17 +1205,20 @@ static enum test_result test_prepend_compressed(ENGINE_HANDLE *h,
 
     item_info info;
     check(get_item_info(h, h1, &info, "key1", 0), "checking key and value");
-    check(info.nvalue == 1, "info.nvalue != 1");
-    check(output2.len == info.value[0].iov_len, "Value length mismatch");
-    check(memcmp(info.value[0].iov_base, output2.buf.get(), output2.len) == 0, "Data mismatch");
-    check(info.datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED, "Datatype mismatch");
+    checkeq(static_cast<uint16_t>(1), info.nvalue, "info.nvalue != 1");
+    checkeq(output2.len, info.value[0].iov_len, "Value length mismatch");
+    checkeq(0, memcmp(info.value[0].iov_base, output2.buf.get(), output2.len),
+            "Data mismatch");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_COMPRESSED),
+            info.datatype,
+            "Datatype mismatch");
 
     snap_buf output3;
     doSnappyCompress("bar", 3, output3);
-    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key1",
-                       (const char*)output3.buf.get(), output3.len, 82758, &i, 0,
-                       0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED)
-            == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key1",
+                         (const char*)output3.buf.get(), output3.len, 82758, &i,
+                         0, 0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED),
             "Failed prepend compressed to compressed.");
     h1->release(h, NULL, i);
 
@@ -1165,31 +1226,36 @@ static enum test_result test_prepend_compressed(ENGINE_HANDLE *h,
     doSnappyCompress("barfoo\r\n\r\n", 10, output4);
 
     check(get_item_info(h, h1, &info, "key1", 0), "checking key and value");
-    check(info.nvalue == 1, "info.nvalue != 1");
-    check(output4.len == info.value[0].iov_len, "Value length mismatch");
-    check(memcmp(info.value[0].iov_base, output4.buf.get(), output4.len) == 0, "Data mismatch");
-    check(info.datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED, "Datatype mismatch");
+    checkeq(static_cast<uint16_t>(1), info.nvalue, "info.nvalue != 1");
+    checkeq(output4.len, info.value[0].iov_len, "Value length mismatch");
+    checkeq(0, memcmp(info.value[0].iov_base, output4.buf.get(), output4.len),
+            "Data mismatch");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_COMPRESSED),
+            info.datatype,
+            "Datatype mismatch");
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key2",
-                       "foo", 3, 82758, &i, 0, 0, 3600,
-                       PROTOCOL_BINARY_RAW_BYTES)
-          == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key2",
+                         "foo", 3, 82758, &i, 0, 0, 3600,
+                         PROTOCOL_BINARY_RAW_BYTES),
+            "Failed set.");
     h1->release(h, NULL, i);
 
     snap_buf output5;
     doSnappyCompress("bar", 3, output5);
-    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key2",
-                       (const char*)output5.buf.get(), output5.len, 82758, &i, 0,
-                       0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED)
-            == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_PREPEND, "key2",
+                         (const char*)output5.buf.get(), output5.len, 82758, &i,
+                         0, 0, 3600, PROTOCOL_BINARY_DATATYPE_COMPRESSED),
             "Failed prepend compressed to uncompressed.");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, "key2", 0), "checking key and value");
-    check(info.nvalue == 1, "info.nvalue != 1");
-    check(info.value[0].iov_len == 6, "Value length mismatch");
-    check(memcmp(info.value[0].iov_base, "barfoo", 6) == 0, "Data mismatch");
-    check(info.datatype == PROTOCOL_BINARY_RAW_BYTES, "Datatype mismatch");
+    checkeq(static_cast<uint16_t>(1), info.nvalue, "info.nvalue != 1");
+    checkeq(static_cast<size_t>(6), info.value[0].iov_len, "Value length mismatch");
+    checkeq(0, memcmp(info.value[0].iov_base, "barfoo", 6), "Data mismatch");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES),
+            info.datatype, "Datatype mismatch");
 
     return SUCCESS;
 }
@@ -1205,67 +1271,78 @@ static enum test_result test_append_prepend_to_json(ENGINE_HANDLE *h,
     const char* value2 = "{\"foo2\":\"bar2\"}";
 
     // APPEND
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, key1,
-                       value1, strlen(value1), 82758, &i, 0, 0,
-                       3600, PROTOCOL_BINARY_DATATYPE_JSON)
-          == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, key1,
+                         value1, strlen(value1), 82758, &i, 0, 0,
+                         3600, PROTOCOL_BINARY_DATATYPE_JSON),
+            "Failed set.");
     h1->release(h, NULL, i);
 
-    check(h1->get(h, NULL, &i, key1, strlen(key1), 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &i, key1, strlen(key1), 0),
             "Unable to get stored item");
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
     check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
-                        (int)info.value[0].iov_len) == 1, "Expected JSON");
-    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+                          (int)info.value[0].iov_len),
+          "Expected JSON");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype, "Invalid datatype");
     h1->release(h, NULL, i);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_APPEND, key1,
-                       value2, strlen(value2), 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed append.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_APPEND, key1,
+                         value2, strlen(value2), 82758, &i, 0, 0),
+            "Failed append.");
     h1->release(h, NULL, i);
 
-    check(h1->get(h, NULL, &i, key1, strlen(key1), 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &i, key1, strlen(key1), 0),
             "Unable to get stored item");
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
-    check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
-                        (int)info.value[0].iov_len) == 0, "Expected Binary");
-    check(info.datatype == PROTOCOL_BINARY_RAW_BYTES,
-                "Invalid datatype after append");
+    check(!checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
+                         (int)info.value[0].iov_len),
+          "Expected Binary");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES),
+            info.datatype,
+            "Invalid datatype after append");
     h1->release(h, NULL, i);
 
     // PREPEND
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, key2,
-                       value1, strlen(value1), 82758, &i, 0, 0,
-                       3600, PROTOCOL_BINARY_DATATYPE_JSON)
-          == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, key2,
+                         value1, strlen(value1), 82758, &i, 0, 0,
+                         3600, PROTOCOL_BINARY_DATATYPE_JSON),
+            "Failed set.");
     h1->release(h, NULL, i);
 
-    check(h1->get(h, NULL, &i, key2, strlen(key2), 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &i, key2, strlen(key2), 0),
             "Unable to get stored item");
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
     check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
-                        (int)info.value[0].iov_len) == 1, "Expected JSON");
-    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+                        (int)info.value[0].iov_len), "Expected JSON");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype, "Invalid datatype");
     h1->release(h, NULL, i);
 
-    check(storeCasVb11(h, h1, NULL, OPERATION_PREPEND, key2,
-                       value2, strlen(value2), 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed prepend.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_PREPEND, key2,
+                         value2, strlen(value2), 82758, &i, 0, 0),
+            "Failed prepend.");
     h1->release(h, NULL, i);
 
-    check(h1->get(h, NULL, &i, key2, strlen(key2), 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &i, key2, strlen(key2), 0),
             "Unable to get stored item");
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
-    check(checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
-                        (int)info.value[0].iov_len) == 0, "Expected Binary");
-    check(info.datatype == PROTOCOL_BINARY_RAW_BYTES,
-                "Invalid datatype after prepend");
+    check(!checkUTF8JSON((const unsigned char*)info.value[0].iov_base,
+                         (int)info.value[0].iov_len), "Expected Binary");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_RAW_BYTES),
+            info.datatype, "Invalid datatype after prepend");
     h1->release(h, NULL, i);
 
     return SUCCESS;
@@ -1279,29 +1356,30 @@ static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     const char *key = "key";
     const char *val = "1";
-    check(store(h, h1, NULL, OPERATION_ADD,key, val, &i,
-                0, 0, 3600,
-                checkUTF8JSON((const unsigned char *)val, 1))
-            == ENGINE_SUCCESS,
-          "Failed to add value.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD,key, val, &i,
+                  0, 0, 3600, checkUTF8JSON((const unsigned char *)val, 1)),
+            "Failed to add value.");
     h1->release(h, NULL, i);
 
-    check(h1->arithmetic(h, NULL, key, 3, true, false, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         0) == ENGINE_SUCCESS,
-          "Failed to incr value.");
+    checkeq(ENGINE_SUCCESS,
+            h1->arithmetic(h, NULL, key, 3, true, false, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
+            "Failed to incr value.");
     h1->release(h, NULL, i);
 
     check_key_value(h, h1, key, "2", 1);
 
     // Check datatype of counter
-    check(h1->get(h, cookie, &i, key, 3, 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, cookie, &i, key, 3, 0),
             "Unable to get stored item");
     item_info info;
     info.nvalue = 1;
     h1->get_item_info(h, cookie, i, &info);
     h1->release(h, cookie, i);
-    check(info.datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Invalid datatype");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype, "Invalid datatype");
 
     testHarness.destroy_cookie(cookie);
 
@@ -1311,21 +1389,23 @@ static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_bug2799(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t result = 0;
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_ADD, "key", "1", &i) == ENGINE_SUCCESS,
-          "Failed to add value.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD, "key", "1", &i),
+            "Failed to add value.");
     h1->release(h, NULL, i);
 
-    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         0) == ENGINE_SUCCESS,
-          "Failed to incr value.");
+    checkeq(ENGINE_SUCCESS,
+            h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
+            "Failed to incr value.");
     h1->release(h, NULL, i);
 
     check_key_value(h, h1, "key", "2", 1);
 
     testHarness.time_travel(3617);
 
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"),
+            "Expected missing key");
     return SUCCESS;
 }
 
@@ -1334,27 +1414,33 @@ static enum test_result test_flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     if (get_bool_stat(h, h1, "ep_flushall_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "flushall_enabled", "true"),
-                "Set flushall_enabled should have worked");
+                        "flushall_enabled", "true"),
+              "Set flushall_enabled should have worked");
     }
-    check(get_bool_stat(h, h1, "ep_flushall_enabled"), "flushall wasn't enabled");
+    check(get_bool_stat(h, h1, "ep_flushall_enabled"),
+          "flushall wasn't enabled");
 
     // First try to delete something we know to not be there.
-    check(del(h, h1, "key", 0, 0) == ENGINE_KEY_ENOENT, "Failed to fail initial delete.");
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_KEY_ENOENT,
+            del(h, h1, "key", 0, 0),
+            "Failed to fail initial delete.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
 
     set_degraded_mode(h, h1, NULL, true);
-    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
-          "Failed to flush");
+    checkeq(ENGINE_SUCCESS,
+            h1->flush(h, NULL, 0),
+            "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
 
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
 
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed post-flush set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed post-flush set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
 
@@ -1378,7 +1464,8 @@ extern "C" {
         testHarness.set_ewouldblock_handling(cookie, true);
         struct flush_args *args = (struct flush_args *)arguments;
 
-        check((args->h1)->flush(args->h, cookie, args->when) == args->expect,
+        checkeq(args->expect,
+                (args->h1)->flush(args->h, cookie, args->when),
                 "Return code is not what is expected");
 
         testHarness.destroy_cookie(cookie);
@@ -1390,19 +1477,20 @@ static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
 
     if (get_bool_stat(h, h1, "ep_flushall_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "flushall_enabled", "true"),
-                "Set flushall_enabled should have worked");
+                        "flushall_enabled", "true"),
+              "Set flushall_enabled should have worked");
     }
     check(get_bool_stat(h, h1, "ep_flushall_enabled"),
           "flushall wasn't enabled");
 
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 1,
-          "Expected curr_items equals 1");
+    checkeq(1, get_int_stat(h, h1, "curr_items"),
+            "Expected curr_items equals 1");
 
     set_degraded_mode(h, h1, NULL, true);
     cb_thread_t t1, t2;
@@ -1411,7 +1499,7 @@ static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
     args1.h1 = h1;
     args1.expect = ENGINE_SUCCESS;
     args1.when = 2;
-    check(cb_create_thread(&t1, run_flush_all, &args1, 0) == 0,
+    checkeq(0, cb_create_thread(&t1, run_flush_all, &args1, 0),
             "cb_create_thread failed!");
 
     sleep(1);
@@ -1420,7 +1508,7 @@ static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
     args2.h1 = h1;
     args2.expect = ENGINE_TMPFAIL;
     args2.when = 0;
-    check(cb_create_thread(&t2, run_flush_all, &args2, 0) == 0,
+    checkeq(0, cb_create_thread(&t2, run_flush_all, &args2, 0),
             "cb_create_thread failed!");
 
     cb_assert(cb_join_thread(t1) == 0);
@@ -1433,8 +1521,8 @@ static enum test_result test_multiple_flush(ENGINE_HANDLE *h,
                               testHarness.get_current_testcase()->cfg,
                               true, false);
     wait_for_warmup_complete(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 0,
-          "Expected curr_items equals 0");
+    checkeq(0, get_int_stat(h, h1, "curr_items"),
+            "Expected curr_items equals 0");
 
     return SUCCESS;
 }
@@ -1446,14 +1534,17 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
     // we expect to see the key after flush()
 
     // store a key and check its existence
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
     // expect error msg engine does not support operation
-    check(h1->flush(h, NULL, 0) == ENGINE_ENOTSUP, "Flush should be disabled");
+    checkeq(ENGINE_ENOTSUP,
+            h1->flush(h, NULL, 0),
+            "Flush should be disabled");
     //check the key
-    check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
+    checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key"), "Expected key");
 
     // restart engine with flush enabled and redo the test, we expect flush to succeed
     std::string param = "flushall_enabled=false";
@@ -1470,11 +1561,12 @@ static enum test_result test_flush_disabled(ENGINE_HANDLE *h,
 
 
     set_degraded_mode(h, h1, NULL, true);
-    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Flush should be enabled");
+    checkeq(ENGINE_SUCCESS,
+            h1->flush(h, NULL, 0), "Flush should be enabled");
     set_degraded_mode(h, h1, NULL, false);
 
     //expect missing key
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
 
     return SUCCESS;
 }
@@ -1486,17 +1578,19 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
 
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
-    check(ENGINE_SUCCESS == verify_key(h, h1, "key2"), "Expected key2");
+    checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key"), "Expected key");
+    checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key2"), "Expected key2");
 
     check_key_value(h, h1, "key", "somevalue", 9);
     check_key_value(h, h1, "key2", "somevalue", 9);
@@ -1505,10 +1599,10 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
 
     set_degraded_mode(h, h1, NULL, true);
-    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0), "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key2"), "Expected missing key");
 
     wait_for_flusher_to_settle(h, h1);
 
@@ -1525,32 +1619,37 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
 static enum test_result test_flush_multiv(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(set_vbucket_state(h, h1, 2, vbucket_state_active), "Failed to set vbucket state.");
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    check(set_vbucket_state(h, h1, 2, vbucket_state_active),
+          "Failed to set vbucket state.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i,
-                0, 2) == ENGINE_SUCCESS,
-          "Failed set in vb2.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i, 0, 2),
+            "Failed set in vb2.");
     h1->release(h, NULL, i);
 
-    check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
-    check(ENGINE_SUCCESS == verify_key(h, h1, "key2", 2), "Expected key2");
+    checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key"), "Expected key");
+    checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key2", 2), "Expected key2");
 
     check_key_value(h, h1, "key", "somevalue", 9);
     check_key_value(h, h1, "key2", "somevalue", 9, 2);
 
     set_degraded_mode(h, h1, NULL, true);
-    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Failed to flush");
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0), "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
 
     vals.clear();
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
-    check(vals.find("ep_flush_all") != vals.end(), "Failed to get the status of flush_all");
+    checkeq(ENGINE_SUCCESS, h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
+    check(vals.find("ep_flush_all") != vals.end(),
+          "Failed to get the status of flush_all");
 
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key2", 2), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"),
+            "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key2", 2),
+            "Expected missing key");
 
     return SUCCESS;
 }
@@ -1565,40 +1664,43 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         keys.push_back(key);
     }
 
-    check(get_int_stat(h, h1, "ep_total_persisted") == 0,
-          "Expected ep_total_persisted equals 0");
-    check(get_int_stat(h, h1, "curr_items") == 0,
-          "Expected curr_items equals 0");
+    checkeq(0, get_int_stat(h, h1, "ep_total_persisted"),
+            "Expected ep_total_persisted equals 0");
+    checkeq(0, get_int_stat(h, h1, "curr_items"),
+            "Expected curr_items equals 0");
 
     // stop flusher before loading new items
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "CMD_STOP_PERSISTENCE failed!");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Failed to stop persistence!");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "CMD_STOP_PERSISTENCE failed!");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "Failed to stop persistence!");
     free(pkt);
 
     std::vector<std::string>::iterator itr;
     for (itr = keys.begin(); itr != keys.end(); ++itr) {
         item *i;
-        check(store(h, h1, NULL, OPERATION_SET, itr->c_str(), "oracle", &i, 0, 0)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, itr->c_str(), "oracle", &i, 0, 0),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
-    check(get_int_stat(h, h1, "ep_total_persisted") == 0,
-          "Incorrect ep_total_persisted, expected 0");
+    checkeq(0, get_int_stat(h, h1, "ep_total_persisted"),
+            "Incorrect ep_total_persisted, expected 0");
     std::stringstream ss;
     ss << "Incorrect curr_items, expected " << numItems2Load;
     std::string errmsg(ss.str());
-    check(get_int_stat(h, h1, "curr_items") == numItems2Load,
-          errmsg.c_str());
+    checkeq(numItems2Load, get_int_stat(h, h1, "curr_items"),
+            errmsg.c_str());
 
     // resume flusher before shutdown + warmup
     pkt = createPacket(PROTOCOL_BINARY_CMD_START_PERSISTENCE);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "CMD_START_PERSISTENCE failed!");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt, add_response),
+            "CMD_START_PERSISTENCE failed!");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Failed to start persistence!");
     free(pkt);
 
@@ -1634,9 +1736,11 @@ static enum test_result test_flush_shutdown_noforce(ENGINE_HANDLE *h, ENGINE_HAN
 static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
-    check(del(h, h1, "key", 0, 0) == ENGINE_KEY_ENOENT, "Failed to fail initial delete.");
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key", 0, 0),
+            "Failed to fail initial delete.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "somevalue", 9);
 
@@ -1652,12 +1756,13 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     // Flush
     set_degraded_mode(h, h1, NULL, true);
-    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
-          "Failed to flush");
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0),
+            "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
 
-    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed post-flush set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i),
+            "Failed post-flush set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key2", "somevalue", 9);
 
@@ -1668,25 +1773,29 @@ static enum test_result test_flush_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
                               true, false);
     wait_for_warmup_complete(h, h1);
 
-    check(store(h, h1, NULL, OPERATION_SET, "key3", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed post-flush, post-restart set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key3", "somevalue", &i),
+            "Failed post-flush, post-restart set.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key3", "somevalue", 9);
 
     // Read value again, should not be there.
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"),
+            "Expected missing key");
     return SUCCESS;
 }
 
 static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(set_vbucket_state(h, h1, 2, vbucket_state_active), "Failed to set vbucket state.");
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    check(set_vbucket_state(h, h1, 2, vbucket_state_active),
+          "Failed to set vbucket state.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i,
-                0, 2) == ENGINE_SUCCESS,
-          "Failed set in vb2.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key2", "somevalue", &i, 0, 2),
+            "Failed set in vb2.");
     h1->release(h, NULL, i);
 
     // Restart once to ensure written to disk.
@@ -1701,8 +1810,8 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
 
     // Flush
     set_degraded_mode(h, h1, NULL, true);
-    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
-          "Failed to flush");
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0),
+            "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
 
     // Restart again, ensure written to disk.
@@ -1713,7 +1822,7 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
     wait_for_warmup_complete(h, h1);
 
     // Read value again, should not be there.
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
     check(verify_vbucket_missing(h, h1, 2), "Bucket 2 came back.");
     return SUCCESS;
 }
@@ -1721,9 +1830,11 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
 static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
-    check(del(h, h1, "key", 0, 0) == ENGINE_KEY_ENOENT, "Failed to fail initial delete.");
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_KEY_ENOENT,
+            del(h, h1, "key", 0, 0), "Failed to fail initial delete.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
     uint64_t orig_cas = it->getCas();
     h1->release(h, NULL, i);
@@ -1732,18 +1843,18 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint64_t cas = 0;
     uint64_t vb_uuid = 0;
     mutation_descr_t mut_info;
-    uint32_t high_seqno = 0;
+    uint64_t high_seqno = 0;
 
     memset(&mut_info, 0, sizeof(mut_info));
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    check(h1->remove(h, NULL, "key", 3, &cas, 0, &mut_info) == ENGINE_SUCCESS,
-          "Failed remove with value.");
-    check(orig_cas + 1 == cas, "Cas mismatch on delete");
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
-    check(vb_uuid == mut_info.vbucket_uuid, "Expected valid vbucket uuid");
-    check(high_seqno + 1 == mut_info.seqno, "Expected valid sequence number");
+    checkeq(ENGINE_SUCCESS, h1->remove(h, NULL, "key", 3, &cas, 0, &mut_info),
+            "Failed remove with value.");
+    checkeq(orig_cas + 1, cas, "Cas mismatch on delete");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(vb_uuid, mut_info.vbucket_uuid, "Expected valid vbucket uuid");
+    checkeq(high_seqno + 1, mut_info.seqno, "Expected valid sequence number");
 
     // Can I time travel to an expired object and delete it?
     checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
@@ -1773,17 +1884,17 @@ static enum test_result test_set_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
 static enum test_result test_set_delete_invalid_cas(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key",
-                "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     check_key_value(h, h1, "key", "somevalue", 9);
     item_info info;
     info.nvalue = 1;
-    check(h1->get_item_info(h, NULL, i, &info) == true,
+    check(h1->get_item_info(h, NULL, i, &info),
           "Should be able to get info");
     h1->release(h, NULL, i);
 
-    check(del(h, h1, "key", info.cas + 1, 0) == ENGINE_KEY_EEXISTS,
+    checkeq(ENGINE_KEY_EEXISTS, del(h, h1, "key", info.cas + 1, 0),
           "Didn't expect to be able to remove the item with wrong cas");
     return SUCCESS;
 }
@@ -1822,15 +1933,19 @@ static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     std::vector<std::string>::iterator it;
     for (int j = 0; j < 5; ++j) {
-        check(set_vbucket_state(h, h1, 0, vbucket_state_dead), "Failed set set vbucket 0 dead.");
+        check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
+              "Failed set set vbucket 0 dead.");
         vbucketDelete(h, h1, 0);
-        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              "Expected vbucket deletion to work.");
-        check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set set vbucket 0 active.");
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                last_status.load(),
+                "Expected vbucket deletion to work.");
+        check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+              "Failed set set vbucket 0 active.");
         for (it = keys.begin(); it != keys.end(); ++it) {
             item *i;
-            check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i)
-                  == ENGINE_SUCCESS, "Failed to store a value");
+            checkeq(ENGINE_SUCCESS,
+                    store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i),
+                    "Failed to store a value");
             h1->release(h, NULL, i);
 
         }
@@ -1849,7 +1964,8 @@ static enum test_result test_bug7023(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_persisted_value(h, h1, "key", "value1");
 
-    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS,
+            del(h, h1, "key", 0, 0), "Failed remove with value.");
 
     wait_for_persisted_value(h, h1, "key", "value2");
 
@@ -1860,7 +1976,8 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     wait_for_warmup_complete(h, h1);
 
     check_key_value(h, h1, "key", "value2", 6);
-    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS,
+            del(h, h1, "key", 0, 0), "Failed remove with value.");
     wait_for_flusher_to_settle(h, h1);
 
     testHarness.reload_engine(&h, &h1,
@@ -1869,7 +1986,7 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
                               true, false);
     wait_for_warmup_complete(h, h1);
 
-    check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
+    checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
 
     return SUCCESS;
 }
@@ -1882,12 +1999,12 @@ static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HA
     rmdb(dbname_env);
 
     item *i = NULL;
-    int errorCode = h1->get(h, NULL, &i, key, strlen(key), 0);
+    ENGINE_ERROR_CODE errorCode = h1->get(h, NULL, &i, key, strlen(key), 0);
     h1->release(h, NULL, i);
 
     // ep engine must be unaware of well-being of the db file as long as
     // the item is still in the memory
-    check(errorCode == ENGINE_SUCCESS, "Expected success for get");
+    checkeq(ENGINE_SUCCESS, errorCode, "Expected success for get");
 
     i = NULL;
     evict_key(h, h1, key);
@@ -1896,7 +2013,7 @@ static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HA
 
     // ep engine must be now aware of the ill-fated db file where
     // the item is supposedly stored
-    check(errorCode == ENGINE_TMPFAIL, "Expected tmp fail for get");
+    checkeq(ENGINE_TMPFAIL, errorCode, "Expected tmp fail for get");
 
     return SUCCESS;
 }
@@ -1905,9 +2022,8 @@ static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HA
 static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     static const char val[] = "somevalue";
-    ENGINE_ERROR_CODE ret;
-    check((ret = store(h, h1, NULL, OPERATION_SET, "key", val, &i)) == ENGINE_SUCCESS,
-          "Failed set.");
+    ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET, "key", val, &i);
+    checkeq(ENGINE_SUCCESS, ret, "Failed set.");
     h1->release(h, NULL, i);
 
     testHarness.reload_engine(&h, &h1,
@@ -1930,10 +2046,10 @@ static enum test_result test_restart_session_stats(ENGINE_HANDLE *h, ENGINE_HAND
     wait_for_warmup_complete(h, h1);
     cookie = createTapConn(h, h1, "tap_client_thread");
 
-    check(h1->get_stats(h, NULL, "tap", 3, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS, h1->get_stats(h, NULL, "tap", 3, add_stats),
+            "Failed to get stats.");
     std::string val = vals["eq_tapq:tap_client_thread:backfill_completed"];
-    check(strcmp(val.c_str(), "true") == 0, "Don't expect the backfill upon restart");
+    checkeq(0, strcmp(val.c_str(), "true"), "Don't expect the backfill upon restart");
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -2053,7 +2169,8 @@ static enum test_result test_binKeys(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
-static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_restart_bin_val(ENGINE_HANDLE *h,
+                                             ENGINE_HANDLE_V1 *h1) {
 
 
 
@@ -2061,10 +2178,10 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     cb_assert(sizeof(binaryData) != strlen(binaryData));
 
     item *i = NULL;
-    check(storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
-                       binaryData, sizeof(binaryData), 82758, &i, 0, 0)
-          == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, NULL, OPERATION_SET, "key",
+                         binaryData, sizeof(binaryData), 82758, &i, 0, 0),
+            "Failed set.");
     h1->release(h, NULL, i);
 
     testHarness.reload_engine(&h, &h1,
@@ -2077,33 +2194,40 @@ static enum test_result test_restart_bin_val(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     return SUCCESS;
 }
 
-static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_wrong_vb_get(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    check(ENGINE_NOT_MY_VBUCKET == verify_key(h, h1, "key", 1),
-          "Expected wrong bucket.");
+    checkeq(ENGINE_NOT_MY_VBUCKET, verify_key(h, h1, "key", 1),
+            "Expected wrong bucket.");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
 
-static enum test_result test_vb_get_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_pending), "Failed to set vbucket state.");
+static enum test_result test_vb_get_pending(ENGINE_HANDLE *h,
+                                            ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
+          "Failed to set vbucket state.");
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
 
     item *i = NULL;
-    check(ENGINE_EWOULDBLOCK == h1->get(h, cookie, &i, "key", strlen("key"), 1),
-          "Expected woodblock.");
+    checkeq(ENGINE_EWOULDBLOCK,
+            h1->get(h, cookie, &i, "key", strlen("key"), 1),
+            "Expected woodblock.");
     h1->release(h, NULL, i);
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
-static enum test_result test_vb_get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
+static enum test_result test_vb_get_replica(ENGINE_HANDLE *h,
+                                            ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    check(ENGINE_NOT_MY_VBUCKET == verify_key(h, h1, "key", 1),
-          "Expected not my bucket.");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            verify_key(h, h1, "key", 1),
+            "Expected not my bucket.");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
@@ -2112,10 +2236,10 @@ static enum test_result test_wrong_vb_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     uint64_t result;
     item *i = NULL;
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         1) == ENGINE_NOT_MY_VBUCKET,
-          "Expected not my vbucket.");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 1),
+            "Expected not my vbucket.");
     h1->release(h, NULL, i);
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -2126,11 +2250,12 @@ static enum test_result test_vb_incr_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     testHarness.set_ewouldblock_handling(cookie, false);
     uint64_t result;
     item *i = NULL;
-    check(set_vbucket_state(h, h1, 1, vbucket_state_pending), "Failed to set vbucket state.");
-    check(h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         1) == ENGINE_EWOULDBLOCK,
-          "Expected wouldblock.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
+          "Failed to set vbucket state.");
+    checkeq(ENGINE_EWOULDBLOCK,
+            h1->arithmetic(h, cookie, "key", 3, true, false, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 1),
+            "Expected wouldblock.");
     h1->release(h, NULL, i);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -2141,10 +2266,10 @@ static enum test_result test_vb_incr_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     item *i = NULL;
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    check(h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         1) == ENGINE_NOT_MY_VBUCKET,
-          "Expected not my bucket.");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->arithmetic(h, NULL, "key", 3, true, false, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 1),
+            "Expected not my bucket.");
     h1->release(h, NULL, i);
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
@@ -2176,7 +2301,8 @@ static enum test_result test_wrong_vb_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
 static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    check(ENGINE_NOT_MY_VBUCKET == del(h, h1, "key", 0, 1), "Expected wrong bucket.");
+    checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
+            "Expected wrong bucket.");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
@@ -2275,7 +2401,7 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv;
     rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 2,
                       PROTOCOL_BINARY_RAW_BYTES);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     item_info info;
     info.nvalue = 1;
@@ -2286,20 +2412,21 @@ static enum test_result test_expiry(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     uint64_t cas = 0;
     rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(rv == ENGINE_SUCCESS, "Set failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
 
     testHarness.time_travel(5);
-    check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_KEY_ENOENT,
-          "Item didn't expire");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &it, key, strlen(key), 0),
+            "Item didn't expire");
 
     int expired_access = get_int_stat(h, h1, "ep_expired_access");
     int expired_pager = get_int_stat(h, h1, "ep_expired_pager");
     int active_expired = get_int_stat(h, h1, "vb_active_expired");
-    check(expired_pager == 0, "Expected zero expired item by pager");
-    check(expired_access == 1, "Expected an expired item on access");
-    check(active_expired == 1, "Expected an expired active item");
+    checkeq(0, expired_pager, "Expected zero expired item by pager");
+    checkeq(1, expired_access, "Expected an expired item on access");
+    checkeq(1, active_expired, "Expected an expired active item");
     checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, key, data, &it),
             "Failed set.");
     h1->release(h, NULL, it);
@@ -2321,7 +2448,7 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     ENGINE_ERROR_CODE rv;
     rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 2,
                       PROTOCOL_BINARY_RAW_BYTES);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     item_info info;
     info.nvalue = 1;
@@ -2332,14 +2459,15 @@ static enum test_result test_expiry_loader(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     uint64_t cas = 0;
     rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(rv == ENGINE_SUCCESS, "Set failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
 
     testHarness.time_travel(3);
 
-    check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_KEY_ENOENT,
-          "Item didn't expire");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &it, key, strlen(key), 0),
+            "Item didn't expire");
 
     // Restart the engine to ensure the above expired item is not loaded
     testHarness.reload_engine(&h, &h1,
@@ -2363,15 +2491,16 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
         item *itm = NULL;
         std::stringstream ss;
         ss << "key" << i;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "somevalue", &itm, 0, 0, 10,
-                    PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS,
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "somevalue", &itm, 0, 0, 10,
+                      PROTOCOL_BINARY_RAW_BYTES),
                 "Set failed.");
         h1->release(h, NULL, itm);
     }
 
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 50,
+    checkeq(50, get_int_stat(h, h1, "curr_items"),
             "Unexpected number of items on database");
 
     testHarness.time_travel(15);
@@ -2380,7 +2509,7 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
     compact_db(h, h1, 0, 0, 0, 0);
     wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
 
-    check(get_int_stat(h, h1, "ep_expired_compactor") == 50,
+    checkeq(50, get_int_stat(h, h1, "ep_expired_compactor"),
             "Unexpected expirations by compactor");
 
     return SUCCESS;
@@ -2401,7 +2530,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     ENGINE_ERROR_CODE rv;
     rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 3,
                       PROTOCOL_BINARY_RAW_BYTES);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     item_info info;
     info.nvalue = 1;
@@ -2412,16 +2541,16 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
 
     uint64_t cas = 0;
     rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(rv == ENGINE_SUCCESS, "Set failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
     wait_for_flusher_to_settle(h, h1);
 
-    check(get_int_stat(h, h1, "curr_items") == 1, "Failed store item");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Failed store item");
     testHarness.time_travel(5);
 
-    check(get_int_stat(h, h1, "ep_num_expiry_pager_runs") == pager_runs,
-          "Expiry pager shouldn't have run during this time");
+    checkeq(pager_runs, get_int_stat(h, h1, "ep_num_expiry_pager_runs"),
+            "Expiry pager shouldn't have run during this time");
 
     // Restart the engine to ensure the above item is expired
     testHarness.reload_engine(&h, &h1,
@@ -2434,7 +2563,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
     wait_for_stat_change(h, h1, "ep_num_expiry_pager_runs", pager_runs);
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 0,
+    checkeq(0, get_int_stat(h, h1, "curr_items"),
             "The item should have been expired.");
 
     return SUCCESS;
@@ -2450,7 +2579,7 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv;
     rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 5,
                       PROTOCOL_BINARY_RAW_BYTES);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     item_info info;
     info.nvalue = 1;
@@ -2461,19 +2590,20 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     uint64_t cas = 0;
     rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(rv == ENGINE_SUCCESS, "Set failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
     wait_for_flusher_to_settle(h, h1);
 
     // Advance the ep_engine time by 10 sec for the above item to be expired.
     testHarness.time_travel(10);
-    check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_KEY_ENOENT,
-          "Item didn't expire");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &it, key, strlen(key), 0),
+            "Item didn't expire");
 
     rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 0,
                       PROTOCOL_BINARY_RAW_BYTES);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     info.nvalue = 1;
     if (!h1->get_item_info(h, NULL, it, &info)) {
@@ -2484,13 +2614,14 @@ static enum test_result test_bug3454(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     cas = 0;
     // Add a new item with the same key.
     rv = h1->store(h, NULL, it, &cas, OPERATION_ADD, 0);
-    check(rv == ENGINE_SUCCESS, "Add failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Add failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
     wait_for_flusher_to_settle(h, h1);
 
-    check(h1->get(h, NULL, &it, key, strlen(key), 0) == ENGINE_SUCCESS,
-          "Item shouldn't expire");
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &it, key, strlen(key), 0),
+            "Item shouldn't expire");
     h1->release(h, NULL, it);
 
     // Restart the engine to ensure the above unexpired new item is loaded
@@ -2514,7 +2645,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     ENGINE_ERROR_CODE rv;
     rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 0,
                       PROTOCOL_BINARY_RAW_BYTES);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     item_info info;
     info.nvalue = 1;
@@ -2525,7 +2656,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     uint64_t cas = 0;
     rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(rv == ENGINE_SUCCESS, "Set failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, data, strlen(data));
     h1->release(h, NULL, it);
     wait_for_flusher_to_settle(h, h1);
@@ -2534,7 +2665,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *new_data = "new data here.";
     rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(new_data), 0, 2,
                       PROTOCOL_BINARY_RAW_BYTES);
-    check(rv == ENGINE_SUCCESS, "Allocation failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
     info.nvalue = 1;
     if (!h1->get_item_info(h, NULL, it, &info)) {
@@ -2545,7 +2676,7 @@ static enum test_result test_bug3522(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
     cas = 0;
     rv = h1->store(h, NULL, it, &cas, OPERATION_SET, 0);
-    check(rv == ENGINE_SUCCESS, "Set failed.");
+    checkeq(ENGINE_SUCCESS, rv, "Set failed.");
     check_key_value(h, h1, key, new_data, strlen(new_data));
     h1->release(h, NULL, it);
     testHarness.time_travel(3);
@@ -2568,10 +2699,11 @@ static enum test_result test_get_replica_active_state(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, h1, vbucket_state_active);
-    check(h1->unknown_command(h, NULL, pkt, add_response) ==
-          ENGINE_SUCCESS, "Get Replica Failed");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-          "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "Get Replica Failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+            "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
 
     free(pkt);
     return SUCCESS;
@@ -2584,8 +2716,9 @@ static enum test_result test_get_replica_pending_state(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
     pkt = prepare_get_replica(h, h1, vbucket_state_pending);
-    check(h1->unknown_command(h, cookie, pkt, add_response) ==
-          ENGINE_EWOULDBLOCK, "Should have returned error for pending state");
+    checkeq(ENGINE_EWOULDBLOCK,
+            h1->unknown_command(h, cookie, pkt, add_response),
+            "Should have returned error for pending state");
     testHarness.destroy_cookie(cookie);
     free(pkt);
     return SUCCESS;
@@ -2595,10 +2728,11 @@ static enum test_result test_get_replica_dead_state(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, h1, vbucket_state_dead);
-    check(h1->unknown_command(h, NULL, pkt, add_response) ==
-          ENGINE_SUCCESS, "Get Replica Failed");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-          "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "Get Replica Failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+            "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
 
     free(pkt);
     return SUCCESS;
@@ -2608,12 +2742,13 @@ static enum test_result test_get_replica(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt;
     pkt = prepare_get_replica(h, h1, vbucket_state_replica);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-                              "Get Replica Failed");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected PROTOCOL_BINARY_RESPONSE_SUCCESS response.");
-    check(last_body == "replicadata",
-          "Should have returned identical value");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "Get Replica Failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected PROTOCOL_BINARY_RESPONSE_SUCCESS response.");
+    checkeq(std::string("replicadata"), last_body,
+            "Should have returned identical value");
 
     free(pkt);
     return SUCCESS;
@@ -2623,8 +2758,9 @@ static enum test_result test_get_replica_non_resident(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
 
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "value", &i, 0, 0)
-          == ENGINE_SUCCESS, "Store Failed");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "value", &i, 0, 0),
+            "Store Failed");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
@@ -2634,7 +2770,8 @@ static enum test_result test_get_replica_non_resident(ENGINE_HANDLE *h,
           "Failed to set vbucket to replica");
 
     get_replica(h, h1, "key", 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected success");
 
     return SUCCESS;
 }
@@ -2644,10 +2781,11 @@ static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
     protocol_binary_request_header *pkt;
     bool makeinvalidkey = true;
     pkt = prepare_get_replica(h, h1, vbucket_state_replica, makeinvalidkey);
-    check(h1->unknown_command(h, NULL, pkt, add_response) ==
-          ENGINE_SUCCESS, "Get Replica Failed");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-          "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "Get Replica Failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+            "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
     free(pkt);
     return SUCCESS;
 }
@@ -2655,18 +2793,20 @@ static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
 static enum test_result test_vb_del_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_ewouldblock_handling(cookie, false);
-    check(set_vbucket_state(h, h1, 1, vbucket_state_pending), "Failed to set vbucket state.");
-    check(ENGINE_EWOULDBLOCK == del(h, h1, "key", 0, 1, cookie),
-          "Expected woodblock.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
+          "Failed to set vbucket state.");
+    checkeq(ENGINE_EWOULDBLOCK, del(h, h1, "key", 0, 1, cookie),
+            "Expected woodblock.");
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 
 static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
+          "Failed to set vbucket state.");
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
-    check(ENGINE_NOT_MY_VBUCKET == del(h, h1, "key", 0, 1),
-          "Expected not my vbucket.");
+    checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
+            "Expected not my vbucket.");
     wait_for_stat_change(h, h1, "ep_num_not_my_vbuckets", numNotMyVBucket);
     return SUCCESS;
 }
@@ -2674,34 +2814,41 @@ static enum test_result test_vb_del_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // key is a mandatory field!
     touch(h, h1, NULL, 0, (time(NULL) + 10));
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL,
+            last_status.load(), "Testing invalid arguments");
 
     // extlen is a mandatory field!
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_TOUCH, 0, 0, NULL, 0, "akey", 4);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call touch");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, request, add_response),
+            "Failed to call touch");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+            "Testing invalid arguments");
     free(request);
 
     // Try to touch an unknown item...
     touch(h, h1, "mykey", 0, (time(NULL) + 10));
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Testing unknown key");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+            "Testing unknown key");
 
     // illegal vbucket
     touch(h, h1, "mykey", 5, (time(NULL) + 10));
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+            "Testing illegal vbucket");
 
     // Store the item!
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm),
+            "Failed set.");
     h1->release(h, NULL, itm);
 
     check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue"));
 
     touch(h, h1, "mykey", 0, (time(NULL) + 10));
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch mykey");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "touch mykey");
 
     // time-travel 9 secs..
     testHarness.time_travel(9);
@@ -2713,7 +2860,8 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(2);
 
     // The item should have expired now...
-    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &itm, "mykey", 5, 0), "Item should be gone");
     return SUCCESS;
 }
 
@@ -2722,12 +2870,14 @@ static enum test_result test_touch_mb7342(ENGINE_HANDLE *h,
     const char *key = "MB-7342";
     // Store the item!
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, "v", &itm) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "v", &itm),
+            "Failed set.");
     h1->release(h, NULL, itm);
 
     touch(h, h1, key, 0, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch key");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(), "touch key");
 
     check_key_value(h, h1, key, "v", 1);
 
@@ -2745,14 +2895,17 @@ static enum test_result test_touch_mb10277(ENGINE_HANDLE *h,
     const char *key = "MB-10277";
     // Store the item!
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, "v", &itm) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "v", &itm),
+            "Failed set.");
     h1->release(h, NULL, itm);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, key, 0, "Ejected.");
 
     touch(h, h1, key, 0, 3600); // A new expiration time remains in the same.
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch key");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "touch key");
 
     return SUCCESS;
 }
@@ -2760,37 +2913,45 @@ static enum test_result test_touch_mb10277(ENGINE_HANDLE *h,
 static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // key is a mandatory field!
     gat(h, h1, NULL, 0, 10);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+            "Testing invalid arguments");
 
     // extlen is a mandatory field!
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_GAT, 0, 0, NULL, 0, "akey", 4);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call gat");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, request, add_response),
+            "Failed to call gat");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+            "Testing invalid arguments");
     free(request);
 
     // Try to gat an unknown item...
     gat(h, h1, "mykey", 0, 10);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Testing unknown key");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+            "Testing unknown key");
 
     // illegal vbucket
     gat(h, h1, "mykey", 5, 10);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Testing illegal vbucket");
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+            last_status.load(), "Testing illegal vbucket");
 
     // Store the item!
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
-                &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
+                  &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON),
+            "Failed set.");
     h1->release(h, NULL, itm);
 
     check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
             strlen("{\"some\":\"value\"}"));
 
     gat(h, h1, "mykey", 0, 10);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
-    check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Expected datatype to be JSON");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(), "gat mykey");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            last_datatype.load(), "Expected datatype to be JSON");
     check(last_body.compare(0, sizeof("{\"some\":\"value\"}"),
                             "{\"some\":\"value\"}") == 0,
           "Invalid data returned");
@@ -2806,21 +2967,25 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(2);
 
     // The item should have expired now...
-    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &itm, "mykey", 5, 0), "Item should be gone");
     return SUCCESS;
 }
 
 static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // key is a mandatory field!
     gat(h, h1, NULL, 0, 10, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL,
+            last_status.load(), "Testing invalid arguments");
 
     // extlen is a mandatory field!
     protocol_binary_request_header *request;
     request = createPacket(PROTOCOL_BINARY_CMD_GATQ, 0, 0, NULL, 0, "akey", 4);
-    check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
-          "Failed to call gatq");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Testing invalid arguments");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, request, add_response),
+            "Failed to call gatq");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL,
+            last_status.load(), "Testing invalid arguments");
     free(request);
 
     // Try to gatq an unknown item...
@@ -2828,26 +2993,30 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     gat(h, h1, "mykey", 0, 10, true);
 
     // We should not have sent any response!
-    check(last_status == (protocol_binary_response_status)0xffff, "Testing unknown key");
+    checkeq((protocol_binary_response_status)0xffff,
+            last_status.load(), "Testing unknown key");
 
     // illegal vbucket
     gat(h, h1, "mykey", 5, 10, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-          "Testing illegal vbucket");
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+            last_status.load(),
+            "Testing illegal vbucket");
 
     // Store the item!
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
-                &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
+                  &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON),
+            "Failed set.");
     h1->release(h, NULL, itm);
 
     check_key_value(h, h1, "mykey", "{\"some\":\"value\"}",
                     strlen("{\"some\":\"value\"}"));
 
     gat(h, h1, "mykey", 0, 10, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
-    check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Expected datatype to be JSON");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "gat mykey");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            last_datatype.load(), "Expected datatype to be JSON");
     check(last_body.compare(0, sizeof("{\"some\":\"value\"}"),
                             "{\"some\":\"value\"}") == 0,
           "Invalid data returned");
@@ -2863,14 +3032,17 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(2);
 
     // The item should have expired now...
-    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &itm, "mykey", 5, 0),
+            "Item should be gone");
     return SUCCESS;
 }
 
 static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "coolkey", "cooler", &itm)
-          == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "coolkey", "cooler", &itm),
+            "Failed set.");
     h1->release(h, NULL, itm);
 
     check_key_value(h, h1, "coolkey", "cooler", strlen("cooler"));
@@ -2879,7 +3051,9 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int expTime = time(NULL) + 111;
 
     touch(h, h1, "coolkey", 0, expTime);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch coolkey");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "touch coolkey");
 
     //reload engine
     testHarness.reload_engine(&h, &h1,
@@ -2892,18 +3066,20 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     //verify persisted expiration time
     const char *statkey = "key coolkey 0";
     int newExpTime;
-    check(h1->get(h, NULL, &itm, "coolkey", 7, 0) == ENGINE_SUCCESS,
-          "Missing key");
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &itm, "coolkey", 7, 0),
+            "Missing key");
     h1->release(h, NULL, itm);
     newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
-    check(newExpTime == expTime, "Failed to persist new exptime");
+    checkeq(expTime, newExpTime, "Failed to persist new exptime");
 
     // evict key, touch expiration time, and verify
     evict_key(h, h1, "coolkey", 0, "Ejected.");
 
     expTime = time(NULL) + 222;
     touch(h, h1, "coolkey", 0, expTime);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch coolkey");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(), "touch coolkey");
 
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
@@ -2911,11 +3087,12 @@ static enum test_result test_mb5215(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               true, false);
     wait_for_warmup_complete(h, h1);
 
-    check(h1->get(h, NULL, &itm, "coolkey", 7, 0) == ENGINE_SUCCESS,
-          "Missing key");
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &itm, "coolkey", 7, 0),
+            "Missing key");
     h1->release(h, NULL, itm);
     newExpTime = get_int_stat(h, h1, "key_exptime", statkey);
-    check(newExpTime == expTime, "Failed to persist new exptime");
+    checkeq(expTime, newExpTime, "Failed to persist new exptime");
 
     return SUCCESS;
 }
@@ -2927,12 +3104,12 @@ static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
 
     rv = h1->allocate(h, NULL, &it, "key", 3, 20 * 1024 * 1024, 0, 0,
                       PROTOCOL_BINARY_RAW_BYTES);
-    check(rv == ENGINE_SUCCESS, "Allocated 20MB item");
+    checkeq(ENGINE_SUCCESS, rv, "Allocated 20MB item");
     h1->release(h, NULL, it);
 
     rv = h1->allocate(h, NULL, &it, "key", 3, (20 * 1024 * 1024) + 1, 0, 0,
                       PROTOCOL_BINARY_RAW_BYTES);
-    check(rv == ENGINE_E2BIG, "Object too big");
+    checkeq(ENGINE_E2BIG, rv, "Object too big");
 
     return SUCCESS;
 }
@@ -2940,8 +3117,9 @@ static enum test_result test_alloc_limit(ENGINE_HANDLE *h,
 static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
                                            ENGINE_HANDLE_V1 *h1) {
     vals.clear();
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+           "Failed to get stats.");
     if (vals["ep_dbname"] != std::string(WHITESPACE_DB)) {
         std::cerr << "Expected dbname = ``" << WHITESPACE_DB << "''"
                   << ", got ``" << vals["ep_dbname"] << "''" << std::endl;
@@ -3098,34 +3276,38 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
 
     // Set two keys - one to be expired and other to remain...
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, value, &itm)
-          == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, value, &itm),
+            "Failed set.");
     h1->release(h, NULL, itm);
 
     check_key_value(h, h1, key, value, strlen(value));
 
     // Set a non-expiring key...
-    check(store(h, h1, NULL, OPERATION_SET, "trees", "cleanse", &itm)
-          == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "trees", "cleanse", &itm),
+            "Failed set.");
     h1->release(h, NULL, itm);
 
     check_key_value(h, h1, "trees", "cleanse", strlen("cleanse"));
 
     touch(h, h1, key, 0, 11);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "touch Carss");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "touch Carss");
 
     testHarness.time_travel(12);
     wait_for_flusher_to_settle(h, h1);
 
     // Store a dummy item since we do not purge the item with highest seqno
-    check(ENGINE_SUCCESS ==
+    checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "dummykey", "dummyvalue", &itm,
-                0, 0, 0), "Error setting.");
+                  0, 0, 0),
+            "Error setting.");
     h1->release(h, NULL, itm);
 
     wait_for_flusher_to_settle(h, h1);
 
-    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") == 0,
+    checkeq(0, get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
             "purge_seqno not found to be zero before compaction");
 
     // Compaction on VBucket
@@ -3134,14 +3316,14 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
 
     // the key tree and its value should be intact...
-    check(verify_key(h, h1, "trees") == ENGINE_SUCCESS,
-          "key trees should be found.");
+    checkeq(ENGINE_SUCCESS, verify_key(h, h1, "trees"),
+            "key trees should be found.");
     // the key Carrs should have disappeared...
-    int val = verify_key(h, h1, "Carss");
-    check(val == ENGINE_KEY_ENOENT, "Key Carss has not expired.");
+    ENGINE_ERROR_CODE val = verify_key(h, h1, "Carss");
+    checkeq(ENGINE_KEY_ENOENT, val, "Key Carss has not expired.");
 
-    check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") == 4,
-        "purge_seqno didn't match expected value");
+    checkeq(4, get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            "purge_seqno didn't match expected value");
 
     return SUCCESS;
 }
@@ -3149,11 +3331,12 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
 static enum test_result test_compaction_config(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
 
-    check(get_int_stat(h, h1, "ep_compaction_write_queue_cap") == 10000,
+    checkeq(10000,
+            get_int_stat(h, h1, "ep_compaction_write_queue_cap"),
             "Expected compaction queue cap to be 10000");
     set_param(h, h1, protocol_binary_engine_param_flush,
               "compaction_write_queue_cap", "100000");
-    check(get_int_stat(h, h1, "ep_compaction_write_queue_cap") == 100000,
+    checkeq(100000, get_int_stat(h, h1, "ep_compaction_write_queue_cap"),
             "Expected compaction queue cap to be 100000");
     return SUCCESS;
 }
@@ -3195,8 +3378,9 @@ static enum test_result test_multiple_vb_compactions(ENGINE_HANDLE *h,
     for (it = keys.begin(); it != keys.end(); ++it) {
         uint16_t vbid = count % 4;
         item *i;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, vbid)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, vbid),
+                "Failed to store a value");
         h1->release(h, NULL, i);
         ++count;
     }
@@ -3249,8 +3433,10 @@ test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
     for (it = keys.begin(); it != keys.end(); ++it) {
         uint16_t vbid = count % 4;
         item *i;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, vbid)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
+                      &i, 0, vbid),
+                "Failed to store a value");
         h1->release(h, NULL, i);
         ++count;
     }
@@ -3261,8 +3447,9 @@ test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
         for (it = keys.begin(); it != keys.end(); ++it) {
             uint16_t vbid = count % 4;
             item *i = NULL;
-            check(h1->get(h, NULL, &i, it->c_str(), strlen(it->c_str()), vbid) ==
-                  ENGINE_SUCCESS, "Unable to get stored item");
+            checkeq(ENGINE_SUCCESS,
+                    h1->get(h, NULL, &i, it->c_str(), strlen(it->c_str()), vbid),
+                    "Unable to get stored item");
             h1->release(h, NULL, i);
             ++count;
         }
@@ -3294,17 +3481,20 @@ test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
 
 static enum test_result vbucket_destroy(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                              const char* value = NULL) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     vbucketDelete(h, h1, 2, value);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-          "Expected failure deleting non-existent bucket.");
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+            last_status.load(),
+            "Expected failure deleting non-existent bucket.");
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+          "Failed set set vbucket 1 state.");
 
     vbucketDelete(h, h1, 1, value);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected failure deleting non-existent bucket.");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected failure deleting non-existent bucket.");
 
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 0 was not missing after deleting it.");
@@ -3319,7 +3509,8 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
     int overhead = get_int_stat(h, h1, "ep_overhead");
     int nonResident = get_int_stat(h, h1, "ep_num_non_resident");
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     std::vector<std::string> keys;
     for (int j = 0; j < 2000; ++j) {
@@ -3333,20 +3524,24 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *i;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 1)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
+                      &i, 0, 1),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
     wait_for_flusher_to_settle(h, h1);
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+          "Failed set set vbucket 1 state.");
 
     int vbucketDel = get_int_stat(h, h1, "ep_vbucket_del");
     vbucketDelete(h, h1, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected failure deleting non-existent bucket.");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "Expected failure deleting non-existent bucket.");
 
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 1 was not missing after deleting it.");
@@ -3362,12 +3557,14 @@ static enum test_result test_vbucket_destroy_stats(ENGINE_HANDLE *h,
 
 static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                 const char* value = NULL) {
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
 
     // Store a value so the restart will try to resurrect it.
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 1)
-          == ENGINE_SUCCESS, "Failed to set a value");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 1),
+            "Failed to set a value");
     check_key_value(h, h1, "key", "somevalue", 9, 1);
     h1->release(h, NULL, i);
 
@@ -3380,14 +3577,16 @@ static enum test_result vbucket_destroy_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_
 
     check(verify_vbucket_state(h, h1, 1, vbucket_state_active),
           "Bucket state was what it was initially, after restart.");
-    check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed to set vbucket state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state.");
     check_key_value(h, h1, "key", "somevalue", 9, 1);
 
-    check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
+    check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
+          "Failed set set vbucket 1 state.");
 
     vbucketDelete(h, h1, 1, value);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected failure deleting non-existent bucket.");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected failure deleting non-existent bucket.");
 
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 1 was not missing after deleting it.");
@@ -3481,34 +3680,38 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     for (int ii = 0; ii < num_keys; ++ii) {
         std::stringstream ss;
         ss << "key" << ii;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, 0),
+                "Failed to store an item.");
     }
 
-    check(get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno") == 100,
-          "Invalid seqno");
-    check(get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno") == 0,
-          "Invalid seqno");
-    check(get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno 1") == 0,
-          "Invalid seqno");
+    checkeq(100, get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
+            "Invalid seqno");
+    checkeq(0, get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno"),
+            "Invalid seqno");
+    checkeq(0, get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno 1"),
+            "Invalid seqno");
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
-    check(get_ull_stat(h, h1, "vb_1:uuid", "vbucket-seqno 1") == vb_uuid,
-          "Invalid uuid");
-    check(vals.size() == 4, "Expected four stats");
+    checkeq(vb_uuid, get_ull_stat(h, h1, "vb_1:uuid", "vbucket-seqno 1"),
+            "Invalid uuid");
+    checkeq(static_cast<size_t>(4), vals.size(), "Expected four stats");
 
     // Check invalid vbucket
-    check(h1->get_stats(h, NULL, "vbucket-seqno 2", 15, add_stats)
-          == ENGINE_NOT_MY_VBUCKET, "Expected not my vbucket");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->get_stats(h, NULL, "vbucket-seqno 2", 15, add_stats),
+            "Expected not my vbucket");
 
     // Check bad vbucket parameter (not numeric)
-    check(h1->get_stats(h, NULL, "vbucket-seqno tt2", 17, add_stats)
-          == ENGINE_EINVAL, "Expected invalid");
+    checkeq(ENGINE_EINVAL,
+            h1->get_stats(h, NULL, "vbucket-seqno tt2", 17, add_stats),
+            "Expected invalid");
 
     // Check extra spaces at the end
-    check(h1->get_stats(h, NULL, "vbucket-seqno    ", 17, add_stats)
-          == ENGINE_EINVAL, "Expected invalid");
+    checkeq(ENGINE_EINVAL,
+            h1->get_stats(h, NULL, "vbucket-seqno    ", 17, add_stats),
+            "Expected invalid");
 
     return SUCCESS;
 }
@@ -3522,9 +3725,10 @@ static enum test_result test_stats_diskinfo(ENGINE_HANDLE *h,
     for (int ii = 0; ii < num_keys; ++ii) {
         std::stringstream ss;
         ss << "key" << ii;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, 1) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, 1),
+                "Failed to store an item.");
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -3536,14 +3740,17 @@ static enum test_result test_stats_diskinfo(ENGINE_HANDLE *h,
     check(get_int_stat(h, h1, "vb_1:data_size", "diskinfo detail") > 0,
           "VB 1 data size should be greater than 0");
 
-    check(h1->get_stats(h, NULL, "diskinfo ", 9, add_stats)
-          == ENGINE_EINVAL, "Expected invalid");
+    checkeq(ENGINE_EINVAL,
+            h1->get_stats(h, NULL, "diskinfo ", 9, add_stats),
+            "Expected invalid");
 
-    check(h1->get_stats(h, NULL, "diskinfo detai", 14, add_stats)
-          == ENGINE_EINVAL, "Expected invalid");
+    checkeq(ENGINE_EINVAL,
+            h1->get_stats(h, NULL, "diskinfo detai", 14, add_stats),
+            "Expected invalid");
 
-    check(h1->get_stats(h, NULL, "diskinfo detaillll", 18, add_stats)
-          == ENGINE_EINVAL, "Expected invalid");
+    checkeq(ENGINE_EINVAL,
+            h1->get_stats(h, NULL, "diskinfo detaillll", 18, add_stats),
+            "Expected invalid");
 
     return SUCCESS;
 }
@@ -3563,7 +3770,7 @@ static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                                snap_start_seqno, snap_end_seqno,
                                                &rollback,
                                                mock_dcp_add_failover_log);
-    check(err == ENGINE_SUCCESS, "Failed to initiate stream request");
+    checkeq(ENGINE_SUCCESS, err, "Failed to initiate stream request");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     check(type.compare("notifier") == 0, "Consumer not found");
@@ -3590,17 +3797,19 @@ static enum test_result test_dcp_vbtakeover_no_stream(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
     int est = get_int_stat(h, h1, "estimate", "dcp-vbtakeover 0");
-    check(est == 10, "Invalid estimate for non-existent stream");
+    checkeq(10, est, "Invalid estimate for non-existent stream");
 
-    check(h1->get_stats(h, NULL, "dcp-vbtakeover 1", strlen("dcp-vbtakeover 1"),
-                        add_stats) == ENGINE_NOT_MY_VBUCKET,
-                        "Expected not my vbucket");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->get_stats(h, NULL, "dcp-vbtakeover 1",
+                          strlen("dcp-vbtakeover 1"), add_stats),
+            "Expected not my vbucket");
 
     return SUCCESS;
 }
@@ -3613,8 +3822,9 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -3624,21 +3834,23 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp notifier open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp notifier open connection.");
 
     // Get notification for an old item
     notifier_request(h, h1, cookie, ++opaque, 0, 0, true);
     dcp_step(h, h1, cookie);
-    check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
-          "Expected stream end");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
+            dcp_last_op,
+            "Expected stream end");
 
     // Get notification when we're slightly behind
     notifier_request(h, h1, cookie, ++opaque, 0, 9, true);
     dcp_step(h, h1, cookie);
-    check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
-          "Expected stream end");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
+            dcp_last_op,
+            "Expected stream end");
 
     // Wait for notification of a future item
     notifier_request(h, h1, cookie, ++opaque, 0, 20, true);
@@ -3648,8 +3860,9 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -3662,15 +3875,17 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
     // Should get a stream end
     dcp_step(h, h1, cookie);
-    check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
-          "Expected stream end");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
+            dcp_last_op,
+            "Expected stream end");
 
     testHarness.destroy_cookie(cookie);
 
@@ -3685,24 +3900,24 @@ static enum test_result test_dcp_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
-    check(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp consumer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     int created = get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp");
-    check(type.compare("consumer") == 0, "Consumer not found");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
     testHarness.destroy_cookie(cookie1);
 
     testHarness.time_travel(600);
 
     const void *cookie2 = testHarness.create_cookie();
-    check(h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp consumer open connection.");
 
     type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
-    check(type.compare("consumer") == 0, "Consumer not found");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
     check(get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp") > created,
           "New dcp stream is not newer");
     testHarness.destroy_cookie(cookie2);
@@ -3768,30 +3983,30 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(ENGINE_HANDLE *h,
     /* Check the min limit */
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
               "500000000");
-    check(get_int_stat(h, h1, "ep_max_size") == 500000000,
-          "Incorrect new size.");
+    checkeq(500000000, get_int_stat(h, h1, "ep_max_size"),
+            "Incorrect new size.");
 
-    check(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp consumer open connection.");
 
-    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
-          == 10485760, "Flow Control Buffer Size not equal to min");
+    checkeq(10485760, get_int_stat(h, h1, stats_buffer, "dcp"),
+            "Flow Control Buffer Size not equal to min");
     testHarness.destroy_cookie(cookie1);
 
     /* Check the size as percentage of the bucket memory */
     const void *cookie2 = testHarness.create_cookie();
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
               "2000000000");
-    check(get_int_stat(h, h1, "ep_max_size") == 2000000000,
-          "Incorrect new size.");
+    checkeq(2000000000, get_int_stat(h, h1, "ep_max_size"),
+            "Incorrect new size.");
 
-    check(h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp consumer open connection.");
 
-    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
-          == 20000000, "Flow Control Buffer Size not equal to 1% of mem size");
+    checkeq(20000000, get_int_stat(h, h1, stats_buffer, "dcp"),
+            "Flow Control Buffer Size not equal to 1% of mem size");
     testHarness.destroy_cookie(cookie2);
 
     /* Check the case when mem used by flow control bufs hit the threshold */
@@ -3799,34 +4014,35 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(ENGINE_HANDLE *h,
        memory */
     for (int count = 0; count < 10; count++) {
         const void *cookie = testHarness.create_cookie();
-        check(h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
-              == ENGINE_SUCCESS,
-              "Failed dcp consumer open connection.");
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+                "Failed dcp consumer open connection.");
         testHarness.destroy_cookie(cookie);
     }
     /* By now mem used by flow control bufs would have crossed the threshold */
     const void *cookie3 = testHarness.create_cookie();
-    check(h1->dcp.open(h, cookie3, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie3, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp consumer open connection.");
 
-    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp") == 10485760,
-          "Flow Control Buffer Size not equal to min after threshold is hit");
+    checkeq(10485760, get_int_stat(h, h1, stats_buffer, "dcp"),
+            "Flow Control Buffer Size not equal to min after threshold is hit");
     testHarness.destroy_cookie(cookie3);
 
     /* Check the max limit */
     const void *cookie4 = testHarness.create_cookie();
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
               "7000000000");
-    check(get_ull_stat(h, h1, "ep_max_size") == 7000000000,
-          "Incorrect new size.");
+    checkeq(static_cast<uint64_t>(7000000000),
+            get_ull_stat(h, h1, "ep_max_size"),
+            "Incorrect new size.");
 
-    check(h1->dcp.open(h, cookie4, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie4, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp consumer open connection.");
 
-    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
-          == 52428800, "Flow Control Buffer Size beyond max");
+    checkeq(52428800, get_int_stat(h, h1, stats_buffer, "dcp"),
+            "Flow Control Buffer Size beyond max");
     testHarness.destroy_cookie(cookie4);
 
     return SUCCESS;
@@ -3927,8 +4143,8 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
                 "Pending flow control buffer change not processed");
         checkeq((uint8_t)PROTOCOL_BINARY_CMD_DCP_CONTROL, dcp_last_op,
                 "Flow ctl buf size change control message not received");
-        check(dcp_last_key.compare("connection_buffer_size") == 0,
-              "Flow ctl buf size change control message key error");
+        checkeq(0, dcp_last_key.compare("connection_buffer_size"),
+                "Flow ctl buf size change control message key error");
         checkeq((int)exp_buf_size, atoi(dcp_last_value.c_str()),
                 "Flow ctl buf size in control message not correct");
     }
@@ -3948,24 +4164,24 @@ static enum test_result test_dcp_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     const char *name  = "unittest";
     uint16_t nname = strlen(name);
 
-    check(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     int created = get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp");
-    check(type.compare("producer") == 0, "Producer not found");
+    checkeq(0, type.compare("producer"), "Producer not found");
     testHarness.destroy_cookie(cookie1);
 
     testHarness.time_travel(600);
 
     const void *cookie2 = testHarness.create_cookie();
-    check(h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
     type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
-    check(type.compare("producer") == 0, "Producer not found");
+    checkeq(0, type.compare("producer"), "Producer not found");
     check(get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp") > created,
           "New dcp stream is not newer");
     testHarness.destroy_cookie(cookie2);
@@ -3979,17 +4195,19 @@ static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *name = "unittest";
     uint32_t opaque = 1;
 
-    check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
-                       strlen(name)) == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
+                         strlen(name)),
+            "Failed dcp producer open connection.");
 
-    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                          "1024", 4) == ENGINE_SUCCESS,
-          "Failed to establish connection buffer");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                            "1024", 4),
+            "Failed to establish connection buffer");
 
-    check(h1->dcp.control(h, cookie, ++opaque, "enable_noop", 11, "true", 4)
-                == ENGINE_SUCCESS,
-          "Failed to enable no-ops");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "enable_noop", 11, "true", 4),
+            "Failed to enable no-ops");
 
     testHarness.time_travel(201);
 
@@ -4027,17 +4245,19 @@ static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint32_t opaque = 1;
 
-    check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
-                       strlen(name)) == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
+                         strlen(name)),
+            "Failed dcp producer open connection.");
 
-    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                          "1024", 4) == ENGINE_SUCCESS,
-          "Failed to establish connection buffer");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                            "1024", 4),
+            "Failed to establish connection buffer");
 
-    check(h1->dcp.control(h, cookie, ++opaque, "enable_noop", 11, "true", 4)
-                == ENGINE_SUCCESS,
-          "Failed to enable no-ops");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "enable_noop", 11, "true", 4),
+            "Failed to enable no-ops");
 
     testHarness.time_travel(201);
 
@@ -4084,24 +4304,27 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     uint32_t opaque = 1;
     uint16_t nname = strlen(name);
 
-    check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
-                       nname) == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
+                         nname),
+            "Failed dcp producer open connection.");
 
-    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                          "1024", 4) == ENGINE_SUCCESS,
-          "Failed to establish connection buffer");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                            "1024", 4),
+            "Failed to establish connection buffer");
 
-    check(h1->dcp.control(h, cookie, ++opaque, "enable_ext_metadata", 19,
-                          "true", 4) == ENGINE_SUCCESS,
-          "Failed to enable xdcr extras");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "enable_ext_metadata", 19,
+                            "true", 4),
+            "Failed to enable xdcr extras");
 
     uint64_t rollback = 0;
-    check(h1->dcp.stream_req(h, cookie, flags, opaque, vbucket, start, end,
-                             vb_uuid, snap_start_seqno, snap_end_seqno, &rollback,
-                             mock_dcp_add_failover_log)
-                == ENGINE_SUCCESS,
-          "Failed to initiate stream request");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.stream_req(h, cookie, flags, opaque, vbucket, start, end,
+                               vb_uuid, snap_start_seqno, snap_end_seqno,
+                               &rollback, mock_dcp_add_failover_log),
+            "Failed to initiate stream request");
 
     if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         end  = -1;
@@ -4113,33 +4336,39 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
     std::stringstream stats_flags;
     stats_flags << "eq_dcpq:" << name << ":stream_" << vbucket << "_flags";
-    check((uint32_t)get_int_stat(h, h1, stats_flags.str().c_str(), "dcp")
-          == flags, "Flags didn't match");
+    checkeq(flags,
+            (uint32_t)get_int_stat(h, h1, stats_flags.str().c_str(), "dcp"),
+            "Flags didn't match");
 
     std::stringstream stats_opaque;
     stats_opaque << "eq_dcpq:" << name << ":stream_" << vbucket << "_opaque";
-    check((uint32_t)get_int_stat(h, h1, stats_opaque.str().c_str(), "dcp")
-          == opaque, "Opaque didn't match");
+    checkeq(opaque,
+            (uint32_t)get_int_stat(h, h1, stats_opaque.str().c_str(), "dcp"),
+            "Opaque didn't match");
 
     std::stringstream stats_start_seqno;
     stats_start_seqno << "eq_dcpq:" << name << ":stream_" << vbucket << "_start_seqno";
-    check((uint64_t)get_ull_stat(h, h1, stats_start_seqno.str().c_str(), "dcp")
-          == start, "Start Seqno Didn't match");
+    checkeq(start,
+            (uint64_t)get_ull_stat(h, h1, stats_start_seqno.str().c_str(), "dcp"),
+            "Start Seqno Didn't match");
 
     std::stringstream stats_end_seqno;
     stats_end_seqno << "eq_dcpq:" << name << ":stream_" << vbucket << "_end_seqno";
-    check((uint64_t)get_ull_stat(h, h1, stats_end_seqno.str().c_str(), "dcp")
-          == end, "End Seqno didn't match");
+    checkeq(end,
+            (uint64_t)get_ull_stat(h, h1, stats_end_seqno.str().c_str(), "dcp"),
+            "End Seqno didn't match");
 
     std::stringstream stats_vb_uuid;
     stats_vb_uuid << "eq_dcpq:" << name << ":stream_" << vbucket << "_vb_uuid";
-    check((uint64_t)get_ull_stat(h, h1, stats_vb_uuid.str().c_str(), "dcp")
-          == vb_uuid, "VBucket UUID didn't match");
+    checkeq(vb_uuid,
+            (uint64_t)get_ull_stat(h, h1, stats_vb_uuid.str().c_str(), "dcp"),
+            "VBucket UUID didn't match");
 
     std::stringstream stats_snap_seqno;
     stats_snap_seqno << "eq_dcpq:" << name << ":stream_" << vbucket << "_snap_start_seqno";
-    check((uint64_t)get_ull_stat(h, h1, stats_snap_seqno.str().c_str(), "dcp")
-          == snap_start_seqno, "snap start seqno didn't match");
+    checkeq(snap_start_seqno,
+            (uint64_t)get_ull_stat(h, h1, stats_snap_seqno.str().c_str(), "dcp"),
+            "snap start seqno didn't match");
 
     struct dcp_message_producers* producers = get_dcp_producers(h, h1);
 
@@ -4208,17 +4437,17 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
                     if (time_sync_enabled) {
-                        check(dcp_last_meta.size() == 16,
+                        checkeq(static_cast<size_t>(16), dcp_last_meta.size(),
                                 "Expected extended meta in mutation packet");
                     } else {
-                        check(dcp_last_meta.size() == 5,
+                        checkeq(static_cast<size_t>(5), dcp_last_meta.size(),
                                 "Expected no extended metadata");
                     }
 
                     emd = new ExtendedMetaData(dcp_last_meta.c_str(),
                                                dcp_last_meta.size());
-                    check(exp_conflict_res == emd->getConflictResMode(),
-                              "Unexpected conflict resolution mode");
+                    checkeq(exp_conflict_res, emd->getConflictResMode(),
+                            "Unexpected conflict resolution mode");
                     delete emd;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:
@@ -4232,17 +4461,19 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
                     if (time_sync_enabled) {
-                        check(dcp_last_meta.size() == 16,
+                        checkeq(static_cast<size_t>(16),
+                                dcp_last_meta.size(),
                                 "Expected adjusted time in mutation packet");
                     } else {
-                        check(dcp_last_meta.size() == 5,
+                        checkeq(static_cast<size_t>(5),
+                                dcp_last_meta.size(),
                                 "Expected no extended metadata");
                     }
 
                     emd = new ExtendedMetaData(dcp_last_meta.c_str(),
                                                dcp_last_meta.size());
-                    check(exp_conflict_res == emd->getConflictResMode(),
-                              "Unexpected conflict resolution mode");
+                    checkeq(exp_conflict_res, emd->getConflictResMode(),
+                            "Unexpected conflict resolution mode");
                     delete emd;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
@@ -4252,7 +4483,8 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
                     if (exp_disk_snapshot && num_snapshot_markers == 0) {
-                        check(dcp_last_flags == 1, "Expected disk snapshot");
+                        checkeq(static_cast<uint32_t>(1),
+                                dcp_last_flags, "Expected disk snapshot");
                     }
 
                     if (dcp_last_flags & 8) {
@@ -4271,10 +4503,11 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                             item *i = NULL;
                             std::stringstream ss;
                             ss << "key" << j;
-                            check(store(h, h1, NULL, OPERATION_SET,
-                                        ss.str().c_str(), "data", &i,
-                                        0, vbucket)
-                                  == ENGINE_SUCCESS, "Failed to store a value");
+                            checkeq(ENGINE_SUCCESS,
+                                    store(h, h1, NULL, OPERATION_SET,
+                                          ss.str().c_str(), "data", &i,
+                                          0, vbucket),
+                                    "Failed to store a value");
                             h1->release(h, NULL, i);
                         }
                     } else if (dcp_last_vbucket_state == vbucket_state_active) {
@@ -4316,23 +4549,24 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
             check(num_deletions <= exp_deletions, "Invalid number of deletes");
         }
     } else {
-        check(num_mutations == exp_mutations, "Invalid number of mutations");
-        check(num_deletions == exp_deletions, "Invalid number of deletes");
-        check(num_snapshot_markers == exp_markers,
+        checkeq(exp_mutations, num_mutations, "Invalid number of mutations");
+        checkeq(exp_deletions, num_deletions, "Invalid number of deletes");
+        checkeq(exp_markers, num_snapshot_markers,
                 "Didn't receive expected number of snapshot marker");
     }
 
     if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-        check(num_set_vbucket_pending == 1, "Didn't receive pending set state");
-        check(num_set_vbucket_active == 1, "Didn't receive active set state");
+        checkeq(1, num_set_vbucket_pending, "Didn't receive pending set state");
+        checkeq(1, num_set_vbucket_active, "Didn't receive active set state");
     }
 
     /* Check if the readyQ size goes to zero after all items are streamed */
     std::stringstream stats_ready_queue_memory;
     stats_ready_queue_memory << "eq_dcpq:" << name << ":stream_" << vbucket
                              << "_ready_queue_memory";
-    check((uint64_t)get_ull_stat(h, h1, stats_ready_queue_memory.str().c_str(), "dcp")
-          == 0, "readyQ size did not go to zero");
+    checkeq(static_cast<uint64_t>(0),
+            get_ull_stat(h, h1, stats_ready_queue_memory.str().c_str(), "dcp"),
+            "readyQ size did not go to zero");
 
     free(producers);
 }
@@ -4348,17 +4582,18 @@ static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     const char *name = "unittest";
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, strlen(name))
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, strlen(name)),
+            "Failed dcp Consumer open connection.");
 
     uint64_t rollback = 0;
     ENGINE_ERROR_CODE rv = h1->dcp.stream_req(h, cookie, 0, 1, 0, start, end,
                                               uuid, snap_start_seqno,
                                               snap_end_seqno,
                                               &rollback, mock_dcp_add_failover_log);
-    check(rv == err, "Unexpected error code");
+    checkeq(err, rv, "Unexpected error code");
     if (err == ENGINE_ROLLBACK || err == ENGINE_KEY_ENOENT) {
-        check(exp_rollback == rollback, "Rollback didn't match expected value");
+        checkeq(exp_rollback, rollback, "Rollback didn't match expected value");
     }
     testHarness.destroy_cookie(cookie);
 }
@@ -4370,8 +4605,9 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -4381,8 +4617,9 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
     for (int j = 0; j < (num_items / 2); ++j) {
         std::stringstream ss;
         ss << "key" << j;
-        check(del(h, h1, ss.str().c_str(), 0, 0) == ENGINE_SUCCESS,
-              "Expected delete to succeed");
+        checkeq(ENGINE_SUCCESS,
+                del(h, h1, ss.str().c_str(), 0, 0),
+                "Expected delete to succeed");
     }
 
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
@@ -4410,8 +4647,9 @@ static enum test_result test_dcp_producer_stream_req_partial_with_time_sync(
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -4421,8 +4659,9 @@ static enum test_result test_dcp_producer_stream_req_partial_with_time_sync(
     for (int j = 0; j < (num_items / 2); ++j) {
         std::stringstream ss;
         ss << "key" << j;
-        check(del(h, h1, ss.str().c_str(), 0, 0) == ENGINE_SUCCESS,
-              "Expected delete to succeed");
+        checkeq(ENGINE_SUCCESS,
+                del(h, h1, ss.str().c_str(), 0, 0),
+                "Expected delete to succeed");
     }
 
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
@@ -4448,8 +4687,9 @@ static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -4482,8 +4722,9 @@ static enum test_result test_dcp_producer_stream_req_disk(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -4512,8 +4753,9 @@ static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -4544,8 +4786,9 @@ static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -4617,8 +4860,9 @@ static enum test_result test_dcp_producer_stream_latest(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -4647,17 +4891,17 @@ static test_result test_dcp_producer_stream_req_nmvb(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
-    check(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname),
           "Failed dcp producer open connection.");
 
     uint32_t req_vbucket = 1;
     uint64_t rollback = 0;
 
-    check(h1->dcp.stream_req(h, cookie1, 0, 0, req_vbucket, 0, 0, 0, 0,
-                             0, &rollback, mock_dcp_add_failover_log)
-                == ENGINE_NOT_MY_VBUCKET,
-          "Expected not my vbucket");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->dcp.stream_req(h, cookie1, 0, 0, req_vbucket, 0, 0, 0, 0,
+                               0, &rollback, mock_dcp_add_failover_log),
+            "Expected not my vbucket");
     testHarness.destroy_cookie(cookie1);
 
     return SUCCESS;
@@ -4672,8 +4916,9 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -4693,14 +4938,15 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                    100, 0, 1, 0, false, false, 0, false, &total_bytes);
     }
 
-    check(get_int_stat(h, h1, "unittest:producer_count", "dcpagg _") == 5,
-          "producer count mismatch");
-    check(get_int_stat(h, h1, "unittest:total_bytes", "dcpagg _") ==
-          (int)total_bytes, "aggregate total bytes sent mismatch");
-    check(get_int_stat(h, h1, "unittest:items_sent", "dcpagg _") == 500,
-          "aggregate total items sent mismatch");
-    check(get_int_stat(h, h1, "unittest:items_remaining", "dcpagg _") == 0,
-          "aggregate total items remaining mismatch");
+    checkeq(5, get_int_stat(h, h1, "unittest:producer_count", "dcpagg _"),
+            "producer count mismatch");
+    checkeq((int)total_bytes,
+            get_int_stat(h, h1, "unittest:total_bytes", "dcpagg _"),
+            "aggregate total bytes sent mismatch");
+    checkeq(500, get_int_stat(h, h1, "unittest:items_sent", "dcpagg _"),
+            "aggregate total items sent mismatch");
+    checkeq(0, get_int_stat(h, h1, "unittest:items_remaining", "dcpagg _"),
+            "aggregate total items remaining mismatch");
 
     for (int j = 0; j < 5; ++j) {
         testHarness.destroy_cookie(cookie[j]);
@@ -4743,11 +4989,13 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     dcp_stream(h, h1, name.c_str(), cookie, 0, 0, 0, end, vb_uuid, 0, 0, i,
                0, 1, 0, false, false, 0, true, NULL, true);
 
-    check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
-          "Last DCP op wasn't a stream END");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
+            dcp_last_op,
+            "Last DCP op wasn't a stream END");
 
     if (get_int_stat(h, h1, "ep_cursors_dropped") > 0) {
-        check(dcp_last_flags == 4, "Last DCP flag not END_STREAM_SLOW");
+        checkeq(static_cast<uint32_t>(4),
+                dcp_last_flags, "Last DCP flag not END_STREAM_SLOW");
         // Also ensure the status of the active stream for the vbucket
         // shows as "temporarily_disconnected", in vbtakeover stats.
         std::string stats_takeover("dcp-vbtakeover 0 " + name);
@@ -4756,7 +5004,8 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
         checkeq(status.compare("temporarily_disconnected"), 0,
                 "Unexpected status");
     } else {
-        check(dcp_last_flags == 0, "Last DCP flag not END_STREAM_OK");
+        checkeq(static_cast<uint32_t>(0), dcp_last_flags,
+                "Last DCP flag not END_STREAM_OK");
     }
 
     testHarness.destroy_cookie(cookie);
@@ -4766,8 +5015,9 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
 static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
 
-    check(get_float_stat(h, h1, "ep_dcp_min_compression_ratio") ==
-          (float)0.85, "Unexpected dcp_min_compression_ratio");
+    checkeq((float)0.85,
+            get_float_stat(h, h1, "ep_dcp_min_compression_ratio"),
+            "Unexpected dcp_min_compression_ratio");
 
     // Set dcp_min_compression_ratio to infinite, which means
     // a DCP producer would ship the doc no matter what the
@@ -4966,8 +5216,9 @@ static enum test_result test_dcp_producer_stream_mem_no_value(
         }
         item *i = NULL;
         std::string key("key" + std::to_string(j));
-        check(store(h, h1, NULL, OPERATION_SET, key.c_str(), value.c_str(), &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.c_str(), value.c_str(), &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -5017,8 +5268,9 @@ static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -5026,9 +5278,9 @@ static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
-    check(h1->dcp.open(h, cookie, 0, 0, DCP_OPEN_PRODUCER, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, 0, 0, DCP_OPEN_PRODUCER, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
     uint32_t flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
@@ -5052,8 +5304,9 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -5061,9 +5314,10 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint32_t opaque = 1;
 
-    check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
-                       strlen(name)) == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
+                         strlen(name)),
+            "Failed dcp producer open connection.");
 
     uint16_t vbucket = 0;
     uint32_t flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
@@ -5074,12 +5328,12 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
     uint64_t snap_end_seqno = 10;
 
     uint64_t rollback = 0;
-    check(h1->dcp.stream_req(h, cookie, flags, ++opaque, vbucket, start_seqno,
-                             end_seqno, vb_uuid, snap_start_seqno,
-                             snap_end_seqno, &rollback,
-                             mock_dcp_add_failover_log)
-                == ENGINE_SUCCESS,
-          "Failed to initiate stream request");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.stream_req(h, cookie, flags, ++opaque, vbucket, start_seqno,
+                               end_seqno, vb_uuid, snap_start_seqno,
+                               snap_end_seqno, &rollback,
+                               mock_dcp_add_failover_log),
+            "Failed to initiate stream request");
 
     struct dcp_message_producers* producers = get_dcp_producers(h, h1);
 
@@ -5119,9 +5373,9 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
         }
     } while (!done);
 
-    check(num_snapshot_markers == 0, "Invalid number of snapshot marker");
-    check(num_set_vbucket_pending == 1, "Didn't receive pending set state");
-    check(num_set_vbucket_active == 1, "Didn't receive active set state");
+    checkeq(0, num_snapshot_markers, "Invalid number of snapshot marker");
+    checkeq(1, num_set_vbucket_pending, "Didn't receive pending set state");
+    checkeq(1, num_set_vbucket_active, "Didn't receive active set state");
 
     free(producers);
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
@@ -5185,8 +5439,9 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     cb_assert(dcp_last_key.compare("supports_cursor_dropping") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
-    check(h1->dcp.add_stream(h, cookie, opaque, vbucket, flags)
-          == ENGINE_SUCCESS, "Add stream request failed");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.add_stream(h, cookie, opaque, vbucket, flags),
+            "Add stream request failed");
 
     dcp_step(h, h1, cookie);
     stream_opaque = dcp_last_opaque;
@@ -5234,8 +5489,9 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         memcpy(pkt->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
     }
 
-    check(h1->dcp.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
-          "Expected success");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.response_handler(h, cookie, pkt),
+            "Expected success");
     dcp_step(h, h1, cookie);
     free (pkt);
 
@@ -5261,8 +5517,9 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         memcpy(pkt->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
         memcpy(pkt->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
-        check(h1->dcp.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
-              "Expected success");
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.response_handler(h, cookie, pkt),
+                "Expected success");
         dcp_step(h, h1, cookie);
 
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
@@ -5300,24 +5557,27 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
     int items = full ? 10 : 5;
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t stream_opaque =
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
-    check(h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 0, 10, 2)
-        == ENGINE_SUCCESS, "Failed to send snapshot marker");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 0, 10, 2),
+            "Failed to send snapshot marker");
 
     for (int i = 1; i <= items; i++) {
         std::stringstream ss;
         ss << "key" << i;
-        check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
-                               ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
-                               0, 0, 0, "", 0, INITIAL_NRU_VALUE)
-            == ENGINE_SUCCESS, "Failed to send dcp mutation");
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
+                "Failed to send dcp mutation");
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -5334,8 +5594,9 @@ static enum test_result test_dcp_reconnect(ENGINE_HANDLE *h,
 
     cookie = testHarness.create_cookie();
 
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     uint64_t snap_start = full ? 10 : 0;
     uint64_t snap_end = 10;
@@ -5383,8 +5644,9 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
           "Failed to set vbucket state.");
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0,
                             DCP_ADD_STREAM_FLAG_TAKEOVER,
@@ -5397,20 +5659,22 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
     for (int i = 1; i <= 5; i++) {
         std::stringstream ss;
         ss << "key" << i;
-        check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
-                               ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
-                               0, 0, 0, "", 0, INITIAL_NRU_VALUE)
-            == ENGINE_SUCCESS, "Failed to send dcp mutation");
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
+                "Failed to send dcp mutation");
     }
 
     h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 6, 10, 10);
     for (int i = 6; i <= 10; i++) {
         std::stringstream ss;
         ss << "key" << i;
-        check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
-                               ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
-                               0, 0, 0, "", 0, INITIAL_NRU_VALUE)
-            == ENGINE_SUCCESS, "Failed to send dcp mutation");
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
+                "Failed to send dcp mutation");
     }
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
@@ -5438,8 +5702,9 @@ static enum test_result test_failover_scenario_with_dcp(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
         if (j % 10 == 0) {
             wait_for_flusher_to_settle(h, h1);
@@ -5460,8 +5725,9 @@ static enum test_result test_failover_scenario_with_dcp(ENGINE_HANDLE *h,
           "Failed to set vbucket state.");
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0,
                             DCP_ADD_STREAM_FLAG_TAKEOVER,
@@ -5470,12 +5736,14 @@ static enum test_result test_failover_scenario_with_dcp(ENGINE_HANDLE *h,
     uint32_t stream_opaque =
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
-    check(h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 200, 300, 300)
-            == ENGINE_SUCCESS, "Failed to send snapshot marker");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.snapshot_marker(h, cookie, stream_opaque, 0, 200, 300, 300),
+            "Failed to send snapshot marker");
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
-    check(h1->dcp.close_stream(h, cookie, stream_opaque, 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.close_stream(h, cookie, stream_opaque, 0),
             "Expected success");
 
     // Simulating a failover scenario, where the replica vbucket will
@@ -5484,13 +5752,14 @@ static enum test_result test_failover_scenario_with_dcp(ENGINE_HANDLE *h,
             "Failed to set vbucket state.");
 
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) ==
-            ENGINE_SUCCESS, "Error in SET operation.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Error in SET operation.");
 
     h1->release(h, NULL, i);
 
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "ep_diskqueue_items") == 0,
+    checkeq(0, get_int_stat(h, h1, "ep_diskqueue_items"),
             "Unexpected diskqueue");
 
     testHarness.destroy_cookie(cookie);
@@ -5509,8 +5778,9 @@ static enum test_result test_dcp_add_stream(ENGINE_HANDLE *h,
           "Failed to set vbucket state.");
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -5524,8 +5794,8 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     set_param(h, h1, protocol_binary_engine_param_tap,
               "replication_throttle_queue_cap", "10");
-    check(get_int_stat(h, h1, "ep_replication_throttle_queue_cap") == 10,
-          "Incorrect tap_keepalive value.");
+    checkeq(10, get_int_stat(h, h1, "ep_replication_throttle_queue_cap"),
+            "Incorrect tap_keepalive value.");
 
     stop_persistence(h, h1);
 
@@ -5539,15 +5809,16 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
           "Failed to set vbucket state.");
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     testHarness.time_travel(30);
-    check(get_int_stat(h, h1, "eq_dcpq:unittest:total_backoffs", "dcp") == 0,
-          "Expected backoffs to be 0");
+    checkeq(0, get_int_stat(h, h1, "eq_dcpq:unittest:total_backoffs", "dcp"),
+            "Expected backoffs to be 0");
 
     uint32_t stream_opaque =
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
@@ -5557,10 +5828,11 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
     for (int i = 1; i <= 20; i++) {
         std::stringstream ss;
         ss << "key" << i;
-        check(h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
-                               ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
-                               0, 0, 0, "", 0, INITIAL_NRU_VALUE)
-            == ENGINE_SUCCESS, "Failed to send dcp mutation");
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
+                "Failed to send dcp mutation");
     }
 
     wait_for_stat_change(h, h1, "eq_dcpq:unittest:total_backoffs", 0, "dcp");
@@ -5576,8 +5848,9 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -5594,8 +5867,9 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
     uint16_t nname = strlen(name);
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_ROLLBACK);
@@ -5603,7 +5877,7 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     wait_for_rollback_to_finish(h, h1);
 
-    check(get_int_stat(h, h1, "curr_items") == 0,
+    checkeq(0, get_int_stat(h, h1, "curr_items"),
             "All items should be rolled back");
     checkeq(num_items, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
             "Replica rollback count does not match");
@@ -5624,8 +5898,9 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -5645,8 +5920,9 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << (j + num_items);
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -5662,15 +5938,17 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     do {
         dcp_step(h, h1, cookie);
     } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
-    check(h1->dcp.add_stream(h, cookie, ++opaque, vbid, 0)
-          == ENGINE_SUCCESS, "Add stream request failed");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.add_stream(h, cookie, ++opaque, vbid, 0),
+            "Add stream request failed");
 
     dcp_step(h, h1, cookie);
     uint32_t stream_opaque = dcp_last_opaque;
@@ -5688,8 +5966,9 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     pkt->response.bodylen = htonl(8);
     memcpy(pkt->bytes + 24, &rollbackSeqno, sizeof(uint64_t));
 
-    check(h1->dcp.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
-          "Expected success");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.response_handler(h, cookie, pkt),
+            "Expected success");
 
     do {
         dcp_step(h, h1, cookie);
@@ -5713,8 +5992,9 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     memcpy(pkt->bytes + 24, &vb_uuid, sizeof(uint64_t));
     memcpy(pkt->bytes + 22, &by_seqno, sizeof(uint64_t));
 
-    check(h1->dcp.response_handler(h, cookie, pkt) == ENGINE_SUCCESS,
-          "Expected success");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.response_handler(h, cookie, pkt),
+            "Expected success");
     dcp_step(h, h1, cookie);
     free(pkt);
 
@@ -5722,9 +6002,9 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     int seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     int chk = get_int_stat(h, h1, "vb_0:num_checkpoint_items", "checkpoint");
 
-    check(items == 40, "Got invalid amount of items");
-    check(seqno == 40, "Seqno should be 40 after rollback");
-    check(chk == 1, "There should only be one checkpoint item");
+    checkeq(40, items, "Got invalid amount of items");
+    checkeq(40, seqno, "Seqno should be 40 after rollback");
+    checkeq(1, chk, "There should only be one checkpoint item");
     checkeq(num_items/2, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
             "Replica rollback count does not match");
     checkeq(num_items/2, get_int_stat(h, h1, "rollback_item_count"),
@@ -5748,12 +6028,15 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *itm;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
-                    &itm, 0, 0) == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
+                      &itm, 0, 0),
+                "Failed to store a value");
         h1->release(h, NULL, itm);
     }
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == num_items,
+    checkeq(num_items,
+            get_int_stat(h, h1, "curr_items"),
             "Item count should've been 10");
 
     const void *cookie = testHarness.create_cookie();
@@ -5766,15 +6049,17 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
           "Failed to set vbucket state.");
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     do {
         dcp_step(h, h1, cookie);
     } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
-    check(h1->dcp.add_stream(h, cookie, opaque, 0, 0)
-            == ENGINE_SUCCESS, "Add stream request failed");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.add_stream(h, cookie, opaque, 0, 0),
+            "Add stream request failed");
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
@@ -5793,7 +6078,8 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     pkt1->response.opaque = dcp_last_opaque;
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
 
-    check(h1->dcp.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.response_handler(h, cookie, pkt1),
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
     dcp_step(h, h1, cookie);
@@ -5816,8 +6102,9 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     memcpy(pkt2->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
     memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
-    check(h1->dcp.response_handler(h, cookie, pkt2) == ENGINE_SUCCESS,
-          "Expected success");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.response_handler(h, cookie, pkt2),
+            "Expected success");
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
@@ -5827,9 +6114,9 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
 
     //Verify that all items have been removed from consumer
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "vb_replica_curr_items") == 0,
+    checkeq(0, get_int_stat(h, h1, "vb_replica_curr_items"),
             "Item count should've been 0");
-    check(get_int_stat(h, h1, "ep_rollback_count") == 1,
+    checkeq(1, get_int_stat(h, h1, "ep_rollback_count"),
             "Rollback count expected to be 1");
     checkeq(num_items, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
             "Replica rollback count does not match");
@@ -5855,13 +6142,15 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *itm;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
-                    &itm, 0, 0) == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
+                      &itm, 0, 0),
+                "Failed to store a value");
         h1->release(h, NULL, itm);
     }
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 100,
+    checkeq(100, get_int_stat(h, h1, "curr_items"),
             "Item count should've been 100");
 
     stop_persistence(h, h1);
@@ -5874,13 +6163,15 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *itm;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
-                    &itm, 0, 0) == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
+                      &itm, 0, 0),
+                "Failed to store a value");
         h1->release(h, NULL, itm);
     }
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 110,
+    checkeq(110, get_int_stat(h, h1, "curr_items"),
             "Item count should've been 110");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
@@ -5893,15 +6184,17 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     uint16_t nname = strlen(name);
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     do {
         dcp_step(h, h1, cookie);
     } while (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
-    check(h1->dcp.add_stream(h, cookie, opaque, 0, 0)
-            == ENGINE_SUCCESS, "Add stream request failed");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.add_stream(h, cookie, opaque, 0, 0),
+            "Add stream request failed");
 
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
@@ -5920,7 +6213,8 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     pkt1->response.opaque = dcp_last_opaque;
     memcpy(pkt1->bytes + headerlen, &rollbackSeqno, bodylen);
 
-    check(h1->dcp.response_handler(h, cookie, pkt1) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.response_handler(h, cookie, pkt1),
             "Expected Success after Rollback");
     wait_for_stat_to_be(h, h1, "ep_rollback_count", 1);
     dcp_step(h, h1, cookie);
@@ -5940,8 +6234,9 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     memcpy(pkt2->bytes + headerlen, &vb_uuid, sizeof(uint64_t));
     memcpy(pkt2->bytes + headerlen + 8, &by_seqno, sizeof(uint64_t));
 
-    check(h1->dcp.response_handler(h, cookie, pkt2) == ENGINE_SUCCESS,
-          "Expected success");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.response_handler(h, cookie, pkt2),
+            "Expected success");
     dcp_step(h, h1, cookie);
 
     free(pkt1);
@@ -5949,9 +6244,9 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
 
     //?Verify that 10 items plus 10 updates have been removed from consumer
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "vb_replica_curr_items") == 100,
+    checkeq(100, get_int_stat(h, h1, "vb_replica_curr_items"),
             "Item count should've been 100");
-    check(get_int_stat(h, h1, "ep_rollback_count") == 1,
+    checkeq(1, get_int_stat(h, h1, "ep_rollback_count"),
             "Rollback count expected to be 1");
     checkeq(20, get_int_stat(h, h1, "vb_replica_rollback_item_count"),
             "Replica rollback count does not match");
@@ -5974,40 +6269,45 @@ static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
     char status_buffer[50];
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-            == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
-    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                          "0", 1) == ENGINE_SUCCESS,
-                          "Failed to establish connection buffer");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                            "0", 1),
+            "Failed to establish connection buffer");
     snprintf(status_buffer, sizeof(status_buffer),
              "eq_dcpq:%s:flow_control", name);
     std::string status = get_str_stat(h, h1, status_buffer, "dcp");
-    check(status.compare("disabled") == 0, "Flow control enabled!");
+    checkeq(0, status.compare("disabled"), "Flow control enabled!");
 
-    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                          "512", 4) == ENGINE_SUCCESS,
-                          "Failed to establish connection buffer");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                            "512", 4),
+            "Failed to establish connection buffer");
 
     snprintf(stats_buffer, sizeof(stats_buffer),
              "eq_dcpq:%s:max_buffer_bytes", name);
 
-    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
-            == 512, "Buffer Size did not get set");
+    checkeq(512, get_int_stat(h, h1, stats_buffer, "dcp"),
+            "Buffer Size did not get set");
 
-    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                          "1024", 4) == ENGINE_SUCCESS,
-                          "Failed to establish connection buffer");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                            "1024", 4),
+            "Failed to establish connection buffer");
 
-    check((uint32_t)get_int_stat(h, h1, stats_buffer, "dcp")
-            == 1024, "Buffer Size did not get reset");
+    checkeq(1024, get_int_stat(h, h1, stats_buffer, "dcp"),
+            "Buffer Size did not get reset");
 
     /* Set flow control buffer size to zero which implies disable it */
-    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                          "0", 1) == ENGINE_SUCCESS,
-          "Failed to establish connection buffer");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                            "0", 1),
+            "Failed to establish connection buffer");
     status = get_str_stat(h, h1, status_buffer, "dcp");
-    check(status.compare("disabled") == 0, "Flow control enabled!");
+    checkeq(0, status.compare("disabled"), "Flow control enabled!");
 
     testHarness.destroy_cookie(cookie);
 
@@ -6023,16 +6323,19 @@ static enum test_result test_dcp_get_failover_log(ENGINE_HANDLE *h,
     uint16_t nname = strlen(name);
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-            == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
-    check(h1->dcp.get_failover_log(h, cookie, opaque, 0,
-                                   mock_dcp_add_failover_log) ==
-            ENGINE_SUCCESS, "Failed to retrieve failover log");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.get_failover_log(h, cookie, opaque, 0,
+                                     mock_dcp_add_failover_log),
+            "Failed to retrieve failover log");
 
     testHarness.destroy_cookie(cookie);
 
-    check(h1->get_stats(h, NULL, "failovers", 9, add_stats) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, "failovers", 9, add_stats),
             "Failed to get stats.");
 
     size_t i = 0;
@@ -6121,13 +6424,15 @@ static enum test_result test_dcp_add_stream_nmvb(ENGINE_HANDLE *h,
           "Failed to set vbucket state.");
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp consumer open connection.");
 
     // Send add stream to consumer for vbucket that doesn't exist
     opaque++;
-    check(h1->dcp.add_stream(h, cookie, opaque, 1, 0)
-          == ENGINE_NOT_MY_VBUCKET, "Add stream expected not my vbucket");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->dcp.add_stream(h, cookie, opaque, 1, 0),
+            "Add stream expected not my vbucket");
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
@@ -6145,8 +6450,9 @@ static enum test_result test_dcp_add_stream_prod_exists(ENGINE_HANDLE*h,
           "Failed to set vbucket state.");
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
@@ -6165,8 +6471,9 @@ static enum test_result test_dcp_add_stream_prod_nmvb(ENGINE_HANDLE*h,
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
@@ -6182,11 +6489,13 @@ static enum test_result test_dcp_close_stream_no_stream(ENGINE_HANDLE *h,
     const char *name = "unittest";
     uint16_t nname = strlen(name);
 
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
-    check(h1->dcp.close_stream(h, cookie, opaque + 1, 0) == ENGINE_KEY_ENOENT,
-          "Expected stream doesn't exist");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->dcp.close_stream(h, cookie, opaque + 1, 0),
+           "Expected stream doesn't exist");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -6203,8 +6512,9 @@ static enum test_result test_dcp_close_stream(ENGINE_HANDLE *h,
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -6213,13 +6523,14 @@ static enum test_result test_dcp_close_stream(ENGINE_HANDLE *h,
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     std::string state =
         get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
-    check(state.compare("reading") == 0, "Expected stream in reading state");
+    checkeq(0, state.compare("reading"), "Expected stream in reading state");
 
-    check(h1->dcp.close_stream(h, cookie, stream_opaque, 0) == ENGINE_SUCCESS,
-          "Expected success");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.close_stream(h, cookie, stream_opaque, 0),
+            "Expected success");
 
     state = get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
-    check(state.compare("dead") == 0, "Expected stream in dead state");
+    checkeq(0, state.compare("dead"), "Expected stream in dead state");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -6238,8 +6549,9 @@ static enum test_result test_dcp_consumer_end_stream(ENGINE_HANDLE *h,
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, vbucket, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -6248,10 +6560,11 @@ static enum test_result test_dcp_consumer_end_stream(ENGINE_HANDLE *h,
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
     std::string state =
         get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
-    check(state.compare("reading") == 0, "Expected stream in reading state");
+    checkeq(0, state.compare("reading"), "Expected stream in reading state");
 
-    check(h1->dcp.stream_end(h, cookie, stream_opaque, vbucket, end_flag)
-          == ENGINE_SUCCESS, "Expected success");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.stream_end(h, cookie, stream_opaque, vbucket, end_flag),
+            "Expected success");
 
     wait_for_str_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_state", "dead",
                             "dcp");
@@ -6272,12 +6585,12 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint16_t nname = strlen(name);
 
     // Open an DCP connection
-    check(h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
-    check(type.compare("consumer") == 0, "Consumer not found");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -6294,27 +6607,30 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint32_t exprtime = 0;
     uint32_t lockTime = 0;
 
-    check(h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1)
-        == ENGINE_SUCCESS, "Failed to send snapshot marker");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1),
+            "Failed to send snapshot marker");
 
     // Ensure that we don't accept invalid opaque values
-    check(h1->dcp.mutation(h, cookie, opaque + 1, "key", 3, data, dataLen, cas,
-                           vbucket, flags, datatype,
-                           bySeqno, revSeqno, exprtime,
-                           lockTime, NULL, 0, 0) == ENGINE_KEY_ENOENT,
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->dcp.mutation(h, cookie, opaque + 1, "key", 3, data, dataLen, cas,
+                             vbucket, flags, datatype,
+                             bySeqno, revSeqno, exprtime,
+                             lockTime, NULL, 0, 0),
           "Failed to detect invalid DCP opaque value");
 
     // Send snapshot marker
-    checkeq(h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 15, 300),
-            ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 15, 300),
             "Failed to send marker!");
 
     // Consume an DCP mutation
-    check(h1->dcp.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
                            vbucket, flags, datatype,
                            bySeqno, revSeqno, exprtime,
-                           lockTime, NULL, 0, 0) == ENGINE_SUCCESS,
-          "Failed dcp mutate.");
+                           lockTime, NULL, 0, 0),
+            "Failed dcp mutate.");
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
                         "dcp");
@@ -6347,12 +6663,12 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
     uint16_t nname = strlen(name);
 
     // Open an DCP connection
-    check(h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
-    check(type.compare("consumer") == 0, "Consumer not found");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -6369,25 +6685,27 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
     uint32_t exprtime = 0;
     uint32_t lockTime = 0;
 
-    check(h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1)
-        == ENGINE_SUCCESS, "Failed to send snapshot marker");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1),
+            "Failed to send snapshot marker");
 
     // Consume a DCP mutation with extended meta
     int64_t adjusted_time1 = gethrtime() * 2;
     ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1, false);
     cb_assert(emd && emd->getStatus() == ENGINE_SUCCESS);
     std::pair<const char*, uint16_t> meta = emd->getExtMeta();
-    check(h1->dcp.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
                            vbucket, flags, datatype,
                            bySeqno, revSeqno, exprtime,
-                           lockTime, meta.first, meta.second, 0)
-            == ENGINE_SUCCESS,
+                           lockTime, meta.first, meta.second, 0),
             "Failed dcp mutate.");
     delete emd;
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0, "dcp");
 
-    check(h1->dcp.close_stream(h, cookie, opaque, 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.close_stream(h, cookie, opaque, 0),
             "Expected success");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_active),
@@ -6407,9 +6725,9 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
     free(request);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
-    check(last_body.size() == sizeof(int64_t),
+    checkeq(last_body.size(), sizeof(int64_t),
             "Bodylen didn't match expected value");
     memcpy(&adjusted_time2, last_body.data(), last_body.size());
     adjusted_time2 = ntohll(adjusted_time2);
@@ -6428,8 +6746,9 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
 static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // Store an item
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_ADD,"key", "value", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD,"key", "value", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     verify_curr_items(h, h1, 1, "one item stored");
 
@@ -6450,28 +6769,31 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint32_t seqno = 0;
 
     // Open an DCP connection
-    check(h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
-    check(type.compare("consumer") == 0, "Consumer not found");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    check(h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1)
-        == ENGINE_SUCCESS, "Failed to send snapshot marker");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1),
+            "Failed to send snapshot marker");
 
     // verify that we don't accept invalid opaque id's
-    check(h1->dcp.deletion(h, cookie, opaque + 1, "key", 3, cas, vbucket,
-                           bySeqno, revSeqno, NULL, 0) == ENGINE_KEY_ENOENT,
-          "Failed to detect invalid DCP opaque value.");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->dcp.deletion(h, cookie, opaque + 1, "key", 3, cas, vbucket,
+                             bySeqno, revSeqno, NULL, 0),
+            "Failed to detect invalid DCP opaque value.");
 
     // Consume an DCP deletion
-    check(h1->dcp.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
-                           bySeqno, revSeqno, NULL, 0) == ENGINE_SUCCESS,
-          "Failed dcp delete.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
+                             bySeqno, revSeqno, NULL, 0),
+            "Failed dcp delete.");
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
                         "dcp");
@@ -6491,8 +6813,9 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
 
     // Store an item
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_ADD,"key", "value", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD,"key", "value", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     verify_curr_items(h, h1, 1, "one item stored");
 
@@ -6513,27 +6836,28 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
     uint32_t seqno = 0;
 
     // Open an DCP connection
-    check(h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname)
-          == ENGINE_SUCCESS,
-          "Failed dcp producer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
-    check(type.compare("consumer") == 0, "Consumer not found");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
 
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    check(h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1)
-        == ENGINE_SUCCESS, "Failed to send snapshot marker");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1),
+            "Failed to send snapshot marker");
 
     // Consume an DCP deletion
     int64_t adjusted_time1 = gethrtime() * 2;
     ExtendedMetaData *emd = new ExtendedMetaData(adjusted_time1, false);
     cb_assert(emd && emd->getStatus() == ENGINE_SUCCESS);
     std::pair<const char*, uint16_t> meta = emd->getExtMeta();
-    check(h1->dcp.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
-                           bySeqno, revSeqno, meta.first, meta.second)
-            == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.deletion(h, cookie, opaque, "key", 3, cas, vbucket,
+                             bySeqno, revSeqno, meta.first, meta.second),
             "Failed dcp delete.");
     delete emd;
 
@@ -6550,9 +6874,9 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
     free(request);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
-    check(last_body.size() == sizeof(int64_t),
+    checkeq(sizeof(int64_t), last_body.size(),
             "Bodylen didn't match expected value");
     memcpy(&adjusted_time2, last_body.data(), last_body.size());
     adjusted_time2 = ntohll(adjusted_time2);
@@ -6580,8 +6904,9 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
     uint16_t nname = strlen(name);
 
     // Open consumer connection
-    check(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname)
-          == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -6590,14 +6915,16 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
     testHarness.time_travel(201);
 
     // No-op not recieved for 201 seconds. Should be ok.
-    check(h1->dcp.step(h, cookie, producers) == ENGINE_SUCCESS,
-          "Expected engine success");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.step(h, cookie, producers),
+            "Expected engine success");
 
     testHarness.time_travel(200);
 
     // Message not recieved for over 400 seconds. Should disconnect.
-    check(h1->dcp.step(h, cookie, producers) == ENGINE_DISCONNECT,
-          "Expected engine disconnect");
+    checkeq(ENGINE_DISCONNECT,
+            h1->dcp.step(h, cookie, producers),
+            "Expected engine disconnect");
 
     free(producers);
     testHarness.destroy_cookie(cookie);
@@ -6611,11 +6938,12 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     for (size_t i = 0; i < 8192; ++i) {
         char *data = static_cast<char *>(malloc(i));
         memset(data, 'x', i);
-        check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                             1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
-                             PROTOCOL_BINARY_RAW_BYTES,
-                             data, i, 0) == ENGINE_SUCCESS,
-              "Failed tap notify.");
+        checkeq(ENGINE_SUCCESS,
+                h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                               1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                               PROTOCOL_BINARY_RAW_BYTES,
+                               data, i, 0),
+                "Failed tap notify.");
         check_key_value(h, h1, "key", data, i);
         free(data);
     }
@@ -6629,16 +6957,18 @@ static enum test_result test_tap_rcvr_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
     for (int i = 1; i < 10; ++i) {
         data = '0' + i;
-        check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                             1, 0, TAP_CHECKPOINT_START, 1, "", 0, 828, 0, 0,
-                             PROTOCOL_BINARY_RAW_BYTES,
-                             &data, 1, 1) == ENGINE_SUCCESS,
-              "Failed tap notify.");
-        check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                             1, 0, TAP_CHECKPOINT_END, 1, "", 0, 828, 0, 0,
-                             PROTOCOL_BINARY_RAW_BYTES,
-                             &data, 1, 1) == ENGINE_SUCCESS,
-              "Failed tap notify.");
+        checkeq(ENGINE_SUCCESS,
+                h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                               1, 0, TAP_CHECKPOINT_START, 1, "", 0, 828, 0, 0,
+                               PROTOCOL_BINARY_RAW_BYTES,
+                               &data, 1, 1),
+                "Failed tap notify.");
+        checkeq(ENGINE_SUCCESS,
+                h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                               1, 0, TAP_CHECKPOINT_END, 1, "", 0, 828, 0, 0,
+                               PROTOCOL_BINARY_RAW_BYTES,
+                               &data, 1, 1),
+                "Failed tap notify.");
     }
     return SUCCESS;
 }
@@ -6650,11 +6980,12 @@ static enum test_result test_tap_rcvr_set_vbstate(ENGINE_HANDLE *h, ENGINE_HANDL
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
     // Get the vbucket UUID before vbucket takeover.
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
-    check(h1->tap_notify(h, NULL, eng_specific, sizeof(vb_state),
-                         1, 0, TAP_VBUCKET_SET, 1, "", 0, 828, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         "", 0, 1) == ENGINE_SUCCESS,
-          "Failed tap notify.");
+    checkeq(ENGINE_SUCCESS,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(vb_state),
+                           1, 0, TAP_VBUCKET_SET, 1, "", 0, 828, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           "", 0, 1),
+            "Failed tap notify.");
     // Get the vbucket UUID after vbucket takeover.
     check(get_ull_stat(h, h1, "vb_1:0:id", "failovers") != vb_uuid,
           "A new vbucket uuid should be created after TAP-based vbucket takeover.");
@@ -6664,11 +6995,12 @@ static enum test_result test_tap_rcvr_set_vbstate(ENGINE_HANDLE *h, ENGINE_HANDL
 static enum test_result test_tap_rcvr_mutate_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[9];
     memset(eng_specific, 0, sizeof(eng_specific));
-    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                         1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         "data", 4, 1) == ENGINE_NOT_MY_VBUCKET,
-          "Expected not my vbucket.");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           "data", 4, 1),
+            "Expected not my vbucket.");
     return SUCCESS;
 }
 
@@ -6676,11 +7008,12 @@ static enum test_result test_tap_rcvr_mutate_pending(ENGINE_HANDLE *h, ENGINE_HA
     check(set_vbucket_state(h, h1, 1, vbucket_state_pending), "Failed to set vbucket state.");
     char eng_specific[9];
     memset(eng_specific, 0, sizeof(eng_specific));
-    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                         1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         "data", 4, 1) == ENGINE_SUCCESS,
-          "Expected expected success.");
+    checkeq(ENGINE_SUCCESS,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           "data", 4, 1),
+            "Expected expected success.");
     return SUCCESS;
 }
 
@@ -6688,11 +7021,12 @@ static enum test_result test_tap_rcvr_mutate_replica(ENGINE_HANDLE *h, ENGINE_HA
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
     char eng_specific[9];
     memset(eng_specific, 0, sizeof(eng_specific));
-    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                         1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         "data", 4, 1) == ENGINE_SUCCESS,
-          "Expected expected success.");
+    checkeq(ENGINE_SUCCESS,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           "data", 4, 1),
+            "Expected expected success.");
     return SUCCESS;
 }
 
@@ -6701,45 +7035,50 @@ static enum test_result test_tap_rcvr_mutate_replica_locked(ENGINE_HANDLE *h,
     check(set_vbucket_state(h, h1, 0, vbucket_state_active),
           "Failed to set vbucket state.");
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET,"key", "value", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"key", "value", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     getl(h, h1, "key", 0, 10); // 10 secs of lock expiration
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "expected the key to be locked...");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
+            last_status.load(),
+            "expected the key to be locked...");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
     char eng_specific[9];
     memset(eng_specific, 0, sizeof(eng_specific));
-    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                         1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         "data", 4, 0) == ENGINE_SUCCESS,
-          "Expected expected success.");
+    checkeq(ENGINE_SUCCESS,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           "data", 4, 0),
+            "Expected expected success.");
     return SUCCESS;
 }
 
 static enum test_result test_tap_rcvr_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char* eng_specific[8];
     memset(eng_specific, 0, sizeof(eng_specific));
-    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                         1, 0, TAP_DELETION, 0, "key", 3, 0, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         0, 0, 0) == ENGINE_SUCCESS,
-          "Failed tap notify.");
+    checkeq(ENGINE_SUCCESS,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                           1, 0, TAP_DELETION, 0, "key", 3, 0, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           0, 0, 0),
+            "Failed tap notify.");
     return SUCCESS;
 }
 
 static enum test_result test_tap_rcvr_delete_dead(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char* eng_specific[8];
     memset(eng_specific, 0, sizeof(eng_specific));
-    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                         1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         NULL, 0, 1) == ENGINE_NOT_MY_VBUCKET,
-          "Expected not my vbucket.");
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           NULL, 0, 1),
+            "Expected not my vbucket.");
     return SUCCESS;
 }
 
@@ -6748,11 +7087,12 @@ static enum test_result test_tap_rcvr_delete_pending(ENGINE_HANDLE *h, ENGINE_HA
 
     char* eng_specific[8];
     memset(eng_specific, 0, sizeof(eng_specific));
-    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                         1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         NULL, 0, 1) == ENGINE_SUCCESS,
-          "Expected expected success.");
+    checkeq(ENGINE_SUCCESS,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           NULL, 0, 1),
+            "Expected expected success.");
     return SUCCESS;
 }
 
@@ -6761,34 +7101,37 @@ static enum test_result test_tap_rcvr_delete_replica(ENGINE_HANDLE *h, ENGINE_HA
 
     char* eng_specific[8];
     memset(eng_specific, 0, sizeof(eng_specific));
-    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                         1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         NULL, 0, 1) == ENGINE_SUCCESS,
-          "Expected expected success.");
+    checkeq(ENGINE_SUCCESS,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           NULL, 0, 1),
+            "Expected expected success.");
     return SUCCESS;
 }
 
 static enum test_result test_tap_rcvr_delete_replica_locked(ENGINE_HANDLE *h,
                                                             ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET,"key", "value", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"key", "value", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     getl(h, h1, "key", 0, 10); // 10 secs of lock expiration
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "expected the key to be locked...");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "expected the key to be locked...");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
     char* eng_specific[8];
     memset(eng_specific, 0, sizeof(eng_specific));
-    check(h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                         1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
-                         PROTOCOL_BINARY_RAW_BYTES,
-                         NULL, 0, 0) == ENGINE_SUCCESS,
-          "Expected expected success.");
+    checkeq(ENGINE_SUCCESS,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                           PROTOCOL_BINARY_RAW_BYTES,
+                           NULL, 0, 0),
+            "Expected expected success.");
     return SUCCESS;
 }
 
@@ -6817,8 +7160,9 @@ static enum test_result test_uuid_stats(ENGINE_HANDLE *h,
                                         ENGINE_HANDLE_V1 *h1)
 {
     vals.clear();
-    check(h1->get_stats(h, NULL, "uuid", 4,
-                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, "uuid", 4, add_stats),
+            "Failed to get stats.");
     check(vals["uuid"] == "foobar", "Incorrect uuid");
     return SUCCESS;
 }
@@ -6833,12 +7177,12 @@ static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
     cookies.push_back(createTapConn(h, h1, "rebalance_a"));
     cookies.push_back(createTapConn(h, h1, "userconnn"));
 
-    check(get_int_stat(h, h1, "replica:count", "tapagg _") == 3,
-          "Incorrect replica count on tap agg");
-    check(get_int_stat(h, h1, "rebalance:count", "tapagg _") == 1,
-          "Incorrect rebalance count on tap agg");
-    check(get_int_stat(h, h1, "_total:count", "tapagg _") == 5,
-          "Incorrect total count on tap agg");
+    checkeq(3, get_int_stat(h, h1, "replica:count", "tapagg _"),
+            "Incorrect replica count on tap agg");
+    checkeq(1, get_int_stat(h, h1, "rebalance:count", "tapagg _"),
+            "Incorrect rebalance count on tap agg");
+    checkeq(5, get_int_stat(h, h1, "_total:count", "tapagg _"),
+            "Incorrect total count on tap agg");
 
     for (auto& cookie : cookies) {
         testHarness.unlock_cookie(cookie);
@@ -6857,9 +7201,10 @@ static enum test_result test_tap_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         keys[ii] = false;
         std::stringstream ss;
         ss << ii;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, 0),
+                "Failed to store an item.");
     }
 
     useconds_t sleepTime = 128;
@@ -6947,9 +7292,10 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     for (int ii = 0; ii < num_keys; ++ii) {
         std::stringstream ss;
         ss << "key" << ii;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, 0),
+                "Failed to store an item.");
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -7010,8 +7356,8 @@ static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     } while (event != TAP_DISCONNECT);
 
-    check(num_mutations == 2, "Incorrect number of remaining mutations");
-    check(num_deletes == (num_keys - 2), "Incorrect number of deletes");
+    checkeq(2, num_mutations, "Incorrect number of remaining mutations");
+    checkeq((num_keys - 2), num_deletes, "Incorrect number of deletes");
 
     testHarness.unlock_cookie(cookie);
     testHarness.destroy_cookie(cookie);
@@ -7025,9 +7371,10 @@ static enum test_result test_sent_from_vb(ENGINE_HANDLE *h,
     for (int ii = 0; ii < num_keys; ++ii) {
         std::stringstream ss;
         ss << "key" << ii;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, 0),
+                "Failed to store an item.");
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -7073,15 +7420,19 @@ static enum test_result test_sent_from_vb(ENGINE_HANDLE *h,
 
     } while (event != TAP_DISCONNECT);
 
-    check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
-                       "tap") == 5, "Incorrect number of items sent");
+    checkeq(5, get_int_stat(h, h1,
+                            "eq_tapq:tap_client_thread:sent_from_vb_0",
+                            "tap"),
+            "Incorrect number of items sent");
 
 
     std::map<uint16_t, uint64_t> vbmap;
     vbmap[0] = 0;
     changeVBFilter(h, h1, "tap_client_thread", vbmap);
-    check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
-                       "tap") == 0, "Incorrect number of items sent");
+    checkeq(0, get_int_stat(h, h1,
+                            "eq_tapq:tap_client_thread:sent_from_vb_0",
+                            "tap"),
+            "Incorrect number of items sent");
 
     testHarness.unlock_cookie(cookie);
     testHarness.destroy_cookie(cookie);
@@ -7102,9 +7453,10 @@ static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
         keys[initializedKeys] = false;
         std::stringstream ss;
         ss << initializedKeys;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, 0),
+                "Failed to store an item.");
     }
 
     useconds_t sleepTime = 128;
@@ -7157,9 +7509,10 @@ static enum test_result test_tap_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
             keys[initializedKeys] = false;
             std::stringstream ss;
             ss << initializedKeys;
-            check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                        "value", NULL, 0, 0) == ENGINE_SUCCESS,
-                  "Failed to store an item.");
+            checkeq(ENGINE_SUCCESS,
+                    store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                          "value", NULL, 0, 0),
+                    "Failed to store an item.");
             ++initializedKeys;
         }
 
@@ -7228,9 +7581,10 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
         keys[ii] = false;
         std::stringstream ss;
         ss << ii;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, ii % 4) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, ii % 4),
+                "Failed to store an item.");
     }
 
     const void *cookie = testHarness.create_cookie();
@@ -7326,7 +7680,7 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
         case TAP_MUTATION:
             check(get_key(h, h1, it, key), "Failed to read out the key");
             vbid = atoi(key.c_str()) % 4;
-            check(vbid == vbucket, "Incorrect vbucket id");
+            checkeq(vbid, vbucket, "Incorrect vbucket id");
             check(vbid != 3,
                   "Received an item for a vbucket we don't subscribe to");
             keys[atoi(key.c_str())] = true;
@@ -7340,8 +7694,8 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             // and get the rest
             if (found == 10) {
                 changeVBFilter(h, h1, name, filtermap);
-                check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                      "Expected success response from changing the TAP VB filter.");
+                checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "Expected success response from changing the TAP VB filter.");
             }
             break;
         case TAP_DISCONNECT:
@@ -7357,16 +7711,17 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     testHarness.destroy_cookie(cookie);
 
     cb_assert(filter_change_done);
-    check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:qlen", "tap") == 0,
-          "queue should be empty");
+    checkeq(0,
+            get_int_stat(h, h1, "eq_tapq:tap_client_thread:qlen", "tap"),
+            "queue should be empty");
     free(userdata);
 
     return SUCCESS;
 }
 
 static enum test_result test_tap_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(h1->get_stats(h, NULL, "tap", 3, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS, h1->get_stats(h, NULL, "tap", 3, add_stats),
+            "Failed to get stats.");
     check(vals.find("ep_tap_backoff_period") != vals.end(), "Missing stat");
     check(vals.find("ep_tap_ack_interval") != vals.end(), "Missing stat");
     check(vals.find("ep_tap_ack_window_size") != vals.end(), "Missing stat");
@@ -7383,8 +7738,8 @@ static enum test_result test_tap_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 }
 
 static enum test_result test_tap_default_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(h1->get_stats(h, NULL, "tap", 3, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS, h1->get_stats(h, NULL, "tap", 3, add_stats),
+            "Failed to get stats.");
     check(vals.find("ep_tap_backoff_period") != vals.end(), "Missing stat");
     check(vals.find("ep_tap_ack_interval") != vals.end(), "Missing stat");
     check(vals.find("ep_tap_ack_window_size") != vals.end(), "Missing stat");
@@ -7413,9 +7768,10 @@ static enum test_result test_tap_ack_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
         receivedKeys[i] = false;
         std::stringstream ss;
         ss << i;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, 0),
+                "Failed to store an item.");
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -7570,9 +7926,10 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
     for (int i = 0; i < nkeys; ++i) {
         std::stringstream ss;
         ss << i;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, 0),
+                "Failed to store an item.");
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -7703,34 +8060,34 @@ static enum test_result test_tap_implicit_ack_stream(ENGINE_HANDLE *h, ENGINE_HA
     } while (!done);
     testHarness.unlock_cookie(cookie);
     testHarness.destroy_cookie(cookie);
-    check(mutations == 11, "Expected 11 mutations to be returned");
+    checkeq(11, mutations, "Expected 11 mutations to be returned");
     return SUCCESS;
 }
 
 static enum test_result test_set_tap_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     set_param(h, h1, protocol_binary_engine_param_tap, "tap_keepalive", "600");
-    check(get_int_stat(h, h1, "ep_tap_keepalive") == 600,
-          "Incorrect tap_keepalive value.");
+    checkeq(600, get_int_stat(h, h1, "ep_tap_keepalive"),
+            "Incorrect tap_keepalive value.");
     set_param(h, h1, protocol_binary_engine_param_tap, "tap_keepalive", "5000");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
-          "Expected an invalid value error due to exceeding a max value allowed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+        "Expected an invalid value error due to exceeding a max value allowed");
     return SUCCESS;
 }
 
 static enum test_result test_tap_noop_config_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     h1->reset_stats(h, NULL);
-    check(get_int_stat(h, h1, "ep_tap_noop_interval", "tap") == 200,
-          "Expected tap_noop_interval == 200");
+    checkeq(200, get_int_stat(h, h1, "ep_tap_noop_interval", "tap"),
+            "Expected tap_noop_interval == 200");
     return SUCCESS;
 }
 
 static enum test_result test_tap_noop_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     h1->reset_stats(h, NULL);
-    check(get_int_stat(h, h1, "ep_tap_noop_interval", "tap") == 10,
-          "Expected tap_noop_interval == 10");
+    checkeq(10, get_int_stat(h, h1, "ep_tap_noop_interval", "tap"),
+            "Expected tap_noop_interval == 10");
     return SUCCESS;
 }
 
@@ -7753,7 +8110,7 @@ static enum test_result test_tap_notify(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
                            TAP_MUTATION, 0, key.c_str(), key.length(), 0, 0, 0,
                            0, buffer, 1024, 0);
     } while (r == ENGINE_SUCCESS);
-    check(r == ENGINE_TMPFAIL, "non-acking streams should etmpfail");
+    checkeq(ENGINE_TMPFAIL, r, "non-acking streams should etmpfail");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -7765,22 +8122,24 @@ static enum test_result test_checkpoint_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     for (int i = 0; i < 5001; i++) {
         char key[8];
         sprintf(key, "key%d", i);
-        check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
-                    == ENGINE_SUCCESS, "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0),
+                "Failed to store an item.");
         h1->release(h, NULL, itm);
     }
-    check(get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint") == 3,
-          "New checkpoint wasn't create after 5001 item creates");
-    check(get_int_stat(h, h1, "vb_0:num_open_checkpoint_items", "checkpoint") == 1,
-          "New open checkpoint should has only one dirty item");
+    checkeq(3, get_int_stat(h, h1, "vb_0:open_checkpoint_id", "checkpoint"),
+            "New checkpoint wasn't create after 5001 item creates");
+    checkeq(1, get_int_stat(h, h1, "vb_0:num_open_checkpoint_items", "checkpoint"),
+            "New open checkpoint should has only one dirty item");
     return SUCCESS;
 }
 
 static enum test_result test_checkpoint_timeout(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     item* itm;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "value", &itm, 0, 0)
-                == ENGINE_SUCCESS, "Failed to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "value", &itm, 0, 0),
+            "Failed to store an item.");
     h1->release(h, NULL, itm);
     testHarness.time_travel(600);
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 2, "checkpoint");
@@ -7794,8 +8153,9 @@ static enum test_result test_checkpoint_deduplication(ENGINE_HANDLE *h, ENGINE_H
         for (int j = 0; j < 4500; j++) {
             char key[8];
             sprintf(key, "key%d", j);
-            check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
-                        == ENGINE_SUCCESS, "Failed to store an item.");
+            checkeq(ENGINE_SUCCESS,
+                    store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0),
+                    "Failed to store an item.");
             h1->release(h, NULL, itm);
         }
     }
@@ -7811,8 +8171,9 @@ static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDL
         for (size_t j = 0; j < 497; ++j) {
             char key[8];
             sprintf(key, "key%ld", j);
-            check(store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0)
-                        == ENGINE_SUCCESS, "Failed to store an item.");
+            checkeq(ENGINE_SUCCESS,
+                    store(h, h1, NULL, OPERATION_SET, key, "value", &itm, 0, 0),
+                    "Failed to store an item.");
             h1->release(h, NULL, itm);
         }
         /* Test with app keys with special strings */
@@ -7838,38 +8199,42 @@ static enum test_result test_collapse_checkpoints(ENGINE_HANDLE *h, ENGINE_HANDL
 
 static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 0) ==
-            ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i, 0, 0),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalueX", &i, 0, 0) ==
-            ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalueX", &i, 0, 0),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
-    check(store(h, h1, NULL, OPERATION_SET, "key1", "somevalueY", &i, 0, 0) ==
-            ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key1", "somevalueY", &i, 0, 0),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
     check_key_value(h, h1, "key", "somevalueX", 10);
     check_key_value(h, h1, "key1", "somevalueY", 10);
 
-    check(del(h, h1, "key1", 0, 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, del(h, h1, "key1", 0, 0),
             "Failed remove with value.");
     wait_for_flusher_to_settle(h, h1);
 
-    check(store(h, h1, NULL, OPERATION_SET, "key1", "someothervalue", &i, 0, 0) ==
-            ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key1", "someothervalue", &i, 0, 0),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
     check_key_value(h, h1, "key1", "someothervalue", 14);
 
-    check(get_int_stat(h, h1, "vb_active_ops_create") == 3,
+    checkeq(3, get_int_stat(h, h1, "vb_active_ops_create"),
             "Expected 3 creations");
-    check(get_int_stat(h, h1, "vb_active_ops_update") == 1,
+    checkeq(1, get_int_stat(h, h1, "vb_active_ops_update"),
             "Expected 1 updation");
-    check(get_int_stat(h, h1, "vb_active_ops_delete") == 1,
+    checkeq(1, get_int_stat(h, h1, "vb_active_ops_delete"),
             "Expected 1 deletion");
 
     return SUCCESS;
@@ -7877,8 +8242,9 @@ static enum test_result test_item_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
 static enum test_result test_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     vals.clear();
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
     check(vals.size() > 10, "Kind of expected more stats than that.");
     check(vals.find("ep_version") != vals.end(), "Found no ep_version.");
 
@@ -7979,9 +8345,9 @@ static enum test_result test_vb_file_stats_after_warmup(ENGINE_HANDLE *h,
     for (int i = 0; i < 100; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        check(ENGINE_SUCCESS ==
-              store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it),
-              "Error setting.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it),
+                "Error setting.");
         h1->release(h, NULL, it);
     }
     wait_for_flusher_to_settle(h, h1);
@@ -8038,7 +8404,8 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     wait_for_persisted_value(h, h1, "k2", "v2");
 
     evict_key(h, h1, "k1", 0, "Ejected.");
-    check(del(h, h1, "k2", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS,
+            del(h, h1, "k2", 0, 0), "Failed remove with value.");
     wait_for_stat_to_be(h, h1, "curr_items", 1);
 
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
@@ -8048,7 +8415,7 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 0");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
 
-    check(h1->get(h, NULL, &itm, "k1", 2, 0) == ENGINE_SUCCESS, "Missing key");
+    checkeq(ENGINE_SUCCESS, h1->get(h, NULL, &itm, "k1", 2, 0), "Missing key");
     checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"), "Expected bg_meta_fetched to be 1");
     h1->release(h, NULL, itm);
@@ -8062,7 +8429,7 @@ static enum test_result test_bg_meta_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     itemMeta.flags = 0xdeadbeef;
 
     add_with_meta(h, h1, "k3", keylen, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Set meta failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Set meta failed");
 
     check(get_meta(h, h1, "k2"), "Get meta failed");
     checkeq(1, get_int_stat(h, h1, "ep_bg_fetched"), "Expected bg_fetched to be 1");
@@ -8078,20 +8445,23 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 1, vbucket_state_active), "Failed set vbucket 1 state.");
 
     // set (k1,v1) in vbucket 0
-    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
-          "Failed to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0),
+            "Failed to store an item.");
     h1->release(h, NULL, i);
     // set (k2,v2) in vbucket 1
-    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1) == ENGINE_SUCCESS,
-          "Failed to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1),
+            "Failed to store an item.");
     h1->release(h, NULL, i);
 
     const void *cookie = testHarness.create_cookie();
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
-    check(h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats),
+            "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
@@ -8100,8 +8470,9 @@ static enum test_result test_key_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "key k2 1";
-    check(h1->get_stats(h, cookie, statkey2, strlen(statkey2), add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, statkey2, strlen(statkey2), add_stats),
+            "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
@@ -8132,8 +8503,9 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "vkey k1 0";
-    check(h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats),
+            "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
@@ -8143,8 +8515,9 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     // stat for key "k2" and vbucket "1"
     const char *statkey2 = "vkey k2 1";
-    check(h1->get_stats(h, cookie, statkey2, strlen(statkey2), add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, statkey2, strlen(statkey2), add_stats),
+            "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
@@ -8154,8 +8527,9 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     // stat for key "k3" and vbucket "2"
     const char *statkey3 = "vkey k3 2";
-    check(h1->get_stats(h, cookie, statkey3, strlen(statkey3), add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, statkey3, strlen(statkey3), add_stats),
+            "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
@@ -8165,8 +8539,9 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     // stat for key "k4" and vbucket "3"
     const char *statkey4 = "vkey k4 3";
-    check(h1->get_stats(h, cookie, statkey4, strlen(statkey4), add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, statkey4, strlen(statkey4), add_stats),
+            "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
@@ -8176,8 +8551,9 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 
     // stat for key "k5" and vbucket "4"
     const char *statkey5 = "vkey k5 4";
-    check(h1->get_stats(h, cookie, statkey5, strlen(statkey5), add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, statkey5, strlen(statkey5), add_stats),
+            "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
@@ -8190,33 +8566,37 @@ static enum test_result test_vkey_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 }
 
 static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(get_int_stat(h, h1, "ep_warmup_min_items_threshold") == 100,
-          "Incorrect initial warmup min items threshold.");
-    check(get_int_stat(h, h1, "ep_warmup_min_memory_threshold") == 100,
-          "Incorrect initial warmup min memory threshold.");
+    checkeq(100, get_int_stat(h, h1, "ep_warmup_min_items_threshold"),
+            "Incorrect initial warmup min items threshold.");
+    checkeq(100, get_int_stat(h, h1, "ep_warmup_min_memory_threshold"),
+            "Incorrect initial warmup min memory threshold.");
 
-    check(!set_param(h, h1, protocol_binary_engine_param_flush, "warmup_min_items_threshold", "a"),
+    check(!set_param(h, h1, protocol_binary_engine_param_flush,
+                     "warmup_min_items_threshold", "a"),
           "Set warmup_min_items_threshold should have failed");
-    check(!set_param(h, h1, protocol_binary_engine_param_flush, "warmup_min_items_threshold", "a"),
+    check(!set_param(h, h1, protocol_binary_engine_param_flush,
+                     "warmup_min_items_threshold", "a"),
           "Set warmup_min_memory_threshold should have failed");
 
-    check(set_param(h, h1, protocol_binary_engine_param_flush, "warmup_min_items_threshold", "80"),
+    check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "warmup_min_items_threshold", "80"),
           "Set warmup_min_items_threshold should have worked");
-    check(set_param(h, h1, protocol_binary_engine_param_flush, "warmup_min_memory_threshold", "80"),
+    check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "warmup_min_memory_threshold", "80"),
           "Set warmup_min_memory_threshold should have worked");
 
-    check(get_int_stat(h, h1, "ep_warmup_min_items_threshold") == 80,
-          "Incorrect smaller warmup min items threshold.");
-    check(get_int_stat(h, h1, "ep_warmup_min_memory_threshold") == 80,
-          "Incorrect smaller warmup min memory threshold.");
+    checkeq(80, get_int_stat(h, h1, "ep_warmup_min_items_threshold"),
+            "Incorrect smaller warmup min items threshold.");
+    checkeq(80, get_int_stat(h, h1, "ep_warmup_min_memory_threshold"),
+            "Incorrect smaller warmup min memory threshold.");
 
     item *it = NULL;
     for (int i = 0; i < 100; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        check(ENGINE_SUCCESS ==
-              store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it),
-              "Error setting.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it),
+                "Error setting.");
         h1->release(h, NULL, it);
     }
 
@@ -8242,8 +8622,8 @@ static enum test_result test_bloomfilter_conf(ENGINE_HANDLE *h,
 
     if (get_bool_stat(h, h1, "ep_bfilter_enabled") == false) {
         check(set_param(h, h1, protocol_binary_engine_param_flush,
-                    "bfilter_enabled", "true"),
-                "Set bloomfilter_enabled should have worked");
+                        "bfilter_enabled", "true"),
+              "Set bloomfilter_enabled should have worked");
     }
     check(get_bool_stat(h, h1, "ep_bfilter_enabled"),
           "Bloom filter wasn't enabled");
@@ -8293,10 +8673,10 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     for (i = 0; i < 10; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        check(ENGINE_SUCCESS ==
-              store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
-                    "somevalue", &it),
-                    "Error setting.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
+                      "somevalue", &it),
+                "Error setting.");
         h1->release(h, NULL, it);
     }
     wait_for_flusher_to_settle(h, h1);
@@ -8316,8 +8696,9 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     for (i = 0; i < 5; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        check(del(h, h1, key.str().c_str(), 0, 0) == ENGINE_SUCCESS,
-              "Failed remove with value.");
+        checkeq(ENGINE_SUCCESS,
+                del(h, h1, key.str().c_str(), 0, 0),
+                "Failed remove with value.");
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -8325,19 +8706,23 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
     cb_assert(5 == get_int_stat(h, h1, "ep_num_non_resident"));
     cb_assert(5 == get_int_stat(h, h1, "curr_items"));
 
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
     useconds_t sleepTime = 128;
 
     if (eviction_policy == "value_only") {  // VALUE-ONLY EVICTION MODE
 
-        check(get_int_stat(h, h1, "vb_0:bloom_filter_key_count", "vbucket-details 0")
-                == 5, "Unexpected no. of keys in bloom filter");
+        checkeq(5,
+                get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
+                             "vbucket-details 0"),
+                "Unexpected no. of keys in bloom filter");
 
-        check(get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples") == num_read_attempts,
-              "Expected bgFetch attempts to remain unchanged");
+        checkeq(num_read_attempts,
+                get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples"),
+                "Expected bgFetch attempts to remain unchanged");
 
         for (i = 0; i < 5; ++i) {
             std::stringstream key;
@@ -8347,7 +8732,8 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
 
         // GetMeta would cause bgFetches as bloomfilter contains
         // the deleted items.
-        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 5,
+        checkeq(num_read_attempts + 5,
+                get_int_stat(h, h1, "ep_bg_num_samples"),
                 "Expected bgFetch attempts to increase by five");
 
         // Run compaction, with drop_deletes
@@ -8361,17 +8747,21 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
             key << "key-" << i;
             check(get_meta(h, h1, key.str().c_str()), "Get meta failed");
         }
-        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 5,
+        checkeq(num_read_attempts + 5,
+                get_int_stat(h, h1, "ep_bg_num_samples"),
                 "Expected bgFetch attempts to stay as before");
 
     } else {                                // FULL EVICTION MODE
 
-        check(get_int_stat(h, h1, "vb_0:bloom_filter_key_count", "vbucket-details 0")
-                == 10, "Unexpected no. of keys in bloom filter");
+        checkeq(10,
+                get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
+                             "vbucket-details 0"),
+                "Unexpected no. of keys in bloom filter");
 
 
         // Because of issuing deletes on non-resident items
-        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 5,
+        checkeq(num_read_attempts + 5,
+                get_int_stat(h, h1, "ep_bg_num_samples"),
                 "Expected bgFetch attempts to increase by five, after deletes");
 
         // Run compaction, with drop_deletes, to exclude deleted items
@@ -8384,12 +8774,13 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
         for (i = 0; i < 5; i++) {
             std::stringstream key;
             key << "key-" << i;
-            check(h1->get(h, NULL, &it, key.str().c_str(), key.str().length(), 0)
-                  == ENGINE_KEY_ENOENT,
-                  "Unable to get stored item");
+            checkeq(ENGINE_KEY_ENOENT,
+                    h1->get(h, NULL, &it, key.str().c_str(), key.str().length(), 0),
+                    "Unable to get stored item");
         }
         // + 6 because last delete is not purged by the compactor
-        check(get_int_stat(h, h1, "ep_bg_num_samples") == num_read_attempts + 6,
+        checkeq(num_read_attempts + 6,
+                get_int_stat(h, h1, "ep_bg_num_samples"),
                 "Expected bgFetch attempts to stay as before");
     }
 
@@ -8417,15 +8808,17 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
     for (int i = 0; i < 1000; i++) {
         std::stringstream key;
         key << "key-" << i;
-        check(get_meta(h, h1, key.str().c_str()) == false,
+        check(!get_meta(h, h1, key.str().c_str()),
                 "Get meta should fail.");
     }
 
-    check(get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples") == num_read_attempts + 0,
+    checkeq(num_read_attempts,
+            get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples"),
             "Expected no bgFetch attempts");
 
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
     if (eviction_policy == "full_eviction") {  // FULL EVICTION MODE
@@ -8446,7 +8839,8 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
                           "somevalue", 9, 0, &itm_meta, cas_for_set);
         }
 
-        check(get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples") == num_read_attempts + 0,
+        checkeq(num_read_attempts,
+                get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples"),
                 "Expected no bgFetch attempts");
 
         item *itm = NULL;
@@ -8455,24 +8849,28 @@ static enum test_result test_bloomfilters_with_store_apis(ENGINE_HANDLE *h,
             std::stringstream key;
             key << "add-" << j;
 
-            check(store(h, h1, NULL, OPERATION_ADD, key.str().c_str(),
-                        "newvalue", &itm) == ENGINE_SUCCESS,
+            checkeq(ENGINE_SUCCESS,
+                    store(h, h1, NULL, OPERATION_ADD, key.str().c_str(),
+                          "newvalue", &itm),
                     "Failed to add value again.");
             h1->release(h, NULL, itm);
         }
 
-        check(get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples") == num_read_attempts + 0,
+        checkeq(num_read_attempts,
+                get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples"),
                 "Expected no bgFetch attempts");
 
         // Delete
         for (j = 0; j < 10; j++) {
             std::stringstream key;
             key << "del-" << j;
-            check(del(h, h1, key.str().c_str(), 0, 0) == ENGINE_KEY_ENOENT,
+            checkeq(ENGINE_KEY_ENOENT,
+                    del(h, h1, key.str().c_str(), 0, 0),
                     "Failed remove with value.");
         }
 
-        check(get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples") == num_read_attempts + 0,
+        checkeq(num_read_attempts,
+                get_int_stat_or_default(h, h1, 0, "ep_bg_num_samples"),
                 "Expected no bgFetch attempts");
 
     }
@@ -8496,8 +8894,9 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
             "Vbucket 0's bloom filter wasn't enabled upon setup!");
 
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &itm) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k1", "v1", &itm),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, itm);
 
     wait_for_flusher_to_settle(h, h1);
@@ -8505,10 +8904,12 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
     int num_persisted = get_int_stat(h, h1, "ep_total_persisted");
     cb_assert(num_writes == 1 && num_persisted == 1);
 
-    check(del(h, h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS,
+            del(h, h1, "k1", 0, 0), "Failed remove with value.");
     stop_persistence(h, h1);
-    check(store(h, h1, NULL, OPERATION_SET,"k1", "v2", &itm, 0, 0) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k1", "v2", &itm, 0, 0),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, itm);
     int key_count = get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
                                  "vbucket-details 0");
@@ -8518,17 +8919,17 @@ static enum test_result test_bloomfilter_delete_plus_set_scenario(
                 "Unexpected number of writes");
         start_persistence(h, h1);
         wait_for_flusher_to_settle(h, h1);
-        check(get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
-                           "vbucket-details 0") == 0,
+        checkeq(0, get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
+                                "vbucket-details 0"),
                 "Unexpected number of keys in bloomfilter");
     } else {
         cb_assert(key_count == 1);
-        check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 2,
+        checkeq(2, get_int_stat(h, h1, "rw_0:io_num_write", "kvstore"),
                 "Unexpected number of writes");
         start_persistence(h, h1);
         wait_for_flusher_to_settle(h, h1);
-        check(get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
-                           "vbucket-details 0") == 1,
+        checkeq(1, get_int_stat(h, h1, "vb_0:bloom_filter_key_count",
+                                "vbucket-details 0"),
                 "Unexpected number of keys in bloomfilter");
     }
 
@@ -8544,18 +8945,20 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const protocol_binary_datatypes datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     uint64_t cas = 0;
     std::string value("x");
-    check(storeCasOut(h, h1, NULL, 0, key, value, datatype, itm, cas)
-          == ENGINE_SUCCESS,
-          "Expected set to succeed");
+    checkeq(ENGINE_SUCCESS,
+            storeCasOut(h, h1, NULL, 0, key, value, datatype, itm, cas),
+            "Expected set to succeed");
 
-    check(h1->get(h, cookie, &itm, key.c_str(), key.size(), 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, cookie, &itm, key.c_str(), key.size(), 0),
             "Unable to get stored item");
 
     item_info info;
     info.nvalue = 1;
     h1->get_item_info(h, cookie, itm, &info);
     h1->release(h, cookie, itm);
-    check(info.datatype == 0x01, "Invalid datatype");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype, "Invalid datatype");
 
     const char* key1 = "foo";
     const char* val1 = "{\"foo1\":\"bar1\"}";
@@ -8567,12 +8970,14 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     set_with_meta(h, h1, key1, strlen(key1), val1, strlen(val1), 0, &itm_meta,
                   last_cas, false, info.datatype, false, 0, 0, cookie);
 
-    check(h1->get(h, cookie, &itm, key1, strlen(key1), 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, cookie, &itm, key1, strlen(key1), 0),
             "Unable to get stored item");
 
     h1->get_item_info(h, cookie, itm, &info);
     h1->release(h, cookie, itm);
-    check(info.datatype == 0x01, "Invalid datatype, when setWithMeta");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype, "Invalid datatype, when setWithMeta");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -8597,21 +9002,24 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
     set_with_meta(h, h1, key, strlen(key), val, strlen(val), 0, &itm_meta,
                   0, false, datatype, false, 0, 0, cookie);
 
-    check(h1->get(h, cookie, &itm, key, strlen(key), 0) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, cookie, &itm, key, strlen(key), 0),
             "Unable to get stored item");
 
     item_info info;
     info.nvalue = 1;
     h1->get_item_info(h, cookie, itm, &info);
     h1->release(h, NULL, itm);
-    check(info.datatype == 0x01, "Invalid datatype, when setWithMeta");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            info.datatype, "Invalid datatype, when setWithMeta");
 
     //SET_RETURN_META
     set_ret_meta(h, h1, "foo1", 4, val, strlen(val), 0, 0, 0, 0, datatype,
                  cookie);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected set returing meta to succeed");
-    check(last_datatype == 0x01, "Invalid datatype, when set_return_meta");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected set returing meta to succeed");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            last_datatype.load(), "Invalid datatype, when set_return_meta");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -8629,14 +9037,16 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
 
     uint64_t cas = 0x0101010101010101;
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, 0, cas, ext, 4);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
             "SET_VBUCKET command failed");
     free(pkt);
     cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     cas = 0x0102030405060708;
     pkt = createPacket(PROTOCOL_BINARY_CMD_SET_VBUCKET, 0, cas, ext, 4);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
             "SET_VBUCKET command failed");
     free(pkt);
     cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -8780,9 +9190,10 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     for (int i = 0; i < 5000; ++i) {
         std::stringstream key;
         key << "key-" << i;
-        check(ENGINE_SUCCESS ==
-              store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it),
-              "Error setting.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
+                      "somevalue", &it),
+                "Error setting.");
         h1->release(h, NULL, it);
     }
 
@@ -8803,8 +9214,9 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     cb_assert(atoi(warmup_time.c_str()) > 0);
 
     vals.clear();
-    check(h1->get_stats(h, NULL, "prev-vbucket", 12, add_stats) == ENGINE_SUCCESS,
-          "Failed to get the previous state of vbuckets");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, "prev-vbucket", 12, add_stats),
+            "Failed to get the previous state of vbuckets");
     check(vals.find("vb_0") != vals.end(), "Found no previous state for VB0");
     check(vals.find("vb_1") != vals.end(), "Found no previous state for VB1");
     std::string vb0_prev_state = vals["vb_0"];
@@ -8813,8 +9225,9 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     cb_assert(strcmp(vb1_prev_state.c_str(), "replica") == 0);
     vals.clear();
 
-    check(h1->get_stats(h, NULL, "vbucket-details", 15, add_stats) ==
-          ENGINE_SUCCESS, "Failed to get the detailed stats of vbuckets");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, "vbucket-details", 15, add_stats),
+            "Failed to get the detailed stats of vbuckets");
     check(vals.find("vb_0:num_items")->second == "5000",
           "Expected 5000 items in VB 0");
     check(vals.find("vb_1:num_items")->second == "0",
@@ -8834,10 +9247,10 @@ static enum test_result test_warmup_with_threshold(ENGINE_HANDLE *h,
     for (int i = 0; i < 10000; ++i) {
         std::stringstream key;
         key << "key+" << i;
-        check(ENGINE_SUCCESS ==
-              store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it,
-                    0, (i % 4)),
-              "Error setting.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.str().c_str(), "somevalue", &it,
+                     0, (i % 4)),
+                "Error setting.");
         h1->release(h, NULL, it);
     }
 
@@ -8849,19 +9262,21 @@ static enum test_result test_warmup_with_threshold(ENGINE_HANDLE *h,
 
     wait_for_warmup_complete(h, h1);
 
-    check(get_int_stat(h, h1, "ep_warmup_min_item_threshold", "warmup") == 1,
+    checkeq(1,
+            get_int_stat(h, h1, "ep_warmup_min_item_threshold", "warmup"),
             "Unable to set warmup_min_item_threshold to 1%");
 
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
 
     std::string policy = vals.find("ep_item_eviction_policy")->second;
     if (policy == "full_eviction") {
-        check(get_int_stat(h, h1, "ep_warmup_key_count", "warmup") ==
+        checkeq(get_int_stat(h, h1, "ep_warmup_key_count", "warmup"),
                 get_int_stat(h, h1, "ep_warmup_value_count", "warmup"),
                 "Warmed up key count didn't match warmed up value count");
     } else {
-        check(get_int_stat(h, h1, "ep_warmup_key_count", "warmup") == 10000,
+        checkeq(10000, get_int_stat(h, h1, "ep_warmup_key_count", "warmup"),
                 "Warmup didn't warmup all keys");
     }
     check(get_int_stat(h, h1, "ep_warmup_value_count", "warmup") <= 110,
@@ -8888,9 +9303,9 @@ static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
         std::stringstream key;
         key << "key-" << i;
         const char* keystr = key.str().c_str();
-        check(ENGINE_SUCCESS ==
-              store(h, h1, NULL, OPERATION_SET, keystr, "somevalue", &it, 0, 0),
-              "Error setting.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, keystr, "somevalue", &it, 0, 0),
+                "Error setting.");
         h1->release(h, NULL, it);
     }
 
@@ -8901,9 +9316,9 @@ static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
         std::stringstream key;
         key << "key-" << i;
         const char* keystr = key.str().c_str();
-        check(ENGINE_SUCCESS ==
-              h1->get(h, NULL, &it, keystr, strlen(keystr), 0),
-              "Error getting.");
+        checkeq(ENGINE_SUCCESS,
+                h1->get(h, NULL, &it, keystr, strlen(keystr), 0),
+                "Error getting.");
         h1->release(h, NULL, it);
     }
 
@@ -8916,9 +9331,9 @@ static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
         std::stringstream key;
         key << "key2-" << i;
         const char* keystr = key.str().c_str();
-        check(ENGINE_SUCCESS ==
-              store(h, h1, NULL, OPERATION_SET, keystr, "somevalue", &it, 0, 0),
-              "Error setting.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, keystr, "somevalue", &it, 0, 0),
+                "Error setting.");
         h1->release(h, NULL, it);
     }
 
@@ -8950,11 +9365,13 @@ static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(token1 != 0, "Expected non-zero startup token");
 
     // store some random data
-    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
@@ -8979,9 +9396,10 @@ static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void* cookie = testHarness.create_cookie();
-    check(h1->get_stats(h, cookie, "workload",
-                        strlen("workload"), add_stats) == ENGINE_SUCCESS,
-                        "Falied to get workload stats");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, "workload",
+                          strlen("workload"), add_stats),
+            "Falied to get workload stats");
     testHarness.destroy_cookie(cookie);
     int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers",
                                                "workload");
@@ -9000,25 +9418,26 @@ static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     int max_nonio_threads = get_int_stat(h, h1, "ep_workload:max_nonio",
                                                 "workload");
     int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
-    check(num_read_threads == 4, "Incorrect number of readers");
+    checkeq(4, num_read_threads, "Incorrect number of readers");
     // MB-12279: limiting max writers to 4 for DGM bgfetch performance
-    check(num_write_threads == 4, "Incorrect number of writers");
-    check(num_auxio_threads == 1, "Incorrect number of auxio threads");
-    check(num_nonio_threads == 1, "Incorrect number of nonio threads");
-    check(max_read_threads == 4, "Incorrect limit of readers");
+    checkeq(4, num_write_threads, "Incorrect number of writers");
+    checkeq(1, num_auxio_threads, "Incorrect number of auxio threads");
+    checkeq(1, num_nonio_threads, "Incorrect number of nonio threads");
+    checkeq(4, max_read_threads, "Incorrect limit of readers");
     // MB-12279: limiting max writers to 4 for DGM bgfetch performance
-    check(max_write_threads == 4, "Incorrect limit of writers");
-    check(max_auxio_threads == 1, "Incorrect limit of auxio threads");
-    check(max_nonio_threads == 1, "Incorrect limit of nonio threads");
-    check(num_shards == 5, "Incorrect number of shards");
+    checkeq(4, max_write_threads, "Incorrect limit of writers");
+    checkeq(1, max_auxio_threads, "Incorrect limit of auxio threads");
+    checkeq(1, max_nonio_threads, "Incorrect limit of nonio threads");
+    checkeq(5, num_shards, "Incorrect number of shards");
     return SUCCESS;
 }
 
 static enum test_result test_max_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void* cookie = testHarness.create_cookie();
-    check(h1->get_stats(h, cookie, "workload",
-                        strlen("workload"), add_stats) == ENGINE_SUCCESS,
-                        "Falied to get workload stats");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, "workload",
+                          strlen("workload"), add_stats),
+            "Failed to get workload stats");
     testHarness.destroy_cookie(cookie);
     int num_read_threads = get_int_stat(h, h1, "ep_workload:num_readers",
                                                "workload");
@@ -9038,25 +9457,26 @@ static enum test_result test_max_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_
                                                 "workload");
     int num_shards = get_int_stat(h, h1, "ep_workload:num_shards", "workload");
     // if max limit on other groups missing use remaining for readers & writers
-    check(num_read_threads == 5, "Incorrect number of readers");
+    checkeq(5, num_read_threads, "Incorrect number of readers");
     // MB-12279: limiting max writers to 4 for DGM bgfetch performance
-    check(num_write_threads == 4, "Incorrect number of writers");
+    checkeq(4, num_write_threads, "Incorrect number of writers");
 
-    check(num_auxio_threads == 1, "Incorrect number of auxio threads");// config
-    check(num_nonio_threads == 4, "Incorrect number of nonio threads");// config
-    check(max_read_threads == 5, "Incorrect limit of readers");// derived
+    checkeq(1, num_auxio_threads, "Incorrect number of auxio threads");// config
+    checkeq(4, num_nonio_threads, "Incorrect number of nonio threads");// config
+    checkeq(5, max_read_threads, "Incorrect limit of readers");// derived
     // MB-12279: limiting max writers to 4 for DGM bgfetch performance
-    check(max_write_threads == 4, "Incorrect limit of writers");// max-capped
-    check(max_auxio_threads == 1, "Incorrect limit of auxio threads");// config
-    check(max_nonio_threads == 4, "Incorrect limit of nonio threads");// config
-    check(num_shards == 5, "Incorrect number of shards");
+    checkeq(4, max_write_threads, "Incorrect limit of writers");// max-capped
+    checkeq(1, max_auxio_threads, "Incorrect limit of auxio threads");// config
+    checkeq(4, max_nonio_threads, "Incorrect limit of nonio threads");// config
+    checkeq(5, num_shards, "Incorrect number of shards");
     return SUCCESS;
 }
 
 static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(h1->get_stats(h, NULL, "dispatcher",
-                        strlen("dispatcher"), add_stats) == ENGINE_SUCCESS,
-                        "Failed to get worker stats");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, "dispatcher",
+                          strlen("dispatcher"), add_stats),
+            "Failed to get worker stats");
 
     std::set<std::string> tasklist;
     tasklist.insert("Running a flusher loop");
@@ -9109,8 +9529,8 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(statelist.find(worker_1_state)!=statelist.end(),
           "worker_1's state incorrect");
 
-    check(get_int_stat(h, h1, "ep_num_workers") == 10, // cannot spawn less
-          "Incorrect number of threads spawned");
+    checkeq(10, get_int_stat(h, h1, "ep_num_workers"), // cannot spawn less
+            "Incorrect number of threads spawned");
     return SUCCESS;
 }
 
@@ -9121,13 +9541,14 @@ static enum test_result test_cluster_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     uint64_t var = 1234;
     protocol_binary_request_header *pkt1 =
         createPacket(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
-    check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt1, add_response),
             "Failed to set cluster configuration");
     free(pkt1);
 
     protocol_binary_request_header *pkt2 =
         createPacket(PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, NULL, 0);
-    check(h1->unknown_command(h, NULL, pkt2, add_response) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt2, add_response),
             "Failed to get cluster configuration");
     free(pkt2);
     if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
@@ -9143,7 +9564,7 @@ static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h
     uint64_t var = 4321;
     protocol_binary_request_header *pkt1 =
         createPacket(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
-    check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt1, add_response),
             "Failed to set cluster configuration");
     free(pkt1);
 
@@ -9151,7 +9572,7 @@ static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h
         createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, 1, 0, NULL, 0, NULL, 0, NULL, 0);
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, pkt2,
                                                 add_response);
-    check(ret == ENGINE_SUCCESS, "Should've received not_my_vbucket/cluster config");
+    checkeq(ENGINE_SUCCESS, ret, "Should've received not_my_vbucket/cluster config");
     free(pkt2);
     if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
                           sizeof(var)) != 0) {
@@ -9160,7 +9581,8 @@ static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h
         return SUCCESS;
     }
     check(verify_key(h, h1, "key", 2) == ENGINE_NOT_MY_VBUCKET, "Expected miss");
-    check(h1->get_engine_vb_map(h, NULL, vb_map_response) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get_engine_vb_map(h, NULL, vb_map_response),
             "Failed to recover cluster configuration");
     if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
                           sizeof(var)) != 0) {
@@ -9246,9 +9668,9 @@ static enum test_result test_all_keys_api_during_bucket_creation(
     free(pkt1);
     start_persistence(h, h1);
 
-    check(err == ENGINE_SUCCESS,
-          "Unexpected return code from all_keys_api");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(ENGINE_SUCCESS, err,
+            "Unexpected return code from all_keys_api");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Unexpected response status");
 
     return SUCCESS;
@@ -9261,14 +9683,17 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     verify_curr_items(h, h1, 0, "init");
 
     // Verify set and add case
-    check(store(h, h1, NULL, OPERATION_ADD,"k1", "v1", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD,"k1", "v1", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     verify_curr_items(h, h1, 3, "three items stored");
     cb_assert(3 == get_int_stat(h, h1, "ep_total_enqueued"));
@@ -9276,33 +9701,37 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     wait_for_flusher_to_settle(h, h1);
 
     // Verify delete case.
-    check(del(h, h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS, del(h, h1, "k1", 0, 0),
+            "Failed remove with value.");
 
     wait_for_stat_change(h, h1, "curr_items", 3);
     verify_curr_items(h, h1, 2, "one item deleted - persisted");
 
     // Verify flush case (remove the two remaining from above)
     set_degraded_mode(h, h1, NULL, true);
-    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS,
-          "Failed to flush");
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0),
+            "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
     verify_curr_items(h, h1, 0, "flush");
 
     // Verify dead vbucket case.
-    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k3", "v3", &i),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     check(set_vbucket_state(h, h1, 0, vbucket_state_dead), "Failed set vbucket 0 state.");
 
     verify_curr_items(h, h1, 0, "dead vbucket");
-    check(get_int_stat(h, h1, "curr_items_tot") == 0,
-          "Expected curr_items_tot to be 0 with a dead vbucket");
+    checkeq(0, get_int_stat(h, h1, "curr_items_tot"),
+            "Expected curr_items_tot to be 0 with a dead vbucket");
 
     // Then resurrect.
     check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed set vbucket 0 state.");
@@ -9312,11 +9741,11 @@ static enum test_result test_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
     // Now completely delete it.
     check(set_vbucket_state(h, h1, 0, vbucket_state_dead), "Failed set vbucket 0 state.");
     vbucketDelete(h, h1, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected success deleting vbucket.");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected success deleting vbucket.");
     verify_curr_items(h, h1, 0, "del vbucket");
-    check(get_int_stat(h, h1, "curr_items_tot") == 0,
-          "Expected curr_items_tot to be 0 after deleting a vbucket");
+    checkeq(0, get_int_stat(h, h1, "curr_items_tot"),
+            "Expected curr_items_tot to be 0 after deleting a vbucket");
 
     return SUCCESS;
 }
@@ -9326,24 +9755,26 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
     item *i = NULL;
     h1->reset_stats(h, NULL);
-    check(get_int_stat(h, h1, "ep_num_value_ejects") == 0,
-          "Expected reset stats to set ep_num_value_ejects to zero");
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
-          "Expected all items to be resident");
-    check(get_int_stat(h, h1, "vb_active_num_non_resident") == 0,
-          "Expected all active vbucket items to be resident");
+    checkeq(0, get_int_stat(h, h1, "ep_num_value_ejects"),
+            "Expected reset stats to set ep_num_value_ejects to zero");
+    checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
+            "Expected all items to be resident");
+    checkeq(0, get_int_stat(h, h1, "vb_active_num_non_resident"),
+            "Expected all active vbucket items to be resident");
 
 
     stop_persistence(h, h1);
-    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     evict_key(h, h1, "k1", 0, "Can't eject: Dirty object.", true);
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
     stop_persistence(h, h1);
-    check(store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1) == ENGINE_SUCCESS,
-          "Failed to fail to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k2", "v2", &i, 0, 1),
+            "Failed to fail to store an item.");
     h1->release(h, NULL, i);
     evict_key(h, h1, "k2", 1, "Can't eject: Dirty object.", true);
     start_persistence(h, h1);
@@ -9352,8 +9783,8 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     evict_key(h, h1, "k1", 0, "Ejected.");
     evict_key(h, h1, "k2", 1, "Ejected.");
 
-    check(get_int_stat(h, h1, "vb_active_num_non_resident") == 2,
-          "Expected two non-resident items for active vbuckets");
+    checkeq(2, get_int_stat(h, h1, "vb_active_num_non_resident"),
+            "Expected two non-resident items for active vbuckets");
 
     evict_key(h, h1, "k1", 0, "Already ejected.");
     evict_key(h, h1, "k2", 1, "Already ejected.");
@@ -9362,26 +9793,27 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
                                                        NULL, 0, "missing-key", 11);
     pkt->request.vbucket = htons(0);
 
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to evict key.");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "Failed to evict key.");
 
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS, h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     if (eviction_policy == "value_only") {
-        check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
-              "expected the key to be missing...");
+        checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+                "expected the key to be missing...");
     } else {
         // Note that we simply return SUCCESS when EVICT_KEY is issued to
         // a non-resident or non-existent key with full eviction to avoid a disk lookup.
-        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-              "expected the success for evicting a non-existent key with full eviction");
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "expected the success for evicting a non-existent key with full eviction");
     }
     free(pkt);
 
     h1->reset_stats(h, NULL);
-    check(get_int_stat(h, h1, "ep_num_value_ejects") == 0,
-          "Expected reset stats to set ep_num_value_ejects to zero");
+    checkeq(0, get_int_stat(h, h1, "ep_num_value_ejects"),
+            "Expected reset stats to set ep_num_value_ejects to zero");
 
     check_key_value(h, h1, "k1", "v1", 2);
     checkeq(1, get_int_stat(h, h1, "vb_active_num_non_resident"),
@@ -9397,17 +9829,19 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_mb5172(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key-1", "value-1", &i, 0, 0)
-          == ENGINE_SUCCESS, "Failed to store a value");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key-1", "value-1", &i, 0, 0),
+            "Failed to store a value");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET, "key-2", "value-2", &i, 0, 0)
-          == ENGINE_SUCCESS, "Failed to store a value");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key-2", "value-2", &i, 0, 0),
+            "Failed to store a value");
     h1->release(h, NULL, i);
 
     wait_for_flusher_to_settle(h, h1);
 
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
-          "Expected all items to be resident");
+    checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
+            "Expected all items to be resident");
 
     // restart the server.
     testHarness.reload_engine(&h, &h1,
@@ -9416,8 +9850,8 @@ static enum test_result test_mb5172(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                               true, false);
 
     wait_for_warmup_complete(h, h1);
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
-          "Expected all items to be resident");
+    checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
+            "Expected all items to be resident");
     return SUCCESS;
 }
 
@@ -9425,17 +9859,21 @@ static enum test_result test_mb5172(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     uint64_t result(0);
-    check(store(h, h1, NULL, OPERATION_SET, "set", "value", &i, 0, 0)
-          == ENGINE_SUCCESS, "Failed to store a value");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "set", "value", &i, 0, 0),
+            "Failed to store a value");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET, "incr", "0", &i, 0, 0)
-          == ENGINE_SUCCESS, "Failed to store a value");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "incr", "0", &i, 0, 0),
+            "Failed to store a value");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET, "delete", "0", &i, 0, 0)
-          == ENGINE_SUCCESS, "Failed to store a value");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "delete", "0", &i, 0, 0),
+            "Failed to store a value");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET, "get", "getvalue", &i, 0, 0)
-          == ENGINE_SUCCESS, "Failed to store a value");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "get", "getvalue", &i, 0, 0),
+            "Failed to store a value");
     h1->release(h, NULL, i);
 
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 4);
@@ -9445,34 +9883,37 @@ static enum test_result test_mb3169(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     evict_key(h, h1, "delete", 0, "Ejected.");
     evict_key(h, h1, "get", 0, "Ejected.");
 
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 4,
-          "Expected four items to be resident");
+    checkeq(4, get_int_stat(h, h1, "ep_num_non_resident"),
+            "Expected four items to be resident");
 
-    check(store(h, h1, NULL, OPERATION_SET, "set", "value2", &i, 0, 0)
-          == ENGINE_SUCCESS, "Failed to store a value");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "set", "value2", &i, 0, 0),
+            "Failed to store a value");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(3, get_int_stat(h, h1, "ep_num_non_resident"),
           "Expected mutation to mark item resident");
 
-    check(h1->arithmetic(h, NULL, "incr", 4, true, false, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         0)  == ENGINE_SUCCESS, "Incr failed");
+    checkeq(ENGINE_SUCCESS,
+            h1->arithmetic(h, NULL, "incr", 4, true, false, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
+            "Incr failed");
     h1->release(h, NULL, i);
 
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 2,
-          "Expected incr to mark item resident");
+    checkeq(2, get_int_stat(h, h1, "ep_num_non_resident"),
+            "Expected incr to mark item resident");
 
-    check(del(h, h1, "delete", 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, "delete", 0, 0),
+            "Delete failed");
 
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 1,
-          "Expected delete to remove non-resident item");
+    checkeq(1, get_int_stat(h, h1, "ep_num_non_resident"),
+            "Expected delete to remove non-resident item");
 
     check_key_value(h, h1, "get", "getvalue", 8);
 
-    check(get_int_stat(h, h1, "ep_num_non_resident") == 0,
-          "Expected all items to be resident");
+    checkeq(0, get_int_stat(h, h1, "ep_num_non_resident"),
+            "Expected all items to be resident");
     return SUCCESS;
 }
 
@@ -9489,8 +9930,9 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *i;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), "value", &i, 0, 1)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, it->c_str(), "value", &i, 0, 1),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
     wait_for_flusher_to_settle(h, h1);
@@ -9498,8 +9940,8 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead), "Failed set set vbucket 1 state.");
     int vb_del_num = get_int_stat(h, h1, "ep_vbucket_del");
     vbucketDelete(h, h1, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Failure deleting dead bucket.");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 1 was not missing after deleting it.");
 
@@ -9507,8 +9949,9 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
 
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *i;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 1)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 1),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
     wait_for_flusher_to_settle(h, h1);
@@ -9527,8 +9970,8 @@ static enum test_result test_duplicate_items_disk(ENGINE_HANDLE *h, ENGINE_HANDL
     for (it = keys.begin(); it != keys.end(); ++it) {
         check_key_value(h, h1, it->c_str(), it->data(), it->size(), 1);
     }
-    check(get_int_stat(h, h1, "ep_warmup_dups") == 0,
-          "Expected no duplicate items from disk");
+    checkeq(0, get_int_stat(h, h1, "ep_warmup_dups"),
+            "Expected no duplicate items from disk");
 
     return SUCCESS;
 }
@@ -9580,13 +10023,14 @@ static enum test_result test_disk_gt_ram_golden(ENGINE_HANDLE *h,
     itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     // Delete the value and make sure things return correctly.
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(del(h, h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS,
+            del(h, h1, "k1", 0, 0), "Failed remove with value.");
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    check(get_int_stat(h, h1, "ep_overhead") == overhead,
-          "Fell below initial overhead.");
+    checkeq(overhead, get_int_stat(h, h1, "ep_overhead"),
+            "Fell below initial overhead.");
 
     return SUCCESS;
 }
@@ -9609,13 +10053,14 @@ static enum test_result test_disk_gt_ram_paged_rm(ENGINE_HANDLE *h,
     // Delete the value and make sure things return correctly.
     int itemsRemoved = get_int_stat(h, h1, "ep_items_rm_from_checkpoints");
     int numStored = get_int_stat(h, h1, "ep_total_persisted");
-    check(del(h, h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS,
+            del(h, h1, "k1", 0, 0), "Failed remove with value.");
     wait_for_stat_change(h, h1, "ep_total_persisted", numStored);
     testHarness.time_travel(65);
     wait_for_stat_change(h, h1, "ep_items_rm_from_checkpoints", itemsRemoved);
 
-    check(get_int_stat(h, h1, "ep_overhead") == overhead,
-          "Fell below initial overhead.");
+    checkeq(overhead, get_int_stat(h, h1, "ep_overhead"),
+            "Fell below initial overhead.");
 
     return SUCCESS;
 }
@@ -9628,10 +10073,10 @@ static enum test_result test_disk_gt_ram_incr(ENGINE_HANDLE *h,
 
     evict_key(h, h1, "k1");
 
-    check(h1->arithmetic(h, NULL, "k1", 2, true, false, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                         0) == ENGINE_SUCCESS,
-          "Failed to incr value.");
+    checkeq(ENGINE_SUCCESS,
+            h1->arithmetic(h, NULL, "k1", 2, true, false, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
+            "Failed to incr value.");
     h1->release(h, NULL, i);
 
     check_key_value(h, h1, "k1", "14", 2);
@@ -9648,8 +10093,9 @@ static enum test_result test_disk_gt_ram_update_paged_out(ENGINE_HANDLE *h,
     evict_key(h, h1, "k1");
 
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "k1", "new value", &i) == ENGINE_SUCCESS,
-          "Failed to update an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "k1", "new value", &i),
+            "Failed to update an item.");
     h1->release(h, NULL, i);
 
     check_key_value(h, h1, "k1", "new value", 9);
@@ -9665,7 +10111,8 @@ static enum test_result test_disk_gt_ram_delete_paged_out(ENGINE_HANDLE *h,
 
     evict_key(h, h1, "k1");
 
-    check(del(h, h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed to delete.");
+    checkeq(ENGINE_SUCCESS,
+            del(h, h1, "k1", 0, 0), "Failed to delete.");
 
     check(verify_key(h, h1, "k1") == ENGINE_KEY_ENOENT, "Expected miss.");
 
@@ -9681,9 +10128,10 @@ extern "C" {
         usleep(2600); // Exacerbate race condition.
 
         item *i = NULL;
-        check(store(td->h, td->h1, NULL, OPERATION_SET,
-                    "k1", "new value", &i) == ENGINE_SUCCESS,
-              "Failed to update an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(td->h, td->h1, NULL, OPERATION_SET,
+                      "k1", "new value", &i),
+                "Failed to update an item.");
         td->h1->release(td->h, NULL, i);
 
         delete td;
@@ -9694,7 +10142,8 @@ extern "C" {
 
         usleep(2600); // Exacerbate race condition.
 
-        check(del(td->h, td->h1, "k1", 0, 0) == ENGINE_SUCCESS, "Failed to delete.");
+        checkeq(ENGINE_SUCCESS,
+                del(td->h, td->h1, "k1", 0, 0), "Failed to delete.");
 
         delete td;
     }
@@ -9706,9 +10155,9 @@ extern "C" {
 
         uint64_t result = 0;
         item *i = NULL;
-        check(td->h1->arithmetic(td->h, NULL, "k1", 2, true, false, 1, 1, 0,
-                                 &i, PROTOCOL_BINARY_RAW_BYTES, &result,
-                                 0) == ENGINE_SUCCESS,
+        checkeq(ENGINE_SUCCESS,
+                td->h1->arithmetic(td->h, NULL, "k1", 2, true, false, 1, 1, 0,
+                                   &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
               "Failed to incr value.");
         td->h1->release(td->h, NULL, i);
 
@@ -9802,7 +10251,7 @@ static bool epsilon(int val, int target, int ep=5) {
 
 static enum test_result test_max_size_and_water_marks_settings(
                                         ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    check(get_int_stat(h, h1, "ep_max_size") == 1000, "Incorrect initial size.");
+    checkeq(1000, get_int_stat(h, h1, "ep_max_size"), "Incorrect initial size.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750),
           "Incorrect initial low wat.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850),
@@ -9814,8 +10263,8 @@ static enum test_result test_max_size_and_water_marks_settings(
 
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "1000000");
 
-    check(get_int_stat(h, h1, "ep_max_size") == 1000000,
-          "Incorrect new size.");
+    checkeq(1000000, get_int_stat(h, h1, "ep_max_size"),
+            "Incorrect new size.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750000),
           "Incorrect larger low wat.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850000),
@@ -9828,10 +10277,10 @@ static enum test_result test_max_size_and_water_marks_settings(
     set_param(h, h1, protocol_binary_engine_param_flush, "mem_low_wat", "700000");
     set_param(h, h1, protocol_binary_engine_param_flush, "mem_high_wat", "800000");
 
-    check(get_int_stat(h, h1, "ep_mem_low_wat") == 700000,
-          "Incorrect even larger low wat.");
-    check(get_int_stat(h, h1, "ep_mem_high_wat") == 800000,
-          "Incorrect even larger high wat.");
+    checkeq(700000, get_int_stat(h, h1, "ep_mem_low_wat"),
+            "Incorrect even larger low wat.");
+    checkeq(800000, get_int_stat(h, h1, "ep_mem_high_wat"),
+            "Incorrect even larger high wat.");
     check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.7),
           "Incorrect even larger low wat. percent");
     check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.8),
@@ -9839,8 +10288,8 @@ static enum test_result test_max_size_and_water_marks_settings(
 
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "100");
 
-    check(get_int_stat(h, h1, "ep_max_size") == 100,
-          "Incorrect smaller size.");
+    checkeq(100, get_int_stat(h, h1, "ep_max_size"),
+            "Incorrect smaller size.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 70),
           "Incorrect smaller low wat.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 80),
@@ -9853,10 +10302,10 @@ static enum test_result test_max_size_and_water_marks_settings(
     set_param(h, h1, protocol_binary_engine_param_flush, "mem_low_wat", "50");
     set_param(h, h1, protocol_binary_engine_param_flush, "mem_high_wat", "70");
 
-    check(get_int_stat(h, h1, "ep_mem_low_wat") == 50,
-          "Incorrect even smaller low wat.");
-    check(get_int_stat(h, h1, "ep_mem_high_wat") == 70,
-          "Incorrect even smaller high wat.");
+    checkeq(50, get_int_stat(h, h1, "ep_mem_low_wat"),
+            "Incorrect even smaller low wat.");
+    checkeq(70, get_int_stat(h, h1, "ep_mem_high_wat"),
+            "Incorrect even smaller high wat.");
     check((get_float_stat(h, h1, "ep_mem_low_wat_percent") == (float)0.5),
           "Incorrect even smaller low wat. percent");
     check((get_float_stat(h, h1, "ep_mem_high_wat_percent") == (float)0.7),
@@ -9868,8 +10317,8 @@ static enum test_result test_max_size_and_water_marks_settings(
                               true, true);
     wait_for_warmup_complete(h, h1);
 
-    check(get_int_stat(h, h1, "ep_max_size") == 1000,
-          "Incorrect initial size.");
+    checkeq(1000, get_int_stat(h, h1, "ep_max_size"),
+            "Incorrect initial size.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_low_wat"), 750),
           "Incorrect intial low wat.");
     check(epsilon(get_int_stat(h, h1, "ep_mem_high_wat"), 850),
@@ -9905,8 +10354,9 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     std::vector<std::string>::iterator it;
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *i;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -9926,8 +10376,9 @@ static enum test_result test_kill9_bucket(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
         item *i;
-        check(store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(), &i, 0, 0),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
     for (it = keys.begin(); it != keys.end(); ++it) {
@@ -9945,17 +10396,20 @@ static enum test_result test_create_new_checkpoint(ENGINE_HANDLE *h, ENGINE_HAND
         std::stringstream ss;
         ss << "key" << j;
         item *i;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), ss.str().c_str(), &i, 0, 0)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      ss.str().c_str(), &i, 0, 0),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
     createCheckpoint(h, h1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Expected success response from creating a new checkpoint");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected success response from creating a new checkpoint");
 
-    check(get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id", "checkpoint 0") == 3,
-          "Last closed checkpoint Id for VB 0 should be 3");
+    checkeq(3, get_int_stat(h, h1, "vb_0:last_closed_checkpoint_id",
+                            "checkpoint 0"),
+            "Last closed checkpoint Id for VB 0 should be 3");
 
     return SUCCESS;
 }
@@ -9976,9 +10430,10 @@ extern "C" {
             std::stringstream ss;
             ss << "key" << j;
             item *i;
-            check(store(hp->h, hp->h1, NULL, OPERATION_SET,
-                  ss.str().c_str(), ss.str().c_str(), &i, 0, 0) == ENGINE_SUCCESS,
-                  "Failed to store a value");
+            checkeq(ENGINE_SUCCESS,
+                    store(hp->h, hp->h1, NULL, OPERATION_SET,
+                          ss.str().c_str(), ss.str().c_str(), &i, 0, 0),
+                    "Failed to store a value");
             hp->h1->release(hp->h, NULL, i);
         }
 
@@ -9992,9 +10447,10 @@ extern "C" {
             std::stringstream ss;
             ss << "key" << j;
             item *i;
-            check(store(hp->h, hp->h1, NULL, OPERATION_SET,
-                  ss.str().c_str(), ss.str().c_str(), &i, 0, 0) == ENGINE_SUCCESS,
-                  "Failed to store a value");
+            checkeq(ENGINE_SUCCESS,
+                    store(hp->h, hp->h1, NULL, OPERATION_SET,
+                          ss.str().c_str(), ss.str().c_str(), &i, 0, 0),
+                    "Failed to store a value");
             hp->h1->release(hp->h, NULL, i);
         }
 
@@ -10068,18 +10524,20 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     /* Set 3 items */
     for (int count = 0; count < num_items; count++){
-        check(ENGINE_SUCCESS ==
-              store(h, h1, NULL, OPERATION_SET, key[count], "somevalue", NULL,
-                    0, 0, 0), "Error setting.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key[count], "somevalue", NULL,
+                      0, 0, 0),
+                "Error setting.");
     }
 
     memset(&mut_info, 0, sizeof(mut_info));
 
     /* Delete last 2 items */
     for (int count = 1; count < num_items; count++){
-        check(h1->remove(h, NULL, key[count], strlen(key[count]), &cas, 0,
-                         &mut_info) == ENGINE_SUCCESS,
-              "Failed remove with value.");
+        checkeq(ENGINE_SUCCESS,
+                h1->remove(h, NULL, key[count], strlen(key[count]), &cas, 0,
+                           &mut_info),
+                "Failed remove with value.");
         cas = 0;
     }
 
@@ -10124,9 +10582,10 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
 
     /* Set 3 items */
     for (int count = 0; count < num_items; count++){
-        check(ENGINE_SUCCESS ==
-              store(h, h1, NULL, OPERATION_SET, key[count], "somevalue", NULL,
-                    0, 0, 0), "Error setting.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key[count], "somevalue", NULL,
+                      0, 0, 0),
+                "Error setting.");
     }
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     /* wait for flusher to settle */
@@ -10142,9 +10601,10 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     memset(&mut_info, 0, sizeof(mut_info));
     /* Delete last 2 items */
     for (int count = 1; count < num_items; count++){
-        check(h1->remove(h, NULL, key[count], strlen(key[count]), &cas, 0,
-                         &mut_info) == ENGINE_SUCCESS,
-              "Failed remove with value.");
+        checkeq(ENGINE_SUCCESS,
+                h1->remove(h, NULL, key[count], strlen(key[count]), &cas, 0,
+                           &mut_info),
+                "Failed remove with value.");
         cas = 0;
     }
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
@@ -10442,8 +10902,8 @@ static enum test_result test_wait_for_persist_vb_del(ENGINE_HANDLE* h,
     wait_for_stat_to_be(h, h1, "ep_chk_persistence_remains", 1);
 
     vbucketDelete(h, h1, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Failure deleting dead bucket.");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Failure deleting dead bucket.");
     check(verify_vbucket_missing(h, h1, 1),
           "vbucket 1 was not missing after deleting it.");
 
@@ -10455,24 +10915,24 @@ static enum test_result test_wait_for_persist_vb_del(ENGINE_HANDLE* h,
 
 static enum test_result test_validate_checkpoint_params(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_max_items", "1000");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Failed to set checkpoint_max_item param");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Failed to set checkpoint_max_item param");
     set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_period", "100");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Failed to set checkpoint_period param");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Failed to set checkpoint_period param");
     set_param(h, h1, protocol_binary_engine_param_checkpoint, "max_checkpoints", "2");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
-          "Failed to set max_checkpoints param");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Failed to set max_checkpoints param");
 
     set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_max_items", "5");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
-          "Expected to have an invalid value error for checkpoint_max_items param");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+            "Expected to have an invalid value error for checkpoint_max_items param");
     set_param(h, h1, protocol_binary_engine_param_checkpoint, "chk_period", "0");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
-          "Expected to have an invalid value error for checkpoint_period param");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+            "Expected to have an invalid value error for checkpoint_period param");
     set_param(h, h1, protocol_binary_engine_param_checkpoint, "max_checkpoints", "6");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
-          "Expected to have an invalid value error for max_checkpoints param");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+            "Expected to have an invalid value error for max_checkpoints param");
 
     return SUCCESS;
 }
@@ -10482,13 +10942,16 @@ static enum test_result test_revid(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     ItemMetaData meta;
     for (uint64_t ii = 1; ii < 10; ++ii) {
         item *it;
-        check(store(h, h1, NULL, OPERATION_SET, "test_revid", "foo", &it, 0, 0)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, "test_revid", "foo",
+                      &it, 0, 0),
+                "Failed to store a value");
         h1->release(h, NULL, it);
 
         check(get_meta(h, h1, "test_revid"), "Get meta failed");
 
-        check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+        checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+                "Expected success");
         checkeq(ii, last_meta.revSeqno, "Unexpected sequence number");
     }
 
@@ -10509,7 +10972,7 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     // Now try to read the item back:
     item *it = NULL;
     ENGINE_ERROR_CODE ret = h1->get(h, NULL, &it, "test_regression_mb4314", 22, 0);
-    check(ret == ENGINE_SUCCESS, "Expected to get the item back!");
+    checkeq(ENGINE_SUCCESS, ret, "Expected to get the item back!");
     h1->release(h, NULL, it);
 
     return SUCCESS;
@@ -10517,8 +10980,9 @@ static enum test_result test_regression_mb4314(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
 static enum test_result test_mb3466(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
 
     check(vals.find("mem_used") != vals.end(),
           "Expected \"mem_used\" to be returned");
@@ -10537,15 +11001,19 @@ static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 {
     char const *key = "test_get_meta";
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i),
+            "Failed set.");
     Item *it = reinterpret_cast<Item*>(i);
     // check the stat
     size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
 
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected success");
+
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata(it->getCas(), it->getRevSeqno(),
                           it->getFlags(), it->getExptime());
     verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
@@ -10563,16 +11031,16 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
 {
     const char *key1 = "test_getm_one";
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) ==
-            ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
+            "Failed set.");
     Item *it1 = reinterpret_cast<Item*>(i);
     // check the stat
     size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
 
     check(get_meta(h, h1, key1, true), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata1(it1->getCas(), it1->getRevSeqno(),
                            it1->getFlags(), it1->getExptime());
     verifyLastMetaData(metadata1, static_cast<uint8_t>(revision_seqno));
@@ -10585,12 +11053,12 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
     set_drift_counter_state(h, h1, 1000, 0x01);
 
     const char *key2 = "test_getm_two";
-    check(store(h, h1, NULL, OPERATION_SET, key2, "somevalue", &i) ==
-            ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key2, "somevalue", &i),
+            "Failed set.");
     Item *it2 = reinterpret_cast<Item*>(i);
     check(get_meta(h, h1, key2, true), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata2(it2->getCas(), it2->getRevSeqno(),
                            it2->getFlags(), it2->getExptime());
     verifyLastMetaData(metadata2, static_cast<uint8_t>(last_write_wins));
@@ -10619,16 +11087,18 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     char const *key = "k1";
     item *i = NULL;
 
-    check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
-    check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i),
+            "Failed set.");
 
     Item *it = reinterpret_cast<Item*>(i);
     wait_for_flusher_to_settle(h, h1);
 
-    check(del(h, h1, key, it->getCas(), 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, key, it->getCas(), 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
 
     // check the stat
@@ -10636,7 +11106,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     check(temp == 0, "Expect zero getMeta ops");
 
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
     check(last_meta.revSeqno == it->getRevSeqno() + 1, "Expected seqno to match");
     check(last_meta.cas == it->getCas() + 1, "Expected cas to match");
@@ -10660,7 +11130,8 @@ static enum test_result test_get_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_HANDL
     int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
     check(!get_meta(h, h1, key), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+            "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     checkeq(0, temp, "Expect zero getMeta ops, thanks to bloom filters");
@@ -10675,36 +11146,43 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
     item *i = NULL;
     // test get_meta followed by get for an existing key. should pass.
-    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     // check the stat
     int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(h1->get(h, NULL, &i, key1, strlen(key1), 0) == ENGINE_SUCCESS, "Expected get success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &i, key1, strlen(key1), 0), "Expected get success");
     h1->release(h, NULL, i);
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
 
     // test get_meta followed by get for a deleted key. should fail.
-    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS,
+            del(h, h1, key1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(h1->get(h, NULL, &i, key1, strlen(key1), 0) == ENGINE_KEY_ENOENT, "Expected enoent");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &i, key1, strlen(key1), 0), "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 2, "Expect more getMeta ops");
 
     // test get_meta followed by get for a nonexistent key. should fail.
     check(!get_meta(h, h1, key2), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
-    check(h1->get(h, NULL, &i, key2, strlen(key2), 0) == ENGINE_KEY_ENOENT, "Expected enoent");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+            "Expected enoent");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &i, key2, strlen(key2), 0), "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     checkeq(2, temp, "No extra getMeta ops, thanks to bloom filters");
@@ -10721,54 +11199,60 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     ItemMetaData itm_meta;
 
     // test get_meta followed by set for an existing key. should pass.
-    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 1);
 
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_get_meta") == 0, "Expect zero getMeta ops");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_get_meta"), "Expect zero getMeta ops");
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected success");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
+            "Failed set.");
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_get_meta") == 1, "Expect one getMeta op");
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_get_meta"), "Expect one getMeta op");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
     h1->release(h, NULL, i);
 
     // check curr, temp item counts
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // test get_meta followed by set for a deleted key. should pass.
-    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
 
     wait_for_stat_to_be(h, h1, "curr_items", 0);
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
+            "Failed set.");
 
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_get_meta") == 2, "Expect more getMeta ops");
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_get_meta"), "Expect more getMeta ops");
     h1->release(h, NULL, i);
 
     // test get_meta followed by set for a nonexistent key. should pass.
     check(!get_meta(h, h1, key2), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
-    check(store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(), "Expected enoent");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i),
+            "Failed set.");
     // check the stat again
     checkeq(2, get_int_stat(h, h1, "ep_num_ops_get_meta"),
             "Unexpected getMeta ops, considering bloom filter assist");
@@ -10785,16 +11269,17 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     item *i = NULL;
 
     // test get_meta followed by delete for an existing key. should pass.
-    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     // check the stat
     int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
@@ -10802,17 +11287,17 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     // test get_meta followed by delete for a deleted key. should fail.
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Expected enoent");
+    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Expected enoent");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 2, "Expect more getMeta op");
 
     // test get_meta followed by delete for a nonexistent key. should fail.
     check(!get_meta(h, h1, key2), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
-    check(del(h, h1, key2, 0, 0) == ENGINE_KEY_ENOENT, "Expected enoent");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(), "Expected enoent");
+    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key2, 0, 0), "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     checkeq(2, temp, "Bloom filter did not assist!");
@@ -10838,12 +11323,12 @@ static enum test_result test_add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
 
     // store an item with meta data
     add_with_meta(h, h1, key, keylen, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // store the item again, expect key exists
     add_with_meta(h, h1, key, keylen, NULL, 0, 0, &itemMeta, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-          "Expected add to fail when the item exists already");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+            "Expected add to fail when the item exists already");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
     check(temp == 1, "Failed op does not count");
@@ -10872,16 +11357,21 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     // store an item
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key1,
-                "somevalue", &i) == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1,
+                  "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
 
-    check(store(h, h1, NULL, OPERATION_SET, key2,
-                "somevalue2", &i) == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key2,
+                  "somevalue2", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
 
-    check(store(h, h1, NULL, OPERATION_SET, key3,
-                "somevalue3", &i) == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key3,
+                  "somevalue3", &i), "Failed set.");
     h1->release(h, NULL, i);
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
@@ -10895,7 +11385,7 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 1, "Expect more setMeta ops");
@@ -10908,14 +11398,14 @@ static enum test_result test_delete_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     check(last_uuid == vb_uuid, "Expected same vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected same sequence number");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // delete an item with meta data
     del_with_meta(h, h1, key3, keylen, 0, &itemMeta);
 
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -10928,25 +11418,28 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
     item *i = NULL;
 
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 0, "Expect zero setMeta ops");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"),
+            "Expect zero setMeta ops");
 
     // add a key
-    check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i),
+            "Failed set.");
     wait_for_flusher_to_settle(h, h1);
 
     // delete the key
-    check(del(h, h1, key, 0, 0) == ENGINE_SUCCESS,
-          "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0),
+            "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     // get metadata of deleted key
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(1,get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
     // this is the cas to be used with a subsequent delete with meta
     uint64_t valid_cas = last_cas;
@@ -10960,30 +11453,30 @@ static enum test_result test_delete_with_meta_deleted(ENGINE_HANDLE *h,
 
     // do delete with meta with an incorrect cas value. should fail.
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, invalid_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-          "Expected invalid cas error");
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 0, "Faild ops does not count");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+            "Expected invalid cas error");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Faild ops does not count");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(1,get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, valid_cas);
     wait_for_flusher_to_settle(h, h1);
 
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 1, "Expect some ops");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect some ops");
     wait_for_stat_to_be(h, h1, "curr_items", 0);
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // get metadata again to verify that delete with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
     check(itm_meta.revSeqno == last_meta.revSeqno, "Expected seqno to match");
     check(itm_meta.cas == last_meta.cas, "Expected cas to match");
     check(itm_meta.flags == last_meta.flags, "Expected flags to match");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -10996,15 +11489,17 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
     ItemMetaData itm_meta;
 
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 0, "Expect zero setMeta ops");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"),
+            "Expect zero setMeta ops");
 
     // wait until the vb snapshot has run
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
 
     // get metadata of nonexistent key
     check(!get_meta(h, h1, key), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+            "Expected enoent");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
 
     // this is the cas to be used with a subsequent delete with meta
     uint64_t valid_cas = last_cas;
@@ -11019,32 +11514,32 @@ static enum test_result test_delete_with_meta_nonexistent(ENGINE_HANDLE *h,
 
     // do delete with meta with an incorrect cas value. should fail.
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, invalid_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
-          "Expected invalid cas error");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
+            "Expected invalid cas error");
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 0, "Failed op does not count");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Failed op does not count");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
     // do delete with meta with the correct cas value. should pass.
     del_with_meta(h, h1, key, keylen, 0, &itm_meta, valid_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h, h1);
 
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 1, "Expect one op");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
     wait_for_stat_to_be(h, h1, "curr_items", 0);
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // get metadata again to verify that delete with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
     check(itm_meta.revSeqno == last_meta.revSeqno, "Expected seqno to match");
     check(itm_meta.cas == last_meta.cas, "Expected cas to match");
     check(itm_meta.flags == last_meta.flags, "Expected flags to match");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
     return SUCCESS;
 }
@@ -11071,12 +11566,12 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(ENGINE_HANDLE 
     // do delete with meta with the correct cas value.
     // skipConflictResolution false
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta1, 0, false);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h, h1);
 
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 1, "Expect one op");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
     wait_for_stat_to_be(h, h1, "curr_items", 0);
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // do delete with meta with the correct cas value.
     // skipConflictResolution true
@@ -11091,12 +11586,12 @@ static enum test_result test_delete_with_meta_nonexistent_no_temp(ENGINE_HANDLE 
     itm_meta2.flags = 0xdeadbeef;
 
     del_with_meta(h, h1, key2, keylen2, 0, &itm_meta2, 0, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h, h1);
 
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta") == 2, "Expect one op");
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_meta"), "Expect one op");
     wait_for_stat_to_be(h, h1, "curr_items", 0);
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     return SUCCESS;
 }
@@ -11121,21 +11616,23 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     //
 
     // create a new key and do get_meta
-    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // do a concurrent set that changes the cas
-    check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
@@ -11146,19 +11643,20 @@ static enum test_result test_delete_with_meta_race_with_set(ENGINE_HANDLE *h, EN
     //
 
     // do get_meta for the deleted key
-    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
 
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
 
     // do a concurrent set that changes the cas
-    check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
@@ -11184,18 +11682,19 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     //
 
     // create a new key and do get_meta
-    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
+            "Failed set.");
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // do a concurrent delete
-    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
 
     // attempt delete_with_meta. should fail since cas is no longer valid.
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
@@ -11209,15 +11708,15 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     // do get_meta for the deleted key
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
 
     // do a concurrent delete
-    check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Delete failed");
 
     // attempt delete_with_meta. should pass.
     del_with_meta(h, h1, key1, keylen1, 0, &itm_meta, last_cas, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected delete_with_meta success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
@@ -11230,14 +11729,14 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
 
     // do get_meta for a nonexisting key
     check(!get_meta(h, h1, key2), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(), "Expected enoent");
 
     // do a concurrent delete
-    check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Delete failed");
 
     // attempt delete_with_meta. should pass.
     del_with_meta(h, h1, key2, keylen2, 0, &itm_meta, last_cas, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected delete_with_meta success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
@@ -11257,22 +11756,23 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     uint32_t high_seqno;
 
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
-    check(get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta") == 0,
-          "Expect zero ops");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expect zero items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expect zero temp items");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect zero ops");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta"),
+            "Expect zero ops");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expect zero items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expect zero temp items");
 
     // create a new key
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, val, &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, val, &i),
+            "Failed set.");
 
     // get metadata for the key
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expect one item");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expect zero temp item");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expect one item");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expect zero temp item");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -11286,16 +11786,16 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     char *bigValue = new char[32*1024*1024];
     // do set with meta with the value size bigger than the max size allowed.
     set_with_meta(h, h1, key, keylen, bigValue, 32*1024*1024, 0, &itm_meta, cas_for_set);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_E2BIG,
+    checkeq(PROTOCOL_BINARY_RESPONSE_E2BIG, last_status.load(),
           "Expected the max value size exceeding error");
     delete []bigValue;
 
     // do set with meta with an incorrect cas value. should fail.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, 1229);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Failed op does not count");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Failed op does not count");
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
@@ -11305,18 +11805,18 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
                   false, 0, false, 0, 0, cookie);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected valid sequence number");
 
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 1, "Expect some ops");
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expect one item");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expect zero temp item");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expect one item");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expect zero temp item");
 
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_meta.revSeqno == 10, "Expected seqno to match");
     check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
@@ -11327,20 +11827,21 @@ static enum test_result test_set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h
     cas_for_set = last_meta.cas;
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set,
                   false, 0, false, 0, 0, cookie);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected same vbucket uuid");
     check(last_seqno == high_seqno + 1, "Expected same sequence number");
 
     itm_meta.revSeqno++;
     cas_for_set = last_meta.cas;
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_uuid == vb_uuid, "Expected valid vbucket uuid");
     check(last_seqno == high_seqno + 3, "Expected valid sequence number");
 
     // Make sure the item expiration was processed correctly
     testHarness.time_travel(301);
-    check(h1->get(h, NULL, &i, key, keylen, 0) == ENGINE_KEY_ENOENT, "Failed to get value.");
+    checkeq(ENGINE_KEY_ENOENT, h1->get(h, NULL, &i, key, keylen, 0),
+            "Failed to get value.");
 
     h1->release(h, NULL, i);
     testHarness.destroy_cookie(cookie);
@@ -11363,12 +11864,12 @@ static enum test_result test_set_with_meta_by_force(ENGINE_HANDLE *h,
     // Pass true to force SetWithMeta.
     set_with_meta(h, h1, key, keylen, val, strlen(val), 0, &itm_meta,
                   0, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h, h1);
 
     // get metadata again to verify that the warmup loads an item correctly.
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_meta.revSeqno == 10, "Expected seqno to match");
     check(last_meta.cas == 0xdeadbeef, "Expected cas to match");
     check(last_meta.flags == 0xdeadbeef, "Expected flags to match");
@@ -11386,29 +11887,30 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     uint16_t newValLen = (uint16_t)strlen(newVal);
 
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
-    check(get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta") == 0,
-                                                           "Expect zero ops");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect zero ops");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta"),
+            "Expect zero ops");
 
     // create a new key
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, val, &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, val, &i),
+            "Failed set.");
     wait_for_flusher_to_settle(h, h1);
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // delete the key
-    check(del(h, h1, key, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, key, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     // get metadata for the key
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -11421,30 +11923,30 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
 
     // do set_with_meta with an incorrect cas for a deleted item. should fail.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, 1229);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected key_not_found error");
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Failed op does not count");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Failed op does not count");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 1, "Expect some ops");
-    check(get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta") == 0,
-          "Expect some ops");
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_get_meta_on_set_meta"),
+            "Expect some ops");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata(0xdeadbeef, 10, 0xdeadbeef, 1735689600);
     verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -11457,14 +11959,14 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     size_t valLen = strlen(val);
 
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Expect zero ops");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect zero ops");
 
     // wait until the vb snapshot has run
     wait_for_stat_change(h, h1, "ep_vb_snapshot_total", 0);
     // get metadata for the key
     check(!get_meta(h, h1, key), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(), "Expected enoent");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
 
     // this is the cas to be used with a subsequent set with meta
     uint64_t cas_for_set = last_cas;
@@ -11477,27 +11979,27 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
 
     // do set_with_meta with an incorrect cas for a non-existent item. should fail.
     set_with_meta(h, h1, key, keylen, val, valLen, 0, &itm_meta, 1229);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected key_not_found error");
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0, "Failed op does not count");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Failed op does not count");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
 
     // do set with meta with the correct cas value. should pass.
     set_with_meta(h, h1, key, keylen, val, valLen, 0, &itm_meta, cas_for_set);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     // check the stat
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 1, "Expect some ops");
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta"), "Expect some ops");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     // get metadata again to verify that set with meta was successful
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata(0xdeadbeef, 10, 0xdeadbeef, 1735689600);
     verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
-    check(get_int_stat(h, h1, "curr_items") == 1, "Expected single curr_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
+    checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
 
     return SUCCESS;
 }
@@ -11516,22 +12018,24 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     //
 
     // create a new key and do get_meta
-    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // do a concurrent set that changes the cas
-    check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     last_meta.revSeqno += 2;
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
@@ -11542,21 +12046,22 @@ static enum test_result test_set_with_meta_race_with_set(ENGINE_HANDLE *h, ENGIN
     //
 
     // do get_meta for the deleted key
-    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
 
     // do a concurrent set that changes the cas
-    check(store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "someothervalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     last_meta.revSeqno += 2;
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
@@ -11581,18 +12086,19 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     //
 
     // create a new key and do get_meta
-    check(store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
+            "Failed set.");
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // do a concurrent delete that changes the cas
-    check(del(h, h1, key1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, key1, 0, 0), "Delete failed");
 
     // attempt set_with_meta. should fail since cas is no longer valid.
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected invalid cas error");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
@@ -11606,15 +12112,15 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
     // do get_meta for the deleted key
     wait_for_flusher_to_settle(h, h1);
     check(get_meta(h, h1, key1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
 
     // do a concurrent delete. should fail.
-    check(del(h, h1, key1, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
     set_with_meta(h, h1, key1, keylen1, NULL, 0, 0, &last_meta, last_cas, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
     check(temp == 1, "Expect some op");
@@ -11626,14 +12132,14 @@ static enum test_result test_set_with_meta_race_with_delete(ENGINE_HANDLE *h, EN
 
     // do get_meta for a nonexisting key
     check(!get_meta(h, h1, key2), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(), "Expected enoent");
 
     // do a concurrent delete. should fail.
-    check(del(h, h1, key2, 0, 0) == ENGINE_KEY_ENOENT, "Delete failed");
+    checkeq(ENGINE_KEY_ENOENT, del(h, h1, key2, 0, 0), "Delete failed");
 
     // attempt set_with_meta. should pass since cas is still valid.
     set_with_meta(h, h1, key2, keylen2, NULL, 0, 0, &last_meta, last_cas, true);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_set_meta");
     check(temp == 2, "Expect some ops");
@@ -11648,31 +12154,32 @@ static enum test_result test_temp_item_deletion(ENGINE_HANDLE *h, ENGINE_HANDLE_
     char const *k1 = "k1";
     item *i = NULL;
 
-    check(store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i),
+            "Failed set.");
     wait_for_flusher_to_settle(h, h1);
 
-    check(del(h, h1, k1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, k1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     check(get_meta(h, h1, k1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
     // Do get_meta for a non-existing key
     char const *k2 = "k2";
     check(!get_meta(h, h1, k2), "Expected get meta to return false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, "Expected enoent");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(), "Expected enoent");
     checkeq(1, get_int_stat(h, h1, "curr_temp_items"),
             "No additional bg fetches, thanks to bloom filters");
 
     // Trigger the expiry pager and verify that two temp items are deleted
     wait_for_stat_to_be(h, h1, "ep_expired_pager", 1);
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Expected zero temp_items");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -11688,11 +12195,11 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.flags = 0xdeadbeef;
 
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
             "Expected no bg meta fetches, thanks to bloom filters");
 
-    check(del(h, h1, "key", 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, "key", 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
@@ -11700,30 +12207,30 @@ static enum test_result test_add_meta_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.revSeqno++;
     itemMeta.cas++;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     checkeq(1, get_int_stat(h, h1, "ep_bg_meta_fetched"),
-            "Expected one bg meta fetch");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 1,
+          "Expected two be meta fetches");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 2,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     add_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     return SUCCESS;
@@ -11738,55 +12245,55 @@ static enum test_result test_set_meta_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0,
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"),
           "Expect zero setMeta ops");
 
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
             "Expected no bg meta fetches, thanks to bloom filters");
 
     // Check all meta data is the same
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 1,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 2,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     // Check has newer flags passes
     itemMeta.flags = 0xdeadbeff;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that newer exptime wins
     itemMeta.exptime = time(NULL) + 10;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 4,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(4, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 4,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(4, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
@@ -11807,35 +12314,35 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     //Set initial drift and enable time synchronization
     set_drift_counter_state(h, h1, 0, 0x01);
 
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta") == 0,
+    checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"),
           "Expect zero setMeta ops");
 
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
                   PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     checkeq(0, get_int_stat(h, h1, "ep_bg_meta_fetched"),
             "Expected no bg meta fetchs, thanks to bloom filters");
 
     // Check all meta data is the same
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
                   PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 1,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     // Check that an older cas fails
     itemMeta.cas = 0xdeadbeee;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
                   PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 2,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     // Check that a higher cas passes
     itemMeta.cas = 0xdeadbeff;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
                   PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that a higher cas, lower rev seqno and conflict resolution
     // with revision seqno will fail
@@ -11843,8 +12350,8 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.revSeqno = 9;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
                   PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail") == 3,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_meta_res_fail"),
           "Expected set meta conflict resolution failure");
 
     // Check that a lower cas, higher rev seqno and conflict resolution
@@ -11852,7 +12359,7 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.revSeqno = 11;
     set_with_meta(h, h1, "key", 3, NULL, 0, 0, &itemMeta, 0, false,
                   PROTOCOL_BINARY_RAW_BYTES, true, gethrtime(), 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     return SUCCESS;
 }
 
@@ -11860,8 +12367,9 @@ static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
 
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     wait_for_flusher_to_settle(h, h1);
     h1->release(h, NULL, i);
 
@@ -11873,40 +12381,40 @@ static enum test_result test_del_meta_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.flags = 0xdeadbeef;
 
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     // Check all meta data is the same
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 1,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
 
     // Check has older flags fails
     itemMeta.flags = 0xdeadbeee;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 2,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
 
     // Check that smaller exptime loses
     itemMeta.exptime = 0;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 3,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(3, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
 
     // Check testing with old seqno
     itemMeta.revSeqno--;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
     check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 4,
           "Expected delete meta conflict resolution failure");
 
     itemMeta.revSeqno += 10;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 4,
           "Expected delete meta conflict resolution failure");
 
@@ -11921,8 +12429,9 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
 
     set_drift_counter_state(h, h1, 0, 0x01);
 
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
 
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
@@ -11937,44 +12446,44 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.flags = 0xdeadbeef;
 
     del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     // Check all meta data is the same
     del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 1,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
 
     // Check that higher rev seqno but lower cas fails
     itemMeta.cas = info.cas;
     itemMeta.revSeqno = 11;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 2,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
 
     // Check that a higher cas and lower rev seqno passes
     itemMeta.cas = info.cas + 2;
     itemMeta.revSeqno = 9;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected sucess");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected sucess");
 
     // Check that a higher rev seqno and lower cas and conflict resolution of
     // revision seqno passes
     itemMeta.revSeqno = 10;
     itemMeta.cas = info.cas + 1;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that a lower rev seqno and higher cas and conflict resolution of
     // revision seqno fails
     itemMeta.revSeqno = 9;
     itemMeta.cas = info.cas + 2;
     del_with_meta(h, h1, "key", 3, 0, &itemMeta, 0, false, true, gethrtime(), 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, "Expected exists");
-    check(get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail") == 3,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(), "Expected exists");
+    checkeq(3, get_int_stat(h, h1, "ep_num_ops_del_meta_res_fail"),
           "Expected delete meta conflict resolution failure");
 
     return SUCCESS;
@@ -11990,7 +12499,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
     free(request);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, last_status.load(),
             "Expected Not Supported, as Time sync hasn't been enabled yet");
 
     set_drift_counter_state(h, h1, 1000, 0x01);
@@ -11999,7 +12508,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
     free(request);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
@@ -12012,7 +12521,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
     free(request);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
@@ -12034,7 +12543,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
                   false, 0x00, true, adjusted_time2 * 2);
     wait_for_flusher_to_settle(h, h1);
 
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected a SUCCESS");
     check_key_value(h, h1, "key", "value", 5, 0);
 
@@ -12042,7 +12551,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
             NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
     free(request);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
@@ -12056,19 +12565,20 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
 
     // Test sending adjustedTime with DelWithMeta
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key2", "value2", &i) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key2", "value2", &i),
             "Failed set.");
     h1->release(h, NULL, i);
     del_with_meta(h, h1, "key2", 4, 0, &itm_meta, last_cas, false,
                   true, adjusted_time1 * 2);
     wait_for_flusher_to_settle(h, h1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
             NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
     free(request);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
@@ -12088,7 +12598,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
 static enum test_result test_observe_no_data(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     std::map<std::string, uint16_t> obskeys;
     observe(h, h1, obskeys);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     return SUCCESS;
 }
 
@@ -12102,7 +12612,7 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
     uint64_t high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
     observe_seqno(h, h1, 1, vb_uuid);
 
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     check_observe_seqno(false, 0, 1, vb_uuid, high_seqno, high_seqno);
 
@@ -12123,7 +12633,7 @@ static enum test_result test_observe_seqno_basic_tests(ENGINE_HANDLE *h,
     int total_persisted = get_int_stat(h, h1, "ep_total_persisted");
     high_seqno = get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno");
 
-    check(total_persisted == num_items,
+    checkeq(total_persisted, num_items,
           "Expected ep_total_persisted equals the number of items");
 
     observe_seqno(h, h1, 1, vb_uuid);
@@ -12198,7 +12708,7 @@ static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
     //not my vbucket test
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     observe_seqno(h, h1, 10, vb_uuid);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
           "Expected not my vbucket");
 
     //invalid uuid for vbucket
@@ -12214,7 +12724,7 @@ static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
     h1->unknown_command(h, NULL, request, add_response);
 
     free(request);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected vb uuid not found");
 
     return SUCCESS;
@@ -12235,7 +12745,7 @@ static enum test_result test_observe_single_key(ENGINE_HANDLE *h, ENGINE_HANDLE_
     std::map<std::string, uint16_t> obskeys;
     obskeys["key"] = 0;
     observe(h, h1, obskeys);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that the key is not persisted
     uint16_t vb;
@@ -12262,28 +12772,29 @@ static enum test_result test_observe_temp_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     char const *k1 = "key";
     item *i = NULL;
 
-    check(store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, k1, "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
 
-    check(del(h, h1, k1, 0, 0) == ENGINE_SUCCESS, "Delete failed");
+    checkeq(ENGINE_SUCCESS, del(h, h1, k1, 0, 0), "Delete failed");
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     check(get_meta(h, h1, k1), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
-    check(get_int_stat(h, h1, "curr_items") == 0, "Expected zero curr_items");
+    checkeq(0, get_int_stat(h, h1, "curr_items"), "Expected zero curr_items");
 
     // Make sure there is one temp_item
-    check(get_int_stat(h, h1, "curr_temp_items") == 1, "Expected single temp_items");
+    checkeq(1, get_int_stat(h, h1, "curr_temp_items"), "Expected single temp_items");
 
     // Do an observe
     std::map<std::string, uint16_t> obskeys;
     obskeys["key"] = 0;
     observe(h, h1, obskeys);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check that the key is not found
     uint16_t vb;
@@ -12334,7 +12845,7 @@ static enum test_result test_observe_multi_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     obskeys["key2"] = 1;
     obskeys["key3"] = 1;
     observe(h, h1, obskeys);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check the result
     uint16_t vb;
@@ -12405,7 +12916,7 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     std::map<std::string, uint16_t> obskeys;
     obskeys["key1"] = 0;
     observe(h, h1, obskeys);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
@@ -12423,7 +12934,7 @@ static enum test_result test_multiple_observes(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     obskeys.clear();
     obskeys["key2"] = 0;
     observe(h, h1, obskeys);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     memcpy(&vb, last_body.data(), sizeof(uint16_t));
     check(ntohs(vb) == 0, "Wrong vbucket in result");
@@ -12467,7 +12978,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     obskeys["key2"] = 0;
     obskeys["key3"] = 1;
     observe(h, h1, obskeys);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check the result
     uint16_t vb;
@@ -12514,20 +13025,21 @@ static enum test_result test_observe_errors(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     // Check not my vbucket error
     obskeys["key"] = 1;
     observe(h, h1, obskeys);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "Expected not my vbucket");
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(), "Expected not my vbucket");
 
     // Check invalid packets
     protocol_binary_request_header *pkt;
     pkt = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0", 1);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Expected invalid");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected invalid");
     free(pkt);
 
     pkt = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0000", 4);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Observe failed.");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL, "Expected invalid");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "Observe failed.");
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected invalid");
     free(pkt);
 
     return SUCCESS;
@@ -12538,27 +13050,28 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     // turn off flushall_enabled parameter
     set_param(h, h1, protocol_binary_engine_param_flush, "flushall_enabled", "false");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Failed to set flushall_enabled param");
 
     // store a key and check its existence
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
 
     check_key_value(h, h1, "key", "somevalue", 9);
     // expect error msg engine does not support operation
-    check(h1->flush(h, NULL, 0) == ENGINE_ENOTSUP, "Flush should be disabled");
+    checkeq(ENGINE_ENOTSUP, h1->flush(h, NULL, 0), "Flush should be disabled");
     //check the key
-    check(ENGINE_SUCCESS == verify_key(h, h1, "key"), "Expected key");
+    checkeq(ENGINE_SUCCESS, verify_key(h, h1, "key"), "Expected key");
 
     // turn on flushall_enabled parameter
     set_param(h, h1, protocol_binary_engine_param_flush, "flushall_enabled", "true");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Failed to set flushall_enabled param");
     // flush should succeed
     set_degraded_mode(h, h1, NULL, true);
-    check(h1->flush(h, NULL, 0) == ENGINE_SUCCESS, "Flush should be enabled");
+    checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0), "Flush should be enabled");
     set_degraded_mode(h, h1, NULL, false);
     //expect missing key
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
@@ -12568,30 +13081,35 @@ static enum test_result test_CBD_152(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "value1", &itm) == ENGINE_SUCCESS,
-          "Failed to set key");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "value1", &itm),
+            "Failed to set key");
     h1->release(h, NULL, itm);
 
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_DISABLE_TRAFFIC);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to send data traffic command to the server");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "Failed to send data traffic command to the server");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Faile to disable data traffic");
     free(pkt);
 
-    check(store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm) == ENGINE_TMPFAIL,
-          "Expected to receive temporary failure");
+    checkeq(ENGINE_TMPFAIL,
+            store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm),
+            "Expected to receive temporary failure");
     h1->release(h, NULL, itm);
 
     pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Failed to send data traffic command to the server");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "Failed to send data traffic command to the server");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Faile to enable data traffic");
     free(pkt);
 
-    check(store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm) == ENGINE_SUCCESS,
-          "Failed to set key");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm),
+            "Failed to set key");
     h1->release(h, NULL, itm);
     return SUCCESS;
 }
@@ -12639,8 +13157,9 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         // Reference each stored item multiple times.
         for (int k = 0; k < 5; ++k) {
             item *i;
-            check(h1->get(h, NULL, &i, key.c_str(), key.length(), 0) == ENGINE_SUCCESS,
-                  "Failed to get value.");
+            checkeq(ENGINE_SUCCESS,
+                    h1->get(h, NULL, &i, key.c_str(), key.length(), 0),
+                    "Failed to get value.");
             h1->release(h, NULL, i);
         }
     }
@@ -12693,8 +13212,9 @@ static enum test_result test_item_pager(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
         std::string key(ss.str());
 
         item *i;
-        check(h1->get(h, NULL, &i, key.c_str(), key.length(), 0) == ENGINE_SUCCESS,
-             "Failed to get value.");
+        checkeq(ENGINE_SUCCESS,
+                h1->get(h, NULL, &i, key.c_str(), key.length(), 0),
+                "Failed to get value.");
         h1->release(h, NULL, i);
     }
 
@@ -12744,7 +13264,7 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "curr_items", 0);
 
     check(get_meta(h, h1, "key3"), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_meta.revSeqno == 4, "Expected seqno to match");
     check(last_meta.cas == 4, "Expected cas to match");
     check(last_meta.flags == 0, "Expected flags to match");
@@ -12758,35 +13278,43 @@ static enum test_result test_stats_vkey_valid_field(ENGINE_HANDLE *h,
 
     // Check vkey when a key doesn't exist
     const char* stats_key = "vkey key 0";
-    check(h1->get_stats(h, cookie, stats_key, strlen(stats_key),
-                        add_stats) == ENGINE_KEY_ENOENT, "Expected not found.");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get_stats(h, cookie, stats_key, strlen(stats_key),
+                          add_stats),
+            "Expected not found.");
 
 
     stop_persistence(h, h1);
 
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "value", &itm) == ENGINE_SUCCESS,
-          "Failed to set key");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "value", &itm),
+            "Failed to set key");
     h1->release(h, NULL, itm);
 
     // Check to make sure a non-persisted item is 'dirty'
-    check(h1->get_stats(h, cookie, stats_key, strlen(stats_key),
-                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, stats_key, strlen(stats_key),
+                          add_stats),
+            "Failed to get stats.");
     check(vals.find("key_valid")->second.compare("dirty") == 0,
           "Expected 'dirty'");
 
     // Check that a key that is resident and persisted returns valid
     start_persistence(h, h1);
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 1);
-    check(h1->get_stats(h, cookie, stats_key, strlen(stats_key),
-                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, stats_key, strlen(stats_key),
+                          add_stats),
+            "Failed to get stats.");
     check(vals.find("key_valid")->second.compare("valid") == 0,
           "Expected 'valid'");
 
     // Check that an evicted key still returns valid
     evict_key(h, h1, "key", 0, "Ejected.");
-    check(h1->get_stats(h, cookie, "vkey key 0", 10, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, "vkey key 0", 10, add_stats),
+            "Failed to get stats.");
     check(vals.find("key_valid")->second.compare("valid") == 0, "Expected 'valid'");
 
     testHarness.destroy_cookie(cookie);
@@ -12801,15 +13329,17 @@ static enum test_result test_multiple_transactions(ENGINE_HANDLE *h,
         std::stringstream s1;
         s1 << "key-0-" << j;
         item *i;
-        check(store(h, h1, NULL, OPERATION_SET,
-              s1.str().c_str(), s1.str().c_str(), &i, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET,
+                      s1.str().c_str(), s1.str().c_str(), &i, 0, 0),
+                "Failed to store a value");
         h1->release(h, NULL, i);
         std::stringstream s2;
         s2 << "key-1-" << j;
-        check(store(h, h1, NULL, OPERATION_SET,
-              s2.str().c_str(), s2.str().c_str(), &i, 0, 1) == ENGINE_SUCCESS,
-              "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET,
+                      s2.str().c_str(), s2.str().c_str(), &i, 0, 1),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
     wait_for_stat_to_be(h, h1, "ep_total_persisted", 2000);
@@ -12821,25 +13351,28 @@ static enum test_result test_multiple_transactions(ENGINE_HANDLE *h,
 static enum test_result test_gat_locked(ENGINE_HANDLE *h,
                                         ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET,
-                "key", "value", &itm) == ENGINE_SUCCESS, "Failed to set key");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,
+                  "key", "value", &itm),
+            "Failed to set key");
     h1->release(h, NULL, itm);
 
     getl(h, h1, "key", 0, 15);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected getl to succeed on key");
 
     gat(h, h1, "key", 0, 10);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "Expected tmp fail");
+    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(), "Expected tmp fail");
     check(last_body == "Lock Error", "Wrong error message");
 
     testHarness.time_travel(16);
     gat(h, h1, "key", 0, 10);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     testHarness.time_travel(11);
-    check(h1->get(h, NULL, &itm, "key", 3, 0) == ENGINE_KEY_ENOENT,
-          "Expected value to be expired");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &itm, "key", 3, 0),
+            "Expected value to be expired");
 
     return SUCCESS;
 }
@@ -12847,16 +13380,18 @@ static enum test_result test_gat_locked(ENGINE_HANDLE *h,
 static enum test_result test_getl_delete_with_bad_cas(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET,
-                "key", "value", &itm) == ENGINE_SUCCESS, "Failed to set key");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,
+                  "key", "value", &itm),
+            "Failed to set key");
     h1->release(h, NULL, itm);
 
     uint64_t cas = last_cas;
     getl(h, h1, "key", 0, 15);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected getl to succeed on key");
 
-    check(del(h, h1, "key", cas, 0) == ENGINE_TMPFAIL, "Expected TMPFAIL");
+    checkeq(ENGINE_TMPFAIL, del(h, h1, "key", cas, 0), "Expected TMPFAIL");
 
     return SUCCESS;
 }
@@ -12864,15 +13399,16 @@ static enum test_result test_getl_delete_with_bad_cas(ENGINE_HANDLE *h,
 static enum test_result test_getl_delete_with_cas(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET,
-                "key", "value", &itm) == ENGINE_SUCCESS, "Failed to set key");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "value", &itm),
+            "Failed to set key");
     h1->release(h, NULL, itm);
 
     getl(h, h1, "key", 0, 15);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected getl to succeed on key");
 
-    check(del(h, h1, "key", last_cas, 0) == ENGINE_SUCCESS, "Expected SUCCESS");
+    checkeq(ENGINE_SUCCESS, del(h, h1, "key", last_cas, 0), "Expected SUCCESS");
 
     return SUCCESS;
 }
@@ -12883,12 +13419,13 @@ static enum test_result test_getl_set_del_with_meta(ENGINE_HANDLE *h,
     const char *key = "key";
     const char *val = "value";
     const char *newval = "newvalue";
-    check(store(h, h1, NULL, OPERATION_SET,
-                key, val, &itm) == ENGINE_SUCCESS, "Failed to set key");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, val, &itm),
+            "Failed to set key");
     h1->release(h, NULL, itm);
 
     getl(h, h1, key, 0, 15);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected getl to succeed on key");
 
     check(get_meta(h, h1, key), "Expected to get meta");
@@ -12903,12 +13440,12 @@ static enum test_result test_getl_set_del_with_meta(ENGINE_HANDLE *h,
     //do a set with meta
     set_with_meta(h, h1, key, strlen(key), newval, strlen(newval), 0,
                   &itm_meta, last_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected item to be locked");
 
     //do a del with meta
     del_with_meta(h, h1, key, strlen(key), 0, &itm_meta, last_cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected item to be locked");
     return SUCCESS;
 }
@@ -12916,25 +13453,27 @@ static enum test_result test_getl_set_del_with_meta(ENGINE_HANDLE *h,
 static enum test_result test_touch_locked(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET,
-                "key", "value", &itm) == ENGINE_SUCCESS, "Failed to set key");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "value", &itm),
+            "Failed to set key");
     h1->release(h, NULL, itm);
 
     getl(h, h1, "key", 0, 15);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected getl to succeed on key");
 
     touch(h, h1, "key", 0, 10);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "Expected tmp fail");
+    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(), "Expected tmp fail");
     check(last_body == "Lock Error", "Wrong error message");
 
     testHarness.time_travel(16);
     touch(h, h1, "key", 0, 10);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     testHarness.time_travel(11);
-    check(h1->get(h, NULL, &itm, "key", 3, 0) == ENGINE_KEY_ENOENT,
-          "Expected value to be expired");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &itm, "key", 3, 0),
+            "Expected value to be expired");
 
     return SUCCESS;
 }
@@ -12947,9 +13486,10 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     for (int ii = 0; ii < num_keys; ++ii) {
         std::stringstream ss;
         ss << "key" << ii;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, 0, 0),
+                "Failed to store an item.");
     }
     check(estimateVBucketMove(h, h1, 0) == 11, "Invalid estimate");
     wait_for_flusher_to_settle(h, h1);
@@ -12959,8 +13499,9 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     for (int ii = 0; ii < 2; ++ii) {
         std::stringstream ss;
         ss << "key" << ii;
-        check(del(h, h1, ss.str().c_str(), 0, 0) == ENGINE_SUCCESS,
-              "Failed to remove a key");
+        checkeq(ENGINE_SUCCESS,
+                del(h, h1, ss.str().c_str(), 0, 0),
+                "Failed to remove a key");
     }
 
     check(estimateVBucketMove(h, h1, 0) == 8, "Invalid estimate");
@@ -12973,9 +13514,10 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     for (int ii = 0; ii < num_keys; ++ii) {
         std::stringstream ss;
         ss << "longerkey" << ii;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
-                    "value", NULL, 0, 0, 0) == ENGINE_SUCCESS,
-              "Failed to store an item.");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(),
+                      "value", NULL, 0, 0, 0),
+                "Failed to store an item.");
     }
     check(estimateVBucketMove(h, h1, 0) >= 15, "Invalid estimate");
 
@@ -13009,8 +13551,9 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     size_t chk_items;
     size_t remaining;
 
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
 
     do {
@@ -13038,8 +13581,8 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
         case TAP_OPAQUE:
             opaque = ntohl(*(static_cast<int*> (engine_specific)));
             if (opaque == TAP_OPAQUE_CLOSE_BACKFILL) {
-                check(mutations == 3, "Invalid number of backfill mutations");
-                check(deletions == 2, "Invalid number of backfill deletions");
+                checkeq(3, mutations, "Invalid number of backfill mutations");
+                checkeq(2, deletions, "Invalid number of backfill deletions");
                 backfillphase = false;
             }
             break;
@@ -13059,7 +13602,7 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
             if (!backfillphase) {
                 chk_items = estimateVBucketMove(h, h1, 0, name.c_str());
                 remaining = 10 - total_sent;
-                check(chk_items == remaining, "Invalid Estimate of chk items");
+                checkeq(chk_items, remaining, "Invalid Estimate of chk items");
             }
             h1->release(h, NULL, it);
             break;
@@ -13069,8 +13612,9 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
         }
     } while (!done);
 
-    check(get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
-                       "tap") == 10, "Incorrect number of items sent");
+    checkeq(10, get_int_stat(h, h1, "eq_tapq:tap_client_thread:sent_from_vb_0",
+                             "tap"),
+            "Incorrect number of items sent");
     testHarness.unlock_cookie(cookie);
     testHarness.destroy_cookie(cookie);
 
@@ -13081,9 +13625,9 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
     // Check that set without cas succeeds
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 1,
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
                        "Expected 1 set rm op");
 
     check(last_meta.flags == 0, "Invalid result for flags");
@@ -13093,9 +13637,9 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
 
     // Check that set with correct cas succeeds
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas, 10, 1735689600);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 2,
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
                        "Expected 2 set rm ops");
 
     check(last_meta.flags == 10, "Invalid result for flags");
@@ -13105,9 +13649,9 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
 
     // Check that updating an item with no cas succeeds
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 5, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 3,
+    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
                        "Expected 3 set rm ops");
 
     check(last_meta.flags == 5, "Invalid result for flags");
@@ -13117,9 +13661,9 @@ static enum test_result test_set_ret_meta(ENGINE_HANDLE *h,
 
     // Check that updating an item with the wrong cas fails
     set_ret_meta(h, h1, "key", 3, "value", 5, 0, last_meta.cas + 1, 5, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected set returing meta to fail");
-    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 3,
+    checkeq(3, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
                        "Expected 3 set rm ops");
 
     return SUCCESS;
@@ -13129,40 +13673,41 @@ static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Check invalid packet constructions
     set_ret_meta(h, h1, "", 0, "value", 5, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected set returing meta to succeed");
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to store ret meta");
+    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0,
+                       "key", 3, "val", 3);
+    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt, add_response),
+            "Expected to be able to store ret meta");
     free(pkt);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected set returing meta to succeed");
 
     // Check tmp fail errors
     disable_traffic(h, h1);
     set_ret_meta(h, h1, "key", 3, "value", 5, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected set returing meta to fail");
     enable_traffic(h, h1);
 
     // Check not my vbucket errors
     set_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
           "Expected set returing meta to fail");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     set_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
           "Expected set returing meta to fail");
     vbucketDelete(h, h1, 1);
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Failed to set vbucket state.");
     set_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
           "Expected set returing meta to fail");
     vbucketDelete(h, h1, 1);
 
@@ -13173,14 +13718,14 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
     // Check that add with cas fails
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 10, 0, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_STORED,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_STORED, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that add without cas succeeds.
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 1,
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
                        "Expected 1 set rm op");
 
     check(last_meta.flags == 0, "Invalid result for flags");
@@ -13190,14 +13735,14 @@ static enum test_result test_add_ret_meta(ENGINE_HANDLE *h,
 
     // Check that re-adding a key fails
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_STORED,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_STORED, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that adding a key with flags and exptime returns the correct values
     add_ret_meta(h, h1, "key2", 4, "value", 5, 0, 0, 10, 1735689600);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    check(get_int_stat(h, h1, "ep_num_ops_set_ret_meta") == 2,
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_set_ret_meta"),
                        "Expected 2 set rm ops");
 
     check(last_meta.flags == 10, "Invalid result for flags");
@@ -13212,40 +13757,41 @@ static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Check invalid packet constructions
     add_ret_meta(h, h1, "", 0, "value", 5, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected add returing meta to succeed");
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0, "key", 3, "val", 3);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
+    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0,
+                       "key", 3, "val", 3);
+    checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt, add_response),
           "Expected to be able to add ret meta");
     free(pkt);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected add returing meta to succeed");
 
     // Check tmp fail errors
     disable_traffic(h, h1);
     add_ret_meta(h, h1, "key", 3, "value", 5, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected add returing meta to fail");
     enable_traffic(h, h1);
 
     // Check not my vbucket errors
     add_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
           "Expected add returing meta to fail");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     add_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
           "Expected add returing meta to fail");
     vbucketDelete(h, h1, 1);
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Failed to add vbucket state.");
     add_ret_meta(h, h1, "key", 3, "value", 5, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
           "Expected add returing meta to fail");
     vbucketDelete(h, h1, 1);
 
@@ -13256,17 +13802,17 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
     // Check that deleting a non-existent key fails
     del_ret_meta(h, h1, "key", 3, 0, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that deleting a non-existent key with a cas fails
     del_ret_meta(h, h1, "key", 3, 0, 10);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected set returing meta to fail");
 
     // Check that deleting a key with no cas succeeds
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
 
     check(last_meta.flags == 0, "Invalid result for flags");
@@ -13275,9 +13821,9 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.revSeqno == 1, "Invalid result for seqno");
 
     del_ret_meta(h, h1, "key", 3, 0, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    check(get_int_stat(h, h1, "ep_num_ops_del_ret_meta") == 1,
+    checkeq(1, get_int_stat(h, h1, "ep_num_ops_del_ret_meta"),
                        "Expected 1 del rm op");
 
     check(last_meta.flags == 0, "Invalid result for flags");
@@ -13287,7 +13833,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
 
     // Check that deleting a key with a cas succeeds.
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 10, 1735689600);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
 
     check(last_meta.flags == 10, "Invalid result for flags");
@@ -13296,9 +13842,9 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.revSeqno == 3, "Invalid result for seqno");
 
     del_ret_meta(h, h1, "key", 3, 0, last_meta.cas);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
-    check(get_int_stat(h, h1, "ep_num_ops_del_ret_meta") == 2,
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_ret_meta"),
                        "Expected 2 del rm ops");
 
     check(last_meta.flags == 10, "Invalid result for flags");
@@ -13308,7 +13854,7 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
 
     // Check that deleting a key with the wrong cas fails
     add_ret_meta(h, h1, "key", 3, "value", 5, 0, 0, 0, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected set returing meta to succeed");
 
     check(last_meta.flags == 0, "Invalid result for flags");
@@ -13317,9 +13863,9 @@ static enum test_result test_del_ret_meta(ENGINE_HANDLE *h,
     check(last_meta.revSeqno == 5, "Invalid result for seqno");
 
     del_ret_meta(h, h1, "key", 3, 0, last_meta.cas + 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS, last_status.load(),
           "Expected set returing meta to fail");
-    check(get_int_stat(h, h1, "ep_num_ops_del_ret_meta") == 2,
+    checkeq(2, get_int_stat(h, h1, "ep_num_ops_del_ret_meta"),
                        "Expected 2 del rm ops");
 
     return SUCCESS;
@@ -13329,40 +13875,42 @@ static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Check invalid packet constructions
     del_ret_meta(h, h1, "", 0, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected add returing meta to succeed");
 
     protocol_binary_request_header *pkt;
-    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0, "key", 3);
-    check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
-          "Expected to be able to del ret meta");
+    pkt = createPacket(PROTOCOL_BINARY_CMD_RETURN_META, 0, 0, NULL, 0,
+                       "key", 3);
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "Expected to be able to del ret meta");
     free(pkt);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_EINVAL,
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected add returing meta to succeed");
 
     // Check tmp fail errors
     disable_traffic(h, h1);
     del_ret_meta(h, h1, "key", 3, 0);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_ETMPFAIL,
+    checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
           "Expected add returing meta to fail");
     enable_traffic(h, h1);
 
     // Check not my vbucket errors
     del_ret_meta(h, h1, "key", 3, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
           "Expected add returing meta to fail");
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica),
           "Failed to set vbucket state.");
     del_ret_meta(h, h1, "key", 3, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
           "Expected add returing meta to fail");
     vbucketDelete(h, h1, 1);
 
     check(set_vbucket_state(h, h1, 1, vbucket_state_dead),
           "Failed to add vbucket state.");
     del_ret_meta(h, h1, "key", 3, 1);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
           "Expected add returing meta to fail");
     vbucketDelete(h, h1, 1);
 
@@ -13372,8 +13920,9 @@ static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
 static enum test_result test_set_with_item_eviction(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "key", 0, "Ejected.");
@@ -13394,8 +13943,9 @@ static enum test_result test_setWithMeta_with_item_eviction(ENGINE_HANDLE *h,
 
     // create a new key
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, val, &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, val, &i),
+            "Failed set.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, key, 0, "Ejected.");
@@ -13411,7 +13961,7 @@ static enum test_result test_setWithMeta_with_item_eviction(ENGINE_HANDLE *h,
 
     // set with meta for a non-resident item should pass.
     set_with_meta(h, h1, key, keylen, newVal, newValLen, 0, &itm_meta, cas_for_set);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     return SUCCESS;
 }
@@ -13467,7 +14017,8 @@ extern "C" {
 static enum test_result test_multiple_set_delete_with_metas_full_eviction(
                                     ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
-    check(h1->get_stats(h, NULL, NULL, 0, add_stats) == ENGINE_SUCCESS,
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
             "Failed to get stats");
     std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
     cb_assert(eviction_policy == "full_eviction");
@@ -13526,8 +14077,9 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
                               true, true);
     wait_for_warmup_complete(h, h1);
 
-    check(get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0")
-          == curr_vb_items, "Unexpected item count in vbucket");
+    checkeq(curr_vb_items,
+            get_int_stat(h, h1, "vb_0:num_items", "vbucket-details 0"),
+            "Unexpected item count in vbucket");
 
     return SUCCESS;
 }
@@ -13536,21 +14088,24 @@ static enum test_result test_multiple_set_delete_with_metas_full_eviction(
 static enum test_result test_add_with_item_eviction(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed to add value.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i),
+            "Failed to add value.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "key", 0, "Ejected.");
 
-    check(store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i) == ENGINE_NOT_STORED,
-          "Failed to fail to re-add value.");
+    checkeq(ENGINE_NOT_STORED,
+            store(h, h1, NULL, OPERATION_ADD,"key", "somevalue", &i),
+            "Failed to fail to re-add value.");
     h1->release(h, NULL, i);
 
     // Expiration above was an hour, so let's go to The Future
     testHarness.time_travel(3800);
 
-    check(store(h, h1, NULL, OPERATION_ADD,"key", "newvalue", &i) == ENGINE_SUCCESS,
-          "Failed to add value again.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD,"key", "newvalue", &i),
+            "Failed to add value again.");
     h1->release(h, NULL, i);
     check_key_value(h, h1, "key", "newvalue", 8);
     return SUCCESS;
@@ -13561,15 +14116,16 @@ static enum test_result test_getMeta_with_item_eviction(ENGINE_HANDLE *h,
 {
     char const *key = "test_get_meta";
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "somevalue", &i),
+            "Failed set.");
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, key, 0, "Ejected.");
 
     Item *it = reinterpret_cast<Item*>(i);
 
     check(get_meta(h, h1, key), "Expected to get meta");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata(it->getCas(), it->getRevSeqno(),
                           it->getFlags(), it->getExptime());
     verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
@@ -13582,14 +14138,15 @@ static enum test_result test_gat_with_item_eviction(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
     // Store the item!
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm),
+            "Failed set.");
     h1->release(h, NULL, itm);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "mykey", 0, "Ejected.");
 
     gat(h, h1, "mykey", 0, 10); // 10 sec as expiration time
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "gat mykey");
     check(last_body == "somevalue", "Invalid data returned");
 
     // time-travel 9 secs..
@@ -13602,7 +14159,9 @@ static enum test_result test_gat_with_item_eviction(ENGINE_HANDLE *h,
     testHarness.time_travel(2);
 
     // The item should have expired now...
-    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &itm, "mykey", 5, 0),
+            "Item should be gone");
     return SUCCESS;
 }
 
@@ -13611,8 +14170,9 @@ static enum test_result test_keyStats_with_item_eviction(ENGINE_HANDLE *h,
     item *i = NULL;
 
     // set (k1,v1) in vbucket 0
-    check(store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0) == ENGINE_SUCCESS,
-          "Failed to store an item.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET,"k1", "v1", &i, 0, 0),
+            "Failed to store an item.");
     h1->release(h, NULL, i);
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "k1", 0, "Ejected.");
@@ -13621,8 +14181,9 @@ static enum test_result test_keyStats_with_item_eviction(ENGINE_HANDLE *h,
 
     // stat for key "k1" and vbucket "0"
     const char *statkey1 = "key k1 0";
-    check(h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats) == ENGINE_SUCCESS,
-          "Failed to get stats.");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, cookie, statkey1, strlen(statkey1), add_stats),
+            "Failed to get stats.");
     check(vals.find("key_is_dirty") != vals.end(), "Found no key_is_dirty");
     check(vals.find("key_exptime") != vals.end(), "Found no key_exptime");
     check(vals.find("key_flags") != vals.end(), "Found no key_flags");
@@ -13647,14 +14208,16 @@ static enum test_result test_delWithMeta_with_item_eviction(ENGINE_HANDLE *h,
 
     // store an item
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, key,
-                "somevalue", &i) == ENGINE_SUCCESS, "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key,
+                  "somevalue", &i),
+            "Failed set.");
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, key, 0, "Ejected.");
 
     // delete an item with meta data
     del_with_meta(h, h1, key, keylen, 0, &itemMeta);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -13663,8 +14226,9 @@ static enum test_result test_delWithMeta_with_item_eviction(ENGINE_HANDLE *h,
 static enum test_result test_del_with_item_eviction(ENGINE_HANDLE *h,
                                                     ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
+            "Failed set.");
     wait_for_flusher_to_settle(h, h1);
     evict_key(h, h1, "key", 0, "Ejected.");
 
@@ -13679,8 +14243,9 @@ static enum test_result test_del_with_item_eviction(ENGINE_HANDLE *h,
 
     vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    check(h1->remove(h, NULL, "key", 3, &cas, 0, &mut_info) == ENGINE_SUCCESS,
-          "Failed remove with value.");
+    checkeq(ENGINE_SUCCESS,
+            h1->remove(h, NULL, "key", 3, &cas, 0, &mut_info),
+            "Failed remove with value.");
     check(orig_cas + 1 == cas, "Cas mismatch on delete");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
     check(vb_uuid == mut_info.vbucket_uuid, "Expected valid vbucket uuid");
@@ -13720,7 +14285,7 @@ static enum test_result test_observe_with_item_eviction(ENGINE_HANDLE *h,
     obskeys["key2"] = 1;
     obskeys["key3"] = 1;
     observe(h, h1, obskeys);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
 
     // Check the result
     uint16_t vb;
@@ -13773,11 +14338,11 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
           "Failed set.");
     h1->release(h, NULL, itm);
     gat(h, h1, "mykey", 0, 10); // 10 sec as expiration time
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "gat mykey");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "gat mykey");
     check(last_body == "somevalue", "Invalid data returned");
 
     // Store a dummy item since we do not purge the item with highest seqno
-    check(ENGINE_SUCCESS ==
+    checkeq(ENGINE_SUCCESS,
           store(h, h1, NULL, OPERATION_SET, "dummykey", "dummyvalue", NULL,
                 0, 0, 0), "Error setting.");
 
@@ -13797,11 +14362,13 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
 
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
-    check(get_int_stat(h, h1, "vb_active_expired") == 1,
+    checkeq(1, get_int_stat(h, h1, "vb_active_expired"),
           "Expect the compactor to delete an expired item");
 
     // The item is already expired...
-    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_KEY_ENOENT, "Item should be gone");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &itm, "mykey", 5, 0),
+            "Item should be gone");
     return SUCCESS;
 }
 
@@ -13809,11 +14376,12 @@ static enum test_result test_non_existent_get_and_delete(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
 
     item *i = NULL;
-    check(h1->get(h, NULL, &i, "key1", 4, 0) == ENGINE_KEY_ENOENT,
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->get(h, NULL, &i, "key1", 4, 0),
             "Unexpected return status");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Unexpected temp item");
-    check(del(h, h1, "key3", 0, 0) == ENGINE_KEY_ENOENT, "Unexpected return status");
-    check(get_int_stat(h, h1, "curr_temp_items") == 0, "Unexpected temp item");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Unexpected temp item");
+    checkeq(ENGINE_KEY_ENOENT, del(h, h1, "key3", 0, 0), "Unexpected return status");
+    checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Unexpected temp item");
     return SUCCESS;
 }
 
@@ -13821,8 +14389,9 @@ static enum test_result test_mb16421(ENGINE_HANDLE *h,
                                      ENGINE_HANDLE_V1 *h1) {
     // Store the item!
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "mykey", "somevalue", &itm),
+            "Failed set.");
     h1->release(h, NULL, itm);
     wait_for_flusher_to_settle(h, h1);
 
@@ -13833,7 +14402,8 @@ static enum test_result test_mb16421(ENGINE_HANDLE *h,
     check(get_meta(h, h1, "mykey"), "Expected to get meta");
 
     // Issue Get
-    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_SUCCESS, "Item should be there");
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &itm, "mykey", 5, 0), "Item should be there");
     h1->release(h, NULL, itm);
 
     return SUCCESS;
@@ -13849,41 +14419,51 @@ static enum test_result test_get_random_key(ENGINE_HANDLE *h,
     memset(&pkt, 0, sizeof(pkt));
     pkt.request.opcode = PROTOCOL_BINARY_CMD_GET_RANDOM_KEY;
 
-    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
-          ENGINE_KEY_ENOENT, "Database should be empty");
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->unknown_command(h, cookie, &pkt, add_response),
+            "Database should be empty");
 
     // Store a key
     item *itm = NULL;
-    check(store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
-                &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON) == ENGINE_SUCCESS,
-          "Failed set.");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "mykey", "{\"some\":\"value\"}",
+                  &itm, 0, 0, 3600, PROTOCOL_BINARY_DATATYPE_JSON),
+            "Failed set.");
     h1->release(h, NULL, itm);
-    check(h1->get(h, NULL, &itm, "mykey", 5, 0) == ENGINE_SUCCESS, "Item should be there");
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &itm, "mykey", 5, 0),
+            "Item should be there");
     h1->release(h, NULL, itm);
 
     // We should be able to get one if there is something in there
-    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
-          ENGINE_SUCCESS, "get random should work");
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    check(last_datatype == PROTOCOL_BINARY_DATATYPE_JSON, "Expected datatype to be JSON");
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, cookie, &pkt, add_response),
+            "get random should work");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_DATATYPE_JSON),
+            last_datatype.load(),
+            "Expected datatype to be JSON");
 
     // Since it is random we can't really check that we don't get the
     // same value twice...
 
     // Check for invalid packets
     pkt.request.extlen = 1;
-    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
-          ENGINE_EINVAL, "extlen not allowed");
+    checkeq(ENGINE_EINVAL,
+            h1->unknown_command(h, cookie, &pkt, add_response),
+            "extlen not allowed");
 
     pkt.request.extlen = 0;
     pkt.request.keylen = 1;
-    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
-          ENGINE_EINVAL, "keylen not allowed");
+    checkeq(ENGINE_EINVAL,
+            h1->unknown_command(h, cookie, &pkt, add_response),
+            "keylen not allowed");
 
     pkt.request.keylen = 0;
     pkt.request.bodylen = 1;
-    check(h1->unknown_command(h, cookie, &pkt, add_response) ==
-          ENGINE_EINVAL, "bodylen not allowed");
+    checkeq(ENGINE_EINVAL,
+            h1->unknown_command(h, cookie, &pkt, add_response),
+            "bodylen not allowed");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -13917,8 +14497,9 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key" << j;
-        check(store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
         h1->release(h, NULL, i);
     }
 
@@ -14005,9 +14586,10 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
         snprintf(key, sizeof(key), "%d", i);
         item *item = NULL;
         uint16_t vb = i % num_vbuckets;
-        check(storeCasVb11(h, h1, cookie, OPERATION_ADD, key, data.c_str(),
-                           data.length(), 0, &item, 0, vb, 0, 0)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                storeCasVb11(h, h1, cookie, OPERATION_ADD, key, data.c_str(),
+                             data.length(), 0, &item, 0, vb, 0, 0),
+                "Failed to store a value");
         h1->release(h, NULL, item);
     }
     wait_for_flusher_to_settle(h, h1);
@@ -14055,9 +14637,10 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
 
                 uint64_t cas = 0;
                 mutation_descr_t mut_info;
-                check(h1->remove(h, NULL, key, strlen(key), &cas, vb,
-                                 &mut_info) == ENGINE_SUCCESS,
-                      "Failed to remove key.");
+                checkeq(ENGINE_SUCCESS,
+                        h1->remove(h, NULL, key, strlen(key), &cas, vb,
+                                   &mut_info),
+                        "Failed to remove key.");
                 kv->second.pop_back();
                 num_remaining--;
             }
@@ -14129,8 +14712,9 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
 
     //enabled time sync
     set_drift_counter_state(h, h1, 100000, true);
-    check(store(h, h1, NULL, OPERATION_ADD, key, "data1", &i, 0, 0)
-          == ENGINE_SUCCESS, "Failed to store an item");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD, key, "data1", &i, 0, 0),
+            "Failed to store an item");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, key), "Error in getting item info");
@@ -14142,8 +14726,9 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     //increasing
     set_drift_counter_state(h, h1, 100, true);
 
-    check(store(h, h1, NULL, OPERATION_SET, key, "data2", &i, 0, 0)
-          == ENGINE_SUCCESS, "Failed to store an item");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, key, "data2", &i, 0, 0),
+            "Failed to store an item");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, key), "Error getting item info");
@@ -14161,7 +14746,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
     free(request);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     check(last_body.size() == sizeof(int64_t),
             "Bodylen didn't match expected value");
@@ -14171,8 +14756,9 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
                         " is supposed to have been negative!");
     check(adjusted_time < 0, err_msg.c_str());
 
-    check(store(h, h1, NULL, OPERATION_REPLACE, key, "data3", &i, 0, 0)
-          == ENGINE_SUCCESS, "Failed to store an item");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_REPLACE, key, "data3", &i, 0, 0),
+            "Failed to store an item");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, key), "Error in getting item info");
@@ -14184,16 +14770,17 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     set_drift_counter_state(h, h1, 0, false);
 
     getl(h, h1, key, 0, 10);
-    check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Expected to be able to getl on first try");
     curr_cas = last_cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
     uint64_t result = 0;
-    check(h1->arithmetic(h, NULL, "key2", 4, true, true, 1, 1, 0,
-                         &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0)
-                         == ENGINE_SUCCESS, "Failed arithmetic operation");
+    checkeq(ENGINE_SUCCESS,
+            h1->arithmetic(h, NULL, "key2", 4, true, true, 1, 1, 0,
+                           &i, PROTOCOL_BINARY_RAW_BYTES, &result, 0),
+            "Failed arithmetic operation");
     h1->release(h, NULL, i);
 
     check(get_item_info(h, h1, &info, "key2"), "Error in getting item info");
@@ -14211,8 +14798,9 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
 
     for (int j = 0; j < num_items; ++j) {
         std::string key("key" + std::to_string(j));
-        check(store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", NULL)
-              == ENGINE_SUCCESS, "Failed to store a value");
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", NULL),
+                "Failed to store a value");
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -14294,9 +14882,10 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
                   "Failed to set vbucket state.");
             for (int j= 0; j < i; j++) {
                 std::string key("key" + std::to_string(i));
-                check(store(h, h1, NULL, OPERATION_SET, key.c_str(),
-                            "value", NULL, 0, i)
-                      == ENGINE_SUCCESS, "Failed to store an item.");
+                checkeq(ENGINE_SUCCESS,
+                        store(h, h1, NULL, OPERATION_SET, key.c_str(),
+                              "value", NULL, 0, i),
+                        "Failed to store an item.");
             }
         } else {
             /* Replica vbuckets */
@@ -14400,9 +14989,10 @@ static enum test_result test_mb16357(ENGINE_HANDLE *h,
         item *i = NULL;
         std::stringstream ss;
         ss << "key-" << j;
-        check(store(h, h1, NULL, OPERATION_SET,
-                    ss.str().c_str(), "data", &i, 0, 0, 1/*expire*/, 0)
-                    == ENGINE_SUCCESS, "Failed to store a value"); //expire in 1 second
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET,
+                      ss.str().c_str(), "data", &i, 0, 0, 1/*expire*/, 0),
+                "Failed to store a value"); //expire in 1 second
 
         h1->release(h, NULL, i);
     }
@@ -14449,7 +15039,7 @@ static enum test_result test_multi_bucket_set_get(engine_test_t* test) {
         item*i = NULL;
         std::stringstream val;
         val << "value_" << ii++;
-        check(ENGINE_SUCCESS ==
+        checkeq(ENGINE_SUCCESS,
               store(bucket.h, bucket.h1, NULL,
                     OPERATION_SET, "key", val.str().c_str(), &i),
                     "Error setting.");

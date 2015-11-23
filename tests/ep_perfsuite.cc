@@ -184,10 +184,11 @@ static void perf_latency_core(ENGINE_HANDLE *h,
     for (auto& key : keys) {
         item* item = NULL;
         const hrtime_t start = gethrtime();
-        check(storeCasVb11(h, h1, cookie, OPERATION_ADD, key.c_str(),
-                           data.c_str(), data.length(), 0, &item, 0,
-                           /*vBucket*/0, 0, 0) == ENGINE_SUCCESS,
-              "Failed to add a value");
+        checkeq(ENGINE_SUCCESS,
+                storeCasVb11(h, h1, cookie, OPERATION_ADD, key.c_str(),
+                             data.c_str(), data.length(), 0, &item, 0,
+                             /*vBucket*/0, 0, 0),
+                "Failed to add a value");
         const hrtime_t end = gethrtime();
         add_timings.push_back(end - start);
         h1->release(h, cookie, item);
@@ -197,8 +198,9 @@ static void perf_latency_core(ENGINE_HANDLE *h,
     for (auto& key : keys) {
         item* item = NULL;
         const hrtime_t start = gethrtime();
-        check(h1->get(h, cookie, &item, key.c_str(), key.size(), 0) == ENGINE_SUCCESS,
-              "Failed to get a value");
+        checkeq(ENGINE_SUCCESS,
+                h1->get(h, cookie, &item, key.c_str(), key.size(), 0),
+                "Failed to get a value");
         const hrtime_t end = gethrtime();
         get_timings.push_back(end - start);
         h1->release(h, cookie, item);
@@ -208,10 +210,11 @@ static void perf_latency_core(ENGINE_HANDLE *h,
     for (auto& key : keys) {
         item* item = NULL;
         const hrtime_t start = gethrtime();
-        check(storeCasVb11(h, h1, cookie, OPERATION_REPLACE, key.c_str(),
-                           data.c_str(), data.length(), 0, &item, 0,
-                           /*vBucket*/0, 0, 0) == ENGINE_SUCCESS,
-              "Failed to replace a value");
+        checkeq(ENGINE_SUCCESS,
+                storeCasVb11(h, h1, cookie, OPERATION_REPLACE, key.c_str(),
+                             data.c_str(), data.length(), 0, &item, 0,
+                             /*vBucket*/0, 0, 0),
+                "Failed to replace a value");
         const hrtime_t end = gethrtime();
         replace_timings.push_back(end - start);
         h1->release(h, cookie, item);
@@ -220,8 +223,9 @@ static void perf_latency_core(ENGINE_HANDLE *h,
     // Delete
     for (auto& key : keys) {
         const hrtime_t start = gethrtime();
-        check(del(h, h1, key.c_str(), 0, 0, cookie) == ENGINE_SUCCESS,
-              "Failed to delete a value");
+        checkeq(ENGINE_SUCCESS,
+                del(h, h1, key.c_str(), 0, 0, cookie),
+                "Failed to delete a value");
         const hrtime_t end = gethrtime();
         delete_timings.push_back(end - start);
     }
