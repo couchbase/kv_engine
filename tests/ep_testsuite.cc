@@ -2037,6 +2037,7 @@ static enum test_result test_restart(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static enum test_result test_restart_session_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void* cookie = createTapConn(h, h1, "tap_client_thread");
+    testHarness.unlock_cookie(cookie);
     testHarness.destroy_cookie(cookie);
 
     testHarness.reload_engine(&h, &h1,
@@ -2050,6 +2051,7 @@ static enum test_result test_restart_session_stats(ENGINE_HANDLE *h, ENGINE_HAND
             "Failed to get stats.");
     std::string val = vals["eq_tapq:tap_client_thread:backfill_completed"];
     checkeq(0, strcmp(val.c_str(), "true"), "Don't expect the backfill upon restart");
+    testHarness.unlock_cookie(cookie);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
