@@ -14692,9 +14692,22 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
     // but it's hard to accurately predict the whole-application size).
     // Give it 10 seconds to drop.
     const size_t expected_mapped = ((mapped_2 - mapped_0) * 0.6) + mapped_0;
-    check(wait_for_mapped_below(expected_mapped,
-                                10 * 1000 * 1000),
-          "Mapped memory didn't reduce as expected after defragmentation");
+
+    // Wait for defragmenter to actually visit all the remaining items
+    wait_for_stat_to_be(h, h1, "ep_defragmenter_num_visited", num_remaining);
+
+    bool ret = wait_for_mapped_below(expected_mapped, 10 * 1000 * 1000);
+
+    int numVisited = get_int_stat(h, h1, "ep_defragmenter_num_visited");
+    int numMoved = get_int_stat(h, h1, "ep_defragmenter_num_moved");
+    std::string err_msg("Mapped memory (" +
+                        std::to_string(testHarness.get_mapped_bytes()) +
+                        ") didn't fall below estimate (" +
+                        std::to_string(expected_mapped) +
+                        ") after the defragmentater visited " +
+                        std::to_string(numVisited) + " items and moved " +
+                        std::to_string(numMoved) + " items!");
+    check(ret, err_msg.c_str());
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
