@@ -823,7 +823,8 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx,
     compact_file = dbfile + ".compact";
 
     // Perform COMPACTION of vbucket.couch.rev into vbucket.couch.rev.compact
-    errCode = couchstore_compact_db_ex(compactdb, compact_file.c_str(), 0,
+    errCode = couchstore_compact_db_ex(compactdb, compact_file.c_str(),
+                                       COUCHSTORE_COMPACT_FLAG_UPGRADE_DB,
                                        hook, dhook, hook_ctx, def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
