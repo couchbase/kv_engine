@@ -804,7 +804,8 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     cb_assert(fd == c->getSocketDescriptor());
 
     if ((which & EV_TIMEOUT) == EV_TIMEOUT) {
-        LOG_NOTICE(c, "%u: Shutting down idle client", c->getId());
+        LOG_NOTICE(c, "%u: Shutting down idle client %s", c->getId(),
+                   c->getDescription().c_str());
         c->initateShutdown();
     }
 

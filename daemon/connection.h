@@ -84,6 +84,13 @@ public:
     }
 
     /**
+     * Returns a descriptive name for the connection, of the form:
+     *   "[peer_name - local_name ]"
+     *(A) is appended to the string for admin connections.
+     */
+    std::string getDescription() const;
+
+    /**
      * Tell the connection to initiate it's shutdown logic
      */
     virtual void initateShutdown() {

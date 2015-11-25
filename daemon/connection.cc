@@ -257,3 +257,12 @@ cJSON* Connection::toJSON() const {
     }
     return obj;
 }
+
+std::string Connection::getDescription() const {
+    std::string descr("[ " + getPeername() + " - " + getSockname());
+    if (isAdmin()) {
+        descr += " (Admin)";
+    }
+    descr += " ]";
+    return descr;
+}
