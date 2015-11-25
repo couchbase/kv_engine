@@ -940,6 +940,11 @@ public:
         clearQueues_UNLOCKED();
     }
 
+    bool shouldDisconnect(rel_time_t now) {
+        LockHolder lh(queueLock);
+        return supportsAck() && (getExpiryTime() < now) && windowIsFull();
+    }
+
     static const char* opaqueCmdToString(uint32_t opaque_code);
 
 protected:

@@ -489,7 +489,7 @@ void TapConnMap::manageConnections() {
     for (iter = map_.begin(); iter != map_.end(); ++iter) {
         TapProducer *tp = dynamic_cast<TapProducer*>(iter->second.get());
         if (tp != NULL) {
-            if (tp->supportsAck() && (tp->getExpiryTime() < now) && tp->windowIsFull()) {
+            if (tp->shouldDisconnect(now)) {
                 LOG(EXTENSION_LOG_WARNING,
                     "%s Expired and ack windows is full. Disconnecting...",
                     tp->logHeader());
