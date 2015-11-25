@@ -710,6 +710,8 @@ protected:
     short currentEvent;
     /** When we inserted the object in libevent */
     rel_time_t ev_insert_time;
+    /** Do we have an event timeout or not */
+    bool ev_timeout_enabled;
 
     /** which state to go into after finishing current write */
     TaskFunction write_and_go;

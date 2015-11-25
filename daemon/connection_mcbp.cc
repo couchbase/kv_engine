@@ -87,10 +87,12 @@ bool McbpConnection::registerEvent() {
 
     if (isAdmin() || isDCP()) {
         tp = nullptr;
+        ev_timeout_enabled = false;
     } else {
         tv.tv_sec = settings.connection_idle_time;
         tv.tv_usec = 0;
         tp = &tv;
+        ev_timeout_enabled = true;
     }
 
     ev_insert_time = mc_time_get_current_time();
@@ -131,14 +133,22 @@ bool McbpConnection::updateEvent(const short new_flags) {
         // In order to avoid having clients to falsely "time out" due to that they
         // never update their libevent state we'll forcibly re-enter it half way
         // into the timeout.
-        rel_time_t now = mc_time_get_current_time();
-        const int reinsert_time = settings.connection_idle_time / 2;
 
-        if ((ev_insert_time + reinsert_time) > now) {
-            return true;
+        if (ev_timeout_enabled && (isAdmin() || isDCP())) {
+            LOG_DEBUG(this,
+                      "%u: Forcibly reset the event connection flags to"
+                          " disable timeout", getId());
         } else {
-            LOG_DEBUG(this, "%u: Forcibly reset the event connection flags to"
-                " avoid premature timeout", getId());
+            rel_time_t now = mc_time_get_current_time();
+            const int reinsert_time = settings.connection_idle_time / 2;
+
+            if ((ev_insert_time + reinsert_time) > now) {
+                return true;
+            } else {
+                LOG_DEBUG(this,
+                          "%u: Forcibly reset the event connection flags to"
+                              " avoid premature timeout", getId());
+            }
         }
     }
 
@@ -854,6 +864,7 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
       registered_in_libevent(false),
       ev_flags(0),
       currentEvent(0),
+      ev_timeout_enabled(false),
       write_and_go(conn_new_cmd),
       ritem(nullptr),
       rlbytes(0),
@@ -896,6 +907,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
       registered_in_libevent(false),
       ev_flags(0),
       currentEvent(0),
+      ev_timeout_enabled(false),
       write_and_go(conn_new_cmd),
       ritem(nullptr),
       rlbytes(0),
