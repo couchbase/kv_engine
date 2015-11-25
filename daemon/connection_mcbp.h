@@ -712,6 +712,8 @@ protected:
     rel_time_t ev_insert_time;
     /** Do we have an event timeout or not */
     bool ev_timeout_enabled;
+    /** If ev_timeout_enabled is true, the current timeout in libevent */
+    rel_time_t ev_timeout;
 
     /** which state to go into after finishing current write */
     TaskFunction write_and_go;

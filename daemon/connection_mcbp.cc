@@ -93,6 +93,7 @@ bool McbpConnection::registerEvent() {
         tv.tv_usec = 0;
         tp = &tv;
         ev_timeout_enabled = true;
+        ev_timeout = settings.connection_idle_time;
     }
 
     ev_insert_time = mc_time_get_current_time();
@@ -1040,6 +1041,15 @@ cJSON* McbpConnection::toJSON() const {
                                     isRegisteredInLibevent());
             cJSON_AddItemToObject(o, "ev_flags", event_mask_to_json(ev_flags));
             cJSON_AddItemToObject(o, "which", event_mask_to_json(currentEvent));
+
+            if (ev_timeout_enabled) {
+                cJSON* timeout = cJSON_CreateObject();
+                cJSON_AddNumberToObject(timeout, "value", ev_timeout);
+                cJSON_AddNumberToObject(timeout, "remaining",
+                                        ev_insert_time + ev_timeout -
+                                        mc_time_get_current_time());
+                cJSON_AddItemToObject(o, "timeout", timeout);
+            }
 
             cJSON_AddItemToObject(obj, "libevent", o);
         }
