@@ -350,7 +350,7 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
          "%u: Subdoc: Hit maximum number of auto-retry attempts (%d) when "
          "attempting to perform op %s for client %s - returning TMPFAIL",
          c->getId(), MAXIMUM_ATTEMPTS, memcached_opcode_2_text(mcbp_cmd),
-         c->getPeername().c_str());
+         c->getDescription().c_str());
     mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ENGINE_TMPFAIL));
 }
 

@@ -4391,9 +4391,8 @@ static void process_bin_packet(McbpConnection* c) {
     switch (res) {
     case AuthResult::FAIL:
         LOG_WARNING(c,
-                    "%u (%s => %s): no access to command %s",
-                    c->getId(), c->getPeername().c_str(),
-                    c->getSockname().c_str(),
+                    "%u %s: no access to command %s",
+                    c->getId(), c->getDescription().c_str(),
                     memcached_opcode_2_text(opcode));
         audit_command_access_failed(c);
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);

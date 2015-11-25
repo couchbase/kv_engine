@@ -149,9 +149,8 @@ bool McbpConnection::updateEvent(const short new_flags) {
     if (!unregisterEvent()) {
         LOG_WARNING(this,
                     "Failed to remove connection from event notification "
-                        "library. Shutting down connection [%s - %s]",
-                    getPeername().c_str(),
-                    getSockname().c_str());
+                    "library. Shutting down connection %s",
+                    getDescription().c_str());
         return false;
     }
 
@@ -159,19 +158,17 @@ bool McbpConnection::updateEvent(const short new_flags) {
               reinterpret_cast<void*>(this)) == -1) {
         LOG_WARNING(this,
                     "Failed to set up event notification. "
-                        "Shutting down connection [%s - %s]",
-                    getPeername().c_str(),
-                    getSockname().c_str());
+                    "Shutting down connection %s",
+                    getDescription().c_str());
         return false;
     }
     ev_flags = new_flags;
 
     if (!registerEvent()) {
         LOG_WARNING(this,
-                  "Failed to add connection to the event notification "
-                      "library. Shutting down connection [%s - %s]",
-                  getPeername().c_str(),
-                  getSockname().c_str());
+                    "Failed to add connection to the event notification "
+                    "library. Shutting down connection %s",
+                    getDescription().c_str());
         return false;
     }
 
@@ -482,8 +479,8 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
             }
             char prefix[160];
             snprintf(prefix, sizeof(prefix),
-                     "%u Closing connection [%s - %s] due to read error: %%s",
-                     getId(), getPeername().c_str(), getSockname().c_str());
+                     "%u Closing connection %s due to read error: %%s",
+                     getId(), getDescription().c_str());
             log_errcode_error(EXTENSION_LOG_WARNING, this, prefix, error);
 
             return TryReadResult::SocketError;
