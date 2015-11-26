@@ -50,7 +50,9 @@ public:
           application(nullptr),
           network(nullptr),
           ctx(nullptr),
-          client(nullptr) {
+          client(nullptr),
+          totalRecv(0),
+          totalSend(0) {
         in.total = 0;
         in.current = 0;
         out.total = 0;
@@ -152,6 +154,11 @@ public:
         return SSL_peek(client, buf, num);
     }
 
+    /**
+     * Get a JSON description of this object.. caller must call cJSON_Delete()
+     */
+    cJSON* toJSON() const;
+
 protected:
     bool enabled;
     bool connected;
@@ -168,6 +175,11 @@ protected:
         // The current offset of the buffer
         size_t current;
     } in, out;
+
+    // Total number of bytes received on the network
+    size_t totalRecv;
+    // Total number of bytes sent to the network
+    size_t totalSend;
 };
 
 /**
@@ -843,6 +855,10 @@ protected:
      */
     int sslPreConnection();
 
+    // Total number of bytes received on the network
+    size_t totalRecv;
+    // Total number of bytes sent to the network
+    size_t totalSend;
 };
 
 /*

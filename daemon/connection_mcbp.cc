@@ -313,6 +313,9 @@ int McbpConnection::recv(char* dest, size_t nbytes) {
         } else {
             res = (int)::recv(socketDescriptor, dest, nbytes, 0);
         }
+        if (res > 0) {
+            totalRecv += res;
+        }
     }
 
     return res;
@@ -338,6 +341,9 @@ int McbpConnection::sendmsg(struct msghdr* m) {
         return res;
     } else {
         res = int(::sendmsg(socketDescriptor, m, 0));
+        if (res > 0) {
+            totalSend += res;
+        }
     }
 
     return res;
@@ -690,6 +696,7 @@ void SslContext::drainBioRecvPipe(SOCKET sfd) {
                      in.buffer.size() - in.total, 0);
             if (n > 0) {
                 in.total += n;
+                totalRecv += n;
             } else {
                 stop = true;
                 if (n == 0) {
@@ -717,6 +724,7 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
                 if (out.current == out.total) {
                     out.current = out.total = 0;
                 }
+                totalSend += n;
             } else {
                 if (n == -1) {
                     if (!is_blocking(GetLastNetworkError())) {
@@ -745,6 +753,23 @@ void SslContext::dumpCipherList(uint32_t id) const {
     while ((cipher = SSL_get_cipher_list(client, ii++)) != NULL) {
         LOG_DEBUG(NULL, "%u    %s", id, cipher);
     }
+}
+
+cJSON* SslContext::toJSON() const {
+    cJSON* obj = cJSON_CreateObject();
+    json_add_bool_to_object(obj, "enabled", enabled);
+    if (enabled) {
+        json_add_bool_to_object(obj, "connected", connected);
+        json_add_bool_to_object(obj, "error", error);
+        cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
+        cJSON_AddNumberToObject(obj, "total_send", totalSend);
+        cJSON_AddNumberToObject(obj, "input_buff_total", in.total);
+        cJSON_AddNumberToObject(obj, "input_buff_current", in.current);
+        cJSON_AddNumberToObject(obj, "output_buff_total", out.total);
+        cJSON_AddNumberToObject(obj, "output_buff_current", out.current);
+    }
+
+    return obj;
 }
 
 bool McbpConnection::addMsgHdr(bool reset) {
@@ -882,7 +907,9 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
       cas(0),
       aiostat(ENGINE_SUCCESS),
       ewouldblock(false),
-      commandContext(nullptr) {
+      commandContext(nullptr),
+      totalRecv(0),
+      totalSend(0) {
     memset(&binary_header, 0, sizeof(binary_header));
     memset(&event, 0, sizeof(event));
     memset(&read, 0, sizeof(read));
@@ -925,7 +952,9 @@ McbpConnection::McbpConnection(SOCKET sfd,
       cas(0),
       aiostat(ENGINE_SUCCESS),
       ewouldblock(false),
-      commandContext(nullptr) {
+      commandContext(nullptr),
+      totalRecv(0),
+      totalSend(0) {
 
     if (ifc.protocol != Protocol::Memcached) {
         throw std::logic_error("Incorrect object for MCBP");
@@ -1124,15 +1153,9 @@ cJSON* McbpConnection::toJSON() const {
         json_add_uintptr_to_object(obj, "cas", cas);
         cJSON_AddNumberToObject(obj, "aiostat", aiostat);
         json_add_bool_to_object(obj, "ewouldblock", ewouldblock);
-        {
-            cJSON* sslobj = cJSON_CreateObject();
-            json_add_bool_to_object(sslobj, "enabled", ssl.isEnabled());
-            if (ssl.isEnabled()) {
-                json_add_bool_to_object(sslobj, "connected", ssl.isConnected());
-            }
-
-            cJSON_AddItemToObject(obj, "ssl", sslobj);
-        }
+        cJSON_AddItemToObject(obj, "ssl", ssl.toJSON());
+        cJSON_AddNumberToObject(obj, "total_recv", totalRecv);
+        cJSON_AddNumberToObject(obj, "total_send", totalSend);
     }
 
     return obj;
