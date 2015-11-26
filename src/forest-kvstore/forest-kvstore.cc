@@ -103,6 +103,12 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     fileConfig = fdb_get_default_config();
     kvsConfig = fdb_get_default_kvs_config();
 
+    /* Set the purge interval to the maximum possible value to ensure
+     * that deleted items don't get removed immediately. The tombstone
+     * items will be purged in the expiry callback.
+     */
+    fileConfig.purging_interval = std::numeric_limits<uint32_t>::max();
+
     initForestDb();
 
     status = fdb_open(&dbFileHandle, dbFile.str().c_str(), &fileConfig);
