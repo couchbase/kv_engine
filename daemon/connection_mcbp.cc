@@ -308,11 +308,7 @@ int McbpConnection::recv(char* dest, size_t nbytes) {
             res = sslRead(dest, nbytes);
         }
     } else {
-        if (isPipeConnection()) {
-            res = (int)::read(socketDescriptor, dest, nbytes);
-        } else {
-            res = (int)::recv(socketDescriptor, dest, nbytes, 0);
-        }
+        res = (int)::recv(socketDescriptor, dest, nbytes, 0);
         if (res > 0) {
             totalRecv += res;
         }
@@ -1325,4 +1321,8 @@ int PipeConnection::sendmsg(struct msghdr* m) {
     }
 
     return res;
+}
+
+int PipeConnection::recv(char* dest, size_t nbytes) {
+    return (int)::read(socketDescriptor, dest, nbytes);
 }

@@ -373,7 +373,7 @@ public:
      *
      * @return the number of bytes read, or -1 for an error
      */
-    int recv(char* dest, size_t nbytes);
+    virtual int recv(char* dest, size_t nbytes);
 
     /**
      * Send data over the socket
@@ -879,6 +879,8 @@ public:
     ~PipeConnection();
 
     virtual int sendmsg(struct msghdr* m) override;
+
+    virtual int recv(char* dest, size_t nbytes) override;
 
     virtual bool isPipeConnection() override {
         return true;
