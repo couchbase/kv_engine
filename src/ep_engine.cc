@@ -6119,7 +6119,13 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
 
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || vb->getState() != vbucket_state_active) {
+
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    ReaderLockHolder rlh(vb->getStateLock());
+    if (vb->getState() != vbucket_state_active) {
         return ENGINE_NOT_MY_VBUCKET;
     }
     //key: key, ext: no. of keys to fetch, sorting-order

@@ -838,6 +838,64 @@ void ForestKVStore::get(const std::string &key, uint16_t vb,
     getWithHeader(dbFileHandle, key, vb, cb, fetchDelete);
 }
 
+ENGINE_ERROR_CODE
+ForestKVStore::getAllKeys(uint16_t vbid, std::string &start_key, uint32_t count,
+                         std::shared_ptr<Callback<uint16_t&, char*&> > cb) {
+
+    fdb_kvs_handle *kvsHandle = getKvsHandle(vbid, handleType::READER);
+    if (kvsHandle == nullptr) {
+        throw std::invalid_argument("ForestKVStore::getAllKeys: Unable to "
+                  "retrieve KV store handle for vbucket id:" +
+                  std::to_string(vbid));
+    }
+
+    fdb_iterator *fdb_iter = NULL;
+    fdb_status status = fdb_iterator_init(kvsHandle, &fdb_iter,
+                                          start_key.c_str(), strlen(start_key.c_str()),
+                                          NULL, 0, FDB_ITR_NO_DELETES);
+    if (status != FDB_RESULT_SUCCESS) {
+        throw std::runtime_error("ForestKVStore::getAllKeys: iterator "
+                   "initalization failed for vbucket id " + std::to_string(vbid) +
+                   " and start key:" + start_key.c_str());
+    }
+
+    fdb_doc *rdoc = NULL;
+    status = fdb_doc_create(&rdoc, NULL, 0, NULL, 0, NULL, 0);
+    if (status != FDB_RESULT_SUCCESS) {
+       fdb_iterator_close(fdb_iter);
+       throw std::runtime_error("ForestKVStore::getAllKeys: creating "
+                  "the document failed for vbucket id:" +
+                  std::to_string(vbid) + " with error:" +
+                  fdb_error_msg(status));
+    }
+
+    rdoc->key = malloc(MAX_KEY_LENGTH);
+    rdoc->meta = malloc(FORESTDB_METADATA_SIZE);
+
+    for (uint32_t curr_count = 0; curr_count < count; curr_count++) {
+        status = fdb_iterator_get_metaonly(fdb_iter, &rdoc);
+        if (status != FDB_RESULT_SUCCESS) {
+            fdb_doc_free(rdoc);
+            fdb_iterator_close(fdb_iter);
+            throw std::runtime_error("ForestKVStore::getAllKeys: iterator "
+                       "get failed for vbucket id " + std::to_string(vbid) +
+                       " and start key:" + start_key.c_str());
+        }
+        uint16_t keylen = static_cast<uint16_t>(rdoc->keylen);
+        char *key = static_cast<char *>(rdoc->key);
+        cb->callback(keylen, key);
+
+        if (fdb_iterator_next(fdb_iter) != FDB_RESULT_SUCCESS) {
+            break;
+        }
+    }
+
+    fdb_doc_free(rdoc);
+    fdb_iterator_close(fdb_iter);
+
+    return ENGINE_SUCCESS;
+}
+
 void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     bool meta_only = true;
     vb_bgfetch_queue_t::iterator itr = itms.begin();
