@@ -21,8 +21,6 @@
 #include "libforestdb/forestdb.h"
 #include "kvstore.h"
 
-class Mutex; //forward declaration
-
 //Maximum length of a key
 const size_t MAX_KEY_LENGTH = 250;
 

@@ -74,7 +74,8 @@ void TaskQueue::_doWake_UNLOCKED(size_t &numToWake) {
     }
 }
 
-bool TaskQueue::_doSleep(ExecutorThread &t) {
+bool TaskQueue::_doSleep(ExecutorThread &t,
+                         std::unique_lock<std::mutex>& lock) {
     t.now = gethrtime();
     if (t.now < t.waketime && manager->trySleep(queueType)) {
         // Atomically switch from running to sleeping; iff we were previously
@@ -89,9 +90,9 @@ bool TaskQueue::_doSleep(ExecutorThread &t) {
         hrtime_t snooze_nsecs = t.waketime - t.now;
 
         if (snooze_nsecs > MIN_SLEEP_TIME * 1000000000) {
-            mutex.wait_for(MIN_SLEEP_TIME);
+            mutex.wait_for(lock, MIN_SLEEP_TIME);
         } else {
-            mutex.wait_for(snooze_nsecs);
+            mutex.wait_for(lock, snooze_nsecs);
         }
         // ... woke!
         sleepers--;
@@ -112,9 +113,9 @@ bool TaskQueue::_doSleep(ExecutorThread &t) {
 
 bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
     bool ret = false;
-    LockHolder lh(mutex);
+    std::unique_lock<std::mutex> lh(mutex);
 
-    if (toSleep && !_doSleep(t)) {
+    if (toSleep && !_doSleep(t, lh)) {
         return ret; // shutting down
     }
 

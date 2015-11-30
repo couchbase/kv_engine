@@ -548,7 +548,7 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
     bool retVal = false;
     std::map<size_t, TaskQpair>::iterator itr;
 
-    LockHolder lh(tMutex);
+    std::unique_lock<std::mutex> lh(tMutex);
     do {
         ExTask task;
         unfinishedTask = false;
@@ -572,7 +572,7 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
             }
         }
         if (unfinishedTask) {
-            tMutex.wait_for(MIN_SLEEP_TIME); // Wait till task gets cancelled
+            tMutex.wait_for(lh, MIN_SLEEP_TIME); // Wait till task gets cancelled
         }
     } while (unfinishedTask);
 

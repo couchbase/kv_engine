@@ -157,7 +157,6 @@ ADD_LIBRARY(ep SHARED
             src/memory_tracker.cc
             src/murmurhash3.cc
             src/mutation_log.cc
-            src/mutex.cc
             src/priority.cc
             src/replicationthrottle.cc
             src/sizes.cc
@@ -180,14 +179,12 @@ TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore forestdb
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
   src/atomic.cc
-  src/testlogger.cc
-  src/mutex.cc)
+  src/testlogger.cc)
 TARGET_LINK_LIBRARIES(ep-engine_atomic_ptr_test platform)
 
 ADD_EXECUTABLE(ep-engine_atomic_test
   tests/module_tests/atomic_test.cc
-  src/testlogger.cc
-  src/mutex.cc)
+  src/testlogger.cc)
 TARGET_LINK_LIBRARIES(ep-engine_atomic_test platform)
 
 ADD_EXECUTABLE(ep-engine_checkpoint_test
@@ -198,7 +195,6 @@ ADD_EXECUTABLE(ep-engine_checkpoint_test
   src/compress.cc
   src/failover-table.cc
   src/item.cc
-  src/mutex.cc
   src/murmurhash3.cc
   src/stored-value.cc
   src/testlogger.cc
@@ -221,7 +217,6 @@ ADD_EXECUTABLE(ep-engine_hash_table_test
   src/atomic.cc
   src/compress.cc
   src/item.cc
-  src/mutex.cc
   src/stored-value.cc
   src/testlogger.cc
   tests/module_tests/test_memory_tracker.cc
@@ -239,8 +234,7 @@ ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_misc_test platform)
 ADD_EXECUTABLE(ep-engine_mutex_test
                tests/module_tests/mutex_test.cc
-               src/testlogger.cc
-               src/mutex.cc)
+               src/testlogger.cc)
 TARGET_LINK_LIBRARIES(ep-engine_mutex_test gtest gtest_main platform)
 
 ADD_EXECUTABLE(ep-engine_priority_test  tests/module_tests/priority_test.cc src/priority.cc)
@@ -250,7 +244,7 @@ ADD_EXECUTABLE(ep-engine_ringbuffer_test tests/module_tests/ringbuffer_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_ringbuffer_test platform)
 
 ADD_EXECUTABLE(ep-engine_failover_table_test tests/module_tests/failover_table_test.cc
-                        src/failover-table.cc src/mutex.cc src/testlogger.cc
+                        src/failover-table.cc src/testlogger.cc
                         tests/module_tests/test_memory_tracker.cc
                         ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_failover_table_test cJSON platform)
@@ -258,7 +252,6 @@ TARGET_LINK_LIBRARIES(ep-engine_failover_table_test cJSON platform)
 ADD_EXECUTABLE(ep-engine_kvstore_test
   tests/module_tests/kvstore_test.cc
   src/compress.cc
-  src/mutex.cc
   src/testlogger.cc
   ${OBJECTREGISTRY_SOURCE} ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
   ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE})
@@ -284,7 +277,7 @@ ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(timing_tests platform)
 
-ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc src/mutex.h src/mutex.cc src/testlogger.cc
+ADD_EXECUTABLE(ep-engine_sizes src/sizes.cc src/mutex.h src/testlogger.cc
               ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_sizes platform)
 
@@ -300,7 +293,6 @@ ADD_EXECUTABLE(ep-engine_defragmenter_test
                src/failover-table.cc
                src/item.cc
                src/murmurhash3.cc
-               src/mutex.cc
                src/stored-value.cc
                src/testlogger.cc
                src/vbucket.cc
@@ -314,7 +306,6 @@ ADD_LIBRARY(ep_testsuite SHARED
    src/ep_time.c
    src/ext_meta_parser.cc
    src/item.cc
-   src/mutex.cc
    src/testlogger.cc
    tests/ep_testsuite_common.cc
    tests/ep_test_apis.cc

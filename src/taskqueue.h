@@ -63,7 +63,7 @@ private:
     void _checkPendingQueue(void);
     bool _fetchNextTask(ExecutorThread &thread, bool toSleep);
     void _wake(ExTask &task);
-    bool _doSleep(ExecutorThread &thread);
+    bool _doSleep(ExecutorThread &thread, std::unique_lock<std::mutex>& lock);
     void _doWake_UNLOCKED(size_t &numToWake);
     size_t _moveReadyTasks(hrtime_t tv);
     ExTask _popReadyTask(void);

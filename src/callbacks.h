@@ -153,7 +153,7 @@ public:
      * The callback implementation -- just store a value.
      */
     void callback(T &value) {
-        LockHolder lh(so);
+        std::unique_lock<std::mutex> lh(so);
         val = value;
         fired = true;
         so.notify_all();
@@ -167,9 +167,9 @@ public:
      * to arrive.
      */
     void waitForValue() {
-        LockHolder lh(so);
+        std::unique_lock<std::mutex> lh(so);
         if (!fired) {
-            so.wait();
+            so.wait(lh);
         }
         if (!fired) {
             throw std::logic_error("RememberingCallback::waitForValue: "

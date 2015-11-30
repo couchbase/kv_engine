@@ -20,31 +20,8 @@
 
 #include "config.h"
 
-#include "utility.h"
+#include <mutex>
 
-/**
- * Abstraction built on top of pthread mutexes
- */
-class Mutex {
-public:
-    Mutex();
-
-    virtual ~Mutex();
-
-protected:
-
-    // The holders of locks twiddle these flags.
-    friend class LockHolder;
-    friend class MultiLockHolder;
-
-    void lock(void);
-    bool try_lock(void);
-    void unlock(void);
-
-    cb_mutex_t mutex;
-
-private:
-    DISALLOW_COPY_AND_ASSIGN(Mutex);
-};
+typedef std::mutex Mutex;
 
 #endif  // SRC_MUTEX_H_

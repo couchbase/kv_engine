@@ -20,44 +20,45 @@
 
 #include "config.h"
 
-#include "time.h"
 #include "utility.h"
 
+#include <condition_variable>
+
 /**
- * Abstraction built on top our own condition variable implemntation
+ * Abstraction built on top of std::condition_variable & std::mutex
  */
-class SyncObject : public Mutex {
+class SyncObject : public std::mutex {
 public:
-    SyncObject() : Mutex() {
-        cb_cond_initialize(&cond);
+    SyncObject() {
     }
 
     ~SyncObject() {
-        cb_cond_destroy(&cond);
     }
 
-    void wait() {
-        cb_cond_wait(&cond, &mutex);
+    void wait(std::unique_lock<std::mutex>& lock) {
+        cond.wait(lock);
     }
 
-    void wait_for(const double secs) {
-        cb_cond_timedwait(&cond, &mutex, (unsigned int)(secs * 1000.0));
+    void wait_for(std::unique_lock<std::mutex>& lock,
+                  const double secs) {
+        cond.wait_for(lock, std::chrono::milliseconds(int64_t(secs * 1000.0)));
     }
 
-    void wait_for(const hrtime_t nanoSecs) {
-        cb_cond_timedwait(&cond, &mutex, (unsigned int)(nanoSecs/1000000));
+    void wait_for(std::unique_lock<std::mutex>& lock,
+                  const hrtime_t nanoSecs) {
+        cond.wait_for(lock, std::chrono::nanoseconds(nanoSecs));
     }
 
     void notify_all() {
-        cb_cond_broadcast(&cond);
+        cond.notify_all();
     }
 
     void notify_one() {
-        cb_cond_signal(&cond);
+        cond.notify_one();
     }
 
 private:
-    cb_cond_t cond;
+    std::condition_variable cond;
 
     DISALLOW_COPY_AND_ASSIGN(SyncObject);
 };

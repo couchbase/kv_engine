@@ -102,12 +102,12 @@ protected:
 
 static void launch_persistence_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
-    LockHolder lh(*(args->mutex));
-    LockHolder lhg(*(args->gate));
+    std::unique_lock<std::mutex> lh(*(args->mutex));
+    std::unique_lock<std::mutex> lhg(*(args->gate));
     ++(*(args->counter));
     lhg.unlock();
     args->gate->notify_all();
-    args->mutex->wait();
+    args->mutex->wait(lh);
     lh.unlock();
 
     bool flush = false;
@@ -141,12 +141,12 @@ static void launch_persistence_thread(void *arg) {
 
 static void launch_tap_client_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
-    LockHolder lh(*(args->mutex));
-    LockHolder lhg(*(args->gate));
+    std::unique_lock<std::mutex> lh(*(args->mutex));
+    std::unique_lock<std::mutex> lhg(*(args->gate));
     ++(*(args->counter));
     lhg.unlock();
     args->gate->notify_all();
-    args->mutex->wait();
+    args->mutex->wait(lh);
     lh.unlock();
 
     bool flush = false;
@@ -164,12 +164,12 @@ static void launch_tap_client_thread(void *arg) {
 
 static void launch_checkpoint_cleanup_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
-    LockHolder lh(*(args->mutex));
-    LockHolder lhg(*(args->gate));
+    std::unique_lock<std::mutex> lh(*(args->mutex));
+    std::unique_lock<std::mutex> lhg(*(args->gate));
     ++(*(args->counter));
     lhg.unlock();
     args->gate->notify_all();
-    args->mutex->wait();
+    args->mutex->wait(lh);
     lh.unlock();
 
     while (args->checkpoint_manager->getNumOfCursors() > 1) {
@@ -181,12 +181,12 @@ static void launch_checkpoint_cleanup_thread(void *arg) {
 
 static void launch_set_thread(void *arg) {
     struct thread_args *args = static_cast<struct thread_args *>(arg);
-    LockHolder lh(*(args->mutex));
-    LockHolder lhg(*(args->gate));
+    std::unique_lock<std::mutex> lh(*(args->mutex));
+    std::unique_lock<std::mutex> lhg(*(args->gate));
     ++(*(args->counter));
     lhg.unlock();
     args->gate->notify_all();
-    args->mutex->wait();
+    args->mutex->wait(lh);
     lh.unlock();
 
     int i(0);
@@ -263,11 +263,11 @@ TEST_F(CheckpointTest, basic_chk_test) {
 
     // Wait for all threads to reach the starting gate
     while (true) {
-        LockHolder lh(*gate);
+        std::unique_lock<std::mutex> lh(*gate);
         if (*counter == (NUM_TAP_THREADS + NUM_SET_THREADS + 2)) {
             break;
         }
-        gate->wait();
+        gate->wait(lh);
     }
     sleep(1);
     mutex->notify_all();

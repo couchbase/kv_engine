@@ -40,15 +40,15 @@ public:
     CountDownLatch(int n=1) : count(n) {}
 
     void decr(void) {
-        LockHolder lh(so);
+        std::unique_lock<std::mutex> lh(so);
         --count;
         so.notify_all();
     }
 
     void wait(void) {
-        LockHolder lh(so);
+        std::unique_lock<std::mutex> lh(so);
         while (count > 0) {
-            so.wait();
+            so.wait(lh);
         }
     }
 
