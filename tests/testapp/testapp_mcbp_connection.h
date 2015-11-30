@@ -43,6 +43,8 @@ public:
 
     virtual void deleteBucket(const std::string& name) override;
 
+    virtual void selectBucket(const std::string& name) override;
+
     virtual std::vector<std::string> listBuckets() override;
 
     virtual Document get(const std::string& id, uint16_t vbucket) override;

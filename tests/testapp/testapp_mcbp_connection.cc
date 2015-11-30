@@ -254,6 +254,21 @@ void MemcachedBinprotConnection::deleteBucket(const std::string& name) {
     }
 }
 
+void MemcachedBinprotConnection::selectBucket(const std::string& name) {
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_SELECT_BUCKET,
+                     name.c_str(), name.length(), nullptr, 0);
+    sendFrame(frame);
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
+
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Select bucket failed: ", Protocol::Memcached,
+                              rsp->message.header.response.status);
+    }
+}
+
 std::string MemcachedBinprotConnection::to_string() {
     std::string ret("Memcached connection ");
     ret.append(std::to_string(port));

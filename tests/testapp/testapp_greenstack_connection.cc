@@ -276,6 +276,11 @@ void MemcachedGreenstackConnection::deleteBucket(const std::string& name) {
     }
 }
 
+void MemcachedGreenstackConnection::selectBucket(const std::string& name) {
+    throw std::runtime_error(
+        "Not implemented yet");
+}
+
 std::vector<std::string> MemcachedGreenstackConnection::listBuckets() {
     Greenstack::ListBucketsRequest request;
     Frame frame;

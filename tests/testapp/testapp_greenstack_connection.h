@@ -73,6 +73,7 @@ public:
 
     virtual void deleteBucket(const std::string& name) override;
 
+    virtual void selectBucket(const std::string& name) override;
 
     virtual std::vector<std::string> listBuckets() override;
 

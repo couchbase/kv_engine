@@ -226,6 +226,13 @@ public:
     virtual void deleteBucket(const std::string& name) = 0;
 
     /**
+     * Select the named bucket
+     *
+     * @param name the name of the bucket to select
+     */
+    virtual void selectBucket(const std::string& name) = 0;
+
+    /**
      * List all of the buckets on the server
      *
      * @return a vector containing all of the buckets

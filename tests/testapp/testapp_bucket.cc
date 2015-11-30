@@ -232,3 +232,39 @@ TEST_P(BucketTest, TestListBucket) {
     EXPECT_EQ(1, buckets.size());
     EXPECT_EQ(std::string("default"), buckets[0]);
 }
+
+
+TEST_P(BucketTest, TestBucketIsolationBuckets)
+{
+    auto& connection = getConnection();
+
+    for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
+        std::string name = "bucket-" + std::to_string(ii);
+        connection.createBucket(name, "", Greenstack::BucketType::Memcached);
+    }
+
+
+    // I should be able to select each bucket and the same document..
+    Document doc;
+    doc.info.cas = Greenstack::CAS::Wildcard;
+    doc.info.compression = Greenstack::Compression::None;
+    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = "TestBucketIsolationBuckets";
+    char* ptr = cJSON_Print(memcached_cfg.get());
+    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
+    cJSON_Free(ptr);
+
+    for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
+        std::string name = "bucket-" + std::to_string(ii);
+        EXPECT_NO_THROW(connection.selectBucket(name));
+        EXPECT_NO_THROW(connection.mutate(doc, 0,
+                                          Greenstack::MutationType::Add));
+    }
+
+    // Delete all buckets
+    for (int ii = 1; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
+        std::string name = "bucket-" + std::to_string(ii);
+        EXPECT_NO_THROW(connection.deleteBucket(name));
+    }
+}

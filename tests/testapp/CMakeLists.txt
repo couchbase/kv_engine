@@ -1,7 +1,6 @@
 ADD_EXECUTABLE(memcached_testapp
                ${Memcached_SOURCE_DIR}/programs/utilities.c
                ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
-               bucket_tests.cc
                testapp.cc
                testapp.h
                #testapp_audit.cc
