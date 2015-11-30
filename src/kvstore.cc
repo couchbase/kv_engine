@@ -70,14 +70,14 @@ void KVStore::createDataDir(const std::string& dbname) {
     }
 }
 
-std::string KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) {
+bool KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) {
 
     vbucket_state *vbState = cachedVBStates[vbid];
 
     if (vbState != nullptr) {
         //Check if the cached state requires any update
         if (*vbState == newState) {
-            return std::string();
+            return false;
         }
 
         vbState->state = newState.state;
@@ -98,7 +98,7 @@ std::string KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& new
         cachedVBStates[vbid] = new vbucket_state(newState);
     }
 
-    return newState.toJSON();
+    return true;
 }
 
 bool KVStore::snapshotStats(const std::map<std::string,

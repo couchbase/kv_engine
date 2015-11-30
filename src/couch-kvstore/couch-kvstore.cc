@@ -985,9 +985,7 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
 
     hrtime_t start = gethrtime();
 
-    std::string stateStr = updateCachedVBState(vbucketId, vbstate);
-
-    if (!stateStr.empty() && persist) {
+    if (updateCachedVBState(vbucketId, vbstate) && persist) {
         if (!setVBucketState(vbucketId, vbstate, cb)) {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to persist new state, %s, for vbucket %d\n",

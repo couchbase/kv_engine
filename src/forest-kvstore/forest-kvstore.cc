@@ -986,9 +986,8 @@ DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
 bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
                                     Callback<kvstats_ctx> *cb, bool persist) {
 
-    std::string stateStr = updateCachedVBState(vbucketId, vbstate);
-
-    if (!stateStr.empty() && persist) {
+    if (updateCachedVBState(vbucketId, vbstate) && persist) {
+        std::string stateStr = vbstate.toJSON();
         char keybuf[20];
         fdb_doc statDoc;
         memset(&statDoc, 0, sizeof(statDoc));

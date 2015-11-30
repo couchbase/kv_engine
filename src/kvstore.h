@@ -610,7 +610,16 @@ protected:
     std::vector<vbucket_state *> cachedVBStates;
     std::list<PersistenceCallback *> pcbs;
     void createDataDir(const std::string& dbname);
-    std::string updateCachedVBState(uint16_t vbid, const vbucket_state& vbState);
+
+    /**
+     * Updates the cached state for a vbucket
+     *
+     * @param vbid the vbucket id
+     * @param vbState the new state information for the vbucket
+     *
+     * @return true if the cached vbucket state is updated
+     */
+    bool updateCachedVBState(uint16_t vbid, const vbucket_state& vbState);
 };
 
 /**
