@@ -31,13 +31,13 @@
 #include "locks.h"
 #include "syncobject.h"
 #include "atomicqueue.h"
+#include "dcp-consumer.h"
+#include "dcp-producer.h"
 
 // Forward declaration
 class ConnNotifier;
 class TapConsumer;
 class TapProducer;
-class DcpConsumer;
-class DcpProducer;
 class Item;
 class EventuallyPersistentEngine;
 
