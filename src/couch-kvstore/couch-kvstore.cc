@@ -934,14 +934,6 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     rev << fileRev;
     dbFileName = dbname + "/" + id.str() + ".couch." + rev.str();
 
-    vbucket_state *state = cachedVBStates[vbucketId];
-    vbstate.highSeqno = state->highSeqno;
-    vbstate.lastSnapStart = state->lastSnapStart;
-    vbstate.lastSnapEnd = state->lastSnapEnd;
-    vbstate.maxDeletedSeqno = state->maxDeletedSeqno;
-    vbstate.maxCas = state->maxCas;
-    vbstate.driftCounter = state->driftCounter;
-
     errorCode = saveVBState(db, vbstate);
     if (errorCode != COUCHSTORE_SUCCESS) {
         ++st.numVbSetFailure;
@@ -986,7 +978,8 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
     hrtime_t start = gethrtime();
 
     if (updateCachedVBState(vbucketId, vbstate) && persist) {
-        if (!setVBucketState(vbucketId, vbstate, cb)) {
+        vbucket_state *vbs = cachedVBStates[vbucketId];
+        if (!setVBucketState(vbucketId, *vbs, cb)) {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to persist new state, %s, for vbucket %d\n",
                 VBucket::toString(vbstate.state), vbucketId);

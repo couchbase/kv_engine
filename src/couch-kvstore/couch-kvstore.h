@@ -465,10 +465,6 @@ public:
 private:
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          Callback<kvstats_ctx> *cb, bool reset=false);
-    bool resetVBucket(uint16_t vbucketId, vbucket_state &vbstate) {
-        cachedDocCount[vbucketId] = 0;
-        return setVBucketState(vbucketId, vbstate, NULL, true);
-    }
 
     template <typename T>
     void addStat(const std::string &prefix, const char *nm, T &val,

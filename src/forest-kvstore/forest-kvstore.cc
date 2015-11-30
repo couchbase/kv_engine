@@ -987,7 +987,7 @@ bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
                                     Callback<kvstats_ctx> *cb, bool persist) {
 
     if (updateCachedVBState(vbucketId, vbstate) && persist) {
-        std::string stateStr = vbstate.toJSON();
+        std::string stateStr = cachedVBStates[vbucketId]->toJSON();
         char keybuf[20];
         fdb_doc statDoc;
         memset(&statDoc, 0, sizeof(statDoc));
