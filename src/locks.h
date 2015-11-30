@@ -70,7 +70,7 @@ public:
      * Relock a lock that was manually unlocked.
      */
     void lock() {
-        mutex.acquire();
+        mutex.lock();
         locked = true;
     }
 
@@ -78,7 +78,7 @@ public:
      * Retry to acquire a lock due to initial failure or manual unlock.
      */
     bool trylock() {
-        locked = mutex.tryAcquire();
+        locked = mutex.try_lock();
         return locked;
     }
 
@@ -95,7 +95,7 @@ public:
     void unlock() {
         if (locked) {
             locked = false;
-            mutex.release();
+            mutex.unlock();
         }
     }
 
@@ -142,7 +142,7 @@ public:
                                        std::to_string(i) +
                                        " is already locked");
             }
-            mutexes[i].acquire();
+            mutexes[i].lock();
             locked[i] = true;
         }
     }
@@ -154,7 +154,7 @@ public:
         for (size_t i = 0; i < n_locks; i++) {
             if (locked[i]) {
                 locked[i] = false;
-                mutexes[i].release();
+                mutexes[i].unlock();
             }
         }
     }

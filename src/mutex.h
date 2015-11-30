@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -31,33 +31,17 @@ public:
 
     virtual ~Mutex();
 
-    /**
-     * True if I own this lock.
-     *
-     * Use this only for assertions.
-     */
-    bool ownsLock(void) const {
-        return held && cb_thread_equal(holder, cb_thread_self());
-    }
-
 protected:
 
     // The holders of locks twiddle these flags.
     friend class LockHolder;
     friend class MultiLockHolder;
 
-    void acquire(void);
-    bool tryAcquire(void);
-    void release(void);
-
-    void setHolder(bool isHeld) {
-        held = isHeld;
-        holder = cb_thread_self();
-    }
+    void lock(void);
+    bool try_lock(void);
+    void unlock(void);
 
     cb_mutex_t mutex;
-    cb_thread_t holder;
-    bool held;
 
 private:
     DISALLOW_COPY_AND_ASSIGN(Mutex);

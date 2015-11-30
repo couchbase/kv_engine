@@ -65,10 +65,10 @@ void TaskQueue::_doWake_UNLOCKED(size_t &numToWake) {
     if (sleepers && numToWake)  {
         if (numToWake < sleepers) {
             for (; numToWake; --numToWake) {
-                mutex.notifyOne(); // cond_signal 1
+                mutex.notify_one(); // cond_signal 1
             }
         } else {
-            mutex.notify(); // cond_broadcast
+            mutex.notify_all(); // cond_broadcast
             numToWake -= sleepers;
         }
     }
@@ -89,9 +89,9 @@ bool TaskQueue::_doSleep(ExecutorThread &t) {
         hrtime_t snooze_nsecs = t.waketime - t.now;
 
         if (snooze_nsecs > MIN_SLEEP_TIME * 1000000000) {
-            mutex.wait(MIN_SLEEP_TIME);
+            mutex.wait_for(MIN_SLEEP_TIME);
         } else {
-            mutex.wait(snooze_nsecs);
+            mutex.wait_for(snooze_nsecs);
         }
         // ... woke!
         sleepers--;

@@ -315,7 +315,7 @@ bool ExecutorPool::_cancel(size_t taskId, bool eraseTask) {
                             "cancel() on it");
         }
         taskLocator.erase(itr);
-        tMutex.notify();
+        tMutex.notify_all();
     } else { // wake up the task from the TaskQ so a thread can safely erase it
              // otherwise we may race with unregisterTaskable where a unlocated
              // task runs in spite of its bucket getting unregistered
@@ -572,7 +572,7 @@ bool ExecutorPool::_stopTaskGroup(task_gid_t taskGID,
             }
         }
         if (unfinishedTask) {
-            tMutex.wait(MIN_SLEEP_TIME); // Wait till task gets cancelled
+            tMutex.wait_for(MIN_SLEEP_TIME); // Wait till task gets cancelled
         }
     } while (unfinishedTask);
 

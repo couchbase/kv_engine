@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2015 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -38,24 +38,21 @@ public:
 
     void wait() {
         cb_cond_wait(&cond, &mutex);
-        setHolder(true);
     }
 
-    void wait(const double secs) {
+    void wait_for(const double secs) {
         cb_cond_timedwait(&cond, &mutex, (unsigned int)(secs * 1000.0));
-        setHolder(true);
     }
 
-    void wait(const hrtime_t nanoSecs) {
+    void wait_for(const hrtime_t nanoSecs) {
         cb_cond_timedwait(&cond, &mutex, (unsigned int)(nanoSecs/1000000));
-        setHolder(true);
     }
 
-    void notify() {
+    void notify_all() {
         cb_cond_broadcast(&cond);
     }
 
-    void notifyOne() {
+    void notify_one() {
         cb_cond_signal(&cond);
     }
 

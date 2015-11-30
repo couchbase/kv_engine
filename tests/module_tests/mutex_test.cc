@@ -25,16 +25,6 @@
 
 #include <gtest/gtest.h>
 
-TEST(LockHolder, Ownership) {
-    Mutex m;
-    ASSERT_FALSE(m.ownsLock());
-    {
-        LockHolder lh(m);
-        EXPECT_TRUE(m.ownsLock());
-    }
-    EXPECT_FALSE(m.ownsLock());
-}
-
 TEST(LockTimerTest, LockHolder) {
     Mutex m;
     {

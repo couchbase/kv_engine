@@ -106,7 +106,7 @@ static void launch_persistence_thread(void *arg) {
     LockHolder lhg(*(args->gate));
     ++(*(args->counter));
     lhg.unlock();
-    args->gate->notify();
+    args->gate->notify_all();
     args->mutex->wait();
     lh.unlock();
 
@@ -145,7 +145,7 @@ static void launch_tap_client_thread(void *arg) {
     LockHolder lhg(*(args->gate));
     ++(*(args->counter));
     lhg.unlock();
-    args->gate->notify();
+    args->gate->notify_all();
     args->mutex->wait();
     lh.unlock();
 
@@ -168,7 +168,7 @@ static void launch_checkpoint_cleanup_thread(void *arg) {
     LockHolder lhg(*(args->gate));
     ++(*(args->counter));
     lhg.unlock();
-    args->gate->notify();
+    args->gate->notify_all();
     args->mutex->wait();
     lh.unlock();
 
@@ -185,7 +185,7 @@ static void launch_set_thread(void *arg) {
     LockHolder lhg(*(args->gate));
     ++(*(args->counter));
     lhg.unlock();
-    args->gate->notify();
+    args->gate->notify_all();
     args->mutex->wait();
     lh.unlock();
 
@@ -270,7 +270,7 @@ TEST_F(CheckpointTest, basic_chk_test) {
         gate->wait();
     }
     sleep(1);
-    mutex->notify();
+    mutex->notify_all();
 
     for (i = 0; i < NUM_SET_THREADS; ++i) {
         rc = cb_join_thread(set_threads[i]);

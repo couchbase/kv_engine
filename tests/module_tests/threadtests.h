@@ -42,7 +42,7 @@ public:
     void decr(void) {
         LockHolder lh(so);
         --count;
-        so.notify();
+        so.notify_all();
     }
 
     void wait(void) {

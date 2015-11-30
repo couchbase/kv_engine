@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2011 Couchbase, Inc.
+ *     Copyright 2015 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@
 #include "config.h"
 #include "mutex.h"
 
-Mutex::Mutex() : held(false)
+Mutex::Mutex()
 {
     cb_mutex_initialize(&mutex);
 }
@@ -27,20 +27,17 @@ Mutex::~Mutex() {
     cb_mutex_destroy(&mutex);
 }
 
-void Mutex::acquire() {
+void Mutex::lock() {
     cb_mutex_enter(&mutex);
-    setHolder(true);
 }
 
-bool Mutex::tryAcquire() {
+bool Mutex::try_lock() {
     if (!cb_mutex_try_enter(&mutex)) {
-        setHolder(true);
         return true;
     }
     return false;
 }
 
-void Mutex::release() {
-    setHolder(false);
+void Mutex::unlock() {
     cb_mutex_exit(&mutex);
 }

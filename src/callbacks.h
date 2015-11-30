@@ -156,7 +156,7 @@ public:
         LockHolder lh(so);
         val = value;
         fired = true;
-        so.notify();
+        so.notify_all();
     }
 
     /**
