@@ -248,13 +248,13 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 
     if (notifyOnly) {
         WriterLockHolder wlh(streamsMutex);
-        streams[vbucket] = new NotifierStream(&engine_, *this, getName(), flags,
+        streams[vbucket] = new NotifierStream(&engine_, this, getName(), flags,
                                               opaque, vbucket, notifySeqno,
                                               end_seqno, vbucket_uuid,
                                               snap_start_seqno, snap_end_seqno);
     } else {
         WriterLockHolder wlh(streamsMutex);
-        streams[vbucket] = new ActiveStream(&engine_, *this, getName(), flags,
+        streams[vbucket] = new ActiveStream(&engine_, this, getName(), flags,
                                             opaque, vbucket, start_seqno,
                                             end_seqno, vbucket_uuid,
                                             snap_start_seqno, snap_end_seqno);

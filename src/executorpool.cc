@@ -148,7 +148,8 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
                            size_t maxReaders, size_t maxWriters,
                            size_t maxAuxIO,   size_t maxNonIO) :
                   numTaskSets(nTaskSets), totReadyTasks(0),
-                  isHiPrioQset(false), isLowPrioQset(false), numBuckets(0) {
+                  isHiPrioQset(false), isLowPrioQset(false), numBuckets(0),
+                  numSleepers(0) {
     size_t numCPU = getNumCPU();
     size_t numThreads = (size_t)((numCPU * 3)/4);
     numThreads = (numThreads < EP_MIN_NUM_THREADS) ?

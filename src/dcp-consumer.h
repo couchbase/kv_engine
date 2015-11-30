@@ -22,8 +22,8 @@
 
 #include "tapconnection.h"
 #include "dcp-stream.h"
+typedef RCPtr<PassiveStream> passive_stream_t;
 
-class PassiveStream;
 class DcpResponse;
 
 class DcpConsumer : public Consumer, public Notifiable {

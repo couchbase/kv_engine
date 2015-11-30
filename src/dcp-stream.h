@@ -26,9 +26,13 @@ class EventuallyPersistentEngine;
 class MutationResponse;
 class SetVBucketState;
 class SnapshotMarker;
-class DcpConsumer;
-class DcpProducer;
 class DcpResponse;
+
+class DcpConsumer;
+typedef SingleThreadedRCPtr<DcpConsumer> dcp_consumer_t;
+
+class DcpProducer;
+typedef SingleThreadedRCPtr<DcpProducer> dcp_producer_t;
 
 typedef enum {
     STREAM_PENDING,
@@ -154,7 +158,7 @@ private:
 
 class ActiveStream : public Stream {
 public:
-    ActiveStream(EventuallyPersistentEngine* e, DcpProducer& p,
+    ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
                  const std::string &name, uint32_t flags, uint32_t opaque,
                  uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
                  uint64_t vb_uuid, uint64_t snap_start_seqno,
@@ -248,15 +252,13 @@ private:
     AtomicValue<int> waitForSnapshot;
 
     EventuallyPersistentEngine* engine;
-
-    DcpProducer& producer;
-
+    dcp_producer_t producer;
     AtomicValue<bool> isBackfillTaskRunning;
 };
 
 class NotifierStream : public Stream {
 public:
-    NotifierStream(EventuallyPersistentEngine* e, DcpProducer& producer,
+    NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t producer,
                    const std::string &name, uint32_t flags, uint32_t opaque,
                    uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
                    uint64_t vb_uuid, uint64_t snap_start_seqno,
@@ -278,12 +280,12 @@ private:
 
     void transitionState(stream_state_t newState);
 
-    DcpProducer& producer;
+    dcp_producer_t producer;
 };
 
 class PassiveStream : public Stream {
 public:
-    PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* consumer,
+    PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t consumer,
                   const std::string &name, uint32_t flags, uint32_t opaque,
                   uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
                   uint64_t vb_uuid, uint64_t snap_start_seqno,
@@ -333,7 +335,7 @@ private:
     const char* getEndStreamStatusStr(end_stream_status_t status);
 
     EventuallyPersistentEngine* engine;
-    DcpConsumer* consumer;
+    dcp_consumer_t consumer;
     uint64_t last_seqno;
 
     uint64_t cur_snapshot_start;
@@ -350,8 +352,5 @@ private:
         std::queue<DcpResponse*> messages;
     } buffer;
 };
-
-typedef RCPtr<Stream> stream_t;
-typedef RCPtr<PassiveStream> passive_stream_t;
 
 #endif  // SRC_DCP_STREAM_H_
