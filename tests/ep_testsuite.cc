@@ -8419,6 +8419,73 @@ static enum test_result test_dcp_invalid_snapshot_marker(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
+/*
+ * Test that destroying a DCP producer before it ends
+ * works. MB-16915 reveals itself via valgrind.
+ */
+static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
+                                                   ENGINE_HANDLE_V1* h1) {
+
+
+    // create enough streams that some backfill tasks should overlap
+    // with the connection deletion task.
+    const int streams = 100;
+
+    // 1 item so that we will at least allow backfill to be scheduled
+    const int num_items = 1;
+    uint64_t vbuuid[streams];
+    for (int i = 0; i < streams; i++) {
+
+        check(set_vbucket_state(h, h1, i, vbucket_state_active),
+            "Failed to set vbucket state");
+        std::stringstream statkey;
+        statkey << "vb_" << i <<  ":0:id";
+        vbuuid[i] = get_ull_stat(h, h1, statkey.str().c_str(), "failovers");
+
+        /* Set n items */
+
+        for (int count = 0; count < num_items; count++) {
+            std::stringstream key;
+            key << "KEY" << i << count;
+            check(ENGINE_SUCCESS ==
+                  store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
+                        "somevalue", NULL, 0, i, 0), "Error storing.");
+        }
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 1;
+    check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER,
+                       (void*)"unittest", strlen("unittest")) == ENGINE_SUCCESS,
+          "Failed dcp producer open connection.");
+
+    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size",
+                          strlen("connection_buffer_size"),
+                          "1024", 4) == ENGINE_SUCCESS,
+          "Failed to establish connection buffer");
+
+    struct dcp_message_producers* producers = get_dcp_producers();
+    for (int i = 0; i < streams; i++) {
+        uint64_t rollback = 0;
+        check(h1->dcp.stream_req(h, cookie, DCP_ADD_STREAM_FLAG_DISKONLY,
+                                 ++opaque, i, 0, num_items,
+                                 vbuuid[i], 0, num_items, &rollback,
+                                 mock_dcp_add_failover_log)
+                    == ENGINE_SUCCESS,
+              "Failed to initiate stream request");
+        h1->dcp.step(h, cookie, producers);
+    }
+
+    // Destroy the connection
+    testHarness.destroy_cookie(cookie);
+
+    // Let all AUXIO (backfills) finish
+    wait_for_stat_to_be(h, h1, "ep_workload:LowPrioQ_AuxIO:InQsize", 0, "workload");
+    wait_for_stat_to_be(h, h1, "ep_workload:LowPrioQ_AuxIO:OutQsize", 0, "workload");
+    return SUCCESS;
+}
+
 extern "C" {
     static void wait_for_persistence_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
@@ -12312,6 +12379,8 @@ engine_test_t* get_tests(void) {
         TestCase("test MB-16357", test_mb16357,
                  test_setup, teardown, "compaction_exp_mem_threshold=85",
                  prepare, cleanup),
+        TestCase("test dcp early termination", test_dcp_early_termination,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };
 

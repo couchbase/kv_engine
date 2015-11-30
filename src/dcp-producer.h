@@ -23,6 +23,8 @@
 #include "tapconnection.h"
 #include "dcp-stream.h"
 
+typedef SingleThreadedRCPtr<Stream> stream_t;
+
 class DcpResponse;
 
 class BufferLog {

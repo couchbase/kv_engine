@@ -263,7 +263,7 @@ void Stream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, stateName(state_), add_stat, c);
 }
 
-ActiveStream::ActiveStream(EventuallyPersistentEngine* e, DcpProducer* p,
+ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
                            const std::string &n, uint32_t flags,
                            uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                            uint64_t en_seqno, uint64_t vb_uuid,
@@ -854,7 +854,7 @@ const char* ActiveStream::logHeader()
     return producer->logHeader();
 }
 
-NotifierStream::NotifierStream(EventuallyPersistentEngine* e, DcpProducer* p,
+NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
                                const std::string &name, uint32_t flags,
                                uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                                uint64_t en_seqno, uint64_t vb_uuid,
@@ -943,7 +943,7 @@ void NotifierStream::transitionState(stream_state_t newState) {
     state_ = newState;
 }
 
-PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
+PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,
                              const std::string &name, uint32_t flags,
                              uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                              uint64_t en_seqno, uint64_t vb_uuid,
