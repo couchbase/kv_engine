@@ -4209,6 +4209,46 @@ static void audit_put_executor(McbpConnection* c, void* packet) {
 }
 
 /**
+ * Override the CreateBucketTask so that we can have our own notification
+ * mechanism to kickstart the clients thread
+ */
+class McbpCreateBucketTask : public Task {
+public:
+    McbpCreateBucketTask(const std::string& name_,
+                         const std::string& config_,
+                         const BucketType& type_,
+                         Connection& connection_)
+        : thread(name_, config_, type_, connection_, this) { }
+
+    // start the bucket deletion
+    // May throw std::bad_alloc if we're failing to start the thread
+    void start() {
+        thread.start();
+    }
+
+    virtual bool execute() override {
+        return true;
+    }
+
+    // notifyExecutionComplete is called from the executor while holding
+    // the mutex lock, but we're calling notify_io_complete which in turn
+    // tries to lock the threads lock. We held that lock when we scheduled
+    // the task, so thread sanitizer will complain about potential
+    // deadlock since we're now locking in the oposite order.
+    // Given that we know that the executor is _blocked_ waiting for
+    // this call to complete (and no one else should touch this object
+    // while waiting for the call) lets just unlock and lock again..
+    virtual void notifyExecutionComplete() override {
+        getMutex().unlock();
+        notify_io_complete(&thread.getConnection(), thread.getResult());
+        getMutex().lock();
+    }
+
+
+    CreateBucketThread thread;
+};
+
+/**
  * The create bucket contains message have the following format:
  *    key: bucket name
  *    body: module\nconfig
@@ -4226,41 +4266,32 @@ static void create_bucket_executor(McbpConnection* c, void* packet) {
         uint32_t blen = ntohl(req->message.header.request.bodylen);
         blen -= klen;
 
-        CreateBucketContext* context = nullptr;
         try {
-            context = new CreateBucketContext(*c);
-            context->name.assign((char*)(req + 1), klen);
+            std::string name((char*)(req + 1), klen);
             std::string value((char*)(req + 1) + klen, blen);
+            std::string config;
 
             // Check if (optional) config was included after the value.
             auto marker = value.find('\0');
             if (marker != std::string::npos) {
-                context->config.assign(&value[marker + 1]);
+                config.assign(&value[marker + 1]);
             }
-            context->type = module_to_bucket_type(value.c_str());
-            if (context->type == BucketType::Unknown) {
-                /* We should have other error codes as well :-) */
-                ret = ENGINE_NOT_STORED;
-                delete context;
+
+            std::string errors;
+            BucketType type = module_to_bucket_type(value.c_str());
+            if (BucketValidator::validateBucketName(name, errors) &&
+                BucketValidator::validateBucketType(type, errors)) {
+                std::shared_ptr<Task> task = std::make_shared<McbpCreateBucketTask>(
+                    name, config, type, *c);
+                std::lock_guard<std::mutex> guard(task->getMutex());
+                reinterpret_cast<McbpCreateBucketTask*>(task.get())->start();
+                ret = ENGINE_EWOULDBLOCK;
+                executorPool->schedule(task, false);
+            } else {
+                ret = ENGINE_EINVAL;
             }
         } catch (const std::bad_alloc&) {
             ret = ENGINE_ENOMEM;
-            delete context;
-        }
-
-        if (ret == ENGINE_SUCCESS) {
-            cb_thread_t tid;
-            int err;
-
-            err = cb_create_thread(&tid, create_bucket_main, context, 1);
-            if (err == 0) {
-                ret = ENGINE_EWOULDBLOCK;
-            } else {
-                LOG_WARNING(c, "Failed to create thread to create bucket: %s",
-                            strerror(err));
-                ret = ENGINE_FAILED;
-                delete context;
-            }
         }
     }
 
@@ -4308,6 +4339,47 @@ static void list_bucket_executor(McbpConnection* c, void*) {
     }
 }
 
+/**
+ * Override the DestroyBucketTask so that we can have our own notification
+ * mechanism to kickstart the clients thread
+ */
+class McbpDestroyBucketTask : public Task {
+public:
+    McbpDestroyBucketTask(const std::string& name_,
+                          bool force_,
+                          Connection& connection_)
+        : thread(name_, force_, connection_, this) {
+    }
+
+    // start the bucket deletion
+    // May throw std::bad_alloc if we're failing to start the thread
+    void start() {
+        thread.start();
+    }
+
+    virtual bool execute() override {
+        return true;
+    }
+
+    // notifyExecutionComplete is called from the executor while holding
+    // the mutex lock, but we're calling notify_io_complete which in turn
+    // tries to lock the threads lock. We held that lock when we scheduled
+    // the task, so thread sanitizer will complain about potential
+    // deadlock since we're now locking in the oposite order.
+    // Given that we know that the executor is _blocked_ waiting for
+    // this call to complete (and no one else should touch this object
+    // while waiting for the call) lets just unlock and lock again..
+    virtual void notifyExecutionComplete() override {
+        getMutex().unlock();
+        notify_io_complete(&thread.getConnection(),
+                           thread.getResult());
+        getMutex().lock();
+    }
+
+    DestroyBucketThread thread;
+};
+
+
 static void delete_bucket_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
     (void)packet;
@@ -4316,45 +4388,38 @@ static void delete_bucket_executor(McbpConnection* c, void* packet) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        DeleteBucketContext *context = nullptr;
+        McbpDestroyBucketTask* task = nullptr;
         try {
-            context = new DeleteBucketContext(*c);
-
             auto* req = reinterpret_cast<protocol_binary_request_delete_bucket*>(packet);
             /* decode packet */
             uint16_t klen = ntohs(req->message.header.request.keylen);
             uint32_t blen = ntohl(req->message.header.request.bodylen);
             blen -= klen;
 
-            context->name.assign((char*)(req + 1), klen);
+            std::string name((char*)(req + 1), klen);
             std::string config((char*)(req + 1) + klen, blen);
+            bool force = false;
 
             struct config_item items[2];
             memset(&items, 0, sizeof(items));
             items[0].key = "force";
             items[0].datatype = DT_BOOL;
-            items[0].value.dt_bool = &context->force;
+            items[0].value.dt_bool = &force;
             items[1].key = NULL;
 
-            if (parse_config(config.c_str(), items, stderr) != 0) {
+            if (parse_config(config.c_str(), items, stderr) == 0) {
+                std::shared_ptr<Task> task = std::make_shared<McbpDestroyBucketTask>(
+                    name, force, *c);
+                std::lock_guard<std::mutex> guard(task->getMutex());
+                reinterpret_cast<McbpDestroyBucketTask*>(task.get())->start();
+                ret = ENGINE_EWOULDBLOCK;
+                executorPool->schedule(task, false);
+            } else {
                 ret = ENGINE_EINVAL;
             }
         } catch (std::bad_alloc&) {
             ret = ENGINE_ENOMEM;
-            delete context;
-        }
-
-        if (ret == ENGINE_SUCCESS) {
-            cb_thread_t tid;
-
-            int err = cb_create_thread(&tid, delete_bucket_main, context, 1);
-            if (err == 0) {
-                ret = ENGINE_EWOULDBLOCK;
-            } else {
-                LOG_WARNING(c, "Failed to create thread to delete bucket: %s",
-                            strerror(err));
-                ret = ENGINE_FAILED;
-            }
+            delete task;
         }
     }
 

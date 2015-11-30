@@ -49,6 +49,7 @@ ADD_EXECUTABLE(memcached
                ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
                ${MEMORY_TRACKING_SRCS}
                breakpad.h
+               buckets.cc
                buckets.h
                buffer.h
                cmdline.cc

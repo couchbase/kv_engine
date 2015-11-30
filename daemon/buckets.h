@@ -20,9 +20,11 @@
 #include <array>
 #include <cstring>
 #include <vector>
+#include <platform/thread.h>
 
 #include "timings.h"
 #include "topkeys.h"
+#include "task.h"
 
 enum class BucketState : uint8_t {
     /** This bucket entry is not used */
@@ -191,3 +193,151 @@ cJSON *get_bucket_details(int idx);
  */
 bool is_bucket_dying(Connection *c);
 bucket_id_t get_bucket_id(const void *cookie);
+
+
+namespace BucketValidator {
+    class InvalidBucketName : public std::invalid_argument {
+    public:
+        InvalidBucketName(const std::string &msg)
+            : std::invalid_argument(msg) {
+            // empty
+        }
+    };
+
+    class InvalidBucketType : public std::invalid_argument {
+    public:
+        InvalidBucketType(const std::string &msg)
+            : std::invalid_argument(msg) {
+            // empty
+        }
+    };
+
+    /**
+     * Validate that a bucket name confirms to the restrictions for bucket
+     * names.
+     *
+     * @param name the name to validate
+     * @param errors where to store a textual description of the problems
+     * @return true if the bucket name is valid, false otherwise
+     */
+    bool validateBucketName(const std::string& name, std::string& errors);
+
+    /**
+     * Validate that a bucket type is one of the supported types
+     *
+     * @param type the type to validate
+     * @param errors where to store a textual description of the problems
+     * @return true if the bucket type is valid and supported, false otherwise
+     */
+    bool validateBucketType(const BucketType& type, std::string& errors);
+}
+
+/**
+ * The CreateBucketThread is as the name implies a thread who creates a new
+ * bucket.
+ */
+class CreateBucketThread : public Couchbase::Thread {
+public:
+    /**
+     * Initialize this bucket creation thread.
+     *
+     * @param name_ the name of the bucket to create
+     * @param config_ the buckets configuration
+     * @param type_ the type of bucket to create
+     * @param connection_ the connection that requested the operation (and
+     *                    should be signalled when the creation is complete)
+     *
+     * @throws std::illegal_arguments if bucket name contains illegal
+     *                                characters
+     */
+    CreateBucketThread(const std::string& name_,
+                       const std::string& config_,
+                       const BucketType& type_,
+                       Connection& connection_,
+                       Task* task_)
+        : Couchbase::Thread("mc:bucket_add"),
+          name(name_),
+          config(config_),
+          type(type_),
+          connection(connection_),
+          task(task_),
+          result(ENGINE_DISCONNECT) {
+        // Empty
+    }
+
+    Connection& getConnection() const {
+        return connection;
+    }
+
+    ENGINE_ERROR_CODE getResult() const {
+        return result;
+    }
+
+protected:
+    virtual void run() override;
+
+private:
+    /**
+     * The actual implementation of the bucket creation.
+     */
+    void create();
+
+    std::string name;
+    std::string config;
+    BucketType type;
+    Connection& connection;
+    Task* task;
+    ENGINE_ERROR_CODE result;
+};
+
+/**
+ * The DestroyBucketThread is as the name implies a thread is responsible for
+ * deleting a bucket.
+ */
+class DestroyBucketThread : public Couchbase::Thread {
+public:
+    /**
+     * Initialize this bucket creation task.
+     *
+     * @param name_ the name of the bucket to delete
+     * @param force_ should the bucket be forcibly shut down or should it
+     *               try to perform a clean shutdown
+     * @param connection_ the connection that requested the operation
+     * @param task_ the task to notify when deletion is complete
+     */
+    DestroyBucketThread(const std::string& name_,
+                        bool force_,
+                        Connection& connection_,
+                        Task* task_)
+        : Couchbase::Thread("mc:bucket_del"),
+          name(name_),
+          force(force_),
+          connection(connection_),
+          task(task_),
+          result(ENGINE_DISCONNECT) {
+    }
+
+    Connection& getConnection() const {
+        return connection;
+    }
+
+    ENGINE_ERROR_CODE getResult() const {
+        return result;
+    }
+
+protected:
+    virtual void run() override;
+
+private:
+
+    /**
+     * The actual implementation of the bucket deletion.
+     */
+    void destroy();
+
+    std::string name;
+    bool force;
+    Connection& connection;
+    Task* task;
+    ENGINE_ERROR_CODE result;
+};

@@ -1709,40 +1709,10 @@ static SERVER_HANDLE_V1 *get_server_api(void)
 }
 
 /* BUCKET FUNCTIONS */
-
-static bool is_bucket_name_legal(const std::string &name) {
-    if (name.empty() || name.length() > MAX_BUCKET_NAME_LENGTH) {
-        return false;
-    }
-
-    // Verify that the bucket name only consists of legal characters
-    for (int ii : name) {
-        if (!(isupper(ii) || islower(ii) || isdigit(ii))) {
-            switch (ii) {
-            case '_':
-            case '-':
-            case '.':
-            case '%':
-                break;
-            default:
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
-                                          const char *config,
-                                          BucketType bucketType) {
+void CreateBucketThread::create() {
     int ii;
     int first_free = -1;
     bool found = false;
-    ENGINE_ERROR_CODE ret;
-
-    if (!is_bucket_name_legal(bucket_name)) {
-        return ENGINE_EINVAL;
-    }
 
     cb_mutex_enter(&buckets_lock);
     for (ii = 0; ii < settings.max_buckets && !found; ++ii) {
@@ -1750,18 +1720,18 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
         if (first_free == -1 && all_buckets[ii].state == BucketState::None) {
             first_free = ii;
         }
-        if (bucket_name == all_buckets[ii].name) {
+        if (name == all_buckets[ii].name) {
             found = true;
         }
         cb_mutex_exit(&all_buckets[ii].mutex);
     }
 
     if (found) {
-        ret = ENGINE_KEY_EEXISTS;
+        result = ENGINE_KEY_EEXISTS;
     } else if (first_free == -1) {
-        ret = ENGINE_E2BIG;
+        result = ENGINE_E2BIG;
     } else {
-        ret = ENGINE_SUCCESS;
+        result = ENGINE_SUCCESS;
         ii = first_free;
         /*
          * split the creation of the bucket in two... so
@@ -1769,90 +1739,95 @@ static ENGINE_ERROR_CODE do_create_bucket(const std::string& bucket_name,
          */
         cb_mutex_enter(&all_buckets[ii].mutex);
         all_buckets[ii].state = BucketState::Creating;
-        all_buckets[ii].type = bucketType;
-        strcpy(all_buckets[ii].name, bucket_name.c_str());
+        all_buckets[ii].type = type;
+        strcpy(all_buckets[ii].name, name.c_str());
         try {
             all_buckets[ii].topkeys = new TopKeys(settings.topkeys_size);
         } catch (const std::bad_alloc &) {
-            ret = ENGINE_ENOMEM;
+            result = ENGINE_ENOMEM;
         }
         cb_mutex_exit(&all_buckets[ii].mutex);
     }
     cb_mutex_exit(&buckets_lock);
 
-    if (ret == ENGINE_SUCCESS) {
-        auto &bucket = all_buckets[ii];
+    if (result != ENGINE_SUCCESS) {
+        return;
+    }
 
-        /* People aren't allowed to use the engine in this state,
-         * so we can do stuff without locking..
-         */
-        if (new_engine_instance(bucketType, get_server_api,
-                                (ENGINE_HANDLE**)&bucket.engine,
-                                settings.extensions.logger)) {
-            auto* engine = bucket.engine;
+    auto &bucket = all_buckets[ii];
+
+    /* People aren't allowed to use the engine in this state,
+     * so we can do stuff without locking..
+     */
+    if (new_engine_instance(type, get_server_api,
+                            (ENGINE_HANDLE**)&bucket.engine,
+                            settings.extensions.logger)) {
+        auto* engine = bucket.engine;
+        cb_mutex_enter(&bucket.mutex);
+        bucket.state = BucketState::Initializing;
+        cb_mutex_exit(&bucket.mutex);
+
+        try {
+            result = engine->initialize(v1_handle_2_handle(engine),
+                                        config.c_str());
+        } catch (std::runtime_error& e) {
+            LOG_WARNING(&connection, "%u - Failed to create bucket [%s]: %s",
+                        connection.getId(), name.c_str(), e.what());
+            result = ENGINE_FAILED;
+        } catch (std::bad_alloc& e) {
+            LOG_WARNING(&connection, "%u - Failed to create bucket [%s]: %s",
+                        connection.getId(), name.c_str(), e.what());
+            result = ENGINE_ENOMEM;
+        }
+
+        if (result == ENGINE_SUCCESS) {
             cb_mutex_enter(&bucket.mutex);
-            bucket.state = BucketState::Initializing;
+            bucket.state = BucketState::Ready;
             cb_mutex_exit(&bucket.mutex);
-
-            try {
-                ret = engine->initialize(v1_handle_2_handle(engine), config);
-            } catch (std::runtime_error& e) {
-                LOG_WARNING(NULL, "Failed to create bucket [%s]: ",
-                            bucket_name.c_str(), e.what());
-                ret = ENGINE_FAILED;
-            } catch (std::bad_alloc& e) {
-                LOG_WARNING(NULL, "Failed to create bucket [%s]: ",
-                            bucket_name.c_str(), e.what());
-                ret = ENGINE_ENOMEM;
-            }
-
-            if (ret == ENGINE_SUCCESS) {
-                cb_mutex_enter(&bucket.mutex);
-                bucket.state = BucketState::Ready;
-                cb_mutex_exit(&bucket.mutex);
-            } else {
-                cb_mutex_enter(&bucket.mutex);
-                bucket.state = BucketState::Destroying;
-                cb_mutex_exit(&bucket.mutex);
-                engine->destroy(v1_handle_2_handle(engine), false);
-
-                cb_mutex_enter(&bucket.mutex);
-                bucket.state = BucketState::None;
-                bucket.name[0] = '\0';
-                bucket.engine = nullptr;
-                cb_mutex_exit(&bucket.mutex);
-
-                ret = ENGINE_NOT_STORED;
-            }
+            LOG_NOTICE(&connection,
+                        "%u - Bucket [%s] created successfully",
+                        connection.getId(), name.c_str());
         } else {
+            cb_mutex_enter(&bucket.mutex);
+            bucket.state = BucketState::Destroying;
+            cb_mutex_exit(&bucket.mutex);
+            engine->destroy(v1_handle_2_handle(engine), false);
+
             cb_mutex_enter(&bucket.mutex);
             bucket.state = BucketState::None;
             bucket.name[0] = '\0';
             bucket.engine = nullptr;
+            delete bucket.topkeys;
+            bucket.topkeys = nullptr;
             cb_mutex_exit(&bucket.mutex);
-            /* @todo should I change the error code? */
-        }
-    }
 
-    return ret;
+            result = ENGINE_NOT_STORED;
+        }
+    } else {
+        cb_mutex_enter(&bucket.mutex);
+        bucket.state = BucketState::None;
+        bucket.name[0] = '\0';
+        bucket.engine = nullptr;
+        delete bucket.topkeys;
+        bucket.topkeys = nullptr;
+        cb_mutex_exit(&bucket.mutex);
+
+        LOG_WARNING(&connection,
+                    "%u - Failed to create bucket [%s]: failed to create a "
+                        "new engine instance",
+                    connection.getId(), name.c_str());
+        result = ENGINE_FAILED;
+    }
 }
 
-void create_bucket_main(void *arg)
+void CreateBucketThread::run()
 {
-    auto* context = reinterpret_cast<CreateBucketContext*>(arg);
-
-    ENGINE_ERROR_CODE ret;
-
-    try {
-        ret = do_create_bucket(context->name,
-                               context->config.c_str(),
-                               context->type);
-    } catch (std::bad_alloc&) {
-        ret = ENGINE_ENOMEM;
-    }
-
-    notify_io_complete(&context->connection, ret);
-    delete context;
+    // Perform the task without having any locks. The task should be
+    // scheduled in a pending state so the executor won't try to touch
+    // the object until we're telling it that it is runnable
+    create();
+    std::lock_guard<std::mutex> guard(task->getMutex());
+    task->makeRunnable();
 }
 
 void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
@@ -1869,17 +1844,14 @@ void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
     }
 }
 
-static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
-                                          const std::string& bucket_name,
-                                          bool force) {
+void DestroyBucketThread::destroy() {
     ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
-
     cb_mutex_enter(&buckets_lock);
 
     int idx = 0;
     for (int ii = 0; ii < settings.max_buckets; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
-        if (bucket_name == all_buckets[ii].name) {
+        if (name == all_buckets[ii].name) {
             idx = ii;
             if (all_buckets[ii].state == BucketState::Ready) {
                 ret = ENGINE_SUCCESS;
@@ -1897,18 +1869,19 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
 
     if (ret != ENGINE_SUCCESS) {
         auto code = engine_error_2_mcbp_protocol_error(ret);
-        LOG_NOTICE(c, "<>%u Delete bucket [%s]: %s",
-                   c->getId(), bucket_name.c_str(),
+        LOG_NOTICE(&connection, "<>%u Delete bucket [%s]: %s",
+                   connection.getId(), name.c_str(),
                    memcached_status_2_text(code));
-        return ret;
+        result = ret;
+        return;
     }
 
-    LOG_NOTICE(c, ">%u Delete bucket [%s]. Wait for clients to disconnect",
-               c->getId(), bucket_name.c_str());
+    LOG_NOTICE(&connection, ">%u Delete bucket [%s]. Wait for clients to disconnect",
+               connection.getId(), name.c_str());
 
     /* If this thread is connected to the requested bucket... release it */
-    if (idx == c->getBucketIndex()) {
-        disassociate_bucket(c);
+    if (idx == connection.getBucketIndex()) {
+        disassociate_bucket(&connection);
     }
 
     /* Let all of the worker threads start invalidating connections */
@@ -1917,9 +1890,9 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     /* Wait until all users disconnected... */
     cb_mutex_enter(&all_buckets[idx].mutex);
     while (all_buckets[idx].clients > 0) {
-        LOG_NOTICE(c,
+        LOG_NOTICE(&connection,
                    "%u Delete bucket [%s]. Still waiting: %u clients connected",
-                   c->getId(), bucket_name.c_str(), all_buckets[idx].clients);
+                   connection.getId(), name.c_str(), all_buckets[idx].clients);
 
         /* drop the lock and notify the worker threads */
         cb_mutex_exit(&all_buckets[idx].mutex);
@@ -1938,14 +1911,14 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     /* assert that all associations are gone. */
     assert_no_associations(idx);
 
-    LOG_NOTICE(c, "%u Delete bucket [%s]. Shut down the bucket",
-               c->getId(), bucket_name.c_str());
+    LOG_NOTICE(&connection, "%u Delete bucket [%s]. Shut down the bucket",
+               connection.getId(), name.c_str());
 
     all_buckets[idx].engine->destroy
         (v1_handle_2_handle(all_buckets[idx].engine), force);
 
-    LOG_NOTICE(c, "%u Delete bucket [%s]. Clean up allocated resources ",
-               c->getId(), bucket_name.c_str());
+    LOG_NOTICE(&connection, "%u Delete bucket [%s]. Clean up allocated resources ",
+               connection.getId(), name.c_str());
 
     /* Clean up the stats... */
     delete[]all_buckets[idx].stats;
@@ -1965,26 +1938,16 @@ static ENGINE_ERROR_CODE do_delete_bucket(Connection *c,
     // don't need lock because all timing data uses atomics
     all_buckets[idx].timings.reset();
 
-    LOG_NOTICE(c, "<%u Delete bucket [%s] complete",
-               c->getId(), bucket_name.c_str());
+    LOG_NOTICE(&connection, "<%u Delete bucket [%s] complete",
+               connection.getId(), name.c_str());
 
-    return ENGINE_SUCCESS;
+    result = ENGINE_SUCCESS;
 }
 
-void delete_bucket_main(void* arg) {
-    auto* context = reinterpret_cast<DeleteBucketContext*>(arg);
-    ENGINE_ERROR_CODE ret;
-
-    try {
-        ret = do_delete_bucket(&context->connection,
-                               context->name,
-                               context->force);
-    } catch (const std::bad_alloc&) {
-        ret = ENGINE_ENOMEM;
-    }
-
-    notify_io_complete(&context->connection, ret);
-    delete context;
+void DestroyBucketThread::run() {
+    destroy();
+    std::lock_guard<std::mutex> guard(task->getMutex());
+    task->makeRunnable();
 }
 
 static void initialize_buckets(void) {
