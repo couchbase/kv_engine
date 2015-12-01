@@ -561,7 +561,7 @@ static void process_bin_get(McbpConnection* c) {
                                              datatype,
                                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                              info.info.cas, c)) {
-                write_and_free(c, &c->getDynamicBuffer());
+                mcbp_write_and_free(c, &c->getDynamicBuffer());
                 c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
             } else {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
@@ -1080,7 +1080,7 @@ static void process_bin_unknown_packet(McbpConnection* c) {
     switch (ret) {
     case ENGINE_SUCCESS: {
         if (c->getDynamicBuffer().getRoot() != nullptr) {
-            write_and_free(c, &c->getDynamicBuffer());
+            mcbp_write_and_free(c, &c->getDynamicBuffer());
         } else {
             c->setState(conn_new_cmd);
         }
@@ -2127,7 +2127,7 @@ static void dcp_get_failover_log_executor(McbpConnection* c, void* packet) {
         switch (ret) {
         case ENGINE_SUCCESS:
             if (c->getDynamicBuffer().getRoot() != nullptr) {
-                write_and_free(c, &c->getDynamicBuffer());
+                mcbp_write_and_free(c, &c->getDynamicBuffer());
             } else {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             }
@@ -2193,7 +2193,7 @@ static void dcp_stream_req_executor(McbpConnection* c, void* packet) {
             c->setDCP(true);
             c->setPriority(Connection::Priority::Medium);
             if (c->getDynamicBuffer().getRoot() != nullptr) {
-                write_and_free(c, &c->getDynamicBuffer());
+                mcbp_write_and_free(c, &c->getDynamicBuffer());
             } else {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
             }
@@ -2205,7 +2205,7 @@ static void dcp_stream_req_executor(McbpConnection* c, void* packet) {
                                       sizeof(rollback_seqno), 0,
                                       PROTOCOL_BINARY_RESPONSE_ROLLBACK, 0,
                                       c)) {
-                write_and_free(c, &c->getDynamicBuffer());
+                mcbp_write_and_free(c, &c->getDynamicBuffer());
             } else {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             }
@@ -3123,7 +3123,7 @@ static void stat_executor(McbpConnection* c, void* packet) {
     switch (ret) {
     case ENGINE_SUCCESS:
         append_stats(NULL, 0, NULL, 0, c);
-        write_and_free(c, &c->getDynamicBuffer());
+        mcbp_write_and_free(c, &c->getDynamicBuffer());
         break;
     case ENGINE_ENOMEM:
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
@@ -3302,7 +3302,7 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
                               PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               0, c);
-        write_and_free(c, &c->getDynamicBuffer());
+        mcbp_write_and_free(c, &c->getDynamicBuffer());
     }
 
 
@@ -3766,7 +3766,7 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
                               PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
                               0, c);
-        write_and_free(c, &c->getDynamicBuffer());
+        mcbp_write_and_free(c, &c->getDynamicBuffer());
     } else if (cookie_is_admin(c)) {
         bool found = false;
         for (int ii = 1; ii < settings.max_buckets && !found; ++ii) {
@@ -3786,7 +3786,7 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
                                   PROTOCOL_BINARY_RAW_BYTES,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                   0, c);
-            write_and_free(c, &c->getDynamicBuffer());
+            mcbp_write_and_free(c, &c->getDynamicBuffer());
         } else {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
         }
@@ -3808,7 +3808,7 @@ static void set_ctrl_token_executor(McbpConnection* c, void* packet) {
                           engine_error_2_mcbp_protocol_error(ret),
                           value, c);
 
-    write_and_free(c, &c->getDynamicBuffer());
+    mcbp_write_and_free(c, &c->getDynamicBuffer());
 }
 
 static void get_ctrl_token_executor(McbpConnection* c, void*) {
@@ -3816,7 +3816,7 @@ static void get_ctrl_token_executor(McbpConnection* c, void*) {
                           PROTOCOL_BINARY_RAW_BYTES,
                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
                           session_cas.getCasValue(), c);
-    write_and_free(c, &c->getDynamicBuffer());
+    mcbp_write_and_free(c, &c->getDynamicBuffer());
 }
 
 static void init_complete_executor(McbpConnection* c, void* packet) {
@@ -3848,7 +3848,7 @@ static void ioctl_get_executor(McbpConnection* c, void* packet) {
                                   uint32_t(length),
                                   PROTOCOL_BINARY_RAW_BYTES,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
-            write_and_free(c, &c->getDynamicBuffer());
+            mcbp_write_and_free(c, &c->getDynamicBuffer());
         } else {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
@@ -3906,7 +3906,7 @@ static void config_validate_executor(McbpConnection* c, void* packet) {
                                       (uint32_t)strlen(error_string), 0,
                                       PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
                                       c)) {
-                write_and_free(c, &c->getDynamicBuffer());
+                mcbp_write_and_free(c, &c->getDynamicBuffer());
             } else {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             }
@@ -4093,7 +4093,7 @@ static void list_bucket_executor(McbpConnection* c, void*) {
         if (mcbp_response_handler(NULL, 0, NULL, 0, blob.data(),
                                   uint32_t(blob.size()), 0,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
-            write_and_free(c, &c->getDynamicBuffer());
+            mcbp_write_and_free(c, &c->getDynamicBuffer());
         } else {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }

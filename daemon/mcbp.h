@@ -59,3 +59,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
                            const void* body, uint32_t bodylen,
                            uint8_t datatype, uint16_t status,
                            uint64_t cas, const void* cookie);
+
+
+/* set up a connection to write a DynamicBuffer then free it once sent. */
+void mcbp_write_and_free(McbpConnection* c, DynamicBuffer* buf);

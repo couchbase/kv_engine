@@ -599,23 +599,6 @@ ENGINE_ERROR_CODE refresh_ssl_certs(Connection *c)
     return ENGINE_SUCCESS;
 }
 
-void write_and_free(McbpConnection *c, DynamicBuffer* buf) {
-    if (buf->getRoot() == nullptr) {
-        c->setState(conn_closing);
-    } else {
-        if (!c->pushTempAlloc(buf->getRoot())) {
-            c->setState(conn_closing);
-            return;
-        }
-        c->write.curr = buf->getRoot();
-        c->write.bytes = (uint32_t)buf->getOffset();
-        c->setState(conn_write);
-        c->setWriteAndGo(conn_new_cmd);
-
-        buf->takeOwnership();
-    }
-}
-
 cJSON *get_bucket_details(int idx)
 {
     Bucket &bucket = all_buckets.at(idx);

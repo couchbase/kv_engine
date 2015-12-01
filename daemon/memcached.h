@@ -217,18 +217,6 @@ const char* get_server_version(void);
 /**
  * Connection-related functions
  */
-/* TODO: move to connections.c */
-
-/*
- * Adds data to the list of pending data that will be written out to a
- * connection.
- *
- * Returns 0 on success, -1 on out-of-memory.
- */
-int add_iov(Connection *c, const void *buf, size_t len);
-
-/* set up a connection to write a DynamicBuffer then free it once sent. */
-void write_and_free(McbpConnection *c, DynamicBuffer* buf);
 
 /* Increments topkeys count for a key when called by a valid operation. */
 void update_topkeys(const char *key, size_t nkey, McbpConnection *c);

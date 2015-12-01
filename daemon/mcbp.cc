@@ -78,6 +78,23 @@ void mcbp_write_response(McbpConnection* c,
     }
 }
 
+void mcbp_write_and_free(McbpConnection* c, DynamicBuffer* buf) {
+    if (buf->getRoot() == nullptr) {
+        c->setState(conn_closing);
+    } else {
+        if (!c->pushTempAlloc(buf->getRoot())) {
+            c->setState(conn_closing);
+            return;
+        }
+        c->write.curr = buf->getRoot();
+        c->write.bytes = (uint32_t)buf->getOffset();
+        c->setState(conn_write);
+        c->setWriteAndGo(conn_new_cmd);
+
+        buf->takeOwnership();
+    }
+}
+
 void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
     if (err == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         mcbp_write_response(c, NULL, 0, 0, 0);
@@ -88,7 +105,7 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
 
         ret = bucket_get_engine_vb_map(c, get_vb_map_cb);
         if (ret == ENGINE_SUCCESS) {
-            write_and_free(c, &c->getDynamicBuffer());
+            mcbp_write_and_free(c, &c->getDynamicBuffer());
         } else {
             c->setState(conn_closing);
         }
