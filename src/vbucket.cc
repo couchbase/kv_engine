@@ -303,12 +303,16 @@ void VBucket::addHighPriorityVBEntry(uint64_t id, const void *cookie,
     numHpChks = hpChks.size();
 }
 
-void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
-                                        uint64_t idNum,
-                                        bool isBySeqno) {
+void VBucket::notifyOnPersistence(EventuallyPersistentEngine &e,
+                                  uint64_t idNum,
+                                  bool isBySeqno) {
     LockHolder lh(hpChksMutex);
     std::map<const void*, ENGINE_ERROR_CODE> toNotify;
     std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
+
+    std::string logStr(isBySeqno
+                       ? "seqno persistence"
+                       : "checkpoint persistence");
 
     while (entry != hpChks.end()) {
         if (isBySeqno != entry->isBySeqno_) {
@@ -322,9 +326,10 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             toNotify[entry->cookie] = ENGINE_SUCCESS;
             stats.chkPersistenceHisto.add(wall_time / 1000);
             adjustCheckpointFlushTimeout(wall_time / 1000000000);
-            LOG(EXTENSION_LOG_WARNING, "Notified the completion of checkpoint "
-                "persistence for vbucket %d, id %llu, cookie %p", id, idNum,
-                entry->cookie);
+            LOG(EXTENSION_LOG_WARNING, "Notified the completion of %s "
+                "for vbucket %" PRIu16 ", Check for: %" PRIu64 ", "
+                "Persisted upto: %" PRIu64 ", cookie %p",
+                logStr.c_str(), id, entry->id, idNum, entry->cookie);
             entry = hpChks.erase(entry);
             if (shard) {
                 --shard->highPriorityCount;
@@ -333,9 +338,10 @@ void VBucket::notifyCheckpointPersisted(EventuallyPersistentEngine &e,
             adjustCheckpointFlushTimeout(spent);
             e.storeEngineSpecific(entry->cookie, NULL);
             toNotify[entry->cookie] = ENGINE_TMPFAIL;
-            LOG(EXTENSION_LOG_WARNING, "Notified the timeout on checkpoint "
-                "persistence for vbucket %d, id %llu, cookie %p", id, idNum,
-                entry->cookie);
+            LOG(EXTENSION_LOG_WARNING, "Notified the timeout on %s "
+                "for vbucket %" PRIu16 ", Check for: %" PRIu64 ", "
+                "Persisted upto: %" PRIu64 ", cookie %p",
+                logStr.c_str(), id, entry->id, idNum, entry->cookie);
             entry = hpChks.erase(entry);
             if (shard) {
                 --shard->highPriorityCount;

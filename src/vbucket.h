@@ -359,8 +359,10 @@ public:
         }
     }
 
-    void addHighPriorityVBEntry(uint64_t id, const void *cookie, bool isBySeqno);
-    void notifyCheckpointPersisted(EventuallyPersistentEngine &e, uint64_t id, bool isBySeqno);
+    void addHighPriorityVBEntry(uint64_t id, const void *cookie,
+                                bool isBySeqno);
+    void notifyOnPersistence(EventuallyPersistentEngine &e,
+                             uint64_t id, bool isBySeqno);
     void notifyAllPendingConnsFailed(EventuallyPersistentEngine &e);
     size_t getHighPriorityChkSize();
     static size_t getCheckpointFlushTimeout();

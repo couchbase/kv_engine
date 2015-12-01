@@ -2789,8 +2789,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             vb->checkpointManager.itemsPersisted();
             uint64_t seqno = vbMap.getPersistenceSeqno(vbid);
             uint64_t chkid = vb->checkpointManager.getPersistenceCursorPreChkId();
-            vb->notifyCheckpointPersisted(engine, seqno, true);
-            vb->notifyCheckpointPersisted(engine, chkid, false);
+            vb->notifyOnPersistence(engine, seqno, true);
+            vb->notifyOnPersistence(engine, chkid, false);
             if (chkid > 0 && chkid != vbMap.getPersistenceCheckpointId(vbid)) {
                 vbMap.setPersistenceCheckpointId(vbid, chkid);
             }
