@@ -21,7 +21,6 @@
 #include <iostream>
 
 Executor::~Executor() {
-    bool join_thread = running;
     shutdown = true;
     std::unique_lock<std::mutex> lock(mutex);
     idlecond.notify_all();
@@ -29,16 +28,9 @@ Executor::~Executor() {
     while (running) {
         shutdowncond.wait(lock);
     }
-
-    if (join_thread) {
-        // Wait for the thread to exit
-        cb_join_thread(tid);
-    }
 }
 
 void Executor::run() {
-    cb_set_thread_name("mc:executor");
-    tid = cb_thread_self();
     running = true;
 
     {
@@ -85,7 +77,6 @@ void Executor::run() {
         idlecond.wait(lock);
     }
 
-    lock.unlock();
     running = false;
     shutdowncond.notify_one();
 }
@@ -119,25 +110,8 @@ void Executor::makeRunnable(Task* task) {
     idlecond.notify_one();
 }
 
-static void executor_main(void *arg) {
-    auto* executor = reinterpret_cast<Executor*>(arg);
-    executor->run();
-}
-
 std::unique_ptr<Executor> createWorker() {
     auto *executor = new Executor;
-
-    std::unique_lock<std::mutex> lock(executor->mutex);
-
-    cb_thread_t tid;
-    if (cb_create_thread(&tid, executor_main, executor, 0) == -1) {
-        lock.unlock();
-        delete executor;
-        throw std::runtime_error("Failed to start executor thread");
-    }
-
-    executor->idlecond.wait(lock);
-    lock.unlock();
-
+    executor->start();
     return std::unique_ptr<Executor>(executor);
 }

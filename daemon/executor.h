@@ -20,6 +20,7 @@
 #include <condition_variable>
 #include <memory>
 #include <platform/platform.h>
+#include <platform/thread.h>
 #include <queue>
 #include <unordered_map>
 
@@ -27,8 +28,6 @@
  * Forward decl of the Task to avoid circular dependencies
  */
 class Task;
-
-class Executor;
 
 /**
  * The Executor class represents a single executor thread. It keeps
@@ -38,13 +37,12 @@ class Executor;
  * and it is NOT allowed to call it from any of the executors threads (that
  * may create deadlock)
  */
-class Executor {
+class Executor : public Couchbase::Thread {
 public:
     /**
      * Initialize the Executor object
      */
-    Executor() :
-          tid(cb_thread_t(0)) {
+    Executor() : Couchbase::Thread("mc:executor") {
         shutdown.store(false);
         running.store(false);
     }
@@ -66,18 +64,8 @@ public:
      */
     void makeRunnable(Task* task);
 
-    /**
-     * Start the executor thread. This should not be called by anyone, its
-     * just the annoying fact that cb_create_thread needs a c function, and
-     * I need a way to get into this object (I could of course subclass this
-     * with a private class in executors.cc and have this method protected,
-     * but thats a bit overkill.. you've read the comment here, don't use it)
-     */
-    void run();
-
 protected:
-    // The createWorker needs to wait for the executor to properly start
-    friend std::unique_ptr<Executor> createWorker();
+    virtual void run() override;
 
     /**
      * Is shutdown requested?
@@ -122,11 +110,6 @@ protected:
      * thread to shut down.
      */
     std::condition_variable shutdowncond;
-
-    /**
-     * The thread identifier
-     */
-    cb_thread_t tid;
 };
 
 std::unique_ptr<Executor> createWorker();
