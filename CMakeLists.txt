@@ -402,16 +402,17 @@ INSTALL(TARGETS ep
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
+SET(_ep_testsuite_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7")
 ADD_CUSTOM_TARGET(engine-tests
-                  COMMAND ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_testsuite.so -e "flushall_enabled=true;ht_size=13;ht_locks=7"
+                  COMMAND ${_ep_testsuite_cmdline}
                   VERBATIM)
 
-ADD_TEST(ep-engine-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_testsuite.so -v -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
+ADD_TEST(ep-engine-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite.so -v -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
 SET_TESTS_PROPERTIES(ep-engine-engine-tests PROPERTIES TIMEOUT 3600)
 
 # ADD_TEST(ep-engine-breakdancer-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T generated_testsuite.so -e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=couchdb')
 
-SET(_ep_perfsuite_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T ep_perfsuite.so)
+SET(_ep_perfsuite_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_perfsuite.so)
 ADD_TEST(NAME ep-engine-perfsuite
          COMMAND ${_ep_perfsuite_cmdline})
 ADD_CUSTOM_TARGET(test-perfsuite
