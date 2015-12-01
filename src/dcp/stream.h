@@ -368,7 +368,7 @@ private:
 
     void processSetVBucketState(SetVBucketState* state);
 
-    void transitionState(stream_state_t newState);
+    bool transitionState(stream_state_t newState);
 
     uint32_t clearBuffer();
 

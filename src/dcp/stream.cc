@@ -1042,26 +1042,30 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, DcpConsumer* c,
 PassiveStream::~PassiveStream() {
     LockHolder lh(streamMutex);
     clear_UNLOCKED();
-    if (state_ != STREAM_DEAD) {
-        setDead_UNLOCKED(END_STREAM_OK, &lh);
-    }
+    setDead_UNLOCKED(END_STREAM_OK, &lh);
 }
 
 uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status,
                                          LockHolder *slh) {
-    transitionState(STREAM_DEAD);
+    bool killed = false;
+    if (transitionState(STREAM_DEAD)) {
+        killed = true;
+    }
     slh->unlock();
+
     uint32_t unackedBytes = clearBuffer();
 
-    EXTENSION_LOG_LEVEL logLevel = EXTENSION_LOG_NOTICE;
-    if (END_STREAM_DISCONNECTED == status) {
-        logLevel = EXTENSION_LOG_WARNING;
+    if (killed) {
+        EXTENSION_LOG_LEVEL logLevel = EXTENSION_LOG_NOTICE;
+        if (END_STREAM_DISCONNECTED == status) {
+            logLevel = EXTENSION_LOG_WARNING;
+        }
+        LOG(logLevel, "%s (vb %" PRId16 ") Setting stream to dead"
+            " state, last_seqno is %" PRIu64 ", unAckedBytes is %" PRIu32 ","
+            " status is %s",
+            consumer->logHeader(), vb_, last_seqno.load(),
+            unackedBytes, getEndStreamStatusStr(status));
     }
-    LOG(logLevel, "%s (vb %" PRId16 ") Setting stream to dead"
-        " state, last_seqno is %" PRIu64 ", unAckedBytes is %" PRIu32 ","
-        " status is %s",
-        consumer->logHeader(), vb_, last_seqno.load(),
-        unackedBytes, getEndStreamStatusStr(status));
     return unackedBytes;
 }
 
@@ -1515,12 +1519,12 @@ uint32_t PassiveStream::clearBuffer() {
     return unackedBytes;
 }
 
-void PassiveStream::transitionState(stream_state_t newState) {
+bool PassiveStream::transitionState(stream_state_t newState) {
     LOG(EXTENSION_LOG_DEBUG, "%s (vb %d) Transitioning from %s to %s",
         consumer->logHeader(), vb_, stateName(state_), stateName(newState));
 
     if (state_ == newState) {
-        return;
+        return false;
     }
 
     bool validTransition = false;
@@ -1557,6 +1561,7 @@ void PassiveStream::transitionState(stream_state_t newState) {
     }
 
     state_ = newState;
+    return true;
 }
 
 const char* PassiveStream::getEndStreamStatusStr(end_stream_status_t status)
