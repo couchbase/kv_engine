@@ -14640,7 +14640,7 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
                 uint64_t cas = 0;
                 mutation_descr_t mut_info;
                 checkeq(ENGINE_SUCCESS,
-                        h1->remove(h, NULL, key, strlen(key), &cas, vb,
+                        h1->remove(h, cookie, key, strlen(key), &cas, vb,
                                    &mut_info),
                         "Failed to remove key.");
                 kv->second.pop_back();
@@ -14649,6 +14649,8 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
         }
         wait_for_flusher_to_settle(h, h1);
     }
+
+    testHarness.destroy_cookie(cookie);
 
     // Release free memory back to OS to minimize our footprint after
     // removing the documents above.
@@ -14709,9 +14711,9 @@ static enum test_result test_defragmenter(ENGINE_HANDLE *h,
                         ") after the defragmentater visited " +
                         std::to_string(numVisited) + " items and moved " +
                         std::to_string(numMoved) + " items!");
+
     check(ret, err_msg.c_str());
 
-    testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
 #endif // defined(HAVE_JEMALLOC)
