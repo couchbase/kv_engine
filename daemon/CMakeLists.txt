@@ -84,6 +84,8 @@ ADD_LIBRARY(memcached_daemon STATIC
                greenstack.h
                ioctl.cc
                ioctl.h
+               libevent_locking.cc
+               libevent_locking.h
                log_macros.h
                mc_time.cc
                mc_time.h
@@ -139,6 +141,10 @@ ADD_LIBRARY(memcached_daemon STATIC
 
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
+IF (NOT WIN32)
+    LIST(APPEND MEMCACHED_EXTRA_LIBS ${LIBEVENT_THREAD_LIB})
+ENDIF (NOT WIN32)
+
 TARGET_LINK_LIBRARIES(memcached_daemon
                       auditd
                       mcd_util
@@ -150,11 +156,12 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       subjson
                       ${SNAPPY_LIBRARIES}
                       ${MALLOC_LIBRARIES}
-                      ${LIBEVENT_LIBRARIES}
+                      ${LIBEVENT_CORE_LIB}
                       ${OPENSSL_LIBRARIES}
                       ${COUCHBASE_NETWORK_LIBS}
                       ${BREAKPAD_LIBRARIES}
-                      ${NUMA_LIBRARIES})
+                      ${NUMA_LIBRARIES}
+                      ${MEMCACHED_EXTRA_LIBS})
 
 ADD_EXECUTABLE(memcached main.cc)
 TARGET_LINK_LIBRARIES(memcached memcached_daemon)

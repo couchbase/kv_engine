@@ -46,6 +46,7 @@
 #include "privileges.h"
 #include "greenstack.h"
 #include "mcbpdestroybuckettask.h"
+#include "libevent_locking.h"
 
 #include <platform/strerror.h>
 
@@ -2532,6 +2533,8 @@ extern "C" int memcached_main(int argc, char **argv) {
 #endif
 
     install_backtrace_terminate_handler(settings.extensions.logger);
+
+    setup_libevent_locking();
 
     initialize_openssl();
 
