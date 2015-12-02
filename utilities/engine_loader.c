@@ -180,9 +180,10 @@ void log_engine_details(ENGINE_HANDLE* engine,
         ssize_t offset;
         bool comma;
         char message[4096];
-        ssize_t nw = snprintf(message, sizeof(message), "Create bucket with engine: %s.",
-                                        info->description ?
-                                        info->description : "Unknown");
+        ssize_t nw = snprintf(message, sizeof(message),
+                              "Create bucket with engine: %s.",
+                              info->description ?
+                              info->description : "Unknown");
         if (nw == -1) {
             return;
         }
@@ -192,7 +193,7 @@ void log_engine_details(ENGINE_HANDLE* engine,
         if (info->num_features > 0) {
             unsigned int ii;
             nw = snprintf(message + offset, sizeof(message) - offset,
-                          "Supplying the following features: ");
+                          " Supplying the following features: ");
             if (nw == -1) {
                 return;
             }
