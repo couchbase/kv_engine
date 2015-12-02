@@ -60,8 +60,8 @@ std::string BackfillManagerTask::getDescription() {
     return ss.str();
 }
 
-BackfillManager::BackfillManager(EventuallyPersistentEngine* e, connection_t c)
-    : engine(e), conn(c), managerTask(NULL) {
+BackfillManager::BackfillManager(EventuallyPersistentEngine* e)
+    : engine(e), managerTask(NULL) {
 
     Configuration& config = e->getConfiguration();
 
@@ -88,7 +88,6 @@ void BackfillManager::addStats(connection_t conn, ADD_STAT add_stat,
 }
 
 BackfillManager::~BackfillManager() {
-    LockHolder lh(lock);
     if (managerTask) {
         managerTask->cancel();
     }

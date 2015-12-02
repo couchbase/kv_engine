@@ -48,6 +48,12 @@ Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
       state_(STREAM_PENDING), itemsReady(false), readyQueueMemory(0) {
 }
 
+Stream::~Stream() {
+    // NB: reusing the "unlocked" method without a lock because we're
+    // destructing and should not take any locks.
+    clear_UNLOCKED();
+}
+
 void Stream::clear_UNLOCKED() {
     while (!readyQ.empty()) {
         DcpResponse* resp = readyQ.front();
@@ -154,12 +160,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
 }
 
 ActiveStream::~ActiveStream() {
-    LockHolder lh(streamMutex);
     transitionState(STREAM_DEAD);
-    clear_UNLOCKED();
-    producer->getBackfillManager()->bytesSent(bufferedBackfill.bytes);
-    bufferedBackfill.bytes = 0;
-    bufferedBackfill.items = 0;
 }
 
 DcpResponse* ActiveStream::next() {
@@ -920,11 +921,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,
 }
 
 PassiveStream::~PassiveStream() {
-    LockHolder lh(streamMutex);
-    clear_UNLOCKED();
-    if (state_ != STREAM_DEAD) {
-        setDead_UNLOCKED(END_STREAM_OK, &lh);
-    }
+    clearBuffer();
 }
 
 uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status,
