@@ -1183,8 +1183,9 @@ void McbpConnection::maybeLogSlowCommand(
             snprintf(opcodetext, sizeof(opcodetext), "0x%0X", cmd);
             opcode = opcodetext;
         }
-        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %lu ms",
-                    getId(), opcode, (unsigned long)elapsed.count());
+        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %lu ms (%s)",
+                    getId(), opcode, (unsigned long)elapsed.count(),
+                    getDescription().c_str());
     }
 }
 
