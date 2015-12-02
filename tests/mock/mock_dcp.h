@@ -33,15 +33,13 @@ ENGINE_ERROR_CODE mock_dcp_add_failover_log(vbucket_failover_t* entry,
                                             size_t nentries,
                                             const void *cookie);
 
-void clear_dcp_data();
-
-struct dcp_message_producers* get_dcp_producers(ENGINE_HANDLE *_h,
-                                                ENGINE_HANDLE_V1 *_h1);
-
-
-
 #ifdef __cplusplus
 }
 #endif
+
+void clear_dcp_data();
+
+std::unique_ptr<dcp_message_producers> get_dcp_producers(ENGINE_HANDLE *_h,
+                                                         ENGINE_HANDLE_V1 *_h1);
 
 #endif  // TESTS_MOCK_MOCH_dcp_H_

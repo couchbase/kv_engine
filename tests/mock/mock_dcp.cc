@@ -326,10 +326,9 @@ void clear_dcp_data() {
     dcp_last_vbucket_state = (vbucket_state_t)0;
 }
 
-struct dcp_message_producers* get_dcp_producers(ENGINE_HANDLE *_h,
-                                                ENGINE_HANDLE_V1 *_h1) {
-    dcp_message_producers* producers =
-        (dcp_message_producers*)malloc(sizeof(dcp_message_producers));
+std::unique_ptr<dcp_message_producers> get_dcp_producers(ENGINE_HANDLE *_h,
+                                                         ENGINE_HANDLE_V1 *_h1) {
+    std::unique_ptr<dcp_message_producers> producers(new dcp_message_producers);
 
     producers->get_failover_log = mock_get_failover_log;
     producers->stream_req = mock_stream_req;

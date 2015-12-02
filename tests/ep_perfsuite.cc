@@ -600,7 +600,7 @@ static void perf_dcp_client(struct Handle_args *ha) {
             ENGINE_SUCCESS,
             "Failed to initiate stream request");
 
-    struct dcp_message_producers* producers = get_dcp_producers(ha->h, ha->h1);
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(ha->h, ha->h1));
 
     bool done = false;
     uint32_t bytes_read = 0;
@@ -615,7 +615,7 @@ static void perf_dcp_client(struct Handle_args *ha) {
                                                ha->vb, bytes_read);
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = ha->h1->dcp.step(ha->h, cookie, producers);
+        ENGINE_ERROR_CODE err = ha->h1->dcp.step(ha->h, cookie, producers.get());
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {

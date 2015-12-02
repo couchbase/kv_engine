@@ -4131,7 +4131,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
                                        ((max_conns - max_conns/2)));
     /* Also check if we get control message indicating the flow control buffer
        size change from the consumer connections */
-    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     for (int i = max_conns/2; i < max_conns; i++) {
         /* Check if the buffer size of all connections has changed */
@@ -4141,7 +4141,7 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
         checkeq(exp_buf_size,
                 (uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
                 "Flow Control Buffer Size not correct");
-        checkeq(ENGINE_WANT_MORE, h1->dcp.step(h, cookie[i], producers),
+        checkeq(ENGINE_WANT_MORE, h1->dcp.step(h, cookie[i], producers.get()),
                 "Pending flow control buffer change not processed");
         checkeq((uint8_t)PROTOCOL_BINARY_CMD_DCP_CONTROL, dcp_last_op,
                 "Flow ctl buf size change control message not received");
@@ -4213,10 +4213,10 @@ static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     testHarness.time_travel(201);
 
-    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
     bool done = false;
     while (!done) {
-        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
+        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -4236,7 +4236,6 @@ static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         }
     }
 
-    free(producers);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -4263,11 +4262,11 @@ static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
 
     testHarness.time_travel(201);
 
-    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
     bool done = false;
     bool disconnected = false;
     while (!done) {
-        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
+        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
         if (err == ENGINE_DISCONNECT) {
             done = true;
             disconnected = true;
@@ -4286,7 +4285,6 @@ static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
 
     check(disconnected, "Connection should have been disconnected");
 
-    free(producers);
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -4372,7 +4370,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
             (uint64_t)get_ull_stat(h, h1, stats_snap_seqno.str().c_str(), "dcp"),
             "snap start seqno didn't match");
 
-    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     if ((flags & DCP_ADD_STREAM_FLAG_TAKEOVER) == 0 &&
         (flags & DCP_ADD_STREAM_FLAG_DISKONLY) == 0 &&
@@ -4423,7 +4421,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
             h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, vbucket, bytes_read);
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
+        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -4569,8 +4567,6 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     checkeq(static_cast<uint64_t>(0),
             get_ull_stat(h, h1, stats_ready_queue_memory.str().c_str(), "dcp"),
             "readyQ size did not go to zero");
-
-    free(producers);
 }
 
 static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -5068,7 +5064,7 @@ static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
             ENGINE_SUCCESS,
             "Failed to initiate stream request");
 
-    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     bool done = false;
     uint32_t bytes_read = 0;
@@ -5082,7 +5078,7 @@ static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
             h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
+        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -5337,7 +5333,7 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
                                mock_dcp_add_failover_log),
             "Failed to initiate stream request");
 
-    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     bool done = false;
     int num_snapshot_markers = 0;
@@ -5345,7 +5341,7 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
     int num_set_vbucket_active = 0;
 
     do {
-        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
+        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
@@ -5379,7 +5375,6 @@ static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
     checkeq(1, num_set_vbucket_pending, "Didn't receive pending set state");
     checkeq(1, num_set_vbucket_active, "Didn't receive active set state");
 
-    free(producers);
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
     testHarness.destroy_cookie(cookie);
 
@@ -6913,22 +6908,21 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
-    struct dcp_message_producers* producers = get_dcp_producers(h, h1);
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
     testHarness.time_travel(201);
 
     // No-op not recieved for 201 seconds. Should be ok.
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.step(h, cookie, producers),
+            h1->dcp.step(h, cookie, producers.get()),
             "Expected engine success");
 
     testHarness.time_travel(200);
 
     // Message not recieved for over 400 seconds. Should disconnect.
     checkeq(ENGINE_DISCONNECT,
-            h1->dcp.step(h, cookie, producers),
+            h1->dcp.step(h, cookie, producers.get()),
             "Expected engine disconnect");
 
-    free(producers);
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
