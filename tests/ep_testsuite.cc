@@ -4954,7 +4954,8 @@ static enum test_result test_dcp_close_stream(ENGINE_HANDLE *h,
           "Expected success");
 
     state = get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
-    check(state.compare("dead") == 0, "Expected stream in dead state");
+    checkeq(static_cast<unsigned long>(0), state.length(),
+            "Did not expect to find the closed stream");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;

@@ -91,7 +91,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
 }
 
 DcpConsumer::~DcpConsumer() {
-    closeAllStreams();
     delete[] streams;
 }
 
@@ -145,6 +144,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
 
 ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     if (doDisconnect()) {
+        streams[vbucket].reset();
         return ENGINE_DISCONNECT;
     }
 
@@ -162,6 +162,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
     uint32_t bytesCleared = stream->setDead(END_STREAM_CLOSED);
     flowControl.freedBytes.fetch_add(bytesCleared);
+    streams[vbucket].reset();
     return ENGINE_SUCCESS;
 }
 
@@ -701,6 +702,7 @@ void DcpConsumer::closeAllStreams() {
         passive_stream_t stream = streams[vbucket];
         if (stream) {
             stream->setDead(END_STREAM_DISCONNECTED);
+            streams[vbucket].reset();
         }
     }
 }
