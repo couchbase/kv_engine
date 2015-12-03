@@ -258,6 +258,7 @@ void getLock(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         fprintf(stderr, "Failed to issue getl request.\n");
         abort();
     }
+    free (pkt);
 
     hasError = last_status != 0;
 }
