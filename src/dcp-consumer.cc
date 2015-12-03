@@ -536,7 +536,10 @@ bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
     cb_assert(err == ENGINE_SUCCESS);
 
     RCPtr<VBucket> vb = engine_.getVBucket(vbid);
-    streams[vbid]->reconnectStream(vb, opaque, vb->getHighSeqno());
+    passive_stream_t stream = streams[vbid];
+    if (stream) {
+        stream->reconnectStream(vb, opaque, vb->getHighSeqno());
+    }
 
     return false;
 }
