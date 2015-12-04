@@ -5273,24 +5273,16 @@ static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 
     const void *cookie = testHarness.create_cookie();
-    const char *name = "unittest";
-    uint16_t nname = strlen(name);
-
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, 0, 0, DCP_OPEN_PRODUCER, (void*)name, nname),
-            "Failed dcp producer open connection.");
 
     uint32_t flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
-    const void *cookie1 = testHarness.create_cookie();
-    dcp_stream(h, h1, "unittest", cookie1, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
+    dcp_stream(h, h1, "unittest", cookie, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
                0, 2, 10);
 
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
 
     testHarness.destroy_cookie(cookie);
-    testHarness.destroy_cookie(cookie1);
 
     return SUCCESS;
 }
