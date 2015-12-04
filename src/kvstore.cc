@@ -74,15 +74,17 @@ bool KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) 
 
     vbucket_state *vbState = cachedVBStates[vbid];
 
+    bool state_change_detected = true;
     if (vbState != nullptr) {
-        //Check if the cached state requires any update
-        if (*vbState == newState) {
-            return false;
+        //Check if there's a need for persistence
+        if (vbState->needsToBePersisted(newState)) {
+            vbState->state = newState.state;
+            vbState->failovers = newState.failovers;
+        } else {
+            state_change_detected = false;
         }
 
-        vbState->state = newState.state;
         vbState->checkpointId = newState.checkpointId;
-        vbState->failovers = newState.failovers;
 
         if (newState.maxDeletedSeqno > 0 &&
                 vbState->maxDeletedSeqno < newState.maxDeletedSeqno) {
@@ -98,7 +100,7 @@ bool KVStore::updateCachedVBState(uint16_t vbid, const vbucket_state& newState) 
         cachedVBStates[vbid] = new vbucket_state(newState);
     }
 
-    return true;
+    return state_change_detected;
 }
 
 bool KVStore::snapshotStats(const std::map<std::string,

@@ -154,25 +154,20 @@ struct vbucket_state {
         driftCounter = vbstate.driftCounter;
     }
 
-    friend bool operator== (const vbucket_state& vbstate1,
-                            const vbucket_state& vbstate2) {
-       if (vbstate1.state == vbstate2.state &&
-           vbstate1.checkpointId == vbstate2.checkpointId &&
-           vbstate1.maxDeletedSeqno == vbstate2.maxDeletedSeqno &&
-           vbstate1.highSeqno == vbstate2.highSeqno &&
-           vbstate1.purgeSeqno == vbstate2.purgeSeqno &&
-           vbstate1.lastSnapStart == vbstate2.lastSnapStart &&
-           vbstate1.lastSnapEnd == vbstate2.lastSnapEnd &&
-           vbstate1.maxCas == vbstate2.maxCas &&
-           vbstate1.driftCounter == vbstate2.driftCounter &&
-           vbstate1.failovers.compare(vbstate2.failovers) == 0) {
-           return true;
-       }
-
-       return false;
-    }
-
     std::string toJSON() const;
+
+    bool needsToBePersisted(const vbucket_state& vbstate) {
+        /**
+         * The vbucket state information is to be persisted
+         * only if a change is detected in the state or the
+         * failovers fields.
+         */
+        if (state != vbstate.state ||
+            failovers.compare(vbstate.failovers) != 0) {
+            return true;
+        }
+        return false;
+    }
 
     void reset() {
         checkpointId = 0;
