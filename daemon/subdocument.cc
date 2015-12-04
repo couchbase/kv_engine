@@ -328,16 +328,29 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
             return;
         }
 
-        // Update stats. Treat all mutations as 'cmd_set', all accesses as 'cmd_get'
+        // 4. Form a response and send it back to the client.
+        subdoc_response(context);
+
+        // Update stats. Treat all mutations as 'cmd_set', all accesses as 'cmd_get',
+        // in addition to specific subdoc counters. (This is mainly so we
+        // see subdoc commands in the GUI, which used cmd_set / cmd_get).
+        auto* thread_stats = get_thread_stats(c);
         if (context->traits.is_mutator) {
+            thread_stats->cmd_subdoc_mutation++;
+            thread_stats->bytes_subdoc_mutation_total += context->out_doc_len;
+            thread_stats->bytes_subdoc_mutation_inserted +=
+                    context->getOperationValueBytesTotal();
+
             SLAB_INCR(c, cmd_set, key, keylen);
         } else {
+            thread_stats->cmd_subdoc_lookup++;
+            thread_stats->bytes_subdoc_lookup_total += context->in_doc.len;
+            thread_stats->bytes_subdoc_lookup_extracted += context->response_val_len;
+
             STATS_HIT(c, get, key, nkey);
         }
         update_topkeys(key, keylen, c);
 
-        // 4. Form a response and send it back to the client.
-        subdoc_response(context);
         return;
     } while (auto_retry && attempts < MAXIMUM_ATTEMPTS);
 
@@ -742,9 +755,9 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
     }
 
     // Calculate the updated document length - use the last operation result.
-    size_t new_doc_len = 0;
+    context->out_doc_len = 0;
     for (auto& loc : context->ops.back().result.newdoc()) {
-        new_doc_len += loc.length;
+        context->out_doc_len += loc.length;
     }
 
     // Allocate a new item of this size.
@@ -753,7 +766,7 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->getBucketEngine()->allocate(
-                    handle, c, &new_doc, key, keylen, new_doc_len, 0,
+                    handle, c, &new_doc, key, keylen, context->out_doc_len, 0,
                     expiration, PROTOCOL_BINARY_DATATYPE_JSON);
         }
 
@@ -871,15 +884,15 @@ static void subdoc_single_response(SubdocCmdContext* context) {
                                                 : 0;
 
     const char* value = NULL;
-    size_t vallen = 0;
+    context->response_val_len = 0;
     if (context->traits.response_has_value) {
         auto mloc = context->ops[0].result.matchloc();
         value = mloc.at;
-        vallen = mloc.length;
+        context->response_val_len = mloc.length;
     }
 
     if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
-        /*keylen*/0, extlen + vallen,
+        /*keylen*/0, extlen + context->response_val_len,
                         PROTOCOL_BINARY_RAW_BYTES) == -1) {
         c->setState(conn_closing);
         return;
@@ -902,7 +915,7 @@ static void subdoc_single_response(SubdocCmdContext* context) {
     }
 
     if (context->traits.response_has_value) {
-        c->addIov(value, vallen);
+        c->addIov(value, context->response_val_len);
     }
 
     c->setState(conn_mwrite);
@@ -1002,14 +1015,14 @@ static void subdoc_multi_lookup_response(SubdocCmdContext* context) {
             reinterpret_cast<protocol_binary_response_subdocument*>(c->write.buf);
 
     // Calculate the value length - sum of all the operation results.
-    size_t vallen = 0;
+    context->response_val_len = 0;
     for (auto& op : context->ops) {
         // 16bit status, 32bit resultlen, variable-length result.
         size_t result_size = sizeof(uint16_t) + sizeof(uint32_t);
         if (op.traits.response_has_value) {
             result_size += op.result.matchloc().length;
         }
-        vallen += result_size;
+        context->response_val_len += result_size;
     }
 
     // We need two iovecs per operation result:
@@ -1026,8 +1039,8 @@ static void subdoc_multi_lookup_response(SubdocCmdContext* context) {
 
     // Allocated required resource - build the header.
     if (mcbp_add_header(c, context->overall_status, /*extlen*/0, /*keylen*/
-                        0,
-                        vallen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
+                        0, context->response_val_len, PROTOCOL_BINARY_RAW_BYTES)
+        == -1) {
         c->setState(conn_closing);
         return;
     }

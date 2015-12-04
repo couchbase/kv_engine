@@ -204,3 +204,16 @@ bool safe_recv_packet(void *buf, size_t size);
 int write_config_to_file(const char* config, const char *fname);
 
 void get_working_current_directory(char* out_buf, int out_buf_len);
+
+// map of statistic key (name) -> value.
+typedef std::map<std::string, std::string> stats_response_t;
+
+/* Request stats
+ * @return a map of stat key & values in the server response.
+ */
+stats_response_t request_stats();
+
+/* Extracts a single statistic from the set of stats, returning as a uint64_t
+ */
+uint64_t extract_single_stat(const stats_response_t& stats,
+                                      const char* name);

@@ -1873,6 +1873,149 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_NotMyVbucket)
     delete_object("array");
 }
 
+enum class SubdocCmdType {
+    Lookup,
+    Mutation
+};
+
+struct SubdocStatTraits {
+    const char* count_name;
+    const char* bytes_total_name;
+    const char* bytes_extracted_subset;
+};
+
+static const SubdocStatTraits LOOKUP_TRAITS { "cmd_subdoc_lookup",
+                                              "bytes_subdoc_lookup_total",
+                                              "bytes_subdoc_lookup_extracted" };
+
+static const SubdocStatTraits MUTATION_TRAITS { "cmd_subdoc_mutation",
+                                                "bytes_subdoc_mutation_total",
+                                                "bytes_subdoc_mutation_inserted" };
+
+static void test_subdoc_stats_command(protocol_binary_command cmd,
+                                      SubdocStatTraits traits,
+                                      const std::string& doc,
+                                      const std::string& path,
+                                      const std::string& value,
+                                      const std::string& fragment,
+                                      size_t expected_total_len,
+                                      size_t expected_subset_len) {
+    store_object("doc", doc.c_str());
+
+    // Get initial stats
+    auto stats = request_stats();
+    auto count_before = extract_single_stat(stats, traits.count_name);
+    auto bytes_before_total = extract_single_stat(stats, traits.bytes_total_name);
+    auto bytes_before_subset = extract_single_stat(stats, traits.bytes_extracted_subset);
+
+    // Perform the operation
+    expect_subdoc_cmd(SubdocCmd(cmd, "doc", path, value),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, fragment);
+
+    // Get subsequent stats, check stat increased by one.
+    stats = request_stats();
+    auto count_after = extract_single_stat(stats, traits.count_name);
+    auto bytes_after_total = extract_single_stat(stats, traits.bytes_total_name);
+    auto bytes_after_subset = extract_single_stat(stats, traits.bytes_extracted_subset);
+
+    EXPECT_EQ(1, count_after - count_before);
+    EXPECT_EQ(expected_total_len, bytes_after_total - bytes_before_total);
+    EXPECT_EQ(expected_subset_len, bytes_after_subset - bytes_before_subset);
+
+    delete_object("doc");
+}
+
+TEST_P(McdTestappTest, SubdocStatsLookupGet) {
+    std::string doc("[10,11,12,13,14,15,16,17,18,19]");
+    std::string response("10");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_GET, LOOKUP_TRAITS,
+                              doc, "[0]", "", response,
+                              doc.size(), response.size());
+}
+TEST_P(McdTestappTest, SubdocStatsLookupExists) {
+    std::string doc("[10,11,12,13,14,15,16,17,18,19]");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_EXISTS, LOOKUP_TRAITS,
+                              doc, "[0]", "", "", doc.size(), 0);
+}
+TEST_P(McdTestappTest, SubdocStatsDictAdd) {
+    std::string input("{\"foo\":1,\"bar\":2}");
+    std::string path("baz");
+    std::string fragment("3");
+    std::string result("{\"foo\":1,\"bar\":2,\"baz\":3}");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                              MUTATION_TRAITS, input, path, fragment, "",
+                              result.size(), fragment.size());
+}
+TEST_P(McdTestappTest, SubdocStatsDictUpsert) {
+    std::string input("{\"foo\":1,\"bar\":2}");
+    std::string path("bar");
+    std::string fragment("3");
+    std::string result("{\"foo\":1,\"bar\":3}");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                              MUTATION_TRAITS, input, path, fragment, "",
+                              result.size(), fragment.size());
+}
+TEST_P(McdTestappTest, SubdocStatsDelete) {
+    std::string input("{\"foo\":1,\"bar\":2,\"baz\":3}");
+    std::string path("baz");
+    std::string result("{\"foo\":1,\"bar\":2}");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                               MUTATION_TRAITS, input, path, "", "",
+                               result.size(), 0);
+}
+TEST_P(McdTestappTest, SubdocStatsReplace) {
+    std::string input("{\"foo\":1,\"bar\":2}");
+    std::string path("bar");
+    std::string fragment("3");
+    std::string result("{\"foo\":1,\"bar\":3}");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                              MUTATION_TRAITS, input, path, fragment, "",
+                              result.size(), fragment.size());
+}
+TEST_P(McdTestappTest, SubdocStatsArrayPushLast) {
+    std::string input("[10,11,12,13,14,15,16,17,18,19]");
+    std::string fragment("20");
+    std::string result("[10,11,12,13,14,15,16,17,18,19,20]");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+                               MUTATION_TRAITS, input, "", fragment, "",
+                               result.size(), fragment.size());
+}
+TEST_P(McdTestappTest, SubdocStatsArrayPushFirst) {
+    std::string input("[10,11,12,13,14,15,16,17,18,19]");
+    std::string fragment("9");
+    std::string result("[9,10,11,12,13,14,15,16,17,18,19]");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                               MUTATION_TRAITS, input, "", fragment, "",
+                               result.size(), fragment.size());
+}
+TEST_P(McdTestappTest, SubdocStatsArrayInsert) {
+    std::string input("[9,11,12,13,14,15,16,17,18,19]");
+    std::string path("[0]");
+    std::string fragment("10");
+    std::string result("[9,10,11,12,13,14,15,16,17,18,19]");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
+                               MUTATION_TRAITS, input, path, fragment, "",
+                               result.size(), fragment.size());
+}
+TEST_P(McdTestappTest, SubdocStatsArrayAddUnique) {
+    std::string input("[10,11,12,13,14,15,16,17,18,19]");
+    std::string fragment("20");
+    std::string result("[10,11,12,13,14,15,16,17,18,19,20]");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE,
+                               MUTATION_TRAITS, input, "", fragment, "",
+                               result.size(), fragment.size());
+}
+TEST_P(McdTestappTest, SubdocStatsCounter) {
+    std::string input("{\"foo\":1,\"bar\":2}");
+    std::string path("bar");
+    std::string fragment("1");
+    std::string result("{\"foo\":1,\"bar\":3}");
+    test_subdoc_stats_command(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                               MUTATION_TRAITS, input, path, fragment, "3",
+                               result.size(), fragment.size());
+}
+
+
 // Tests how a single worker handles multiple "concurrent" connections
 // performing operations.
 class WorkerConcurrencyTest : public TestappTest {

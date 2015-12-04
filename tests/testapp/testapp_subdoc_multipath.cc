@@ -80,9 +80,7 @@ unique_cJSON_ptr make_flat_dict(int nelements) {
     return unique_cJSON_ptr(dict);
 }
 
-// Test multi-path lookup - multiple GET lookups
-TEST_P(McdTestappTest, SubdocMultiLookup_GetMulti)
-{
+static void test_subdoc_multi_lookup_getmulti() {
     auto dict = make_flat_dict(PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS + 1);
     auto* dict_str = cJSON_Print(dict.get());
     store_object("dict", dict_str);
@@ -112,6 +110,10 @@ TEST_P(McdTestappTest, SubdocMultiLookup_GetMulti)
                       expected);
 
     delete_object("dict");
+}
+// Test multi-path lookup - multiple GET lookups
+TEST_P(McdTestappTest, SubdocMultiLookup_GetMulti) {
+    test_subdoc_multi_lookup_getmulti();
 }
 
 // Test multi-path lookup - multiple GET lookups with various invalid paths.
@@ -216,18 +218,17 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddMulti)
 
 // Test multi-path mutation command - test maximum supported SUBDOC_DICT_ADD
 // paths.
-TEST_P(McdTestappTest, SubdocMultiMutation_DictAddMax)
-{
+static void test_subdoc_multi_mutation_dict_add_max() {
     store_object("dict", "{}");
 
     SubdocMultiMutationCmd mutation;
     mutation.key = "dict";
     for (int ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++) {
-        std::string key("key_" + std::to_string(ii));
+        std::string path("key_" + std::to_string(ii));
         std::string value("\"value_" + std::to_string(ii) + '"');
 
         mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
-                                  SUBDOC_FLAG_NONE, key, value});
+                                  SUBDOC_FLAG_NONE, path, value});
     }
     expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
                       std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
@@ -254,6 +255,9 @@ TEST_P(McdTestappTest, SubdocMultiMutation_DictAddMax)
     validate_object("dict", "{}");
 
     delete_object("dict");
+}
+TEST_P(McdTestappTest, SubdocMultiMutation_DictAddMax) {
+    test_subdoc_multi_mutation_dict_add_max();
 }
 
 // Test attempting to add the same key twice in a multi-path command.
@@ -448,4 +452,52 @@ TEST_P(McdTestappTest, SubdocMultiMutation_Expiry) {
     result = fetch_value("permanent");
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
     EXPECT_EQ("[\"b\"]", result.second);
+}
+
+// Test statistics support for multi-lookup commands
+TEST_P(McdTestappTest, SubdocStatsMultiLookup) {
+    // A multi-lookup counts as a single operation, irrespective of how many
+    // path specs it contains.
+
+    // Get initial stats
+    auto stats = request_stats();
+    auto count_before = extract_single_stat(stats, "cmd_subdoc_lookup");
+    auto bytes_before_total = extract_single_stat(stats, "bytes_subdoc_lookup_total");
+    auto bytes_before_subset = extract_single_stat(stats, "bytes_subdoc_lookup_extracted");
+
+    // Perform a multi-lookup containing >1 path.
+    test_subdoc_multi_lookup_getmulti();
+
+    // Get subsequent stats, check stat increased by one.
+    stats = request_stats();
+    auto count_after = extract_single_stat(stats, "cmd_subdoc_lookup");
+    auto bytes_after_total = extract_single_stat(stats, "bytes_subdoc_lookup_total");
+    auto bytes_after_subset = extract_single_stat(stats, "bytes_subdoc_lookup_extracted");
+    EXPECT_EQ(1, count_after - count_before);
+    EXPECT_EQ(373, bytes_after_total - bytes_before_total);
+    EXPECT_EQ(246, bytes_after_subset - bytes_before_subset);
+}
+
+// Test statistics support for multi-mutation commands
+TEST_P(McdTestappTest, SubdocStatsMultiMutation) {
+    // A multi-mutation counts as a single operation, irrespective of how many
+    // path specs it contains.
+
+    // Get initial stats
+    auto stats = request_stats();
+    auto count_before = extract_single_stat(stats, "cmd_subdoc_mutation");
+    auto bytes_before_total = extract_single_stat(stats, "bytes_subdoc_mutation_total");
+    auto bytes_before_subset = extract_single_stat(stats, "bytes_subdoc_mutation_inserted");
+
+    // Perform a multi-mutation containing >1 path.
+    test_subdoc_multi_mutation_dict_add_max();
+
+    // Get subsequent stats, check stat increased by one.
+    stats = request_stats();
+    auto count_after = extract_single_stat(stats, "cmd_subdoc_mutation");
+    auto bytes_after_total = extract_single_stat(stats, "bytes_subdoc_mutation_total");
+    auto bytes_after_subset = extract_single_stat(stats, "bytes_subdoc_mutation_inserted");
+    EXPECT_EQ(count_before + 1, count_after);
+    EXPECT_EQ(301, bytes_after_total - bytes_before_total);
+    EXPECT_EQ(150, bytes_after_subset - bytes_before_subset);
 }

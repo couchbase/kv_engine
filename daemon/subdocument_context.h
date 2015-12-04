@@ -42,7 +42,9 @@ struct SubdocCmdContext : public CommandContext {
         in_doc({NULL, 0}),
         in_cas(0),
         executed(false),
-        out_doc(NULL) { }
+        out_doc_len(0),
+        out_doc(NULL),
+        response_val_len(0) { }
 
     virtual ~SubdocCmdContext() {
         if (out_doc != NULL) {
@@ -50,6 +52,9 @@ struct SubdocCmdContext : public CommandContext {
             engine->release(reinterpret_cast<ENGINE_HANDLE*>(engine), c, out_doc);
         }
     }
+
+    // Returns the total size of all Operation values (bytes).
+    uint64_t getOperationValueBytesTotal() const;
 
     // Cookie this command is associated with. Needed for the destructor
     // to release items.
@@ -94,9 +99,16 @@ struct SubdocCmdContext : public CommandContext {
     uint64_t vbucket_uuid;
     uint64_t sequence_no;
 
+    // [Mutations only] Size in bytes of the new item to store into engine.
+    // Held in the context so upon success we can update statistics.
+    size_t out_doc_len;
+
     // [Mutations only] New item to store into engine. _Must_ be released
     // back to the engine using ENGINE_HANDLE_V1::release()
     item* out_doc;
+
+    // Size in bytes of the response value to send back to the client.
+    size_t response_val_len;
 
     /* Specification of a single path operation. Encapsulates both the request
      * parameters, and (later) the result of the operation.
@@ -163,3 +175,11 @@ SubdocCmdContext::OperationSpec::OperationSpec(OperationSpec&& other)
     : traits(other.traits),
       path(std::move(other.path)),
       value(std::move(other.value)) {}
+
+uint64_t SubdocCmdContext::getOperationValueBytesTotal() const {
+    uint64_t result = 0;
+    for (auto& op : ops) {
+        result += op.value.len;
+    }
+    return result;
+}

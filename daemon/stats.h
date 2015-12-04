@@ -48,6 +48,13 @@ struct thread_stats {
         conn_yields = 0;
         auth_cmds = 0;
         auth_errors = 0;
+        cmd_subdoc_lookup = 0;
+        cmd_subdoc_mutation = 0;
+
+        bytes_subdoc_lookup_total = 0;
+        bytes_subdoc_lookup_extracted = 0;
+        bytes_subdoc_mutation_total = 0;
+        bytes_subdoc_mutation_inserted = 0;
 
         rbufs_allocated = 0;
         rbufs_loaned = 0;
@@ -79,6 +86,14 @@ struct thread_stats {
         conn_yields += other.conn_yields;
         auth_cmds += other.auth_cmds;
         auth_errors += other.auth_errors;
+        cmd_subdoc_lookup += other.cmd_subdoc_lookup;
+        cmd_subdoc_mutation += other.cmd_subdoc_mutation;
+
+        bytes_subdoc_lookup_total += other.bytes_subdoc_lookup_total;
+        bytes_subdoc_lookup_extracted += other.bytes_subdoc_lookup_extracted;
+        bytes_subdoc_mutation_total += other.bytes_subdoc_mutation_total;
+        bytes_subdoc_mutation_inserted += other.bytes_subdoc_mutation_inserted;
+
         rbufs_allocated += other.rbufs_allocated;
         rbufs_loaned += other.rbufs_loaned;
         rbufs_existing += other.rbufs_existing;
@@ -116,6 +131,25 @@ struct thread_stats {
     Couchbase::RelaxedAtomic<uint64_t> conn_yields; /* # of yields for connections (-R option)*/
     Couchbase::RelaxedAtomic<uint64_t> auth_cmds;
     Couchbase::RelaxedAtomic<uint64_t> auth_errors;
+    /* # of subdoc lookup commands (GET/EXISTS/MULTI_LOOKUP) */
+    Couchbase::RelaxedAtomic<uint64_t> cmd_subdoc_lookup;
+    /* # of subdoc mutation commands */
+    Couchbase::RelaxedAtomic<uint64_t> cmd_subdoc_mutation;
+
+    /* # of bytes in the complete document which subdoc lookups searched
+       within. Compare with 'bytes_subdoc_lookup_extracted' */
+    Couchbase::RelaxedAtomic<uint64_t> bytes_subdoc_lookup_total;
+    /* # of bytes extracted during a subdoc lookup operation and sent back to
+      the client. */
+    Couchbase::RelaxedAtomic<uint64_t> bytes_subdoc_lookup_extracted;
+
+    /* # of bytes in the complete document which subdoc mutations updated.
+       Compare with 'bytes_subdoc_mutation_inserted' */
+    Couchbase::RelaxedAtomic<uint64_t> bytes_subdoc_mutation_total;
+    /* # of bytes inserted during a subdoc mutation operation (which were
+       received from the client). */
+    Couchbase::RelaxedAtomic<uint64_t> bytes_subdoc_mutation_inserted;
+
     /* # of read buffers allocated. */
     Couchbase::RelaxedAtomic<uint64_t> rbufs_allocated;
     /* # of read buffers which could be loaned (and hence didn't need to be allocated). */

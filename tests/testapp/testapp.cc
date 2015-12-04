@@ -4230,3 +4230,58 @@ int main(int argc, char **argv) {
 
     return RUN_ALL_TESTS();
 }
+
+/* Request stats
+ * @return a map of stat key & values in the server response.
+ */
+stats_response_t request_stats() {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+    stats_response_t result;
+
+    size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
+                                  PROTOCOL_BINARY_CMD_STAT,
+                                  NULL, 0, NULL, 0);
+
+    safe_send(buffer.bytes, len, false);
+    while (true) {
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_STAT,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+        const char* key_ptr(buffer.bytes + sizeof(buffer.response) +
+                            buffer.response.message.header.response.extlen);
+        const size_t key_len(buffer.response.message.header.response.keylen);
+
+        // key length zero indicates end of the stats.
+        if (key_len == 0) {
+            break;
+        }
+
+        const char* val_ptr(key_ptr + key_len);
+        const size_t val_len(buffer.response.message.header.response.bodylen -
+                             key_len -
+                             buffer.response.message.header.response.extlen);
+        EXPECT_GT(val_len, 0u);
+
+        result.emplace(std::make_pair(std::string(key_ptr, key_len),
+                                      std::string(val_ptr, val_len)));
+    }
+
+    return result;
+}
+
+// Extracts a single statistic from the set of stats, returning as
+// a uint64_t
+uint64_t extract_single_stat(const stats_response_t& stats,
+                                      const char* name) {
+    auto iter = stats.find(name);
+    EXPECT_NE(stats.end(), iter);
+    uint64_t result = 0;
+    EXPECT_NO_THROW(result = std::stoul(iter->second));
+    return result;
+}

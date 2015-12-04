@@ -285,6 +285,21 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
         add_stat(c, add_stat_callback, "cmd_get", thread_stats.cmd_get);
         add_stat(c, add_stat_callback, "cmd_set", thread_stats.cmd_set);
         add_stat(c, add_stat_callback, "cmd_flush", thread_stats.cmd_flush);
+
+        add_stat(c, add_stat_callback, "cmd_subdoc_lookup",
+                 thread_stats.cmd_subdoc_lookup);
+        add_stat(c, add_stat_callback, "cmd_subdoc_mutation",
+                 thread_stats.cmd_subdoc_mutation);
+
+        add_stat(c, add_stat_callback, "bytes_subdoc_lookup_total",
+                 thread_stats.bytes_subdoc_lookup_total);
+        add_stat(c, add_stat_callback, "bytes_subdoc_lookup_extracted",
+                 thread_stats.bytes_subdoc_lookup_extracted);
+        add_stat(c, add_stat_callback, "bytes_subdoc_mutation_total",
+                 thread_stats.bytes_subdoc_mutation_total);
+        add_stat(c, add_stat_callback, "bytes_subdoc_mutation_inserted",
+                 thread_stats.bytes_subdoc_mutation_inserted);
+
         // index 0 contains the aggregated timings for all buckets
         auto& timings = all_buckets[0].timings;
         uint64_t total_mutations = timings.get_aggregated_mutation_stats();
