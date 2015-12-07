@@ -4378,7 +4378,8 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
         int est = end - start;
         std::stringstream stats_takeover;
         stats_takeover << "dcp-vbtakeover " << vbucket << " " << name;
-        wait_for_stat_to_be(h, h1, "estimate", est, stats_takeover.str().c_str());
+        wait_for_stat_to_be_lte(h, h1, "estimate", est,
+                                stats_takeover.str().c_str());
     }
 
     bool done = false;

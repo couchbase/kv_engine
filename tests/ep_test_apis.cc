@@ -1148,6 +1148,18 @@ void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+void wait_for_stat_to_be_lte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                             const char *stat, int final,
+                             const char* stat_key, const time_t wait_time) {
+    useconds_t sleepTime = 128;
+    WaitTimeAccumulator<int> accumulator("to be less or equal than", stat,
+                                         stat_key, final, wait_time);
+    while (get_int_stat(h, h1, stat, stat_key) > final) {
+        accumulator.incrementAndAbortIfLimitReached(sleepTime);
+        decayingSleep(&sleepTime);
+    }
+}
+
 void wait_for_expired_items_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                   int final, const time_t wait_time) {
     useconds_t sleepTime = 128;
