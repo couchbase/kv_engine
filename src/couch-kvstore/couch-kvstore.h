@@ -27,7 +27,7 @@
 
 #include "configuration.h"
 #include "couch-kvstore/couch-fs-stats.h"
-#include "histo.h"
+#include <platform/histogram.h>
 #include "item.h"
 #include "kvstore.h"
 #include "tasks.h"

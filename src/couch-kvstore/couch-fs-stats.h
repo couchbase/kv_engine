@@ -22,7 +22,7 @@
 
 #include <libcouchstore/couch_db.h>
 
-#include "histo.h"
+#include <platform/histogram.h>
 
 struct CouchstoreStats {
 public:

@@ -22,7 +22,7 @@
 
 
 #include "atomic.h"
-#include "histo.h"
+#include <platform/histogram.h>
 #include "objectregistry.h"
 
 #include <cstring>

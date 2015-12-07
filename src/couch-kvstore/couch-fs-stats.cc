@@ -19,7 +19,7 @@
 
 #include "common.h"
 #include "couch-kvstore/couch-fs-stats.h"
-#include "histo.h"
+#include <platform/histogram.h>
 
 extern "C" {
 static couch_file_handle cfs_construct(couchstore_error_info_t*, void* cookie);

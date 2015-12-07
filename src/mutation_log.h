@@ -36,7 +36,7 @@
 #include <vector>
 
 #include "atomic.h"
-#include "histo.h"
+#include <platform/histogram.h>
 #include "utility.h"
 
 #define ML_BUFLEN (128 * 1024 * 1024)

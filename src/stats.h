@@ -25,7 +25,7 @@
 #include <map>
 
 #include "atomic.h"
-#include "histo.h"
+#include <platform/histogram.h>
 #include "memory_tracker.h"
 #include "mutex.h"
 #include "utility.h"
