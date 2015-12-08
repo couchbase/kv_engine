@@ -53,8 +53,6 @@ ADD_EXECUTABLE(memcached
                buffer.h
                cmdline.cc
                cmdline.h
-               command_timings.cc
-               command_timings.h
                config_parse.cc
                config_parse.h
                config_util.c
@@ -123,6 +121,8 @@ ADD_EXECUTABLE(memcached
                task.h
                task.cc
                thread.cc
+               timing_histogram.cc
+               timing_histogram.h
                timings.cc
                timings.h
                topkeys.cc

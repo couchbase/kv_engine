@@ -21,14 +21,25 @@
 #include <atomic>
 #include <string>
 
-class CommandTimings {
+/** Records timings of some event, accumulating them in a histogram.
+ *
+ * Histogram has buckets of approximately exponentially increasing sizes:
+ *
+ *     - Less than or equal to 1 microsecond (µs)
+ *     - [10-19], [20-29], ..., [900-999] µs
+ *     - 1, 2, ..., 49 ms
+ *     - 500, 1000, 1500, ... 4500 ms
+ *     - [5-9], [10-19], [20-39], [40-79], [80-inf] seconds.
+ *
+ */
+class TimingHistogram {
 public:
-    CommandTimings(void);
-    CommandTimings(const CommandTimings &other);
-    CommandTimings& operator=(const CommandTimings &other);
+    TimingHistogram(void);
+    TimingHistogram(const TimingHistogram &other);
+    TimingHistogram& operator=(const TimingHistogram &other);
 
     void reset(void);
-    void collect(const hrtime_t nsec);
+    void add(const hrtime_t nsec);
     std::string to_string(void);
     uint32_t get_ns();
     uint32_t get_usec(const uint8_t index);

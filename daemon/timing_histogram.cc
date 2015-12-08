@@ -15,18 +15,19 @@
  *   limitations under the License.
  */
 
-#include "command_timings.h"
+#include "timing_histogram.h"
+
 #include <platform/platform.h>
 #include <atomic>
 #include <sstream>
 #include <string>
 #include <cJSON.h>
 
-CommandTimings::CommandTimings() {
+TimingHistogram::TimingHistogram() {
     reset();
 }
 
-CommandTimings::CommandTimings(const CommandTimings &other) {
+TimingHistogram::TimingHistogram(const TimingHistogram &other) {
     *this = other;
 }
 
@@ -42,7 +43,7 @@ static void copy(T&dst, const T&src) {
  * sure that "total" is in 100% sync with all of the samples.. We
  * don't care <em>THAT</em> much for being accurate..
  */
-CommandTimings& CommandTimings::operator=(const CommandTimings&other) {
+TimingHistogram& TimingHistogram::operator=(const TimingHistogram&other) {
     copy(ns, other.ns);
 
     size_t idx;
@@ -71,7 +72,7 @@ CommandTimings& CommandTimings::operator=(const CommandTimings&other) {
     return *this;
 }
 
-void CommandTimings::reset(void) {
+void TimingHistogram::reset(void) {
     ns.store(0, std::memory_order_relaxed);
     for(auto& us: usec) {
         us.store(0, std::memory_order_relaxed);
@@ -88,7 +89,7 @@ void CommandTimings::reset(void) {
     total.store(0, std::memory_order_relaxed);
 }
 
-void CommandTimings::collect(const hrtime_t nsec) {
+void TimingHistogram::add(const hrtime_t nsec) {
     hrtime_t us = nsec / 1000;
     hrtime_t ms = us / 1000;
     hrtime_t hs = ms / 500;
@@ -119,7 +120,7 @@ void CommandTimings::collect(const hrtime_t nsec) {
     total.fetch_add(1, std::memory_order_relaxed);
 }
 
-std::string CommandTimings::to_string(void) {
+std::string TimingHistogram::to_string(void) {
     cJSON *root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "ns", get_ns());
 
@@ -163,27 +164,27 @@ std::string CommandTimings::to_string(void) {
 
 /* get functions of Timings class */
 
-uint32_t CommandTimings::get_ns() {
+uint32_t TimingHistogram::get_ns() {
     return ns.load(std::memory_order_relaxed);
 }
 
-uint32_t CommandTimings::get_usec(const uint8_t index) {
+uint32_t TimingHistogram::get_usec(const uint8_t index) {
     return usec[index].load(std::memory_order_relaxed);
 }
 
-uint32_t CommandTimings::get_msec(const uint8_t index) {
+uint32_t TimingHistogram::get_msec(const uint8_t index) {
     return msec[index].load(std::memory_order_relaxed);
 }
 
-uint32_t CommandTimings::get_halfsec(const uint8_t index) {
+uint32_t TimingHistogram::get_halfsec(const uint8_t index) {
     return halfsec[index].load(std::memory_order_relaxed);
 }
 
-uint32_t CommandTimings::get_wayout(const uint8_t index) {
+uint32_t TimingHistogram::get_wayout(const uint8_t index) {
     return wayout[index].load(std::memory_order_relaxed);
 }
 
-uint32_t CommandTimings::aggregate_wayout() {
+uint32_t TimingHistogram::aggregate_wayout() {
     uint32_t ret = 0;
     for (auto &wo : wayout) {
         ret += wo.load(std::memory_order_relaxed);
@@ -191,6 +192,6 @@ uint32_t CommandTimings::aggregate_wayout() {
     return ret;
 }
 
-uint32_t CommandTimings::get_total() {
+uint32_t TimingHistogram::get_total() {
     return total.load(std::memory_order_relaxed);
 }

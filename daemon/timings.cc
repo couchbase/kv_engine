@@ -14,10 +14,10 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "command_timings.h"
 #include "timings.h"
 #include <memcached/protocol_binary.h>
 #include <platform/platform.h>
+#include "timing_histogram.h"
 
 Timings::Timings() {
     reset();
@@ -30,7 +30,7 @@ void Timings::reset(void) {
 }
 
 void Timings::collect(const uint8_t opcode, const hrtime_t nsec) {
-    timings[opcode].collect(nsec);
+    timings[opcode].add(nsec);
 }
 
 std::string Timings::generate(const uint8_t opcode) {

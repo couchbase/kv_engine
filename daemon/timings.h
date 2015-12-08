@@ -16,11 +16,11 @@
  */
 #pragma once
 
-#include "command_timings.h"
 #include <platform/platform.h>
 #include <array>
 #include <string>
 #include <cstdint>
+#include "timing_histogram.h"
 
 #define MAX_NUM_OPCODES 0x100
 
@@ -34,5 +34,5 @@ public:
     uint64_t get_aggregated_retrival_stats();
 
 private:
-    std::array<CommandTimings, MAX_NUM_OPCODES> timings;
+    std::array<TimingHistogram, MAX_NUM_OPCODES> timings;
 };
