@@ -1654,10 +1654,13 @@ void EventuallyPersistentStore::compactInternal(compaction_ctx *ctx) {
     KVStore* store = shard->getRWUnderlying();
     bool result = store->compactDB(ctx, kvcb);
 
-    std::vector<uint16_t> vbIds = store->getCompactVbList(ctx->db_file_id);
     Configuration& config = getEPEngine().getConfiguration();
-
-    for (auto vbid : vbIds) {
+    /* Iterate over all the vbucket ids set in max_purged_seq map. If there is an entry
+     * in the map for a vbucket id, then it was involved in compaction and thus can
+     * be used to update the associated bloom filters and purge sequence numbers
+     */
+    for (auto& it : ctx->max_purged_seq) {
+        const uint16_t vbid = it.first;
         RCPtr<VBucket> vb = getVBucket(vbid);
         if (!vb) {
             continue;
@@ -1668,7 +1671,7 @@ void EventuallyPersistentStore::compactInternal(compaction_ctx *ctx) {
         } else {
             vb->clearFilter();
         }
-        vb->setPurgeSeqno(ctx->max_purged_seq);
+        vb->setPurgeSeqno(it.second);
     }
 }
 

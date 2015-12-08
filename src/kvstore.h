@@ -33,6 +33,7 @@
 #include "item.h"
 #include "configuration.h"
 
+class KVStore;
 class PersistenceCallback;
 
 class VBucketBGFetchItem {
@@ -86,7 +87,9 @@ typedef std::shared_ptr<Callback<uint16_t&, std::string&, uint64_t&, time_t&> > 
 typedef struct {
     uint64_t purge_before_ts;
     uint64_t purge_before_seq;
-    uint64_t max_purged_seq;
+    //mapping of <key: vbucket id, value: max purged sequence number>
+    std::unordered_map<uint16_t, uint64_t> max_purged_seq;
+    KVStore *store;
     uint8_t  drop_deletes;
     DBFileId db_file_id;
     uint32_t curr_time;
@@ -579,14 +582,6 @@ public:
      * Compact a database file.
      */
     virtual bool compactDB(compaction_ctx *c, Callback<kvstats_ctx> &kvcb) = 0;
-
-    /**
-     * Get the list of vbucket ids for compaction
-     * @param db_file_id id of the database file
-     *
-     * return vbucket ids in the vbIds vector
-     */
-    virtual std::vector<uint16_t> getCompactVbList(uint16_t db_file_id) = 0;
 
     /**
      * Return the database file id from the compaction request

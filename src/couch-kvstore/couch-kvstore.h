@@ -367,14 +367,6 @@ public:
     bool compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb) override;
 
     /**
-     * Get the list of vbucket ids for compaction
-     * @param db_file_id id of the database file
-     *
-     * return vbucket ids in the vbIds vector
-     */
-    std::vector<uint16_t> getCompactVbList(uint16_t db_file_id) override;
-
-    /**
      * Return the database file id from the compaction request
      * @param compact_req request structure for compaction
      *

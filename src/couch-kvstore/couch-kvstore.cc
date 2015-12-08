@@ -721,11 +721,21 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
 static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
     compaction_ctx* ctx = (compaction_ctx*) ctx_p;
     DbInfo infoDb;
+    const uint16_t vbid = ctx->db_file_id;
 
     couchstore_db_info(d, &infoDb);
     //Compaction finished
     if (info == NULL) {
-        return couchstore_set_purge_seq(d, ctx->max_purged_seq);
+        return couchstore_set_purge_seq(d, ctx->max_purged_seq[vbid]);
+    }
+
+    uint64_t max_purge_seq = 0;
+    auto it = ctx->max_purged_seq.find(vbid);
+
+    if (it == ctx->max_purged_seq.end()) {
+        ctx->max_purged_seq[vbid] = 0;
+    } else {
+        max_purge_seq = it->second;
     }
 
     if (info->rev_meta.size >= DEFAULT_META_LEN) {
@@ -735,16 +745,16 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         if (info->deleted) {
             if (info->db_seq != infoDb.last_sequence) {
                 if (ctx->drop_deletes) { // all deleted items must be dropped ...
-                    if (ctx->max_purged_seq < info->db_seq) {
-                        ctx->max_purged_seq = info->db_seq; // track max_purged_seq
+                    if (max_purge_seq < info->db_seq) {
+                        ctx->max_purged_seq[vbid] = info->db_seq; // track max_purged_seq
                     }
                     return COUCHSTORE_COMPACT_DROP_ITEM;      // ...unconditionally
                 }
                 if (exptime < ctx->purge_before_ts &&
                         (!ctx->purge_before_seq ||
                          info->db_seq <= ctx->purge_before_seq)) {
-                    if (ctx->max_purged_seq < info->db_seq) {
-                        ctx->max_purged_seq = info->db_seq;
+                    if (max_purge_seq < info->db_seq) {
+                        ctx->max_purged_seq[vbid] = info->db_seq;
                     }
                     return COUCHSTORE_COMPACT_DROP_ITEM;
                 }
@@ -766,12 +776,6 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
     }
 
     return COUCHSTORE_COMPACT_KEEP_ITEM;
-}
-
-std::vector<uint16_t> CouchKVStore::getCompactVbList(uint16_t db_file_id) {
-    std::vector<uint16_t> vbIds;
-    vbIds.push_back(db_file_id);
-    return vbIds;
 }
 
 bool CouchKVStore::compactDB(compaction_ctx *hook_ctx, Callback<kvstats_ctx> &kvcb) {

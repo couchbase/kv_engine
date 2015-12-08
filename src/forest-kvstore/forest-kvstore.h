@@ -29,6 +29,19 @@ const size_t FORESTDB_METADATA_SIZE  ((3 * sizeof(uint32_t) + 2 * sizeof(uint64_
                                       FLEX_DATA_OFFSET + EXT_META_LEN +
                                       CONFLICT_RES_META_LEN);
 
+typedef struct ForestMetaData {
+    uint64_t cas;
+    uint64_t rev_seqno;
+    uint32_t exptime;
+    uint32_t texptime;
+    uint32_t flags;
+    uint8_t  flex_meta;
+    uint8_t  ext_meta[EXT_META_LEN];
+    uint8_t  confresmode;
+} ForestMetaData;
+
+#define forestMetaOffset(field) offsetof(ForestMetaData, field)
+
 enum class handleType {
     READER,
     WRITER
@@ -214,14 +227,6 @@ class ForestKVStore : public KVStore
     bool compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb) override;
 
     /**
-     * Get the list of vbucket ids for compaction
-     * @param db_file_id id of the database file
-     *
-     * return vbucket ids in the vbIds vector
-     */
-    std::vector<uint16_t> getCompactVbList(uint16_t db_file_id) override;
-
-    /**
      * Return the database file id from the compaction request
      * @param compact_req request structure for compaction
      *
@@ -230,6 +235,30 @@ class ForestKVStore : public KVStore
     uint16_t getDBFileId(const protocol_binary_request_compact_db& req) override {
         return ntohs(req.message.body.db_file_id);
     }
+
+    /**
+     * Callback invoked at compaction time on the database file to purge
+     * tombstone entries and invoke expiry/bloom filter callbacks, if set
+     *
+     * @param fhandle handle for the ForestDB database file
+     * @param status  phase of compaction being performed.
+     *                For example., if the phase is set to FDB_CS_MOVE_DOC, this
+     *                callback is invoked every time a doc is being moved from
+     *                one file to another
+     * @param kv_name     if the file is split into multiple KV stores, the name of
+     *                    the KV store on which the compaction is being performed
+     * @param doc         document being compacted
+     * @param old_offset  offset in the old file
+     * @param new_offset  offset in the new file
+     * @param ctx         context set by the caller
+     *
+     * returns a decision whether to keep or move the document
+     */
+    static fdb_compact_decision compaction_cb(fdb_file_handle *fhandle,
+                                              fdb_compaction_status status,
+                                              const char *kv_name,
+                                              const fdb_doc *doc, uint64_t old_offset,
+                                              uint64_t new_offset, void *ctx);
 
     vbucket_state *getVBucketState(uint16_t vbid) override;
 

@@ -585,37 +585,45 @@ void ForestKVStore::getWithHeader(void *dbHandle, const std::string &key,
     cb.callback(rv);
 }
 
+static ForestMetaData forestMetaDecode(const fdb_doc *rdoc) {
+    char *metadata = static_cast<char *>(rdoc->meta);
+    ForestMetaData forestMetaData;
+
+    memcpy(&forestMetaData.cas, metadata + forestMetaOffset(cas),
+           sizeof(forestMetaData.cas));
+    memcpy(&forestMetaData.rev_seqno, metadata + forestMetaOffset(rev_seqno),
+           sizeof(forestMetaData.rev_seqno));
+    memcpy(&forestMetaData.exptime, metadata + forestMetaOffset(exptime),
+           sizeof(forestMetaData.exptime));
+    memcpy(&forestMetaData.texptime, metadata + forestMetaOffset(texptime),
+           sizeof(forestMetaData.texptime));
+    memcpy(&forestMetaData.flags, metadata + forestMetaOffset(flags),
+           sizeof(forestMetaData.flags));
+    memcpy(&forestMetaData.ext_meta, metadata + forestMetaOffset(ext_meta),
+           EXT_META_LEN);
+    memcpy(&forestMetaData.confresmode, metadata + forestMetaOffset(confresmode),
+           CONFLICT_RES_META_LEN);
+
+    forestMetaData.cas = ntohll(forestMetaData.cas);
+    forestMetaData.rev_seqno = ntohll(forestMetaData.rev_seqno);
+    forestMetaData.exptime = ntohl(forestMetaData.exptime);
+    forestMetaData.texptime = ntohl(forestMetaData.texptime);
+
+    return forestMetaData;
+}
+
 GetValue ForestKVStore::docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc,
                                   uint16_t vbId, bool metaOnly, bool fetchDelete) {
-    char *metadata = (char *)rdoc->meta;
-    uint64_t cas;
-    uint64_t rev_seqno;
-    uint32_t exptime;
-    uint32_t texptime;
-    uint32_t itemFlags;
-    uint8_t ext_meta[EXT_META_LEN];
-    uint8_t ext_len;
-    uint8_t conf_res_mode = 0;
+    ForestMetaData forestMetaData;
 
     //TODO: handle metadata upgrade?
-    memcpy(&cas, metadata, 8);
-    memcpy(&exptime, metadata + 8, 4);
-    memcpy(&texptime, metadata + 12, 4);
-    memcpy(&itemFlags, metadata + 16, 4);
-    memcpy(&rev_seqno, metadata + 20, 8);
-    memcpy(ext_meta, metadata + 29, EXT_META_LEN);
-    memcpy(&conf_res_mode, metadata + 30, CONFLICT_RES_META_LEN);
-    ext_len = EXT_META_LEN;
-
-    cas = ntohll(cas);
-    exptime = ntohl(exptime);
-    texptime = ntohl(texptime);
-    rev_seqno = ntohll(rev_seqno);
+    forestMetaData = forestMetaDecode(rdoc);
 
     Item *it = NULL;
     if (metaOnly || (fetchDelete && rdoc->deleted)) {
-        it = new Item((char *)rdoc->key, rdoc->keylen, itemFlags,
-                      exptime, NULL, 0, ext_meta, ext_len, cas,
+        it = new Item((char *)rdoc->key, rdoc->keylen, forestMetaData.flags,
+                      forestMetaData.exptime, NULL, 0, forestMetaData.ext_meta,
+                      EXT_META_LEN, forestMetaData.cas,
                       (uint64_t)rdoc->seqnum, vbId);
         if (rdoc->deleted) {
             it->setDeleted();
@@ -623,6 +631,7 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc,
     } else {
         size_t valuelen = rdoc->bodylen;
         void *valuePtr = rdoc->body;
+        uint8_t ext_meta[EXT_META_LEN];
 
         if (checkUTF8JSON((const unsigned char *)valuePtr, valuelen)) {
             ext_meta[0] = PROTOCOL_BINARY_DATATYPE_JSON;
@@ -630,14 +639,15 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc,
             ext_meta[0] = PROTOCOL_BINARY_RAW_BYTES;
         }
 
-        it = new Item((char *)rdoc->key, rdoc->keylen, itemFlags,
-                      exptime, valuePtr, valuelen, ext_meta, ext_len,
-                      cas, (uint64_t)rdoc->seqnum, vbId);
+        it = new Item((char *)rdoc->key, rdoc->keylen, forestMetaData.flags,
+                      forestMetaData.exptime, valuePtr, valuelen,
+                      ext_meta, EXT_META_LEN, forestMetaData.cas,
+                      (uint64_t)rdoc->seqnum, vbId);
     }
 
     it->setConflictResMode(
-                   static_cast<enum conflict_resolution_mode>(conf_res_mode));
-    it->setRevSeqno(rev_seqno);
+            static_cast<enum conflict_resolution_mode>(forestMetaData.confresmode));
+    it->setRevSeqno(forestMetaData.rev_seqno);
     return GetValue(it);
 }
 
@@ -823,21 +833,23 @@ static void populateMetaData(const Item &itm, uint8_t *meta, bool deletion) {
     exptime = htonl(exptime);
     texptime = htonl(texptime);
 
-    memcpy(meta, &cas, 8);
-    memcpy(meta + 8, &exptime, 4);
-    memcpy(meta + 12, &texptime, 4);
-    memcpy(meta + 16, &flags, 4);
-    memcpy(meta + 20, &rev_seqno, 8);
+    memcpy(meta, &cas, sizeof(cas));
+    memcpy(meta + forestMetaOffset(rev_seqno), &rev_seqno, sizeof(rev_seqno));
+    memcpy(meta + forestMetaOffset(exptime), &exptime, sizeof(exptime));
+    memcpy(meta + forestMetaOffset(texptime), &texptime, sizeof(texptime));
+    memcpy(meta + forestMetaOffset(flags), &flags, sizeof(flags));
 
-    *(meta + 28) = FLEX_META_CODE;
+    *(meta + forestMetaOffset(flex_meta)) = FLEX_META_CODE;
 
     if (deletion) {
-        *(meta + 29) = PROTOCOL_BINARY_RAW_BYTES;
+        *(meta + forestMetaOffset(ext_meta)) = PROTOCOL_BINARY_RAW_BYTES;
     } else {
-        memcpy(meta + 29, itm.getExtMeta(), itm.getExtMetaLen());
+        memcpy(meta + forestMetaOffset(ext_meta), itm.getExtMeta(),
+               itm.getExtMetaLen());
     }
 
-    memcpy(meta + 30, &confresmode, CONFLICT_RES_META_LEN);
+    memcpy(meta + forestMetaOffset(confresmode), &confresmode,
+           CONFLICT_RES_META_LEN);
 }
 
 void ForestKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
@@ -1255,7 +1267,6 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
              fdb_iterator_close(fdb_iter);
              return scan_failed;
          }
-         uint8_t *metadata = (uint8_t *)rdoc->meta;
          std::string docKey((char *)rdoc->key, rdoc->keylen);
 
          CacheLookup lookup(docKey, (uint64_t) rdoc->seqnum, ctx->vbid);
@@ -1271,29 +1282,8 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
              return scan_again;
          }
 
-         uint64_t cas;
-         uint32_t exptime;
-         uint32_t texptime;
-         uint32_t itemflags;
-         uint64_t rev_seqno;
-         uint8_t ext_meta[EXT_META_LEN] = {0};
-         uint8_t ext_len;
-         uint8_t conf_res_mode = 0;
-
-         memcpy(&cas, metadata, 8);
-         memcpy(&exptime, metadata + 8, 4);
-         memcpy(&texptime, metadata + 12, 4);
-         memcpy(&itemflags, metadata + 16, 4);
-         memcpy(&rev_seqno, metadata + 20, 8);
-         memcpy(ext_meta, metadata + 29, EXT_META_LEN);
-         memcpy(&conf_res_mode, metadata + 30, CONFLICT_RES_META_LEN);
-         ext_len = EXT_META_LEN;
-
-         cas = ntohll(cas);
-         exptime = ntohl(exptime);
-         texptime = ntohl(texptime);
-         rev_seqno = ntohll(rev_seqno);
-
+         ForestMetaData forestMetaData;
+         forestMetaData = forestMetaDecode(rdoc);
          uint64_t bySeqno = static_cast<uint64_t>(rdoc->seqnum);
 
          if (ctx->valFilter != ValueFilter::KEYS_ONLY && !rdoc->deleted) {
@@ -1301,16 +1291,18 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
              valueLen = rdoc->bodylen;
          }
 
-         Item *it = new Item(rdoc->key, rdoc->keylen, itemflags, (time_t)exptime,
-                             valuePtr, valueLen, ext_meta, ext_len, cas,
-                             bySeqno, ctx->vbid, rev_seqno);
+         Item *it = new Item(rdoc->key, rdoc->keylen, forestMetaData.flags,
+                             forestMetaData.exptime,valuePtr, valueLen,
+                             forestMetaData.ext_meta, EXT_META_LEN,
+                             forestMetaData.cas, bySeqno, ctx->vbid,
+                             forestMetaData.rev_seqno);
 
          if (rdoc->deleted) {
              it->setDeleted();
          }
 
          it->setConflictResMode(
-                      static_cast<enum conflict_resolution_mode>(conf_res_mode));
+               static_cast<enum conflict_resolution_mode>(forestMetaData.confresmode));
 
          bool onlyKeys = (ctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
          GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);
@@ -1349,22 +1341,118 @@ void ForestKVStore::destroyScanContext(ScanContext* ctx) {
     delete ctx;
 }
 
-std::vector<uint16_t> ForestKVStore::getCompactVbList(uint16_t db_file_id) {
-   uint16_t maxVbuckets = configuration.getMaxVBuckets();
-   uint16_t numShards = configuration.getMaxShards();
+extern "C" {
+    static fdb_compact_decision compaction_cb_c(fdb_file_handle *fhandle,
+                            fdb_compaction_status status, const char *kv_name,
+                            fdb_doc *doc, uint64_t old_offset,
+                            uint64_t new_offset, void *ctx) {
+        return ForestKVStore::compaction_cb(fhandle, status, kv_name, doc,
+                                            old_offset, new_offset, ctx);
+    }
+}
 
-   std::vector<uint16_t> vbIds;
-   for (uint16_t vbId = db_file_id; vbId < maxVbuckets; vbId += numShards) {
-       vbucket_state *vbstate = cachedVBStates[vbId];
-       if (vbstate && vbstate->state != vbucket_state_dead) {
-           vbIds.push_back(vbId);
-       }
-   }
-   return vbIds;
+fdb_compact_decision ForestKVStore::compaction_cb(fdb_file_handle *fhandle,
+                                                  fdb_compaction_status comp_status,
+                                                  const char *kv_name,
+                                                  const fdb_doc *doc, uint64_t old_offset,
+                                                  uint64_t new_offset, void *ctx) {
+    /**
+     * The default KV store holds the vbucket state information for all the vbuckets
+     * in the shard.
+     */
+    if (strcmp(kv_name, "default") == 0) {
+        return FDB_CS_KEEP_DOC;
+    }
+
+    compaction_ctx *comp_ctx = reinterpret_cast<compaction_ctx *>(ctx);
+    ForestKVStore *store = reinterpret_cast<ForestKVStore *>(comp_ctx->store);
+
+    /* Every KV store name for ep-engine has the format "partition<vbucket id>."
+     * Extract the vbucket id from the kvstore name */
+    std::string kvNameStr(kv_name);
+    kvNameStr.erase(kvNameStr.begin(), kvNameStr.begin() + strlen("partition"));
+
+    uint16_t vbid;
+    try {
+        vbid = std::stoi(kvNameStr);
+    } catch (...) {
+        LOG(EXTENSION_LOG_WARNING,
+            "ForestKVStore::compaction_cb: Failed to convert string to integer "
+            "for KV store name: %s", kv_name);
+        return FDB_CS_KEEP_DOC;
+    }
+
+    fdb_kvs_handle *kvsHandle = store->getKvsHandle(vbid, handleType::READER);
+    if (!kvsHandle) {
+        LOG(EXTENSION_LOG_WARNING,
+            "ForestKVStore::compaction_cb: Failed to retrieve reader handle for "
+            "vbucket %" PRIu16, vbid);
+        return FDB_CS_KEEP_DOC;
+    }
+
+    fdb_kvs_info kvsInfo;
+    fdb_status status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
+    if (status != FDB_RESULT_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "ForestKVStore::compaction_cb: Failed to retrieve KV store information for "
+            "vbucket %" PRIu16 " with error: %s", vbid, fdb_error_msg(status));
+        return FDB_CS_KEEP_DOC;
+    }
+
+    ForestMetaData forestMetaData = forestMetaDecode(doc);
+
+    std::string key((char *)doc->key, doc->keylen);
+    if (doc->deleted) {
+        uint64_t max_purge_seq = 0;
+        auto it = comp_ctx->max_purged_seq.find(vbid);
+
+        if (it == comp_ctx->max_purged_seq.end()) {
+            comp_ctx->max_purged_seq[vbid] = 0;
+        } else {
+            max_purge_seq = it->second;
+        }
+
+        if (doc->seqnum != kvsInfo.last_seqnum) {
+            if (comp_ctx->drop_deletes) {
+                if (max_purge_seq < doc->seqnum) {
+                    comp_ctx->max_purged_seq[vbid] = doc->seqnum;
+                }
+
+                return FDB_CS_DROP_DOC;
+            }
+
+            if (forestMetaData.texptime < comp_ctx->purge_before_ts &&
+                    (!comp_ctx->purge_before_seq ||
+                     doc->seqnum <= comp_ctx->purge_before_seq)) {
+                if (max_purge_seq < doc->seqnum) {
+                    comp_ctx->max_purged_seq[vbid] = doc->seqnum;
+                }
+
+                return FDB_CS_DROP_DOC;
+            }
+        }
+    } else if (forestMetaData.exptime) {
+        std::vector<vbucket_state *> vbStates = store->listPersistedVbuckets();
+        vbucket_state *vbState = vbStates[vbid];
+        if (vbState && vbState->state == vbucket_state_active) {
+            time_t curr_time = ep_real_time();
+            if (forestMetaData.exptime < curr_time) {
+                comp_ctx->expiryCallback->callback(vbid, key,
+                                                   forestMetaData.rev_seqno,
+                                                   curr_time);
+            }
+        }
+    }
+
+    if (comp_ctx->bloomFilterCallback) {
+        bool deleted = doc->deleted;
+        comp_ctx->bloomFilterCallback->callback(vbid, key, deleted);
+    }
+
+    return FDB_CS_KEEP_DOC;
 }
 
 bool ForestKVStore::compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb) {
-
     uint16_t shardId = ctx->db_file_id;
     uint64_t prevRevNum = dbFileRevNum;
 
@@ -1375,6 +1463,12 @@ bool ForestKVStore::compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb) 
     std::string prevDbFile = dbFileBase + std::to_string(prevRevNum);
 
     std::string newDbFile = dbFileBase + std::to_string(dbFileRevNum);
+
+    fileConfig.compaction_cb = compaction_cb_c;
+    fileConfig.compaction_cb_ctx = ctx;
+    fileConfig.compaction_cb_mask = FDB_CS_MOVE_DOC;
+
+    ctx->store = this;
 
     fdb_file_handle *compactFileHandle;
     fdb_status status = fdb_open(&compactFileHandle, prevDbFile.c_str(),

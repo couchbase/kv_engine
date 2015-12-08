@@ -1013,7 +1013,6 @@ extern "C" {
                                 PROTOCOL_BINARY_RESPONSE_EINVAL, cas, cookie);
         }
         EPStats &stats = e->getEpStats();
-        compactreq.max_purged_seq = 0;
         compactreq.purge_before_ts = ntohll(req->message.body.purge_before_ts);
         compactreq.purge_before_seq =
                                     ntohll(req->message.body.purge_before_seq);
