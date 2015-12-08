@@ -1326,6 +1326,7 @@ static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* cookie,
                                                       uint16_t vbucket) {
     protocol_binary_request_dcp_get_failover_log packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1357,6 +1358,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(const void* cookie,
                                                 uint64_t snap_end_seqno) {
     protocol_binary_request_dcp_stream_req packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1392,6 +1394,7 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void* cookie,
                                                          uint8_t status) {
     protocol_binary_response_dcp_add_stream packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1420,6 +1423,7 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(const void* cookie,
                                                      uint8_t status) {
     protocol_binary_response_dcp_snapshot_marker packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1448,6 +1452,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
     uint8_t status) {
     protocol_binary_response_dcp_set_vbucket_state packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1476,6 +1481,7 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(const void* cookie,
                                                 uint32_t flags) {
     protocol_binary_request_dcp_stream_end packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_STREAM_END);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1507,6 +1513,7 @@ static ENGINE_ERROR_CODE dcp_message_marker(const void* cookie,
                                             uint32_t flags) {
     protocol_binary_request_dcp_snapshot_marker packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1543,6 +1550,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
                                               uint16_t nmeta,
                                               uint8_t nru) {
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_MUTATION);
     item_info_holder info;
     protocol_binary_request_dcp_mutation packet;
     int xx;
@@ -1613,6 +1621,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion(const void* cookie,
                                               const void* meta,
                                               uint16_t nmeta) {
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_DELETION);
     protocol_binary_request_dcp_deletion packet;
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
         return ENGINE_E2BIG;
@@ -1656,6 +1665,7 @@ static ENGINE_ERROR_CODE dcp_message_expiration(const void* cookie,
                                                 const void* meta,
                                                 uint16_t nmeta) {
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_EXPIRATION);
     protocol_binary_request_dcp_deletion packet;
 
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
@@ -1694,6 +1704,7 @@ static ENGINE_ERROR_CODE dcp_message_flush(const void* cookie,
                                            uint16_t vbucket) {
     protocol_binary_request_dcp_flush packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_FLUSH);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1720,6 +1731,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
                                                        vbucket_state_t state) {
     protocol_binary_request_dcp_set_vbucket_state packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1751,6 +1763,7 @@ static ENGINE_ERROR_CODE dcp_message_noop(const void* cookie,
                                           uint32_t opaque) {
     protocol_binary_request_dcp_noop packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_NOOP);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1776,6 +1789,7 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* cookie,
                                                             uint32_t buffer_bytes) {
     protocol_binary_request_dcp_buffer_acknowledgement packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT);
 
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
@@ -1807,6 +1821,7 @@ static ENGINE_ERROR_CODE dcp_message_control(const void* cookie,
                                              uint32_t nvalue) {
     protocol_binary_request_dcp_control packet;
     auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_CONTROL);
 
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nvalue >=
         c->write.size) {
@@ -1856,6 +1871,10 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
         dcp_message_control
     };
     ENGINE_ERROR_CODE ret;
+
+    // Begin timing DCP, each dcp callback needs to set the c->cmd for the timing
+    // to be recorded.
+    c->setStart(gethrtime());
 
     if (!c->addMsgHdr(true)) {
         if (settings.verbose) {
