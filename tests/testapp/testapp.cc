@@ -4268,8 +4268,8 @@ stats_response_t request_stats() {
                              buffer.response.message.header.response.extlen);
         EXPECT_GT(val_len, 0u);
 
-        result.emplace(std::make_pair(std::string(key_ptr, key_len),
-                                      std::string(val_ptr, val_len)));
+        result.insert(std::make_pair(std::string(key_ptr, key_len),
+                                     std::string(val_ptr, val_len)));
     }
 
     return result;
