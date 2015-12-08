@@ -61,13 +61,20 @@ static cJSON *getArray(cJSON *root, const char *key) {
     return obj;
 }
 
+// A single bin of a histogram. Holds the raw count and cumulative total (to
+// allow percentile to be calculated).
+struct Bin {
+    uint32_t count;
+    uint64_t cumulative_count;
+};
+
 class Timings {
 public:
-    Timings() : max(0), ns(0), oldwayout(false) {
-        us.fill(0);
-        ms.fill(0);
-        halfsec.fill(0);
-        wayout.fill(0);
+    Timings() : max(0), ns(Bin()), oldwayout(false) {
+        us.fill(Bin());
+        ms.fill(Bin());
+        halfsec.fill(Bin());
+        wayout.fill(Bin());
     }
 
     void initialize(std::vector<char> &content) {
@@ -126,23 +133,33 @@ public:
         if (oldwayout) {
             dump("ms", (10 * 500), 0, wayout[0]);
         } else {
-            dump("s", 5, 9, wayout[0]);
-            dump("s", 10, 19, wayout[1]);
-            dump("s", 20, 39, wayout[2]);
-            dump("s", 40, 79, wayout[3]);
-            dump("s", 80, 0, wayout[4]);
+            dump("s ", 5, 9, wayout[0]);
+            dump("s ", 10, 19, wayout[1]);
+            dump("s ", 20, 39, wayout[2]);
+            dump("s ", 40, 79, wayout[3]);
+            dump("s ", 80, 0, wayout[4]);
         }
         std::cout << "Total: " << total << " operations" << std::endl;
     }
 
 private:
+
+    // Helper function for initialize
+    static void update_max_and_total(uint32_t& max, uint64_t& total, Bin& bin) {
+        total += bin.count;
+        bin.cumulative_count = total;
+        if (bin.count > max) {
+            max = bin.count;
+        }
+    }
+
     void initialize(cJSON *root) {
-        ns = getValue(root, "ns");
+        ns.count = getValue(root, "ns");
         auto arr = getArray(root, "us");
         int ii = 0;
         cJSON* i = arr->child;
         while (i) {
-            us[ii] = i->valueint;
+            us[ii].count = i->valueint;
             ++ii;
             i = i->next;
             if (ii == 100 && i != NULL) {
@@ -154,7 +171,7 @@ private:
         ii = 1;
         i = arr->child;
         while (i) {
-            ms[ii] = i->valueint;
+            ms[ii].count = i->valueint;
             ++ii;
             i = i->next;
             if (ii == 50 && i != NULL) {
@@ -166,7 +183,7 @@ private:
         ii = 0;
         i = arr->child;
         while (i) {
-            halfsec[ii] = i->valueint;
+            halfsec[ii].count = i->valueint;
             ++ii;
             i = i->next;
             if (ii == 10 && i != NULL) {
@@ -175,63 +192,59 @@ private:
         }
 
         try {
-            wayout[0] = getValue(root, "5s-9s");
-            wayout[1] = getValue(root, "10s-19s");
-            wayout[2] = getValue(root, "20s-39s");
-            wayout[3] = getValue(root, "40s-79s");
-            wayout[4] = getValue(root, "80s-inf");
+            wayout[0].count = getValue(root, "5s-9s");
+            wayout[1].count = getValue(root, "10s-19s");
+            wayout[2].count = getValue(root, "20s-39s");
+            wayout[3].count = getValue(root, "40s-79s");
+            wayout[4].count = getValue(root, "80s-inf");
         } catch (...) {
-            wayout[0] = getValue(root, "wayout");
+            wayout[0].count = getValue(root, "wayout");
             oldwayout = true;
         }
 
-        // Calculate total and find the highest value
-        max = total = ns;
+        // Calculate total and cumulative counts, and find the highest value.
+        max = total = 0;
+
+        update_max_and_total(max, total, ns);
         for (auto &val : us) {
-            total += val;
-            if (val > max) {
-                max = val;
-            }
+            update_max_and_total(max, total, val);
         }
         for (auto &val : ms) {
-            total += val;
-            if (val > max) {
-                max = val;
-            }
+            update_max_and_total(max, total, val);
         }
         for (auto &val : halfsec) {
-            total += val;
-            if (val > max) {
-                max = val;
-            }
+            update_max_and_total(max, total, val);
         }
         for (auto &val : wayout) {
-            total += val;
-            if (val > max) {
-                max = val;
-            }
+            update_max_and_total(max, total, val);
         }
     }
 
-    void dump(const char *timeunit, uint32_t low, uint32_t high, uint32_t value)
+    void dump(const char *timeunit, uint32_t low, uint32_t high,
+              const Bin& value)
     {
-        if (value > 0) {
-            int ii;
+        if (value.count > 0) {
             char buffer[1024];
             int offset;
-            int num;
             if (low > 0 && high == 0) {
                 offset = sprintf(buffer, "[%4u - inf.]%s", low, timeunit);
             } else {
                 offset = sprintf(buffer, "[%4u - %4u]%s", low, high, timeunit);
             }
-            num = (int)(40.0 * (float) value / (float)max);
-            offset += sprintf(buffer + offset, " |");
-            for (ii = 0; ii < num; ++ii) {
+            offset += sprintf(buffer + offset, " (%6.2f%%) ",
+                              double(value.cumulative_count) * 100.0 / total);
+
+            // Determine how wide the max value would be, and pad all counts
+            // to that width.
+            int max_width = snprintf(buffer, 0, "%u", max);
+            offset += sprintf(buffer + offset, " %*u", max_width, value.count);
+
+            int num = (int)(44.0 * (float) value.count / (float)max);
+            offset += sprintf(buffer + offset, " | ");
+            for (int ii = 0; ii < num; ++ii) {
                 offset += sprintf(buffer + offset, "#");
             }
 
-            sprintf(buffer + offset, " - %u", value);
             std::cout << buffer << std::endl;
         }
     }
@@ -243,18 +256,18 @@ private:
     uint32_t max;
 
     /* We collect timings for <=1 us */
-    uint32_t ns;
+    Bin ns;
 
     /* We collect timings per 10usec */
-    std::array<uint32_t, 100> us;
+    std::array<Bin, 100> us;
 
     /* we collect timings from 0-49 ms (entry 0 is never used!) */
-    std::array<uint32_t, 50> ms;
+    std::array<Bin, 50> ms;
 
-    std::array<uint32_t, 10> halfsec;
+    std::array<Bin, 10> halfsec;
 
     // [5-9], [10-19], [20-39], [40-79], [80-inf].
-    std::array<uint32_t, 5> wayout;
+    std::array<Bin, 5> wayout;
 
     bool oldwayout;
 
