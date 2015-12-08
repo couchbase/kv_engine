@@ -99,7 +99,7 @@ public:
     const std::string getTaskableName() {
         LockHolder lh(currentTaskMutex);
         if (currentTask) {
-	    return currentTask->getTaskable().getName();
+            return currentTask->getTaskable().getName();
         } else {
             return std::string();
         }
@@ -138,7 +138,7 @@ private:
     AtomicValue<hrtime_t> now;  // record of current time
     AtomicValue<hrtime_t> waketime; // set to the earliest
 
-    hrtime_t taskStart;
+    Couchbase::RelaxedAtomic<hrtime_t> taskStart;
 
     Mutex currentTaskMutex; // Protects currentTask
     ExTask currentTask;
