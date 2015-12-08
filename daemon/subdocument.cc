@@ -29,6 +29,8 @@
 #include "topkeys.h"
 #include "utilities/protocol2text.h"
 
+#include <platform/histogram.h>
+
 /******************************************************************************
  * Subdocument executors
  *****************************************************************************/
@@ -633,6 +635,8 @@ subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
 static bool subdoc_operate(SubdocCmdContext* context) {
 
     if (!context->executed) {
+        GenericBlockTimer<TimingHistogram, 0> bt(
+                &all_buckets[context->c->getBucketIndex()].subjson_operation_times);
 
         context->overall_status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 

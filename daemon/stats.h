@@ -20,6 +20,8 @@
 #include <relaxed_atomic.h>
 #include <mutex>
 
+#include "timing_histogram.h"
+
 /**
  * Stats stored per-thread.
  */

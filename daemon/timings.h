@@ -24,6 +24,9 @@
 
 #define MAX_NUM_OPCODES 0x100
 
+/** Records timings for each memcached opcode. Each opcode has a histogram of
+ * times.
+ */
 class Timings {
 public:
     Timings(void);

@@ -3128,6 +3128,12 @@ static void stat_executor(McbpConnection* c, void* packet) {
             }
             cJSON_Delete(topkeys_doc);
 
+        } else if (nkey == strlen("subdoc_execute") &&
+                   strncmp(subcommand, "subdoc_execute", nkey) == 0) {
+            auto json_str =
+                    all_buckets[c->getBucketIndex()].subjson_operation_times.to_string();
+            append_stats(json_str.c_str(), json_str.size(), nullptr, 0, c);
+
         } else {
             ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(), c,
                                                   subcommand, (int)nkey,

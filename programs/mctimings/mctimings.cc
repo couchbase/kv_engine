@@ -272,8 +272,8 @@ std::string opcode2string(uint8_t opcode) {
     return std::string(cmd);
 }
 
-static void request_timings(BIO *bio, const char *bucket, uint8_t opcode, int verbose, int skip)
-{
+static void request_cmd_timings(BIO *bio, const char *bucket, uint8_t opcode,
+                                int verbose, int skip) {
     protocol_binary_request_get_cmd_timer request;
     protocol_binary_response_no_extras response;
 
@@ -336,6 +336,57 @@ static void request_timings(BIO *bio, const char *bucket, uint8_t opcode, int ve
 
 }
 
+static void request_stat_timings(BIO *bio, const char* key, int verbose) {
+    protocol_binary_request_stats request;
+    protocol_binary_response_stats response;
+
+    const size_t keylen = strlen(key);
+    memset(&request, 0, sizeof(request));
+    request.message.header.request.magic = PROTOCOL_BINARY_REQ;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_STAT;
+    request.message.header.request.keylen = htons(keylen);
+    request.message.header.request.bodylen = htonl(keylen);
+
+    ensure_send(bio, &request, sizeof(request.bytes));
+    ensure_send(bio, key, keylen);
+
+    ensure_recv(bio, &response, sizeof(response.bytes));
+    uint32_t buffsize = ntohl(response.message.header.response.bodylen);
+    std::vector<char> buffer(buffsize + 1, 0);
+
+    ensure_recv(bio, buffer.data(), buffsize);
+    if (response.message.header.response.status != 0) {
+        switch (ntohs(response.message.header.response.status)) {
+        case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
+            std::cerr <<"Cannot find statistic: " << key << std::endl;
+            break;
+        case PROTOCOL_BINARY_RESPONSE_EACCESS:
+            std::cerr << "Not authorized to access timings data" << std::endl;
+            break;
+        default:
+            std::cerr << "Command failed: 0x" << std::hex
+                      << ntohs(response.message.header.response.status)
+                      << std::endl;
+        }
+        exit(EXIT_FAILURE);
+    }
+
+    Timings timings;
+    try {
+        timings.initialize(buffer);
+    } catch (std::string &msg) {
+        std::cerr << "Fatal error: " << msg << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
+    if (verbose) {
+        timings.dumpHistogram(key);
+    } else {
+        std::cout << key << " " << timings.getTotal() << " operations"
+                  << std::endl;
+    }
+}
+
 int main(int argc, char** argv) {
     int cmd;
     const char *port = "11210";
@@ -382,7 +433,10 @@ int main(int argc, char** argv) {
             break;
         default:
             std::cerr << "Usage mctimings [-h host[:port]] [-p port] [-u user]"
-                      << " [-P pass] [-b bucket] [-s] -v [opcode]*\n";
+                      << " [-P pass] [-b bucket] [-s] -v [opcode / stat_name]*" << std::endl
+                      << std::endl
+                      << "Example:" << std::endl
+                      << "    mctimings -h localhost:11210 -v GET SET";
             exit(EXIT_FAILURE);
         }
     }
@@ -393,12 +447,18 @@ int main(int argc, char** argv) {
 
     if (optind == argc) {
         for (int ii = 0; ii < 256; ++ii) {
-            request_timings(bio, bucket, (uint8_t)ii, verbose, 1);
+            request_cmd_timings(bio, bucket, (uint8_t)ii, verbose, 1);
         }
     } else {
         for (; optind < argc; ++optind) {
-            request_timings(bio, bucket, memcached_text_2_opcode(argv[optind]),
-                            verbose, 0);
+            const uint8_t opcode = memcached_text_2_opcode(argv[optind]);
+            if (opcode != PROTOCOL_BINARY_CMD_INVALID) {
+                request_cmd_timings(bio, bucket, opcode, verbose, 0);
+            } else {
+                // Not a command timing, try as statistic timing.
+                request_stat_timings(bio, argv[optind], verbose);
+            }
+
         }
     }
 

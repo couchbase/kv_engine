@@ -138,14 +138,19 @@ public:
     ENGINE_HANDLE_V1 *engine; /* Pointer to the bucket */
 
     /**
-     * Statistics array
+     * Statistics array, one per front-end thread.
      */
     struct thread_stats *stats;
 
     /**
-     * Timing data
+     * Command timing data
      */
     Timings timings;
+
+    /**
+     *  Sub-document JSON parser (subjson) operation execution time histogram.
+     */
+    TimingHistogram subjson_operation_times;
 
     /**
      * Topkeys
