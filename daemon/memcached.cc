@@ -599,23 +599,14 @@ ENGINE_ERROR_CODE refresh_ssl_certs(Connection *c)
     return ENGINE_SUCCESS;
 }
 
-cJSON *get_bucket_details(int idx)
-{
-    Bucket &bucket = all_buckets.at(idx);
-    Bucket copy;
-
-    /* make a copy so I don't have to do everything with the locks */
-    cb_mutex_enter(&bucket.mutex);
-    copy = bucket;
-    cb_mutex_exit(&bucket.mutex);
-
-    if (copy.state == BucketState::None) {
-        return NULL;
+static cJSON *get_bucket_details_UNLOCKED(const Bucket& bucket, int idx) {
+    if (bucket.state == BucketState::None) {
+        return nullptr;
     }
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "index", idx);
-    switch (copy.state) {
+    switch (bucket.state) {
     case BucketState::None:
         cJSON_AddStringToObject(root, "state", "none");
         break;
@@ -636,10 +627,10 @@ cJSON *get_bucket_details(int idx)
         break;
     }
 
-    cJSON_AddNumberToObject(root, "clients", copy.clients);
-    cJSON_AddStringToObject(root, "name", copy.name);
+    cJSON_AddNumberToObject(root, "clients", bucket.clients);
+    cJSON_AddStringToObject(root, "name", bucket.name);
 
-    switch (copy.type) {
+    switch (bucket.type) {
     case BucketType::Unknown:
         cJSON_AddStringToObject(root, "type", "<<unknown>>");
         break;
@@ -658,6 +649,17 @@ cJSON *get_bucket_details(int idx)
     }
 
     return root;
+}
+
+cJSON *get_bucket_details(int idx)
+{
+    cJSON* ret;
+    Bucket &bucket = all_buckets.at(idx);
+    cb_mutex_enter(&bucket.mutex);
+    ret = get_bucket_details_UNLOCKED(bucket, idx);
+    cb_mutex_exit(&bucket.mutex);
+
+    return ret;
 }
 
 bool conn_listening(ListenConnection *c)
