@@ -8469,6 +8469,10 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
     }
     wait_for_flusher_to_settle(h, h1);
 
+    // Account for tasks already in the auxIO futureQ
+    int auxIOFutureQ = get_int_stat(h, h1, "ep_workload:LowPrioQ_AuxIO:InQsize",
+                                    "workload");
+
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 1;
     check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER,
@@ -8496,8 +8500,13 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
     testHarness.destroy_cookie(cookie);
 
     // Let all AUXIO (backfills) finish
-    wait_for_stat_to_be(h, h1, "ep_workload:LowPrioQ_AuxIO:InQsize", 0, "workload");
-    wait_for_stat_to_be(h, h1, "ep_workload:LowPrioQ_AuxIO:OutQsize", 0, "workload");
+    // - FutureQ of auxIO should contain less than or equal to what
+    // was in it before DCP
+    // - ReadyQ of auxIO to contain 0 tasks
+    wait_for_stat_to_be_lte(h, h1, "ep_workload:LowPrioQ_AuxIO:InQsize",
+                            auxIOFutureQ, "workload");
+    wait_for_stat_to_be(h, h1, "ep_workload:LowPrioQ_AuxIO:OutQsize",
+                        0, "workload");
     return SUCCESS;
 }
 
