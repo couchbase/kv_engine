@@ -261,11 +261,11 @@ private:
     //! Whether ot not this is the first snapshot marker sent
     bool firstMarkerSent;
 
-    int waitForSnapshot;
+    AtomicValue<int> waitForSnapshot;
 
     EventuallyPersistentEngine* engine;
     dcp_producer_t producer;
-    bool isBackfillTaskRunning;
+    AtomicValue<bool> isBackfillTaskRunning;
 
     struct {
         AtomicValue<uint32_t> bytes;
