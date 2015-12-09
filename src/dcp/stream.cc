@@ -873,7 +873,7 @@ void ActiveStream::transitionState(stream_state_t newState) {
         case STREAM_TAKEOVER_WAIT:
         case STREAM_PENDING:
             break;
-        default:
+        case STREAM_READING:
             throw std::logic_error("ActiveStream::transitionState:"
                     " newState can't be " + std::to_string(newState) + "!");
     }
