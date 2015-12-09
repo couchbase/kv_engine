@@ -47,8 +47,8 @@ def cmd(f):
                 sys.exit(1)
 
         if kwargs.get('allBuckets', None):
-            buckets = mc.stats('bucket')
-            for bucket in buckets.iterkeys():
+            buckets = mc.list_buckets()
+            for bucket in buckets:
                 print '*' * 78
                 print bucket
                 print

@@ -432,3 +432,9 @@ class MemcachedClient(object):
     def reset_replication_chain(self):
         """Reset the replication chain."""
         return self._doCmd(memcacheConstants.CMD_RESET_REPLICATION_CHAIN, '', '', '', 0)
+
+    def list_buckets(self):
+        """Get the name of all buckets."""
+        opaque, cas, data = self._doCmd(
+            memcacheConstants.CMD_LIST_BUCKETS, '', '', '', 0)
+        return data.strip().split(' ')
