@@ -184,7 +184,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
     return {Subdoc::Command::COUNTER,
             SUBDOC_FLAG_MKDIR_P,
             /*request_has_value*/true,
-            /*allow_empty_path*/true,
+            /*allow_empty_path*/false,
             /*response_has_value*/true,
             /*is_mutator*/true,
             SubdocPath::SINGLE};

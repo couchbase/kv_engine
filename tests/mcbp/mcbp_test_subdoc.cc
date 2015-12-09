@@ -585,11 +585,11 @@ TEST_F(SubdocMultiMutationTest, ValidArrayCounter) {
     request.specs.at(1).flags = SUBDOC_FLAG_MKDIR_P;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
 
-    // Allowed empty path.
+    // Empty path invalid
     request.specs.at(1) = {PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                            protocol_binary_subdoc_flag(0),
                            "", "value"};
-    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate(request.encode()));
+    EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(request.encode()));
 }
 
 TEST_F(SubdocMultiMutationTest, InvalidArrayCounter) {
