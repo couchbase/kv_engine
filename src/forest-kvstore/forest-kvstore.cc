@@ -76,13 +76,10 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     std::stringstream prefix;
     prefix << shardId << ".fdb";
 
-    std::vector<std::string> files = findFilesContaining(dbname,
-                                     prefix.str().c_str());
+    const std::vector<std::string> files = findFilesContaining(dbname,
+                                           prefix.str().c_str());
 
-    std::vector<std::string>::iterator fileItr;
-
-    for (fileItr = files.begin(); fileItr != files.end(); ++fileItr) {
-        const std::string &filename = *fileItr;
+    for (auto& filename : files) {
         size_t secondDot = filename.rfind(".");
         std::string revNumStr = filename.substr(secondDot + 1);
         char *ptr = NULL;
@@ -120,8 +117,9 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     }
 
     fdb_kvs_handle *kvsHandle = NULL;
-    /* Initialize ForestDB KV store instances for all the vbuckets
-     * that belong to this shard */
+    /* Initialize the reader and writer handle map for all the vbuckets in
+     * the shard
+     */
     for (uint16_t i = shardId; i < maxVbuckets; i += maxShards) {
         writeHandleMap.insert(std::make_pair(i, kvsHandle));
         readHandleMap.insert(std::make_pair(i, kvsHandle));
@@ -141,7 +139,9 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     for (uint16_t i = 0; i < maxVbuckets; ++i) {
         cachedVBStates.push_back((vbucket_state *)NULL);
         if (i == shardId) {
-            readVBState(i);
+            if (files.size() != 0) {
+                readVBState(i);
+            }
             shardId += maxShards; // jump to next vbucket in shard
         }
     }
@@ -331,7 +331,7 @@ ENGINE_ERROR_CODE ForestKVStore::readVBState(uint16_t vbId) {
 
     if (status != FDB_RESULT_SUCCESS) {
         LOG(EXTENSION_LOG_DEBUG,
-            "Failed to retrieve stat info for vBucket=%d "
+            "ForestKVStore::readVBState: Failed to retrieve vbucket state for vBucket=%d "
             "with error=%s", vbId , fdb_error_msg(status));
     } else {
         cJSON *jsonObj = cJSON_Parse((char *)statDoc->body);
