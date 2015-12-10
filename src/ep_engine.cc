@@ -5975,11 +5975,11 @@ EventuallyPersistentEngine::setClusterConfig(const void* cookie,
     // helpful identifying information.
     const int CONFIG_LIMIT = 100;
     if (clusterConfig.len > CONFIG_LIMIT) {
-        LOG(EXTENSION_LOG_WARNING, "Updated cluster configuration - first %d "
+        LOG(EXTENSION_LOG_NOTICE, "Updated cluster configuration - first %d "
                 "bytes: '%.*s'...\n", CONFIG_LIMIT, CONFIG_LIMIT,
                 clusterConfig.config);
     } else {
-        LOG(EXTENSION_LOG_WARNING, "Updated cluster configuration: '%.*s'\n",
+        LOG(EXTENSION_LOG_NOTICE, "Updated cluster configuration: '%.*s'\n",
             clusterConfig.len, clusterConfig.config);
     }
 
