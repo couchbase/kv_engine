@@ -358,13 +358,9 @@ DcpResponse* ActiveStream::backfillPhase() {
 }
 
 DcpResponse* ActiveStream::inMemoryPhase() {
-    if (!readyQ.empty()) {
-        return nextQueuedItem();
-    }
-
     if (lastSentSeqno >= end_seqno_) {
         endStream(END_STREAM_OK);
-    } else {
+    } else if (readyQ.empty()) {
         nextCheckpointItem();
     }
 
@@ -727,15 +723,38 @@ void ActiveStream::transitionState(stream_state_t newState) {
 
     state_ = newState;
 
-    if (newState == STREAM_BACKFILLING) {
-        scheduleBackfill();
-    } else if (newState == STREAM_TAKEOVER_SEND) {
-        nextCheckpointItem();
-    } else if (newState == STREAM_DEAD) {
-        RCPtr<VBucket> vb = engine->getVBucket(vb_);
-        if (vb) {
-            vb->checkpointManager.removeCursor(name_);
-        }
+    switch (newState) {
+        case STREAM_BACKFILLING:
+            scheduleBackfill();
+            break;
+        case STREAM_IN_MEMORY:
+            // Check if the producer has sent up till the last requested
+            // sequence number already, if not - move checkpoint items into
+            // the ready queue.
+            if (lastSentSeqno >= end_seqno_) {
+                // Stream transitioning to DEAD state
+                endStream(END_STREAM_OK);
+            } else {
+                nextCheckpointItem();
+            }
+            break;
+        case STREAM_TAKEOVER_SEND:
+            nextCheckpointItem();
+            break;
+        case STREAM_DEAD:
+            {
+                RCPtr<VBucket> vb = engine->getVBucket(vb_);
+                if (vb) {
+                    vb->checkpointManager.removeCursor(name_);
+                }
+                break;
+            }
+        case STREAM_TAKEOVER_WAIT:
+        case STREAM_PENDING:
+            break;
+        case STREAM_READING:
+            throw std::logic_error("ActiveStream::transitionState:"
+                    " newState can't be STREAM_READING!");
     }
 }
 

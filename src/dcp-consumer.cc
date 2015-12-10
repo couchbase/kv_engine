@@ -141,7 +141,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
 }
 
 DcpConsumer::~DcpConsumer() {
-    closeAllStreams();
     delete[] streams;
     engine_.getDcpConnMap().decAggrDcpConsumerBufferSize
                                 (flowControl.bufferSize);
@@ -201,6 +200,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
 
 ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     if (doDisconnect()) {
+        streams[vbucket].reset();
         return ENGINE_DISCONNECT;
     }
 
@@ -218,6 +218,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
     uint32_t bytesCleared = stream->setDead(END_STREAM_CLOSED);
     flowControl.freedBytes.fetch_add(bytesCleared);
+    streams[vbucket].reset();
     return ENGINE_SUCCESS;
 }
 
@@ -666,7 +667,10 @@ bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
     cb_assert(err == ENGINE_SUCCESS);
 
     RCPtr<VBucket> vb = engine_.getVBucket(vbid);
-    streams[vbid]->reconnectStream(vb, opaque, vb->getHighSeqno());
+    passive_stream_t stream = streams[vbid];
+    if (stream) {
+        stream->reconnectStream(vb, opaque, vb->getHighSeqno());
+    }
 
     return false;
 }
@@ -829,6 +833,7 @@ void DcpConsumer::closeAllStreams() {
         passive_stream_t stream = streams[vbucket];
         if (stream) {
             stream->setDead(END_STREAM_DISCONNECTED);
+            streams[vbucket].reset();
         }
     }
 }

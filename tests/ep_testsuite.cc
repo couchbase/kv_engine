@@ -524,6 +524,17 @@ static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     wait_for_flusher_to_settle(h, h1);
 
+    std::stringstream error1, error2;
+    error1 << "Expected ep_total_persisted >= num_keys (" << num_keys << ")";
+    error2 << "Expected ep_total_persisted <= num_sets*num_keys ("
+           << num_sets*num_keys << ")";
+
+    // The flusher could of ran > 1 times. We can only assert
+    // that we persisted between num_keys and upto num_keys*num_sets
+    check(get_int_stat(h, h1, "ep_total_persisted") >= num_keys,
+          error1.str().c_str());
+    check(get_int_stat(h, h1, "ep_total_persisted") <= num_sets*num_keys,
+          error2.str().c_str());
     return SUCCESS;
 }
 
@@ -3584,6 +3595,7 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
         h1->release(h, NULL, i);
     }
 
+    wait_for_str_stat_to_be(h, h1, "ep_dcp_pending_notifications", "false", NULL);
     // Should get a stream end
     dcp_step(h, h1, cookie);
     check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,
@@ -3914,9 +3926,10 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
         (flags & DCP_ADD_STREAM_FLAG_DISKONLY) == 0 &&
         !skipEstimateCheck) {
         int est = end - start;
-        char stats_takeover[50];
-        snprintf(stats_takeover, sizeof(stats_takeover), "dcp-vbtakeover 0 %s", name);
-        wait_for_stat_to_be(h, h1, "estimate", est, stats_takeover);
+        std::stringstream stats_takeover;
+        stats_takeover << "dcp-vbtakeover " << vbucket << " " << name;
+        wait_for_stat_to_be_lte(h, h1, "estimate", est,
+                                stats_takeover.str().c_str());
     }
 
     bool done = false;
@@ -5620,7 +5633,8 @@ static enum test_result test_dcp_close_stream(ENGINE_HANDLE *h,
           "Expected success");
 
     state = get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
-    check(state.compare("dead") == 0, "Expected stream in dead state");
+    checkeq(size_t(0), state.length(),
+            "Did not expect to find the closed stream");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -9635,9 +9649,9 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
     // Destroy the connection
     testHarness.destroy_cookie(cookie);
 
-    // Let all AUXIO (backfills) finish
-    wait_for_stat_to_be(h, h1, "ep_workload:LowPrioQ_AuxIO:InQsize", 0, "workload");
-    wait_for_stat_to_be(h, h1, "ep_workload:LowPrioQ_AuxIO:OutQsize", 0, "workload");
+    // Let all backfills finish
+    wait_for_stat_to_be(h, h1, "ep_dcp_num_running_backfills", 0, "dcp");
+
     return SUCCESS;
 }
 
