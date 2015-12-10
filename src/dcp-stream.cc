@@ -504,7 +504,7 @@ void ActiveStream::nextCheckpointItem() {
 
     bool mark = false;
     std::vector<queued_item> items;
-    std::list<MutationResponse*> mutations;
+    std::deque<MutationResponse*> mutations;
     vbucket->checkpointManager.getAllItemsForCursor(name_, items);
     if (vbucket->checkpointManager.getNumCheckpoints() > 1) {
         engine->getEpStore()->wakeUpCheckpointRemover();
@@ -545,7 +545,7 @@ void ActiveStream::nextCheckpointItem() {
     }
 }
 
-void ActiveStream::snapshot(std::list<MutationResponse*>& items, bool mark) {
+void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
     if (items.empty()) {
         return;
     }
@@ -569,9 +569,9 @@ void ActiveStream::snapshot(std::list<MutationResponse*>& items, bool mark) {
     }
 
     pushToReadyQ(new SnapshotMarker(opaque_, vb_, snapStart, snapEnd, flags));
-    while(!items.empty()) {
-        pushToReadyQ(items.front());
-        items.pop_front();
+    std::deque<MutationResponse*>::iterator itemItr;
+    for (itemItr = items.begin(); itemItr != items.end(); itemItr++) {
+        pushToReadyQ(*itemItr);
     }
 }
 

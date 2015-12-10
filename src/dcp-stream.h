@@ -229,7 +229,7 @@ private:
 
     void nextCheckpointItem();
 
-    void snapshot(std::list<MutationResponse*>& snapshot, bool mark);
+    void snapshot(std::deque<MutationResponse*>& snapshot, bool mark);
 
     void endStream(end_stream_status_t reason);
 

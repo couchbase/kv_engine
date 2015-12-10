@@ -28,6 +28,8 @@ class BackfillManager;
 class Stream;
 typedef SingleThreadedRCPtr<Stream> stream_t;
 
+typedef SingleThreadedRCPtr<Stream> stream_t;
+
 class DcpResponse;
 
 class DcpProducer : public Producer {
