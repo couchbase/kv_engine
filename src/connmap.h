@@ -435,8 +435,6 @@ public:
 
     DcpConnMap(EventuallyPersistentEngine &engine);
 
-    ~DcpConnMap();
-
     /**
      * Find or build a dcp connection for the given cookie and with
      * the given name.
@@ -476,7 +474,6 @@ public:
 
     void startProducerNotifier();
     void wakeProducerNotifier();
-    void stopProducerNotifier();
 
 private:
 
@@ -524,7 +521,7 @@ private:
 
     std::list<connection_t> deadConnections;
 
-    DcpProducerNotifier* producerNotifier;
+    ExTask producerNotifier;
 
     std::deque<DcpProducerNotification> notifications;
     Mutex notificationsLock;
