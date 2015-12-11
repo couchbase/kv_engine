@@ -376,6 +376,8 @@ bool conn_write(McbpConnection *c) {
 }
 
 bool conn_mwrite(McbpConnection *c) {
+    bool ret = true;
+
     switch (c->transmit()) {
     case McbpConnection::TransmitResult::Complete:
 
@@ -400,10 +402,15 @@ bool conn_mwrite(McbpConnection *c) {
         break;
 
     case McbpConnection::TransmitResult::SoftError:
-        return false;
+        ret = false;
+        break;
     }
 
-    return true;
+    if (is_bucket_dying(c)) {
+        return true;
+    }
+
+    return ret;
 }
 
 bool conn_pending_close(McbpConnection *c) {
