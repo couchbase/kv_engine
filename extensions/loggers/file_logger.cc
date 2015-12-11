@@ -355,14 +355,22 @@ static FILE *open_logfile(const char *fnm) {
     static unsigned int next_id = 0;
     char fname[1024];
     FILE *ret;
-    sprintf(fname, "%s.%d.%s", fnm, next_id, extension);
-    while (access(fname, F_OK) == 0) {
-        sprintf(fname, "%s.%d.%s", fnm, ++next_id, extension);
-    }
 
-    ret = fopen(fname, "wb");
+    // Search for the next logfile number which doesn't yet exist.
+    // There's a subtlety here - if we have run out of file descriptors (EMFILE) -
+    // access() can fail with ENOENT, which means we need to ensure that we only
+    // search from *after* the last successful open call - i.e. try_id always
+    // starts from one after the last successful open, otherwise we can
+    // re-open the existing log file and overwrite it!
+    unsigned int try_id = next_id;
+    do {
+        sprintf(fname, "%s.%d.%s", fnm, try_id++, extension);
+    } while (access(fname, F_OK) == 0);
+
+    ret = fopen(fname, "ab");
     if (ret != nullptr) {
         setbuf(ret, nullptr);
+        next_id = try_id;
     }
 
     return ret;
