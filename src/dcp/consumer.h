@@ -20,14 +20,15 @@
 
 #include "config.h"
 
-#include "connmap.h"
-#include "dcp/flow-control.h"
-#include "dcp/stream.h"
-#include "tapconnection.h"
-
 #include <relaxed_atomic.h>
 
-class PassiveStream;
+#include "connmap.h"
+#include "dcp/flow-control.h"
+#include "tapconnection.h"
+
+#include "dcp/stream.h"
+typedef RCPtr<PassiveStream> passive_stream_t;
+
 class DcpResponse;
 class StreamEndResponse;
 
@@ -179,11 +180,11 @@ class RollbackTask : public GlobalTask {
 public:
     RollbackTask(EventuallyPersistentEngine* e,
                  uint32_t opaque_, uint16_t vbid_,
-                 uint64_t rollbackSeqno_, connection_t c,
+                 uint64_t rollbackSeqno_, dcp_consumer_t conn,
                  const Priority &p):
         GlobalTask(e, p, 0, false), engine(e),
         opaque(opaque_), vbid(vbid_), rollbackSeqno(rollbackSeqno_),
-        conn(c) { }
+        cons(conn) { }
 
     std::string getDescription() {
         return std::string("Running rollback task for vbucket %d", vbid);
@@ -196,7 +197,7 @@ private:
     uint32_t opaque;
     uint16_t vbid;
     uint64_t rollbackSeqno;
-    connection_t conn;
+    dcp_consumer_t cons;
 };
 
 #endif  // SRC_DCP_CONSUMER_H_

@@ -568,6 +568,7 @@ public:
         numValueEjects.store(0);
         numFailedEjects.store(0);
         numNotMyVBuckets.store(0);
+        bg_fetched.store(0);
         bgNumOperations.store(0);
         bgWait.store(0);
         bgLoad.store(0);

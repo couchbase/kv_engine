@@ -17,9 +17,9 @@
 
 #include "config.h"
 
+#include "ep_engine.h"
 #include "dcp/backfill.h"
 #include "dcp/stream.h"
-#include "ep_engine.h"
 
 static std::string backfillStateToString(backfill_state_t state) {
     switch (state) {

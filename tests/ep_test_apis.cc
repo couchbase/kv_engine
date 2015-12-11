@@ -1069,7 +1069,7 @@ void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
     }
 }
 
-/** Helper class used when waiting on statistics to each a certain value -
+/** Helper class used when waiting on statistics to reach a certain value -
  * aggregates how long we have been waiting and aborts if the maximum wait time
  * is exceeded.
  */
@@ -1079,19 +1079,19 @@ class WaitTimeAccumulator
 public:
     WaitTimeAccumulator(const char* compare_name,
                         const char* stat_, const char* stat_key,
-                        const T final_, const time_t wait_time)
+                        const T final_, const time_t wait_time_in_secs)
     : compareName(compare_name),
       stat(stat_),
       statKey(stat_key),
       final(final_),
-      waitTime(wait_time),
+      maxWaitTime(wait_time_in_secs * 1000 * 1000),
       totalSleepTime(0) {}
 
     void incrementAndAbortIfLimitReached(const useconds_t sleep_time)
     {
         totalSleepTime += sleep_time;
-        if (totalSleepTime >= waitTime * 1000 * 1000 ) {
-            std::cerr << "Exceeded maximum wait time of " << waitTime
+        if (totalSleepTime >= maxWaitTime) {
+            std::cerr << "Exceeded maximum wait time of " << maxWaitTime
                       << "s waiting for stat '" << stat;
             if (statKey != NULL) {
                 std::cerr << "(" << statKey << ")";
@@ -1107,17 +1107,18 @@ private:
     const char* stat;
     const char* statKey;
     const T final;
-    const time_t waitTime;
+    const useconds_t maxWaitTime;
     useconds_t totalSleepTime;
 };
 
 
 void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           const char *stat, int initial,
-                          const char *statkey, const time_t wait_time) {
+                          const char *statkey,
+                          const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
     WaitTimeAccumulator<int> accumulator("to change from", stat, statkey,
-                                         initial, wait_time);
+                                         initial, max_wait_time_in_secs);
     while (get_int_stat(h, h1, stat, statkey) == initial) {
         accumulator.incrementAndAbortIfLimitReached(sleepTime);
         decayingSleep(&sleepTime);
@@ -1126,10 +1127,10 @@ void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                          const char *stat, int final, const char* stat_key,
-                         const time_t wait_time) {
+                         const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
     WaitTimeAccumulator<int> accumulator("to be", stat, stat_key, final,
-                                         wait_time);
+                                         max_wait_time_in_secs);
     while (get_int_stat(h, h1, stat, stat_key) != final) {
         accumulator.incrementAndAbortIfLimitReached(sleepTime);
         decayingSleep(&sleepTime);
@@ -1138,10 +1139,12 @@ void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, int final,
-                             const char* stat_key, const time_t wait_time) {
+                             const char* stat_key,
+                             const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
     WaitTimeAccumulator<int> accumulator("to be greater or equal than", stat,
-                                         stat_key, final, wait_time);
+                                         stat_key, final,
+                                         max_wait_time_in_secs);
     while (get_int_stat(h, h1, stat, stat_key) < final) {
         accumulator.incrementAndAbortIfLimitReached(sleepTime);
         decayingSleep(&sleepTime);
@@ -1150,10 +1153,12 @@ void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 void wait_for_stat_to_be_lte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, int final,
-                             const char* stat_key, const time_t wait_time) {
+                             const char* stat_key,
+                             const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
-    WaitTimeAccumulator<int> accumulator("to be less or equal than", stat,
-                                         stat_key, final, wait_time);
+    WaitTimeAccumulator<int> accumulator("to be less than or equal to", stat,
+                                         stat_key, final,
+                                         max_wait_time_in_secs);
     while (get_int_stat(h, h1, stat, stat_key) > final) {
         accumulator.incrementAndAbortIfLimitReached(sleepTime);
         decayingSleep(&sleepTime);
@@ -1161,10 +1166,12 @@ void wait_for_stat_to_be_lte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 void wait_for_expired_items_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                  int final, const time_t wait_time) {
+                                  int final,
+                                  const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
     WaitTimeAccumulator<int> accumulator("to be", "expired items",
-                                         NULL, final, wait_time);
+                                         NULL, final,
+                                         max_wait_time_in_secs);
     while(get_int_stat(h, h1, "ep_expired_access") +
           get_int_stat(h, h1, "ep_expired_compactor") +
           get_int_stat(h, h1, "ep_expired_pager") != final) {
@@ -1175,10 +1182,12 @@ void wait_for_expired_items_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 void wait_for_str_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, const char* final,
-                             const char* stat_key, const time_t wait_time) {
+                             const char* stat_key,
+                             const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
     WaitTimeAccumulator<const char*> accumulator("to be", stat, stat_key,
-                                                 final, wait_time);
+                                                 final,
+                                                 max_wait_time_in_secs);
     while (get_str_stat(h, h1, stat, stat_key).compare(final) != 0) {
         accumulator.incrementAndAbortIfLimitReached(sleepTime);
         decayingSleep(&sleepTime);
@@ -1186,10 +1195,12 @@ void wait_for_str_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 }
 
 void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                                 int mem_threshold, const time_t wait_time) {
+                                 int mem_threshold,
+                                 const time_t max_wait_time_in_secs) {
     useconds_t sleepTime = 128;
     WaitTimeAccumulator<int> accumulator("to be below", "mem_used", NULL,
-                                         mem_threshold, wait_time);
+                                         mem_threshold,
+                                         max_wait_time_in_secs);
     while (get_int_stat(h, h1, "mem_used") > mem_threshold) {
         accumulator.incrementAndAbortIfLimitReached(sleepTime);
         decayingSleep(&sleepTime);

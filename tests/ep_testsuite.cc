@@ -482,6 +482,17 @@ static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     wait_for_flusher_to_settle(h, h1);
 
+    std::stringstream error1, error2;
+    error1 << "Expected ep_total_persisted >= num_keys (" << num_keys << ")";
+    error2 << "Expected ep_total_persisted <= num_sets*num_keys ("
+           << num_sets*num_keys << ")";
+
+    // The flusher could of ran > 1 times. We can only assert
+    // that we persisted between num_keys and upto num_keys*num_sets
+    check(get_int_stat(h, h1, "ep_total_persisted") >= num_keys,
+          error1.str().c_str());
+    check(get_int_stat(h, h1, "ep_total_persisted") <= num_sets*num_keys,
+          error2.str().c_str());
     return SUCCESS;
 }
 
@@ -3883,6 +3894,7 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
         h1->release(h, NULL, i);
     }
 
+    wait_for_str_stat_to_be(h, h1, "ep_dcp_pending_notifications", "false", NULL);
     // Should get a stream end
     dcp_step(h, h1, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
@@ -6519,9 +6531,6 @@ static enum test_result test_dcp_close_stream(ENGINE_HANDLE *h,
             h1->dcp.close_stream(h, cookie, stream_opaque, 0),
             "Expected success");
 
-    state = get_str_stat(h, h1, "eq_dcpq:unittest:stream_0_state", "dcp");
-    checkeq(0, state.compare("dead"), "Expected stream in dead state");
-
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
 }
@@ -6700,9 +6709,7 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_active),
           "Failed to set vbucket state.");
-
-    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
-                        "dcp");
+    wait_for_flusher_to_settle(h, h1);
 
     check_key_value(h, h1, "key", data, dataLen);
 
@@ -8382,6 +8389,9 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(get_int_stat(h, h1, "ep_bg_num_samples") == 2,
           "Expected one sample");
 
+    h1->reset_stats(h, NULL);
+    checkeq(0, get_int_stat(h, h1, "ep_bg_fetched"),
+            "ep_bg_fetched is not reset to 0");
     return SUCCESS;
 }
 
@@ -10864,6 +10874,73 @@ static enum test_result test_dcp_invalid_snapshot_marker(ENGINE_HANDLE* h,
             "Failed to send snapshot marker!");
 
     testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+/*
+ * Test that destroying a DCP producer before it ends
+ * works. MB-16915 reveals itself via valgrind.
+ */
+static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
+                                                   ENGINE_HANDLE_V1* h1) {
+
+
+    // create enough streams that some backfill tasks should overlap
+    // with the connection deletion task.
+    const int streams = 100;
+
+    // 1 item so that we will at least allow backfill to be scheduled
+    const int num_items = 1;
+    uint64_t vbuuid[streams];
+    for (int i = 0; i < streams; i++) {
+
+        check(set_vbucket_state(h, h1, i, vbucket_state_active),
+            "Failed to set vbucket state");
+        std::stringstream statkey;
+        statkey << "vb_" << i <<  ":0:id";
+        vbuuid[i] = get_ull_stat(h, h1, statkey.str().c_str(), "failovers");
+
+        /* Set n items */
+
+        for (int count = 0; count < num_items; count++) {
+            std::stringstream key;
+            key << "KEY" << i << count;
+            check(ENGINE_SUCCESS ==
+                  store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
+                        "somevalue", NULL, 0, i, 0), "Error storing.");
+        }
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 1;
+    check(h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER,
+                       (void*)"unittest", strlen("unittest")) == ENGINE_SUCCESS,
+          "Failed dcp producer open connection.");
+
+    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size",
+                          strlen("connection_buffer_size"),
+                          "1024", 4) == ENGINE_SUCCESS,
+          "Failed to establish connection buffer");
+
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
+    for (int i = 0; i < streams; i++) {
+        uint64_t rollback = 0;
+        check(h1->dcp.stream_req(h, cookie, DCP_ADD_STREAM_FLAG_DISKONLY,
+                                 ++opaque, i, 0, num_items,
+                                 vbuuid[i], 0, num_items, &rollback,
+                                 mock_dcp_add_failover_log)
+                    == ENGINE_SUCCESS,
+              "Failed to initiate stream request");
+        h1->dcp.step(h, cookie, producers.get());
+    }
+
+    // Destroy the connection
+    testHarness.destroy_cookie(cookie);
+
+    // Let all backfills finish
+    wait_for_stat_to_be(h, h1, "ep_dcp_num_running_backfills", 0, "dcp");
 
     return SUCCESS;
 }
@@ -15977,6 +16054,8 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test MB-16357", test_mb16357,
                  test_setup, teardown, "compaction_exp_mem_threshold=85",
                  prepare, cleanup),
+        TestCase("test dcp early termination", test_dcp_early_termination,
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         TestCaseV2("multi_bucket set/get ", test_multi_bucket_set_get, NULL,
                    teardown_v2, NULL, prepare, cleanup),
