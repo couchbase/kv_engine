@@ -3044,8 +3044,8 @@ static void process_bucket_details(McbpConnection* c) {
 }
 
 static void stat_executor(McbpConnection* c, void* packet) {
-    char* subcommand = binary_get_key(c);
-    size_t nkey = c->binary_header.request.keylen;
+    const std::string subcommand(binary_get_key(c),
+                                 c->binary_header.request.keylen);
     ENGINE_ERROR_CODE ret;
 
     (void)packet;
@@ -3053,7 +3053,8 @@ static void stat_executor(McbpConnection* c, void* packet) {
     if (settings.verbose > 1) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
-                                    "STATS", subcommand, nkey) != -1) {
+                                    "STATS", subcommand.c_str(),
+                                    subcommand.size()) != -1) {
             LOG_DEBUG(c, "%s\n", buffer);
         }
     }
@@ -3063,52 +3064,59 @@ static void stat_executor(McbpConnection* c, void* packet) {
     c->setEwouldblock(false);
 
     if (ret == ENGINE_SUCCESS) {
-        if (nkey == 0) {
+        if (subcommand.empty()) {
             /* request all statistics */
             ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(), c,
                                                   NULL, 0, append_stats);
             if (ret == ENGINE_SUCCESS) {
                 ret = server_stats(&append_stats, c);
             }
-        } else if (strncmp(subcommand, "reset", 5) == 0) {
+
+        } else if (subcommand == "reset") {
             stats_reset(c);
             bucket_reset_stats(c);
-        } else if (strncmp(subcommand, "settings", 8) == 0) {
+
+        } else if (subcommand == "settings") {
             process_stat_settings(&append_stats, c);
-        } else if (nkey == 5 && strncmp(subcommand, "audit", 5) == 0) {
+
+        } else if (subcommand == "audit") {
             if (c->isAdmin()) {
                 process_auditd_stats(&append_stats, c);
             } else {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
                 return;
             }
-        } else if (strncmp(subcommand, "cachedump", 9) == 0) {
+
+        } else if (subcommand == "cachedump") {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
             return;
-        } else if (nkey == 14 &&
-                   strncmp(subcommand, "bucket details", 14) == 0) {
+
+        } else if (subcommand == "bucket details") {
             process_bucket_details(c);
-        } else if (strncmp(subcommand, "aggregate", 9) == 0) {
+
+        } else if (subcommand == "aggregate") {
             ret = server_stats(&append_stats, c);
-        } else if (strncmp(subcommand, "connections", 11) == 0) {
+
+        } else if (subcommand.compare(0, strlen("connections"), "connections") == 0) {
             int64_t fd = -1; /* default to all connections */
-            /* Check for specific connection number - allow up to 32 chars for FD */
-            if (nkey > 11 && nkey < (11 + 32)) {
-                int64_t key;
-                char buffer[32];
-                const size_t fd_length = nkey - 11;
-                memcpy(buffer, subcommand + 11, fd_length);
-                buffer[fd_length] = '\0';
-                if (safe_strtoll(buffer, &key)) {
-                    fd = key;
+            /* Check for specific connection (FD) number */
+            const size_t keyword_len = strlen("connections");
+            if (subcommand.size() > keyword_len) {
+                try {
+                    std::string fd_string = subcommand.substr(keyword_len);
+                    fd = std::stoll(fd_string);
+                } catch (...) {
+                    // ignore, fetch all connections.
                 }
             }
             connection_stats(&append_stats, c, fd);
-        } else if (strncmp(subcommand, "topkeys", nkey) == 0) {
+
+        } else if (subcommand == "topkeys") {
             ret = all_buckets[c->getBucketIndex()].topkeys->stats(c,
                                                                   mc_time_get_current_time(),
                                                                   append_stats);
-        } else if (strncmp(subcommand, "topkeys_json", nkey) == 0) {
+
+        } else if (subcommand == "topkeys_json") {
             cJSON* topkeys_doc = cJSON_CreateObject();
 
             ret = all_buckets[c->getBucketIndex()].topkeys->json_stats(
@@ -3128,15 +3136,15 @@ static void stat_executor(McbpConnection* c, void* packet) {
             }
             cJSON_Delete(topkeys_doc);
 
-        } else if (nkey == strlen("subdoc_execute") &&
-                   strncmp(subcommand, "subdoc_execute", nkey) == 0) {
+        } else if (subcommand == "subdoc_execute") {
             auto json_str =
                     all_buckets[c->getBucketIndex()].subjson_operation_times.to_string();
             append_stats(json_str.c_str(), json_str.size(), nullptr, 0, c);
 
         } else {
             ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(), c,
-                                                  subcommand, (int)nkey,
+                                                  subcommand.c_str(),
+                                                  subcommand.size(),
                                                   append_stats);
         }
     }
