@@ -838,13 +838,7 @@ extern "C" {
         uint16_t vbucket = ntohs(req->message.header.request.vbucket);
         RCPtr<VBucket> vb = e->getVBucket(vbucket);
         if (!vb) {
-            LockHolder lh(e->clusterConfig.lock);
-            return sendResponse(response, NULL, 0, NULL, 0,
-                                e->clusterConfig.config,
-                                e->clusterConfig.len,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
-                                cookie);
+            return e->sendNotMyVBucketResponse(response, cookie, 0);
         } else {
             vbucket_state_t state = (vbucket_state_t)ntohl(vb->getState());
             return sendResponse(response, NULL, 0, NULL, 0, &state,
@@ -979,14 +973,8 @@ extern "C" {
                                 msg.length(), PROTOCOL_BINARY_RAW_BYTES,
                                 res, cas, cookie);
         } else {
-            LockHolder lh(e->clusterConfig.lock);
-            return sendResponse(response, NULL, 0, NULL, 0,
-                                e->clusterConfig.config,
-                                e->clusterConfig.len,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                res, cas, cookie);
+            return e->sendNotMyVBucketResponse(response, cookie, cas);
         }
-
     }
 
     static ENGINE_ERROR_CODE getReplicaCmd(EventuallyPersistentEngine *e,
@@ -1120,12 +1108,7 @@ extern "C" {
                                 msg.length(), PROTOCOL_BINARY_RAW_BYTES,
                                 res, cas, cookie);
         } else {
-            LockHolder lh(e->clusterConfig.lock);
-            return sendResponse(response, NULL, 0, NULL, 0,
-                                e->clusterConfig.config,
-                                e->clusterConfig.len,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                res, cas, cookie);
+            return e->sendNotMyVBucketResponse(response, cookie, cas);
         }
     }
 
@@ -1384,13 +1367,7 @@ extern "C" {
                               cookie);
             delete itm;
         } else  if (rv == ENGINE_NOT_MY_VBUCKET) {
-            LockHolder lh(h->clusterConfig.lock);
-            return sendResponse(response, NULL, 0, NULL, 0,
-                                h->clusterConfig.config,
-                                h->clusterConfig.len,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
-                                cookie);
+            return h->sendNotMyVBucketResponse(response, cookie, 0);
         } else {
             msg_size = (msg_size > 0 || msg == NULL) ? msg_size : strlen(msg);
             rv = sendResponse(response, NULL, 0, NULL, 0,
@@ -1927,8 +1904,8 @@ extern "C" {
     {
         EventuallyPersistentEngine *h = getHandle(handle);
         LockHolder lh(h->clusterConfig.lock);
-        uint8_t *config = h->clusterConfig.config;
-        uint32_t len = h->clusterConfig.len;
+        const char* config = h->clusterConfig.config.data();
+        uint32_t len = h->clusterConfig.config.size();
         releaseHandle(handle);
         return callback(cookie, config, len);
     }
@@ -4789,13 +4766,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         } else if (rv == ENGINE_KEY_ENOENT) {
             keystatus = OBS_STATE_NOT_FOUND;
         } else if (rv == ENGINE_NOT_MY_VBUCKET) {
-            LockHolder lh(clusterConfig.lock);
-            return sendResponse(response, NULL, 0, NULL, 0,
-                                clusterConfig.config,
-                                clusterConfig.len,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
-                                cookie);
+            return sendNotMyVBucketResponse(response, cookie, 0);
         } else if (rv == ENGINE_EWOULDBLOCK) {
             return rv;
         } else {
@@ -4860,22 +4831,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe_seqno(
     RCPtr<VBucket> vb = epstore->getVBucket(vb_id);
 
     if (!vb) {
-        LockHolder lh(clusterConfig.lock);
-        return sendResponse(response, NULL, 0, NULL, 0,
-                            clusterConfig.config, clusterConfig.len,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
-                            cookie);
+        return sendNotMyVBucketResponse(response, cookie, 0);
     }
 
     ReaderLockHolder rlh(vb->getStateLock());
     if (vb->getState() == vbucket_state_dead) {
-        LockHolder lh(clusterConfig.lock);
-        return sendResponse(response, NULL, 0, NULL, 0,
-                            clusterConfig.config, clusterConfig.len,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
-                            cookie);
+        return sendNotMyVBucketResponse(response, cookie, 0);
     }
 
     //Check if the vb uuid matches with the latest entry
@@ -5005,11 +4966,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::touch(const void *cookie,
                               msg.length(), PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_ETMPFAIL, 0, cookie);
         } else {
-            LockHolder lh(clusterConfig.lock);
-            rv = sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
-                              clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
-                              PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
-                              cookie);
+            rv = sendNotMyVBucketResponse(response, cookie, 0);
         }
     }
 
@@ -5059,12 +5016,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
     RCPtr<VBucket> vb = getVBucket(vbucket);
 
     if (!vb) {
-        LockHolder lh(clusterConfig.lock);
-        return sendResponse(response, NULL, 0, NULL, 0,
-                            clusterConfig.config, clusterConfig.len,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
-                            cookie);
+        return sendNotMyVBucketResponse(response, cookie, 0);
     }
 
     int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -5083,12 +5035,7 @@ EventuallyPersistentEngine::handleCheckpointCmds(const void *cookie,
         break;
     case PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT:
         if (vb->getState() != vbucket_state_active) {
-            status = PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
-            LockHolder lh(clusterConfig.lock);
-            return sendResponse(response, NULL, 0, NULL, 0,
-                                clusterConfig.config, clusterConfig.len,
-                                PROTOCOL_BINARY_RAW_BYTES,
-                                status, 0, cookie);
+            return sendNotMyVBucketResponse(response, cookie, 0);
 
         } else {
             uint64_t checkpointId = htonll(vb->checkpointManager.
@@ -5159,12 +5106,7 @@ EventuallyPersistentEngine::handleSeqnoCmds(const void *cookie,
     RCPtr<VBucket> vb = getVBucket(vbucket);
 
     if (!vb) {
-        LockHolder lh(clusterConfig.lock);
-        return sendResponse(response, NULL, 0, NULL, 0,
-                            clusterConfig.config, clusterConfig.len,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
-                            cookie);
+        return sendNotMyVBucketResponse(response, cookie, 0);
     }
 
     int16_t status = PROTOCOL_BINARY_RESPONSE_SUCCESS;
@@ -5305,10 +5247,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getMeta(const void* cookie,
                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
                           metadata.cas, cookie);
     } else if (rv == ENGINE_NOT_MY_VBUCKET) {
-        LockHolder lh(clusterConfig.lock);
-        rv = sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
-                          clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
-                          PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0, cookie);
+        rv = sendNotMyVBucketResponse(response, cookie, 0);
     } else if (rv != ENGINE_EWOULDBLOCK) {
         if (rv == ENGINE_KEY_ENOENT &&
             request->message.header.request.opcode == PROTOCOL_BINARY_CMD_GETQ_META) {
@@ -5498,10 +5437,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     if (ret == ENGINE_NOT_MY_VBUCKET) {
-        LockHolder lh(clusterConfig.lock);
-        return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
-                            clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
-                            rc, cas, cookie);
+        return sendNotMyVBucketResponse(response, cookie, cas);
     }
 
     if (ret == ENGINE_SUCCESS && isMutationExtrasSupported(cookie)) {
@@ -5617,10 +5553,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::deleteWithMeta(
     }
 
     if (ret == ENGINE_NOT_MY_VBUCKET) {
-        LockHolder lh(clusterConfig.lock);
-        return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
-                            clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
-                            rc, cas, cookie);
+        return sendNotMyVBucketResponse(response, cookie, cas);
     }
 
     if (ret == ENGINE_SUCCESS && isMutationExtrasSupported(cookie)) {
@@ -5921,11 +5854,7 @@ EventuallyPersistentEngine::returnMeta(const void* cookie,
     }
 
     if (ret == ENGINE_NOT_MY_VBUCKET) {
-        LockHolder lh(clusterConfig.lock);
-        return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
-                            clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, cas,
-                            cookie);
+        return sendNotMyVBucketResponse(response, cookie, cas);
     } else if (ret == ENGINE_EWOULDBLOCK) {
         return ret;
     } else if (ret != ENGINE_SUCCESS) {
@@ -5954,33 +5883,31 @@ EventuallyPersistentEngine::setClusterConfig(const void* cookie,
     LOG(EXTENSION_LOG_DEBUG, "Updating cluster configuration!");
     uint64_t cas = ntohll(request->message.header.request.cas);
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
-    if (bodylen > clusterConfig.len) {
-        uint8_t *temp = (uint8_t*) malloc(bodylen);
-        memcpy (temp, request->bytes + sizeof(request->bytes), bodylen);
-        LockHolder lh(clusterConfig.lock);
-        free (clusterConfig.config);
-        clusterConfig.config = temp;
-        clusterConfig.len = bodylen;
-        lh.unlock();
-    } else {
-        LockHolder lh(clusterConfig.lock);
-        memcpy (clusterConfig.config, request->bytes + sizeof(request->bytes),
-                bodylen);
-        clusterConfig.len = bodylen;
-        lh.unlock();
+    {
+        try {
+            LockHolder lh(clusterConfig.lock);
+            const uint8_t* body = request->bytes + sizeof(request->message.header);
+            clusterConfig.config.assign(body, body + bodylen);
+        } catch (std::bad_alloc& e) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to update cluster configuration - %s", e.what());
+            return sendResponse(response, nullptr, 0, nullptr, 0, nullptr, 0,
+                                PROTOCOL_BINARY_RAW_BYTES,
+                                PROTOCOL_BINARY_RESPONSE_ENOMEM, cas, cookie);
+        }
     }
 
     // clusterConfig is opaque to ep-engine, but typically there is a rev id
     // at the start of it. Print the first 100 bytes which hopefully includes
     // helpful identifying information.
     const int CONFIG_LIMIT = 100;
-    if (clusterConfig.len > CONFIG_LIMIT) {
+    if (clusterConfig.config.size() > CONFIG_LIMIT) {
         LOG(EXTENSION_LOG_NOTICE, "Updated cluster configuration - first %d "
                 "bytes: '%.*s'...\n", CONFIG_LIMIT, CONFIG_LIMIT,
-                clusterConfig.config);
+                clusterConfig.config.data());
     } else {
         LOG(EXTENSION_LOG_NOTICE, "Updated cluster configuration: '%.*s'\n",
-            clusterConfig.len, clusterConfig.config);
+            clusterConfig.config.size(), clusterConfig.config.data());
     }
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
@@ -5993,8 +5920,8 @@ EventuallyPersistentEngine::getClusterConfig(const void* cookie,
                             protocol_binary_request_get_cluster_config*,
                             ADD_RESPONSE response) {
     LockHolder lh(clusterConfig.lock);
-    return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config,
-                        clusterConfig.len, PROTOCOL_BINARY_RAW_BYTES,
+    return sendResponse(response, NULL, 0, NULL, 0, clusterConfig.config.data(),
+                        clusterConfig.config.size(), PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
 }
 
@@ -6187,13 +6114,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAdjustedTime(
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
-        LockHolder lh(clusterConfig.lock);
-        return sendResponse(response, NULL, 0, NULL, 0,
-                            clusterConfig.config,
-                            clusterConfig.len,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
-                            cookie);
+        return sendNotMyVBucketResponse(response, cookie, 0);
     }
     // Will return the vbucket's adjusted time, only if
     // time synchronization for the vbucket is enabled
@@ -6220,13 +6141,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setDriftCounterState(
     uint16_t vbucket = ntohs(request->message.header.request.vbucket);
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb) {
-        LockHolder lh(clusterConfig.lock);
-        return sendResponse(response, NULL, 0, NULL, 0,
-                            clusterConfig.config,
-                            clusterConfig.len,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, 0,
-                            cookie);
+        return sendNotMyVBucketResponse(response, cookie, 0);
     }
     int64_t initialDriftCount = ntohll(request->message.body.initial_drift);
     uint8_t timeSync = request->message.body.time_sync;
@@ -6401,6 +6316,15 @@ void EventuallyPersistentEngine::updateDcpMinCompressionRatio(float value) {
     }
 }
 
+ENGINE_ERROR_CODE EventuallyPersistentEngine::sendNotMyVBucketResponse(
+        ADD_RESPONSE response, const void* cookie, uint64_t cas) {
+    LockHolder lh(clusterConfig.lock);
+    return sendResponse(response, nullptr, 0, nullptr, 0,
+                        clusterConfig.config.data(),
+                        clusterConfig.config.size(), PROTOCOL_BINARY_RAW_BYTES,
+                        PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, cas, cookie);
+}
+
 EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete epstore;
     delete workload;
@@ -6410,7 +6334,6 @@ EventuallyPersistentEngine::~EventuallyPersistentEngine() {
     delete tapConfig;
     delete checkpointConfig;
     delete replicationThrottle;
-    free(clusterConfig.config);
 }
 
 const std::string& EpEngineTaskable::getName() const {

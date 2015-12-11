@@ -784,9 +784,7 @@ public:
     void setWorkloadPriority(bucket_priority_t p) { workloadPriority = p; }
 
     struct clusterConfig {
-        clusterConfig() : len(0), config(NULL) {}
-        uint32_t len;
-        uint8_t *config;
+        std::string config;
         Mutex lock;
     } clusterConfig;
 
@@ -831,6 +829,14 @@ public:
                                         ADD_RESPONSE response);
 
     void updateDcpMinCompressionRatio(float value);
+
+    /**
+     * Sends a not-my-vbucket response, using the specified response callback.
+     * to the specified connection via it's cookie.
+     */
+    ENGINE_ERROR_CODE sendNotMyVBucketResponse(ADD_RESPONSE response,
+                                               const void* cookie,
+                                               uint64_t cas);
 
     EpEngineTaskable& getTaskable() {
         return taskable;
