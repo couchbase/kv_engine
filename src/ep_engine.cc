@@ -5880,7 +5880,6 @@ EventuallyPersistentEngine::setClusterConfig(const void* cookie,
                            protocol_binary_request_set_cluster_config *request,
                            ADD_RESPONSE response) {
 
-    LOG(EXTENSION_LOG_DEBUG, "Updating cluster configuration!");
     uint64_t cas = ntohll(request->message.header.request.cas);
     uint32_t bodylen = ntohl(request->message.header.request.bodylen);
     {
@@ -5897,17 +5896,31 @@ EventuallyPersistentEngine::setClusterConfig(const void* cookie,
         }
     }
 
-    // clusterConfig is opaque to ep-engine, but typically there is a rev id
-    // at the start of it. Print the first 100 bytes which hopefully includes
-    // helpful identifying information.
-    const int CONFIG_LIMIT = 100;
-    if (clusterConfig.config.size() > CONFIG_LIMIT) {
-        LOG(EXTENSION_LOG_NOTICE, "Updated cluster configuration - first %d "
-                "bytes: '%.*s'...\n", CONFIG_LIMIT, CONFIG_LIMIT,
-                clusterConfig.config.data());
-    } else {
-        LOG(EXTENSION_LOG_NOTICE, "Updated cluster configuration: '%.*s'\n",
-            clusterConfig.config.size(), clusterConfig.config.data());
+    // clusterConfig is opaque to ep-engine, but it /should/ be in JSON, as
+    // that's what the clients expect. Attempt to parse it and log the revision.
+    bool found_rev = false;
+    cJSON* json = cJSON_Parse(clusterConfig.config.c_str());
+    if (json != nullptr) {
+        cJSON* rev = cJSON_GetObjectItem(json, "rev");
+        if (rev != nullptr) {
+            found_rev = true;
+            char* rev_string = cJSON_PrintUnformatted(rev);
+            LOG(EXTENSION_LOG_NOTICE,
+                "Updated cluster configuration. New revision: %s", rev_string);
+            cJSON_Free(rev_string);
+        }
+        cJSON_Delete(json);
+    }
+
+    if (!found_rev) {
+        // Failed to parse. Hail Mary time, let's just print the first 100
+        // bytes which hopefully includes helpful identifying information.
+        const int CONFIG_LIMIT = 100;
+        if (clusterConfig.config.size() > CONFIG_LIMIT) {
+            LOG(EXTENSION_LOG_WARNING, "Updated cluster configuration. "
+                "Failed to parse JSON config - first %d bytes: '%.*s'...\n",
+                CONFIG_LIMIT, CONFIG_LIMIT, clusterConfig.config.data());
+        }
     }
 
     return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
