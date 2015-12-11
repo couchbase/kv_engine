@@ -748,6 +748,9 @@ bool is_bucket_dying(Connection *c)
     cb_mutex_exit(&b.mutex);
 
     if (disconnect) {
+        LOG_NOTICE(c,
+                   "%u The connected bucket is being deleted.. disconnecting",
+                   c->getId());
         c->initateShutdown();
         return true;
     }
