@@ -940,10 +940,6 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     updateMaxActiveSnoozingBackfills(engine.getEpStats().getMaxDataSize());
 }
 
-DcpConnMap::~DcpConnMap() {
-    stopProducerNotifier();
-}
-
 DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
                                      const std::string &name)
 {
@@ -1317,11 +1313,7 @@ void DcpConnMap::startProducerNotifier() {
 }
 
 void DcpConnMap::wakeProducerNotifier() {
-    if (producerNotifier->wakeMeUp()) {
+    if (static_cast<DcpProducerNotifier*>(producerNotifier.get())->wakeMeUp()) {
         ExecutorPool::get()->wake(producerNotifier->getId());
     }
-}
-
-void DcpConnMap::stopProducerNotifier() {
-    ExecutorPool::get()->cancel(producerNotifier->getId());
 }

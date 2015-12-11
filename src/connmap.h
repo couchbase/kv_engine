@@ -437,8 +437,6 @@ public:
 
     DcpConnMap(EventuallyPersistentEngine &engine);
 
-    ~DcpConnMap();
-
     /**
      * Find or build a dcp connection for the given cookie and with
      * the given name.
@@ -506,7 +504,6 @@ public:
 
     void startProducerNotifier();
     void wakeProducerNotifier();
-    void stopProducerNotifier();
 
 private:
 
@@ -565,7 +562,8 @@ private:
     static const uint8_t numBackfillsMemThreshold;
     /* Total memory used by all DCP consumer buffers */
     AtomicValue<size_t> aggrDcpConsumerBufferSize;
-    DcpProducerNotifier* producerNotifier;
+
+    ExTask producerNotifier;
 
     std::deque<DcpProducerNotification> notifications;
     Mutex notificationsLock;
