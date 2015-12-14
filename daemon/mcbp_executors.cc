@@ -3276,7 +3276,7 @@ static void stat_executor(McbpConnection* c, void*) {
         {"reset", {false, stat_reset_executor}},
         {"settings", {false, stat_settings_executor}},
         {"audit", {true, stat_audit_executor}},
-        {"bucket_details", {false, stat_bucket_details_executor}},
+        {"bucket_details", {true, stat_bucket_details_executor}},
         {"aggregate", {false, stat_aggregate_executor}},
         {"connections", {false, stat_connections_executor}},
         {"topkeys", {false, stat_topkeys_executor}},
