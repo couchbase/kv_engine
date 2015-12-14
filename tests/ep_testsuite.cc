@@ -36,7 +36,6 @@
 
 #include "atomic.h"
 #include "compress.h"
-#include "ep-engine/command_ids.h"
 #include "ep_test_apis.h"
 
 #include "ep_testsuite_common.h"
@@ -9620,7 +9619,8 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     uint32_t count = htonl(num_keys);
 
     protocol_binary_request_header *pkt1 =
-        createPacket(CMD_GET_KEYS, 0, 0, reinterpret_cast<char*>(&count),
+        createPacket(PROTOCOL_BINARY_CMD_GET_KEYS, 0, 0,
+                     reinterpret_cast<char*>(&count),
                      sizeof(count), start_key.c_str(), keylen, NULL, 0, 0x00);
 
     checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt1, add_response),
@@ -9655,7 +9655,8 @@ static enum test_result test_all_keys_api_during_bucket_creation(
     const char key[] = "key_10";
 
     protocol_binary_request_header *pkt1 =
-        createPacket(CMD_GET_KEYS, 1, 0, reinterpret_cast<char*>(&count),
+        createPacket(PROTOCOL_BINARY_CMD_GET_KEYS, 1, 0,
+                     reinterpret_cast<char*>(&count),
                      sizeof(count), key, strlen(key), NULL, 0, 0x00);
 
     stop_persistence(h, h1);

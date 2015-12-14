@@ -1325,7 +1325,7 @@ extern "C" {
                 }
                 return h->getRandomKey(cookie, response);
             }
-        case CMD_GET_KEYS:
+        case PROTOCOL_BINARY_CMD_GET_KEYS:
             {
                 return h->getAllKeys(cookie,
                    reinterpret_cast<protocol_binary_request_get_keys*>

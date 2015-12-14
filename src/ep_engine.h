@@ -21,7 +21,6 @@
 #include "config.h"
 
 #include "ep.h"
-#include "ep-engine/command_ids.h"
 #include "tapconnection.h"
 #include "taskable.h"
 #include "vbucket.h"
