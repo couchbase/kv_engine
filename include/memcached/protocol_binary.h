@@ -1929,7 +1929,18 @@ extern "C"
      */
     typedef protocol_binary_response_no_extras protocol_binary_response_get_all_vb_seqnos;
 
-
+    /**
+     * Message format for PROTOCOL_BINARY_CMD_GET_KEYS
+     *
+     * The extras field may contain a 32 bit integer specifying the number
+     * of keys to fetch. If no value specified 1000 keys is transmitted.
+     *
+     * Key is mandatory and specifies the starting key
+     *
+     * Get keys is used to fetch a sequence of keys from the server starting
+     * at the specified key.
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_get_keys;
 
     /**
      * @}
