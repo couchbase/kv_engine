@@ -37,6 +37,7 @@ public:
     TimingHistogram(void);
     TimingHistogram(const TimingHistogram &other);
     TimingHistogram& operator=(const TimingHistogram &other);
+    TimingHistogram& operator+=(const TimingHistogram& other);
 
     void reset(void);
     void add(const hrtime_t nsec);

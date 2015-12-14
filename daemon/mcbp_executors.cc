@@ -3245,8 +3245,20 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
                                                       McbpConnection& connection) {
     if (arg.empty()) {
-        auto& bucket = all_buckets[connection.getBucketIndex()];
-        auto json_str = bucket.subjson_operation_times.to_string();
+        const auto index = connection.getBucketIndex();
+        std::string json_str;
+        if (index == 0) {
+            // Aggregrated timings for all buckets.
+            TimingHistogram aggregated;
+            for (const auto& bucket : all_buckets) {
+                aggregated += bucket.subjson_operation_times;
+            }
+            json_str = aggregated.to_string();
+        } else {
+            // Timings for a specific bucket.
+            auto& bucket = all_buckets[connection.getBucketIndex()];
+            json_str = bucket.subjson_operation_times.to_string();
+        }
         append_stats(json_str.c_str(), json_str.size(), nullptr, 0,
                      &connection);
         return ENGINE_SUCCESS;

@@ -38,6 +38,12 @@ static void copy(T&dst, const T&src) {
               std::memory_order_relaxed);
 }
 
+template <typename T>
+static void fetch_add(T& dst, const T& src) {
+    dst.fetch_add(src.load(std::memory_order_relaxed),
+                  std::memory_order_relaxed);
+}
+
 /**
  * This isn't completely accurate, but it's only called whenever we're
  * grabbing the stats. We don't want to create a lock in order to make
@@ -69,6 +75,34 @@ TimingHistogram& TimingHistogram::operator=(const TimingHistogram&other) {
     }
 
     copy(total, other.total);
+
+    return *this;
+}
+
+/**
+ * As per operator=, this isn't completely accurate/consistent, but it's only
+ * called whenever we're grabbing the stats.
+ */
+TimingHistogram& TimingHistogram::operator+=(const TimingHistogram& other) {
+    fetch_add(ns, other.ns);
+
+    for (size_t idx = 0; idx < usec.size(); ++idx) {
+        fetch_add(usec[idx], other.usec[idx]);
+    }
+
+    for (size_t idx = 0; idx < msec.size(); ++idx) {
+        fetch_add(msec[idx], other.msec[idx]);
+    }
+
+    for (size_t idx = 0; idx < halfsec.size(); ++idx) {
+        fetch_add(halfsec[idx], other.halfsec[idx]);
+    }
+
+    for (size_t idx = 0; idx < wayout.size(); ++idx) {
+        fetch_add(wayout[idx], other.wayout[idx]);
+    }
+
+    fetch_add(total, other.total);
 
     return *this;
 }
