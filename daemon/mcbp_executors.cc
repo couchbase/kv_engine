@@ -3281,7 +3281,7 @@ static void stat_executor(McbpConnection* c, void*) {
         {"connections", {false, stat_connections_executor}},
         {"topkeys", {false, stat_topkeys_executor}},
         {"topkeys_json", {false, stat_topkeys_json_executor}},
-        {"subbdoc_execute", {false, stat_subdoc_execute_executor}}
+        {"subdoc_execute", {false, stat_subdoc_execute_executor}}
     };
 
     // The raw representing the key
