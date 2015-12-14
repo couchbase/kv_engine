@@ -3062,109 +3062,282 @@ static void process_bucket_details(McbpConnection* c) {
     cJSON_Delete(obj);
 }
 
-static void stat_executor(McbpConnection* c, void* packet) {
-    const std::string subcommand(binary_get_key(c),
-                                 c->binary_header.request.keylen);
-    ENGINE_ERROR_CODE ret;
+/**
+ * Handler for the <code>stats reset</code> command.
+ *
+ * Clear the global and the connected buckets stats
+ *
+ * @todo I would have assumed that we wanted to clear the stats from
+ *       <b>all</b> of the buckets?
+ *
+ * @param arg - should be empty
+ * @param connection the connection that requested the operation
+ */
+static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
+                                             McbpConnection& connection) {
+    if (arg.empty()) {
+        stats_reset(&connection);
+        bucket_reset_stats(&connection);
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
 
-    (void)packet;
+/**
+ * Handler for the <code>stats settings</code> used to get the current
+ * settings.
+ *
+ * @param arg - should be empty
+ * @param connection the connection that requested the operation
+ */
+static ENGINE_ERROR_CODE stat_settings_executor(const std::string& arg,
+                                                McbpConnection& connection) {
 
-    if (settings.verbose > 1) {
-        char buffer[1024];
-        if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
-                                    "STATS", subcommand.c_str(),
-                                    subcommand.size()) != -1) {
-            LOG_DEBUG(c, "%s\n", buffer);
+    if (arg.empty()) {
+        process_stat_settings(&append_stats, &connection);
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
+
+/**
+ * Handler for the <code>stats audit</code> used to get statistics from
+ * the audit subsystem.
+ *
+ * @param arg - should be empty
+ * @param connection the connection that requested the operation
+ */
+static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
+                                             McbpConnection& connection) {
+    if (arg.empty()) {
+        process_auditd_stats(&append_stats, &connection);
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
+
+
+/**
+ * Handler for the <code>stats bucket details</code> used to get information
+ * of the buckets (type, state, #clients etc)
+ *
+ * @param arg - should be empty
+ * @param connection the connection that requested the operation
+ */
+static ENGINE_ERROR_CODE stat_bucket_details_executor(const std::string& arg,
+                                                      McbpConnection& connection) {
+    if (arg.empty()) {
+        process_bucket_details(&connection);
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
+
+/**
+ * Handler for the <code>stats aggregate</code>.. probably not used anymore
+ * as it gives just a subset of what you'll get from an empty stat.
+ *
+ * @param arg - should be empty
+ * @param connection the connection that requested the operation
+ */
+static ENGINE_ERROR_CODE stat_aggregate_executor(const std::string& arg,
+                                                 McbpConnection& connection) {
+    if (arg.empty()) {
+        return server_stats(&append_stats, &connection);
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
+
+/**
+ * Handler for the <code>stats connection[ fd]</code> command to retrieve
+ * information about connection specific details.
+ *
+ * @param arg an optional file descriptor representing the connection
+ *            object to retrieve information about. If empty dump all.
+ * @param connection the connection that requested the operation
+ */
+static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
+                                                   McbpConnection& connection) {
+    int64_t fd = -1;
+
+    if (!arg.empty()) {
+        try {
+            fd = std::stoll(arg);
+        } catch (...) {
+            return ENGINE_EINVAL;
         }
     }
 
-    ret = c->getAiostat();
-    c->setAiostat(ENGINE_SUCCESS);
-    c->setEwouldblock(false);
+    connection_stats(&append_stats, &connection, fd);
+    return ENGINE_SUCCESS;
+}
 
-    if (ret == ENGINE_SUCCESS) {
-        if (subcommand.empty()) {
-            /* request all statistics */
-            ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(), c,
-                                                  NULL, 0, append_stats);
-            if (ret == ENGINE_SUCCESS) {
-                ret = server_stats(&append_stats, c);
-            }
+/**
+ * Handler for the <code>stats topkeys</code> command used to retrieve
+ * the most popular keys in the attached bucket.
+ *
+ * @param arg - should be empty
+ * @param connection the connection that requested the operation
+ */
+static ENGINE_ERROR_CODE stat_topkeys_executor(const std::string& arg,
+                                               McbpConnection& connection) {
+    if (arg.empty()) {
+        auto& bucket = all_buckets[connection.getBucketIndex()];
+        return bucket.topkeys->stats(&connection, mc_time_get_current_time(),
+                                     append_stats);
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
 
-        } else if (subcommand == "reset") {
-            stats_reset(c);
-            bucket_reset_stats(c);
+/**
+ * Handler for the <code>stats topkeys</code> command used to retrieve
+ * a JSON document containing the most popular keys in the attached bucket.
+ *
+ * @param arg - should be empty
+ * @param connection the connection that requested the operation
+ */
+static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
+                                                    McbpConnection& connection) {
+    if (arg.empty()) {
+        ENGINE_ERROR_CODE ret;
 
-        } else if (subcommand == "settings") {
-            process_stat_settings(&append_stats, c);
-
-        } else if (subcommand == "audit") {
-            if (c->isAdmin()) {
-                process_auditd_stats(&append_stats, c);
-            } else {
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
-                return;
-            }
-
-        } else if (subcommand == "cachedump") {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
-            return;
-
-        } else if (subcommand == "bucket details") {
-            process_bucket_details(c);
-
-        } else if (subcommand == "aggregate") {
-            ret = server_stats(&append_stats, c);
-
-        } else if (subcommand.compare(0, strlen("connections"), "connections") == 0) {
-            int64_t fd = -1; /* default to all connections */
-            /* Check for specific connection (FD) number */
-            const size_t keyword_len = strlen("connections");
-            if (subcommand.size() > keyword_len) {
-                try {
-                    std::string fd_string = subcommand.substr(keyword_len);
-                    fd = std::stoll(fd_string);
-                } catch (...) {
-                    // ignore, fetch all connections.
-                }
-            }
-            connection_stats(&append_stats, c, fd);
-
-        } else if (subcommand == "topkeys") {
-            ret = all_buckets[c->getBucketIndex()].topkeys->stats(c,
-                                                                  mc_time_get_current_time(),
-                                                                  append_stats);
-
-        } else if (subcommand == "topkeys_json") {
-            cJSON* topkeys_doc = cJSON_CreateObject();
-
-            ret = all_buckets[c->getBucketIndex()].topkeys->json_stats(
-                topkeys_doc,
-                mc_time_get_current_time());
+        cJSON* topkeys_doc = cJSON_CreateObject();
+        if (topkeys_doc == nullptr) {
+            ret = ENGINE_ENOMEM;
+        } else {
+            auto& bucket = all_buckets[connection.getBucketIndex()];
+            ret = bucket.topkeys->json_stats(topkeys_doc,
+                                             mc_time_get_current_time());
 
             if (ret == ENGINE_SUCCESS) {
                 char key[] = "topkeys_json";
                 char* topkeys_str = cJSON_PrintUnformatted(topkeys_doc);
                 if (topkeys_str != nullptr) {
                     append_stats(key, (uint16_t)strlen(key),
-                                 topkeys_str, (uint32_t)strlen(topkeys_str), c);
+                                 topkeys_str, (uint32_t)strlen(topkeys_str),
+                                 &connection);
                     cJSON_Free(topkeys_str);
                 } else {
                     ret = ENGINE_ENOMEM;
                 }
             }
             cJSON_Delete(topkeys_doc);
+        }
+        return ret;
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
 
-        } else if (subcommand == "subdoc_execute") {
-            auto json_str =
-                    all_buckets[c->getBucketIndex()].subjson_operation_times.to_string();
-            append_stats(json_str.c_str(), json_str.size(), nullptr, 0, c);
+/**
+ * Handler for the <code>stats subdoc_execute</code> command used to retrieve
+ * information from the subdoc subsystem.
+ *
+ * @param arg - should be empty
+ * @param connection the connection that requested the operation
+ */
+static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
+                                                      McbpConnection& connection) {
+    if (arg.empty()) {
+        auto& bucket = all_buckets[connection.getBucketIndex()];
+        auto json_str = bucket.subjson_operation_times.to_string();
+        append_stats(json_str.c_str(), json_str.size(), nullptr, 0,
+                     &connection);
+        return ENGINE_SUCCESS;
+    } else {
+        return ENGINE_EINVAL;
+    }
+}
 
-        } else {
+static void stat_executor(McbpConnection* c, void*) {
+    struct stat_handler {
+        /**
+         * Is this a privileged stat or may it be requested by anyone
+         */
+        bool privileged;
+        /**
+         * The callback function to handle the stat request
+         */
+        ENGINE_ERROR_CODE (*handler)(const std::string &arg,
+                                     McbpConnection& connection);
+    };
+
+    /**
+     * A mapping from all stat subgroups to the callback providing the
+     * statistics
+     */
+    static std::unordered_map<std::string, struct stat_handler> handlers = {
+        {"reset", {false, stat_reset_executor}},
+        {"settings", {false, stat_settings_executor}},
+        {"audit", {true, stat_audit_executor}},
+        {"bucket_details", {false, stat_bucket_details_executor}},
+        {"aggregate", {false, stat_aggregate_executor}},
+        {"connections", {false, stat_connections_executor}},
+        {"topkeys", {false, stat_topkeys_executor}},
+        {"topkeys_json", {false, stat_topkeys_json_executor}},
+        {"subbdoc_execute", {false, stat_subdoc_execute_executor}}
+    };
+
+    // The raw representing the key
+    const std::string key(binary_get_key(c), c->binary_header.request.keylen);
+
+    if (settings.verbose > 1) {
+        char buffer[1024];
+        if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
+                                    "STATS", key.c_str(), key.size()) != -1) {
+            LOG_DEBUG(c, "%s", buffer);
+        }
+    }
+
+    ENGINE_ERROR_CODE ret = c->getAiostat();
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
+
+    if (ret == ENGINE_SUCCESS) {
+        if (key.empty()) {
+            /* request all statistics */
             ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(), c,
-                                                  subcommand.c_str(),
-                                                  subcommand.size(),
-                                                  append_stats);
+                                                  nullptr, 0, append_stats);
+            if (ret == ENGINE_SUCCESS) {
+                ret = server_stats(&append_stats, c);
+            }
+        } else {
+            // Split the key into a command and argument.
+            auto index = key.find(' ');
+            std::string command;
+            std::string argument;
+
+            if (index == key.npos) {
+                command = key;
+            } else {
+                command = key.substr(0, index);
+                argument = key.substr(index++);
+            }
+
+            auto iter = handlers.find(command);
+            if (iter == handlers.end()) {
+                // This may be specific to the underlying engine
+                ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(),
+                                                      c, key.c_str(),
+                                                      key.size(),
+                                                      append_stats);
+            } else {
+                if (iter->second.privileged) {
+                    if (c->isAdmin()) {
+                        ret = iter->second.handler(argument, *c);
+                    } else {
+                        ret = ENGINE_EACCESS;
+                    }
+                } else {
+                    ret = iter->second.handler(argument, *c);
+                }
+            }
         }
     }
 
@@ -3173,29 +3346,14 @@ static void stat_executor(McbpConnection* c, void* packet) {
         append_stats(NULL, 0, NULL, 0, c);
         mcbp_write_and_free(c, &c->getDynamicBuffer());
         break;
-    case ENGINE_ENOMEM:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
-        break;
-    case ENGINE_TMPFAIL:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ETMPFAIL);
-        break;
-    case ENGINE_KEY_ENOENT:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-        break;
-    case ENGINE_NOT_MY_VBUCKET:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
-        break;
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
-        break;
-    case ENGINE_ENOTSUP:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         break;
     case ENGINE_EWOULDBLOCK:
         c->setEwouldblock(true);
         break;
     default:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
+        mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 }
 
