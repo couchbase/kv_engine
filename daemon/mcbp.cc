@@ -186,6 +186,8 @@ protocol_binary_response_status engine_error_2_mcbp_protocol_error(
     protocol_binary_response_status ret;
 
     switch (e) {
+    case ENGINE_EACCESS:
+        return PROTOCOL_BINARY_RESPONSE_EACCESS;
     case ENGINE_SUCCESS:
         return PROTOCOL_BINARY_RESPONSE_SUCCESS;
     case ENGINE_KEY_ENOENT:
