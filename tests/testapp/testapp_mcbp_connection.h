@@ -52,6 +52,8 @@ public:
     virtual MutationInfo mutate(const Document& doc, uint16_t vbucket,
                                 const Greenstack::mutation_type_t type) override;
 
+    virtual unique_cJSON_ptr stats(const std::string& subcommand) override;
+
     virtual void recvFrame(Frame& frame) override;
 
     void setDatatypeSupport(bool enable);

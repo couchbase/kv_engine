@@ -16,6 +16,7 @@
  */
 #include "testapp_mcbp_connection.h"
 #include "testapp_binprot.h"
+#include "testapp.h"
 
 #include <cbsasl/cbsasl.h>
 #include <extensions/protocol/testapp_extension.h>
@@ -536,4 +537,48 @@ void MemcachedBinprotConnection::setMutationSeqnoSupport(bool enable) {
         throw std::runtime_error("Failed to enable datatype");
     }
 
+}
+
+unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand) {
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_STAT,
+                     subcommand.c_str(), subcommand.length(), nullptr, 0);
+    sendFrame(frame);
+    unique_cJSON_ptr ret(cJSON_CreateObject());
+
+    while (true) {
+        recvFrame(frame);
+        auto* bytes = frame.payload.data();
+        auto* rsp = reinterpret_cast<protocol_binary_response_stats*>(bytes);
+        auto& header = rsp->message.header.response;
+        if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            throw ConnectionError("Stats failed", Protocol::Memcached,
+                                  header.status);
+        }
+
+        if (header.keylen == 0 && header.bodylen == 0) {
+            // The stats EOF packet
+            break;
+        } else {
+            std::string key((const char*)(rsp + 1), header.keylen);
+            std::string value((const char*)(rsp + 1) + header.keylen,
+                              header.bodylen - header.keylen);
+
+            if (value == "false") {
+                cJSON_AddFalseToObject(ret.get(), key.c_str());
+            } else if (value == "true") {
+                cJSON_AddTrueToObject(ret.get(), key.c_str());
+            } else {
+                try {
+                    int64_t val = std::stoll(value);
+                    cJSON_AddNumberToObject(ret.get(), key.c_str(), val);
+                } catch (...) {
+                    cJSON_AddStringToObject(ret.get(), key.c_str(),
+                                            value.c_str());
+                }
+            }
+        }
+    }
+
+    return ret;
 }

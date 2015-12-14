@@ -19,6 +19,8 @@
 
 #include "config.h"
 
+#include <cJSON_utils.h>
+
 #include "testapp_binprot.h"
 
 #include <memory>
@@ -55,13 +57,6 @@ extern pid_t server_pid;
 
 // Set of HELLO features which are currently enabled.
 extern std::set<protocol_binary_hello_features> enabled_hello_features;
-
-// helper class for use with std::unique_ptr in managing cJSON* objects.
-struct cJSONDeleter {
-  void operator()(cJSON* j) { cJSON_Delete(j); }
-};
-
-typedef std::unique_ptr<cJSON, cJSONDeleter> unique_cJSON_ptr;
 
 // Base class for tests against just the "plain" socker (no SSL).
 class TestappTest : public ::testing::Test {

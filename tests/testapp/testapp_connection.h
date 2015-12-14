@@ -19,6 +19,7 @@
 #include "config.h"
 
 #include <cJSON.h>
+#include <cJSON_utils.h>
 #include <cstdlib>
 #include <libgreenstack/Greenstack.h>
 #include <memcached/openssl.h>
@@ -144,6 +145,14 @@ public:
         }
     }
 
+    bool isAccessDenied() const {
+        if (protocol == Protocol::Memcached) {
+            return reason == PROTOCOL_BINARY_RESPONSE_EACCESS;
+        } else {
+            return reason == uint16_t(Greenstack::Status::NoAccess);
+        }
+    }
+
 private:
     Protocol protocol;
     uint16_t reason;
@@ -261,6 +270,9 @@ public:
      */
     virtual MutationInfo mutate(const Document& doc, uint16_t vbucket,
                                 const Greenstack::mutation_type_t type) = 0;
+
+
+    virtual unique_cJSON_ptr stats(const std::string& subcommand) = 0;
 
     /**
      * Sent the given frame over this connection

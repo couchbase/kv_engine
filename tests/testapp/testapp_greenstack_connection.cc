@@ -404,3 +404,7 @@ Greenstack::UniqueMessagePtr MemcachedGreenstackConnection::recvMessage() {
     Greenstack::ByteArrayReader reader(frame.payload);
     return Greenstack::Frame::createUnique(reader);
 }
+
+unique_cJSON_ptr MemcachedGreenstackConnection::stats(const std::string& subcommand) {
+    throw std::runtime_error("Not implemented for Greenstack");
+}
