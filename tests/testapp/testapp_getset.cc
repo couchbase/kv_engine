@@ -37,52 +37,6 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                                          ));
 #endif
 
-MemcachedConnection& GetSetTest::prepare(MemcachedConnection& connection) {
-    connection.reconnect();
-    if (connection.getProtocol() == Protocol::Memcached) {
-        auto& c = dynamic_cast<MemcachedBinprotConnection&>(connection);
-        c.setDatatypeSupport(true);
-        c.setMutationSeqnoSupport(true);
-    } else {
-        auto& c = dynamic_cast<MemcachedGreenstackConnection&>(connection);
-        c.hello("memcached_testapp", "1,0", "BucketTest");
-    }
-    return connection;
-}
-
-/**
- * @todo refactor this and move it to the base class
- */
-MemcachedConnection& GetSetTest::getConnection() {
-    switch (GetParam()) {
-    case TransportProtocols::PlainMcbp:
-        return prepare(connectionMap.getConnection(Protocol::Memcached,
-                                                   false, AF_INET));
-    case TransportProtocols::PlainGreenstack:
-        return prepare(connectionMap.getConnection(Protocol::Greenstack,
-                                                   false, AF_INET));
-    case TransportProtocols::PlainIpv6Mcbp:
-        return prepare(connectionMap.getConnection(Protocol::Memcached,
-                                                   false, AF_INET6));
-    case TransportProtocols::PlainIpv6Greenstack:
-        return prepare(connectionMap.getConnection(Protocol::Greenstack,
-                                                   false, AF_INET6));
-    case TransportProtocols::SslMcbp:
-        return prepare(connectionMap.getConnection(Protocol::Memcached,
-                                                   true, AF_INET));
-    case TransportProtocols::SslGreenstack:
-        return prepare(connectionMap.getConnection(Protocol::Greenstack,
-                                                   true, AF_INET));
-    case TransportProtocols::SslIpv6Mcbp:
-        return prepare(connectionMap.getConnection(Protocol::Memcached,
-                                                   true, AF_INET6));
-    case TransportProtocols::SslIpv6Greenstack:
-        return prepare(connectionMap.getConnection(Protocol::Greenstack,
-                                                   true, AF_INET6));
-    }
-    throw std::logic_error("Unknown transport");
-}
-
 TEST_P(GetSetTest, TestAdd) {
     MemcachedConnection& conn = getConnection();
     Document doc;

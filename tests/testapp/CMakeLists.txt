@@ -8,6 +8,8 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_binprot.h
                testapp_bucket.cc
                testapp_bucket.h
+               testapp_client_test.cc
+               testapp_client_test.h
                testapp_connection.cc
                testapp_connection.h
                testapp_getset.cc

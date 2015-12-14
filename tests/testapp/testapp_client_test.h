@@ -16,15 +16,30 @@
  */
 #pragma once
 
+#include  <algorithm>
+
 #include "testapp.h"
-#include "testapp_client_test.h"
 
-#include <algorithm>
+enum class TransportProtocols {
+    PlainMcbp,
+    PlainGreenstack,
+    SslMcbp,
+    SslGreenstack,
+    PlainIpv6Mcbp,
+    PlainIpv6Greenstack,
+    SslIpv6Mcbp,
+    SslIpv6Greenstack
+};
 
-class GetSetTest : public TestappClientTest {
+std::ostream& operator << (std::ostream& os, const TransportProtocols& t);
+const char* to_string(const TransportProtocols& transport);
+
+class TestappClientTest
+    : public TestappTest,
+      public ::testing::WithParamInterface<TransportProtocols> {
 
 public:
-    GetSetTest() {
+    TestappClientTest() {
         const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
         name.assign(info->test_case_name());
         name.append("_");
@@ -34,4 +49,8 @@ public:
 
 protected:
     std::string name;
+
+    MemcachedConnection& getConnection();
+
+    MemcachedConnection& prepare(MemcachedConnection& connection);
 };

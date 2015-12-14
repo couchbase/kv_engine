@@ -17,25 +17,8 @@
 #pragma once
 
 #include "testapp.h"
+#include "testapp_client_test.h"
 
-enum class TransportProtocols {
-    PlainMcbp,
-    PlainGreenstack,
-    SslMcbp,
-    SslGreenstack,
-    PlainIpv6Mcbp,
-    PlainIpv6Greenstack,
-    SslIpv6Mcbp,
-    SslIpv6Greenstack
-};
+class BucketTest : public TestappClientTest {
 
-std::ostream& operator << (std::ostream& os, const TransportProtocols& t);
-const char* to_string(const TransportProtocols& transport);
-
-class BucketTest
-    : public TestappTest, public ::testing::WithParamInterface<TransportProtocols> {
-
-protected:
-    MemcachedConnection& getConnection();
-    MemcachedConnection& prepare(MemcachedConnection& connection);
 };
