@@ -22,6 +22,7 @@
 #include <sstream>
 #include <string>
 #include <cJSON.h>
+#include <cJSON_utils.h>
 
 TimingHistogram::TimingHistogram() {
     reset();
@@ -121,7 +122,13 @@ void TimingHistogram::add(const hrtime_t nsec) {
 }
 
 std::string TimingHistogram::to_string(void) {
-    cJSON *root = cJSON_CreateObject();
+    unique_cJSON_ptr json(cJSON_CreateObject());
+    cJSON* root = json.get();
+
+    if (root == nullptr) {
+        throw std::bad_alloc();
+    }
+
     cJSON_AddNumberToObject(root, "ns", get_ns());
 
     cJSON *array = cJSON_CreateArray();
