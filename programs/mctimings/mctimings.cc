@@ -307,8 +307,11 @@ static void request_cmd_timings(BIO *bio, const char *bucket, uint8_t opcode,
     std::vector<char> buffer(buffsize + 1, 0);
 
     ensure_recv(bio, buffer.data(), buffsize);
-    if (response.message.header.response.status != 0) {
-        switch (ntohs(response.message.header.response.status)) {
+
+    protocol_binary_response_status status;
+    status = (protocol_binary_response_status)ntohs(response.message.header.response.status);
+    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        switch (status) {
         case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
             std::cerr <<"Cannot find bucket: " << bucket << std::endl;
             break;
@@ -316,8 +319,8 @@ static void request_cmd_timings(BIO *bio, const char *bucket, uint8_t opcode,
             std::cerr << "Not authorized to access timings data" << std::endl;
             break;
         default:
-            std::cerr << "Command failed: 0x" << std::hex
-                      << ntohs(response.message.header.response.status)
+            std::cerr << "Command failed: "
+                      << memcached_status_2_text(status)
                       << std::endl;
         }
         exit(EXIT_FAILURE);
@@ -368,8 +371,10 @@ static void request_stat_timings(BIO *bio, const char* key, int verbose) {
     std::vector<char> buffer(buffsize + 1, 0);
 
     ensure_recv(bio, buffer.data(), buffsize);
-    if (response.message.header.response.status != 0) {
-        switch (ntohs(response.message.header.response.status)) {
+    protocol_binary_response_status status;
+    status = (protocol_binary_response_status)ntohs(response.message.header.response.status);
+    if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        switch (status) {
         case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
             std::cerr <<"Cannot find statistic: " << key << std::endl;
             break;
@@ -377,8 +382,8 @@ static void request_stat_timings(BIO *bio, const char* key, int verbose) {
             std::cerr << "Not authorized to access timings data" << std::endl;
             break;
         default:
-            std::cerr << "Command failed: 0x" << std::hex
-                      << ntohs(response.message.header.response.status)
+            std::cerr << "Command failed: "
+                      << memcached_status_2_text(status)
                       << std::endl;
         }
         exit(EXIT_FAILURE);
