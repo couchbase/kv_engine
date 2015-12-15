@@ -986,7 +986,9 @@ static void add_listening_port(struct interface *interf, in_port_t port, sa_fami
 
         if (family == AF_INET) {
             newport.ipv4 = true;
+            newport.ipv6 = false;
         } else if (family == AF_INET6) {
+            newport.ipv4 = false;
             newport.ipv6 = true;
         }
 
