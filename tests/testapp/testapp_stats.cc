@@ -324,10 +324,8 @@ TEST_P(StatsTest, TestSubdocExecute) {
     ASSERT_NO_THROW(stats = conn.stats("subdoc_execute"));
 
     // @todo inspect the content. for now just validate that we've got a
-    //       single element in there.. it encodes things differently
-    //       than the other stats (sends the JSON data in the key
-    //       field rather than the value..
+    //       single element in there..
     EXPECT_EQ(1, cJSON_GetArraySize(stats.get()));
-    std::string key(stats.get()->child->string);
-    EXPECT_EQ(0, key.find("{\"ns\":"));
+    std::string value(stats.get()->child->valuestring);
+    EXPECT_EQ(0, value.find("{\"ns\":"));
 }

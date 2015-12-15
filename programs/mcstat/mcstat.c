@@ -23,8 +23,10 @@
  * @param vallen length of value
  */
 static void print(const char *key, int keylen, const char *val, int vallen) {
-    (void)fwrite(key, keylen, 1, stdout);
-    fputs(" ", stdout);
+    if (keylen > 0) {
+        (void)fwrite(key, keylen, 1, stdout);
+        fputs(" ", stdout);
+    }
     (void)fwrite(val, vallen, 1, stdout);
     fputs("\n", stdout);
     fflush(stdout);
@@ -70,6 +72,7 @@ static void request_stat(BIO *bio, const char *key)
             }
             buffsize = bodylen;
         }
+
         ensure_recv(bio, buffer, bodylen);
 
         /* If response was valid print it, otherwise print error string to stderr. */
@@ -85,7 +88,7 @@ static void request_stat(BIO *bio, const char *key)
             }
             fprintf(stderr, "%s\n",  memcached_status_2_text(err));
         }
-    } while (response.message.header.response.keylen != 0);
+    } while (response.message.header.response.bodylen != 0);
 }
 
 int main(int argc, char** argv) {

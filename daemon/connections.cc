@@ -316,17 +316,15 @@ void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) 
     for (auto *c : connections.conns) {
         if (c->getSocketDescriptor() == fd || fd == -1) {
             cJSON* stats = c->toJSON();
-            /* blank key - JSON value contains all properties of the connection. */
-            char key[] = " ";
+            // no key, JSON value contains all properties of the connection.
             char *stats_str = cJSON_PrintUnformatted(stats);
-            add_stats(key, (uint16_t)strlen(key),
-                      stats_str, (uint32_t)strlen(stats_str), cookie);
+            add_stats(nullptr, 0, stats_str, (uint32_t)strlen(stats_str),
+                      cookie);
             cJSON_Free(stats_str);
             cJSON_Delete(stats);
         }
     }
 }
-
 
 #ifndef WIN32
 /**

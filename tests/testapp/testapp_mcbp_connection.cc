@@ -546,6 +546,8 @@ unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand
     sendFrame(frame);
     unique_cJSON_ptr ret(cJSON_CreateObject());
 
+    int counter = 0;
+
     while (true) {
         recvFrame(frame);
         auto* bytes = frame.payload.data();
@@ -556,11 +558,14 @@ unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand
                                   header.status);
         }
 
-        if (header.keylen == 0 && header.bodylen == 0) {
+        if (header.bodylen == 0) {
             // The stats EOF packet
             break;
         } else {
             std::string key((const char*)(rsp + 1), header.keylen);
+            if (key.empty()) {
+                key = std::to_string(counter++);
+            }
             std::string value((const char*)(rsp + 1) + header.keylen,
                               header.bodylen - header.keylen);
 

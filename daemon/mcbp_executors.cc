@@ -671,10 +671,10 @@ static void append_bin_stats(const char* key, const uint16_t klen,
         cb_assert(key != NULL);
         memcpy(buf, key, klen);
         buf += klen;
+    }
 
-        if (vlen > 0) {
-            memcpy(buf, val, vlen);
-        }
+    if (vlen > 0) {
+        memcpy(buf, val, vlen);
     }
 
     dbuf.moveOffset(sizeof(header.response) + bodylen);
@@ -686,11 +686,6 @@ static void append_stats(const char* key, const uint16_t klen,
                          const void* cookie) {
     size_t needed;
     McbpConnection* c = (McbpConnection*)cookie;
-    /* value without a key is invalid */
-    if (klen == 0 && vlen > 0) {
-        return;
-    }
-
     needed = vlen + klen + sizeof(protocol_binary_response_header);
     if (!c->growDynamicBuffer(needed)) {
         return;
@@ -3259,7 +3254,7 @@ static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
             auto& bucket = all_buckets[connection.getBucketIndex()];
             json_str = bucket.subjson_operation_times.to_string();
         }
-        append_stats(json_str.c_str(), json_str.size(), nullptr, 0,
+        append_stats(nullptr, 0, json_str.c_str(), json_str.size(),
                      &connection);
         return ENGINE_SUCCESS;
     } else {
