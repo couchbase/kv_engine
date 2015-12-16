@@ -15,7 +15,6 @@ bool safe_strtoull(const char *str, uint64_t *out) {
     char *endptr;
     uint64_t ull;
 
-    cb_assert(out != NULL);
     errno = 0;
     *out = 0;
 
@@ -43,7 +42,6 @@ bool safe_strtoll(const char *str, int64_t *out) {
     char *endptr;
     int64_t ll;
 
-    cb_assert(out != NULL);
     errno = 0;
     *out = 0;
     ll = strtoll(str, &endptr, 10);
@@ -90,7 +88,6 @@ bool safe_strtoul(const char *str, uint32_t *out) {
 bool safe_strtol(const char *str, int32_t *out) {
     char *endptr;
     long l;
-    cb_assert(out != NULL);
     errno = 0;
     *out = 0;
     l = strtol(str, &endptr, 10);
@@ -145,7 +142,6 @@ bool safe_strtof(const char *str, float *out) {
 #else
     char *endptr;
     float l;
-    cb_assert(out != NULL);
     errno = 0;
     *out = 0;
     l = strtof(str, &endptr);
