@@ -88,13 +88,13 @@ static void *mock_get_engine_specific(const void *cookie) {
 static bool mock_is_datatype_supported(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     cb_assert(c == NULL || c->magic == CONN_MAGIC);
-    return c->handle_datatype_support;
+    return c ? c->handle_datatype_support : false;
 }
 
 static bool mock_is_mutation_extras_supported(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     cb_assert(c == NULL || c->magic == CONN_MAGIC);
-    return c->handle_mutation_extras;
+    return c ? c->handle_mutation_extras : false;
 }
 
 static uint8_t mock_get_opcode_if_ewouldblock_set(const void *cookie) {
