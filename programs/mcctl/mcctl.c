@@ -148,7 +148,7 @@ static int get_verbosity(BIO *bio)
  * Sets the verbosity level on the server
  *
  * @param bio connection to the server.
- * @param value value to set the property to (NULL == no value).
+ * @param value value to set the property to.
  */
 static int set_verbosity(BIO *bio, const char* value)
 {
@@ -404,7 +404,13 @@ int main(int argc, char** argv) {
                 const char* value = (optind + 2 < argc) ? argv[optind+2]
                                                         : NULL;
                 if (strcmp(property, "verbosity") == 0) {
-                    result = set_verbosity(bio, value);
+                    if (value == NULL) {
+                        fprintf(stderr,
+                                "Error: 'set verbosity' requires a value argument.");
+                        result = usage();
+                    } else {
+                        result = set_verbosity(bio, value);
+                    }
                 } else {
                     result = ioctl_set(bio, property, value);
                 }
