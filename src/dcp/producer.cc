@@ -157,7 +157,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
         supportsCursorDropping = true;
     }
 
-    backfillMgr = new BackfillManager(&engine_, this);
+    backfillMgr = new BackfillManager(&engine_);
 }
 
 DcpProducer::~DcpProducer() {

@@ -29,7 +29,7 @@ class EventuallyPersistentEngine;
 
 class BackfillManager {
 public:
-    BackfillManager(EventuallyPersistentEngine* e, connection_t c);
+    BackfillManager(EventuallyPersistentEngine* e);
 
     ~BackfillManager();
 
@@ -56,7 +56,6 @@ private:
     //!   threshold we use waitingBackfills
     std::list<DCPBackfill*> pendingBackfills;
     EventuallyPersistentEngine* engine;
-    connection_t conn;
     ExTask managerTask;
 
     //! The scan buffer is for the current stream being backfilled

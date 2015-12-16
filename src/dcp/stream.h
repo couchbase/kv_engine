@@ -93,7 +93,7 @@ public:
            uint64_t vb_uuid, uint64_t snap_start_seqno,
            uint64_t snap_end_seqno);
 
-    virtual ~Stream() {}
+    virtual ~Stream();
 
     uint32_t getFlags() { return flags_; }
 
@@ -316,9 +316,7 @@ public:
                    uint64_t snap_end_seqno);
 
     ~NotifierStream() {
-        LockHolder lh(streamMutex);
         transitionState(STREAM_DEAD);
-        clear_UNLOCKED();
     }
 
     DcpResponse* next();
