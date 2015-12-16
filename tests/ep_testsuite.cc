@@ -3697,18 +3697,23 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
                       "value", NULL, 0, 0),
                 "Failed to store an item.");
     }
+    wait_for_flusher_to_settle(h, h1);
 
     checkeq(100, get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"),
             "Invalid seqno");
+    checkeq(100, get_int_stat(h, h1, "vb_0:last_persisted_seqno", "vbucket-seqno"),
+            "Unexpected last_persisted_seqno");
     checkeq(0, get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno"),
             "Invalid seqno");
     checkeq(0, get_int_stat(h, h1, "vb_1:high_seqno", "vbucket-seqno 1"),
             "Invalid seqno");
+    checkeq(0, get_int_stat(h, h1, "vb_1:last_persisted_seqno", "vbucket-seqno 1"),
+            "Invalid last_persisted_seqno");
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
     checkeq(vb_uuid, get_ull_stat(h, h1, "vb_1:uuid", "vbucket-seqno 1"),
             "Invalid uuid");
-    checkeq(static_cast<size_t>(4), vals.size(), "Expected four stats");
+    checkeq(static_cast<size_t>(5), vals.size(), "Expected four stats");
 
     // Check invalid vbucket
     checkeq(ENGINE_NOT_MY_VBUCKET,

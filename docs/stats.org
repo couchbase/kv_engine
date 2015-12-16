@@ -485,7 +485,11 @@ The stats below are listed for each vbucket.
 
 | Stats                         | Description                                |
 | ------------------------------+--------------------------------------------|
-| high_seqno                    | The last seqno assigned by this vbucket    |
+| abs_high_seqno                | The last seqno assigned by this vbucket    |
+| high_seqno                    | The last seqno assigned by this vbucket, in|
+|                               | in case of replica, the last closed check- |
+|                               | point's end seqno.                         |
+| last_persisted_seqno          | The last persisted seqno for the vbucket   |
 | purge_seqno                   | The last seqno purged by the compactor     |
 | uuid                          | The current vbucket uuid                   |
 

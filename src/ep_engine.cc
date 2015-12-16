@@ -4447,6 +4447,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         add_casted_stat(buffer, relHighSeqno, add_stat, cookie);
         snprintf(buffer, sizeof(buffer), "vb_%d:abs_high_seqno", vb->getId());
         add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
+        snprintf(buffer, sizeof(buffer), "vb_%d:last_persisted_seqno",
+                 vb->getId());
+        add_casted_stat(buffer,
+                        epstore->getVBuckets().getPersistenceSeqno(vb->getId()),
+                        add_stat, cookie);
         snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
         add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
         snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno", vb->getId());
@@ -4475,6 +4480,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
             add_casted_stat(buffer, relHighSeqno, add_stat, cookie);
             snprintf(buffer, sizeof(buffer), "vb_%d:abs_high_seqno", vb->getId());
             add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
+            snprintf(buffer, sizeof(buffer), "vb_%d:last_persisted_seqno",
+                     vb->getId());
+            add_casted_stat(buffer,
+                            epstore->getVBuckets().getPersistenceSeqno(vb->getId()),
+                            add_stat, cookie);
             snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
             add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
             snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno", vb->getId());
