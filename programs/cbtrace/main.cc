@@ -100,8 +100,8 @@ static void callback(timings_t* t, const char* timeunit, uint32_t min,
             offset += sprintf(buffer + offset, "#");
         }
 
-        offset += sprintf(buffer + offset, " - %u (%02.02f%%)\n", total,
-                          (((float) total / t->total) * 100));
+        sprintf(buffer + offset, " - %u (%02.02f%%)\n", total,
+                (((float) total / t->total) * 100));
         fputs(buffer, stdout);
     }
 }
