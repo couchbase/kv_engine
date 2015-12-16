@@ -921,7 +921,14 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,
 }
 
 PassiveStream::~PassiveStream() {
-    clearBuffer();
+    uint32_t unackedBytes = clearBuffer();
+    if (transitionState(STREAM_DEAD)) {
+        // Destructed a "live" stream, log it.
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRId16 ") Destructing stream."
+            " last_seqno is %" PRIu64 ", unAckedBytes is %" PRIu32 ".",
+            consumer->logHeader(), vb_, last_seqno,
+            unackedBytes);
+    }
 }
 
 uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status,
@@ -1340,12 +1347,12 @@ uint32_t PassiveStream::clearBuffer() {
     return unackedBytes;
 }
 
-void PassiveStream::transitionState(stream_state_t newState) {
+bool PassiveStream::transitionState(stream_state_t newState) {
     LOG(EXTENSION_LOG_DEBUG, "%s (vb %d) Transitioning from %s to %s",
         consumer->logHeader(), vb_, stateName(state_), stateName(newState));
 
     if (state_ == newState) {
-        return;
+        return false;
     }
 
     switch (state_) {
@@ -1363,6 +1370,7 @@ void PassiveStream::transitionState(stream_state_t newState) {
     }
 
     state_ = newState;
+    return true;
 }
 
 const char* PassiveStream::getEndStreamStatusStr(end_stream_status_t status)
