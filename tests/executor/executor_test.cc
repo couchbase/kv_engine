@@ -18,6 +18,7 @@
 #include <memory>
 #include <daemon/executorpool.h>
 #include <daemon/task.h>
+#include <platform/backtrace.h>
 
 class ExecutorTest : public ::testing::Test {
 protected:
@@ -126,4 +127,34 @@ TEST_F(ExecutorTest, RescheduleMissingLock) {
     cmd->cond.wait(lock);
     EXPECT_EQ(2, cmd->runcount);
     EXPECT_TRUE(cmd->executionComplete);
+}
+
+static std::terminate_handler default_terminate_handler;
+
+static void my_terminate_handler() {
+    char callstack[1024];
+
+    if (print_backtrace_to_buffer("    ", callstack, sizeof(callstack))) {
+        std::cerr << "*** Fatal error ***" << std::endl
+                  << "Call stack:" << std::endl
+                  << callstack;
+    } else {
+        std::cerr << "*** Falal error, but failed to grab callstack"
+                  << std::endl;
+    }
+
+    if (default_terminate_handler != nullptr) {
+        default_terminate_handler();
+    }
+
+    _exit(EXIT_FAILURE);
+}
+
+int main(int argc, char **argv) {
+    ::testing::InitGoogleTest(&argc, argv);
+
+    // Interpose our own C++ terminate handler to print backtrace upon failures
+    default_terminate_handler = std::set_terminate(my_terminate_handler);
+
+    return RUN_ALL_TESTS();
 }
