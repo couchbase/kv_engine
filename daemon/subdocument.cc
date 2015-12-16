@@ -1078,12 +1078,10 @@ static void subdoc_multi_lookup_response(SubdocCmdContext* context) {
 
 // Respond back to the user as appropriate to the specific command.
 void subdoc_response(SubdocCmdContext* context) {
-    auto* const c = context->c;
-
     switch (context->traits.path) {
     case SubdocPath::SINGLE:
         subdoc_single_response(context);
-        break;
+        return;
 
     case SubdocPath::MULTI:
         if (context->traits.is_mutator) {
@@ -1091,12 +1089,13 @@ void subdoc_response(SubdocCmdContext* context) {
         } else {
             subdoc_multi_lookup_response(context);
         }
-        break;
-
-    default:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-        c->setState(conn_closing);
+        return;
     }
+
+    // Shouldn't get here - invalid traits.path
+    auto* const c = context->c;
+    mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+    c->setState(conn_closing);
 }
 
 void subdoc_get_executor(McbpConnection* c, void* packet) {
