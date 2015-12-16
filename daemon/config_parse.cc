@@ -830,10 +830,13 @@ static bool parse_breakpad(cJSON *o, struct settings *settings,
         if (minidump_dir == NULL) {
             do_asprintf(error_msg,
                         "breakpad.enabled==true but minidump_dir not specified.\n");
-            error = true;
+            free((char*)minidump_dir);
+            free((char*)content_str);
+            return false;
         }
     }
-    if (!error && content_str) {
+
+    if (content_str) {
         /* Only valid value is 'default' currently. */
         if (strcmp(content_str, "default") == 0) {
             content = CONTENT_DEFAULT;
