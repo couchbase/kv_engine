@@ -231,28 +231,32 @@ cJSON* Connection::toJSON() const {
         cJSON_AddStringToObject(obj, "protocol", to_string(getProtocol()));
         cJSON_AddStringToObject(obj, "peername", getPeername().c_str());
         cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
+        cJSON_AddNumberToObject(obj, "parent_port", parent_port);
+        cJSON_AddNumberToObject(obj, "bucket_index", bucketIndex);
         json_add_bool_to_object(obj, "admin", isAdmin());
+        if (authenticated) {
+            cJSON_AddStringToObject(obj, "username", username.c_str());
+        }
         if (sasl_conn != NULL) {
             json_add_uintptr_to_object(obj, "sasl_conn",
                                        (uintptr_t)sasl_conn);
         }
         json_add_bool_to_object(obj, "nodelay", nodelay);
         cJSON_AddNumberToObject(obj, "refcount", refcount);
-        {
-            cJSON* features = cJSON_CreateObject();
-            json_add_bool_to_object(features, "datatype",
-                                    isSupportsDatatype());
-            json_add_bool_to_object(features, "mutation_extras",
-                                    isSupportsMutationExtras());
 
-            cJSON_AddItemToObject(obj, "features", features);
-        }
+        cJSON* features = cJSON_CreateObject();
+        json_add_bool_to_object(features, "datatype",
+                                isSupportsDatatype());
+        json_add_bool_to_object(features, "mutation_extras",
+                                isSupportsMutationExtras());
+
+        cJSON_AddItemToObject(obj, "features", features);
+
         json_add_uintptr_to_object(obj, "engine_storage",
                                    (uintptr_t)engine_storage);
         json_add_uintptr_to_object(obj, "next", (uintptr_t)next);
         json_add_uintptr_to_object(obj, "thread", (uintptr_t)thread.load(
             std::memory_order::memory_order_relaxed));
-        cJSON_AddNumberToObject(obj, "parent_port", parent_port);
         cJSON_AddStringToObject(obj, "priority", to_string(priority));
     }
     return obj;
