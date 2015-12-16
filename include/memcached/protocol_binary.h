@@ -1728,8 +1728,10 @@ extern "C"
      *
      * Response:-
      *
-     * The response will return a SUCCESS after saving the settings and
-     * a NOT_MY_VBUCKET (along with cluster config) if the vbucket isn't
+     * The response will return a SUCCESS after saving the settings, if this
+     * operation changes the time_sync state the body will contain the vbucket
+     * high seqno (type: int64_t), otherwise will be empty.
+     * A NOT_MY_VBUCKET (along with cluster config) if the vbucket isn't
      * found.
      */
     typedef union {
