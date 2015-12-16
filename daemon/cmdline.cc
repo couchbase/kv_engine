@@ -68,7 +68,7 @@ static void handle_c(struct Option* o) {
 static void handle_X(struct Option* o) {
     char *module = o->optarg;
     char *config = strchr(o->optarg, ',');
-    if (config == NULL) {
+    if (config != NULL) {
         *config = '\0';
         config++;
     }
