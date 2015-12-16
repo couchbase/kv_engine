@@ -79,7 +79,7 @@ extern "C" {
         cb_assert(alloc_size >= (prev_size + 50));
 
         prev_size = alloc_size;
-        p = static_cast<char*>(realloc(p, 0));
+        p = static_cast<char*>(realloc(p, 1));
         cb_assert(alloc_size < prev_size);
 
         prev_size = alloc_size;
