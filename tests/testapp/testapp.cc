@@ -3405,8 +3405,6 @@ void test_pipeline_impl(int cmd, int result, const char* key_root,
     } else if (cmd == PROTOCOL_BINARY_CMD_GET) {
         /* get sends key */
         out_message_len = sizeof(protocol_binary_request_get) + key_root_len + key_digit_len;
-        /* receives a response + value */
-        in_message_len = sizeof(protocol_binary_response_no_extras) + 4 + value_size;
 
         if (result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             /* receives a response + flags + value */
@@ -3718,6 +3716,7 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
 
         err = cbsasl_client_step(client, buffer.bytes + dataoffset, datalen,
                                  NULL, &data, &len);
+        EXPECT_EQ(CBSASL_CONTINUE, err);
 
         plen = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                 PROTOCOL_BINARY_CMD_SASL_STEP,
