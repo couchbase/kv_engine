@@ -44,13 +44,15 @@ static int set_ascii(BIO *bio, const char *key, size_t size) {
     int len = snprintf(line, sizeof(line), "set %s 0 0 %lu\r\n",
                        key, (unsigned long)size);
     ensure_send(bio, &line, len);
-    char *value = malloc(size);
-    if (value) {
-        ensure_send(bio, value, (int)size);
-        free(value);
-    } else {
-        for (size_t ii = 0; ii < size; ++ii) {
-            ensure_send(bio, key, 1);
+    if (size > 0) {
+        char* value = malloc(size);
+        if (value) {
+            ensure_send(bio, value, (int)size);
+            free(value);
+        } else {
+            for (size_t ii = 0; ii < size; ++ii) {
+                ensure_send(bio, key, 1);
+            }
         }
     }
     ensure_send(bio, "\r\n", 2);
@@ -88,13 +90,15 @@ static int set_binary(BIO *bio, const char *key, size_t size) {
     };
     ensure_send(bio, &request, (int)sizeof(request.bytes));
     ensure_send(bio, key, strlen(key));
-    char *value = malloc(size);
-    if (value) {
-        ensure_send(bio, value, (int)size);
-        free(value);
-    } else {
-        for (size_t ii = 0; ii < size; ++ii) {
-            ensure_send(bio, key, 1);
+    if (size > 0) {
+        char* value = malloc(size);
+        if (value) {
+            ensure_send(bio, value, (int)size);
+            free(value);
+        } else {
+            for (size_t ii = 0; ii < size; ++ii) {
+                ensure_send(bio, key, 1);
+            }
         }
     }
 
