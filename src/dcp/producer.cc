@@ -755,12 +755,11 @@ void DcpProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
 
 bool DcpProducer::closeSlowStream(uint16_t vbid,
                                   const std::string &name) {
-    LockHolder lh(queueLock);
     if (supportsCursorDropping) {
-        std::map<uint16_t, stream_t>::iterator it = streams.find(vbid);
-        if (it != streams.end()) {
-            if (it->second->getName().compare(name) == 0) {
-                ActiveStream* as = static_cast<ActiveStream*>(it->second.get());
+        stream_t stream = findStreamByVbid(vbid);
+        if (stream) {
+            if (stream->getName().compare(name) == 0) {
+                ActiveStream* as = static_cast<ActiveStream*>(stream.get());
                 if (as) {
                     LOG(EXTENSION_LOG_NOTICE, "%s Producer is closing stream "
                             "for vbucket %d, stream name '%s' because it seems "
