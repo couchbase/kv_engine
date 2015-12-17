@@ -54,12 +54,11 @@ public:
         // Setup audit config file name
         char auditConfigFileName[1024];
         const char* pattern = "memcached_testapp.audit.json.XXXXXX";
-        char cwd[256];
-        get_working_current_directory(cwd, 256);
+        cosnt std::string cwd = get_working_current_directory();
         snprintf(auditConfigFileName,
                  sizeof(auditConfigFileName),
                  "%s/%s",
-                 cwd,
+                 cwd.c_str(),
                  pattern);
 
         cb_mktemp(auditConfigFileName);

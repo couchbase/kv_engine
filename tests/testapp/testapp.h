@@ -198,7 +198,7 @@ bool safe_recv_packet(void *buf, size_t size);
 
 int write_config_to_file(const char* config, const char *fname);
 
-void get_working_current_directory(char* out_buf, int out_buf_len);
+std::string get_working_current_directory();
 
 // map of statistic key (name) -> value.
 typedef std::map<std::string, std::string> stats_response_t;

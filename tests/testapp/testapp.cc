@@ -264,18 +264,22 @@ static void log_network_error(const char* prefix) {
 #define CERTIFICATE_PATH(file) ("/tests/cert/"#file)
 #endif
 
-void get_working_current_directory(char* out_buf, int out_buf_len) {
+std::string get_working_current_directory() {
     bool ok = false;
+    std::string result(4096, 0);
 #ifdef WIN32
-    ok = GetCurrentDirectory(out_buf_len, out_buf) != 0;
+    ok = GetCurrentDirectory(result.size(), &result[0]) != 0;
 #else
-    ok = getcwd(out_buf, out_buf_len) != NULL;
+    ok = getcwd(&result[0], result.size()) != NULL;
 #endif
     /* memcached may throw a warning, but let's push through */
     if (!ok) {
         fprintf(stderr, "Failed to determine current working directory");
-        strncpy(out_buf, ".", out_buf_len);
+        result = ".";
     }
+    // Trim off any trailing \0 characters.
+    result.resize(strlen(result.c_str()));
+    return result;
 }
 
 cJSON* TestappTest::generate_config(uint16_t ssl_port)
@@ -284,15 +288,11 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON *array = cJSON_CreateArray();
     cJSON *obj = nullptr;
     cJSON *obj_ssl = nullptr;
-    char pem_path[256];
-    char cert_path[256];
-    char rbac_path[256];
 
-    get_working_current_directory(pem_path, 256);
-    strncpy(cert_path, pem_path, 256);
-    snprintf(rbac_path, sizeof(rbac_path), "%s/%s", pem_path, mcd_env->getRbacFilename());
-    strncat(pem_path, CERTIFICATE_PATH(testapp.pem), 256);
-    strncat(cert_path, CERTIFICATE_PATH(testapp.cert), 256);
+    const std::string cwd = get_working_current_directory();
+    const std::string rbac_path = cwd + "/" + mcd_env->getRbacFilename();
+    const std::string pem_path = cwd + CERTIFICATE_PATH(testapp.pem);
+    const std::string cert_path = cwd + CERTIFICATE_PATH(testapp.cert);
 
     if (memcached_verbose) {
         cJSON_AddNumberToObject(root, "verbosity", 2);
@@ -332,8 +332,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddStringToObject(obj, "protocol", "memcached");
     obj_ssl = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj_ssl, "key", pem_path);
-    cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
+    cJSON_AddStringToObject(obj_ssl, "key", pem_path.c_str());
+    cJSON_AddStringToObject(obj_ssl, "cert", cert_path.c_str());
     cJSON_AddItemToObject(obj, "ssl", obj_ssl);
     cJSON_AddItemToArray(array, obj);
 
@@ -361,8 +361,8 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddStringToObject(obj, "protocol", "greenstack");
     obj_ssl = cJSON_CreateObject();
-    cJSON_AddStringToObject(obj_ssl, "key", pem_path);
-    cJSON_AddStringToObject(obj_ssl, "cert", cert_path);
+    cJSON_AddStringToObject(obj_ssl, "key", pem_path.c_str());
+    cJSON_AddStringToObject(obj_ssl, "cert", cert_path.c_str());
     cJSON_AddItemToObject(obj, "ssl", obj_ssl);
     cJSON_AddItemToArray(array, obj);
 #endif
@@ -371,7 +371,7 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
 
     cJSON_AddStringToObject(root, "admin", "");
     cJSON_AddTrueToObject(root, "datatype_support");
-    cJSON_AddStringToObject(root, "rbac_file", rbac_path);
+    cJSON_AddStringToObject(root, "rbac_file", rbac_path.c_str());
 
     return root;
 }
@@ -2455,15 +2455,12 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
     cJSON *ssl = cJSON_GetObjectItem(iface, "ssl");
 
-    char pem_path[256];
-    char cert_path[256];
-    get_working_current_directory(pem_path, 256);
-    strncpy(cert_path, pem_path, 256);
-    strncat(pem_path, CERTIFICATE_PATH(testapp2.pem), 256);
-    strncat(cert_path, CERTIFICATE_PATH(testapp2.cert), 256);
+    const std::string cwd = get_working_current_directory();
+    const std::string pem_path = cwd + CERTIFICATE_PATH(testapp2.pem);
+    const std::string cert_path = cwd + CERTIFICATE_PATH(testapp2.cert);
 
-    cJSON_ReplaceItemInObject(ssl, "key", cJSON_CreateString(pem_path));
-    cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(cert_path));
+    cJSON_ReplaceItemInObject(ssl, "key", cJSON_CreateString(pem_path.c_str()));
+    cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(cert_path.c_str()));
     dyn_string = cJSON_Print(dynamic);
     cJSON_Delete(dynamic);
     if (write_config_to_file(dyn_string, config_file.c_str()) == -1) {
