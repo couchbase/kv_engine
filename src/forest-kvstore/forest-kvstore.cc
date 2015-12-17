@@ -285,6 +285,8 @@ void ForestKVStore::reset(uint16_t vbucketId) {
                 fdb_error_msg(status));
         }
     }
+
+    updateFileInfo();
 }
 
 ForestRequest::ForestRequest(const Item &it, MutationRequestCallback &cb ,bool del)
@@ -424,6 +426,20 @@ ENGINE_ERROR_CODE ForestKVStore::readVBState(uint16_t vbId) {
     return forestErr2EngineErr(status);
 }
 
+void ForestKVStore::updateFileInfo(void) {
+    fdb_file_info finfo;
+    fdb_status status = fdb_get_file_info(dbFileHandle, &finfo);
+    if (status == FDB_RESULT_SUCCESS) {
+        cachedFileSize = finfo.file_size;
+        cachedSpaceUsed = finfo.space_used;
+    } else {
+        LOG(EXTENSION_LOG_WARNING,
+            "ForestKVStore::updateFileInfo: Getting file info"
+            " failed with error: %s for shard id: %" PRIu16,
+            fdb_error_msg(status), configuration.getShardId());
+    }
+}
+
 void ForestKVStore::delVBucket(uint16_t vbucket) {
     fdb_kvs_handle *kvsHandle = getKvsHandle(vbucket, handleType::READER);
     fdb_status status;
@@ -492,6 +508,8 @@ void ForestKVStore::delVBucket(uint16_t vbucket) {
                     vbucket, fdb_error_msg(status));
         }
     }
+
+    updateFileInfo();
 }
 
 ENGINE_ERROR_CODE ForestKVStore::forestErr2EngineErr(fdb_status errCode) {
@@ -671,7 +689,7 @@ static void commitCallback(std::vector<ForestRequest *> &committedReqs) {
     }
 }
 
-bool ForestKVStore::save2forestdb(Callback<kvstats_ctx> *cb) {
+bool ForestKVStore::save2forestdb() {
     size_t pendingCommitCnt = pendingReqsQ.size();
     if (pendingCommitCnt == 0) {
         return true;
@@ -740,13 +758,15 @@ bool ForestKVStore::save2forestdb(Callback<kvstats_ctx> *cb) {
         delete pendingReqsQ[i];
     }
 
+    updateFileInfo();
+
     pendingReqsQ.clear();
     return true;
 }
 
-bool ForestKVStore::commit(Callback<kvstats_ctx> *cb) {
+bool ForestKVStore::commit() {
     if (intransaction) {
-        if (save2forestdb(cb)) {
+        if (save2forestdb()) {
             intransaction = false;
         }
     }
@@ -1106,13 +1126,22 @@ DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
 
     dbInfo.itemCount = kvsInfo.doc_count;
     dbInfo.fileSize =  fileInfo.file_size/fileInfo.num_kv_stores;
-    dbInfo.spaceUsed = kvsInfo.space_used;
+    dbInfo.spaceUsed = fileInfo.space_used/fileInfo.num_kv_stores;
+
+    return dbInfo;
+}
+
+DBFileInfo ForestKVStore::getAggrDbFileInfo() {
+    DBFileInfo dbInfo;
+
+    dbInfo.fileSize = cachedFileSize.load();
+    dbInfo.spaceUsed = cachedSpaceUsed.load();
 
     return dbInfo;
 }
 
 bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                                    Callback<kvstats_ctx> *cb, bool persist) {
+                                    bool persist) {
 
     if (updateCachedVBState(vbucketId, vbstate) && persist) {
         std::string stateStr = cachedVBStates[vbucketId]->toJSON();
@@ -1134,6 +1163,8 @@ bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
             return false;
         }
     }
+
+    updateFileInfo();
 
     return true;
 }
@@ -1452,7 +1483,7 @@ fdb_compact_decision ForestKVStore::compaction_cb(fdb_file_handle *fhandle,
     return FDB_CS_KEEP_DOC;
 }
 
-bool ForestKVStore::compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb) {
+bool ForestKVStore::compactDB(compaction_ctx *ctx) {
     uint16_t shardId = ctx->db_file_id;
     uint64_t prevRevNum = dbFileRevNum;
 

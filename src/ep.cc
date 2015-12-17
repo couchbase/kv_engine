@@ -1232,23 +1232,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
     return ret;
 }
 
-class KVStatsCallback : public Callback<kvstats_ctx> {
-    public:
-        KVStatsCallback(EventuallyPersistentStore *store)
-            : epstore(store) { }
-
-       void callback(kvstats_ctx &ctx) {
-            RCPtr<VBucket> vb = epstore->getVBucket(ctx.vbucket);
-            if (vb) {
-                vb->fileSpaceUsed = ctx.fileSpaceUsed;
-                vb->fileSize = ctx.fileSize;
-            }
-        }
-
-    private:
-        EventuallyPersistentStore *epstore;
-};
-
 void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
                                                  uint16_t shardId) {
 
@@ -1290,7 +1273,6 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
         shard->setHighPriorityVbSnapshotFlag(false);
     }
 
-    KVStatsCallback kvcb(this);
     VBucketStateVisitor v(vbMap, shard->getId());
     visit(v);
     hrtime_t start = gethrtime();
@@ -1303,8 +1285,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
             continue;
         }
         KVStore *rwUnderlying = getRWUnderlying(iter->first);
-        if (!rwUnderlying->snapshotVBucket(iter->first, iter->second,
-                    &kvcb)) {
+        if (!rwUnderlying->snapshotVBucket(iter->first, iter->second)) {
             LOG(EXTENSION_LOG_WARNING,
                     "VBucket snapshot task failed!!! Rescheduling");
             success = false;
@@ -1347,7 +1328,6 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
         }
     }
 
-    KVStatsCallback kvcb(this);
     uint64_t chkId = vbMap.getPersistenceCheckpointId(vbid);
     std::string failovers = vb->failovers->toJSON();
 
@@ -1359,7 +1339,7 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
                            failovers);
 
     KVStore *rwUnderlying = getRWUnderlying(vbid);
-    if (rwUnderlying->snapshotVBucket(vbid, vb_state, &kvcb)) {
+    if (rwUnderlying->snapshotVBucket(vbid, vb_state)) {
         if (vbMap.setBucketCreation(vbid, false)) {
             LOG(EXTENSION_LOG_INFO, "VBucket %d created", vbid);
         }
@@ -1649,10 +1629,9 @@ void EventuallyPersistentStore::compactInternal(compaction_ctx *ctx) {
     ExpiredItemsCBPtr expiry(new ExpiredItemsCallback(*this));
     ctx->expiryCallback = expiry;
 
-    KVStatsCallback kvcb(this);
     KVShard* shard = vbMap.getShardByVbId(ctx->db_file_id);
     KVStore* store = shard->getRWUnderlying();
-    bool result = store->compactDB(ctx, kvcb);
+    bool result = store->compactDB(ctx);
 
     Configuration& config = getEPEngine().getConfiguration();
     /* Iterate over all the vbucket ids set in max_purged_seq map. If there is an entry
@@ -1806,6 +1785,21 @@ void EventuallyPersistentStore::snapshotStats() {
     }
     getOneRWUnderlying()->snapshotStats(snap.smap);
 }
+
+DBFileInfo EventuallyPersistentStore::getFileStats(const void *cookie) {
+    uint16_t numShards = vbMap.getNumShards();
+    DBFileInfo totalInfo;
+
+    for (uint16_t shardId = 0; shardId < numShards; shardId++) {
+        KVStore *store = getRWUnderlyingByShard(shardId);
+        DBFileInfo dbInfo = store->getAggrDbFileInfo();
+        totalInfo.spaceUsed += dbInfo.spaceUsed;
+        totalInfo.fileSize += dbInfo.fileSize;
+    }
+
+    return totalInfo;
+}
+
 
 void EventuallyPersistentStore::updateBGStats(const hrtime_t init,
                                               const hrtime_t start,
@@ -3462,7 +3456,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                                       failovers);
 
                 if (rwUnderlying->snapshotVBucket(vb->getId(), vbState,
-                                                  NULL, false) != true) {
+                                                  false) != true) {
                     return RETRY_FLUSH_VBUCKET;
                 }
             }
@@ -3520,8 +3514,7 @@ void EventuallyPersistentStore::commit(uint16_t shardId) {
     BlockTimer timer(&stats.diskCommitHisto, "disk_commit", stats.timingLog);
     hrtime_t commit_start = gethrtime();
 
-    KVStatsCallback cb(this);
-    while (!rwUnderlying->commit(&cb)) {
+    while (!rwUnderlying->commit()) {
         ++stats.commitFailed;
         LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
             "1 sec...\n");

@@ -2999,9 +2999,6 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         chkPersistRemaining++;
     }
 
-    fileSpaceUsed += vb->fileSpaceUsed;
-    fileSize += vb->fileSize;
-
     if (desired_state != vbucket_state_dead) {
         htMemory += vb->ht.memorySize();
         htItemMemory += vb->ht.getItemMemory();
@@ -3021,7 +3018,6 @@ bool VBucketCountVisitor::visitBucket(RCPtr<VBucket> &vb) {
         queueDrain += vb->dirtyQueueDrain;
         queueAge += vb->getQueueAge();
         pendingWrites += vb->dirtyQueuePendingWrites;
-
         rollbackItemCount += vb->getRollbackItemCount();
     }
 
@@ -3285,18 +3281,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("vb_dead_num", deadCountVisitor.getVBucketNumber(),
                     add_stat, cookie);
 
-    add_casted_stat("ep_db_data_size",
-                    activeCountVisitor.getFileSpaceUsed() +
-                    replicaCountVisitor.getFileSpaceUsed() +
-                    pendingCountVisitor.getFileSpaceUsed() +
-                    deadCountVisitor.getFileSpaceUsed(),
-                    add_stat, cookie);
-    add_casted_stat("ep_db_file_size",
-                    activeCountVisitor.getFileSize() +
-                    replicaCountVisitor.getFileSize() +
-                    pendingCountVisitor.getFileSize() +
-                    deadCountVisitor.getFileSize(),
-                    add_stat, cookie);
+    DBFileInfo fileInfo = epstore->getFileStats(cookie);
+
+    add_casted_stat("ep_db_data_size", fileInfo.spaceUsed, add_stat, cookie);
+    add_casted_stat("ep_db_file_size", fileInfo.fileSize, add_stat, cookie);
 
     add_casted_stat("ep_vb_snapshot_total",
                     epstats.snapshotVbucketHisto.total(), add_stat, cookie);
@@ -4484,46 +4472,35 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskStats(const void *cookie,
     class DiskStatVisitor : public VBucketVisitor {
     public:
         DiskStatVisitor(const void *c, ADD_STAT a, bool d)
-            : cookie(c), add_stat(a), detailed(d), fileSpaceUsed(0),
-              fileSize(0) {}
+            : cookie(c), add_stat(a), detailed(d) { }
 
         bool visitBucket(RCPtr<VBucket> &vb) {
             if (detailed) {
                 char buf[32];
                 uint16_t vbid = vb->getId();
+                DBFileInfo dbInfo = vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid);
 
                 snprintf(buf, sizeof(buf), "vb_%d:data_size", vbid);
-                add_casted_stat(buf, vb->fileSpaceUsed, add_stat, cookie);
+                add_casted_stat(buf, dbInfo.spaceUsed, add_stat, cookie);
                 snprintf(buf, sizeof(buf), "vb_%d:file_size", vbid);
-                add_casted_stat(buf, vb->fileSize, add_stat, cookie);
+                add_casted_stat(buf, dbInfo.fileSize, add_stat, cookie);
             }
-
-            fileSpaceUsed += vb->fileSpaceUsed;
-            fileSize += vb->fileSize;
             return false;
         }
 
-        size_t getFileSize() {
-            return fileSize;
-        }
-
-        size_t getDataSize() {
-            return fileSpaceUsed;
-        }
-
+    private:
         const void *cookie;
         ADD_STAT add_stat;
         bool detailed;
-        size_t fileSpaceUsed;
-        size_t fileSize;
     };
 
     DiskStatVisitor dsv(cookie, add_stat, detailed);
     epstore->visit(dsv);
 
+    DBFileInfo fileInfo = epstore->getFileStats(cookie);
     if (!detailed) {
-        add_casted_stat("ep_db_data_size", dsv.getDataSize(), add_stat, cookie);
-        add_casted_stat("ep_db_file_size", dsv.getFileSize(), add_stat, cookie);
+        add_casted_stat("ep_db_data_size", fileInfo.spaceUsed, add_stat, cookie);
+        add_casted_stat("ep_db_file_size", fileInfo.fileSize, add_stat, cookie);
     }
     return ENGINE_SUCCESS;
 }

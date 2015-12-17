@@ -257,12 +257,9 @@ public:
 typedef std::pair<bool, bool> kstat_entry_t;
 
 struct KVStatsCtx{
-    KVStatsCtx() : vbucket(std::numeric_limits<uint16_t>::max()),
-                   fileSpaceUsed(0), fileSize(0) {}
+    KVStatsCtx() : vbucket(std::numeric_limits<uint16_t>::max()) {}
 
     uint16_t vbucket;
-    size_t fileSpaceUsed;
-    size_t fileSize;
     std::unordered_map<std::string, kstat_entry_t> keyStats;
 };
 
@@ -500,7 +497,7 @@ public:
      *
      * @return false if the commit fails
      */
-    virtual bool commit(Callback<kvstats_ctx> *cb) = 0;
+    virtual bool commit() = 0;
 
     /**
      * Rollback the current transaction.
@@ -575,13 +572,12 @@ public:
      * @param persist   whether state needs to be persisted to disk
      */
     virtual bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                                 Callback<kvstats_ctx> *cb,
                                  bool persist = true) = 0;
 
     /**
      * Compact a database file.
      */
-    virtual bool compactDB(compaction_ctx *c, Callback<kvstats_ctx> &kvcb) = 0;
+    virtual bool compactDB(compaction_ctx *c) = 0;
 
     /**
      * Return the database file id from the compaction request
@@ -603,6 +599,12 @@ public:
      * the item count, file size and space used.
      */
     virtual DBFileInfo getDbFileInfo(uint16_t dbFileId) = 0;
+
+    /**
+     * This method will return file size and space used for the
+     * entire KV store
+     */
+    virtual DBFileInfo getAggrDbFileInfo() = 0;
 
     virtual size_t getNumItems(uint16_t, uint64_t, uint64_t) {
         return 0;

@@ -258,7 +258,7 @@ public:
      *
      * @return true if the commit is completed successfully.
      */
-    bool commit(Callback<kvstats_ctx> *cb) override;
+    bool commit() override;
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -348,12 +348,11 @@ public:
      *
      * @param vbucketId - vbucket id
      * @param vbstate   - vbucket state
-     * @param cb        - call back for updating kv stats
      * @param persist   - whether to persist snapshot state or not
      * @return true if the snapshot is done successfully
      */
     bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                         Callback<kvstats_ctx> *cb, bool persist) override;
+                         bool persist) override;
 
      /**
      * Compact a database file in the underlying storage system.
@@ -361,10 +360,9 @@ public:
      * @param ctx - compaction context that holds the identifier of the
                     underlying database file, options and callbacks
                     that need to invoked.
-     * @param kvcb - callback to update kvstore stats
      * @return true if successful
      */
-    bool compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb) override;
+    bool compactDB(compaction_ctx *ctx) override;
 
     /**
      * Return the database file id from the compaction request
@@ -391,6 +389,13 @@ public:
      * @param vbid The vbucket of the file to get the number of docs for
      */
     DBFileInfo getDbFileInfo(uint16_t vbid) override;
+
+    /**
+     * Get the file statistics for the underlying KV store
+     *
+     * return cumulative file size and space usage for the KV store
+     */
+    DBFileInfo getAggrDbFileInfo() override;
 
     /**
      * Get the number of non-deleted items from a vbucket database file
@@ -487,7 +492,7 @@ public:
 
 private:
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
-                         Callback<kvstats_ctx> *cb, bool reset=false);
+                         bool reset=false);
 
     template <typename T>
     void addStat(const std::string &prefix, const char *nm, T &val,
@@ -496,7 +501,7 @@ private:
     void operator=(const CouchKVStore &from);
 
     void close();
-    bool commit2couchstore(Callback<kvstats_ctx> *cb);
+    bool commit2couchstore();
 
     uint64_t checkNewRevNum(std::string &dbname, bool newFile = false);
     void populateFileNameMap(std::vector<std::string> &filenames,
@@ -554,7 +559,8 @@ private:
     /* deleted docs in each file, indexed by vBucket. RelaxedAtomic
        to allow stats access witout lock */
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
-
+    std::vector<Couchbase::RelaxedAtomic<uint64_t>> cachedFileSize;
+    std::vector<Couchbase::RelaxedAtomic<uint64_t>> cachedSpaceUsed;
     /* pending file deletions */
     AtomicQueue<std::string> pendingFileDeletions;
 

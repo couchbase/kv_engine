@@ -549,8 +549,6 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
         RCPtr<VBucket> vb = store.getVBucket(*it);
         if (vb) {
             vb->ht.numTotalItems = info.itemCount;
-            vb->fileSize = info.fileSize;
-            vb->fileSpaceUsed = info.spaceUsed;
         }
         item_count += info.itemCount;
     }

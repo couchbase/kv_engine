@@ -259,6 +259,8 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
     dbFileRevMap.assign(numDbFiles, Couchbase::RelaxedAtomic<uint64_t>(1));
     cachedDocCount.assign(numDbFiles, Couchbase::RelaxedAtomic<size_t>(0));
     cachedDeleteCount.assign(numDbFiles, Couchbase::RelaxedAtomic<size_t>(-1));
+    cachedFileSize.assign(numDbFiles, Couchbase::RelaxedAtomic<uint64_t>(0));
+    cachedSpaceUsed.assign(numDbFiles, Couchbase::RelaxedAtomic<uint64_t>(0));
     cachedVBStates.assign(numDbFiles, nullptr);
 
     initialize();
@@ -331,10 +333,12 @@ void CouchKVStore::reset(uint16_t vbucketId) {
 
         cachedDocCount[vbucketId] = 0;
         cachedDeleteCount[vbucketId] = 0;
+        cachedFileSize[vbucketId] = 0;
+        cachedSpaceUsed[vbucketId] = 0;
 
         //Unlink the couchstore file upon reset
         unlinkCouchFile(vbucketId, dbFileRevMap[vbucketId]);
-        setVBucketState(vbucketId, *state, NULL, true);
+        setVBucketState(vbucketId, *state, true);
         updateDbFileMap(vbucketId, 1);
     } else {
         throw std::invalid_argument("CouchKVStore::reset: No entry in cached "
@@ -531,6 +535,11 @@ void CouchKVStore::delVBucket(uint16_t vbucket) {
     if (cachedVBStates[vbucket]) {
         delete cachedVBStates[vbucket];
     }
+
+    cachedDocCount[vbucket] = 0;
+    cachedDeleteCount[vbucket] = 0;
+    cachedFileSize[vbucket] = 0;
+    cachedSpaceUsed[vbucket] = 0;
 
     std::string failovers("[{\"id\":0, \"seq\":0}]");
     cachedVBStates[vbucket] = new vbucket_state(vbucket_state_dead, 0, 0, 0, 0,
@@ -778,7 +787,7 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
     return COUCHSTORE_COMPACT_KEEP_ITEM;
 }
 
-bool CouchKVStore::compactDB(compaction_ctx *hook_ctx, Callback<kvstats_ctx> &kvcb) {
+bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::compactDB: Cannot perform "
                         "on a read-only instance.");
@@ -866,12 +875,10 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx, Callback<kvstats_ctx> &kv
             "INFO: created new couch db file, name=%s rev=%" PRIu64,
             new_file.c_str(), new_rev);
 
-    // Update stats to caller
-    kvctx.vbucket = vbid;
     couchstore_db_info(targetDb, &info);
-    kvctx.fileSpaceUsed = info.space_used;
-    kvctx.fileSize = info.file_size;
-    kvcb.callback(kvctx);
+
+    cachedFileSize[vbid] = info.file_size;
+    cachedSpaceUsed[vbid] = info.space_used;
 
     // also update cached state with dbinfo
     vbucket_state *state = cachedVBStates[vbid];
@@ -897,7 +904,7 @@ vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {
 }
 
 bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
-                                   Callback<kvstats_ctx> *kvcb, bool reset) {
+                                   bool reset) {
     Db *db = NULL;
     uint64_t fileRev, newFileRev;
     std::stringstream id, rev;
@@ -946,20 +953,26 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
         closeDatabaseHandle(db);
         return false;
     }
-    if (kvcb) {
-        DbInfo info;
-        couchstore_db_info(db, &info);
-        kvctx.fileSpaceUsed = info.space_used;
-        kvctx.fileSize = info.file_size;
-        kvcb->callback(kvctx);
+
+    DbInfo info;
+    errorCode = couchstore_db_info(db, &info);
+    if (errorCode != COUCHSTORE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "CouchKVStore::setVBucketState: Retrieving database file failed "
+            "for vbid=%" PRIu16" with error=%s", vbucketId,
+            couchstore_strerror(errorCode));
+    } else {
+         cachedSpaceUsed[vbucketId] = info.space_used;
+         cachedFileSize[vbucketId] = info.file_size;
     }
+
     closeDatabaseHandle(db);
 
     return true;
 }
 
 bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                                   Callback<kvstats_ctx> *cb, bool persist) {
+                                   bool persist) {
     if (isReadOnly()) {
         LOG(EXTENSION_LOG_WARNING,
             "Snapshotting a vbucket cannot be performed on a read-only "
@@ -971,7 +984,7 @@ bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
 
     if (updateCachedVBState(vbucketId, vbstate) && persist) {
         vbucket_state *vbs = cachedVBStates[vbucketId];
-        if (!setVBucketState(vbucketId, *vbs, cb)) {
+        if (!setVBucketState(vbucketId, *vbs)) {
             LOG(EXTENSION_LOG_WARNING,
                 "Failed to persist new state, %s, for vbucket %d\n",
                 VBucket::toString(vbstate.state), vbucketId);
@@ -993,14 +1006,14 @@ StorageProperties CouchKVStore::getStorageProperties() {
     return rv;
 }
 
-bool CouchKVStore::commit(Callback<kvstats_ctx> *cb) {
+bool CouchKVStore::commit() {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::commit: Not valid on a read-only "
                         "object.");
     }
 
     if (intransaction) {
-        if (commit2couchstore(cb)) {
+        if (commit2couchstore()) {
             intransaction = false;
         }
     }
@@ -1704,7 +1717,7 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     return COUCHSTORE_SUCCESS;
 }
 
-bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb) {
+bool CouchKVStore::commit2couchstore() {
     bool success = true;
 
     size_t pendingCommitCnt = pendingReqsQ.size();
@@ -1751,9 +1764,7 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb) {
             "Commit failed, cannot save CouchDB docs "
             "for vbucket = %d rev = %" PRIu64, vbucket2flush, fileRev);
     }
-    if (cb) {
-        cb->callback(kvctx);
-    }
+
     commitCallback(pendingReqsQ, kvctx, errCode);
 
     // clean up
@@ -1865,8 +1876,8 @@ couchstore_error_t CouchKVStore::saveDocs(uint16_t vbid, uint64_t rev,
 
         // retrieve storage system stats for file fragmentation computation
         couchstore_db_info(db, &info);
-        kvctx.fileSpaceUsed = info.space_used;
-        kvctx.fileSize = info.file_size;
+        cachedSpaceUsed[vbid] = info.space_used;
+        cachedFileSize[vbid] = info.file_size;
         cachedDeleteCount[vbid] = info.deleted_count;
         cachedDocCount[vbid] = info.doc_count;
 
@@ -2241,7 +2252,6 @@ DBFileInfo CouchKVStore::getDbFileInfo(uint16_t vbid) {
     uint64_t rev = dbFileRevMap[vbid];
 
     DBFileInfo vbinfo;
-
     couchstore_error_t errCode = openDB(vbid, rev, &db,
                                         COUCHSTORE_OPEN_FLAG_RDONLY);
     if (errCode == COUCHSTORE_SUCCESS) {
@@ -2254,18 +2264,32 @@ DBFileInfo CouchKVStore::getDbFileInfo(uint16_t vbid) {
             vbinfo.spaceUsed = info.space_used;
         } else {
             throw std::runtime_error("CouchKVStore::getDbFileInfo: Failed "
-                "to read database info for vBucket = " + std::to_string(vbid) +
-                " rev = " + std::to_string(rev) +
-                " with error:" + couchstore_strerror(errCode));
+                    "to read database info for vBucket = " + std::to_string(vbid) +
+                    " rev = " + std::to_string(rev) +
+                    " with error:" + couchstore_strerror(errCode));
         }
         closeDatabaseHandle(db);
     } else {
         throw std::invalid_argument("CouchKVStore::getDbFileInfo: Failed "
-            "to open database file for vBucket = " + std::to_string(vbid) +
-            " rev = " + std::to_string(rev) +
-            " with error:" + couchstore_strerror(errCode));
+                "to open database file for vBucket = " + std::to_string(vbid) +
+                " rev = " + std::to_string(rev) +
+                " with error:" + couchstore_strerror(errCode));
     }
     return vbinfo;
+}
+
+DBFileInfo CouchKVStore::getAggrDbFileInfo() {
+    DBFileInfo kvsFileInfo;
+    /**
+     * Iterate over all the vbuckets to get the total.
+     * If the vbucket is dead, then its value would
+     * be zero.
+     */
+    for (uint16_t vbid = 0; vbid < numDbFiles; vbid++) {
+        kvsFileInfo.fileSize += cachedFileSize[vbid].load();
+        kvsFileInfo.spaceUsed += cachedSpaceUsed[vbid].load();
+    }
+    return kvsFileInfo;
 }
 
 size_t CouchKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,

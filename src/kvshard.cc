@@ -74,14 +74,6 @@ KVShard::~KVShard() {
     delete[] vbuckets;
 }
 
-KVStore *KVShard::getRWUnderlying() {
-    return rwUnderlying;
-}
-
-KVStore *KVShard::getROUnderlying() {
-    return roUnderlying;
-}
-
 Flusher *KVShard::getFlusher() {
     return flusher;
 }

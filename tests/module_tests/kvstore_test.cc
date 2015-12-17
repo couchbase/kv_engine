@@ -118,7 +118,7 @@ static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config) {
     std::string failoverLog("");
     vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0,
                         failoverLog);
-    kvstore->snapshotVBucket(0, state, &sc);
+    kvstore->snapshotVBucket(0, state);
 
     return kvstore;
 }
@@ -157,7 +157,7 @@ TEST_P(CouchAndForestTest, BasicTest) {
     WriteCallback wc;
     kvstore->set(item, wc);
 
-    EXPECT_TRUE(kvstore->commit(nullptr));
+    EXPECT_TRUE(kvstore->commit());
 
     GetCallback gc;
     kvstore->get("key", 0, gc);
@@ -180,8 +180,9 @@ TEST(CouchKVStoreTest, CompressedTest) {
                   0, 0, "value", 5, &datatype, 1, 0, i);
         kvstore->set(item, wc);
     }
+
     StatsCallback sc;
-    kvstore->commit(&sc);
+    kvstore->commit();
 
     std::shared_ptr<Callback<GetValue> > cb(new GetCallback(true));
     std::shared_ptr<Callback<CacheLookup> > cl(new CacheCallback(1, 5, 0));
@@ -212,7 +213,7 @@ TEST(CouchKVStoreTest, StatsTest) {
     kvstore->set(item, wc);
 
     StatsCallback sc;
-    EXPECT_TRUE(kvstore->commit(&sc));
+    EXPECT_TRUE(kvstore->commit());
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
     kvstore->addStats("", add_stat_callback, &stats);
@@ -244,7 +245,7 @@ TEST(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
                         /*highSeqno*/0, /*purgeSeqno*/0, /*lastSnapStart*/0,
                         /*lastSnapEnd*/0, /*maxCas*/-1, /*driftCounter*/0,
                         failoverLog);
-    EXPECT_TRUE(kvstore->snapshotVBucket(/*vbid*/0, state, NULL));
+    EXPECT_TRUE(kvstore->snapshotVBucket(/*vbid*/0, state));
     EXPECT_EQ(~0ull, kvstore->listPersistedVbuckets()[0]->maxCas);
 
     // Close the file, then re-open.

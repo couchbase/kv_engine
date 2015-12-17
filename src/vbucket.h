@@ -178,8 +178,6 @@ public:
         dirtyQueuePendingWrites(0),
         metaDataDisk(0),
         numExpiredItems(0),
-        fileSpaceUsed(0),
-        fileSize(0),
         id(i),
         state(newState),
         initialState(initState),
@@ -541,8 +539,6 @@ public:
     AtomicValue<size_t>  metaDataDisk;
 
     AtomicValue<size_t>  numExpiredItems;
-    AtomicValue<size_t>  fileSpaceUsed;
-    AtomicValue<size_t>  fileSize;
 
 private:
     template <typename T>

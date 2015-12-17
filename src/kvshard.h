@@ -62,8 +62,8 @@ public:
     KVShard(KVShard::id_type id, EventuallyPersistentStore &store);
     ~KVShard();
 
-    KVStore *getRWUnderlying();
-    KVStore *getROUnderlying();
+    KVStore *getRWUnderlying() { return rwUnderlying; }
+    KVStore *getROUnderlying() { return roUnderlying; }
 
     Flusher *getFlusher();
     BgFetcher *getBgFetcher();

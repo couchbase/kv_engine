@@ -128,7 +128,7 @@ class ForestKVStore : public KVStore
      *
      * @return true if the commit is completed successfully.
      */
-    bool commit(Callback<kvstats_ctx> *cb) override;
+    bool commit() override;
 
     /**
      * Rollback a transaction (unless not currently in one).
@@ -211,20 +211,21 @@ class ForestKVStore : public KVStore
      *
      * @param vbucketId vbucket id
      * @param vbstate vbucket state
-     * @param cb - callback for updating kv stats
+     * @param persist whether to persist the vbucket state or not
+     *
      * @return true if the snapshot is done successfully
      */
     bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
-                         Callback<kvstats_ctx> *cb, bool persist) override;
+                         bool persist) override;
 
     /**
      * Compact a forestdb database file
      *
      * @param ctx  - compaction context containing callback hooks
-     * @param kvcb - callback to update KV store stats
+     *
      * @return false if the compaction fails; true if successful
      */
-    bool compactDB(compaction_ctx *ctx, Callback<kvstats_ctx> &kvcb) override;
+    bool compactDB(compaction_ctx *ctx) override;
 
     /**
      * Return the database file id from the compaction request
@@ -319,6 +320,13 @@ class ForestKVStore : public KVStore
      */
     DBFileInfo getDbFileInfo(uint16_t vbId) override;
 
+    /**
+     * Get the file statistics for the underlying KV store
+     *
+     * return cumulative file size and space usage for the KV store
+     */
+    DBFileInfo getAggrDbFileInfo() override;
+
     ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
                                  uint32_t count,
                                  std::shared_ptr<Callback<uint16_t&, char*&> > cb) override;
@@ -341,6 +349,8 @@ private:
     std::unordered_map<uint16_t, fdb_kvs_handle *> writeHandleMap;
     std::unordered_map<uint16_t, fdb_kvs_handle *> readHandleMap;
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
+    Couchbase::RelaxedAtomic<uint64_t> cachedFileSize;
+    Couchbase::RelaxedAtomic<uint64_t> cachedSpaceUsed;
     fdb_kvs_handle *vbStateHandle;
     fdb_config fileConfig;
     fdb_kvs_config kvsConfig;
@@ -359,7 +369,8 @@ private:
     void shutdownForestDb();
     ENGINE_ERROR_CODE readVBState(uint16_t vbId);
     fdb_kvs_handle *getKvsHandle(uint16_t vbId, handleType htype);
-    bool save2forestdb(Callback<kvstats_ctx> *cb);
+    bool save2forestdb();
+    void updateFileInfo();
     GetValue docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc, uint16_t vbId,
                        bool metaOnly = false, bool fetchDelete = false);
     ENGINE_ERROR_CODE forestErr2EngineErr(fdb_status errCode);
