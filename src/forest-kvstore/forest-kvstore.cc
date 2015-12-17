@@ -1201,7 +1201,12 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          throw std::logic_error(err);
      }
 
-     fdb_seqnum_t start = (fdb_seqnum_t)ctx->startSeqno;
+     fdb_seqnum_t start;
+     if (ctx->lastReadSeqno != 0) {
+         start = static_cast<fdb_seqnum_t>(ctx->lastReadSeqno) + 1;
+     } else {
+         start = static_cast<fdb_seqnum_t>(ctx->startSeqno);
+     }
 
      status = fdb_iterator_sequence_init(kvsHandle, &fdb_iter, start,
                                          0, options);
