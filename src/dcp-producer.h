@@ -151,7 +151,7 @@ public:
         /*
             Unpause the producer if there's space (or disabled).
         */
-        void unpauseIfSpace();
+        void unpauseIfSpaceAvailable();
 
     private:
 

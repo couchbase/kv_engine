@@ -75,7 +75,7 @@ bool DcpProducer::BufferLog::pauseIfFull() {
     return false;
 }
 
-void DcpProducer::BufferLog::unpauseIfSpace() {
+void DcpProducer::BufferLog::unpauseIfSpaceAvailable() {
     ReaderLockHolder rlh(logLock);
     if (getState_UNLOCKED() != Full) {
         producer.notifyPaused(true);
@@ -692,7 +692,7 @@ void DcpProducer::setDisconnect(bool disconnect) {
 void DcpProducer::notifyStreamReady(uint16_t vbucket, bool schedule) {
     bool expected = false;
     if (vbReady[vbucket].compare_exchange_strong(expected, true)) {
-        log.unpauseIfSpace();
+        log.unpauseIfSpaceAvailable();
     }
 }
 
