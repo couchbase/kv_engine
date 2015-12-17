@@ -24,6 +24,7 @@
 #include <exception>
 #include <utilities/protocol2text.h>
 #include <platform/strerror.h>
+#include <platform/timeutils.h>
 
 /* cJSON uses double for all numbers, so only has 53 bits of precision.
  * Therefore encode 64bit integers as string.
@@ -1183,8 +1184,13 @@ void McbpConnection::maybeLogSlowCommand(
             snprintf(opcodetext, sizeof(opcodetext), "0x%0X", cmd);
             opcode = opcodetext;
         }
-        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %lu ms (%s)",
-                    getId(), opcode, (unsigned long)elapsed.count(),
+
+        hrtime_t timings((hrtime_t)elapsed.count());
+        timings *= 1000 * 1000; // convert from ms to ns
+
+        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %s (%s)",
+                    getId(), opcode,
+                    Couchbase::hrtime2text(timings).c_str(),
                     getDescription().c_str());
     }
 }
