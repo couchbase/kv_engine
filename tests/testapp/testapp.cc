@@ -3569,8 +3569,12 @@ TEST_P(McdTestappTest, MB_12762_SSLHandshakeHang) {
      * by peer), and should not have hit the timeout.
      */
     fd_set fdset;
+#ifndef __clang_analyzer__
+    /* FD_ZERO() is often implemented as inline asm(), which Clang
+     * static analyzer cannot parse. */
     FD_ZERO(&fdset);
     FD_SET(sock_ssl, &fdset);
+#endif
     struct timeval timeout = {0};
     timeout.tv_sec = 5;
     int ready_fds = select((int)(sock_ssl + 1), &fdset, NULL, NULL, &timeout);
