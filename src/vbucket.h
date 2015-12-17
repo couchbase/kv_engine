@@ -235,10 +235,13 @@ public:
     /**
      * To set drift counter's initial value
      * and to toggle the timeSync between ON/OFF.
+     *
+     * Returns highSeqno of vbucket
      */
-    void setDriftCounterState(int64_t initial_drift, uint8_t time_sync) {
+    int64_t setDriftCounterState(int64_t initial_drift, uint8_t time_sync) {
         drift_counter = initial_drift;
         time_sync_enabled = time_sync;
+        return getHighSeqno();
     }
 
     int64_t getDriftCounter() {

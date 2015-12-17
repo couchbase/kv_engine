@@ -12567,6 +12567,23 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     int64_t adjusted_time1, adjusted_time2;
     protocol_binary_request_header *request;
 
+   for (int j = 0; j < 10; ++j) {
+        item *i = NULL;
+        std::string key("key-" + std::to_string(j));
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET,
+                      key.c_str(), "data", &i, 0, 0, 0, 0),
+                "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+    wait_for_flusher_to_settle(h, h1);
+
+    uint64_t high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
+    std::string time_sync = get_str_stat(h, h1, "vb_0:time_sync", "vbucket-details");
+    checkeq(std::string("disabled"), time_sync,
+            "Time sync should've been disabled");
+
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
@@ -12576,13 +12593,26 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
 
     set_drift_counter_state(h, h1, 1000, 0x01);
 
+    time_sync = get_str_stat(h, h1, "vb_0:time_sync", "vbucket-details");
+    checkeq(std::string("enabled"), time_sync,
+            "Time sync should've been enabled");
+
+    // Change in time_sync state => last_body should've carried high_seqno
+    checkeq(sizeof(int64_t), last_body.size(),
+            "Bodylen didn't match expected value");
+    int64_t recvSeqno;
+    memcpy(&recvSeqno, last_body.data(), last_body.size());
+    recvSeqno = ntohll(recvSeqno);
+    checkeq(static_cast<int64_t>(high_seqno), recvSeqno,
+            "setDriftCounterState's response should've carried high_seqno");
+
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
     free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
-    check(last_body.size() == sizeof(int64_t),
+    checkeq(sizeof(int64_t), last_body.size(),
             "Bodylen didn't match expected value");
     memcpy(&adjusted_time1, last_body.data(), last_body.size());
     adjusted_time1 = ntohll(adjusted_time1);
@@ -12595,7 +12625,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
-    check(last_body.size() == sizeof(int64_t),
+    checkeq(sizeof(int64_t), last_body.size(),
             "Bodylen didn't match expected value");
     memcpy(&adjusted_time2, last_body.data(), last_body.size());
     adjusted_time2 = ntohll(adjusted_time2);
@@ -12625,7 +12655,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
-    check(last_body.size() == sizeof(int64_t),
+    checkeq(sizeof(int64_t), last_body.size(),
             "Bodylen didn't match expected value");
     memcpy(&adjusted_time1, last_body.data(), last_body.size());
     adjusted_time1 = ntohll(adjusted_time1);
@@ -12652,7 +12682,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
-    check(last_body.size() == sizeof(int64_t),
+    checkeq(sizeof(int64_t), last_body.size(),
             "Bodylen didn't match expected value");
     memcpy(&adjusted_time2, last_body.data(), last_body.size());
     adjusted_time2 = ntohll(adjusted_time2);

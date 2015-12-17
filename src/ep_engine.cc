@@ -6171,8 +6171,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setDriftCounterState(
     }
     int64_t initialDriftCount = ntohll(request->message.body.initial_drift);
     uint8_t timeSync = request->message.body.time_sync;
-    vb->setDriftCounterState(initialDriftCount, timeSync);
-    return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+
+    int64_t last_seqno = vb->setDriftCounterState(initialDriftCount, timeSync);
+    last_seqno = htonll(last_seqno);
+    return sendResponse(response, NULL, 0, NULL, 0,
+                        (const void *)&last_seqno, sizeof(int64_t),
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0 , cookie);
 }
