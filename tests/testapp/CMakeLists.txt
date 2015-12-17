@@ -29,6 +29,10 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_subdoc.cc
                testapp_subdoc_multipath.cc
                testapp_subdoc_perf.cc)
+
+ADD_DEPENDENCIES(memcached_testapp blackhole_logger default_engine
+                 ewouldblock_engine memcached nobucket testapp_extension)
+
 TARGET_LINK_LIBRARIES(memcached_testapp
                       mcd_util
                       cbsasl
