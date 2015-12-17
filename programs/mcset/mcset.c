@@ -149,6 +149,9 @@ int main(int argc, char** argv) {
             ascii = true;
             break;
         case 'S':
+            /* getopt() guarantees optarg is non-null on a successful call, however
+               Clang Static Analyzer is not aware of this. */
+            cb_assert(optarg != NULL);
             size = atoi(optarg);
             break;
         case 'T' :
