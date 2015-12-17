@@ -28,6 +28,7 @@
 #include "extensions/protocol/testapp_extension.h"
 #include <platform/platform.h>
 #include <fstream>
+#include <platform/dirutils.h>
 #include "memcached/openssl.h"
 #include "programs/utilities.h"
 #include "utilities/protocol2text.h"
@@ -4197,6 +4198,21 @@ ConnectionMap TestappTest::connectionMap;
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     initialize_openssl();
+
+#ifndef WIN32
+    /*
+    ** When running the tests from within CLion it starts the test in
+    ** another directory than pwd. This cause us to fail to locate the
+    ** memcached binary to start. To work around that lets just do a
+    ** chdir(dirname(argv[0])).
+    */
+    auto testdir = CouchbaseDirectoryUtilities::dirname(argv[0]);
+    if (chdir(testdir.c_str()) != 0) {
+        std::cerr << "Failed to change directory to " << testdir << std::endl;
+        exit(EXIT_FAILURE);
+    }
+#endif
+
 
 #ifdef __sun
     {
