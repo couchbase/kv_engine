@@ -4566,10 +4566,18 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
             check(num_deletions <= exp_deletions, "Invalid number of deletes");
         }
     } else {
-        checkeq(exp_mutations, num_mutations, "Invalid number of mutations");
-        checkeq(exp_deletions, num_deletions, "Invalid number of deletes");
-        checkeq(exp_markers, num_snapshot_markers,
-                "Didn't receive expected number of snapshot marker");
+        // Account for cursors that may have been dropped because
+        // of high memory usage
+        if (get_int_stat(h, h1, "ep_cursors_dropped") > 0) {
+            check(num_snapshot_markers <= exp_markers, "Invalid number of markers");
+            check(num_mutations <= exp_mutations, "Invalid number of mutations");
+            check(num_deletions <= exp_deletions, "Invalid number of deletions");
+        } else {
+            checkeq(exp_mutations, num_mutations, "Invalid number of mutations");
+            checkeq(exp_deletions, num_deletions, "Invalid number of deletes");
+            checkeq(exp_markers, num_snapshot_markers,
+                    "Didn't receive expected number of snapshot marker");
+        }
     }
 
     if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {

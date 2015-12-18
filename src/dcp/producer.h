@@ -178,7 +178,7 @@ public:
         /*
             Unpause the producer if there's space (or disabled).
         */
-        void unpauseIfSpace();
+        void unpauseIfSpaceAvailable();
 
     private:
 
@@ -247,6 +247,7 @@ private:
     RWLock streamsMutex;
 
     std::vector<AtomicValue<bool> > vbReady;
+    AtomicValue<bool> notifiedVbReady;
 
     std::map<uint16_t, stream_t> streams;
 

@@ -651,9 +651,10 @@ static void perf_dcp_client(struct Handle_args *ha) {
         }
     } while (!done);
 
-    checkeq(num_mutations,
-            static_cast<size_t>(ha->itemCount),
-            "Didn't receive expected number of mutations");
+    // Account for de-duplications / cursors dropped because of
+    // high memory usage
+    check(num_mutations <= static_cast<size_t>(ha->itemCount),
+          "Didn't receive expected number of mutations");
     testHarness.destroy_cookie(cookie);
 }
 
