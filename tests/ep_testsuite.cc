@@ -5198,6 +5198,50 @@ static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+static enum test_result test_dcp_replica_stream_backfill(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1)
+{
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const int num_items = 100;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    /* Open an DCP consumer connection */
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    /* Write backfill elements on to replica, flag (0x02) */
+    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x02, 1, num_items, 0,
+                          num_items);
+
+    /* Stream in mutations from replica */
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "vb_0:high_seqno", num_items,
+                        "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    const void *cookie1 = testHarness.create_cookie();
+    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, 0, num_items, vb_uuid, 0, 0,
+               num_items, 0, 1, 0, 2);
+
+    testHarness.destroy_cookie(cookie1);
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_replica_stream_in_memory(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1)
 {
@@ -12367,6 +12411,9 @@ engine_test_t* get_tests(void) {
                  teardown, NULL, prepare, cleanup),
         TestCase("test dcp consumer noop", test_dcp_consumer_noop, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("test dcp replica stream backfill",
+                 test_dcp_replica_stream_backfill, test_setup, teardown,
+                 "chk_remover_stime=1;max_checkpoints=2", prepare, cleanup),
         TestCase("test dcp replica stream in-memory",
                  test_dcp_replica_stream_in_memory, test_setup, teardown,
                  "chk_remover_stime=1;max_checkpoints=2", prepare, cleanup),

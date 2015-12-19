@@ -1355,7 +1355,9 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
     if (vb) {
         if (marker->getFlags() & MARKER_FLAG_DISK && vb->getHighSeqno() == 0) {
             vb->setBackfillPhase(true);
-            vb->checkpointManager.checkAndAddNewCheckpoint(0, vb);
+            /* When replica vb is in backfill phase, then open checkpoint id
+               is set to 0. */
+            vb->checkpointManager.setOpenCheckpointId(0);
         } else {
             if (marker->getFlags() & MARKER_FLAG_CHK ||
                 vb->checkpointManager.getOpenCheckpointId() == 0) {
