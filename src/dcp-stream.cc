@@ -275,12 +275,24 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
        takeoverState(vbucket_state_pending), backfillRemaining(0),
        itemsFromBackfill(0), itemsFromMemory(0), firstMarkerSent(false),
        waitForSnapshot(0), engine(e), producer(p),
-       isBackfillTaskRunning(false) {
+       isBackfillTaskRunning(false), lastSentSnapEndSeqno(0) {
 
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
         type = "takeover ";
         end_seqno_ = dcpMaxSeqno;
+    }
+
+    RCPtr<VBucket> vbucket = engine->getVBucket(vb);
+    if (vbucket) {
+        ReaderLockHolder rlh(vbucket->getStateLock());
+        if (vbucket->getState() == vbucket_state_replica) {
+            uint64_t snapshot_start, snapshot_end;
+            vbucket->getCurrentSnapshot(snapshot_start, snapshot_end);
+            if (snapshot_end > en_seqno) {
+                end_seqno_ = snapshot_end;
+            }
+        }
     }
 
     if (start_seqno_ >= end_seqno_) {
@@ -337,6 +349,8 @@ DcpResponse* ActiveStream::next() {
 
 void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     LockHolder lh(streamMutex);
+    uint64_t chkCursorSeqno = endSeqno;
+
     if (state_ != STREAM_BACKFILLING) {
         return;
     }
@@ -344,21 +358,39 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     startSeqno = std::min(snap_start_seqno_, startSeqno);
     firstMarkerSent = true;
 
+    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    if (vb) {
+        ReaderLockHolder rlh(vb->getStateLock());
+        if (vb->getState() == vbucket_state_replica) {
+            if (end_seqno_ > endSeqno) {
+                /* We possibly have items in the open checkpoint
+                   (incomplete snapshot) */
+                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Merging backfill and "
+                    "memory snapshot for a replica vbucket, start seqno "
+                    "%" PRIu64 " and end seqno %" PRIu64, producer->logHeader(),
+                    vb_, startSeqno, endSeqno);
+                endSeqno = end_seqno_;
+            }
+        }
+    }
+
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Sending disk snapshot with start "
         "seqno %llu and end seqno %llu", producer->logHeader(), vb_, startSeqno,
         endSeqno);
     pushToReadyQ(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
-                                   MARKER_FLAG_DISK));
-    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+                                    MARKER_FLAG_DISK));
+    lastSentSnapEndSeqno = endSeqno;
+
     if (!vb) {
         endStream(END_STREAM_STATE);
     } else {
         if (endSeqno > end_seqno_) {
-            endSeqno = end_seqno_;
+            chkCursorSeqno = end_seqno_;
         }
         // Only re-register the cursor if we still need to get memory snapshots
         CursorRegResult result =
-            vb->checkpointManager.registerTAPCursorBySeqno(name_, endSeqno);
+            vb->checkpointManager.registerTAPCursorBySeqno(name_,
+                                                           chkCursorSeqno);
         curChkSeqno = result.first;
     }
 
@@ -643,25 +675,29 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
         return;
     }
 
-    uint32_t flags = MARKER_FLAG_MEMORY;
-    uint64_t snapStart = items.front()->getBySeqno();
-    uint64_t snapEnd = items.back()->getBySeqno();
+    if (isCurrentSnapshotCompleted()) {
+        uint32_t flags = MARKER_FLAG_MEMORY;
+        uint64_t snapStart = items.front()->getBySeqno();
+        uint64_t snapEnd = items.back()->getBySeqno();
 
-    if (mark) {
-        flags |= MARKER_FLAG_CHK;
+        if (mark) {
+            flags |= MARKER_FLAG_CHK;
+        }
+
+        if (state_ == STREAM_TAKEOVER_SEND) {
+            waitForSnapshot++;
+            flags |= MARKER_FLAG_ACK;
+        }
+
+        if (!firstMarkerSent) {
+            snapStart = std::min(snap_start_seqno_, snapStart);
+            firstMarkerSent = true;
+        }
+        pushToReadyQ(new SnapshotMarker(opaque_, vb_, snapStart, snapEnd,
+                                        flags));
+        lastSentSnapEndSeqno = snapEnd;
     }
 
-    if (state_ == STREAM_TAKEOVER_SEND) {
-        waitForSnapshot++;
-        flags |= MARKER_FLAG_ACK;
-    }
-
-    if (!firstMarkerSent) {
-        snapStart = std::min(snap_start_seqno_, snapStart);
-        firstMarkerSent = true;
-    }
-
-    pushToReadyQ(new SnapshotMarker(opaque_, vb_, snapStart, snapEnd, flags));
     std::deque<MutationResponse*>::iterator itemItr;
     for (itemItr = items.begin(); itemItr != items.end(); itemItr++) {
         pushToReadyQ(*itemItr);
@@ -714,6 +750,7 @@ void ActiveStream::scheduleBackfill() {
         CursorRegResult result =
             vbucket->checkpointManager.registerTAPCursorBySeqno(name_,
                                                                 lastReadSeqno);
+
         curChkSeqno = result.first;
         bool isFirstItem = result.second;
 
@@ -872,6 +909,20 @@ size_t ActiveStream::getItemsRemaining() {
 const char* ActiveStream::logHeader()
 {
     return producer->logHeader();
+}
+
+bool ActiveStream::isCurrentSnapshotCompleted() const
+{
+    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    if (vbucket) {
+        ReaderLockHolder rlh(vbucket->getStateLock());
+        if (vbucket_state_replica == vbucket->getState()) {
+            if (lastSentSnapEndSeqno >= lastReadSeqno) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
