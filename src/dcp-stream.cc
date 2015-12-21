@@ -840,8 +840,10 @@ void ActiveStream::transitionState(stream_state_t newState) {
         case STREAM_PENDING:
             break;
         case STREAM_READING:
-            throw std::logic_error("ActiveStream::transitionState:"
-                    " newState can't be STREAM_READING!");
+            LOG(EXTENSION_LOG_WARNING,
+                "ActiveStream::transitionState: newState can't be "
+                "STREAM_READING!");
+            break;
     }
 }
 
