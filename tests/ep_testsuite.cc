@@ -5215,6 +5215,9 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
     total_bytes = 0;
     const void *cookie1 = testHarness.create_cookie();
 
+    dcp_last_op = 0;
+    dcp_last_nru = 0;
+
     dcp_stream(h, h1, "unittest1", cookie1, 0, 0, 0, end, vb_uuid, 0, 0,
                num_items, 0, 1, 0, false, false, 0, false, &total_bytes);
 

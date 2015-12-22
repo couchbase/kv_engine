@@ -1231,7 +1231,14 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
      // Document body will be allocated by fdb_iterator_get API below.
      rdoc->body = NULL;
      do {
-         status = fdb_iterator_get(fdb_iter, &rdoc);
+         void *valuePtr = NULL;
+         size_t valueLen = 0;
+
+         if (ctx->valFilter != ValueFilter::KEYS_ONLY) {
+             status = fdb_iterator_get(fdb_iter, &rdoc);
+         } else {
+             status = fdb_iterator_get_metaonly(fdb_iter, &rdoc);
+         }
          if (status != FDB_RESULT_SUCCESS) {
              LOG(EXTENSION_LOG_WARNING,
                  "fdb_iterator_get failed with error: %s",
@@ -1281,8 +1288,13 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
 
          uint64_t bySeqno = static_cast<uint64_t>(rdoc->seqnum);
 
+         if (ctx->valFilter != ValueFilter::KEYS_ONLY && !rdoc->deleted) {
+             valuePtr = rdoc->body;
+             valueLen = rdoc->bodylen;
+         }
+
          Item *it = new Item(rdoc->key, rdoc->keylen, itemflags, (time_t)exptime,
-                             rdoc->body, rdoc->bodylen, ext_meta, ext_len, cas,
+                             valuePtr, valueLen, ext_meta, ext_len, cas,
                              bySeqno, ctx->vbid, rev_seqno);
 
          if (rdoc->deleted) {
