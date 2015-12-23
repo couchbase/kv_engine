@@ -14,13 +14,15 @@
  *   limitations under the License.
  */
 #include "cram-md5.h"
-#include "hmac.h"
 #include "cbsasl/pwfile.h"
 #include "cbsasl/util.h"
 #include <string.h>
 #include <stdlib.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
 
 #define NONCE_LENGTH 8
+#define DIGEST_LENGTH 16
 
 cbsasl_error_t cram_md5_server_init() {
     return CBSASL_OK;
@@ -34,7 +36,7 @@ cbsasl_error_t cram_md5_server_start(cbsasl_conn_t* conn) {
     }
 
     conn->c.server.sasl_data = malloc(NONCE_LENGTH * 2);
-    if(conn->c.server.sasl_data == NULL) {
+    if (conn->c.server.sasl_data == NULL) {
         return CBSASL_FAIL;
     }
 
@@ -43,15 +45,14 @@ cbsasl_error_t cram_md5_server_start(cbsasl_conn_t* conn) {
     return CBSASL_CONTINUE;
 }
 
-cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
-                                    const char *input,
+cbsasl_error_t cram_md5_server_step(cbsasl_conn_t* conn,
+                                    const char* input,
                                     unsigned inputlen,
-                                    const char **output,
-                                    unsigned *outputlen)
-{
+                                    const char** output,
+                                    unsigned* outputlen) {
     unsigned int userlen;
-    char *user;
-    const char *pass;
+    char* user;
+    const char* pass;
     unsigned char digest[DIGEST_LENGTH];
     char md5string[DIGEST_LENGTH * 2];
 
@@ -70,12 +71,15 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
         return CBSASL_NOUSER;
     }
 
-    hmac_md5((unsigned char *)conn->c.server.sasl_data,
+    unsigned int digest_len;
+    if (HMAC(EVP_md5(), (unsigned char*)pass,
+             (int)strlen(pass), (unsigned char*)conn->c.server.sasl_data,
              conn->c.server.sasl_data_len,
-             (unsigned char *)pass,
-             (int)strlen(pass), digest);
+             digest, &digest_len) == NULL || digest_len != DIGEST_LENGTH) {
+        return CBSASL_PWERR;
+    }
 
-    cbsasl_hex_encode(md5string, (char *) digest, DIGEST_LENGTH);
+    cbsasl_hex_encode(md5string, (char*)digest, digest_len);
 
     if (cbsasl_secure_compare(md5string,
                               (DIGEST_LENGTH * 2),
@@ -89,8 +93,7 @@ cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
     return CBSASL_OK;
 }
 
-cbsasl_mechs_t get_cram_md5_mechs(void)
-{
+cbsasl_mechs_t get_cram_md5_mechs(void) {
     static cbsasl_mechs_t mechs = {
         MECH_NAME_CRAM_MD5,
         cram_md5_server_init,

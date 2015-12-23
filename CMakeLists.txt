@@ -135,10 +135,6 @@ LIST(APPEND CBSASL_SOURCES
   ${Memcached_SOURCE_DIR}/cbsasl/common.c
   ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.c
   ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.h
-  ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/hmac.c
-  ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/hmac.h
-  ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/md5.c
-  ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/md5.h
   ${Memcached_SOURCE_DIR}/cbsasl/hash.c
   ${Memcached_SOURCE_DIR}/cbsasl/hash.h
   ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.c

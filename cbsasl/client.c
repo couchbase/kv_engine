@@ -15,11 +15,14 @@
  */
 
 #include "cbsasl/cbsasl.h"
-#include "cram-md5/hmac.h"
 #include "util.h"
 #include <time.h>
 #include <stdlib.h>
 #include <string.h>
+#include <openssl/evp.h>
+#include <openssl/hmac.h>
+
+#define DIGEST_LENGTH 16
 
 CBSASL_PUBLIC_API
 cbsasl_error_t cbsasl_client_new(const char *service,
@@ -190,8 +193,14 @@ cbsasl_error_t cbsasl_client_step(cbsasl_conn_t *conn,
         return CBSASL_NOMEM;
     }
 
-    hmac_md5((unsigned char*)serverin, serverinlen, pass->data,
-             pass->len, digest);
+
+    unsigned int digest_len;
+    if (HMAC(EVP_md5(), (unsigned char*)pass->data, pass->len,
+             (unsigned char*)serverin, serverinlen,
+             digest, &digest_len) == NULL || digest_len != DIGEST_LENGTH) {
+        return CBSASL_FAIL;
+    }
+
     cbsasl_hex_encode(md5string, (char *) digest, DIGEST_LENGTH);
     memcpy(conn->c.client.userdata, usernm, usernmlen);
     conn->c.client.userdata[usernmlen] = ' ';
