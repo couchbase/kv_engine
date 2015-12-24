@@ -3547,7 +3547,8 @@ static void sasl_list_mech_executor(McbpConnection* c, void*) {
     const char* result_string = NULL;
     unsigned int string_length = 0;
 
-    if (cbsasl_list_mechs(&result_string, &string_length) != CBSASL_OK) {
+    if (cbsasl_listmech(c->getSaslConn(), nullptr, nullptr, " ", nullptr,
+                        &result_string, &string_length, nullptr) != CBSASL_OK) {
         /* Perhaps there's a better error for this... */
         LOG_WARNING(c, "%u: Failed to list SASL mechanisms.", c->getId());
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);

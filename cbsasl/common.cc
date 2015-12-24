@@ -16,32 +16,24 @@
 
 #include <platform/platform.h>
 #include "cbsasl/cbsasl.h"
+#include "cbsasl/cbsasl_internal.h"
 #include "util.h"
 #include <stdlib.h>
 
 CBSASL_PUBLIC_API
-void cbsasl_dispose(cbsasl_conn_t **conn)
-{
-    if (*conn != NULL) {
-        if ((*conn)->client) {
-            free((*conn)->c.client.userdata);
-        } else {
-            free((*conn)->c.server.username);
-            free((*conn)->c.server.config);
-            free((*conn)->c.server.sasl_data);
-        }
-
-        free(*conn);
-        *conn = NULL;
+void cbsasl_dispose(cbsasl_conn_t** conn) {
+    if (conn != nullptr) {
+        delete *conn;
+        *conn = nullptr;
     }
 }
 
-static const char *hexchar = "0123456789abcdef";
-void cbsasl_hex_encode(char *dest, const char *src, size_t srclen)
-{
-    size_t i;
-    for (i = 0; i < srclen; i++) {
-        dest[i * 2] = hexchar[(src[i] >> 4) & 0xF];
-        dest[i * 2 + 1] = hexchar[src[i] & 0xF];
+static const char* hexchar = "0123456789abcdef";
+
+void cbsasl_hex_encode(char* dest, const char* src, size_t srclen) {
+    size_t ii;
+    for (ii = 0; ii < srclen; ii++) {
+        dest[ii * 2] = hexchar[(src[ii] >> 4) & 0xF];
+        dest[ii * 2 + 1] = hexchar[src[ii] & 0xF];
     }
 }

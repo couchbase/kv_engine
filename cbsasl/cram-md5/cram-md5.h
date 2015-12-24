@@ -1,5 +1,5 @@
 /*
- *     Copyright 2013 Couchbase, Inc.
+ *     Copyright 2015 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -13,24 +13,49 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#pragma once
 
-#ifndef SRC_CRAM_MD5_CRAM_MD5_H_
-#define SRC_CRAM_MD5_CRAM_MD5_H_ 1
-
+#include <array>
+#include <vector>
 #include "cbsasl/cbsasl.h"
+#include "cbsasl/cbsasl_internal.h"
 
 #define MECH_NAME_CRAM_MD5 "CRAM-MD5"
+#define DIGEST_LENGTH 16
 
-cbsasl_error_t cram_md5_server_init(void);
+class CramMd5ServerBackend : public MechanismBackend {
+public:
+    CramMd5ServerBackend();
 
-cbsasl_error_t cram_md5_server_start(cbsasl_conn_t *conn);
+    virtual cbsasl_error_t start(cbsasl_conn_t* conn, const char* input,
+                                 unsigned inputlen,
+                                 const char** output,
+                                 unsigned* outputlen) override;
 
-cbsasl_error_t cram_md5_server_step(cbsasl_conn_t *conn,
-                                    const char *input,
-                                    unsigned inputlen,
-                                    const char **output,
-                                    unsigned *outputlen);
+    virtual cbsasl_error_t step(cbsasl_conn_t* conn, const char* input,
+                                unsigned inputlen, const char** output,
+                                unsigned* outputlen) override;
 
-cbsasl_mechs_t get_cram_md5_mechs(void);
+private:
+    std::array<char, DIGEST_LENGTH> digest;
+};
 
-#endif  /* SRC_CRAM_MD5_CRAM_MD5_H_ */
+class CramMd5ClientBackend : public MechanismBackend {
+public:
+    CramMd5ClientBackend()
+        : MechanismBackend(MECH_NAME_CRAM_MD5) {
+
+    }
+
+    virtual cbsasl_error_t start(cbsasl_conn_t* conn, const char* input,
+                                 unsigned inputlen,
+                                 const char** output,
+                                 unsigned* outputlen) override;
+
+    virtual cbsasl_error_t step(cbsasl_conn_t* conn, const char* input,
+                                unsigned inputlen, const char** output,
+                                unsigned* outputlen) override;
+
+private:
+    std::vector<char> buffer;
+};

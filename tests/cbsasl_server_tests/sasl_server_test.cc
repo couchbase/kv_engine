@@ -16,6 +16,8 @@
 #include "cbsasl/pwfile.h"
 #include "cbsasl/util.h"
 #include <cbsasl/cbsasl.h>
+#include "cbsasl/cbsasl_internal.h"
+
 #include <gtest/gtest.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
@@ -84,11 +86,39 @@ protected:
 TEST_F(SaslServerTest, ListMechs) {
     const char* mechs = nullptr;
     unsigned len = 0;
-    cbsasl_error_t err = cbsasl_list_mechs(&mechs, &len);
+    cbsasl_error_t err = cbsasl_listmech(nullptr, nullptr, nullptr, " ",
+                                         nullptr, &mechs, &len, nullptr);
     ASSERT_EQ(CBSASL_OK, err);
 
     std::string mechanisms(mechs, len);
     EXPECT_EQ("CRAM-MD5 PLAIN", mechanisms);
+}
+
+TEST_F(SaslServerTest, ListMechsBadParam) {
+    const char* mechs = nullptr;
+    unsigned len = 0;
+    cbsasl_error_t err = cbsasl_listmech(nullptr, nullptr, nullptr, ",",
+                                         nullptr, &mechs, &len, nullptr);
+    ASSERT_EQ(CBSASL_BADPARAM, err);
+}
+
+TEST_F(SaslServerTest, ListMechsSpecialized) {
+    cbsasl_conn_t* conn;
+
+    ASSERT_EQ(CBSASL_OK,
+              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                nullptr, 0, &conn));
+
+    const char* mechs = nullptr;
+    unsigned len = 0;
+    int num;
+    cbsasl_error_t err = cbsasl_listmech(conn, nullptr, "(", ",",
+                                         ")", &mechs, &len, &num);
+    ASSERT_EQ(CBSASL_OK, err);
+    EXPECT_EQ(2, num);
+    std::string mechanisms(mechs, len);
+    EXPECT_EQ("(CRAM-MD5,PLAIN)", mechanisms);
+    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, BadMech) {
@@ -100,16 +130,13 @@ TEST_F(SaslServerTest, BadMech) {
 
 TEST_F(SaslServerTest, PlainCorrectPassword) {
     cbsasl_conn_t* conn = nullptr;
-    const char* output = nullptr;
+    unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
     /* Normal behavior */
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", nullptr, 0,
-                                             nullptr, nullptr);
-    ASSERT_EQ(CBSASL_CONTINUE, err);
-
-    err = cbsasl_server_step(conn, "\0mikewied\0mikepw", 16, &output,
-                             &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN",
+                                             "\0mikewied\0mikepw", 16, &output,
+                                             &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
     free((void*)output);
     cbsasl_dispose(&conn);
@@ -117,15 +144,12 @@ TEST_F(SaslServerTest, PlainCorrectPassword) {
 
 TEST_F(SaslServerTest, PlainWrongPassword) {
     cbsasl_conn_t* conn = nullptr;
-    const char* output = nullptr;
+    unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", nullptr, 0,
-                                             nullptr, nullptr);
-    ASSERT_EQ(CBSASL_CONTINUE, err);
-
-    err = cbsasl_server_step(conn, "\0mikewied\0badpPW", 16, &output,
-                             &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN",
+                                             "\0mikewied\0badpPW", 16, &output,
+                                             &outputlen);
     ASSERT_EQ(CBSASL_PWERR, err);
     free((void*)output);
     cbsasl_dispose(&conn);
@@ -133,14 +157,11 @@ TEST_F(SaslServerTest, PlainWrongPassword) {
 
 TEST_F(SaslServerTest, PlainNoPassword) {
     cbsasl_conn_t* conn = nullptr;
-    const char* output = nullptr;
+    unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", nullptr, 0,
-                                             nullptr, nullptr);
-    ASSERT_EQ(CBSASL_CONTINUE, err);
-
-    err = cbsasl_server_step(conn, "\0nopass\0", 8, &output, &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", "\0nopass\0", 8,
+                                             &output, &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
     free((void*)output);
     cbsasl_dispose(&conn);
@@ -148,15 +169,13 @@ TEST_F(SaslServerTest, PlainNoPassword) {
 
 TEST_F(SaslServerTest, PlainWithAuthzid) {
     cbsasl_conn_t* conn = nullptr;
-    const char* output = nullptr;
+    unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", nullptr, 0,
-                                             nullptr, nullptr);
-    ASSERT_EQ(CBSASL_CONTINUE, err);
-
-    err = cbsasl_server_step(conn, "funzid\0mikewied\0mikepw", 22, &output,
-                             &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN",
+                                             "funzid\0mikewied\0mikepw", 22,
+                                             &output,
+                                             &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
     free((void*)output);
     cbsasl_dispose(&conn);
@@ -164,14 +183,11 @@ TEST_F(SaslServerTest, PlainWithAuthzid) {
 
 TEST_F(SaslServerTest, PlainWithNoPwOrUsernameEndingNull) {
     cbsasl_conn_t* conn = nullptr;
-    const char* output = nullptr;
+    unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", nullptr, 0,
-                                             nullptr, nullptr);
-    ASSERT_EQ(CBSASL_CONTINUE, err);
-
-    err = cbsasl_server_step(conn, "funzid\0mikewied", 15, &output, &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", "funzid\0mikewied",
+                                             15, &output, &outputlen);
     ASSERT_NE(CBSASL_OK, err);
     free((void*)output);
     cbsasl_dispose(&conn);
@@ -179,14 +195,11 @@ TEST_F(SaslServerTest, PlainWithNoPwOrUsernameEndingNull) {
 
 TEST_F(SaslServerTest, PlainNoNullAtAll) {
     cbsasl_conn_t* conn = nullptr;
-    const char* output = nullptr;
+    unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", nullptr, 0,
-                                             nullptr, nullptr);
-    ASSERT_EQ(CBSASL_CONTINUE, err);
-
-    err = cbsasl_server_step(conn, "funzidmikewied", 14, &output, &outputlen);
+    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", "funzidmikewied",
+                                             14, &output, &outputlen);
     ASSERT_NE(CBSASL_OK, err);
     free((void*)output);
     cbsasl_dispose(&conn);
@@ -194,21 +207,24 @@ TEST_F(SaslServerTest, PlainNoNullAtAll) {
 
 TEST_F(SaslServerTest, CramMD5) {
     cbsasl_conn_t* conn = nullptr;
+
+    unsigned char* challenge = nullptr;
+    unsigned challengelen = 0;
+
     ASSERT_EQ(CBSASL_CONTINUE,
-              cbsasl_server_start(&conn, "CRAM-MD5", nullptr, 0, nullptr,
-                                  nullptr));
+              cbsasl_server_start(&conn, "CRAM-MD5", nullptr, 0, &challenge,
+                                  &challengelen));
 
     const char* user = "mikewied";
     const char* pass = "mikepw";
     char creds[128];
     unsigned credslen = 0;
-    const char* output = NULL;
-    unsigned outputlen = 0;
     construct_cram_md5_credentials(creds, &credslen, user,
                                    (unsigned int)strlen(user), pass,
                                    (unsigned int)strlen(pass),
-                                   conn->c.server.sasl_data,
-                                   conn->c.server.sasl_data_len);
+                                   (const char* )challenge, challengelen);
+    const char *output;
+    unsigned outputlen;
 
     ASSERT_EQ(CBSASL_OK,
               cbsasl_server_step(conn, creds, credslen, &output, &outputlen));
@@ -218,9 +234,11 @@ TEST_F(SaslServerTest, CramMD5) {
 
 TEST_F(SaslServerTest, CramMD5WrongPassword) {
     cbsasl_conn_t* conn = nullptr;
+    unsigned char* challenge = nullptr;
+    unsigned challengelen = 0;
     ASSERT_EQ(CBSASL_CONTINUE,
-              cbsasl_server_start(&conn, "CRAM-MD5", nullptr, 0, nullptr,
-                                  nullptr));
+              cbsasl_server_start(&conn, "CRAM-MD5", nullptr, 0, &challenge,
+                                  &challengelen));
 
     const char* user = "mikewied";
     const char* pass = "padpw";
@@ -231,8 +249,7 @@ TEST_F(SaslServerTest, CramMD5WrongPassword) {
     construct_cram_md5_credentials(creds, &credslen, user,
                                    (unsigned int)strlen(user), pass,
                                    (unsigned int)strlen(pass),
-                                   conn->c.server.sasl_data,
-                                   conn->c.server.sasl_data_len);
+                                   (const char* )challenge, challengelen);
 
     ASSERT_EQ(CBSASL_PWERR,
               cbsasl_server_step(conn, creds, credslen, &output, &outputlen));

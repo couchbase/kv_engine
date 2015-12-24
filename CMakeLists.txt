@@ -131,17 +131,18 @@ ENDIF (WIN32)
 LIST(APPEND CBSASL_SOURCES
   ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h
   ${Memcached_SOURCE_DIR}/include/cbsasl/visibility.h
-  ${Memcached_SOURCE_DIR}/cbsasl/client.c
-  ${Memcached_SOURCE_DIR}/cbsasl/common.c
-  ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.c
+  ${Memcached_SOURCE_DIR}/cbsasl/cbsasl_internal.h
+  ${Memcached_SOURCE_DIR}/cbsasl/client.cc
+  ${Memcached_SOURCE_DIR}/cbsasl/common.cc
+  ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.cc
   ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.h
-  ${Memcached_SOURCE_DIR}/cbsasl/hash.c
-  ${Memcached_SOURCE_DIR}/cbsasl/hash.h
-  ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.c
+  ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.cc
+  ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.h
+  ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.cc
   ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.h
   ${Memcached_SOURCE_DIR}/cbsasl/pwfile.cc
   ${Memcached_SOURCE_DIR}/cbsasl/pwfile.h
-  ${Memcached_SOURCE_DIR}/cbsasl/server.c
+  ${Memcached_SOURCE_DIR}/cbsasl/server.cc
   ${Memcached_SOURCE_DIR}/cbsasl/strcmp.c
   ${Memcached_SOURCE_DIR}/cbsasl/util.h)
 

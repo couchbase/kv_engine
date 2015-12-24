@@ -1,5 +1,5 @@
 /*
- *     Copyright 2013 Couchbase, Inc.
+ *     Copyright 2015 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -13,23 +13,43 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_PLAIN_PLAIN_H_
-#define SRC_PLAIN_PLAIN_H_ 1
+#pragma once
 
 #include "cbsasl/cbsasl.h"
+#include "cbsasl/cbsasl_internal.h"
+#include <vector>
+
 #define MECH_NAME_PLAIN "PLAIN"
 
-cbsasl_error_t plain_server_init(void);
+class PlainServerBackend : public MechanismBackend {
+public:
+    PlainServerBackend()
+        : MechanismBackend(MECH_NAME_PLAIN) {
 
-cbsasl_error_t plain_server_start(cbsasl_conn_t *conn);
+    }
 
-cbsasl_error_t plain_server_step(cbsasl_conn_t *conn,
-                                 const char *input,
+    virtual cbsasl_error_t start(cbsasl_conn_t* conn, const char* input,
                                  unsigned inputlen,
-                                 const char **output,
-                                 unsigned *outputlen);
+                                 const char** output,
+                                 unsigned* outputlen) override;
+};
 
-cbsasl_mechs_t get_plain_mechs(void);
+class PlainClientBackend : public MechanismBackend {
+public:
+    PlainClientBackend()
+        : MechanismBackend(MECH_NAME_PLAIN) {
 
-#endif  /* SRC_PLAIN_PLAIN_H_ */
+    }
+
+    virtual cbsasl_error_t start(cbsasl_conn_t* conn, const char* input,
+                                 unsigned inputlen,
+                                 const char** output,
+                                 unsigned* outputlen) override;
+
+private:
+    /**
+     * Where to store the encoded string:
+     * "\0username\0password"
+     */
+    std::vector<char> buffer;
+};

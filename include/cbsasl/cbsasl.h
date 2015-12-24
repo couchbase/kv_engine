@@ -1,5 +1,5 @@
 /*
- *     Copyright 2013 Couchbase, Inc.
+ *     Copyright 2015 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -24,14 +24,14 @@ extern "C" {
 #endif
 
     typedef enum cbsasl_error {
-        CBSASL_OK,
-        CBSASL_CONTINUE,
-        CBSASL_FAIL,
-        CBSASL_NOMEM,
-        CBSASL_BADPARAM,
-        CBSASL_NOMECH,
-        CBSASL_NOUSER,
-        CBSASL_PWERR
+        CBSASL_OK = 0,
+        CBSASL_CONTINUE = 1,
+        CBSASL_FAIL = 2,
+        CBSASL_NOMEM = 3,
+        CBSASL_BADPARAM = 4,
+        CBSASL_NOMECH = 5,
+        CBSASL_NOUSER = 6,
+        CBSASL_PWERR = 7
     } cbsasl_error_t;
 
     typedef struct {
@@ -47,58 +47,36 @@ extern "C" {
 
     typedef struct cbsasl_conn_st cbsasl_conn_t;
 
-#ifdef BUILDING_CBSASL
-    typedef cbsasl_error_t (*cbsasl_init_fn)();
-    typedef cbsasl_error_t (*cbsasl_start_fn)(cbsasl_conn_t *);
-    typedef cbsasl_error_t (*cbsasl_step_fn)(cbsasl_conn_t *, const char *,
-                                             unsigned, const char **, unsigned *);
-
-    typedef struct cbsasl_mechs {
-        const char *name;
-        cbsasl_init_fn init;
-        cbsasl_start_fn start;
-        cbsasl_step_fn step;
-    } cbsasl_mechs_t;
-
-    struct cbsasl_client_conn_t {
-        char *userdata;
-        int plain;
-        int (*get_username)(void *context, int id, const char **result,
-                            unsigned int *len);
-        void *get_username_ctx;
-        int (*get_password)(cbsasl_conn_t *conn, void *context, int id,
-                            cbsasl_secret_t **psecret);
-        void *get_password_ctx;
-    };
-
-    struct cbsasl_server_conn_t {
-        char *username;
-        char *config;
-        char *sasl_data;
-        unsigned int sasl_data_len;
-        cbsasl_mechs_t mech;
-    };
-
-    struct cbsasl_conn_st {
-        int client;
-        union {
-            struct cbsasl_client_conn_t client;
-            struct cbsasl_server_conn_t server;
-        } c;
-    };
-#endif
-
     /**
      * Lists all of the mechanisms this sasl server supports
      *
-     * @param mechs A string containing all supported mechanism names
-     * @param mechslen The length of the mechs string
+     * Currently all parameters except result and len is ignored, but provided
+     * to maintain compatibility with other SASL implementations.
+     *
+     * @param conn the connection object that wants to call list mechs. May
+     *             be null
+     * @param user the user who wants to connect (may restrict the available
+     *             mechs). May be null
+     * @param prefix the prefix to insert to the resulting string (may be null)
+     * @param sep the separator between each mechanism
+     * @param suffix the suffix to append to the resulting string (may be null)
+     * @param result pointer to where the result is to be stored (allocated
+     *               and feed by the library)
+     * @param len the length of the resulting string (may be null)
+     * @param count the number of mechanisms in the resulting string (may be
+     *              null)
      *
      * @return Whether or not an error occured while getting the mechanism list
      */
     CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_list_mechs(const char **mechs,
-                                     unsigned *mechslen);
+    cbsasl_error_t cbsasl_listmech(cbsasl_conn_t* conn,
+                                   const char* user,
+                                   const char* prefix,
+                                   const char* sep,
+                                   const char* suffix,
+                                   const char** result,
+                                   unsigned* len,
+                                   int* count);
 
     /**
      * Initializes the sasl server
@@ -118,6 +96,35 @@ extern "C" {
      */
     CBSASL_PUBLIC_API
     cbsasl_error_t cbsasl_server_term(void);
+
+
+    /**
+     * create context for a single SASL connection
+     *  @param service registered name of the service using SASL (e.g. "imap")
+     *  @param serverFQDN  Fully qualified domain name of server.  NULL means use
+     *                    gethostname() or equivalent.
+     *                    Useful for multi-homed servers.
+     *  @param user_realm permits multiple user realms on server, NULL = default
+     *  @param iplocalport server IPv4/IPv6 domain literal string with port
+     *                     (if NULL, then mechanisms requiring IPaddr are disabled)
+     *  @param ipremoteport client IPv4/IPv6 domain literal string with port
+     *                    (if NULL, then mechanisms requiring IPaddr are disabled)
+     *  @param callbacks  callbacks (e.g., authorization, lang, new getopt context)
+     *  @param flags usage flags (see above)
+     *  @param conn where to store the allocated context
+     *
+     * @returns SASL_OK upon success
+     */
+    CBSASL_PUBLIC_API
+    cbsasl_error_t cbsasl_server_new(const char *service, // may be null
+                                     const char *serverFQDN,  // may be null
+                                     const char *user_realm,  // may be null
+                                     const char *iplocalport,  // may be null
+                                     const char *ipremoteport,  // may be null
+                                     const cbsasl_callback_t *callbacks,  // may be null
+                                     unsigned int flags,
+                                     cbsasl_conn_t **conn);
+
 
     /**
      * Creates a sasl connection and begins authentication
@@ -172,19 +179,13 @@ extern "C" {
     cbsasl_error_t cbsasl_server_refresh(void);
 
     typedef enum {
-        CBSASL_USERNAME = 0,
-        CBSASL_CONFIG = 1
+        CBSASL_USERNAME = 0
     } cbsasl_prop_t;
 
     CBSASL_PUBLIC_API
     cbsasl_error_t cbsasl_getprop(cbsasl_conn_t *conn,
                                   cbsasl_prop_t propnum,
                                   const void **pvalue);
-
-    CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_setprop(cbsasl_conn_t *conn,
-                                  cbsasl_prop_t propnum,
-                                  const void *pvalue);
 
     /* Client API */
 

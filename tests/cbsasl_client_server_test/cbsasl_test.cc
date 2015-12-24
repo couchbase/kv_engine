@@ -105,11 +105,11 @@ protected:
         memcpy(context.secret->data, "mikepw", 6);
         context.secret->len = 6;
 
-        EXPECT_EQ(CBSASL_OK, cbsasl_client_new(nullptr, nullptr, nullptr,
+        ASSERT_EQ(CBSASL_OK, cbsasl_client_new(nullptr, nullptr, nullptr,
                                                nullptr, sasl_callbacks, 0,
                                                &client));
 
-        EXPECT_EQ(CBSASL_OK, cbsasl_client_start(client, mech, nullptr,
+        ASSERT_EQ(CBSASL_OK, cbsasl_client_start(client, mech, nullptr,
                                                  &data, &len, &chosenmech));
 
         err = cbsasl_server_start(&server, chosenmech, data, len,
