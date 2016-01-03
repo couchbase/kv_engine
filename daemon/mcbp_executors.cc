@@ -3526,7 +3526,8 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
         log_buffer[offset] = '\0';
         --offset;
     }
-    LOG_NOTICE(c, "%u: %s", c->getId(), log_buffer);
+    LOG_NOTICE(c, "%u: %s %s", c->getId(), log_buffer,
+               c->getDescription().c_str());
 }
 
 static void version_executor(McbpConnection* c, void*) {
