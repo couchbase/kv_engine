@@ -54,7 +54,7 @@ public:
         // Setup audit config file name
         char auditConfigFileName[1024];
         const char* pattern = "memcached_testapp.audit.json.XXXXXX";
-        cosnt std::string cwd = get_working_current_directory();
+        const std::string cwd = get_working_current_directory();
         snprintf(auditConfigFileName,
                  sizeof(auditConfigFileName),
                  "%s/%s",
@@ -104,16 +104,14 @@ public:
         // Set ewouldblock_engine test harness to default mode.
         ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_FIRST,
                                      /*unused*/0);
+        setControlToken();
     }
 
-    /*
-     * 1. rm -fr the audit log directory
-     * 2. assert that the test stopped memcached (done by checking sock)
-     */
+
     void TearDown() {
         ASSERT_TRUE(CouchbaseDirectoryUtilities::rmrf(auditLogDirName));
         EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(auditConfigFileName));
-        ASSERT_EQ(sock, INVALID_SOCKET);
+        TestappTest::TearDownTestCase();
     }
 
     std::vector<unique_cJSON_ptr> readAuditData();
@@ -175,17 +173,17 @@ TEST_F(AuditTest, AuditIllegalPacket) {
                                       0, 0);
 
     // Now make packet illegal.
+    auto diff = ntohl(send.request.message.header.request.bodylen) - 1;
     send.request.message.header.request.bodylen = htonl(1);
-
-    safe_send(send.bytes, len, false);
+    safe_send(send.bytes, len - diff, false);
 
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
 
     // stop memcached so it writes out the audit logs.
-    stop_memcached_server();
-
+    sendShutdown(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    waitForShutdown();
     ASSERT_TRUE(searchAuditLogForID(20483));
 }
 
@@ -194,7 +192,8 @@ TEST_F(AuditTest, AuditIllegalPacket) {
  * Validate that we log start/stop
  */
 TEST_F(AuditTest, AuditStartedStopped) {
-    stop_memcached_server();
+    sendShutdown(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    waitForShutdown();
     ASSERT_TRUE(searchAuditLogForID(4096));
     ASSERT_TRUE(searchAuditLogForID(4097));
 }
@@ -222,8 +221,8 @@ TEST_F(AuditTest, AuditFailedAuth) {
     safe_recv_packet(&buffer, sizeof(buffer));
     mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_SASL_AUTH,
                                   PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
-
-    stop_memcached_server();
+    sendShutdown(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    waitForShutdown();
     ASSERT_TRUE(searchAuditLogForID(20481));
 }
 
@@ -256,7 +255,10 @@ TEST_F(AuditTest, AuditRBACFailed) {
     safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
     mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_NOOP,
                                   PROTOCOL_BINARY_RESPONSE_EACCESS);
-
-    stop_memcached_server();
+    // An RBAC violation causes memcached to disconnect from the client.
+    // So need to perform a reconnect to send the shutdown command.
+    reconnect_to_server();
+    sendShutdown(PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    waitForShutdown();
     ASSERT_TRUE(searchAuditLogForID(20484));
 }

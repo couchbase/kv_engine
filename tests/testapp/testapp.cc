@@ -134,6 +134,7 @@ void TestappTest::CreateTestBucket()
 // Per-test-case set-up.
 // Called before the first test in this test case.
 void TestappTest::SetUpTestCase() {
+    token = 0xdeadbeef;
     memcached_cfg.reset(generate_config(0));
     start_memcached_server(memcached_cfg.get());
 
@@ -712,7 +713,7 @@ static SOCKET connect_to_server_ssl(in_port_t ssl_port) {
     Uses global port and ssl_port values.
     New socket-fd written to global "sock" and "ssl_bio"
 */
-static void reconnect_to_server() {
+void reconnect_to_server() {
     if (current_phase == phase_ssl) {
         closesocket(sock_ssl);
         destroy_ssl_socket();
@@ -748,6 +749,36 @@ void TestappTest::start_memcached_server(cJSON* config) {
     start_server(&port, &ssl_port, false, 30);
 }
 
+
+/**
+ * Waits for server to shutdown.  It assumes that the server is
+ * already in the process of being shutdown
+ */
+void TestappTest::waitForShutdown(void) {
+#ifdef WIN32
+    ASSERT_EQ(WAIT_OBJECT_0, WaitForSingleObject(server_pid, 60000));
+    DWORD exit_code = NULL;
+    GetExitCodeProcess(server_pid, &exit_code);
+    EXPECT_EQ(0, exit_code);
+#else
+    int status;
+    pid_t ret;
+    int retry = 60;
+    while ((ret = waitpid(server_pid, &status, WNOHANG)) != server_pid && retry > 0) {
+        ASSERT_NE(reinterpret_cast<pid_t>(-1), ret)
+                  << "waitpid failed: " << strerror(errno);
+        ASSERT_EQ(0, ret);
+        --retry;
+        sleep(1);
+    }
+    EXPECT_NE(0, retry);
+    EXPECT_TRUE(WIFEXITED(status));
+    EXPECT_EQ(0, WEXITSTATUS(status));
+#endif
+    server_pid = reinterpret_cast<pid_t>(-1);
+}
+
+
 void TestappTest::stop_memcached_server() {
 
     connectionMap.invalidate();
@@ -759,20 +790,12 @@ void TestappTest::stop_memcached_server() {
     if (server_pid != reinterpret_cast<pid_t>(-1)) {
 #ifdef WIN32
         TerminateProcess(server_pid, 0);
-        WaitForSingleObject(server_pid, INFINITE);
-        DWORD exit_code = NULL;
-        GetExitCodeProcess(server_pid, &exit_code);
-        EXPECT_EQ(0, exit_code);
+        waitForShutdown();
 #else
         if (kill(server_pid, SIGTERM) == 0) {
-            /* Wait for the process to be gone... */
-            int status;
-            waitpid(server_pid, &status, 0);
-            EXPECT_TRUE(WIFEXITED(status));
-            EXPECT_EQ(0, WEXITSTATUS(status));
+            waitForShutdown();
         }
 #endif
-        server_pid = pid_t(-1);
     }
 
     if (!config_file.empty()) {
@@ -780,6 +803,46 @@ void TestappTest::stop_memcached_server() {
         config_file.clear();
     }
 }
+
+
+/**
+ * Set the session control token in memcached (this token is used
+ * to validate the shutdown command)
+ */
+void TestappTest::setControlToken(void) {
+    std::vector<char> message(32);
+    mcbp_raw_command(message.data(), message.size(),
+                     PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
+                     nullptr, 0, nullptr, 0);
+    char* ptr = reinterpret_cast<char*>(&token);
+    memcpy(message.data() + 24, ptr, sizeof(token));
+    safe_send(message.data(), message.size(), false);
+    uint8_t buffer[1024];
+    safe_recv_packet(buffer, sizeof(buffer));
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(buffer);
+    mcbp_validate_response_header(rsp, PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
+/**
+ * Send the shutdown message to the server and read the response
+ * back and compare it with the expected result
+ */
+void TestappTest::sendShutdown(protocol_binary_response_status status) {
+    // build the shutdown packet
+    std::vector<char> packet(24);
+    mcbp_raw_command(packet.data(), packet.size(),
+                     PROTOCOL_BINARY_CMD_SHUTDOWN,
+                     nullptr, 0, nullptr, 0);
+    char* ptr = reinterpret_cast<char*>(&token);
+    memcpy(packet.data() + 16, ptr, sizeof(token));
+    safe_send(packet.data(), packet.size(), false);
+    uint8_t buffer[1024];
+    safe_recv_packet(buffer, sizeof(buffer));
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(buffer);
+    mcbp_validate_response_header(rsp, PROTOCOL_BINARY_CMD_SHUTDOWN, status);
+}
+
 
 static ssize_t socket_send(SOCKET s, const char *buf, size_t len)
 {
@@ -4194,6 +4257,7 @@ char McdEnvironment::isasl_env_var[256];
 unique_cJSON_ptr TestappTest::memcached_cfg;
 std::string TestappTest::config_file;
 ConnectionMap TestappTest::connectionMap;
+uint64_t TestappTest::token;
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);

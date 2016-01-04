@@ -85,7 +85,23 @@ protected:
     static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
                              bool daemon, int timeout);
 
+    /**
+     * Waits for server to shutdown.  It assumes that the server is
+     * already in the process of being shutdown
+     */
+    static void waitForShutdown();
+
     static void stop_memcached_server();
+    /**
+     * Set the session control token in memcached (this token is used
+     * to validate the shutdown command)
+     */
+    static void setControlToken();
+    /**
+     * Send the shutdown message to the server and read the response
+     * back and compare it with the expected result
+     */
+    static void sendShutdown(protocol_binary_response_status status);
 
     // Create the bucket used for testing
     static void CreateTestBucket();
@@ -104,6 +120,7 @@ protected:
     static std::string config_file;
 
     static ConnectionMap connectionMap;
+    static uint64_t token;
 };
 
 // Test the various memcached binary protocol commands against a
@@ -148,6 +165,7 @@ private:
 };
 
 SOCKET connect_to_server_plain(in_port_t port);
+void reconnect_to_server();
 
 /* Compress the given document. Returns the size of the compressed document,
  * and deflated is updated to point to the compressed buffer.

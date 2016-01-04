@@ -20,10 +20,6 @@
 
 class ShutdownTest : public TestappTest {
 public:
-    ShutdownTest()
-        : token(0xdeadbeef) {
-    }
-
     static void SetUpTestCase() {
         // Do nothing.
         //
@@ -55,29 +51,6 @@ public:
 
 protected:
     /**
-     * Set the session control token in memcached (this token is used
-     * to validate the shutdown command)
-     */
-    void setControlToken() {
-        std::vector<char> message;
-        message.resize(32);
-        mcbp_raw_command(message.data(), message.size(),
-                         PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
-                         nullptr, 0, nullptr, 0);
-
-        char* ptr = reinterpret_cast<char*>(&token);
-        memcpy(message.data() + 24, ptr, sizeof(token));
-
-        safe_send(message.data(), message.size(), false);
-        uint8_t buffer[1024];
-        safe_recv_packet(buffer, sizeof(buffer));
-        auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(buffer);
-        mcbp_validate_response_header(rsp, PROTOCOL_BINARY_CMD_SET_CTRL_TOKEN,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    }
-
-    /**
      * Assume the specified role
      */
     void assumeRole(const std::string& role) {
@@ -94,29 +67,6 @@ protected:
                                       PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     }
-
-    /**
-     * Send the shutdown message to the server and read the response
-     * back and compare it with the expected result
-     */
-    void sendShutdown(protocol_binary_response_status status) {
-        // build the shutdown packet
-        std::vector<char> packet;
-        packet.resize(24);
-        mcbp_raw_command(packet.data(), packet.size(),
-                         PROTOCOL_BINARY_CMD_SHUTDOWN,
-                         nullptr, 0, nullptr, 0);
-        char* ptr = reinterpret_cast<char*>(&token);
-        memcpy(packet.data() + 16, ptr, sizeof(token));
-        safe_send(packet.data(), packet.size(), false);
-
-        uint8_t buffer[1024];
-        safe_recv_packet(buffer, sizeof(buffer));
-        auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(buffer);
-        mcbp_validate_response_header(rsp, PROTOCOL_BINARY_CMD_SHUTDOWN, status);
-    }
-
-    uint64_t token;
 };
 
 TEST_F(ShutdownTest, ShutdownNotAllowed) {
@@ -126,27 +76,5 @@ TEST_F(ShutdownTest, ShutdownNotAllowed) {
 
 TEST_F(ShutdownTest, ShutdownAllowed) {
     sendShutdown(PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-#ifdef WIN32
-    ASSERT_EQ(WAIT_OBJECT_0, WaitForSingleObject(server_pid, 60000));
-    DWORD exit_code = NULL;
-    GetExitCodeProcess(server_pid, &exit_code);
-    EXPECT_EQ(0, exit_code);
-#else
-    /* Wait for the process to be gone... */
-    int status;
-    pid_t ret;
-    int retry = 60;
-    while ((ret = waitpid(server_pid, &status, 0)) != server_pid && retry > 0) {
-        ASSERT_NE(reinterpret_cast<pid_t>(-1), ret)
-            << "waitpid failed: " << strerror(errno);
-        ASSERT_EQ(0, ret);
-        --retry;
-        sleep(1);
-    }
-    EXPECT_NE(0, retry);
-    EXPECT_TRUE(WIFEXITED(status));
-    EXPECT_EQ(0, WEXITSTATUS(status));
-#endif
-    server_pid = reinterpret_cast<pid_t>(-1);
+    waitForShutdown();
 }

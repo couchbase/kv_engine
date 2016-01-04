@@ -3,7 +3,7 @@ ADD_EXECUTABLE(memcached_testapp
                ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
                testapp.cc
                testapp.h
-               #testapp_audit.cc
+               testapp_audit.cc
                testapp_binprot.cc
                testapp_binprot.h
                testapp_bucket.cc
@@ -102,7 +102,7 @@ ADD_TEST(NAME memcached-basic-perf-tests
 # Test timeouts. Roughly calibrated to be 2x what the expected time is on the
 # slowest Jenkins platform/config.
 SET_TESTS_PROPERTIES(memcached-basic-perf-tests PROPERTIES TIMEOUT 400)
-SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 30)
+SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-require-init PROPERTIES TIMEOUT 200)
 SET_TESTS_PROPERTIES(memcached-bucket-unit-tests PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-getset-unit-tests PROPERTIES TIMEOUT 400)
