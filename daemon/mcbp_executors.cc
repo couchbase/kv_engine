@@ -3607,7 +3607,7 @@ static void sasl_auth_executor(McbpConnection* c, void* packet) {
         }
 
         c->setAuthenticated(true);
-        mcbp_write_response(c, NULL, 0, 0, 0);
+        mcbp_write_response(c, out, 0, 0, outlen);
 
         /*
          * We've successfully changed our user identity.

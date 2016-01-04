@@ -173,11 +173,20 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t* conn,
 
     conn->mechanism = MechanismFactory::toMechanism(mech);
     if (conn->mechanism == Mechanism::UNKNOWN) {
+        cbsasl_log(conn, cbsasl_loglevel_t::Debug,
+                   "Failed to look up mechanism [" + std::string(mech) + "]");
         return CBSASL_BADPARAM;
     }
 
+    cbsasl_log(conn, cbsasl_loglevel_t::Debug, "Client requests the use of [" +
+                                               MechanismFactory::toString(
+                                                   conn->mechanism) + "]");
+
     server->mech = MechanismFactory::createServerBackend(conn->mechanism);
     if (server->mech.get() == nullptr) {
+        cbsasl_log(conn, cbsasl_loglevel_t::Debug,
+                   "Failed to create instance of [" +
+                   MechanismFactory::toString(conn->mechanism) + "]");
         return CBSASL_NOMEM;
     }
 

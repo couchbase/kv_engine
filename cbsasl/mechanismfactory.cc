@@ -17,10 +17,13 @@
 #include "cram-md5/cram-md5.h"
 #include "mechanismfactory.h"
 #include "plain/plain.h"
+#include "scram-sha/scram-sha.h"
 
 #include <algorithm>
 #include <cstring>
 #include <stdexcept>
+#include <string>
+#include <memory>
 
 UniqueMechanismBackend MechanismFactory::createServerBackend(
     const Mechanism& mechanism) {
@@ -29,6 +32,12 @@ UniqueMechanismBackend MechanismFactory::createServerBackend(
         return std::unique_ptr<MechanismBackend>(new PlainServerBackend);
     case Mechanism::CRAM_MD5:
         return std::unique_ptr<MechanismBackend>(new CramMd5ServerBackend);
+    case Mechanism::SCRAM_SHA1:
+        return UniqueMechanismBackend(new ScramSha1ServerBackend);
+    case Mechanism::SCRAM_SHA256:
+        return UniqueMechanismBackend(new ScramSha256ServerBackend);
+    case Mechanism::SCRAM_SHA512:
+        return UniqueMechanismBackend(new ScramSha512ServerBackend);
     case Mechanism::UNKNOWN:
         throw std::invalid_argument("MechanismFactory::create() can't be "
                                         "called with an unknown mechanism");
@@ -44,6 +53,12 @@ UniqueMechanismBackend MechanismFactory::createClientBackend(
         return std::unique_ptr<MechanismBackend>(new PlainClientBackend);
     case Mechanism::CRAM_MD5:
         return std::unique_ptr<MechanismBackend>(new CramMd5ClientBackend);
+    case Mechanism::SCRAM_SHA1:
+        return UniqueMechanismBackend(new ScramSha1ClientBackend);
+    case Mechanism::SCRAM_SHA256:
+        return UniqueMechanismBackend(new ScramSha256ClientBackend);
+    case Mechanism::SCRAM_SHA512:
+        return UniqueMechanismBackend(new ScramSha512ClientBackend);
     case Mechanism::UNKNOWN:
         throw std::invalid_argument("MechanismFactory::create() can't be "
                                         "called with an unknown mechanism");
@@ -51,7 +66,6 @@ UniqueMechanismBackend MechanismFactory::createClientBackend(
     throw std::invalid_argument("MechanismFactory::create() can't be "
                                     "called with an unknown mechanism");
 }
-
 
 /**
  * Search to see if the mechlist contains the given name
@@ -91,7 +105,13 @@ Mechanism MechanismFactory::selectMechanism(const std::string& mechlist) {
     std::transform(uppercase.begin(), uppercase.end(), uppercase.begin(),
                    toupper);
 
-    if (containsMechanism(uppercase, MECH_NAME_CRAM_MD5)) {
+    if (containsMechanism(uppercase, MECH_NAME_SCRAM_SHA512)) {
+        return Mechanism::SCRAM_SHA512;
+    } else if (containsMechanism(uppercase, MECH_NAME_SCRAM_SHA256)) {
+        return Mechanism::SCRAM_SHA256;
+    } else if (containsMechanism(uppercase, MECH_NAME_SCRAM_SHA1)) {
+        return Mechanism::SCRAM_SHA1;
+    } else if (containsMechanism(uppercase, MECH_NAME_CRAM_MD5)) {
         return Mechanism::CRAM_MD5;
     } else if (containsMechanism(uppercase, MECH_NAME_PLAIN)) {
         return Mechanism::PLAIN;
@@ -111,7 +131,13 @@ cbsasl_error_t MechanismFactory::list(cbsasl_conn_t* conn, const char* user,
     // Are we asking for the default string?
     if (user == nullptr && prefix == nullptr && suffix == nullptr &&
         strcmp(sep, " ") == 0) {
-        *result = MECH_NAME_CRAM_MD5 " " MECH_NAME_PLAIN;
+#ifdef __APPLE__
+        *result = MECH_NAME_SCRAM_SHA1 " " MECH_NAME_CRAM_MD5
+            " " MECH_NAME_PLAIN;
+#else
+        *result = MECH_NAME_SCRAM_SHA512 " " MECH_NAME_SCRAM_SHA256 " "
+            MECH_NAME_SCRAM_SHA1 " " MECH_NAME_CRAM_MD5 " " MECH_NAME_PLAIN;
+#endif
 
         if (len != nullptr) {
             *len = (unsigned)strlen(*result);
@@ -120,6 +146,7 @@ cbsasl_error_t MechanismFactory::list(cbsasl_conn_t* conn, const char* user,
         if (count != nullptr) {
             *count = 2;
         }
+
         return CBSASL_OK;
     }
 
@@ -135,13 +162,28 @@ cbsasl_error_t MechanismFactory::list(cbsasl_conn_t* conn, const char* user,
             conn->server->list_mechs.append(prefix);
         }
 
-        conn->server->list_mechs.append(MECH_NAME_CRAM_MD5);
-        if (sep == nullptr) {
-            conn->server->list_mechs.append(" ");
-        } else {
-            conn->server->list_mechs.append(sep);
+        const std::vector<std::string> mechs{
+#ifndef __APPLE__
+            MECH_NAME_SCRAM_SHA512,
+            MECH_NAME_SCRAM_SHA256,
+#endif
+            MECH_NAME_SCRAM_SHA1,
+            MECH_NAME_CRAM_MD5,
+            MECH_NAME_PLAIN};
+        bool needSep = false;
+
+        for (const auto& mech : mechs) {
+            if (needSep) {
+                if (sep == nullptr) {
+                    conn->server->list_mechs.append(" ");
+                } else {
+                    conn->server->list_mechs.append(sep);
+                }
+            } else {
+                needSep = true;
+            }
+            conn->server->list_mechs.append(mech);
         }
-        conn->server->list_mechs.append(MECH_NAME_PLAIN);
 
         if (suffix != nullptr) {
             conn->server->list_mechs.append(suffix);
@@ -172,7 +214,31 @@ Mechanism MechanismFactory::toMechanism(const std::string mech) {
         return Mechanism::PLAIN;
     } else if (mech == MECH_NAME_CRAM_MD5) {
         return Mechanism::CRAM_MD5;
+    } else if (mech == MECH_NAME_SCRAM_SHA1) {
+        return Mechanism::SCRAM_SHA1;
+    } else if (mech == MECH_NAME_SCRAM_SHA256) {
+        return Mechanism::SCRAM_SHA256;
+    } else if (mech == MECH_NAME_SCRAM_SHA512) {
+        return Mechanism::SCRAM_SHA512;
     } else {
         return Mechanism::UNKNOWN;
     }
+}
+
+std::string MechanismFactory::toString(const Mechanism& mech) {
+    switch (mech) {
+    case Mechanism::PLAIN:
+        return MECH_NAME_PLAIN;
+    case Mechanism::CRAM_MD5:
+        return MECH_NAME_CRAM_MD5;
+    case Mechanism::SCRAM_SHA1:
+        return MECH_NAME_SCRAM_SHA1;
+    case Mechanism::SCRAM_SHA256:
+        return MECH_NAME_SCRAM_SHA256;
+    case Mechanism::SCRAM_SHA512:
+        return MECH_NAME_SCRAM_SHA512;
+    case Mechanism::UNKNOWN:
+        break;
+    }
+    throw std::invalid_argument("Provided mechanism does not exist");
 }

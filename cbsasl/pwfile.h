@@ -16,14 +16,26 @@
 #pragma once
 
 #include "cbsasl/cbsasl.h"
+#include "user.h"
 #include <string>
 
 /**
- * Searches for a password entry for the specified user. On success, returns
- * the user's password. On failure
- * returns NULL.
+ * Searches for a password entry for the specified user.
+ *
+ * @param user the username to search for
+ * @param password updated with the users password if found
+ * @return true if user exists, false otherwise
  */
 bool find_pw(const std::string& user, std::string& password);
+
+/**
+ * Searches for a user entry for the specified user.
+ *
+ * @param user the username to search for
+ * @param user updated with the user information if found
+ * @return true if user exists, false otherwise
+ */
+bool find_user(const std::string& username, Couchbase::User &user);
 
 cbsasl_error_t load_user_db(void);
 

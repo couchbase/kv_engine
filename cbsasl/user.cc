@@ -108,3 +108,58 @@ void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn,
         }
     }
 }
+
+void Couchbase::User::generateSecrets(const Mechanism& mech) {
+    if (!dummy) {
+        throw std::runtime_error("Couchbase::User::generateSecrets can't be "
+                                     "used on a real user object");
+    }
+
+    std::vector<uint8_t> salt;
+    std::string passwd;
+
+    switch (mech) {
+#ifndef __APPLE__
+    case Mechanism::SCRAM_SHA512:
+        salt.resize(Sha512DigestSize);
+        generateSalt(salt, passwd);
+        generateSalt(salt, sha512Salt);
+        if (PKCS5_PBKDF2_HMAC(passwd.data(), int(passwd.size()),
+                              salt.data(), int(salt.size()),
+                              iterationCount,
+                              EVP_sha512(),
+                              Sha512DigestSize,
+                              saltedSha512Password.data()) != 1) {
+            throw std::runtime_error("PKCS5_PBKDF2_HMAC SHA512 failed");
+        }
+        break;
+    case Mechanism::SCRAM_SHA256:
+        salt.resize(Sha256DigestSize);
+        generateSalt(salt, passwd);
+        generateSalt(salt, sha256Salt);
+        if (PKCS5_PBKDF2_HMAC(passwd.data(), int(passwd.size()),
+                              salt.data(), int(salt.size()),
+                              iterationCount,
+                              EVP_sha256(),
+                              Sha256DigestSize,
+                              saltedSha256Password.data()) != 1) {
+            throw std::runtime_error("PKCS5_PBKDF2_HMAC SHA256 failed");
+        }
+        break;
+#endif
+    case Mechanism::SCRAM_SHA1:
+        salt.resize(Sha1DigestSize);
+        generateSalt(salt, passwd);
+        generateSalt(salt, sha1Salt);
+        if (PKCS5_PBKDF2_HMAC_SHA1(passwd.data(), int(passwd.size()),
+                                   salt.data(), int(salt.size()),
+                                   iterationCount,
+                                   Sha1DigestSize,
+                                   saltedSha1Password.data()) != 1) {
+            throw std::runtime_error("PKCS5_PBKDF2_HMAC_SHA1 failed");
+        }
+        break;
+    default:
+        throw std::logic_error("Couchbase::User::generateSecrets invalid mech");
+    }
+}

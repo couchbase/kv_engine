@@ -19,6 +19,7 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include "cbsasl_internal.h"
 
 namespace Couchbase {
     const int Sha1DigestSize = 20;
@@ -32,10 +33,34 @@ namespace Couchbase {
 
     class User {
     public:
+        /**
+         * Create a dummy user entry.
+         *
+         * A dummy user object is used by SCRAM sasl authentication
+         * so that the "attacking" client would need to perform the
+         * full authentication step in order to authenticate towards
+         * the server instead of returning "no such user" if we failed
+         * to look up the user (to respond with the SALT and iteration
+         * count).
+         */
         User()
             : dummy(true) {
 
         }
+
+        /**
+         * Generate the secrets for a dummy object.
+         *
+         * We don't want to generate the secrets in the default constructor
+         * because it may be replaced with the real secrets if the user
+         * exists in the user database (generating secrets is quite
+         * expensice CPU wise)
+         *
+         * @param mech the mechanism trying to use this object (to avoid
+         *             running the "CPU expensive" PBKDF2 function for
+         *             all of the methods.
+         */
+        void generateSecrets(const Mechanism& mech);
 
         /**
          * Create a new User object with the specified username / password

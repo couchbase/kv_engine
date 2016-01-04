@@ -120,11 +120,22 @@ cbsasl_error_t cbsasl_client_start(cbsasl_conn_t* conn,
 
     conn->mechanism = MechanismFactory::selectMechanism(mechlist);
     if (conn->mechanism == Mechanism::UNKNOWN) {
-        return CBSASL_NOMECH;
+        cbsasl_log(conn, cbsasl_loglevel_t::Debug,
+                   "Failed to select a mechanism from from [" +
+                   std::string(mechlist) + "]");
+       return CBSASL_NOMECH;
     }
+
+    cbsasl_log(conn, cbsasl_loglevel_t::Debug,
+               "Selected mechanism " +
+               MechanismFactory::toString(conn->mechanism) + " from [" +
+               std::string(mechlist) + "]");
 
     client->mech = MechanismFactory::createClientBackend(conn->mechanism);
     if (client->mech.get() == nullptr) {
+        cbsasl_log(conn, cbsasl_loglevel_t::Debug,
+                   "Failed to select a mechanism from [" +
+                   std::string(mechlist) + "]");
         return CBSASL_NOMEM;
     }
 

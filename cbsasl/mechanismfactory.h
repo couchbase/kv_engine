@@ -61,6 +61,14 @@ public:
     static Mechanism toMechanism(const std::string mech);
 
     /**
+     * Get the textual string for the specified mechanism
+     *
+     * @param mech the mechanism to map to textual form
+     * @return the textual representation
+     */
+    static std::string toString(const Mechanism& mech);
+
+    /**
      * Select a mechanism in the supplied list of mechanisms.
      *
      * The method will try to select "the most secure" mechanism

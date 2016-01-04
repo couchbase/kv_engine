@@ -52,6 +52,18 @@ bool find_pw(const std::string& user, std::string& password) {
     }
 }
 
+bool find_user(const std::string& username, Couchbase::User& user) {
+    std::lock_guard<std::mutex> guard(uhash_lock);
+    auto it = user_ht.find(username);
+    if (it != user_ht.end()) {
+        user = it->second;
+        return true;
+    } else {
+        return false;
+    }
+}
+
+
 cbsasl_error_t load_user_db(void) {
     const char* filename = getenv("ISASL_PWFILE");
 

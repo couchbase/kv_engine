@@ -92,7 +92,11 @@ TEST_F(SaslServerTest, ListMechs) {
     ASSERT_EQ(CBSASL_OK, err);
 
     std::string mechanisms(mechs, len);
-    EXPECT_EQ("CRAM-MD5 PLAIN", mechanisms);
+#ifdef __APPLE__
+    EXPECT_EQ("SCRAM-SHA1 CRAM-MD5 PLAIN", mechanisms);
+#else
+    EXPECT_EQ("SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 CRAM-MD5 PLAIN", mechanisms);
+#endif
 }
 
 TEST_F(SaslServerTest, ListMechsBadParam) {
@@ -118,7 +122,11 @@ TEST_F(SaslServerTest, ListMechsSpecialized) {
     ASSERT_EQ(CBSASL_OK, err);
     EXPECT_EQ(2, num);
     std::string mechanisms(mechs, len);
-    EXPECT_EQ("(CRAM-MD5,PLAIN)", mechanisms);
+#ifdef __APPLE__
+    EXPECT_EQ("(SCRAM-SHA1,CRAM-MD5,PLAIN)", mechanisms);
+#else
+    EXPECT_EQ("(SCRAM-SHA512,SCRAM-SHA256,SCRAM-SHA1,CRAM-MD5,PLAIN)", mechanisms);
+#endif
     cbsasl_dispose(&conn);
 }
 
