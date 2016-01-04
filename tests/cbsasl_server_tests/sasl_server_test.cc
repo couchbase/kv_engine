@@ -36,7 +36,8 @@ char envptr[256]{"ISASL_PWFILE=sasl_server_test.pw"};
 class SaslServerTest : public ::testing::Test {
 protected:
     void SetUp() {
-        ASSERT_EQ(CBSASL_OK, cbsasl_server_init());
+        ASSERT_EQ(CBSASL_OK, cbsasl_server_init(nullptr,
+                                                "cbsasl_server_test"));
     }
 
     void TearDown() {

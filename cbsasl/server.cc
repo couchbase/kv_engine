@@ -44,7 +44,8 @@ cbsasl_error_t cbsasl_listmech(cbsasl_conn_t* conn,
 }
 
 CBSASL_PUBLIC_API
-cbsasl_error_t cbsasl_server_init(void) {
+cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t *,
+                                  const char *) {
     if (cb_rand_open(&randgen) != 0) {
         return CBSASL_FAIL;
     }

@@ -2393,7 +2393,9 @@ int main (int argc, char **argv) {
     /* Initialize bucket engine */
     initialize_buckets();
 
-    cbsasl_server_init();
+    if (cbsasl_server_init(nullptr, "memcached") != CBSASL_OK) {
+        FATAL_ERROR(EXIT_FAILURE, "Failed to initialize SASL server");
+    }
 
     /* initialize main thread libevent instance */
     main_base = event_base_new();

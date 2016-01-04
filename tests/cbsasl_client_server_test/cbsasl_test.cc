@@ -69,7 +69,8 @@ protected:
         ASSERT_EQ(0, fclose(fp));
 
         putenv(envptr);
-        ASSERT_EQ(CBSASL_OK, cbsasl_server_init());
+        ASSERT_EQ(CBSASL_OK, cbsasl_server_init(nullptr,
+                                                "cbsasl_client_server_test"));
     }
 
     static void TearDownTestCase() {

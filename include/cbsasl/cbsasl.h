@@ -84,10 +84,13 @@ extern "C" {
      * This function initializes the server by loading passwords from the cbsasl
      * password file. This function should only be called once.
      *
+     * @param cb the callbacks to use for the server (may be nullptr)
+     * @param appname the name of the application (may be nullptr)
      * @return Whether or not the sasl server initialization was successful
      */
     CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_server_init(void);
+    cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t *cb,
+                                      const char *appname);
 
     /**
      * close and release allocated resources
