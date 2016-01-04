@@ -28,12 +28,12 @@
 const char* cbpwfile = "pwfile_test.pw";
 char envptr[256]{"ISASL_PWFILE=pwfile_test.pw"};
 
-const char* user1 = "mikewied";
-const char* pass1 = "mikepw";
-const char* user2 = "cseo";
-const char* pass2 = "seopw";
-const char* user3 = "jlim";
-const char* pass3 = "limpw";
+const std::string user1{"mikewied"};
+const std::string pass1{"mikepw"};
+const std::string user2{"cseo"};
+const std::string pass2{"seopw"};
+const std::string user3{"jlim"};
+const std::string pass3{"limpw"};
 
 class PasswordFileTest : public ::testing::Test {
 protected:
@@ -42,9 +42,9 @@ protected:
         ASSERT_NE(nullptr, fp);
 
         fprintf(fp, "%s %s\n%s %s\n%s %s\n",
-                user1, pass1,
-                user2, pass2,
-                user3, pass3);
+                user1.c_str(), pass1.c_str(),
+                user2.c_str(), pass2.c_str(),
+                user3.c_str(), pass3.c_str());
         ASSERT_EQ(0, fclose(fp));
         putenv(envptr);
 
@@ -58,33 +58,33 @@ protected:
 };
 
 TEST_F(PasswordFileTest, VerifyExpectedUsers) {
-    const char* password;
+    std::string password;
 
-    password = find_pw(user1);
-    ASSERT_NE(nullptr, password);
-    ASSERT_STREQ(pass1, password);
+    ASSERT_TRUE(find_pw(user1, password));
+    ASSERT_EQ(pass1, password);
 
-    password = find_pw(user2);
-    ASSERT_NE(nullptr, password);
-    ASSERT_STREQ(pass2, password);
+    ASSERT_TRUE(find_pw(user2, password));
+    ASSERT_EQ(pass2, password);
 
-    password = find_pw(user3);
-    ASSERT_NE(nullptr, password);
-    ASSERT_STREQ(pass3, password);
+    ASSERT_TRUE(find_pw(user3, password));
+    ASSERT_EQ(pass3, password);
 }
 
 TEST_F(PasswordFileTest, VerifyUserNotFound) {
-    EXPECT_EQ(nullptr, find_pw("nobody"));
+    std::string password;
+    EXPECT_FALSE(find_pw("nobody", password));
 }
 
 TEST_F(PasswordFileTest, VerifyUsernameSuperset) {
     std::string user(user1);
     user.append(" ");
-    EXPECT_EQ(nullptr, find_pw(user.c_str()));
+    std::string password;
+    EXPECT_FALSE(find_pw(user, password));
 }
 
 TEST_F(PasswordFileTest, VerifyUsernameSubset) {
     std::string user(user1);
     user.resize(user.length() - 1);
-    EXPECT_EQ(nullptr, find_pw(user.c_str()));
+    std::string password;
+    EXPECT_FALSE(find_pw(user, password));
 }

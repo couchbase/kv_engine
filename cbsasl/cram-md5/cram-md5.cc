@@ -56,7 +56,6 @@ cbsasl_error_t CramMd5ServerBackend::step(cbsasl_conn_t* conn,
                                           const char** output,
                                           unsigned* outputlen) {
     unsigned int userlen;
-    const char* pass;
     std::array<unsigned char, DIGEST_LENGTH> newdigest;
     std::array<char, DIGEST_LENGTH * 2> md5string;
 
@@ -66,14 +65,16 @@ cbsasl_error_t CramMd5ServerBackend::step(cbsasl_conn_t* conn,
 
     userlen = inputlen - (DIGEST_LENGTH * 2) - 1;
     conn->server->username.assign(input, userlen);
-    pass = find_pw(conn->server->username.c_str());
-    if (pass == nullptr) {
+
+    std::string password;
+    if (!find_pw(conn->server->username, password)) {
         return CBSASL_NOUSER;
     }
 
     unsigned int digest_len;
-    if (HMAC(EVP_md5(), (unsigned char*)pass,
-             (int)strlen(pass), (unsigned char*)digest.data(), digest.size(),
+    if (HMAC(EVP_md5(), (unsigned char*)password.data(),
+             (int)password.length(),
+             (unsigned char*)digest.data(), digest.size(),
              newdigest.data(), &digest_len) == NULL ||
         digest_len != DIGEST_LENGTH) {
         return CBSASL_PWERR;

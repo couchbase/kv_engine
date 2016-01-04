@@ -48,8 +48,6 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
     size_t pwlen = 0;
     const char* username = input + inputpos;
     const char* password = nullptr;
-    const char* stored_password;
-    size_t stored_pwlen;
     while (inputpos < inputlen && input[inputpos] != '\0') {
         inputpos++;
     }
@@ -66,13 +64,13 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
     }
 
     conn->server->username.assign(username);
-    if ((stored_password = find_pw(username)) == nullptr) {
+    std::string passwd;
+    if (!find_pw(username, passwd)) {
         return CBSASL_NOUSER;
     }
 
-    stored_pwlen = strlen(stored_password);
     if (cbsasl_secure_compare(password, pwlen,
-                              stored_password, stored_pwlen) != 0) {
+                              passwd.data(), passwd.length()) != 0) {
         return CBSASL_PWERR;
     }
 

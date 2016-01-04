@@ -1,5 +1,5 @@
 /*
- *     Copyright 2013 Couchbase, Inc.
+ *     Copyright 2016 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -13,29 +13,18 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-
-#ifndef SRC_PWFILE_H_
-#define SRC_PWFILE_H_ 1
+#pragma once
 
 #include "cbsasl/cbsasl.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <string>
 
 /**
  * Searches for a password entry for the specified user. On success, returns
  * the user's password. On failure
  * returns NULL.
  */
-const char *find_pw(const char *user);
+bool find_pw(const std::string& user, std::string& password);
 
 cbsasl_error_t load_user_db(void);
 
 void free_user_ht(void);
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
-#endif /*  SRC_PWFILE_H_ */

@@ -56,18 +56,14 @@ static void store_pw(user_hashtable_t& ht,
     ht.emplace(std::make_pair(username, password));
 }
 
-const char *find_pw(const char *user)
-{
-    if (user == nullptr) {
-        throw std::invalid_argument("find_pw: user must be non-NULL");
-    }
-
+bool find_pw(const std::string& user, std::string& password) {
     std::lock_guard<std::mutex> guard(uhash_lock);
     auto it = user_ht.find(user);
     if (it != user_ht.end()) {
-        return it->second.c_str();
+        password = it->second;
+        return true;
     } else {
-        return nullptr;
+        return false;
     }
 }
 
