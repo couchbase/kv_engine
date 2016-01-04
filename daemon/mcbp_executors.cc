@@ -1733,7 +1733,7 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
         return ENGINE_E2BIG;
     }
 
-    if (state > vbucket_state_dead) {
+    if (!is_valid_vbucket_state_t(state)) {
         return ENGINE_EINVAL;
     }
 
