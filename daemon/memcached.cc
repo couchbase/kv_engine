@@ -2459,8 +2459,6 @@ int main (int argc, char **argv) {
     /* Optional parent monitor */
     setup_parent_monitor();
 
-    cb_set_thread_name("mc:listener");
-
     if (!memcached_shutdown) {
         /* enter the event loop */
         LOG_NOTICE(NULL, "Initialization complete. Accepting clients.");
