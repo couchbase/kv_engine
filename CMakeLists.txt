@@ -23,28 +23,28 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
 
 IF (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-   EXECUTE_PROCESS(COMMAND git log -1 --pretty=format:%H
-                   WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-                   OUTPUT_VARIABLE MEMCACHED_VERSION
-                   ERROR_QUIET
-                   OUTPUT_STRIP_TRAILING_WHITESPACE)
+    EXECUTE_PROCESS(COMMAND git log -1 --pretty=format:%H
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                    OUTPUT_VARIABLE MEMCACHED_VERSION
+                    ERROR_QUIET
+                    OUTPUT_STRIP_TRAILING_WHITESPACE)
 ELSE (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-   SET(MEMCACHED_VERSION "unknown")
+    SET(MEMCACHED_VERSION "unknown")
 ENDIF (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
 
 CHECK_SYMBOL_EXISTS(memalign malloc.h HAVE_MEMALIGN)
 
 IF (ENABLE_DTRACE)
-   ADD_DEFINITIONS(-DENABLE_DTRACE=1)
+    ADD_DEFINITIONS(-DENABLE_DTRACE=1)
 ENDIF (ENABLE_DTRACE)
 
 ADD_CUSTOM_COMMAND(OUTPUT ${Memcached_BINARY_DIR}/memcached_dtrace.h
                    COMMAND
-                     ${DTRACE} -h
-                               -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
-                               -o ${Memcached_BINARY_DIR}/memcached_dtrace.h
+                   ${DTRACE} -h
+                   -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
+                   -o ${Memcached_BINARY_DIR}/memcached_dtrace.h
                    DEPENDS
-                         memcached_dtrace.d
+                   memcached_dtrace.d
                    COMMENT "Generating DTrace probe header file"
                    VERBATIM)
 ADD_CUSTOM_TARGET(generate_memcached_dtrace_h
@@ -65,86 +65,89 @@ INCLUDE_DIRECTORIES(AFTER
                     ${gtest_SOURCE_DIR}/include)
 
 IF (MEMORY_ALLOCATOR)
-   INCLUDE_DIRECTORIES(AFTER ${MALLOC_INCLUDE_DIR})
+    INCLUDE_DIRECTORIES(AFTER ${MALLOC_INCLUDE_DIR})
 ELSE (MEMORY_ALLOCATOR)
-   SET(MALLOC_LIBRARIES "")
+    SET(MALLOC_LIBRARIES "")
 ENDIF (MEMORY_ALLOCATOR)
 
 FUNCTION(APPEND_MALLOC_LINKER_FLAGS _target)
-   IF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") AND WIN32)
-      SET(__ldflag "/INCLUDE:__tcmalloc")
-      GET_TARGET_PROPERTY(__existing_ldflags ${_target} LINK_FLAG)
-      IF (__existing_ldflags)
-         SET(__ldflags "${__existing_ldflags} ${__ldflags}")
-      ENDIF (__existing_ldflags)
-      SET_TARGET_PROPERTIES(memcached PROPERTIES LINK_FLAG "${__memcached_ldflags}")
-   ENDIF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") AND WIN32)
+    IF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") AND WIN32)
+        SET(__ldflag "/INCLUDE:__tcmalloc")
+        GET_TARGET_PROPERTY(__existing_ldflags ${_target} LINK_FLAG)
+        IF (__existing_ldflags)
+            SET(__ldflags "${__existing_ldflags} ${__ldflags}")
+        ENDIF (__existing_ldflags)
+        SET_TARGET_PROPERTIES(memcached PROPERTIES LINK_FLAG
+                              "${__memcached_ldflags}")
+    ENDIF (("${COUCHBASE_MEMORY_ALLOCATOR}" STREQUAL "tcmalloc") AND WIN32)
 ENDFUNCTION()
 
 IF (BREAKPAD_FOUND)
-   ADD_DEFINITIONS(-DHAVE_BREAKPAD)
-   INCLUDE_DIRECTORIES(AFTER ${BREAKPAD_INCLUDE_DIR})
-   IF (UNIX)
-      # On Linux Breakpad unit test relies on examining the minidump -> core
-      # file with GDB.
-      FIND_PROGRAM(GDB_EXECUTABLE gdb)
-      IF (GDB_EXECUTABLE)
-         ADD_TEST(memcached-breakpad-test ${PYTHON_EXECUTABLE}
-                  ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-                  ${Memcached_BINARY_DIR}/memcached ${MINIDUMP2CORE} ${GDB_EXECUTABLE})
-      ELSE (GDB_EXECUTABLE)
-         MESSAGE(STATUS "GDB not available, skipping breakpad test")
-      ENDIF (GDB_EXECUTABLE)
+    ADD_DEFINITIONS(-DHAVE_BREAKPAD)
+    INCLUDE_DIRECTORIES(AFTER ${BREAKPAD_INCLUDE_DIR})
+    IF (UNIX)
+        # On Linux Breakpad unit test relies on examining the minidump -> core
+        # file with GDB.
+        FIND_PROGRAM(GDB_EXECUTABLE gdb)
+        IF (GDB_EXECUTABLE)
+            ADD_TEST(memcached-breakpad-test ${PYTHON_EXECUTABLE}
+                     ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
+                     ${Memcached_BINARY_DIR}/memcached ${MINIDUMP2CORE}
+                     ${GDB_EXECUTABLE})
+        ELSE (GDB_EXECUTABLE)
+            MESSAGE(STATUS "GDB not available, skipping breakpad test")
+        ENDIF (GDB_EXECUTABLE)
 
-   ELSEIF (WIN32)
-      # On Windows the test doesn't use minidump-2-core or GDB.
-      ADD_TEST(breakpad-test
-               ${PYTHON_EXECUTABLE} ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-               ${Memcached_BINARY_DIR}/memcached)
-   ENDIF (UNIX)
+    ELSEIF (WIN32)
+        # On Windows the test doesn't use minidump-2-core or GDB.
+        ADD_TEST(breakpad-test
+                 ${PYTHON_EXECUTABLE}
+                 ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
+                 ${Memcached_BINARY_DIR}/memcached)
+    ENDIF (UNIX)
 ENDIF (BREAKPAD_FOUND)
 
 
 IF (MEMORY_ALLOCATOR STREQUAL jemalloc OR MEMORY_ALLOCATOR STREQUAL tcmalloc OR
     MEMORY_ALLOCATOR STREQUAL badmalloc)
-  LIST(APPEND MEMORY_TRACKING_SRCS
-       ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_${MEMORY_ALLOCATOR}.cc)
-ELSE()
-  LIST(APPEND MEMORY_TRACKING_SRCS
-       ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_dummy.cc)
-ENDIF()
+    LIST(APPEND MEMORY_TRACKING_SRCS
+         ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_${MEMORY_ALLOCATOR}.cc)
+ELSE ()
+    LIST(APPEND MEMORY_TRACKING_SRCS
+         ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_dummy.cc)
+ENDIF ()
 
 LIST(APPEND MEMORY_TRACKING_SRCS ${Memcached_SOURCE_DIR}/daemon/alloc_hooks.h)
 
 IF (APPLE)
-  LIST(APPEND MEMORY_TRACKING_SRCS
-    ${Memcached_SOURCE_DIR}/daemon/darwin_zone.c
-    ${Memcached_SOURCE_DIR}/daemon/darwin_zone.h)
+    LIST(APPEND MEMORY_TRACKING_SRCS
+         ${Memcached_SOURCE_DIR}/daemon/darwin_zone.c
+         ${Memcached_SOURCE_DIR}/daemon/darwin_zone.h)
 ENDIF (APPLE)
 
 IF (WIN32)
-   INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/include/win32)
+    INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/include/win32)
 ENDIF (WIN32)
 
 # We're using all of the sources to build up the server from one of
 # the unit tests so let's just stash them in a variable
 LIST(APPEND CBSASL_SOURCES
-  ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h
-  ${Memcached_SOURCE_DIR}/include/cbsasl/visibility.h
-  ${Memcached_SOURCE_DIR}/cbsasl/cbsasl_internal.h
-  ${Memcached_SOURCE_DIR}/cbsasl/client.cc
-  ${Memcached_SOURCE_DIR}/cbsasl/common.cc
-  ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.cc
-  ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.h
-  ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.cc
-  ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.h
-  ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.cc
-  ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.h
-  ${Memcached_SOURCE_DIR}/cbsasl/pwfile.cc
-  ${Memcached_SOURCE_DIR}/cbsasl/pwfile.h
-  ${Memcached_SOURCE_DIR}/cbsasl/server.cc
-  ${Memcached_SOURCE_DIR}/cbsasl/strcmp.c
-  ${Memcached_SOURCE_DIR}/cbsasl/util.h)
+     ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h
+     ${Memcached_SOURCE_DIR}/include/cbsasl/visibility.h
+     ${Memcached_SOURCE_DIR}/cbsasl/cbsasl_internal.h
+     ${Memcached_SOURCE_DIR}/cbsasl/client.cc
+     ${Memcached_SOURCE_DIR}/cbsasl/common.cc
+     ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.cc
+     ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.h
+     ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.cc
+     ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.h
+     ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.cc
+     ${Memcached_SOURCE_DIR}/cbsasl/plain/plain.h
+     ${Memcached_SOURCE_DIR}/cbsasl/pwfile.cc
+     ${Memcached_SOURCE_DIR}/cbsasl/pwfile.h
+     ${Memcached_SOURCE_DIR}/cbsasl/server.cc
+     ${Memcached_SOURCE_DIR}/cbsasl/strcmp.c
+     ${Memcached_SOURCE_DIR}/cbsasl/util.h)
 
 ADD_SUBDIRECTORY(etc)
 ADD_SUBDIRECTORY(cbsasl)
