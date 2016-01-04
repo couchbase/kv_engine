@@ -443,16 +443,21 @@ void ActiveStream::setVBucketStateAckRecieved() {
     LockHolder lh(streamMutex);
     if (state_ == STREAM_TAKEOVER_WAIT) {
         if (takeoverState == vbucket_state_pending) {
+            LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") Receive ack for set "
+                "vbucket state to pending message", producer->logHeader(), vb_);
+
             RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
             engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
                                                   false, false);
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") Vbucket marked as "
+                "dead, last sent seqno: %" PRIu64 ", high seqno: %" PRIu64 "",
+                producer->logHeader(), vb_, lastSentSeqno,
+                vbucket->getHighSeqno());
             takeoverState = vbucket_state_active;
             transitionState(STREAM_TAKEOVER_SEND);
-            LOG(EXTENSION_LOG_INFO, "%s (vb %d) Receive ack for set vbucket "
-                "state to pending message", producer->logHeader(), vb_);
         } else {
-            LOG(EXTENSION_LOG_INFO, "%s (vb %d) Receive ack for set vbucket "
-                "state to active message", producer->logHeader(), vb_);
+            LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") Receive ack for set "
+                "vbucket state to active message", producer->logHeader(), vb_);
             endStream(END_STREAM_OK);
         }
 
