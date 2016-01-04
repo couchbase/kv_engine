@@ -301,11 +301,13 @@ public:
 
     // Get age sum in millisecond
     uint64_t getQueueAge() {
+        uint64_t currDirtyQueueAge = dirtyQueueAge.load(
+                                                    std::memory_order_relaxed);
         rel_time_t currentAge = ep_current_time() * dirtyQueueSize;
-        if (currentAge < dirtyQueueAge) {
+        if (currentAge < currDirtyQueueAge) {
             return 0;
         }
-        return (currentAge - dirtyQueueAge) * 1000;
+        return (currentAge - currDirtyQueueAge) * 1000;
     }
 
     void fireAllOps(EventuallyPersistentEngine &engine);
@@ -485,6 +487,12 @@ private:
     void fireAllOps(EventuallyPersistentEngine &engine, ENGINE_ERROR_CODE code);
 
     void adjustCheckpointFlushTimeout(size_t wall_time);
+
+    void decrDirtyQueueMem(size_t decrementBy);
+
+    void decrDirtyQueueAge(uint32_t decrementBy);
+
+    void decrDirtyQueuePendingWrites(size_t decrementBy);
 
     int                      id;
     AtomicValue<vbucket_state_t>  state;
