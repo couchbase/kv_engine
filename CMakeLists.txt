@@ -159,30 +159,6 @@ ADD_SUBDIRECTORY(testsuite)
 ADD_SUBDIRECTORY(auditd)
 ADD_SUBDIRECTORY(daemon)
 
-IF (INSTALL_HEADER_FILES)
-   INSTALL (FILES include/memcached/allocator_hooks.h
-                  include/memcached/callback.h
-                  include/memcached/config_parser.h
-                  include/memcached/engine.h
-                  include/memcached/engine_common.h
-                  include/memcached/engine_testapp.h
-                  include/memcached/extension.h
-                  include/memcached/extension_loggers.h
-                  include/memcached/protocol_binary.h
-                  include/memcached/server_api.h
-                  include/memcached/types.h
-                  include/memcached/dcp.h
-                  include/memcached/util.h
-                  include/memcached/vbucket.h
-                  include/memcached/visibility.h
-            DESTINATION include/memcached)
-
-   INSTALL(FILES
-           include/cbsasl/cbsasl.h
-           include/cbsasl/visibility.h
-           DESTINATION include/cbsasl)
-ENDIF(INSTALL_HEADER_FILES)
-
 INSTALL(FILES daemon/rbac.json DESTINATION etc/security)
 
 CONFIGURE_FILE(tests/cert/testapp.pem tests/cert/testapp.pem COPYONLY)
