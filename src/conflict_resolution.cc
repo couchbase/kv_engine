@@ -107,9 +107,9 @@ bool ConflictResolution::resolve(RCPtr<VBucket> &vb , StoredValue *v,
                        itmConfResMode == last_write_wins) ||
                    (v->getConflictResMode() == last_write_wins &&
                        itmConfResMode != last_write_wins)) {
-                   //log the event when the time sync is enabled and
-                   //one of the mutations is not eligible for last_write_wins
-                   LOG(EXTENSION_LOG_WARNING,
+                   // Log the event when the time sync is enabled and
+                   // the mutation is not eligible for last_write_wins
+                   LOG(EXTENSION_LOG_DEBUG,
                        "Resolving conflict by comparing rev seqno: key: %s,"
                        "source conflict resolution mode: %s, target conflict resolution"
                        "mode: %s", v->getKey().c_str(),
