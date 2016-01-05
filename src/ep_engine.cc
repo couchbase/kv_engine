@@ -4291,8 +4291,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         }
 
         uint64_t relHighSeqno = vb->getHighSeqno();
+
+        ReaderLockHolder rlh(vb->getStateLock());
         if (vb->getState() != vbucket_state_active) {
-            relHighSeqno = vb->checkpointManager.getLastClosedChkBySeqno();
+            snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
+            relHighSeqno = info.range.end;
         }
 
         char buffer[32];
@@ -4314,8 +4317,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         RCPtr<VBucket> vb = getVBucket(*itr);
         if (vb) {
             uint64_t relHighSeqno = vb->getHighSeqno();
+            ReaderLockHolder rlh(vb->getStateLock());
             if (vb->getState() != vbucket_state_active) {
-                relHighSeqno = vb->checkpointManager.getLastClosedChkBySeqno();
+                snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
+                relHighSeqno = info.range.end;
             }
 
             char buffer[32];

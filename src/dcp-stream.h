@@ -240,6 +240,8 @@ private:
     ExtendedMetaData* prepareExtendedMetaData(uint16_t vBucketId,
                                               uint8_t conflictResMode);
 
+    bool isCurrentSnapshotCompleted() const;
+
     //! The last sequence number queued from disk or memory
     uint64_t lastReadSeqno;
     //! The last sequence number sent to the network layer
@@ -271,6 +273,9 @@ private:
         AtomicValue<uint32_t> bytes;
         AtomicValue<uint32_t> items;
     } bufferedBackfill;
+
+    //! Last snapshot end seqno sent to the DCP client
+    uint64_t lastSentSnapEndSeqno;
 };
 
 class NotifierStream : public Stream {
