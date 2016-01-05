@@ -1299,6 +1299,4 @@ bool abort_msg(const char *expr, const char *msg, const char *file, int line) {
     fprintf(stderr, "%s:%d Test failed: `%s' (%s)\n",
             file, line, msg, expr);
     abort();
-    // UNREACHABLE
-    return false;
 }
