@@ -258,12 +258,14 @@ public:
                           const void* key,
                           const int nkey,
                           uint16_t vbucket,
-                          bool track_stat = false)
+                          bool track_stat = false,
+                          bool del_temp_item = true)
     {
         BlockTimer timer(&stats.getCmdHisto);
         std::string k(static_cast<const char*>(key), nkey);
 
-        GetValue gv(epstore->get(k, vbucket, cookie, serverApi->core));
+        GetValue gv(epstore->get(k, vbucket, cookie, serverApi->core,
+                                 true, true, del_temp_item));
         ENGINE_ERROR_CODE ret = gv.getStatus();
 
         if (ret == ENGINE_SUCCESS) {
@@ -329,7 +331,7 @@ public:
                                  exptime == 0xffffffff) ?
             0 : ep_abs_time(ep_reltime(exptime));
 
-        ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket);
+        ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket, false, false);
         if (ret == ENGINE_SUCCESS) {
             Item *itm = static_cast<Item*>(it);
             char *endptr = NULL;

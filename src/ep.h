@@ -258,14 +258,17 @@ public:
      * @param queueBG if true, automatically queue a background fetch if necessary
      * @param honorStates if false, fetch a result regardless of state
      * @param trackReference true if we want to set the nru bit for the item
+     * @param deleteTempItem true if temporary items need to be deleted
      *
      * @return a GetValue representing the result of the request
      */
     GetValue get(const std::string &key, uint16_t vbucket,
                  const void *cookie, bool queueBG=true,
-                 bool honorStates=true, bool trackReference=true) {
+                 bool honorStates=true, bool trackReference=true,
+                 bool deleteTempItem=true) {
         return getInternal(key, vbucket, cookie, queueBG, honorStates,
-                           vbucket_state_active, trackReference);
+                           vbucket_state_active, trackReference,
+                           deleteTempItem);
     }
 
     GetValue getRandomKey(void);
@@ -914,7 +917,8 @@ private:
                          const void *cookie, bool queueBG,
                          bool honorStates,
                          vbucket_state_t allowedState,
-                         bool trackReference=true);
+                         bool trackReference=true,
+                         bool deleteTempItem=true);
 
     ENGINE_ERROR_CODE addTempItemForBgFetch(LockHolder &lock, int bucket_num,
                                             const std::string &key, RCPtr<VBucket> &vb,

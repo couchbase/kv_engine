@@ -934,6 +934,18 @@ static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_incr_full_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    uint64_t result = 0;
+    item *i = NULL;
+    check(h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0,
+                   &i, PROTOCOL_BINARY_RAW_BYTES, &result,
+                   0) == ENGINE_SUCCESS,
+          "Failed arithmetic operation");
+    h1->release(h, NULL, i);
+    check(result == 1, "Failed to set initial value in arithmetic operation");
+    return SUCCESS;
+}
+
 static enum test_result test_incr_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_datatype_support(cookie, false);
@@ -14041,6 +14053,9 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("incr expiry", test_bug2799, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("incr with full eviction", test_incr_full_eviction,
+                 test_setup, teardown, "item_eviction_policy=full_eviction",
+                 prepare, cleanup),
         TestCase("test touch", test_touch, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test touch (MB-7342)", test_touch_mb7342, test_setup, teardown,

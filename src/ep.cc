@@ -1857,7 +1857,8 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
                                                 bool queueBG,
                                                 bool honorStates,
                                                 vbucket_state_t allowedState,
-                                                bool trackReference) {
+                                                bool trackReference,
+                                                bool deleteTempItem) {
 
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
         vbucket_state_replica : vbucket_state_active;
@@ -1890,7 +1891,9 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
             // Delete a temp non-existent item to ensure that
             // if the get were issued over an item that doesn't
             // exist, then we dont preserve a temp item.
-            vb->ht.unlocked_del(key, bucket_num);
+            if (deleteTempItem) {
+                vb->ht.unlocked_del(key, bucket_num);
+            }
             GetValue rv;
             return rv;
         }
