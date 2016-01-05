@@ -16,44 +16,26 @@
  */
 #include "pwfile.h"
 
-#include <platform/cbassert.h>
-
 #include <cstring>
+#include <iterator>
 #include <mutex>
-#include <stdio.h>
-#include <stdlib.h>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
-
-static std::mutex uhash_lock;
+#include <vector>
 
 // Map of username -> password.
 typedef std::unordered_map<std::string, std::string> user_hashtable_t;
+
+// The mutex protecting access to the user/password map
+static std::mutex uhash_lock;
+
+// The map containing the user/password mappings
 static user_hashtable_t user_ht;
 
-static void kill_whitey(char *s)
-{
-    for (size_t i = strlen(s) - 1; i > 0 && isspace(s[i]); i--) {
-        s[i] = '\0';
-    }
-}
-
-static const char *get_isasl_filename(void)
-{
-    return getenv("ISASL_PWFILE");
-}
-
-void free_user_ht(void)
-{
+void free_user_ht(void) {
     user_ht.clear();
-}
-
-static void store_pw(user_hashtable_t& ht,
-                     const char *username,
-                     const char *password)
-{
-    ht.emplace(std::make_pair(username, password));
 }
 
 bool find_pw(const std::string& user, std::string& password) {
@@ -67,66 +49,47 @@ bool find_pw(const std::string& user, std::string& password) {
     }
 }
 
-cbsasl_error_t load_user_db(void)
-{
-    FILE *sfile;
-    char up[128];
-    const char *filename = get_isasl_filename();
-
+cbsasl_error_t load_user_db(void) {
+    const char* filename = getenv("ISASL_PWFILE");
 
     if (!filename) {
         return CBSASL_OK;
     }
 
-    sfile = fopen(filename, "r");
-    if (!sfile) {
+    FILE* sfile = fopen(filename, "r");
+    if (sfile == nullptr) {
         return CBSASL_FAIL;
     }
 
     try {
         user_hashtable_t new_ut;
 
-        /* File has lines that are newline terminated. */
-        /* File may have comment lines that must being with '#'. */
-        /* Lines should look like... */
-        /*   <NAME><whitespace><PASSWORD><whitespace><CONFIG><optional_whitespace> */
-        /* */
+        /* File has lines that are newline terminated.
+         * File may have comment lines that must being with '#'.
+         * Lines should look like...
+         *   <NAME><whitespace><PASSWORD><whitespace><CONFIG><optional_whitespace>
+         */
+        char up[128];
         while (fgets(up, sizeof(up), sfile)) {
             if (up[0] != '#') {
-                char *uname = up, *p = up, *cfg = NULL;
-                kill_whitey(up);
-                while (*p && !isspace(p[0])) {
-                    p++;
+                using std::istream_iterator;
+                using std::vector;
+                using std::string;
+
+                std::istringstream iss(up);
+                vector<string> tokens{istream_iterator<string>{iss},
+                                      istream_iterator<string>{}};
+
+                if (tokens.empty()) {
+                    // empty line
+                    continue;
                 }
-                /* If p is pointing at a NUL, there's nothing after the username. */
-                if (p[0] != '\0') {
-                    p[0] = '\0';
-                    p++;
+                std::string passwd;
+                if (tokens.size() > 1) {
+                    passwd = tokens[1];
                 }
-                /* p now points to the first character after the (now) */
-                /* null-terminated username. */
-                while (*p && isspace(*p)) {
-                    p++;
-                }
-                /* p now points to the first non-whitespace character */
-                /* after the above */
-                cfg = p;
-                if (cfg[0] != '\0') {
-                    /* move cfg past the password */
-                    while (*cfg && !isspace(cfg[0])) {
-                        cfg++;
-                    }
-                    if (cfg[0] != '\0') {
-                        cfg[0] = '\0';
-                        cfg++;
-                        /* Skip whitespace */
-                        while (*cfg && isspace(cfg[0])) {
-                            cfg++;
-                        }
-                    }
-                }
-                /* Note: cfg currently unused and hence not stored in hash. */
-                store_pw(new_ut, uname, p);
+
+                new_ut.emplace(std::make_pair(tokens[0], passwd));
             }
         }
 
