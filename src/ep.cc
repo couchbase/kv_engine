@@ -3357,20 +3357,27 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             }
 
 
-            if (vb->getState() == vbucket_state_active) {
-                range.start = maxSeqno;
-                range.end = maxSeqno;
-            }
+            {
+                ReaderLockHolder rlh(vb->getStateLock());
+                if (vb->getState() == vbucket_state_active) {
+                    if (maxSeqno) {
+                        range.start = maxSeqno;
+                        range.end = maxSeqno;
+                    }
+                }
 
-            std::string failovers = vb->failovers->toJSON();
-            vbucket_state vbState(vb->getState(), vbMap.getPersistenceCheckpointId(vbid),
-                                  maxDeletedRevSeqno, vb->getHighSeqno(),
-                                  vb->getPurgeSeqno(), range.start, range.end, maxCas,
-                                  vb->getDriftCounter(), failovers);
+                std::string failovers = vb->failovers->toJSON();
+                vbucket_state vbState(vb->getState(),
+                                      vbMap.getPersistenceCheckpointId(vbid),
+                                      maxDeletedRevSeqno, vb->getHighSeqno(),
+                                      vb->getPurgeSeqno(), range.start,
+                                      range.end, maxCas, vb->getDriftCounter(),
+                                      failovers);
 
-            if (rwUnderlying->snapshotVBucket(vb->getId(), vbState,
-                                              NULL, false) != true) {
-                return RETRY_FLUSH_VBUCKET;
+                if (rwUnderlying->snapshotVBucket(vb->getId(), vbState,
+                                                  NULL, false) != true) {
+                    return RETRY_FLUSH_VBUCKET;
+                }
             }
 
             //commit all mutations to disk if the commit interval is zero
@@ -4068,6 +4075,10 @@ void EventuallyPersistentStore::runDefragmenterTask() {
 
 void EventuallyPersistentStore::runAccessScannerTask() {
     ExecutorPool::get()->wake(accessScanner.task);
+}
+
+void EventuallyPersistentStore::runVbStatePersistTask(int vbid) {
+    scheduleVBStatePersist(Priority::VBucketPersistLowPriority, vbid);
 }
 
 void EventuallyPersistentStore::setCursorDroppingLowerUpperThresholds(

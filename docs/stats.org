@@ -492,7 +492,10 @@ The stats below are listed for each vbucket.
 | last_persisted_seqno          | The last persisted seqno for the vbucket   |
 | purge_seqno                   | The last seqno purged by the compactor     |
 | uuid                          | The current vbucket uuid                   |
-
+| last_persisted_snap_start     | The last persisted snapshot start seqno for|
+|                               | the vbucket                                |
+| last_persisted_snap_end       | The last persisted snapshot end seqno for  |
+|                               | the vbucket                                |
 
 
 ** Tap stats

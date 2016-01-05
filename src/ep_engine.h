@@ -806,6 +806,12 @@ public:
      */
     void runAccessScannerTask(void);
 
+    /*
+     * Explicitly trigger the VbStatePersist task. Provided to facilitate
+     * testing.
+     */
+    void runVbStatePersistTask(int vbid);
+
     /**
      * Get a (sloppy) list of the sequence numbers for all of the vbuckets
      * on this server. It is not to be treated as a consistent set of seqence,
@@ -957,6 +963,8 @@ private:
                                    const char* stat_key, int nkey);
     ENGINE_ERROR_CODE doDiskStats(const void *cookie, ADD_STAT add_stat,
                                   const char* stat_key, int nkey);
+    void addSeqnoVbStats(const void *cookie, ADD_STAT add_stat,
+                         const RCPtr<VBucket> &vb);
 
     void addLookupResult(const void *cookie, Item *result) {
         LockHolder lh(lookupMutex);

@@ -1834,6 +1834,54 @@ static enum test_result test_flush_multiv_restart(ENGINE_HANDLE *h, ENGINE_HANDL
     return SUCCESS;
 }
 
+static enum test_result test_shutdown_snapshot_range(ENGINE_HANDLE *h,
+                                                     ENGINE_HANDLE_V1 *h1) {
+    const int num_items = 100;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key" << j;
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    int end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+
+    /* wait for a new open checkpoint with just chk start meta item */
+    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
+
+    /* change vb state to replica before restarting (as it happens in graceful
+       failover)*/
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed set vbucket 0 to replica state.");
+
+    /* trigger persist vb state task */
+    check(set_param(h, h1, protocol_binary_engine_param_flush,
+                    "vb_state_persist_run", "0"),
+          "Failed to trigger vb state persist");
+
+    /* restart the engine */
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    /* Check if snapshot range is persisted correctly */
+    checkeq(end, get_int_stat(h, h1, "vb_0:last_persisted_snap_start",
+                              "vbucket-seqno"),
+            "Wrong snapshot start persisted");
+    checkeq(end, get_int_stat(h, h1, "vb_0:last_persisted_snap_end",
+                                    "vbucket-seqno"),
+            "Wrong snapshot end persisted");
+
+    return SUCCESS;
+}
+
 static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
     // First try to delete something we know to not be there.
@@ -3710,7 +3758,7 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
     checkeq(vb_uuid, get_ull_stat(h, h1, "vb_1:uuid", "vbucket-seqno 1"),
             "Invalid uuid");
-    checkeq(static_cast<size_t>(5), vals.size(), "Expected four stats");
+    checkeq(static_cast<size_t>(7), vals.size(), "Expected four stats");
 
     // Check invalid vbucket
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -15564,6 +15612,9 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test shutdown without force", test_flush_shutdown_noforce,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test shutdown snapshot range",
+                 test_shutdown_snapshot_range, test_setup, teardown,
+                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
 
         // it takes 61+ second to finish the following test.
         //TestCase("continue warmup after loading access log",

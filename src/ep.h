@@ -825,6 +825,8 @@ public:
 
     void runAccessScannerTask();
 
+    void runVbStatePersistTask(int vbid);
+
     void setCompactionWriteQueueCap(size_t to) {
         compactionWriteQueueCap = to;
     }
