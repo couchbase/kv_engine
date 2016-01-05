@@ -5474,7 +5474,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     size_t pkt_len = headerlen + bodylen;
 
     protocol_binary_response_header* pkt =
-        (protocol_binary_response_header*)malloc(pkt_len * sizeof(uint8_t));
+        (protocol_binary_response_header*)malloc(pkt_len);
     memset(pkt->bytes, '\0', pkt_len);
     pkt->response.magic = PROTOCOL_BINARY_RES;
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -5511,7 +5511,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         verify_curr_items(h, h1, 0, "Wrong amount of items");
 
         protocol_binary_response_header* pkt =
-            (protocol_binary_response_header*)malloc(pkt_len * sizeof(uint8_t));
+            (protocol_binary_response_header*)malloc(pkt_len);
         memset(pkt->bytes, '\0', 40);
         pkt->response.magic = PROTOCOL_BINARY_RES;
         pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -5964,7 +5964,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
 
     uint64_t rollbackSeqno = htonll(40);
     protocol_binary_response_header* pkt =
-        (protocol_binary_response_header*)malloc(32 * sizeof(uint8_t));
+        (protocol_binary_response_header*)malloc(32);
     memset(pkt->bytes, '\0', 32);
     pkt->response.magic = PROTOCOL_BINARY_RES;
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -5989,7 +5989,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
 
     uint64_t vb_uuid = htonll(123456789);
     uint64_t by_seqno = 0;
-    pkt = (protocol_binary_response_header*)malloc(40 * sizeof(uint8_t));
+    pkt = (protocol_binary_response_header*)malloc(40);
     memset(pkt->bytes, '\0', 40);
     pkt->response.magic = PROTOCOL_BINARY_RES;
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
