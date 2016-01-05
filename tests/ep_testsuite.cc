@@ -1605,9 +1605,6 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     check_key_value(h, h1, "key", "somevalue", 9);
     check_key_value(h, h1, "key2", "somevalue", 9);
 
-    int overhead2 = get_int_stat(h, h1, "ep_overhead");
-    int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
-
     set_degraded_mode(h, h1, NULL, true);
     checkeq(ENGINE_SUCCESS, h1->flush(h, NULL, 0), "Failed to flush");
     set_degraded_mode(h, h1, NULL, false);
@@ -1616,8 +1613,8 @@ static enum test_result test_flush_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
 
     wait_for_flusher_to_settle(h, h1);
 
-    overhead2 = get_int_stat(h, h1, "ep_overhead");
-    cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
+    int overhead2 = get_int_stat(h, h1, "ep_overhead");
+    int cacheSize2 = get_int_stat(h, h1, "ep_total_cache_size");
     int nonResident2 = get_int_stat(h, h1, "ep_num_non_resident");
 
     cb_assert(overhead2 == overhead);
@@ -5409,7 +5406,6 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         uint64_t exp_snap_end = 0) {
 
     dcp_step(h, h1, cookie);
-    uint32_t stream_opaque = dcp_last_opaque;
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("connection_buffer_size") == 0);
     cb_assert(dcp_last_opaque != opaque);
@@ -5417,41 +5413,35 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     if (get_bool_stat(h, h1, "ep_dcp_enable_noop")) {
         // Check that the enable noop message is sent
         dcp_step(h, h1, cookie);
-        stream_opaque = dcp_last_opaque;
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
         cb_assert(dcp_last_key.compare("enable_noop") == 0);
         cb_assert(dcp_last_opaque != opaque);
 
         // Check that the set noop interval message is sent
         dcp_step(h, h1, cookie);
-        stream_opaque = dcp_last_opaque;
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
         cb_assert(dcp_last_key.compare("set_noop_interval") == 0);
         cb_assert(dcp_last_opaque != opaque);
     }
 
     dcp_step(h, h1, cookie);
-    stream_opaque = dcp_last_opaque;
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("set_priority") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
     dcp_step(h, h1, cookie);
-    stream_opaque = dcp_last_opaque;
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("enable_ext_metadata") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
     if (get_bool_stat(h, h1, "ep_dcp_value_compression_enabled")) {
         dcp_step(h, h1, cookie);
-        stream_opaque = dcp_last_opaque;
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
         cb_assert(dcp_last_key.compare("enable_value_compression") == 0);
         cb_assert(dcp_last_opaque != opaque);
     }
 
     dcp_step(h, h1, cookie);
-    stream_opaque = dcp_last_opaque;
     cb_assert(dcp_last_op = PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("supports_cursor_dropping") == 0);
     cb_assert(dcp_last_opaque != opaque);
@@ -5461,7 +5451,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
             "Add stream request failed");
 
     dcp_step(h, h1, cookie);
-    stream_opaque = dcp_last_opaque;
+    uint32_t stream_opaque = dcp_last_opaque;
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
     cb_assert(dcp_last_opaque != opaque);
 
