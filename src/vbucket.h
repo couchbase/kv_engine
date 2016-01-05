@@ -303,11 +303,13 @@ public:
 
     // Get age sum in millisecond
     uint64_t getQueueAge() {
+        uint64_t currDirtyQueueAge = dirtyQueueAge.load(
+                                                    std::memory_order_relaxed);
         rel_time_t currentAge = ep_current_time() * dirtyQueueSize;
-        if (currentAge < dirtyQueueAge) {
+        if (currentAge < currDirtyQueueAge) {
             return 0;
         }
-        return (currentAge - dirtyQueueAge) * 1000;
+        return (currentAge - currDirtyQueueAge) * 1000;
     }
 
     void fireAllOps(EventuallyPersistentEngine &engine);
@@ -499,20 +501,26 @@ private:
 
     void adjustCheckpointFlushTimeout(size_t wall_time);
 
-    id_type                  id;
-    AtomicValue<vbucket_state_t>  state;
-    RWLock                   stateLock;
-    vbucket_state_t          initialState;
-    Mutex                    pendingOpLock;
-    std::vector<const void*> pendingOps;
-    hrtime_t                 pendingOpsStart;
-    EPStats                 &stats;
-    uint64_t                 purge_seqno;
-    AtomicValue<uint64_t>    max_cas;
-    AtomicValue<int64_t>     drift_counter;
-    AtomicValue<bool>        time_sync_enabled;
+    void decrDirtyQueueMem(size_t decrementBy);
 
-    AtomicValue<bool>        takeover_backed_up;
+    void decrDirtyQueueAge(uint32_t decrementBy);
+
+    void decrDirtyQueuePendingWrites(size_t decrementBy);
+
+    id_type                         id;
+    AtomicValue<vbucket_state_t>    state;
+    RWLock                          stateLock;
+    vbucket_state_t                 initialState;
+    Mutex                           pendingOpLock;
+    std::vector<const void*>        pendingOps;
+    hrtime_t                        pendingOpsStart;
+    EPStats                        &stats;
+    uint64_t                        purge_seqno;
+    AtomicValue<uint64_t>           max_cas;
+    AtomicValue<int64_t>            drift_counter;
+    AtomicValue<bool>               time_sync_enabled;
+
+    AtomicValue<bool>               takeover_backed_up;
 
     Mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;

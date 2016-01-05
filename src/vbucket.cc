@@ -216,24 +216,10 @@ void VBucket::doStatsForQueueing(Item& qi, size_t itemBytes)
 void VBucket::doStatsForFlushing(Item& qi, size_t itemBytes)
 {
     decrDirtyQueueSize(1);
-    if (dirtyQueueMem > sizeof(Item)) {
-        dirtyQueueMem.fetch_sub(sizeof(Item));
-    } else {
-        dirtyQueueMem.store(0);
-    }
+    decrDirtyQueueMem(sizeof(Item));
     ++dirtyQueueDrain;
-
-    if (dirtyQueueAge > qi.getQueuedTime()) {
-        dirtyQueueAge.fetch_sub(qi.getQueuedTime());
-    } else {
-        dirtyQueueAge.store(0);
-    }
-
-    if (dirtyQueuePendingWrites > itemBytes) {
-        dirtyQueuePendingWrites.fetch_sub(itemBytes);
-    } else {
-        dirtyQueuePendingWrites.store(0);
-    }
+    decrDirtyQueueAge(qi.getQueuedTime());
+    decrDirtyQueuePendingWrites(itemBytes);
 }
 
 void VBucket::incrMetaDataDisk(Item& qi)
@@ -320,6 +306,10 @@ void VBucket::notifyOnPersistence(EventuallyPersistentEngine &e,
     LockHolder lh(hpChksMutex);
     std::map<const void*, ENGINE_ERROR_CODE> toNotify;
     std::list<HighPriorityVBEntry>::iterator entry = hpChks.begin();
+
+    std::string logStr(isBySeqno
+                       ? "seqno persistence"
+                       : "checkpoint persistence");
 
     while (entry != hpChks.end()) {
         if (isBySeqno != entry->isBySeqno_) {
@@ -665,4 +655,43 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
                 add_stat, c);
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
     }
+}
+
+void VBucket::decrDirtyQueueMem(size_t decrementBy)
+{
+    size_t oldVal, newVal;
+    do {
+        oldVal = dirtyQueueMem.load(std::memory_order_relaxed);
+        if (oldVal < decrementBy) {
+            newVal = 0;
+        } else {
+            newVal = oldVal - decrementBy;
+        }
+    } while (!dirtyQueueMem.compare_exchange_strong(oldVal, newVal));
+}
+
+void VBucket::decrDirtyQueueAge(uint32_t decrementBy)
+{
+    uint64_t oldVal, newVal;
+    do {
+        oldVal = dirtyQueueAge.load(std::memory_order_relaxed);
+        if (oldVal < decrementBy) {
+            newVal = 0;
+        } else {
+            newVal = oldVal - decrementBy;
+        }
+    } while (!dirtyQueueAge.compare_exchange_strong(oldVal, newVal));
+}
+
+void VBucket::decrDirtyQueuePendingWrites(size_t decrementBy)
+{
+    size_t oldVal, newVal;
+    do {
+        oldVal = dirtyQueuePendingWrites.load(std::memory_order_relaxed);
+        if (oldVal < decrementBy) {
+            newVal = 0;
+        } else {
+            newVal = oldVal - decrementBy;
+        }
+    } while (!dirtyQueuePendingWrites.compare_exchange_strong(oldVal, newVal));
 }

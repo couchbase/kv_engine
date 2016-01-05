@@ -3758,7 +3758,7 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
     checkeq(vb_uuid, get_ull_stat(h, h1, "vb_1:uuid", "vbucket-seqno 1"),
             "Invalid uuid");
-    checkeq(static_cast<size_t>(7), vals.size(), "Expected four stats");
+    checkeq(static_cast<size_t>(7), vals.size(), "Expected seven stats");
 
     // Check invalid vbucket
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -6976,6 +6976,185 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
             h1->dcp.step(h, cookie, producers.get()),
             "Expected engine disconnect");
 
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                  const void *cookie, uint32_t opaque,
+                                  uint16_t vbucket, uint32_t flags,
+                                  uint64_t start, uint64_t end,
+                                  uint64_t snap_start_seqno,
+                                  uint64_t snap_end_seqno,
+                                  uint8_t cas = 0, uint8_t datatype = 1,
+                                  uint32_t exprtime = 0, uint32_t lockTime = 0,
+                                  uint64_t revSeqno = 0)
+{
+    /* Send snapshot marker */
+    checkeq(ENGINE_SUCCESS, h1->dcp.snapshot_marker(h, cookie, opaque, vbucket,
+                                                    snap_start_seqno,
+                                                    snap_end_seqno, flags),
+            "Failed to send marker!");
+    const std::string data("data");
+    /* Send DCP mutations */
+    for (uint64_t i = start; i <= end; i++) {
+        std::stringstream key;
+        key << "key" << i;
+        checkeq(ENGINE_SUCCESS, h1->dcp.mutation(h, cookie, opaque,
+                                                 key.str().c_str(),
+                                                 key.str().length(),
+                                                 data.c_str(), data.length(),
+                                                 cas, vbucket, flags, datatype,
+                                                 i, revSeqno, exprtime,
+                                                 lockTime, NULL, 0, 0),
+                "Failed dcp mutate.");
+    }
+}
+
+static enum test_result test_dcp_replica_stream_backfill(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1)
+{
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const int num_items = 100;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    /* Open an DCP consumer connection */
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    /* Write backfill elements on to replica, flag (0x02) */
+    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x02, 1, num_items, 0,
+                          num_items);
+
+    /* Stream in mutations from replica */
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "vb_0:high_seqno", num_items,
+                        "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    const void *cookie1 = testHarness.create_cookie();
+    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, 0, num_items, vb_uuid, 0, 0,
+               num_items, 0, 1, 0);
+
+    testHarness.destroy_cookie(cookie1);
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_replica_stream_in_memory(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1)
+{
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const int num_items = 100;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    /* Open an DCP consumer connection */
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    /* Send DCP mutations with in memory flag (0x01) */
+    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x01, 1, num_items, 0,
+                          num_items);
+
+    /* Stream in memory mutations from replica */
+    wait_for_flusher_to_settle(h, h1);
+    wait_for_stat_to_be(h, h1, "vb_0:high_seqno", num_items,
+                        "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    const void *cookie1 = testHarness.create_cookie();
+    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, 0, num_items, vb_uuid, 0, 0,
+               num_items, 0, 1, 0);
+
+    testHarness.destroy_cookie(cookie1);
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_replica_stream_all(ENGINE_HANDLE *h,
+                                                    ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const int num_items = 100;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    /* Open an DCP consumer connection */
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+            "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    /* Send DCP mutations with in memory flag (0x01) */
+    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x01, 1, num_items, 0,
+                          num_items);
+
+    /* Send 100 more DCP mutations with checkpoint creation flag (0x04) */
+    uint64_t start = num_items;
+    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x04, start + 1,
+                          start + 100, start, start + 100);
+
+    wait_for_flusher_to_settle(h, h1);
+    stop_persistence(h, h1);
+    checkeq(2 * num_items, get_int_stat(h, h1, "vb_replica_curr_items"),
+            "wrong number of items in replica vbucket");
+
+    /* Add 100 more items to the replica node on a new checkpoint */
+    /* Send with flag (0x04) indicating checkpoint creation */
+    start = 2 * num_items;
+    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x04, start + 1,
+                          start + 100, start, start + 100);
+
+    /* Disk backfill + in memory stream from replica */
+    /* Wait for a checkpoint to be removed */
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+
+    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    const void *cookie1 = testHarness.create_cookie();
+    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, 0, end, vb_uuid, 0, 0, 300, 0,
+               1, 0);
+
+    testHarness.destroy_cookie(cookie1);
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
@@ -15930,6 +16109,15 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("test dcp consumer noop", test_dcp_consumer_noop, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("test dcp replica stream backfill",
+                 test_dcp_replica_stream_backfill, test_setup, teardown,
+                 "chk_remover_stime=1;max_checkpoints=2", prepare, cleanup),
+        TestCase("test dcp replica stream in-memory",
+                 test_dcp_replica_stream_in_memory, test_setup, teardown,
+                 "chk_remover_stime=1;max_checkpoints=2", prepare, cleanup),
+        TestCase("test dcp replica stream all", test_dcp_replica_stream_all,
+                 test_setup, teardown, "chk_remover_stime=1;max_checkpoints=2",
+                 prepare, cleanup),
         TestCase("test producer stream request (partial)",
                  test_dcp_producer_stream_req_partial, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),

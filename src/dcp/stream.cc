@@ -147,7 +147,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
        itemsFromMemoryPhase(0), firstMarkerSent(false), waitForSnapshot(0),
        engine(e), producer(p), isBackfillTaskRunning(false),
        payloadType((flags & DCP_ADD_STREAM_FLAG_NO_VALUE) ? KEY_ONLY :
-                                                            KEY_VALUE) {
+                                                            KEY_VALUE),
+       lastSentSnapEndSeqno(0) {
 
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -155,15 +156,20 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
         end_seqno_ = dcpMaxSeqno;
     }
 
-    if (start_seqno_ >= end_seqno_) {
-        /* streamMutex lock needs to be acquired because endStream
-         * potentially makes call to pushToReadyQueue.
-         */
-        LockHolder lh(streamMutex);
-        endStream(END_STREAM_OK);
-        itemsReady.store(true);
-        // lock is released on leaving the scope
+    RCPtr<VBucket> vbucket = engine->getVBucket(vb);
+    if (vbucket) {
+        ReaderLockHolder rlh(vbucket->getStateLock());
+        if (vbucket->getState() == vbucket_state_replica) {
+            snapshot_info_t info = vbucket->checkpointManager.getSnapshotInfo();
+            if (info.range.end > en_seqno) {
+                end_seqno_ = info.range.end;
+            }
+        }
     }
+
+    LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") Creating %sstream "
+        "with start seqno %" PRIu64 " and end seqno %" PRIu64"",
+        producer->logHeader(), vb, type, st_seqno, en_seqno);
 
     backfillItems.memory = 0;
     backfillItems.disk = 0;
@@ -177,10 +183,18 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
     takeoverStart = 0;
     takeoverSendMaxTime = engine->getConfiguration().getDcpTakeoverMaxTime();
 
-    LOG(EXTENSION_LOG_NOTICE,
-        "%s (vb %d) %sstream created with start seqno %" PRIu64
-        " and end seqno %" PRIu64, producer->logHeader(),
-        vb, type, st_seqno, en_seqno);
+    if (start_seqno_ >= end_seqno_) {
+        /* streamMutex lock needs to be acquired because endStream
+         * potentially makes call to pushToReadyQueue.
+         */
+        LockHolder lh(streamMutex);
+        endStream(END_STREAM_OK);
+        itemsReady.store(true);
+        // lock is released on leaving the scope
+    } else {
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") %sstream created!",
+            producer->logHeader(), vb, type);
+    }
 }
 
 ActiveStream::~ActiveStream() {
@@ -243,6 +257,8 @@ DcpResponse* ActiveStream::next() {
 
 void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     LockHolder lh(streamMutex);
+    uint64_t chkCursorSeqno = endSeqno;
+
     if (state_ != STREAM_BACKFILLING) {
         return;
     }
@@ -250,21 +266,38 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     startSeqno = std::min(snap_start_seqno_, startSeqno);
     firstMarkerSent = true;
 
-    LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Sending disk snapshot with start "
-        "seqno %" PRIu64 " and end seqno %" PRIu64,
+    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+    if (vb) {
+        ReaderLockHolder rlh(vb->getStateLock());
+        if (vb->getState() == vbucket_state_replica) {
+            if (end_seqno_ > endSeqno) {
+                /* We possibly have items in the open checkpoint
+                   (incomplete snapshot) */
+                LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") Merging backfill"
+                    " and memory snapshot for a replica vbucket, start seqno "
+                    "%" PRIu64 " and end seqno %" PRIu64 "",
+                    producer->logHeader(), vb_, startSeqno, endSeqno);
+                endSeqno = end_seqno_;
+            }
+        }
+    }
+
+    LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") Sending disk snapshot with "
+        "start seqno %" PRIu64 " and end seqno %" PRIu64 "",
         producer->logHeader(), vb_, startSeqno, endSeqno);
     pushToReadyQ(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
-                                   MARKER_FLAG_DISK));
-    RCPtr<VBucket> vb = engine->getVBucket(vb_);
+                                    MARKER_FLAG_DISK));
+    lastSentSnapEndSeqno = endSeqno;
+
     if (!vb) {
         endStream(END_STREAM_STATE);
     } else {
         if (endSeqno > end_seqno_) {
-            endSeqno = end_seqno_;
+            chkCursorSeqno = end_seqno_;
         }
         // Only re-register the cursor if we still need to get memory snapshots
         CursorRegResult result =
-            vb->checkpointManager.registerCursorBySeqno(name_, endSeqno);
+            vb->checkpointManager.registerCursorBySeqno(name_, chkCursorSeqno);
         curChkSeqno = result.first;
     }
 
@@ -317,9 +350,9 @@ void ActiveStream::completeBackfill() {
         LockHolder lh(streamMutex);
         if (state_ == STREAM_BACKFILLING) {
             isBackfillTaskRunning = false;
-            LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Backfill complete, "
+            LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") Backfill complete, "
                 "%" PRIu64 " items read from disk, %" PRIu64 " from memory,"
-                " last seqno read: %" PRIu64,
+                " last seqno read: %" PRIu64 "",
                 producer->logHeader(), vb_, uint64_t(backfillItems.disk.load()),
                 uint64_t(backfillItems.memory.load()), lastReadSeqno.load());
         }
@@ -346,14 +379,22 @@ void ActiveStream::setVBucketStateAckRecieved() {
     bool transitionVbucket = false;
     if (state_ == STREAM_TAKEOVER_WAIT) {
         if (takeoverState == vbucket_state_pending) {
+            LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") Receive ack for set "
+                "vbucket state to pending message", producer->logHeader(), vb_);
+
+            RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+            engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
+                                                  false, false);
+            LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") Vbucket marked as "
+                "dead, last sent seqno: %" PRIu64 ", high seqno: %" PRIu64 "",
+                producer->logHeader(), vb_, lastSentSeqno.load(),
+                vbucket->getHighSeqno());
             takeoverState = vbucket_state_active;
             transitionVbucket = true;
             transitionState(STREAM_TAKEOVER_SEND);
-            LOG(EXTENSION_LOG_INFO, "%s (vb %d) Receive ack for set vbucket "
-                "state to pending message", producer->logHeader(), vb_);
         } else {
-            LOG(EXTENSION_LOG_INFO, "%s (vb %d) Receive ack for set vbucket "
-                "state to active message", producer->logHeader(), vb_);
+            LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") Receive ack for set "
+                "vbucket state to active message", producer->logHeader(), vb_);
             endStream(END_STREAM_OK);
         }
 
@@ -370,8 +411,8 @@ void ActiveStream::setVBucketStateAckRecieved() {
                                                   false, false);
         }
     } else {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Unexpected ack for set vbucket "
-            "op on stream '%s' state '%s'", producer->logHeader(), vb_,
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") Unexpected ack for set "
+            "vbucket op on stream '%s' state '%s'", producer->logHeader(), vb_,
             name_.c_str(), stateName(state_));
     }
 
@@ -641,25 +682,29 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
         return;
     }
 
-    uint32_t flags = MARKER_FLAG_MEMORY;
-    uint64_t snapStart = items.front()->getBySeqno();
-    uint64_t snapEnd = items.back()->getBySeqno();
+    if (isCurrentSnapshotCompleted()) {
+        uint32_t flags = MARKER_FLAG_MEMORY;
+        uint64_t snapStart = items.front()->getBySeqno();
+        uint64_t snapEnd = items.back()->getBySeqno();
 
-    if (mark) {
-        flags |= MARKER_FLAG_CHK;
+        if (mark) {
+            flags |= MARKER_FLAG_CHK;
+        }
+
+        if (state_ == STREAM_TAKEOVER_SEND) {
+            waitForSnapshot++;
+            flags |= MARKER_FLAG_ACK;
+        }
+
+        if (!firstMarkerSent) {
+            snapStart = std::min(snap_start_seqno_, snapStart);
+            firstMarkerSent = true;
+        }
+        pushToReadyQ(new SnapshotMarker(opaque_, vb_, snapStart, snapEnd,
+                                        flags));
+        lastSentSnapEndSeqno = snapEnd;
     }
 
-    if (state_ == STREAM_TAKEOVER_SEND) {
-        waitForSnapshot++;
-        flags |= MARKER_FLAG_ACK;
-    }
-
-    if (!firstMarkerSent) {
-        snapStart = std::min(snap_start_seqno_, snapStart);
-        firstMarkerSent = true;
-    }
-
-    pushToReadyQ(new SnapshotMarker(opaque_, vb_, snapStart, snapEnd, flags));
     std::deque<MutationResponse*>::iterator itemItr;
     for (itemItr = items.begin(); itemItr != items.end(); itemItr++) {
         pushToReadyQ(*itemItr);
@@ -933,6 +978,20 @@ const char* ActiveStream::logHeader()
 bool ActiveStream::isSendMutationKeyOnlyEnabled() const
 {
     return (KEY_ONLY == payloadType);
+}
+
+bool ActiveStream::isCurrentSnapshotCompleted() const
+{
+    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    if (vbucket) {
+        ReaderLockHolder rlh(vbucket->getStateLock());
+        if (vbucket_state_replica == vbucket->getState()) {
+            if (lastSentSnapEndSeqno >= lastReadSeqno) {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,

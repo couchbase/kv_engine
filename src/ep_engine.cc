@@ -4415,12 +4415,17 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
     return ENGINE_SUCCESS;
 }
 
-void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
-                                                 ADD_STAT add_stat,
-                                                 const RCPtr<VBucket> &vb) {
+void EventuallyPersistentEngine::addSeqnoVbStats_UNLOCKED(const void *cookie,
+                                                          ADD_STAT add_stat,
+                                                          const RCPtr<VBucket> &vb) {
+    /**
+     * ReaderLock is to already be acquired for the vbucket stateLock
+     * before invoking this function.
+     */
     uint64_t relHighSeqno = vb->getHighSeqno();
     if (vb->getState() != vbucket_state_active) {
-        relHighSeqno = vb->checkpointManager.getLastClosedChkBySeqno();
+        snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
+        relHighSeqno = info.range.end;
     }
 
     char buffer[32];
@@ -4472,7 +4477,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
             return ENGINE_NOT_MY_VBUCKET;
         }
 
-        addSeqnoVbStats(cookie, add_stat, vb);
+
+        addSeqnoVbStats_UNLOCKED(cookie, add_stat, vb);
+
         return ENGINE_SUCCESS;
     }
 
@@ -4484,7 +4491,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
             if (vb->getState() == vbucket_state_dead) {
                 continue;
             }
-            addSeqnoVbStats(cookie, add_stat, vb);
+
+            addSeqnoVbStats_UNLOCKED(cookie, add_stat, vb);
         }
     }
     return ENGINE_SUCCESS;
