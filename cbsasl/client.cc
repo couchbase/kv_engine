@@ -50,25 +50,32 @@ cbsasl_error_t cbsasl_client_new(const char*,
     int ii = 0;
     /* Locate the callbacks */
     while (callbacks[ii].id != CBSASL_CB_LIST_END) {
-        if (callbacks[ii].id == CBSASL_CB_USER ||
-            callbacks[ii].id == CBSASL_CB_AUTHNAME) {
-            union {
-                int (* get)(void*, int, const char**, unsigned int*);
+        union {
+            cbsasl_get_authname_fn get_authname_fn;
+            cbsasl_get_username_fn get_username_fn;
+            cbsasl_get_password_fn get_password_fn;
+            cbsasl_log_fn log_fn;
+            int (* proc)(void);
+        } hack;
+        hack.proc = callbacks[ii].proc;
 
-                int (* proc)(void);
-            } hack;
-            hack.proc = callbacks[ii].proc;
-            conn->client->get_username = hack.get;
+        switch (callbacks[ii].id) {
+        case CBSASL_CB_USER:
+        case CBSASL_CB_AUTHNAME:
+            conn->client->get_username = hack.get_username_fn;
             conn->client->get_username_ctx = callbacks[ii].context;
-        } else if (callbacks[ii].id == CBSASL_CB_PASS) {
-            union {
-                int (* get)(cbsasl_conn_t*, void*, int, cbsasl_secret_t**);
-
-                int (* proc)(void);
-            } hack;
-            hack.proc = callbacks[ii].proc;
-            conn->client->get_password = hack.get;
+            break;
+        case CBSASL_CB_PASS:
+            conn->client->get_password = hack.get_password_fn;
             conn->client->get_password_ctx = callbacks[ii].context;
+            break;
+        case CBSASL_CB_LOG:
+            conn->log_fn = hack.log_fn;
+            conn->log_ctx = callbacks[ii].context;
+            break;
+        default:
+            /* Ignore unknown */
+            ;
         }
         ++ii;
     }
@@ -131,7 +138,7 @@ cbsasl_error_t cbsasl_client_step(cbsasl_conn_t* conn,
                               clientoutlen);
 }
 
-cbsasl_error_t cbsasl_get_username(get_username_fn function, void* context,
+cbsasl_error_t cbsasl_get_username(cbsasl_get_username_fn function, void* context,
                                    const char** username,
                                    unsigned int* usernamelen) {
     if (function(context, CBSASL_CB_USER, username, usernamelen) != 0) {
@@ -140,7 +147,7 @@ cbsasl_error_t cbsasl_get_username(get_username_fn function, void* context,
     return CBSASL_OK;
 }
 
-cbsasl_error_t cbsasl_get_password(get_password_fn function,
+cbsasl_error_t cbsasl_get_password(cbsasl_get_password_fn function,
                                    cbsasl_conn_t* conn,
                                    void* context,
                                    cbsasl_secret_t** psecret) {

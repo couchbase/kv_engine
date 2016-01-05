@@ -192,13 +192,6 @@ extern "C" {
 
     /* Client API */
 
-
-    /* define the different callback id's we support */
-#define CBSASL_CB_USER 1
-#define CBSASL_CB_AUTHNAME 2
-#define CBSASL_CB_PASS 3
-#define CBSASL_CB_LIST_END 4
-
     CBSASL_PUBLIC_API
     cbsasl_error_t cbsasl_client_new(const char *service,
                                      const char *serverFQDN,
@@ -223,6 +216,60 @@ extern "C" {
                                       void **not_used,
                                       const char **clientout,
                                       unsigned int *clientoutlen);
+
+
+/* Callback API supported by cbsasl */
+#define CBSASL_CB_LIST_END 0
+
+/**
+ * Get the username
+ */
+typedef int (* cbsasl_get_username_fn)(void* context,
+                                       int id,
+                                       const char** result,
+                                       unsigned int* len);
+#define CBSASL_CB_USER 1
+/**
+ * Get the name to use for authentication
+ */
+typedef int (* cbsasl_get_authname_fn)(void* context,
+                                       int id,
+                                       const char** result,
+                                       unsigned int* len);
+#define CBSASL_CB_AUTHNAME 2
+/**
+ * Get the password
+ */
+typedef int (* cbsasl_get_password_fn)(cbsasl_conn_t* conn,
+                                       void* context,
+                                       int id,
+                                       cbsasl_secret_t** psecret);
+#define CBSASL_CB_PASS 3
+
+
+/**
+ * Logging
+ */
+
+/** Do not log anything */
+#define CBSASL_LOG_NONE 0
+/** Log errors */
+#define CBSASL_LOG_ERR 1
+/** Log auth failures */
+#define CBSASL_LOG_FAIL 2
+/** Log warnings */
+#define CBSASL_LOG_WARN 3
+/** Log notices */
+#define CBSASL_LOG_NOTE 4
+/** Log debug information */
+#define CBSASL_LOG_DEBUG 5
+/** Not used */
+#define CBSASL_LOG_TRACE 6
+/** not used */
+#define CBSASL_LOG_PASS 7
+
+typedef int (* cbsasl_log_fn)(void* context, int level, const char *message);
+#define CBSASL_CB_LOG 5
 
 #ifdef __cplusplus
 }

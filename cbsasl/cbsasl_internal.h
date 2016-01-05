@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <cbsasl/cbsasl.h>
 #include <cstdlib>
 #include <memory>
 #include <string>
@@ -94,11 +95,16 @@ protected:
 
 typedef std::unique_ptr<MechanismBackend> UniqueMechanismBackend;
 
-typedef int (* get_username_fn)(void* context, int id, const char** result,
-                                unsigned int* len);
-
-typedef int (* get_password_fn)(cbsasl_conn_t* conn, void* context, int id,
-                                cbsasl_secret_t** psecret);
+enum class cbsasl_loglevel_t : uint8_t {
+    None = CBSASL_LOG_NONE, // Do not log anything.
+    Error = CBSASL_LOG_ERR, // Log unusual errors. This is the default log level.
+    Fail = CBSASL_LOG_FAIL, // Log all authentication failures.
+    Warning = CBSASL_LOG_WARN, // Log non-fatal warnings.
+    Notice = CBSASL_LOG_NOTE, // Log non-fatal warnings (more verbose than Warning).
+    Debug = CBSASL_LOG_DEBUG, // Log non-fatal warnings (more verbose than Notice).
+    Trace = CBSASL_LOG_TRACE, // Log traces of internal protocols.
+    Password = CBSASL_LOG_PASS // Log traces of internal protocols, including passwords.
+};
 
 
 /**
@@ -109,7 +115,7 @@ public:
     /**
      * The specified callback to get the username from the client
      */
-    get_username_fn get_username;
+    cbsasl_get_username_fn get_username;
     /**
      * The context cookie for the username callback
      */
@@ -118,7 +124,7 @@ public:
     /**
      * The specified callback to get the password from the client
      */
-    get_password_fn get_password;
+    cbsasl_get_password_fn get_password;
 
     /**
      * The context cookie for the password callback
@@ -159,7 +165,10 @@ public:
  */
 struct cbsasl_conn_st {
     cbsasl_conn_st()
-        : mechanism(Mechanism::PLAIN) {
+        : mechanism(Mechanism::PLAIN),
+          log_fn(nullptr),
+          log_ctx(nullptr),
+          log_level(cbsasl_loglevel_t::Error) {
 
     }
 
@@ -167,6 +176,22 @@ struct cbsasl_conn_st {
      * The mecanism currently selected
      */
     Mechanism mechanism;
+
+    /**
+     * The connection associated log function
+     */
+    cbsasl_log_fn log_fn;
+
+    /**
+     * the connection associated log context
+     */
+    void* log_ctx;
+
+    /**
+     * The connection associated log level
+     */
+    cbsasl_loglevel_t log_level;
+
 
     /**
      * The "client api" part use this member (and may ensure that it isn't
@@ -189,7 +214,7 @@ struct cbsasl_conn_st {
  * an enum internally. To work around that we treat any return code
  * != 0 as CBSASL_FAIL.
  */
-cbsasl_error_t cbsasl_get_username(get_username_fn function,
+cbsasl_error_t cbsasl_get_username(cbsasl_get_username_fn function,
                                    void* context,
                                    const char** username,
                                    unsigned int* usernamelen);
@@ -200,7 +225,29 @@ cbsasl_error_t cbsasl_get_username(get_username_fn function,
  * an enum internally. To work around that we treat any return code
  * != 0 as CBSASL_FAIL.
  */
-cbsasl_error_t cbsasl_get_password(get_password_fn function,
+cbsasl_error_t cbsasl_get_password(cbsasl_get_password_fn function,
                                    cbsasl_conn_t* conn,
                                    void* context,
                                    cbsasl_secret_t** psecret);
+
+/**
+ * Perform logging from witin the CBSASL library. The log data will
+ * end up in the clients logging callback if configured.
+ *
+ * @param connection the connection performing the request (or nullptr
+ *                   if we don't have an associated connection)
+ * @param level the log level for the data
+ * @param message the message to log
+ */
+void cbsasl_log(cbsasl_conn_t* connection,
+                cbsasl_loglevel_t level,
+                const std::string& message);
+
+/**
+ * Set the default logger functions being used if the connection don't
+ * provide its own logger.
+ *
+ * @param log_fn the log function to call
+ * @oaram context the context to pass to the log function
+ */
+void cbsasl_set_default_logger(cbsasl_log_fn log_fn, void *context);

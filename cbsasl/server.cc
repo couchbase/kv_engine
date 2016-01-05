@@ -44,10 +44,32 @@ cbsasl_error_t cbsasl_listmech(cbsasl_conn_t* conn,
 }
 
 CBSASL_PUBLIC_API
-cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t *,
+cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t *callbacks,
                                   const char *) {
     if (cb_rand_open(&randgen) != 0) {
         return CBSASL_FAIL;
+    }
+
+    if (callbacks != nullptr) {
+        int ii = 0;
+        while (callbacks[ii].id != CBSASL_CB_LIST_END) {
+            union {
+                cbsasl_log_fn log_fn;
+
+                int (* proc)(void);
+            } hack;
+            hack.proc = callbacks[ii].proc;
+
+            switch (callbacks[ii].id) {
+            case CBSASL_CB_LOG:
+                cbsasl_set_default_logger(hack.log_fn, callbacks[ii].context);
+                break;
+            default:
+                /* Ignore unknown */
+                ;
+            }
+            ++ii;
+        }
     }
     return load_user_db();
 }

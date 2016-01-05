@@ -2244,6 +2244,46 @@ static void backtrace_terminate_handler() {
     std::abort();
 }
 
+/**
+ * The log function used from SASL
+ *
+ * Try to remap the log levels to our own levels and put in the log
+ * depending on the severity.
+ */
+static int sasl_log_callback(void*, int level, const char *message) {
+    switch (level) {
+    case CBSASL_LOG_ERR:
+        LOG_WARNING(nullptr, "%s", message);
+        break;
+    case CBSASL_LOG_NOTE:
+        LOG_NOTICE(nullptr, "%s", message);
+        break;
+    case CBSASL_LOG_FAIL:
+    case CBSASL_LOG_DEBUG:
+        LOG_DEBUG(nullptr, "%s", message);
+        break;
+    default:
+        /* Ignore */
+        ;
+    }
+
+    return CBSASL_OK;
+}
+
+static void initialize_sasl() {
+    cbsasl_callback_t sasl_callbacks[2];
+
+    sasl_callbacks[0].id = CBSASL_CB_LOG;
+    sasl_callbacks[0].proc = (int (*)(void))&sasl_log_callback;
+    sasl_callbacks[0].context = nullptr;
+    sasl_callbacks[1].id = CBSASL_CB_LIST_END;
+    sasl_callbacks[1].proc = nullptr;
+    sasl_callbacks[1].context = nullptr;
+
+    if (cbsasl_server_init(sasl_callbacks, "memcached") != CBSASL_OK) {
+        FATAL_ERROR(EXIT_FAILURE, "Failed to initialize SASL server");
+    }
+}
 
 int main (int argc, char **argv) {
     // MB-14649 log() crash on windows on some CPU's
@@ -2393,9 +2433,7 @@ int main (int argc, char **argv) {
     /* Initialize bucket engine */
     initialize_buckets();
 
-    if (cbsasl_server_init(nullptr, "memcached") != CBSASL_OK) {
-        FATAL_ERROR(EXIT_FAILURE, "Failed to initialize SASL server");
-    }
+    initialize_sasl();
 
     /* initialize main thread libevent instance */
     main_base = event_base_new();
