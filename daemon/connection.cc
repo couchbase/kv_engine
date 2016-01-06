@@ -36,10 +36,25 @@ const char* to_string(const Connection::Priority& priority) {
                                 std::to_string(int(priority)));
 }
 
+static cbsasl_conn_t* create_new_cbsasl_server_t() {
+    cbsasl_conn_t *conn;
+    if (cbsasl_server_new("memcached", // service
+                          nullptr, // Server DQDN
+                          nullptr, // user realm
+                          nullptr, // iplocalport
+                          nullptr, // ipremoteport
+                          nullptr, // callbacks
+                          0, // flags
+                          &conn) != CBSASL_OK) {
+        throw std::bad_alloc();
+    }
+    return conn;
+}
+
 Connection::Connection(SOCKET sfd, event_base* b)
     : socketDescriptor(sfd),
       base(b),
-      sasl_conn(nullptr),
+      sasl_conn(create_new_cbsasl_server_t()),
       admin(false),
       authenticated(false),
       username("unknown"),
@@ -72,7 +87,6 @@ Connection::Connection(SOCKET sock,
 Connection::~Connection() {
     MEMCACHED_CONN_DESTROY(this);
     auth_destroy(auth_context);
-    cbsasl_dispose(&sasl_conn);
     if (socketDescriptor != INVALID_SOCKET) {
         LOG_INFO(this, "%u - Closing socket descriptor", getId());
         safe_close(socketDescriptor);
@@ -239,7 +253,7 @@ cJSON* Connection::toJSON() const {
         }
         if (sasl_conn != NULL) {
             json_add_uintptr_to_object(obj, "sasl_conn",
-                                       (uintptr_t)sasl_conn);
+                                       (uintptr_t)sasl_conn.get());
         }
         json_add_bool_to_object(obj, "nodelay", nodelay);
         cJSON_AddNumberToObject(obj, "refcount", refcount);

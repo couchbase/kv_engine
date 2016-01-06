@@ -3590,10 +3590,8 @@ static void sasl_auth_executor(McbpConnection* c, void* packet) {
     int result;
 
     if (c->getCmd() == PROTOCOL_BINARY_CMD_SASL_AUTH) {
-        cbsasl_conn_t* conn = c->getSaslConn();
-        result = cbsasl_server_start(&conn, mech, challenge, vlen,
+        result = cbsasl_server_start(c->getSaslConn(), mech, challenge, vlen,
                                      (unsigned char**)&out, &outlen);
-        c->setSaslConn(conn);
     } else {
         result = cbsasl_server_step(c->getSaslConn(), challenge, vlen,
                                     &out, &outlen);

@@ -113,7 +113,11 @@ protected:
         ASSERT_EQ(CBSASL_OK, cbsasl_client_start(client, mech, nullptr,
                                                  &data, &len, &chosenmech));
 
-        err = cbsasl_server_start(&server, chosenmech, data, len,
+        ASSERT_EQ(CBSASL_OK,
+                  cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                    nullptr, 0, &server));
+
+        err = cbsasl_server_start(server, chosenmech, data, len,
                                   (unsigned char**)&serverdata, &serverlen);
         if (err == CBSASL_OK) {
             free(context.secret);

@@ -124,18 +124,26 @@ TEST_F(SaslServerTest, ListMechsSpecialized) {
 
 TEST_F(SaslServerTest, BadMech) {
     cbsasl_conn_t* conn = nullptr;
-    cbsasl_error_t err = cbsasl_server_start(&conn, "bad_mech", nullptr, 0,
+    ASSERT_EQ(CBSASL_OK,
+              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                nullptr, 0, &conn));
+    ASSERT_NE(nullptr, conn);
+    cbsasl_error_t err = cbsasl_server_start(conn, "bad_mech", nullptr, 0,
                                              nullptr, nullptr);
     ASSERT_EQ(CBSASL_BADPARAM, err);
+    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, PlainCorrectPassword) {
+    /* Normal behavior */
     cbsasl_conn_t* conn = nullptr;
+    ASSERT_EQ(CBSASL_OK,
+              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                nullptr, 0, &conn));
+    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
-
-    /* Normal behavior */
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN",
+    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN",
                                              "\0mikewied\0mikepw", 16, &output,
                                              &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
@@ -145,10 +153,14 @@ TEST_F(SaslServerTest, PlainCorrectPassword) {
 
 TEST_F(SaslServerTest, PlainWrongPassword) {
     cbsasl_conn_t* conn = nullptr;
+    ASSERT_EQ(CBSASL_OK,
+              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                nullptr, 0, &conn));
+    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN",
+    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN",
                                              "\0mikewied\0badpPW", 16, &output,
                                              &outputlen);
     ASSERT_EQ(CBSASL_PWERR, err);
@@ -158,10 +170,14 @@ TEST_F(SaslServerTest, PlainWrongPassword) {
 
 TEST_F(SaslServerTest, PlainNoPassword) {
     cbsasl_conn_t* conn = nullptr;
+    ASSERT_EQ(CBSASL_OK,
+              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                nullptr, 0, &conn));
+    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", "\0nopass\0", 8,
+    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN", "\0nopass\0", 8,
                                              &output, &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
     free((void*)output);
@@ -170,10 +186,14 @@ TEST_F(SaslServerTest, PlainNoPassword) {
 
 TEST_F(SaslServerTest, PlainWithAuthzid) {
     cbsasl_conn_t* conn = nullptr;
+    ASSERT_EQ(CBSASL_OK,
+              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                nullptr, 0, &conn));
+    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN",
+    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN",
                                              "funzid\0mikewied\0mikepw", 22,
                                              &output,
                                              &outputlen);
@@ -184,10 +204,14 @@ TEST_F(SaslServerTest, PlainWithAuthzid) {
 
 TEST_F(SaslServerTest, PlainWithNoPwOrUsernameEndingNull) {
     cbsasl_conn_t* conn = nullptr;
+    ASSERT_EQ(CBSASL_OK,
+              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                nullptr, 0, &conn));
+    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", "funzid\0mikewied",
+    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN", "funzid\0mikewied",
                                              15, &output, &outputlen);
     ASSERT_NE(CBSASL_OK, err);
     free((void*)output);
@@ -196,10 +220,14 @@ TEST_F(SaslServerTest, PlainWithNoPwOrUsernameEndingNull) {
 
 TEST_F(SaslServerTest, PlainNoNullAtAll) {
     cbsasl_conn_t* conn = nullptr;
+    ASSERT_EQ(CBSASL_OK,
+              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                nullptr, 0, &conn));
+    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
-    cbsasl_error_t err = cbsasl_server_start(&conn, "PLAIN", "funzidmikewied",
+    cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN", "funzidmikewied",
                                              14, &output, &outputlen);
     ASSERT_NE(CBSASL_OK, err);
     free((void*)output);
@@ -208,12 +236,15 @@ TEST_F(SaslServerTest, PlainNoNullAtAll) {
 
 TEST_F(SaslServerTest, CramMD5) {
     cbsasl_conn_t* conn = nullptr;
-
+    ASSERT_EQ(CBSASL_OK,
+              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                nullptr, 0, &conn));
+    ASSERT_NE(nullptr, conn);
     unsigned char* challenge = nullptr;
     unsigned challengelen = 0;
 
     ASSERT_EQ(CBSASL_CONTINUE,
-              cbsasl_server_start(&conn, "CRAM-MD5", nullptr, 0, &challenge,
+              cbsasl_server_start(conn, "CRAM-MD5", nullptr, 0, &challenge,
                                   &challengelen));
 
     const char* user = "mikewied";
@@ -235,10 +266,14 @@ TEST_F(SaslServerTest, CramMD5) {
 
 TEST_F(SaslServerTest, CramMD5WrongPassword) {
     cbsasl_conn_t* conn = nullptr;
+    ASSERT_EQ(CBSASL_OK,
+              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                nullptr, 0, &conn));
+    ASSERT_NE(nullptr, conn);
     unsigned char* challenge = nullptr;
     unsigned challengelen = 0;
     ASSERT_EQ(CBSASL_CONTINUE,
-              cbsasl_server_start(&conn, "CRAM-MD5", nullptr, 0, &challenge,
+              cbsasl_server_start(conn, "CRAM-MD5", nullptr, 0, &challenge,
                                   &challengelen));
 
     const char* user = "mikewied";

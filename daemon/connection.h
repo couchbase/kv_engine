@@ -139,7 +139,8 @@ public:
         const void* unm = unknown;
 
         if (authenticated) {
-            if (cbsasl_getprop(sasl_conn, CBSASL_USERNAME, &unm) != CBSASL_OK) {
+            if (cbsasl_getprop(sasl_conn.get(),
+                               CBSASL_USERNAME, &unm) != CBSASL_OK) {
                 unm = unknown;
             }
         }
@@ -181,11 +182,7 @@ public:
     }
 
     cbsasl_conn_t* getSaslConn() const {
-        return sasl_conn;
-    }
-
-    void setSaslConn(cbsasl_conn_t* sasl_conn) {
-        Connection::sasl_conn = sasl_conn;
+        return sasl_conn.get();
     }
 
     /**
@@ -359,7 +356,7 @@ protected:
     /**
      * The SASL object used to do sasl authentication
      */
-    cbsasl_conn_t* sasl_conn;
+    unique_cbsasl_conn_t sasl_conn;
 
     /** Is the connection set up with admin privileges */
     bool admin;

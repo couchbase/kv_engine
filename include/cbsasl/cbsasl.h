@@ -142,7 +142,7 @@ extern "C" {
      * @return Whether or not the mecahnism initialization was successful
      */
     CBSASL_PUBLIC_API
-    cbsasl_error_t cbsasl_server_start(cbsasl_conn_t **conn,
+    cbsasl_error_t cbsasl_server_start(cbsasl_conn_t *conn,
                                        const char *mech,
                                        const char *clientin,
                                        unsigned int clientinlen,
@@ -273,6 +273,19 @@ typedef int (* cbsasl_log_fn)(void* context, int level, const char *message);
 
 #ifdef __cplusplus
 }
+
+#include <memory>
+
+struct CbSaslDeleter {
+    void operator()(cbsasl_conn_t *conn) {
+        if (conn != nullptr) {
+            cbsasl_dispose(&conn);
+        }
+    }
+};
+
+typedef std::unique_ptr<cbsasl_conn_t, CbSaslDeleter> unique_cbsasl_conn_t;
+
 #endif
 
 #endif  /* CBSASL_CBSASL_H */

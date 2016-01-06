@@ -85,7 +85,7 @@ cbsasl_error_t cbsasl_server_new(const char*,
                                  const char*,
                                  const char*,
                                  const char*,
-                                 const cbsasl_callback_t*,
+                                 const cbsasl_callback_t* callbacks,
                                  unsigned int,
                                  cbsasl_conn_t** conn) {
     if (conn == nullptr) {
@@ -102,6 +102,29 @@ cbsasl_error_t cbsasl_server_new(const char*,
         return CBSASL_NOMEM;
     }
 
+    if (callbacks != nullptr) {
+        int ii = 0;
+        while (callbacks[ii].id != CBSASL_CB_LIST_END) {
+            union {
+                cbsasl_log_fn log_fn;
+
+                int (* proc)(void);
+            } hack;
+            hack.proc = callbacks[ii].proc;
+
+            switch (callbacks[ii].id) {
+            case CBSASL_CB_LOG:
+                ret->log_fn = hack.log_fn;
+                ret->log_ctx = callbacks[ii].context;
+                break;
+            default:
+                /* Ignore unknown */
+                ;
+            }
+            ++ii;
+        }
+    }
+
     *conn = ret;
 
     (*conn)->mechanism = Mechanism::UNKNOWN;
@@ -109,39 +132,29 @@ cbsasl_error_t cbsasl_server_new(const char*,
 }
 
 CBSASL_PUBLIC_API
-cbsasl_error_t cbsasl_server_start(cbsasl_conn_t** conn,
+cbsasl_error_t cbsasl_server_start(cbsasl_conn_t* conn,
                                    const char* mech,
                                    const char* clientin,
                                    unsigned int clientinlen,
                                    unsigned char** serverout,
                                    unsigned int* serveroutlen) {
-
-    if (*conn != NULL) {
-        cbsasl_dispose(conn);
-    }
-
-    cbsasl_error_t err = cbsasl_server_new(nullptr, nullptr, nullptr, nullptr,
-                                           nullptr, nullptr, 0, conn);
-
-    if (err != CBSASL_OK) {
-        return err;
-    }
-
-    auto* server = (*conn)->server.get();
-
-    (*conn)->mechanism = MechanismFactory::toMechanism(mech);
-    if ((*conn)->mechanism == Mechanism::UNKNOWN) {
-        cbsasl_dispose(conn);
+    if (conn == nullptr) {
         return CBSASL_BADPARAM;
     }
 
-    server->mech = MechanismFactory::createServerBackend((*conn)->mechanism);
+    auto* server = conn->server.get();
+
+    conn->mechanism = MechanismFactory::toMechanism(mech);
+    if (conn->mechanism == Mechanism::UNKNOWN) {
+        return CBSASL_BADPARAM;
+    }
+
+    server->mech = MechanismFactory::createServerBackend(conn->mechanism);
     if (server->mech.get() == nullptr) {
-        cbsasl_dispose(conn);
         return CBSASL_NOMEM;
     }
 
-    return server->mech->start(*conn, clientin, clientinlen,
+    return server->mech->start(conn, clientin, clientinlen,
                                (const char**)serverout, serveroutlen);
 }
 
