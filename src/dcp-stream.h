@@ -294,7 +294,8 @@ private:
         LockHolder lh(workQueueLock);
         if (!queue.empty()) {
             rval = queue.front();
-            queue.pop_front();
+            queue.pop();
+            queuedVbuckets.erase(rval->getVBucket());
         }
         return rval;
     }
@@ -304,8 +305,23 @@ private:
         return queue.empty();
     }
 
+    void pushUnique(stream_t stream) {
+        LockHolder lh(workQueueLock);
+        if (queuedVbuckets.count(stream->getVBucket()) == 0) {
+            queue.push(stream);
+            queuedVbuckets.insert(stream->getVBucket());
+        }
+    }
+
     Mutex workQueueLock;
-    std::deque<stream_t> queue;
+
+    /**
+     * Maintain a queue of unique stream_t
+     * There's no need to have the same stream in the queue more than once
+     */
+    std::queue<stream_t> queue;
+    std::set<uint16_t> queuedVbuckets;
+
     AtomicValue<bool> notified;
     size_t iterationsBeforeYield;
 };
