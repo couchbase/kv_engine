@@ -55,6 +55,7 @@ cbsasl_error_t cbsasl_client_new(const char*,
             cbsasl_get_username_fn get_username_fn;
             cbsasl_get_password_fn get_password_fn;
             cbsasl_log_fn log_fn;
+            cbsasl_get_cnonce_fn get_cnonce_fn;
             int (* proc)(void);
         } hack;
         hack.proc = callbacks[ii].proc;
@@ -73,6 +74,9 @@ cbsasl_error_t cbsasl_client_new(const char*,
             conn->log_fn = hack.log_fn;
             conn->log_ctx = callbacks[ii].context;
             break;
+        case CBSASL_CB_CNONCE:
+            conn->get_cnonce_fn = hack.get_cnonce_fn;
+            conn->get_cnonce_ctx = callbacks[ii].context;
         default:
             /* Ignore unknown */
             ;

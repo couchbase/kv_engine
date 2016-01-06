@@ -168,7 +168,9 @@ struct cbsasl_conn_st {
         : mechanism(Mechanism::PLAIN),
           log_fn(nullptr),
           log_ctx(nullptr),
-          log_level(cbsasl_loglevel_t::Error) {
+          log_level(cbsasl_loglevel_t::Error),
+          get_cnonce_fn(nullptr),
+          get_cnonce_ctx(nullptr) {
 
     }
 
@@ -192,6 +194,16 @@ struct cbsasl_conn_st {
      */
     cbsasl_loglevel_t log_level;
 
+
+    /**
+     * callback to get the client nonce
+     */
+    cbsasl_get_cnonce_fn get_cnonce_fn;
+
+    /**
+     * The context for the get nonce callback
+     */
+    void *get_cnonce_ctx;
 
     /**
      * The "client api" part use this member (and may ensure that it isn't

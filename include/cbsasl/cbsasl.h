@@ -271,6 +271,15 @@ typedef int (* cbsasl_get_password_fn)(cbsasl_conn_t* conn,
 typedef int (* cbsasl_log_fn)(void* context, int level, const char *message);
 #define CBSASL_CB_LOG 5
 
+/**
+ * Get client nonce (used for testing)
+ */
+typedef int (* cbsasl_get_cnonce_fn)(void* context,
+                                     int id,
+                                     const char** result,
+                                     unsigned int* len);
+#define CBSASL_CB_CNONCE 6
+
 #ifdef __cplusplus
 }
 

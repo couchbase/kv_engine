@@ -107,7 +107,7 @@ cbsasl_error_t cbsasl_server_new(const char*,
         while (callbacks[ii].id != CBSASL_CB_LIST_END) {
             union {
                 cbsasl_log_fn log_fn;
-
+                cbsasl_get_cnonce_fn get_cnonce_fn;
                 int (* proc)(void);
             } hack;
             hack.proc = callbacks[ii].proc;
@@ -117,6 +117,9 @@ cbsasl_error_t cbsasl_server_new(const char*,
                 ret->log_fn = hack.log_fn;
                 ret->log_ctx = callbacks[ii].context;
                 break;
+            case CBSASL_CB_CNONCE:
+                ret->get_cnonce_fn = hack.get_cnonce_fn;
+                ret->get_cnonce_ctx = callbacks[ii].context;
             default:
                 /* Ignore unknown */
                 ;

@@ -44,6 +44,23 @@ cbsasl_error_t CramMd5ServerBackend::start(cbsasl_conn_t* conn,
         return CBSASL_BADPARAM;
     }
 
+    if (conn->get_cnonce_fn != nullptr) {
+        // Allow the user to override the nonce
+        const char *cnonce = nullptr;
+        unsigned int len;
+
+        if (conn->get_cnonce_fn(conn->get_cnonce_ctx, CBSASL_CB_CNONCE,
+                                &cnonce, &len) != 0) {
+            return CBSASL_FAIL;
+        }
+
+        if (len != DIGEST_LENGTH) {
+            return CBSASL_BADPARAM;
+        }
+
+        memcpy(digest.data(), cnonce, len);
+    }
+
     *output = digest.data();
     *outputlen = (unsigned)digest.size();
 
