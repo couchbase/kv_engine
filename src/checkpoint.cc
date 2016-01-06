@@ -986,7 +986,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
                 " snapshotStart:" + std::to_string(st) +
                 " lastBySeqno:" + std::to_string(lastBySeqno) +
                 " snapshotEnd:" + std::to_string(en) +
-                " genSeqno:" + std::to_string(genSeqno));
+                " genSeqno:" + (genSeqno ? "True" : "False"));
     }
 
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);
