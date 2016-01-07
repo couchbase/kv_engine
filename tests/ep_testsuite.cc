@@ -8840,8 +8840,18 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
                               true, false);
     wait_for_warmup_complete(h, h1);
 
-    check(vals.find("ep_warmup_key_count")->second == "100",
-          "Expected 100 keys loaded after warmup");
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
+    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+    if (eviction_policy == "value_only") {
+        check(vals.find("ep_warmup_key_count")->second == "100",
+              "Expected 100 keys loaded after warmup");
+    } else { // Full eviction mode
+        check(vals.find("ep_warmup_key_count")->second == "0",
+              "Expected 0 keys loaded after warmup");
+    }
+
     check(vals.find("ep_warmup_value_count")->second == "0",
           "Expected 0 values loaded after warmup");
 
