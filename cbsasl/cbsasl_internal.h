@@ -286,3 +286,18 @@ void cbsasl_set_default_logger(cbsasl_log_fn log_fn, void* context);
  */
 void cbsasl_set_log_level(cbsasl_conn_t* connection,
                           cbsasl_getopt_fn getopt_fn, void* context);
+
+/**
+ * get the current logging level
+ *
+ * @param connection the connection object going to log (may be null)
+ */
+cbsasl_loglevel_t cbsasl_get_loglevel(const cbsasl_conn_t* connection);
+
+/**
+ * Get the HMAC interation count to use.
+ *
+ * @param getopt_fn the user provided callback function
+ * @param context the user provided context
+ */
+void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn, void* context);

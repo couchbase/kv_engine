@@ -2270,15 +2270,40 @@ static int sasl_log_callback(void*, int level, const char *message) {
     return CBSASL_OK;
 }
 
-static void initialize_sasl() {
-    cbsasl_callback_t sasl_callbacks[2];
+static int sasl_getopt_callback(void*, const char*,
+                                const char* option,
+                                const char** result,
+                                unsigned* len) {
+    if (option == nullptr || result == nullptr || len == nullptr) {
+        return CBSASL_BADPARAM;
+    }
 
-    sasl_callbacks[0].id = CBSASL_CB_LOG;
-    sasl_callbacks[0].proc = (int (*)(void))&sasl_log_callback;
-    sasl_callbacks[0].context = nullptr;
-    sasl_callbacks[1].id = CBSASL_CB_LIST_END;
-    sasl_callbacks[1].proc = nullptr;
-    sasl_callbacks[1].context = nullptr;
+    if (strcmp(option, "hmac iteration count") == 0) {
+        // Speed up the test suite by reducing the SHA1 hmac calculations
+        // from 4k to 10
+        if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
+            *result = "10";
+            *len = 2;
+            return CBSASL_OK;
+        }
+    }
+
+    return CBSASL_FAIL;
+}
+
+static void initialize_sasl() {
+    cbsasl_callback_t sasl_callbacks[3];
+    int ii = 0;
+
+    sasl_callbacks[ii].id = CBSASL_CB_LOG;
+    sasl_callbacks[ii].proc = (int (*)(void))&sasl_log_callback;
+    sasl_callbacks[ii].context = nullptr;
+    sasl_callbacks[++ii].id = CBSASL_CB_GETOPT;
+    sasl_callbacks[ii].proc = (int (*)(void))&sasl_getopt_callback;
+    sasl_callbacks[ii].context = nullptr;
+    sasl_callbacks[++ii].id = CBSASL_CB_LIST_END;
+    sasl_callbacks[ii].proc = nullptr;
+    sasl_callbacks[ii].context = nullptr;
 
     if (cbsasl_server_init(sasl_callbacks, "memcached") != CBSASL_OK) {
         FATAL_ERROR(EXIT_FAILURE, "Failed to initialize SASL server");

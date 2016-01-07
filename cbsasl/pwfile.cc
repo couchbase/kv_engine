@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 #include "pwfile.h"
+#include "cbsasl_internal.h"
+#include "user.h"
 
 #include <cstring>
 #include <iterator>
@@ -24,14 +26,15 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <platform/strerror.h>
+#include <platform/timeutils.h>
 
-// Map of username -> password.
-typedef std::unordered_map<std::string, std::string> user_hashtable_t;
+typedef std::unordered_map<std::string, Couchbase::User> user_hashtable_t;
 
-// The mutex protecting access to the user/password map
+// The mutex protecting access to the user database
 static std::mutex uhash_lock;
 
-// The map containing the user/password mappings
+// The in-memory user database (Map of username -> user objects).
 static user_hashtable_t user_ht;
 
 void free_user_ht(void) {
@@ -42,7 +45,7 @@ bool find_pw(const std::string& user, std::string& password) {
     std::lock_guard<std::mutex> guard(uhash_lock);
     auto it = user_ht.find(user);
     if (it != user_ht.end()) {
-        password = it->second;
+        password = it->second.getPlaintextPassword();
         return true;
     } else {
         return false;
@@ -53,13 +56,20 @@ cbsasl_error_t load_user_db(void) {
     const char* filename = getenv("ISASL_PWFILE");
 
     if (!filename) {
+        cbsasl_log(nullptr, cbsasl_loglevel_t::Debug,
+                   "No password file specified");
         return CBSASL_OK;
     }
 
     FILE* sfile = fopen(filename, "r");
     if (sfile == nullptr) {
+        std::string logmessage(
+            "Failed to open [" + std::string(filename) + "]: " + cb_strerror());
+        cbsasl_log(nullptr, cbsasl_loglevel_t::Error, logmessage);
         return CBSASL_FAIL;
     }
+
+    auto start = gethrtime();
 
     try {
         user_hashtable_t new_ut;
@@ -89,7 +99,17 @@ cbsasl_error_t load_user_db(void) {
                     passwd = tokens[1];
                 }
 
-                new_ut.emplace(std::make_pair(tokens[0], passwd));
+                if (cbsasl_get_loglevel(nullptr) ==
+                    cbsasl_loglevel_t::Password) {
+                    std::string logmessage(
+                        "Adding user " + tokens[0] + " [" + passwd + "]");
+                    cbsasl_log(nullptr, cbsasl_loglevel_t::Password,
+                               logmessage);
+                } else {
+                    std::string logmessage("Adding user " + tokens[0]);
+                    cbsasl_log(nullptr, cbsasl_loglevel_t::Debug, logmessage);
+                }
+                new_ut.emplace(tokens[0], Couchbase::User(tokens[0], passwd));
             }
         }
 
@@ -105,6 +125,10 @@ cbsasl_error_t load_user_db(void) {
         fclose(sfile);
         return CBSASL_NOMEM;
     }
+
+    std::string logmessage("Loading [" + std::string(filename) + "] took " +
+                           Couchbase::hrtime2text(gethrtime() - start));
+    cbsasl_log(nullptr, cbsasl_loglevel_t::Debug, logmessage);
 
     return CBSASL_OK;
 }

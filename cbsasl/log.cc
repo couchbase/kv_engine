@@ -135,3 +135,11 @@ void cbsasl_set_log_level(cbsasl_conn_t* connection,
         }
     }
 }
+
+cbsasl_loglevel_t cbsasl_get_loglevel(const cbsasl_conn_t* connection) {
+    if (connection == nullptr || connection->log_fn == nullptr) {
+        return global_level.load();
+    } else {
+        return connection->log_level;
+    }
+}

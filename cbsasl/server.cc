@@ -79,6 +79,7 @@ cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t* callbacks,
 
         if (getopt_fn != nullptr) {
             cbsasl_set_log_level(nullptr, getopt_fn, getopt_ctx);
+            cbsasl_set_hmac_iteration_count(getopt_fn, getopt_ctx);
         }
 
     }
