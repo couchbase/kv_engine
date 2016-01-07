@@ -15,6 +15,8 @@
  *   limitations under the License.
  */
 
+#include <vector>
+
 #include "dcp/producer.h"
 
 #include "backfill.h"
@@ -783,7 +785,7 @@ bool DcpProducer::closeSlowStream(uint16_t vbid,
 }
 
 void DcpProducer::closeAllStreams() {
-    std::list<uint16_t> vblist;
+    std::vector<uint16_t> vbvector;
     {
         WriterLockHolder wlh(streamsMutex);
         while (!streams.empty()) {
@@ -791,14 +793,12 @@ void DcpProducer::closeAllStreams() {
             uint16_t vbid = itr->first;
             itr->second->setDead(END_STREAM_DISCONNECTED);
             streams.erase(vbid);
-            vblist.push_back(vbid);
+            vbvector.push_back(vbid);
         }
     }
-
     connection_t conn(this);
-    std::list<uint16_t>::iterator it = vblist.begin();
-    for (; it != vblist.end(); ++it) {
-        engine_.getDcpConnMap().removeVBConnByVBId(conn, *it);
+    for (const auto vbid: vbvector) {
+         engine_.getDcpConnMap().removeVBConnByVBId(conn, vbid);
     }
 }
 
@@ -943,15 +943,9 @@ void DcpProducer::setTimeForNoop() {
 
 void DcpProducer::clearQueues() {
     WriterLockHolder wlh(streamsMutex);
-    std::map<uint16_t, stream_t>::iterator itr = streams.begin();
-    for (; itr != streams.end(); ++itr) {
-        itr->second->clear();
+    for (const auto element: streams) {
+        element.second->clear();
     }
-}
-
-void DcpProducer::appendQueue(std::list<queued_item> *q) {
-    (void) q;
-    abort(); // Not Implemented
 }
 
 size_t DcpProducer::getBackfillQueueSize() {
@@ -992,14 +986,13 @@ stream_t DcpProducer::findStreamByVbid(uint16_t vbid) {
     return stream;
 }
 
-std::list<uint16_t> DcpProducer::getVBList() {
+std::vector<uint16_t> DcpProducer::getVBVector() {
     ReaderLockHolder rlh(streamsMutex);
-    std::list<uint16_t> vblist;
-    std::map<uint16_t, stream_t>::iterator itr = streams.begin();
-    for (; itr != streams.end(); ++itr) {
-        vblist.push_back(itr->first);
+    std::vector<uint16_t> vbvector;
+    for (const auto element: streams) {
+        vbvector.push_back(element.first);
     }
-    return vblist;
+    return vbvector;
 }
 
 bool DcpProducer::windowIsFull() {

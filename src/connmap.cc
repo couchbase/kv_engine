@@ -558,28 +558,6 @@ void TapConnMap::notifyVBConnections(uint16_t vbid)
     lh.unlock();
 }
 
-bool TapConnMap::setEvents(const std::string &name, std::list<queued_item> *q) {
-    bool found(false);
-    LockHolder lh(connsLock);
-
-    connection_t tc = findByName_UNLOCKED(name);
-    if (tc.get()) {
-        TapProducer *tp = dynamic_cast<TapProducer*>(tc.get());
-        if (tp == nullptr) {
-            throw std::logic_error(
-                    "TapConnMap::setEvents: name (which is " + name +
-                    ") refers to a connection_t which is not a TapProducer. "
-                    "Connection logHeader is '" + tc.get()->logHeader() + "'");
-        }
-        found = true;
-        tp->appendQueue(q);
-        lh.unlock();
-        notifyPausedConnection(tp, false);
-    }
-
-    return found;
-}
-
 void TapConnMap::incrBackfillRemaining(const std::string &name,
                                        size_t num_backfill_items) {
     LockHolder lh(connsLock);
@@ -1199,10 +1177,7 @@ void DcpConnMap::removeVBConnections(connection_t &conn) {
     }
 
     DcpProducer *prod = static_cast<DcpProducer*>(tp);
-    std::list<uint16_t> vblist = prod->getVBList();
-    std::list<uint16_t>::iterator it = vblist.begin();
-    for (; it != vblist.end(); ++it) {
-        uint16_t vbid = *it;
+    for (const auto vbid: prod->getVBVector()) {
         size_t lock_num = vbid % vbConnLockNum;
         SpinLockHolder lh (&vbConnLocks[lock_num]);
         std::list<connection_t> &vb_conns = vbConns[vbid];

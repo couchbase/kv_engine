@@ -303,11 +303,6 @@ public:
      */
     void notifyVBConnections(uint16_t vbid);
 
-    /**
-     * Set some backfilled events for a named conn.
-     */
-    bool setEvents(const std::string &name, std::list<queued_item> *q);
-
     void resetReplicaChain();
 
     /**

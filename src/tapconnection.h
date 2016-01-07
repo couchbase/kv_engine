@@ -806,8 +806,6 @@ public:
 
     virtual void clearQueues() = 0;
 
-    virtual void appendQueue(std::list<queued_item> *q) = 0;
-
     virtual size_t getBackfillQueueSize() = 0;
 
     void incrBackfillRemaining(size_t incr) {

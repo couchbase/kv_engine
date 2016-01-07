@@ -90,8 +90,6 @@ public:
 
     void clearQueues();
 
-    void appendQueue(std::list<queued_item> *q);
-
     size_t getBackfillQueueSize();
 
     size_t getItemsSent();
@@ -102,7 +100,7 @@ public:
 
     void flush();
 
-    std::list<uint16_t> getVBList(void);
+    std::vector<uint16_t> getVBVector(void);
 
     /**
      * Close the stream for given vbucket stream
@@ -239,7 +237,6 @@ private:
     BufferLog log;
 
     BackfillManager* backfillMgr;
-    std::list<uint16_t> ready;
 
     // Guards all accesses to streams map. If only reading elements in streams
     // (i.e. not adding / removing elements) then can acquire ReadLock, even

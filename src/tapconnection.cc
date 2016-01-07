@@ -1562,21 +1562,6 @@ void TapProducer::flush() {
     clearQueues_UNLOCKED();
 }
 
-void TapProducer::appendQueue(std::list<queued_item> *q) {
-    LockHolder lh(queueLock);
-    size_t count = 0;
-    std::list<queued_item>::iterator it = q->begin();
-    for (; it != q->end(); ++it) {
-        if (vbucketFilter((*it)->getVBucketId())) {
-            queue->push_back(*it);
-            ++count;
-        }
-    }
-    queueSize += count;
-    stats.memOverhead.fetch_add(count * sizeof(queued_item));
-    queueMemSize.fetch_add(count * sizeof(queued_item));
-    q->clear();
-}
 
 bool TapProducer::runBackfill(VBucketFilter &vbFilter) {
     LockHolder lh(queueLock);
