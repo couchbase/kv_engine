@@ -215,6 +215,11 @@ public:
         conflictResMode = itm.getConflictResMode();
 
         markDirty();
+
+        if (isTempItem()) {
+            markNotResident();
+        }
+
         size_t newSize = size();
         increaseCacheSize(ht, newSize);
     }
@@ -533,6 +538,10 @@ private:
             markDirty();
         } else {
             markClean();
+        }
+
+        if (isTempItem()) {
+            markNotResident();
         }
 
         increaseMetaDataSize(ht, stats, metaDataSize());

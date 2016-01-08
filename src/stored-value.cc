@@ -672,7 +672,6 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
             unlocked_ejectItem(v, policy);
         }
         if (v && v->isTempItem()) {
-            v->markNotResident();
             v->setNRUValue(MAX_NRU_VALUE);
         }
     }
