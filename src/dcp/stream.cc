@@ -1299,6 +1299,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
                 // to be END_STREAM_SLOW, initiate a reconnection.
                 if (!consumer->reconnectSlowStream(
                                     static_cast<StreamEndResponse*>(resp))) {
+                    LockHolder lh(streamMutex);
                     transitionState(STREAM_DEAD);
                 }
                 delete resp;
@@ -1353,6 +1354,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
                 // to be END_STREAM_SLOW, initiate a reconnection.
                 if (!consumer->reconnectSlowStream(
                                   static_cast<StreamEndResponse*>(response))) {
+                    LockHolder lh(streamMutex);
                     transitionState(STREAM_DEAD);
                 }
                 delete response;
