@@ -205,7 +205,8 @@ extern "C" {
                                     uint16_t vbucket)
     {
         ENGINE_ERROR_CODE err_code = getHandle(handle)->get(cookie, itm, key,
-                                                            nkey, vbucket, true);
+                                                            nkey, vbucket,
+                                                            TRACK_STATISTICS);
         releaseHandle(handle);
         return err_code;
     }
@@ -995,7 +996,7 @@ extern "C" {
         std::string keystr(((char *)request) + sizeof(req->message.header),
                             keylen);
 
-        GetValue rv(eps->getReplica(keystr, vbucket, cookie, true));
+        GetValue rv(eps->getReplica(keystr, vbucket, cookie));
 
         if ((error_code = rv.getStatus()) != ENGINE_SUCCESS) {
             if (error_code == ENGINE_NOT_MY_VBUCKET) {

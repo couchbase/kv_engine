@@ -297,17 +297,17 @@ public:
                           const void* key,
                           const int nkey,
                           uint16_t vbucket,
-                          bool track_stat = false)
+                          get_options_t options = NONE)
     {
         BlockTimer timer(&stats.getCmdHisto);
         std::string k(static_cast<const char*>(key), nkey);
 
-        GetValue gv(epstore->get(k, vbucket, cookie, serverApi->core));
+        GetValue gv(epstore->get(k, vbucket, cookie));
         ENGINE_ERROR_CODE ret = gv.getStatus();
 
         if (ret == ENGINE_SUCCESS) {
             *itm = gv.getValue();
-            if (track_stat) {
+            if (options & TRACK_STATISTICS) {
                 ++stats.numOpsGet;
             }
         } else if (ret == ENGINE_KEY_ENOENT || ret == ENGINE_NOT_MY_VBUCKET) {
@@ -368,7 +368,10 @@ public:
                                  exptime == 0xffffffff) ?
             0 : ep_abs_time(ep_reltime(exptime));
 
-        ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket);
+        get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                    TRACK_REFERENCE | HONOR_STATES);
+
+        ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket, options);
         if (ret == ENGINE_SUCCESS) {
             Item *itm = static_cast<Item*>(it);
             char *endptr = NULL;

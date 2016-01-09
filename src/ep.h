@@ -167,6 +167,20 @@ enum exp_type_t {
 };
 
 /**
+ * The following options can be specified
+ * for retrieving an item for get calls
+ */
+enum get_options_t {
+    NONE             = 0x0000,  //no option
+    TRACK_STATISTICS = 0x0001,  //whether statistics need to be tracked or not
+    QUEUE_BG_FETCH   = 0x0002,  //whether a background fetch needs to be queued
+    HONOR_STATES     = 0x0004,  //whether a retrieval should depend on the state
+                                //of the vbucket
+    TRACK_REFERENCE  = 0x0008,  //whether NRU bit needs to be set for the item
+    DELETE_TEMP      = 0x0010   //whether temporary items need to be deleted
+};
+
+/**
  * Manager of all interaction with the persistence.
  */
 class EventuallyPersistentStore {
@@ -242,20 +256,20 @@ public:
     /**
      * Retrieve a value.
      *
-     * @param key the key to fetch
+     * @param key     the key to fetch
      * @param vbucket the vbucket from which to retrieve the key
-     * @param cookie the connection cookie
-     * @param queueBG if true, automatically queue a background fetch if necessary
-     * @param honorStates if false, fetch a result regardless of state
-     * @param trackReference true if we want to set the nru bit for the item
+     * @param cookie  the connection cookie
+     * @param options options specified for retrieval
      *
      * @return a GetValue representing the result of the request
      */
     GetValue get(const std::string &key, uint16_t vbucket,
-                 const void *cookie, bool queueBG=true,
-                 bool honorStates=true, bool trackReference=true) {
-        return getInternal(key, vbucket, cookie, queueBG, honorStates,
-                           vbucket_state_active, trackReference);
+                 const void *cookie,
+                 get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                             HONOR_STATES | TRACK_REFERENCE |
+                                             DELETE_TEMP)) {
+        return getInternal(key, vbucket, cookie, vbucket_state_active,
+                           options);
     }
 
     GetValue getRandomKey(void);
@@ -263,17 +277,20 @@ public:
     /**
      * Retrieve a value from a vbucket in replica state.
      *
-     * @param key the key to fetch
+     * @param key     the key to fetch
      * @param vbucket the vbucket from which to retrieve the key
-     * @param cookie the connection cookie
-     * @param queueBG if true, automatically queue a background fetch if necessary
+     * @param cookie  the connection cookie
+     * @param options options specified for retrieval
      *
      * @return a GetValue representing the result of the request
      */
     GetValue getReplica(const std::string &key, uint16_t vbucket,
-                        const void *cookie, bool queueBG=true) {
-        return getInternal(key, vbucket, cookie, queueBG, true,
-                           vbucket_state_replica);
+                        const void *cookie,
+                        get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                                    HONOR_STATES | TRACK_REFERENCE |
+                                                    DELETE_TEMP)) {
+        return getInternal(key, vbucket, cookie, vbucket_state_replica,
+                           options);
     }
 
 
@@ -944,10 +961,9 @@ private:
                                  bool trackReference=true, bool queueExpired=true);
 
     GetValue getInternal(const std::string &key, uint16_t vbucket,
-                         const void *cookie, bool queueBG,
-                         bool honorStates,
+                         const void *cookie,
                          vbucket_state_t allowedState,
-                         bool trackReference=true);
+                         get_options_t options = TRACK_REFERENCE);
 
     ENGINE_ERROR_CODE addTempItemForBgFetch(LockHolder &lock, int bucket_num,
                                             const std::string &key, RCPtr<VBucket> &vb,

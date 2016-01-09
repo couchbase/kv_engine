@@ -2046,10 +2046,8 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
 GetValue EventuallyPersistentStore::getInternal(const std::string &key,
                                                 uint16_t vbucket,
                                                 const void *cookie,
-                                                bool queueBG,
-                                                bool honorStates,
                                                 vbucket_state_t allowedState,
-                                                bool trackReference) {
+                                                get_options_t options) {
 
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
         vbucket_state_replica : vbucket_state_active;
@@ -2059,18 +2057,25 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
         return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
     }
 
+    const bool honorStates = (options & HONOR_STATES);
+
     ReaderLockHolder rlh(vb->getStateLock());
-    if (honorStates && vb->getState() == vbucket_state_dead) {
-        ++stats.numNotMyVBuckets;
-        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
-    } else if (honorStates && vb->getState() == disallowedState) {
-        ++stats.numNotMyVBuckets;
-        return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
-    } else if (honorStates && vb->getState() == vbucket_state_pending) {
-        if (vb->addPendingOp(cookie)) {
-            return GetValue(NULL, ENGINE_EWOULDBLOCK);
+    if (honorStates) {
+        vbucket_state_t vbState = vb->getState();
+        if (vbState == vbucket_state_dead) {
+            ++stats.numNotMyVBuckets;
+            return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+        } else if (vbState == disallowedState) {
+            ++stats.numNotMyVBuckets;
+            return GetValue(NULL, ENGINE_NOT_MY_VBUCKET);
+        } else if (vbState == vbucket_state_pending) {
+            if (vb->addPendingOp(cookie)) {
+                return GetValue(NULL, ENGINE_EWOULDBLOCK);
+            }
         }
     }
+
+    const bool trackReference = (options & TRACK_REFERENCE);
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
@@ -2085,14 +2090,16 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
             // Delete a temp non-existent item to ensure that
             // if the get were issued over an item that doesn't
             // exist, then we dont preserve a temp item.
-            vb->ht.unlocked_del(key, bucket_num);
+            if (options & DELETE_TEMP) {
+                vb->ht.unlocked_del(key, bucket_num);
+            }
             GetValue rv;
             return rv;
         }
 
         // If the value is not resident, wait for it...
         if (!v->isResident()) {
-            if (queueBG) {
+            if (options & QUEUE_BG_FETCH) {
                 bgFetch(key, vbucket, cookie);
             }
             return GetValue(NULL, ENGINE_EWOULDBLOCK, v->getBySeqno(),
@@ -2110,7 +2117,7 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
 
         if (vb->maybeKeyExistsInFilter(key)) {
             ENGINE_ERROR_CODE ec = ENGINE_EWOULDBLOCK;
-            if (queueBG) { // Full eviction and need a bg fetch.
+            if (options & QUEUE_BG_FETCH) { // Full eviction and need a bg fetch.
                 ec = addTempItemForBgFetch(lh, bucket_num, key, vb,
                                            cookie, false);
             }
