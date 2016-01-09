@@ -56,6 +56,7 @@ cbsasl_error_t cbsasl_client_new(const char*,
             cbsasl_get_password_fn get_password_fn;
             cbsasl_log_fn log_fn;
             cbsasl_get_cnonce_fn get_cnonce_fn;
+            cbsasl_getopt_fn getopt_fn;
             int (* proc)(void);
         } hack;
         hack.proc = callbacks[ii].proc;
@@ -77,6 +78,11 @@ cbsasl_error_t cbsasl_client_new(const char*,
         case CBSASL_CB_CNONCE:
             conn->get_cnonce_fn = hack.get_cnonce_fn;
             conn->get_cnonce_ctx = callbacks[ii].context;
+            break;
+        case CBSASL_CB_GETOPT:
+            conn->getopt_fn = hack.getopt_fn;
+            conn->getopt_ctx = callbacks[ii].context;
+            break;
         default:
             /* Ignore unknown */
             ;
@@ -88,6 +94,10 @@ cbsasl_error_t cbsasl_client_new(const char*,
         conn->client->get_password == nullptr) {
         cbsasl_dispose(&conn);
         return CBSASL_NOUSER;
+    }
+
+    if (conn->getopt_fn != nullptr) {
+        cbsasl_set_log_level(conn, conn->getopt_fn, conn->getopt_ctx);
     }
 
     *pconn = conn;

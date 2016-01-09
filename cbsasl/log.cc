@@ -78,3 +78,60 @@ void cbsasl_set_default_logger(cbsasl_log_fn log_fn, void *context) {
     global_log.store(log_fn);
     global_context.store(context);
 }
+
+void cbsasl_set_log_level(cbsasl_conn_t* connection,
+                          cbsasl_getopt_fn getopt_fn,
+                          void* context) {
+    const char* result = nullptr;
+    unsigned int result_len;
+    bool failure = true;
+    cbsasl_loglevel_t level;
+
+    if (getopt_fn(context, nullptr, "log level", &result,
+                  &result_len) == CBSASL_OK) {
+        if (result != nullptr) {
+            std::string val(result, result_len);
+            try {
+                failure = false;
+                switch (std::stoul(val)) {
+                case CBSASL_LOG_NONE:
+                    level = cbsasl_loglevel_t::None;
+                    break;
+                case CBSASL_LOG_ERR:
+                    level = cbsasl_loglevel_t::Error;
+                    break;
+                case CBSASL_LOG_FAIL:
+                    level = cbsasl_loglevel_t::Fail;
+                    break;
+                case CBSASL_LOG_WARN:
+                    level = cbsasl_loglevel_t::Warning;
+                    break;
+                case CBSASL_LOG_NOTE:
+                    level = cbsasl_loglevel_t::Notice;
+                    break;
+                case CBSASL_LOG_DEBUG:
+                    level = cbsasl_loglevel_t::Debug;
+                    break;
+                case CBSASL_LOG_TRACE:
+                    level = cbsasl_loglevel_t::Trace;
+                    break;
+                case CBSASL_LOG_PASS:
+                    level = cbsasl_loglevel_t::Password;
+                    break;
+                default:
+                    failure = true;
+                }
+            } catch (...) {
+                failure = true;
+            }
+        }
+    }
+
+    if (!failure) {
+        if (connection == nullptr) {
+            global_level.store(level);
+        } else {
+            connection->log_level = level;
+        }
+    }
+}

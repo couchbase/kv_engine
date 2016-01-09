@@ -17,7 +17,6 @@
 #include <cbsasl/cbsasl.h>
 #include "cbsasl/cbsasl_internal.h"
 
-#include "cbsasl_internal.h"
 #include "mechanismfactory.h"
 #include "pwfile.h"
 #include "util.h"
@@ -44,17 +43,20 @@ cbsasl_error_t cbsasl_listmech(cbsasl_conn_t* conn,
 }
 
 CBSASL_PUBLIC_API
-cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t *callbacks,
-                                  const char *) {
+cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t* callbacks,
+                                  const char*) {
     if (cb_rand_open(&randgen) != 0) {
         return CBSASL_FAIL;
     }
 
     if (callbacks != nullptr) {
+        cbsasl_getopt_fn getopt_fn = nullptr;
+        void* getopt_ctx = nullptr;
         int ii = 0;
         while (callbacks[ii].id != CBSASL_CB_LIST_END) {
             union {
                 cbsasl_log_fn log_fn;
+                cbsasl_getopt_fn getopt;
 
                 int (* proc)(void);
             } hack;
@@ -64,12 +66,21 @@ cbsasl_error_t cbsasl_server_init(const cbsasl_callback_t *callbacks,
             case CBSASL_CB_LOG:
                 cbsasl_set_default_logger(hack.log_fn, callbacks[ii].context);
                 break;
+            case CBSASL_CB_GETOPT:
+                getopt_fn = hack.getopt;
+                getopt_ctx = callbacks[ii].context;
+                break;
             default:
                 /* Ignore unknown */
                 ;
             }
             ++ii;
         }
+
+        if (getopt_fn != nullptr) {
+            cbsasl_set_log_level(nullptr, getopt_fn, getopt_ctx);
+        }
+
     }
     return load_user_db();
 }
@@ -108,6 +119,8 @@ cbsasl_error_t cbsasl_server_new(const char*,
             union {
                 cbsasl_log_fn log_fn;
                 cbsasl_get_cnonce_fn get_cnonce_fn;
+                cbsasl_getopt_fn getopt_fn;
+
                 int (* proc)(void);
             } hack;
             hack.proc = callbacks[ii].proc;
@@ -120,11 +133,21 @@ cbsasl_error_t cbsasl_server_new(const char*,
             case CBSASL_CB_CNONCE:
                 ret->get_cnonce_fn = hack.get_cnonce_fn;
                 ret->get_cnonce_ctx = callbacks[ii].context;
+                break;
+            case CBSASL_CB_GETOPT:
+                ret->getopt_fn = hack.getopt_fn;
+                ret->getopt_ctx = callbacks[ii].context;
+                break;
+
             default:
                 /* Ignore unknown */
                 ;
             }
             ++ii;
+        }
+
+        if (ret->getopt_fn != nullptr) {
+            cbsasl_set_log_level(ret, ret->getopt_fn, ret->getopt_ctx);
         }
     }
 

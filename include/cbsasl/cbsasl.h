@@ -280,6 +280,24 @@ typedef int (* cbsasl_get_cnonce_fn)(void* context,
                                      unsigned int* len);
 #define CBSASL_CB_CNONCE 6
 
+/**
+ * Get option
+ *
+ * @param context specified when callback was registered
+ * @param plugin_name the name of the plugin needing the value (may be null)
+ * @param option name of the option requested
+ * @param result where store the result (must be valid until the next call
+ *               to the function, or the sasl function return)
+ * @param len where to store the number of bytes in the result
+ * @return CBSASL_OK for success, or another cbsasl error code
+ */
+typedef int (* cbsasl_getopt_fn)(void* context,
+                                 const char* plugin_name,
+                                 const char* option,
+                                 const char** result, unsigned* len);
+#define CBSASL_CB_GETOPT 7
+
+
 #ifdef __cplusplus
 }
 

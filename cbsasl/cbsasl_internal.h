@@ -170,7 +170,9 @@ struct cbsasl_conn_st {
           log_ctx(nullptr),
           log_level(cbsasl_loglevel_t::Error),
           get_cnonce_fn(nullptr),
-          get_cnonce_ctx(nullptr) {
+          get_cnonce_ctx(nullptr),
+          getopt_fn(nullptr),
+          getopt_ctx(nullptr) {
 
     }
 
@@ -203,7 +205,17 @@ struct cbsasl_conn_st {
     /**
      * The context for the get nonce callback
      */
-    void *get_cnonce_ctx;
+    void* get_cnonce_ctx;
+
+    /**
+     * Callback function to get options
+     */
+    cbsasl_getopt_fn getopt_fn;
+
+    /**
+     * context passed to getopt call
+     */
+    void* getopt_ctx;
 
     /**
      * The "client api" part use this member (and may ensure that it isn't
@@ -262,4 +274,15 @@ void cbsasl_log(cbsasl_conn_t* connection,
  * @param log_fn the log function to call
  * @oaram context the context to pass to the log function
  */
-void cbsasl_set_default_logger(cbsasl_log_fn log_fn, void *context);
+void cbsasl_set_default_logger(cbsasl_log_fn log_fn, void* context);
+
+/**
+ * Set the log level
+ *
+ * @param connection the connection to update (if set to nullptr the
+ *                   default loglevel)
+ * @param getopt_fn the callback function specified by the user
+ * @param context the specified for the callback
+ */
+void cbsasl_set_log_level(cbsasl_conn_t* connection,
+                          cbsasl_getopt_fn getopt_fn, void* context);
