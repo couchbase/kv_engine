@@ -12820,7 +12820,8 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     }
     wait_for_flusher_to_settle(h, h1);
 
-    uint64_t high_seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     std::string time_sync = get_str_stat(h, h1, "vb_0:time_sync", "vbucket-details");
     checkeq(std::string("disabled"), time_sync,
@@ -12839,14 +12840,20 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     checkeq(std::string("enabled"), time_sync,
             "Time sync should've been enabled");
 
-    // Change in time_sync state => last_body should've carried high_seqno
-    checkeq(sizeof(int64_t), last_body.size(),
-            "Bodylen didn't match expected value");
+    uint64_t recvVbuuid;
     int64_t recvSeqno;
-    memcpy(&recvSeqno, last_body.data(), last_body.size());
+    // Change in time_sync state => last_body should've carried high_seqno
+    checkeq(sizeof(recvVbuuid) + sizeof(recvSeqno), last_body.size(),
+            "Bodylen didn't match expected value");
+
+    memcpy(&recvVbuuid, last_body.data(), sizeof(recvVbuuid));
+    memcpy(&recvSeqno, last_body.data() + sizeof(recvVbuuid), sizeof(recvSeqno));
+    recvVbuuid = ntohll(recvVbuuid);
     recvSeqno = ntohll(recvSeqno);
+    checkeq(vb_uuid, recvVbuuid,
+            "setDriftCounterState's response carried incorrect vb_uuid");
     checkeq(static_cast<int64_t>(high_seqno), recvSeqno,
-            "setDriftCounterState's response should've carried high_seqno");
+            "setDriftCounterState's response carried incorrect high_seqno");
 
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);

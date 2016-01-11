@@ -6180,10 +6180,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setDriftCounterState(
     int64_t initialDriftCount = ntohll(request->message.body.initial_drift);
     uint8_t timeSync = request->message.body.time_sync;
 
+    std::stringstream result;
+
+    uint64_t vb_uuid = vb->failovers->getLatestUUID();
+    vb_uuid = htonll(vb_uuid);
     int64_t last_seqno = vb->setDriftCounterState(initialDriftCount, timeSync);
     last_seqno = htonll(last_seqno);
+
+    result.write((char*) &vb_uuid, sizeof(vb_uuid));
+    result.write((char*) &last_seqno, sizeof(last_seqno));
+
     return sendResponse(response, NULL, 0, NULL, 0,
-                        (const void *)&last_seqno, sizeof(int64_t),
+                        result.str().data(), result.str().length(),
                         PROTOCOL_BINARY_RAW_BYTES,
                         PROTOCOL_BINARY_RESPONSE_SUCCESS, 0 , cookie);
 }
