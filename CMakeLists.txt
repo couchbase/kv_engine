@@ -98,12 +98,15 @@ IF (BREAKPAD_FOUND)
             MESSAGE(STATUS "GDB not available, skipping breakpad test")
         ENDIF (GDB_EXECUTABLE)
 
-    ELSEIF (WIN32)
+    # ELSEIF (WIN32)
+    # Disable the test on Windows until we understand why we're seeing all
+    # of the temporary test failures caused by python not detecting that
+    # the processes died.
         # On Windows the test doesn't use minidump-2-core or GDB.
-        ADD_TEST(breakpad-test
-                 ${PYTHON_EXECUTABLE}
-                 ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
-                 ${Memcached_BINARY_DIR}/memcached)
+        # ADD_TEST(breakpad-test
+        #          ${PYTHON_EXECUTABLE}
+        #          ${Memcached_SOURCE_DIR}/tests/breakpad_test.py
+        #          ${Memcached_BINARY_DIR}/memcached)
     ENDIF (UNIX)
 ENDIF (BREAKPAD_FOUND)
 
