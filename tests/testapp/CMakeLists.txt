@@ -52,11 +52,16 @@ target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 ADD_TEST(NAME memcached-basic-unit-tests-bulk
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp
-                    --gtest_filter=*-PlainOrSSL/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*)
+                    --gtest_filter=*-PlainOrSSL/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*)
 
 ADD_TEST(NAME memcached-basic-unit-tests-require-init
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp --gtest_filter=RequireInitTest.*)
+
+# Run the Audit tests
+ADD_TEST(NAME memcached-audit-unit-tests
+          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+          COMMAND memcached_testapp --gtest_filter=AuditTest.*)
 
 # Run the Bucket tests
 ADD_TEST(NAME memcached-bucket-unit-tests
@@ -104,6 +109,7 @@ ADD_TEST(NAME memcached-basic-perf-tests
 
 # Test timeouts. Roughly calibrated to be 2x what the expected time is on the
 # slowest Jenkins platform/config.
+SET_TESTS_PROPERTIES(memcached-audit-unit-tests PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-basic-perf-tests PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-require-init PROPERTIES TIMEOUT 200)
