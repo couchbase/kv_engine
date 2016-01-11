@@ -1,52 +1,18 @@
-# Threads
+Welcome to the Couchbase _memcached_ project.
 
-memcached is using a number of threads:
+This started as Couchbase's fork of the upstream `memcached` project.
+It has subsequently evolved since then, so while it shares a name with
+the upstream project many other things have changed, apart from the
+name :) For now it's simpler to consider this as the frontend of the
+Couchbase key-value engine.  The primary backend of KV-engine is the
+eventually persistent engine -
+[ep-engine](https://github.com/couchbase/ep-engine).
 
-* The dispatcher thread listens on all of the server sockets, and accepts
-  a client connection which is then dispatched to the worker threads on a
-  round robin model.
+# Architecture
 
-* The TAP thread is responsible for serving all TAP communication.
+* [KV-Engine Architecture](docs/Architecture.md)
+* [Role Based Access Control](daemon/RBAC.md)
 
-* The number of worker threads is specified with the `threads`
-  parameter in the configuration. The worker threads are responsible for
-  serving the clients requests, and the number of worker threads cannot
-  be increased at runtime.
+# Protocols
 
-Some commands is implemented by dispatching separate threads to execute
-the user command. There is currently no checks trying to protect ourself
-from clients trying to allocate too many threads (but the commands themselves
-is not available to the average user. See RBAC.json)
-
-* Bucket creation/deletion
-* Reload of the SASL password database
-
-# Connection object
-
-The Connection class represents a Socket (it is used by both clients and
-servers objects). We should refactor the code so that it represents client
-connections and have a separate object (and state machines) for a server
-object.
-
-The Connection object is bound to a thread object, and never change (except
-for clients running TAP, which is moved over to the TAP thread after the
-initial packet...)
-
-# Locking scheme
-
-A client is bound to its worker thread when the client is created (let's ignore
-the TAP threads, they're special and should hopefully die ;-)). When the
-clients event loop is triggered, it acquires the threads lock and runs the
-entire state machine. This means that the thread can safely access any
-resource available in the LIBEVENT thread object. Given that it already holds
-a lock to a LIBEVENT thread object it is *NOT* allowed to try to acquire *ANY*
-other thread locks. That would lead to a deadlock.
-
-Given that all of the clients share the same set of worker threads, the
-clients cannot block while waiting for a resource to become available. The
-model in use is that we're expecting the engines to return EWOULDBLOCK and
-we're expecting the client to run the task in a _different_ thread and call
-`notify_io_complete` when the resource is available. The reason it has to
-be a _different_ thread is that `notify_io_complete` WILL try to lock the
-thread object where the connection is bound to (which would cause a deadlock
-if called while holding a thread lock).
+* [Greenstack](protocol/Greenstack/README.md)
