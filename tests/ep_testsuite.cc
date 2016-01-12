@@ -523,7 +523,6 @@ static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 
     wait_for_flusher_to_settle(h, h1);
-
     std::stringstream error1, error2;
     error1 << "Expected ep_total_persisted >= num_keys (" << num_keys << ")";
     error2 << "Expected ep_total_persisted <= num_sets*num_keys ("
@@ -532,9 +531,10 @@ static enum test_result test_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     // The flusher could of ran > 1 times. We can only assert
     // that we persisted between num_keys and upto num_keys*num_sets
     check(get_int_stat(h, h1, "ep_total_persisted") >= num_keys,
-          error1.str().c_str());
+        error1.str().c_str());
     check(get_int_stat(h, h1, "ep_total_persisted") <= num_sets*num_keys,
-          error2.str().c_str());
+        error2.str().c_str());
+
     return SUCCESS;
 }
 
@@ -3607,7 +3607,6 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
         h1->release(h, NULL, i);
     }
 
-    wait_for_str_stat_to_be(h, h1, "ep_dcp_pending_notifications", "false", NULL);
     // Should get a stream end
     dcp_step(h, h1, cookie);
     check(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_STREAM_END,

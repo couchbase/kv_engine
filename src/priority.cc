@@ -53,6 +53,7 @@ const Priority Priority::TapConnMgrPriority(TAP_CONN_MGR_ID, 8);
 const Priority Priority::WorkLoadMonitorPriority(WORKLOAD_MONITOR_TASK_ID, 10);
 const Priority Priority::HTResizePriority(HT_RESIZER_ID, 211);
 const Priority Priority::TapResumePriority(TAP_RESUME_ID, 316);
+const Priority Priority::ActiveStreamCheckpointProcessor(ACTIVE_STREAM_CHKPT_PROCESSOR_ID, 5);
 
 const char *Priority::getTypeName(const type_id_t i) {
         switch (i) {
@@ -110,6 +111,8 @@ const char *Priority::getTypeName(const type_id_t i) {
                 return "conn_manager_tasks";
             case DEFRAGMENTER_ID:
                 return "defragmenter_tasks";
+            case ACTIVE_STREAM_CHKPT_PROCESSOR_ID:
+                return "activestream_chkpt_processor_tasks";
             default: break;
         }
 

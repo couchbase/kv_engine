@@ -146,11 +146,16 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     enableExtMetaData = false;
 
     backfillMgr = new BackfillManager(&engine_);
+
+    checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(e);
+    ExecutorPool::get()->schedule(checkpointCreatorTask, AUXIO_TASK_IDX);
 }
 
 DcpProducer::~DcpProducer() {
     delete rejectResp;
     delete backfillMgr;
+
+    ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
 }
 
 ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
@@ -262,7 +267,8 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         streams[vbucket] = new ActiveStream(&engine_, this, getName(), flags,
                                             opaque, vbucket, start_seqno,
                                             end_seqno, vbucket_uuid,
-                                            snap_start_seqno, snap_end_seqno);
+                                            snap_start_seqno, snap_end_seqno,
+                                            checkpointCreatorTask);
         static_cast<ActiveStream*>(streams[vbucket].get())->setActive();
     }
     vbReady[vbucket].store(true);

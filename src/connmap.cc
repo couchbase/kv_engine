@@ -198,9 +198,6 @@ void ConnMap::initialize(conn_notifier_type ntype) {
     connNotifier_->start();
     ExTask connMgr = new ConnManager(&engine, this);
     ExecutorPool::get()->schedule(connMgr, NONIO_TASK_IDX);
-    if (ntype == DCP_CONN_NOTIFIER) {
-        dynamic_cast<DcpConnMap *>(this)->startProducerNotifier();
-    }
 }
 
 ConnMap::~ConnMap() {
@@ -934,8 +931,7 @@ void TAPSessionStats::clearStats(const std::string &name) {
 
 DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     : ConnMap(e),
-      aggrDcpConsumerBufferSize(0),
-      producerNotifier(NULL) {
+      aggrDcpConsumerBufferSize(0) {
     numActiveSnoozingBackfills = 0;
     updateMaxActiveSnoozingBackfills(engine.getEpStats().getMaxDataSize());
 }
@@ -1179,23 +1175,16 @@ void DcpConnMap::removeVBConnections(connection_t &conn) {
     }
 }
 
-void DcpConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno)
-{
-    addNotification(vbid, bySeqno);
-    wakeProducerNotifier();
-}
+void DcpConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno) {
+    size_t lock_num = vbid % vbConnLockNum;
+    SpinLockHolder lh(&vbConnLocks[lock_num]);
 
-void DcpConnMap::addNotification(uint16_t vbid, uint64_t bySeqno) {
-    LockHolder lh(notificationsLock);
-    std::deque<DcpProducerNotification>::iterator it = notifications.begin();
-    for (; it != notifications.end(); it++) {
-        if ((*it).vbid == vbid) {
-            (*it).seqno = bySeqno;
-            return;
-        }
+    std::list<connection_t> &conns = vbConns[vbid];
+    std::list<connection_t>::iterator it = conns.begin();
+    for (; it != conns.end(); ++it) {
+        DcpProducer *conn = static_cast<DcpProducer*>((*it).get());
+        conn->notifySeqnoAvailable(vbid, bySeqno);
     }
-
-    notifications.push_back({vbid, bySeqno});
 }
 
 void DcpConnMap::notifyBackfillManagerTasks() {
@@ -1241,79 +1230,4 @@ void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
                  std::min(max, static_cast<size_t>(numBackfillsThreshold)));
     LOG(EXTENSION_LOG_DEBUG, "Max active snoozing backfills set to %d",
         maxActiveSnoozingBackfills);
-}
-
-bool DcpConnMap::getNextNotification(uint16_t& vbid, uint64_t& seqno) {
-    LockHolder lh(notificationsLock);
-    if (!notifications.empty()) {
-        vbid = notifications.front().vbid;
-        seqno = notifications.front().seqno;
-        notifications.pop_front();
-        return true;
-    }
-    return false;
-}
-
-bool DcpConnMap::notifyProducers() {
-    uint16_t vbid = 0;
-    uint64_t seqno = 0;
-
-    // NB: returns via reference parameters
-    if (getNextNotification(vbid, seqno)) {
-        size_t lock_num = vbid % vbConnLockNum;
-        SpinLockHolder lh(&vbConnLocks[lock_num]);
-        std::list<connection_t> &conns = vbConns[vbid];
-        if (!conns.empty()) {
-            std::list<connection_t>::iterator connection = conns.begin();
-            for (; connection != conns.end(); ++connection) {
-                DcpProducer *conn = static_cast<DcpProducer*>((*connection).get());
-                if (conn) {
-                    conn->notifySeqnoAvailable(vbid, seqno);
-                }
-            }
-        }
-        return true;
-    }
-    return false;
-}
-
-bool DcpConnMap::DcpProducerNotifier::run() {
-    if (engine->getEpStats().isShutdown) {
-        return false;
-    }
-
-    // Indidicate that we will snooze forever
-    snooze(INT_MAX);
-
-    // Clear the notification flag.
-    notified.store(false);
-
-    // Process the incoming notification(s)
-    size_t iterations = 0;
-
-    while (dcpConnMap.notifyProducers()
-           && iterations < iterationsBeforeYield) {
-        iterations++;
-    }
-
-    // check if another notify came in or if there's more todo.
-    bool expected = true;
-    if (notified.compare_exchange_strong(expected, false)
-        || dcpConnMap.notificationsPending()) {
-        // sleep for 0 - yielding this task
-        snooze(0.0);
-    }
-
-    return true;
-}
-
-void DcpConnMap::startProducerNotifier() {
-    producerNotifier = new DcpProducerNotifier(&engine, *this);
-    ExecutorPool::get()->schedule(producerNotifier, AUXIO_TASK_IDX);
-}
-
-void DcpConnMap::wakeProducerNotifier() {
-    if (static_cast<DcpProducerNotifier*>(producerNotifier.get())->wakeMeUp()) {
-        ExecutorPool::get()->wake(producerNotifier->getId());
-    }
 }

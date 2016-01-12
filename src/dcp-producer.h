@@ -28,8 +28,6 @@ class BackfillManager;
 class Stream;
 typedef SingleThreadedRCPtr<Stream> stream_t;
 
-typedef SingleThreadedRCPtr<Stream> stream_t;
-
 class DcpResponse;
 
 class DcpProducer : public Producer {
@@ -240,6 +238,7 @@ private:
     AtomicValue<size_t> totalBytesSent;
 
     size_t roundRobinVbReady;
+    ExTask checkpointCreatorTask;
     static const uint32_t defaultNoopInerval;
 };
 

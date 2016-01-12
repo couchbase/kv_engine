@@ -313,9 +313,6 @@ For introductory information on stats within Couchbase, start with the
 |                                    | during warmup                          |
 | ep_warmup_thread                   | The status of the warmup thread        |
 | ep_warmup_time                     | The amount of time warmup took         |
-| ep_dcp_pending_notifications       | Shows true/false if notifications are  |
-|                                    | pending for the DcpProducerNotifier    |
-|                                    | task.                                  |
 | ep_workload_pattern                | Workload pattern (mixed, read_heavy,   |
 |                                    | write_heavy) monitored at runtime      |
 | ep_defragmenter_interval           | How often defragmenter task should be  |

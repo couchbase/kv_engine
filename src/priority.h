@@ -52,6 +52,7 @@ typedef enum {
     PENDING_OPS_ID,
     TAP_CONN_MGR_ID,
     DEFRAGMENTER_ID,
+    ACTIVE_STREAM_CHKPT_PROCESSOR_ID,
 
     MAX_TYPE_ID // Keep this as the last enum value
 } type_id_t;
@@ -93,6 +94,7 @@ public:
     static const Priority PendingOpsPriority;
     static const Priority TapConnMgrPriority;
     static const Priority DefragmenterTaskPriority;
+    static const Priority ActiveStreamCheckpointProcessor;
 
     bool operator==(const Priority &other) const {
         return other.getPriorityValue() == this->priority;

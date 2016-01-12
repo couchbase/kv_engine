@@ -126,14 +126,15 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
                            const std::string &n, uint32_t flags,
                            uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                            uint64_t en_seqno, uint64_t vb_uuid,
-                           uint64_t snap_start_seqno, uint64_t snap_end_seqno)
+                           uint64_t snap_start_seqno, uint64_t snap_end_seqno,
+                           ExTask task)
     :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
               snap_start_seqno, snap_end_seqno),
        lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
        takeoverState(vbucket_state_pending), backfillRemaining(0),
        itemsFromMemoryPhase(0), firstMarkerSent(false), waitForSnapshot(0),
        engine(e), producer(p), isBackfillTaskRunning(false),
-       lastSentSnapEndSeqno(0) {
+       lastSentSnapEndSeqno(0), checkpointCreatorTask(task) {
 
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -401,7 +402,9 @@ DcpResponse* ActiveStream::inMemoryPhase() {
     if (lastSentSeqno >= end_seqno_) {
         endStream(END_STREAM_OK);
     } else if (readyQ.empty()) {
-        nextCheckpointItem();
+        if (nextCheckpointItem()) {
+            return NULL;
+        }
     }
 
     return nextQueuedItem();
@@ -411,9 +414,8 @@ DcpResponse* ActiveStream::takeoverSendPhase() {
     if (!readyQ.empty()) {
         return nextQueuedItem();
     } else {
-        nextCheckpointItem();
-        if (!readyQ.empty()) {
-            return nextQueuedItem();
+        if (nextCheckpointItem()) {
+            return NULL;
         }
     }
 
@@ -528,7 +530,70 @@ DcpResponse* ActiveStream::nextQueuedItem() {
     return NULL;
 }
 
-void ActiveStream::nextCheckpointItem() {
+bool ActiveStream::nextCheckpointItem() {
+    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    if (vbucket && vbucket->checkpointManager.getNumItemsForCursor(name_) > 0) {
+        // schedule this stream to build the next checkpoint
+        static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
+        ->schedule(this);
+        return true;
+    }
+    return false;
+}
+
+bool ActiveStreamCheckpointProcessorTask::run() {
+    if (engine->getEpStats().isShutdown) {
+        return false;
+    }
+
+    // Setup that we will sleep forever when done.
+    snooze(INT_MAX);
+
+    // Clear the notfification flag
+    notified.store(false);
+
+    size_t iterations = 0;
+    do {
+        stream_t nextStream = queuePop();
+        ActiveStream* stream = static_cast<ActiveStream*>(nextStream.get());
+
+        if (stream) {
+            stream->nextCheckpointItemTask();
+        } else {
+            break;
+        }
+        iterations++;
+    } while(!queueEmpty()
+            && iterations < iterationsBeforeYield);
+
+    // Now check if we were re-notified or there are still checkpoints
+    bool expected = true;
+    if (notified.compare_exchange_strong(expected, false)
+        || !queueEmpty()) {
+        // snooze for 0, essentially yielding and allowing other tasks a go
+        snooze(0.0);
+    }
+
+    return true;
+}
+
+void ActiveStreamCheckpointProcessorTask::wakeup() {
+    ExecutorPool::get()->wake(getId());
+}
+
+void ActiveStreamCheckpointProcessorTask::schedule(stream_t stream) {
+    {
+        LockHolder lh(workQueueLock);
+        queue.push_back(stream);
+    }
+
+    bool expected = false;
+    if (notified.compare_exchange_strong(expected, true)) {
+        wakeup();
+    }
+}
+
+void ActiveStream::nextCheckpointItemTask() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
     if (!vbucket) {
         /* The entity deleting the vbucket must set stream to dead,
@@ -537,7 +602,6 @@ void ActiveStream::nextCheckpointItem() {
            point here */
         return;
     }
-
     bool mark = false;
     std::vector<queued_item> items;
     std::deque<MutationResponse*> mutations;
@@ -547,6 +611,7 @@ void ActiveStream::nextCheckpointItem() {
     }
 
     if (items.empty()) {
+        producer->notifyStreamReady(vb_, true);
         return;
     }
 
@@ -575,16 +640,20 @@ void ActiveStream::nextCheckpointItem() {
     if (mutations.empty()) {
         // If we only got checkpoint start or ends check to see if there are
         // any more snapshots before pausing the stream.
-        nextCheckpointItem();
+        nextCheckpointItemTask();
     } else {
         snapshot(mutations, mark);
     }
+    // ...notify...
+    producer->notifyStreamReady(vb_, true);
 }
 
 void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
     if (items.empty()) {
         return;
     }
+
+    LockHolder lh(streamMutex);
 
     if (isCurrentSnapshotCompleted()) {
         uint32_t flags = MARKER_FLAG_MEMORY;
@@ -1158,7 +1227,6 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
                 break;
             case DCP_STREAM_END:
                 transitionState(STREAM_DEAD);
-                delete response;
                 break;
             default:
                 abort();
@@ -1169,6 +1237,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
             break;
         }
 
+        delete response;
         buffer.messages.pop();
         buffer.items--;
         buffer.bytes -= message_bytes;
@@ -1198,7 +1267,6 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
             "number (%llu) greater than current snapshot end seqno (%llu)] "
             "being processed; Dropping the mutation!", consumer->logHeader(),
             vb_, mutation->getBySeqno(), cur_snapshot_end);
-        delete mutation;
         return ENGINE_ERANGE;
     }
 
@@ -1226,10 +1294,6 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         handleSnapshotEnd(vb, mutation->getBySeqno());
     }
 
-    if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
-        delete mutation;
-    }
-
     return ret;
 }
 
@@ -1244,7 +1308,6 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
             "number (%llu) greater than current snapshot end seqno (%llu)] "
             "being processed; Dropping the deletion!", consumer->logHeader(),
             vb_, deletion->getBySeqno(), cur_snapshot_end);
-        delete deletion;
         return ENGINE_ERANGE;
     }
 
@@ -1270,10 +1333,6 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
             "process  deletion", consumer->logHeader(), ret);
     } else {
         handleSnapshotEnd(vb, deletion->getBySeqno());
-    }
-
-    if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
-        delete deletion;
     }
 
     return ret;
@@ -1306,12 +1365,10 @@ void PassiveStream::processMarker(SnapshotMarker* marker) {
             cur_snapshot_ack = true;
         }
     }
-    delete marker;
 }
 
 void PassiveStream::processSetVBucketState(SetVBucketState* state) {
     engine->getEpStore()->setVBucketState(vb_, state->getState(), true);
-    delete state;
 
     LockHolder lh (streamMutex);
     pushToReadyQ(new SetVBucketStateResponse(opaque_, ENGINE_SUCCESS));
