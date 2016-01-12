@@ -5,6 +5,7 @@
 
 #include <cstdlib>
 #include <getopt.h>
+#include <map>
 #include <regex>
 #include <string>
 #include <vector>
@@ -1058,6 +1059,48 @@ static int execute_test(engine_test_t test,
     enum test_result ret = PENDING;
     cb_assert(test.tfun != NULL || test.api_v2.tfun != NULL);
     bool test_api_1 = test.tfun != NULL;
+
+    /**
+     * Combine test.cfg (internal config parameters) and
+     * default_cfg (command line parameters) for the test case.
+     *
+     * test.cfg will have higher priority over default_cfg in
+     * case of redundant parameters.
+     */
+    std::string cfg;
+    if (test.cfg != nullptr) {
+        if (default_cfg != nullptr) {
+            cfg.assign(test.cfg);
+            cfg = cfg + ";" + default_cfg + ";";
+            std::string token, delimiter(";");
+            std::string::size_type i, j;
+            std::map<std::string, std::string> map;
+
+            while (cfg.size() != 0 &&
+                    (i = cfg.find(delimiter)) != std::string::npos) {
+                std::string temp(cfg.substr(0, i));
+                cfg.erase(0, i + 1);
+                j = temp.find("=");
+                if (j == std::string::npos) {
+                    continue;
+                }
+                std::string k(temp.substr(0, j));
+                std::string v(temp.substr(j + 1, temp.size()));
+                if (map.find(k) == map.end()) {
+                    // Fresh entry
+                    map[k] = v;
+                }
+            }
+            cfg.clear();
+            std::map<std::string, std::string>::iterator it;
+            for (it = map.begin(); it != map.end(); ++it) {
+                cfg = cfg + it->first + "=" + it->second + ";";
+            }
+            test.cfg = cfg.c_str();
+        }
+    } else if (default_cfg != nullptr) {
+        test.cfg = default_cfg;
+    }
 
     current_testcase = &test;
     if (test.prepare != NULL) {
