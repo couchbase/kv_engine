@@ -23,7 +23,7 @@
 class ExecutorTest : public ::testing::Test {
 protected:
     void SetUp() {
-        executorpool = new ExecutorPool(1);
+        executorpool = new ExecutorPool(4);
     }
 
     void TearDown() {

@@ -1835,6 +1835,7 @@ void CreateBucketThread::create() {
 
 void CreateBucketThread::run()
 {
+    setRunning();
     // Perform the task without having any locks. The task should be
     // scheduled in a pending state so the executor won't try to touch
     // the object until we're telling it that it is runnable
@@ -1979,6 +1980,7 @@ void DestroyBucketThread::destroy() {
 }
 
 void DestroyBucketThread::run() {
+    setRunning();
     destroy();
     std::lock_guard<std::mutex> guard(task->getMutex());
     task->makeRunnable();

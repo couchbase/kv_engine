@@ -265,6 +265,10 @@ public:
         // Empty
     }
 
+    ~CreateBucketThread() {
+        waitForState(Couchbase::ThreadState::Zombie);
+    }
+
     Connection& getConnection() const {
         return connection;
     }
@@ -315,6 +319,10 @@ public:
           connection(connection_),
           task(task_),
           result(ENGINE_DISCONNECT) {
+    }
+
+    ~DestroyBucketThread() {
+        waitForState(Couchbase::ThreadState::Zombie);
     }
 
     Connection* getConnection() const {

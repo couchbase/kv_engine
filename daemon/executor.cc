@@ -21,24 +21,21 @@
 #include <iostream>
 
 Executor::~Executor() {
-    shutdown = true;
     std::unique_lock<std::mutex> lock(mutex);
+    shutdown = true;
     idlecond.notify_all();
     // Wait until the thread stops
     while (running) {
         shutdowncond.wait(lock);
     }
+    waitForState(Couchbase::ThreadState::Zombie);
 }
 
 void Executor::run() {
     running = true;
-
-    {
-        // make sure that the creator is waiting for us
-        std::lock_guard<std::mutex> lock(mutex);
-    }
-    // notify the dude that we've actually started!!!
-    idlecond.notify_all();
+    // According to the spec we have to call setRunning (that'll notify the
+    // the thread calling start())
+    setRunning();
 
     while (true) {
         std::unique_lock<std::mutex> lock(mutex);
@@ -78,7 +75,7 @@ void Executor::run() {
     }
 
     running = false;
-    shutdowncond.notify_one();
+    shutdowncond.notify_all();
 }
 
 void Executor::schedule(const std::shared_ptr<Task>& task, bool runnable) {
@@ -87,7 +84,7 @@ void Executor::schedule(const std::shared_ptr<Task>& task, bool runnable) {
 
     if (runnable) {
         runq.push(task);
-        idlecond.notify_one();
+        idlecond.notify_all();
     } else {
         waitq[task.get()] = task;
     }
@@ -107,7 +104,7 @@ void Executor::makeRunnable(Task* task) {
     }
     runq.push(iter->second);
     waitq.erase(iter);
-    idlecond.notify_one();
+    idlecond.notify_all();
 }
 
 std::unique_ptr<Executor> createWorker() {
