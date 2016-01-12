@@ -2051,7 +2051,11 @@ static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HA
     wait_for_persisted_value(h, h1, key, "value2delete");
 
     // whack the db file and directory where the key is stored
-    rmdb(dbname_env);
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+           "Failed to get stats.");
+    std::string dbname = vals["ep_dbname"];
+    rmdb(dbname.c_str());
 
     item *i = NULL;
     ENGINE_ERROR_CODE errorCode = h1->get(h, NULL, &i, key, strlen(key), 0);
