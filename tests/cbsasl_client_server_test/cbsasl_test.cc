@@ -13,6 +13,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "config.h"
 #include <cbsasl/cbsasl.h>
 #include <gtest/gtest.h>
 #include <stdio.h>
@@ -218,11 +219,13 @@ TEST_F(SaslClientServerTest, CRAM_MD5) {
     test_auth("CRAM-MD5");
 }
 
+#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
 TEST_F(SaslClientServerTest, SCRAM_SHA1) {
     test_auth("SCRAM-SHA1");
 }
+#endif
 
-#ifndef __APPLE__
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
 TEST_F(SaslClientServerTest, SCRAM_SHA256) {
     test_auth("SCRAM-SHA256");
 }

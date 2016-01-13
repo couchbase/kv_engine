@@ -13,6 +13,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "config.h"
 #include "cbsasl/pwfile.h"
 #include "cbsasl/util.h"
 #include <cbsasl/cbsasl.h>
@@ -92,11 +93,18 @@ TEST_F(SaslServerTest, ListMechs) {
     ASSERT_EQ(CBSASL_OK, err);
 
     std::string mechanisms(mechs, len);
-#ifdef __APPLE__
-    EXPECT_EQ("SCRAM-SHA1 CRAM-MD5 PLAIN", mechanisms);
-#else
-    EXPECT_EQ("SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1 CRAM-MD5 PLAIN", mechanisms);
+    std::string expected;
+
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
+    expected.append("SCRAM-SHA512 SCRAM-SHA256 ");
 #endif
+
+#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
+    expected.append("SCRAM-SHA1 ");
+#endif
+    expected.append("CRAM-MD5 PLAIN");
+
+    EXPECT_EQ(expected, mechanisms);
 }
 
 TEST_F(SaslServerTest, ListMechsBadParam) {
@@ -122,11 +130,17 @@ TEST_F(SaslServerTest, ListMechsSpecialized) {
     ASSERT_EQ(CBSASL_OK, err);
     EXPECT_EQ(2, num);
     std::string mechanisms(mechs, len);
-#ifdef __APPLE__
-    EXPECT_EQ("(SCRAM-SHA1,CRAM-MD5,PLAIN)", mechanisms);
-#else
-    EXPECT_EQ("(SCRAM-SHA512,SCRAM-SHA256,SCRAM-SHA1,CRAM-MD5,PLAIN)", mechanisms);
+    std::string expected("(");
+
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
+    expected.append("SCRAM-SHA512,SCRAM-SHA256,");
 #endif
+
+#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
+    expected.append("SCRAM-SHA1,");
+#endif
+    expected.append("CRAM-MD5,PLAIN)");
+    EXPECT_EQ(expected, mechanisms);
     cbsasl_dispose(&conn);
 }
 

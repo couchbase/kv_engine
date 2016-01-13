@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "config.h"
 #include "cbsasl/scram-sha/scram-sha.h"
 #include "cbsasl/pwfile.h"
 #include "cbsasl/cbsasl.h"
@@ -733,6 +734,7 @@ cbsasl_error_t ScramShaClientBackend::step(cbsasl_conn_t* conn,
 }
 
 bool ScramSha1ClientBackend::generateSaltedPassword(const char* ptr, int len) {
+#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
     saltedPassword.resize(Couchbase::Sha1DigestSize);
     if (PKCS5_PBKDF2_HMAC_SHA1(ptr, len,
                                reinterpret_cast<unsigned const char*>(salt.data()),
@@ -743,13 +745,14 @@ bool ScramSha1ClientBackend::generateSaltedPassword(const char* ptr, int len) {
         return false;
     }
     return true;
+#else
+    throw std::runtime_error("SHA-1 is not supported on this platform");
+#endif
 }
 
 bool ScramSha256ClientBackend::generateSaltedPassword(const char* ptr,
                                                       int len) {
-#ifdef __APPLE__
-    throw std::runtime_error("SHA-256 not supported on Mac OSX");
-#else
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
     saltedPassword.resize(Couchbase::Sha256DigestSize);
     if (PKCS5_PBKDF2_HMAC(ptr, len,
                           reinterpret_cast<unsigned const char*>(salt.data()),
@@ -761,14 +764,14 @@ bool ScramSha256ClientBackend::generateSaltedPassword(const char* ptr,
         return false;
     }
     return true;
+#else
+    throw std::runtime_error("SHA-256 is not supported on this platform");
 #endif
 }
 
 bool ScramSha512ClientBackend::generateSaltedPassword(const char* ptr,
                                                       int len) {
-#ifdef __APPLE__
-    throw std::runtime_error("SHA-512 not supported on Mac OSX");
-#else
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
     saltedPassword.resize(Couchbase::Sha512DigestSize);
     if (PKCS5_PBKDF2_HMAC(ptr, len,
                           reinterpret_cast<unsigned const char*>(salt.data()),
@@ -780,5 +783,7 @@ bool ScramSha512ClientBackend::generateSaltedPassword(const char* ptr,
         return false;
     }
     return true;
+#else
+    throw std::runtime_error("SHA-512 is not supported on this platform");
 #endif
 }

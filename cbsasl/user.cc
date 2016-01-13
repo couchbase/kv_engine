@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "config.h"
 #include "user.h"
 #include "cbsasl_internal.h"
 
@@ -48,6 +49,7 @@ Couchbase::User::User(const std::string& unm, const std::string& passwd)
       iterationCount(IterationCount.load()),
       dummy(false) {
 
+#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
     std::vector<uint8_t> salt(Sha1DigestSize);
 
     generateSalt(salt, sha1Salt);
@@ -59,8 +61,9 @@ Couchbase::User::User(const std::string& unm, const std::string& passwd)
                                saltedSha1Password.data()) != 1) {
         throw std::runtime_error("PKCS5_PBKDF2_HMAC_SHA1 failed");
     }
+#endif
 
-#ifndef __APPLE__
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
     // The version of OpenSSL shipped with MacOSX does not contain
     // PKCS5_PBKDF2_HMAC and I don't feel like creating an implementation
     // just for MacOSX (the customer base is too small and this is
@@ -119,7 +122,7 @@ void Couchbase::User::generateSecrets(const Mechanism& mech) {
     std::string passwd;
 
     switch (mech) {
-#ifndef __APPLE__
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
     case Mechanism::SCRAM_SHA512:
         salt.resize(Sha512DigestSize);
         generateSalt(salt, passwd);
@@ -147,7 +150,8 @@ void Couchbase::User::generateSecrets(const Mechanism& mech) {
         }
         break;
 #endif
-    case Mechanism::SCRAM_SHA1:
+#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
+        case Mechanism::SCRAM_SHA1:
         salt.resize(Sha1DigestSize);
         generateSalt(salt, passwd);
         generateSalt(salt, sha1Salt);
@@ -159,6 +163,7 @@ void Couchbase::User::generateSecrets(const Mechanism& mech) {
             throw std::runtime_error("PKCS5_PBKDF2_HMAC_SHA1 failed");
         }
         break;
+#endif
     default:
         throw std::logic_error("Couchbase::User::generateSecrets invalid mech");
     }
