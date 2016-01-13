@@ -124,40 +124,15 @@ cbsasl_error_t MechanismFactory::list(cbsasl_conn_t* conn, const char* user,
                                       const char* prefix, const char* sep,
                                       const char* suffix, const char** result,
                                       unsigned* len, int* count) {
-    if (result == nullptr) {
-        return CBSASL_BADPARAM;
-    }
-
-    // Are we asking for the default string?
-    if (user == nullptr && prefix == nullptr && suffix == nullptr &&
-        strcmp(sep, " ") == 0) {
-#ifdef __APPLE__
-        *result = MECH_NAME_SCRAM_SHA1 " " MECH_NAME_CRAM_MD5
-            " " MECH_NAME_PLAIN;
-#else
-        *result = MECH_NAME_SCRAM_SHA512 " " MECH_NAME_SCRAM_SHA256 " "
-            MECH_NAME_SCRAM_SHA1 " " MECH_NAME_CRAM_MD5 " " MECH_NAME_PLAIN;
-#endif
-
-        if (len != nullptr) {
-            *len = (unsigned)strlen(*result);
-        }
-
-        if (count != nullptr) {
-            *count = 2;
-        }
-
-        return CBSASL_OK;
-    }
-
-    // We want a customized string
-    if (conn == nullptr) {
-        // You can't ask for a modified string without letting me get
-        // a place to store the allocated resources
+    if (result == nullptr || conn == nullptr) {
         return CBSASL_BADPARAM;
     }
 
     try {
+        int counter = 0;
+        conn->server->list_mechs.clear();
+        conn->server->list_mechs.reserve(80);
+
         if (prefix != nullptr) {
             conn->server->list_mechs.append(prefix);
         }
@@ -183,6 +158,7 @@ cbsasl_error_t MechanismFactory::list(cbsasl_conn_t* conn, const char* user,
                 needSep = true;
             }
             conn->server->list_mechs.append(mech);
+            ++counter;
         }
 
         if (suffix != nullptr) {
@@ -196,7 +172,7 @@ cbsasl_error_t MechanismFactory::list(cbsasl_conn_t* conn, const char* user,
         }
 
         if (count != nullptr) {
-            *count = 2;
+            *count = counter;
         }
     } catch (std::bad_alloc) {
         conn->server->list_mechs.resize(0);

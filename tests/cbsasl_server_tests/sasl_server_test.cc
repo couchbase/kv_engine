@@ -39,9 +39,14 @@ protected:
     void SetUp() {
         ASSERT_EQ(CBSASL_OK, cbsasl_server_init(nullptr,
                                                 "cbsasl_server_test"));
+        ASSERT_EQ(CBSASL_OK,
+                  cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
+                                    nullptr, 0, &conn));
+
     }
 
     void TearDown() {
+        cbsasl_dispose(&conn);
         ASSERT_EQ(CBSASL_OK, cbsasl_server_term());
     }
 
@@ -83,12 +88,14 @@ protected:
         cbsasl_hex_encode(buffer + userlen + 1, (char*)digest, DIGEST_LENGTH);
         *bufferlen = 1 + (DIGEST_LENGTH * 2) + userlen;
     }
+
+    cbsasl_conn_t* conn;
 };
 
 TEST_F(SaslServerTest, ListMechs) {
     const char* mechs = nullptr;
     unsigned len = 0;
-    cbsasl_error_t err = cbsasl_listmech(nullptr, nullptr, nullptr, " ",
+    cbsasl_error_t err = cbsasl_listmech(conn, nullptr, nullptr, " ",
                                          nullptr, &mechs, &len, nullptr);
     ASSERT_EQ(CBSASL_OK, err);
 
@@ -110,25 +117,22 @@ TEST_F(SaslServerTest, ListMechs) {
 TEST_F(SaslServerTest, ListMechsBadParam) {
     const char* mechs = nullptr;
     unsigned len = 0;
-    cbsasl_error_t err = cbsasl_listmech(nullptr, nullptr, nullptr, ",",
-                                         nullptr, &mechs, &len, nullptr);
+    cbsasl_error_t err = cbsasl_listmech(conn, nullptr, nullptr, ",",
+                                         nullptr, nullptr, &len, nullptr);
+    ASSERT_EQ(CBSASL_BADPARAM, err);
+
+    err = cbsasl_listmech(nullptr, nullptr, nullptr, ",",
+                          nullptr, &mechs, &len, nullptr);
     ASSERT_EQ(CBSASL_BADPARAM, err);
 }
 
 TEST_F(SaslServerTest, ListMechsSpecialized) {
-    cbsasl_conn_t* conn;
-
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, 0, &conn));
-
     const char* mechs = nullptr;
     unsigned len = 0;
     int num;
     cbsasl_error_t err = cbsasl_listmech(conn, nullptr, "(", ",",
                                          ")", &mechs, &len, &num);
     ASSERT_EQ(CBSASL_OK, err);
-    EXPECT_EQ(2, num);
     std::string mechanisms(mechs, len);
     std::string expected("(");
 
@@ -141,28 +145,16 @@ TEST_F(SaslServerTest, ListMechsSpecialized) {
 #endif
     expected.append("CRAM-MD5,PLAIN)");
     EXPECT_EQ(expected, mechanisms);
-    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, BadMech) {
-    cbsasl_conn_t* conn = nullptr;
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, 0, &conn));
-    ASSERT_NE(nullptr, conn);
     cbsasl_error_t err = cbsasl_server_start(conn, "bad_mech", nullptr, 0,
                                              nullptr, nullptr);
     ASSERT_EQ(CBSASL_BADPARAM, err);
-    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, PlainCorrectPassword) {
     /* Normal behavior */
-    cbsasl_conn_t* conn = nullptr;
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, 0, &conn));
-    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
     cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN",
@@ -170,15 +162,9 @@ TEST_F(SaslServerTest, PlainCorrectPassword) {
                                              &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
     free((void*)output);
-    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, PlainWrongPassword) {
-    cbsasl_conn_t* conn = nullptr;
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, 0, &conn));
-    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
@@ -187,15 +173,9 @@ TEST_F(SaslServerTest, PlainWrongPassword) {
                                              &outputlen);
     ASSERT_EQ(CBSASL_PWERR, err);
     free((void*)output);
-    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, PlainNoPassword) {
-    cbsasl_conn_t* conn = nullptr;
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, 0, &conn));
-    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
@@ -203,15 +183,9 @@ TEST_F(SaslServerTest, PlainNoPassword) {
                                              &output, &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
     free((void*)output);
-    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, PlainWithAuthzid) {
-    cbsasl_conn_t* conn = nullptr;
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, 0, &conn));
-    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
@@ -221,15 +195,9 @@ TEST_F(SaslServerTest, PlainWithAuthzid) {
                                              &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
     free((void*)output);
-    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, PlainWithNoPwOrUsernameEndingNull) {
-    cbsasl_conn_t* conn = nullptr;
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, 0, &conn));
-    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
@@ -237,15 +205,9 @@ TEST_F(SaslServerTest, PlainWithNoPwOrUsernameEndingNull) {
                                              15, &output, &outputlen);
     ASSERT_NE(CBSASL_OK, err);
     free((void*)output);
-    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, PlainNoNullAtAll) {
-    cbsasl_conn_t* conn = nullptr;
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, 0, &conn));
-    ASSERT_NE(nullptr, conn);
     unsigned char* output = nullptr;
     unsigned outputlen = 0;
 
@@ -253,15 +215,9 @@ TEST_F(SaslServerTest, PlainNoNullAtAll) {
                                              14, &output, &outputlen);
     ASSERT_NE(CBSASL_OK, err);
     free((void*)output);
-    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, CramMD5) {
-    cbsasl_conn_t* conn = nullptr;
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, 0, &conn));
-    ASSERT_NE(nullptr, conn);
     unsigned char* challenge = nullptr;
     unsigned challengelen = 0;
 
@@ -283,15 +239,9 @@ TEST_F(SaslServerTest, CramMD5) {
     ASSERT_EQ(CBSASL_OK,
               cbsasl_server_step(conn, creds, credslen, &output, &outputlen));
     free((char*)output);
-    cbsasl_dispose(&conn);
 }
 
 TEST_F(SaslServerTest, CramMD5WrongPassword) {
-    cbsasl_conn_t* conn = nullptr;
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
-                                nullptr, 0, &conn));
-    ASSERT_NE(nullptr, conn);
     unsigned char* challenge = nullptr;
     unsigned challengelen = 0;
     ASSERT_EQ(CBSASL_CONTINUE,
@@ -312,5 +262,4 @@ TEST_F(SaslServerTest, CramMD5WrongPassword) {
     ASSERT_EQ(CBSASL_PWERR,
               cbsasl_server_step(conn, creds, credslen, &output, &outputlen));
     free((char*)output);
-    cbsasl_dispose(&conn);
 }
