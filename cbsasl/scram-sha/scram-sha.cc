@@ -81,10 +81,10 @@ static bool decodeAttributeList(cbsasl_conn_t* conn, const std::string& list,
 
         auto comma = list.find(',', pos);
         if (comma == std::string::npos) {
-            attributes.emplace(std::make_pair(key, list.substr(pos)));
+            attributes.insert(std::make_pair(key, list.substr(pos)));
             pos = list.length();
         } else {
-            attributes.emplace(
+            attributes.insert(
                 std::make_pair(key, list.substr(pos, comma - pos)));
             pos = comma + 1;
         }
