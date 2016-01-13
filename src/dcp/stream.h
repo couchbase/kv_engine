@@ -21,6 +21,7 @@
 #include "config.h"
 
 #include "vbucket.h"
+#include "dcp/dcp-types.h"
 #include "dcp/producer.h"
 #include "ext_meta_parser.h"
 #include "response.h"
@@ -33,12 +34,6 @@ class MutationResponse;
 class SetVBucketState;
 class SnapshotMarker;
 class DcpResponse;
-
-class DcpConsumer;
-typedef SingleThreadedRCPtr<DcpConsumer> dcp_consumer_t;
-
-class DcpProducer;
-typedef SingleThreadedRCPtr<DcpProducer> dcp_producer_t;
 
 enum stream_state_t {
     STREAM_PENDING,

@@ -20,16 +20,10 @@
 
 #include "config.h"
 
-#include "dcp/stream.h"
+#include "dcp/dcp-types.h"
 #include "tapconnection.h"
 
 class BackfillManager;
-
-class Stream;
-typedef SingleThreadedRCPtr<Stream> stream_t;
-
-typedef SingleThreadedRCPtr<Stream> stream_t;
-
 class DcpResponse;
 
 class DcpProducer : public Producer {
