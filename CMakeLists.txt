@@ -407,7 +407,7 @@ SET_TESTS_PROPERTIES(ep-engine-engine-tests PROPERTIES TIMEOUT 3600)
 
 ADD_TEST(ep_testsuite_basic
          ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_basic.so -v -e "flushall_enabled=true;ht_size=13;ht_locks=7" )
-SET_TESTS_PROPERTIES(ep_testsuite_basic PROPERTIES TIMEOUT 100)
+SET_TESTS_PROPERTIES(ep_testsuite_basic PROPERTIES TIMEOUT 400)
 
 # ADD_TEST(ep-engine-breakdancer-engine-tests ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ep.so -T generated_testsuite.so -e 'flushall_enabled=true;ht_size=13;ht_locks=7;backend=couchdb')
 

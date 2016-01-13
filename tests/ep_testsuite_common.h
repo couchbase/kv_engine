@@ -104,6 +104,13 @@ public:
                bool _skip = false);
 };
 
+// Convenience types //////////////////////////////////////////////////////////
+
+struct handle_pair {
+    ENGINE_HANDLE *h;
+    ENGINE_HANDLE_V1 *h1;
+};
+
 // Name to use for database directory
 extern const char *dbname_env;
 
