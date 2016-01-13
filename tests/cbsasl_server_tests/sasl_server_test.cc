@@ -19,6 +19,7 @@
 #include <cbsasl/cbsasl.h>
 #include "cbsasl/cbsasl_internal.h"
 
+#include <algorithm>
 #include <gtest/gtest.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
@@ -34,15 +35,42 @@ const char* cbpwfile = "sasl_server_test.pw";
 
 char envptr[256]{"ISASL_PWFILE=sasl_server_test.pw"};
 
+static std::string mechanisms;
+
+static int sasl_getopt_callback(void*, const char*,
+                                const char* option,
+                                const char** result,
+                                unsigned* len) {
+    if (option == nullptr || result == nullptr || len == nullptr) {
+        return CBSASL_BADPARAM;
+    }
+
+    if (strcmp(option, "sasl mechanisms") == 0) {
+        *result = mechanisms.c_str();
+        *len = mechanisms.length();
+        return CBSASL_OK;
+    }
+
+    return CBSASL_FAIL;
+}
+
 class SaslServerTest : public ::testing::Test {
 protected:
     void SetUp() {
-        ASSERT_EQ(CBSASL_OK, cbsasl_server_init(nullptr,
+        std::array<cbsasl_callback_t, 3> server_sasl_callback;
+        int ii = 0;
+        server_sasl_callback[ii].id = CBSASL_CB_GETOPT;
+        server_sasl_callback[ii].proc = (int (*)(void))sasl_getopt_callback;
+        server_sasl_callback[ii++].context = nullptr;
+        server_sasl_callback[ii].id = CBSASL_CB_LIST_END;
+        server_sasl_callback[ii].proc = nullptr;
+        server_sasl_callback[ii].context = nullptr;
+
+        ASSERT_EQ(CBSASL_OK, cbsasl_server_init(server_sasl_callback.data(),
                                                 "cbsasl_server_test"));
         ASSERT_EQ(CBSASL_OK,
                   cbsasl_server_new(nullptr, nullptr, nullptr, nullptr, nullptr,
                                     nullptr, 0, &conn));
-
     }
 
     void TearDown() {
@@ -58,6 +86,15 @@ protected:
         ASSERT_EQ(0, fclose(fp));
 
         putenv(envptr);
+
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
+        mechanisms.append("SCRAM-SHA512 SCRAM-SHA256 ");
+#endif
+
+#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
+        mechanisms.append("SCRAM-SHA1 ");
+#endif
+        mechanisms.append("CRAM-MD5 PLAIN");
     }
 
     static void TearDownTestCase() {
@@ -98,20 +135,7 @@ TEST_F(SaslServerTest, ListMechs) {
     cbsasl_error_t err = cbsasl_listmech(conn, nullptr, nullptr, " ",
                                          nullptr, &mechs, &len, nullptr);
     ASSERT_EQ(CBSASL_OK, err);
-
-    std::string mechanisms(mechs, len);
-    std::string expected;
-
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
-    expected.append("SCRAM-SHA512 SCRAM-SHA256 ");
-#endif
-
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
-    expected.append("SCRAM-SHA1 ");
-#endif
-    expected.append("CRAM-MD5 PLAIN");
-
-    EXPECT_EQ(expected, mechanisms);
+    EXPECT_EQ(mechanisms, std::string(mechs, len));
 }
 
 TEST_F(SaslServerTest, ListMechsBadParam) {
@@ -133,18 +157,10 @@ TEST_F(SaslServerTest, ListMechsSpecialized) {
     cbsasl_error_t err = cbsasl_listmech(conn, nullptr, "(", ",",
                                          ")", &mechs, &len, &num);
     ASSERT_EQ(CBSASL_OK, err);
-    std::string mechanisms(mechs, len);
-    std::string expected("(");
-
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
-    expected.append("SCRAM-SHA512,SCRAM-SHA256,");
-#endif
-
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
-    expected.append("SCRAM-SHA1,");
-#endif
-    expected.append("CRAM-MD5,PLAIN)");
-    EXPECT_EQ(expected, mechanisms);
+    std::string mechlist(mechs, len);
+    std::string expected("(" + mechanisms + ")");
+    std::replace(expected.begin(), expected.end(), ' ', ',');
+    EXPECT_EQ(expected, mechlist);
 }
 
 TEST_F(SaslServerTest, BadMech) {
@@ -262,4 +278,23 @@ TEST_F(SaslServerTest, CramMD5WrongPassword) {
     ASSERT_EQ(CBSASL_PWERR,
               cbsasl_server_step(conn, creds, credslen, &output, &outputlen));
     free((char*)output);
+}
+
+class SaslLimitMechServerTest : public SaslServerTest {
+protected:
+    void SetUp() {
+        mechanisms = "CRAM-MD5";
+        SaslServerTest::SetUp();
+    }
+};
+
+TEST_F(SaslLimitMechServerTest, TestDisableMechList) {
+    const char* mechs = nullptr;
+    unsigned len = 0;
+    int num;
+    cbsasl_error_t err = cbsasl_listmech(conn, nullptr, "(", ",",
+                                         ")", &mechs, &len, &num);
+    ASSERT_EQ(CBSASL_OK, err);
+    std::string mechlist(mechs, len);
+    EXPECT_EQ(std::string("(CRAM-MD5)"), mechlist);
 }

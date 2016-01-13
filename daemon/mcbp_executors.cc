@@ -419,10 +419,15 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
 }
 
 void process_stat_settings(ADD_STAT add_stat_callback, void* c) {
+    if (c == nullptr) {
+        throw std::invalid_argument("process_stat_settings: "
+                                        "cookie must be non-NULL");
+    }
     if (add_stat_callback == nullptr) {
         throw std::invalid_argument("process_stat_settings: "
                                         "add_stat_callback must be non-NULL");
     }
+    McbpConnection *conn = reinterpret_cast<McbpConnection*>(c);
     add_stat(c, add_stat_callback, "maxconns", settings.maxconns);
 
     for (auto& ifce : stats.listening_ports) {
@@ -475,6 +480,13 @@ void process_stat_settings(ADD_STAT add_stat_callback, void* c) {
              settings.default_reqs_per_event);
     add_stat(c, add_stat_callback, "auth_enabled_sasl", "yes");
     add_stat(c, add_stat_callback, "auth_sasl_engine", "cbsasl");
+
+    const char *sasl_mechs = nullptr;
+    if (cbsasl_listmech(conn->getSaslConn(), nullptr, "(", ",", ")",
+                        &sasl_mechs, nullptr, nullptr)  == CBSASL_OK) {
+        add_stat(c, add_stat_callback, "auth_sasl_mechanisms", sasl_mechs);
+    }
+
     add_stat(c, add_stat_callback, "auth_required_sasl", settings.require_sasl);
     {
         EXTENSION_DAEMON_DESCRIPTOR* ptr;

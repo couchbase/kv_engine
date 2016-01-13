@@ -304,3 +304,11 @@ cbsasl_loglevel_t cbsasl_get_loglevel(const cbsasl_conn_t* connection);
  * @param context the user provided context
  */
 void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn, void* context);
+
+/**
+ * Set the available mechanisms
+ *
+ * @param getopt_fn the user provided callback function
+ * @param context the user provided context
+ */
+void cbsasl_set_available_mechanisms(cbsasl_getopt_fn getopt_fn, void* context);

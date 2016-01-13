@@ -765,6 +765,16 @@ static bool get_exit_on_connection_close(cJSON *o, struct settings *settings,
     }
 }
 
+static bool get_sasl_mechanisms(cJSON *o, struct settings *settings,
+                                char **error_msg) {
+    if (get_string_value(o, o->string, &settings->sasl_mechanisms, error_msg)) {
+        settings->has.sasl_mechanisms = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
 static bool dyna_reconfig_exit_on_connection_close(const struct settings *new_settings,
                                                    cJSON* errors) {
     /* exit_on_connection_close isn't dynamic */
@@ -776,6 +786,30 @@ static bool dyna_reconfig_exit_on_connection_close(const struct settings *new_se
     } else {
         cJSON_AddItemToArray(errors,
                              cJSON_CreateString("'exit_on_connection_close' is not a dynamic setting."));
+        return false;
+    }
+}
+
+static bool dyna_reconfig_sasl_mechanisms(const struct settings *new_settings,
+                                          cJSON* errors) {
+    /* exit_on_connection_close isn't dynamic */
+    if (!new_settings->has.sasl_mechanisms) {
+        return true;
+    }
+
+    if (settings.sasl_mechanisms == nullptr) {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'sasl_mechanisms' is not a "
+                                                    "dynamic setting."));
+        return false;
+    }
+
+    if (strcmp(new_settings->sasl_mechanisms, settings.sasl_mechanisms) == 0) {
+        return true;
+    } else {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("'sasl_mechanisms' is not a "
+                                                    "dynamic setting."));
         return false;
     }
 }
@@ -1464,6 +1498,7 @@ struct {
     { "max_packet_size", get_max_packet_size, dyna_validate_max_packet_size, NULL},
     { "stdin_listen", get_stdin_listen, dyna_reconfig_stdin_listen, NULL},
     { "exit_on_connection_close", get_exit_on_connection_close, dyna_reconfig_exit_on_connection_close, NULL},
+    { "sasl_mechanisms", get_sasl_mechanisms, dyna_reconfig_sasl_mechanisms, NULL},
     { NULL, NULL, NULL, NULL }
 };
 
@@ -1637,4 +1672,5 @@ void free_settings(struct settings* s) {
     free((char*)s->breakpad.minidump_dir);
     free((char*)s->ssl_cipher_list);
     free((char*)s->audit_file);
+    free((char*)s->sasl_mechanisms);
 }

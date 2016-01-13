@@ -137,6 +137,11 @@ struct settings {
      */
     bool exit_on_connection_close;
 
+    /**
+     * The available sasl mechanism list
+     */
+    const char *sasl_mechanisms;
+
     /* flags for each of the above config options, indicating if they were
      * specified in a parsed config file.
      */
@@ -165,6 +170,7 @@ struct settings {
         bool topkeys_size;
         bool stdin_listen;
         bool exit_on_connection_close;
+        bool sasl_mechanisms;
     } has;
     /*************************************************************************
      * These settings are not exposed to the user, and are either derived from

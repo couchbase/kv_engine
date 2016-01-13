@@ -2278,13 +2278,20 @@ static int sasl_getopt_callback(void*, const char*,
         return CBSASL_BADPARAM;
     }
 
-    if (strcmp(option, "hmac iteration count") == 0) {
+    std::string key(option);
+
+    if (key == "hmac iteration count") {
         // Speed up the test suite by reducing the SHA1 hmac calculations
         // from 4k to 10
         if (getenv("MEMCACHED_UNIT_TESTS") != nullptr) {
             *result = "10";
             *len = 2;
             return CBSASL_OK;
+        }
+    } else if (key == "sasl mechanisms") {
+        if (settings.sasl_mechanisms != nullptr) {
+            *result = settings.sasl_mechanisms;
+            *len = strlen(settings.sasl_mechanisms);
         }
     }
 

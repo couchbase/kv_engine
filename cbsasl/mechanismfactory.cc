@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include "config.h"
 #include "cram-md5/cram-md5.h"
 #include "mechanismfactory.h"
 #include "plain/plain.h"
@@ -21,48 +22,231 @@
 
 #include <algorithm>
 #include <cstring>
+#include <iterator>
+#include <memory>
+#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <memory>
+
+/**
+ * In order to keep track of all of the avaliable mechanisms we support
+ * we'll store them in a dynamic list so to easy add/remove support for
+ * more mechanisms without having to change a ton of code.
+ *
+ * Each concrete implement of a mechanism should provide a subclass of
+ * this class and insert itself into the available_mechs array.
+ */
+class MechInfo {
+public:
+    /**
+     * Initialize a new mechanism
+     *
+     * @param nm the IANA registered name for the mechanism (should be
+     *           all uppercase)
+     * @param en Is the mechanism enabled or not
+     * @param mech the Mechanism constant (to avoid the rest of the system
+     *             to use string comparisons).
+     */
+    MechInfo(const char *nm, bool en, const Mechanism &mech) :
+        name(nm), enabled(en), mechanism(mech) {}
+
+    virtual UniqueMechanismBackend createServerBackend() = 0;
+    virtual UniqueMechanismBackend createClientBackend() = 0;
+
+    const std::string& getName() const {
+        return name;
+    }
+
+    bool isEnabled() const {
+        return enabled;
+    }
+
+
+    void setEnabled(bool enabled) {
+        MechInfo::enabled = enabled;
+    }
+
+
+    const Mechanism& getMechanism() const {
+        return mechanism;
+    }
+
+protected:
+
+    const std::string name;
+    bool enabled;
+    Mechanism mechanism;
+};
+
+class Scram512MechInfo : public MechInfo {
+public:
+    Scram512MechInfo()
+        : MechInfo(MECH_NAME_SCRAM_SHA512,
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
+                   true,
+#else
+                   false,
+#endif
+                   Mechanism::SCRAM_SHA512) { }
+
+    virtual UniqueMechanismBackend createServerBackend() override {
+        return UniqueMechanismBackend(new ScramSha512ServerBackend);
+    }
+
+    virtual UniqueMechanismBackend createClientBackend() override {
+        return UniqueMechanismBackend(new ScramSha512ClientBackend);
+    }
+};
+
+class Scram256MechInfo : public MechInfo {
+public:
+    Scram256MechInfo()
+        : MechInfo(MECH_NAME_SCRAM_SHA256,
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
+                   true,
+#else
+                   false,
+#endif
+                   Mechanism::SCRAM_SHA256) { }
+
+    virtual UniqueMechanismBackend createServerBackend() override {
+        return UniqueMechanismBackend(new ScramSha256ServerBackend);
+    }
+
+    virtual UniqueMechanismBackend createClientBackend() override {
+        return UniqueMechanismBackend(new ScramSha256ClientBackend);
+    }
+};
+
+class Scram1MechInfo : public MechInfo {
+public:
+    Scram1MechInfo()
+        : MechInfo(MECH_NAME_SCRAM_SHA1,
+#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
+                   true,
+#else
+                   false,
+#endif
+                   Mechanism::SCRAM_SHA1) { }
+
+    virtual UniqueMechanismBackend createServerBackend() override {
+        return UniqueMechanismBackend(new ScramSha1ServerBackend);
+    }
+
+    virtual UniqueMechanismBackend createClientBackend() override {
+        return UniqueMechanismBackend(new ScramSha1ClientBackend);
+    }
+};
+
+class CramMd5MechInfo : public MechInfo {
+public:
+    CramMd5MechInfo()
+        : MechInfo(MECH_NAME_CRAM_MD5, true, Mechanism::CRAM_MD5) { }
+
+    virtual UniqueMechanismBackend createServerBackend() override {
+        return UniqueMechanismBackend(new CramMd5ServerBackend);
+    }
+
+    virtual UniqueMechanismBackend createClientBackend() override {
+        return UniqueMechanismBackend(new CramMd5ClientBackend);
+    }
+};
+
+class PlainMechInfo : public MechInfo {
+public:
+    PlainMechInfo()
+        : MechInfo(MECH_NAME_PLAIN, true, Mechanism::PLAIN) { }
+
+    virtual UniqueMechanismBackend createServerBackend() override {
+        return UniqueMechanismBackend(new PlainServerBackend);
+    }
+
+    virtual UniqueMechanismBackend createClientBackend() override {
+        return UniqueMechanismBackend(new PlainClientBackend);
+    }
+};
+
+const std::vector< std::shared_ptr<MechInfo> > availableMechs = {
+    std::make_shared<Scram512MechInfo>(),
+    std::make_shared<Scram256MechInfo>(),
+    std::make_shared<Scram1MechInfo>(),
+    std::make_shared<CramMd5MechInfo>(),
+    std::make_shared<PlainMechInfo>()
+};
+
+void cbsasl_set_available_mechanisms(cbsasl_getopt_fn getopt_fn,
+                                     void* context) {
+    const char* result = nullptr;
+    unsigned int result_len;
+
+    if (getopt_fn(context, nullptr, "sasl mechanisms", &result,
+                  &result_len) != CBSASL_OK) {
+        return;
+    }
+
+    // Disable all
+    for (auto& mech : availableMechs) {
+        mech->setEnabled(false);
+    }
+
+    std::string mechlist(result, result_len);
+    std::transform(mechlist.begin(), mechlist.end(), mechlist.begin(), toupper);
+
+    std::istringstream iss(mechlist);
+    std::vector<std::string> tokens{std::istream_iterator<std::string>{iss},
+                                    std::istream_iterator<std::string>{}};
+    for (auto& token : tokens) {
+        bool found = false;
+        for (auto& mech : availableMechs) {
+            if (mech->getName() == token) {
+                mech->setEnabled(true);
+                found = true;
+            }
+        }
+        if (found) {
+            cbsasl_log(nullptr, cbsasl_loglevel_t::Error,
+                       "Unknown mech [" + token + "] specified. Ignored");
+        } else {
+            cbsasl_log(nullptr, cbsasl_loglevel_t::Debug,
+                       "Enable mech [" + token + "]");
+
+        }
+    }
+}
 
 UniqueMechanismBackend MechanismFactory::createServerBackend(
     const Mechanism& mechanism) {
-    switch (mechanism) {
-    case Mechanism::PLAIN:
-        return std::unique_ptr<MechanismBackend>(new PlainServerBackend);
-    case Mechanism::CRAM_MD5:
-        return std::unique_ptr<MechanismBackend>(new CramMd5ServerBackend);
-    case Mechanism::SCRAM_SHA1:
-        return UniqueMechanismBackend(new ScramSha1ServerBackend);
-    case Mechanism::SCRAM_SHA256:
-        return UniqueMechanismBackend(new ScramSha256ServerBackend);
-    case Mechanism::SCRAM_SHA512:
-        return UniqueMechanismBackend(new ScramSha512ServerBackend);
-    case Mechanism::UNKNOWN:
-        throw std::invalid_argument("MechanismFactory::create() can't be "
-                                        "called with an unknown mechanism");
+
+    for (const auto& m : availableMechs) {
+        if (m->getMechanism() == mechanism) {
+            if (m->isEnabled()) {
+                return m->createServerBackend();
+            } else {
+                cbsasl_log(nullptr, cbsasl_loglevel_t::Debug,
+                           "Requested disabled mechanism " + m->getName());
+                return UniqueMechanismBackend();
+            }
+        }
     }
+
     throw std::invalid_argument("MechanismFactory::create() can't be "
                                     "called with an unknown mechanism");
 }
 
 UniqueMechanismBackend MechanismFactory::createClientBackend(
     const Mechanism& mechanism) {
-    switch (mechanism) {
-    case Mechanism::PLAIN:
-        return std::unique_ptr<MechanismBackend>(new PlainClientBackend);
-    case Mechanism::CRAM_MD5:
-        return std::unique_ptr<MechanismBackend>(new CramMd5ClientBackend);
-    case Mechanism::SCRAM_SHA1:
-        return UniqueMechanismBackend(new ScramSha1ClientBackend);
-    case Mechanism::SCRAM_SHA256:
-        return UniqueMechanismBackend(new ScramSha256ClientBackend);
-    case Mechanism::SCRAM_SHA512:
-        return UniqueMechanismBackend(new ScramSha512ClientBackend);
-    case Mechanism::UNKNOWN:
-        throw std::invalid_argument("MechanismFactory::create() can't be "
-                                        "called with an unknown mechanism");
+    for (const auto& m : availableMechs) {
+        if (m->getMechanism() == mechanism) {
+            if (m->isEnabled()) {
+                return m->createClientBackend();
+            } else {
+                cbsasl_log(nullptr, cbsasl_loglevel_t::Debug,
+                           "Requested disabled mechanism " + m->getName());
+                return UniqueMechanismBackend();
+            }
+        }
     }
+
     throw std::invalid_argument("MechanismFactory::create() can't be "
                                     "called with an unknown mechanism");
 }
@@ -137,28 +321,21 @@ cbsasl_error_t MechanismFactory::list(cbsasl_conn_t* conn, const char* user,
             conn->server->list_mechs.append(prefix);
         }
 
-        const std::vector<std::string> mechs{
-#ifndef __APPLE__
-            MECH_NAME_SCRAM_SHA512,
-            MECH_NAME_SCRAM_SHA256,
-#endif
-            MECH_NAME_SCRAM_SHA1,
-            MECH_NAME_CRAM_MD5,
-            MECH_NAME_PLAIN};
         bool needSep = false;
-
-        for (const auto& mech : mechs) {
-            if (needSep) {
-                if (sep == nullptr) {
-                    conn->server->list_mechs.append(" ");
+        for (const auto& mech : availableMechs) {
+            if (mech->isEnabled()) {
+                if (needSep) {
+                    if (sep == nullptr) {
+                        conn->server->list_mechs.append(" ");
+                    } else {
+                        conn->server->list_mechs.append(sep);
+                    }
                 } else {
-                    conn->server->list_mechs.append(sep);
+                    needSep = true;
                 }
-            } else {
-                needSep = true;
+                conn->server->list_mechs.append(mech->getName());
+                ++counter;
             }
-            conn->server->list_mechs.append(mech);
-            ++counter;
         }
 
         if (suffix != nullptr) {
