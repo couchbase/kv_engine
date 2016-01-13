@@ -1092,7 +1092,7 @@ public:
         totalSleepTime += sleep_time;
         if (totalSleepTime >= maxWaitTime) {
             std::cerr << "Exceeded maximum wait time of " << maxWaitTime
-                      << "s waiting for stat '" << stat;
+                      << "us waiting for stat '" << stat;
             if (statKey != NULL) {
                 std::cerr << "(" << statKey << ")";
             }
