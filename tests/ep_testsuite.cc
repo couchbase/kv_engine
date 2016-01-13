@@ -2047,13 +2047,23 @@ static enum test_result test_delete_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
 }
 
 static enum test_result test_get_delete_missing_file(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+           "Failed to get stats.");
+
+    // TODO: This test needs to be skipped for forestdb as backend because
+    // in that case we don't open and close on every operation. Thus, a get
+    // after deleting the database file would still result in a SUCCESS.
+    // In the future, regardless of the storage type, the resulting error
+    // should be the same.
+    std::string backend = vals["ep_backend"];
+    if (backend == "forestdb") {
+        return SKIPPED;
+    }
     const char *key = "key";
     wait_for_persisted_value(h, h1, key, "value2delete");
 
     // whack the db file and directory where the key is stored
-    checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
-           "Failed to get stats.");
     std::string dbname = vals["ep_dbname"];
     rmdb(dbname.c_str());
 
