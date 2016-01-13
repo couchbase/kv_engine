@@ -1729,8 +1729,7 @@ extern "C"
      * Response:-
      *
      * The response will return a SUCCESS after saving the settings, the
-     * body will contain the vbucket uuid (type uint64_t) and vbucket high
-     * seqno (type: int64_t).
+     * body will contain the vbucket high seqno (type: int64_t).
      * A NOT_MY_VBUCKET (along with cluster config) is returned if the
      * vbucket isn't found.
      */
