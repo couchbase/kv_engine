@@ -314,7 +314,7 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
     }
     LockHolder lh(streamMutex);
     if (state_ == STREAM_BACKFILLING) {
-        if (!producer->getBackfillManager()->bytesRead(itm->size())) {
+        if (!producer->recordBackfillManagerBytesRead(itm->size())) {
             delete itm;
             return false;
         }
@@ -425,7 +425,7 @@ DcpResponse* ActiveStream::backfillPhase() {
          resp->getEvent() == DCP_DELETION ||
          resp->getEvent() == DCP_EXPIRATION)) {
         MutationResponse* m = static_cast<MutationResponse*>(resp);
-        producer->getBackfillManager()->bytesSent(m->getItem()->size());
+        producer->recordBackfillManagerBytesSent(m->getItem()->size());
         bufferedBackfill.bytes.fetch_sub(m->getItem()->size());
         bufferedBackfill.items--;
         if (backfillRemaining.load(std::memory_order_relaxed) > 0) {
@@ -740,7 +740,7 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             // If Stream were in Backfilling state, clear out the
             // backfilled items to clear up the backfill buffer.
             clear_UNLOCKED();
-            producer->getBackfillManager()->bytesSent(bufferedBackfill.bytes);
+            producer->recordBackfillManagerBytesSent(bufferedBackfill.bytes);
             bufferedBackfill.bytes = 0;
             bufferedBackfill.items = 0;
         }
@@ -801,8 +801,7 @@ void ActiveStream::scheduleBackfill() {
         bool tryBackfill = isFirstItem || flags_ & DCP_ADD_STREAM_FLAG_DISKONLY;
 
         if (backfillStart <= backfillEnd && tryBackfill) {
-            BackfillManager* backfillMgr = producer->getBackfillManager();
-            backfillMgr->schedule(this, backfillStart, backfillEnd);
+            producer->scheduleBackfillManager(this, backfillStart, backfillEnd);
             isBackfillTaskRunning.store(true);
         } else {
             if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {

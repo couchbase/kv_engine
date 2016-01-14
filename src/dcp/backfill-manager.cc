@@ -26,17 +26,17 @@ static const size_t sleepTime = 1;
 
 class BackfillManagerTask : public GlobalTask {
 public:
-    BackfillManagerTask(EventuallyPersistentEngine* e, BackfillManager* mgr,
+    BackfillManagerTask(EventuallyPersistentEngine* e, backfill_manager_t mgr,
                         const Priority &p, double sleeptime = 0,
-                        bool shutdown = false)
-        : GlobalTask(e, p, sleeptime, shutdown), manager(mgr) {}
+                        bool completeBeforeShutdown = false)
+        : GlobalTask(e, p, sleeptime, completeBeforeShutdown), manager(mgr) {}
 
     bool run();
 
     std::string getDescription();
 
 private:
-    BackfillManager* manager;
+    backfill_manager_t manager;
 };
 
 bool BackfillManagerTask::run() {
@@ -88,10 +88,6 @@ void BackfillManager::addStats(connection_t conn, ADD_STAT add_stat,
 }
 
 BackfillManager::~BackfillManager() {
-    if (managerTask) {
-        managerTask->cancel();
-    }
-
     while (!activeBackfills.empty()) {
         DCPBackfill* backfill = activeBackfills.front();
         activeBackfills.pop_front();
@@ -115,6 +111,15 @@ BackfillManager::~BackfillManager() {
         delete backfill;
     }
 }
+
+void BackfillManager::terminate() {
+    LockHolder lh(lock);
+    if (managerTask) {
+        managerTask->cancel();
+        managerTask.reset();
+    }
+}
+
 
 void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
     LockHolder lh(lock);

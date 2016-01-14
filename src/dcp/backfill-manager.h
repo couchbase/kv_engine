@@ -27,11 +27,13 @@
 
 class EventuallyPersistentEngine;
 
-class BackfillManager {
+class BackfillManager : public RCValue {
 public:
     BackfillManager(EventuallyPersistentEngine* e);
 
     ~BackfillManager();
+
+    void terminate();
 
     void addStats(connection_t conn, ADD_STAT add_stat, const void *c);
 

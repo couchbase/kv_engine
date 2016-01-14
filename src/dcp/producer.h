@@ -107,9 +107,10 @@ public:
 
     void notifyStreamReady(uint16_t vbucket, bool schedule);
 
-    BackfillManager* getBackfillManager() {
-        return backfillMgr;
-    }
+    void notifyBackfillManager();
+    bool recordBackfillManagerBytesRead(uint32_t bytes);
+    void recordBackfillManagerBytesSent(uint32_t bytes);
+    void scheduleBackfillManager(stream_t s, uint64_t start, uint64_t end);
 
     bool isExtMetaDataEnabled () {
         return enableExtMetaData;
@@ -230,7 +231,7 @@ private:
     Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;
     BufferLog log;
 
-    BackfillManager* backfillMgr;
+    backfill_manager_t backfillMgr;
 
     // Guards all accesses to streams map. If only reading elements in streams
     // (i.e. not adding / removing elements) then can acquire ReadLock, even

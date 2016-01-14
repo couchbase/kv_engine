@@ -40,3 +40,7 @@ typedef SingleThreadedRCPtr<Stream> stream_t;
 // Implementation defined in dcp/stream.h
 class PassiveStream;
 typedef RCPtr<PassiveStream> passive_stream_t;
+
+// Implementation defined in dcp/backfill-manager.h
+class BackfillManager;
+typedef RCPtr<BackfillManager> backfill_manager_t;

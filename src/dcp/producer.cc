@@ -163,8 +163,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
 }
 
 DcpProducer::~DcpProducer() {
+    backfillMgr->terminate();
     delete rejectResp;
-    delete backfillMgr;
 }
 
 ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
@@ -652,6 +652,23 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
     return ret;
 }
 
+void DcpProducer::notifyBackfillManager() {
+    backfillMgr->wakeUpTask();
+}
+
+bool DcpProducer::recordBackfillManagerBytesRead(uint32_t bytes) {
+    return backfillMgr->bytesRead(bytes);
+}
+
+void DcpProducer::recordBackfillManagerBytesSent(uint32_t bytes) {
+    backfillMgr->bytesSent(bytes);
+}
+
+void DcpProducer::scheduleBackfillManager(stream_t s,
+                                          uint64_t start, uint64_t end) {
+    backfillMgr->schedule(s, start, end);
+}
+
 void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     Producer::addStats(add_stat, c);
 
@@ -671,9 +688,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
             supportsCursorDropping ? "ELIGIBLE" : "NOT_ELIGIBLE",
             add_stat, c);
 
-    if (backfillMgr) {
-        backfillMgr->addStats(this, add_stat, c);
-    }
+    backfillMgr->addStats(this, add_stat, c);
 
     log.addStats(add_stat, c);
 

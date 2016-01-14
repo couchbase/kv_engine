@@ -1214,7 +1214,7 @@ void DcpConnMap::notifyBackfillManagerTasks() {
     for (; itr != map_.end(); ++itr) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
         if (producer) {
-            producer->getBackfillManager()->wakeUpTask();
+            producer->notifyBackfillManager();
         }
     }
 }
