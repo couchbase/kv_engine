@@ -1138,8 +1138,8 @@ extern "C"
             struct {
                 /**
                  * 0x01 - Active
-                 * 0x02 - Replica
-                 * 0x03 - Pending
+                 * 0x02 - Pending
+                 * 0x03 - Replica
                  * 0x04 - Dead
                  */
                 uint8_t state;

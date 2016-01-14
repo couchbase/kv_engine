@@ -20,10 +20,10 @@ typedef enum {
      state == vbucket_state_pending || \
      state == vbucket_state_dead)
 
-typedef struct {
-    uint64_t uuid;
-    uint64_t seqno;
-} vbucket_failover_t;
+    typedef struct {
+        uint64_t uuid;
+        uint64_t seqno;
+    } vbucket_failover_t;
 
 #ifdef __cplusplus
 }
