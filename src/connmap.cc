@@ -530,7 +530,7 @@ void TapConnMap::manageConnections() {
     // Delete all of the dead clients
     std::list<connection_t>::iterator ii;
     for (ii = deadClients.begin(); ii != deadClients.end(); ++ii) {
-        LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
+        LOG(EXTENSION_LOG_NOTICE, "Clean up \"%s\"", (*ii)->getName().c_str());
         (*ii)->releaseReference();
         TapProducer *tp = dynamic_cast<TapProducer*>((*ii).get());
         if (tp) {
@@ -747,25 +747,24 @@ void TapConnMap::shutdownAllConnections() {
 
     connNotifier_->stop();
 
-    // Not safe to acquire both connsLock and releaseLock at the same time
-    // (can trigger deadlock), so first acquire releaseLock to release all
-    // the connections (without changing the list/map), then drop releaseLock,
-    // acquire connsLock and actually clear out the list/map.
+
+    LockHolder lh(connsLock);
+    std::vector<connection_t> toRelease(all.begin(), all.end());
+
+    all.clear();
+    map_.clear();
+
+    lh.unlock();
+
     LockHolder rlh(releaseLock);
-    std::list<connection_t>::iterator ii;
-    for (ii = all.begin(); ii != all.end(); ++ii) {
-        LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
-        (*ii)->releaseReference();
-        TapProducer *tp = dynamic_cast<TapProducer*>((*ii).get());
+    for (auto &ii : toRelease) {
+        LOG(EXTENSION_LOG_NOTICE, "Clean up \"%s\"", ii->getName().c_str());
+        ii->releaseReference();
+        TapProducer *tp = dynamic_cast<TapProducer*>(ii.get());
         if (tp) {
             tp->clearQueues();
         }
     }
-    rlh.unlock();
-
-    LockHolder lh(connsLock);
-    all.clear();
-    map_.clear();
 }
 
 void TapConnMap::disconnect(const void *cookie) {
@@ -1016,23 +1015,22 @@ void DcpConnMap::shutdownAllConnections() {
 
     connNotifier_->stop();
 
-    // Not safe to acquire both connsLock and releaseLock at the same time
-    // (can trigger deadlock), so first acquire releaseLock to release all
-    // the connections (without changing the list/map), then drop releaseLock,
-    // acquire connsLock and actually clear out the list/map.
-    LockHolder rlh(releaseLock);
-    std::list<connection_t>::iterator ii;
-    for (ii = all.begin(); ii != all.end(); ++ii) {
-        LOG(EXTENSION_LOG_WARNING, "Clean up \"%s\"", (*ii)->getName().c_str());
-        (*ii)->releaseReference();
-    }
-    rlh.unlock();
 
     LockHolder lh(connsLock);
+    std::vector<connection_t> toRelease(all.begin(), all.end());
+
     closeAllStreams_UNLOCKED();
     cancelAllTasks_UNLOCKED();
     all.clear();
     map_.clear();
+
+    lh.unlock();
+
+    LockHolder rlh(releaseLock);
+    for (auto &ii : toRelease) {
+        LOG(EXTENSION_LOG_NOTICE, "Clean up \"%s\"", ii->getName().c_str());
+        ii->releaseReference();
+    }
 }
 
 void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
