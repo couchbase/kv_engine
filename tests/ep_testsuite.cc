@@ -965,7 +965,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     item *it = NULL;
 
     ENGINE_ERROR_CODE rv;
-    rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 3,
+    rv = h1->allocate(h, NULL, &it, key, strlen(key), strlen(data), 0, 10,
                       PROTOCOL_BINARY_RAW_BYTES);
     checkeq(ENGINE_SUCCESS, rv, "Allocation failed.");
 
@@ -984,7 +984,7 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Failed store item");
-    testHarness.time_travel(5);
+    testHarness.time_travel(15);
 
     checkeq(pager_runs, get_int_stat(h, h1, "ep_num_expiry_pager_runs"),
             "Expiry pager shouldn't have run during this time");
