@@ -275,20 +275,25 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         tempDroppedStreams.erase(it);
     }
 
+    stream_t s;
     if (notifyOnly) {
-        WriterLockHolder wlh(streamsMutex);
-        streams[vbucket] = new NotifierStream(&engine_, this, getName(), flags,
-                                              opaque, vbucket, notifySeqno,
-                                              end_seqno, vbucket_uuid,
-                                              snap_start_seqno, snap_end_seqno);
-    } else {
-        WriterLockHolder wlh(streamsMutex);
-        streams[vbucket] = new ActiveStream(&engine_, this, getName(), flags,
-                                            opaque, vbucket, start_seqno,
-                                            end_seqno, vbucket_uuid,
-                                            snap_start_seqno, snap_end_seqno);
-        static_cast<ActiveStream*>(streams[vbucket].get())->setActive();
+        s = new NotifierStream(&engine_, this, getName(), flags,
+                               opaque, vbucket, notifySeqno,
+                               end_seqno, vbucket_uuid,
+                               snap_start_seqno, snap_end_seqno);
+   } else {
+        s = new ActiveStream(&engine_, this, getName(), flags,
+                             opaque, vbucket, start_seqno,
+                             end_seqno, vbucket_uuid,
+                             snap_start_seqno, snap_end_seqno);
+        static_cast<ActiveStream*>(s.get())->setActive();
     }
+
+    {
+        WriterLockHolder wlh(streamsMutex);
+        streams[vbucket] = s;
+    }
+
     vbReady[vbucket].store(true);
     bool inverse = false;
     if (notifiedVbReady.compare_exchange_strong(inverse, true)) {
