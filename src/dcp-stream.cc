@@ -360,18 +360,17 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
     firstMarkerSent = true;
 
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
-    if (vb) {
-        ReaderLockHolder rlh(vb->getStateLock());
-        if (vb->getState() == vbucket_state_replica) {
-            if (end_seqno_ > endSeqno) {
-                /* We possibly have items in the open checkpoint
-                   (incomplete snapshot) */
-                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Merging backfill and "
-                    "memory snapshot for a replica vbucket, start seqno "
-                    "%" PRIu64 " and end seqno %" PRIu64, producer->logHeader(),
-                    vb_, startSeqno, endSeqno);
-                endSeqno = end_seqno_;
-            }
+    // An atomic read of vbucket state without acquiring the
+    // reader lock for state should suffice here.
+    if (vb && vb->getState() == vbucket_state_replica) {
+        if (end_seqno_ > endSeqno) {
+            /* We possibly have items in the open checkpoint
+               (incomplete snapshot) */
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") Merging backfill"
+                " and memory snapshot for a replica vbucket, start seqno "
+                "%" PRIu64 " and end seqno %" PRIu64 "",
+                producer->logHeader(), vb_, startSeqno, endSeqno);
+            endSeqno = end_seqno_;
         }
     }
 
@@ -447,22 +446,24 @@ void ActiveStream::setVBucketStateAckRecieved() {
             LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") Receive ack for set "
                 "vbucket state to pending message", producer->logHeader(), vb_);
 
-            RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+            takeoverState = vbucket_state_active;
+            transitionState(STREAM_TAKEOVER_SEND);
+            lh.unlock();
+
             engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
                                                   false, false);
+            RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
             LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") Vbucket marked as "
                 "dead, last sent seqno: %" PRIu64 ", high seqno: %" PRIu64 "",
                 producer->logHeader(), vb_, lastSentSeqno,
                 vbucket->getHighSeqno());
-            takeoverState = vbucket_state_active;
-            transitionState(STREAM_TAKEOVER_SEND);
         } else {
             LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") Receive ack for set "
                 "vbucket state to active message", producer->logHeader(), vb_);
             endStream(END_STREAM_OK);
+            lh.unlock();
         }
 
-        lh.unlock();
         bool inverse = false;
         if (itemsReady.compare_exchange_strong(inverse, true)) {
             producer->notifyStreamReady(vb_, true);
@@ -472,6 +473,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
             "op on stream '%s' state '%s'", producer->logHeader(), vb_,
             name_.c_str(), stateName(state_));
     }
+
 }
 
 DcpResponse* ActiveStream::backfillPhase() {
@@ -1006,12 +1008,11 @@ const char* ActiveStream::logHeader()
 bool ActiveStream::isCurrentSnapshotCompleted() const
 {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
-    if (vbucket) {
-        ReaderLockHolder rlh(vbucket->getStateLock());
-        if (vbucket_state_replica == vbucket->getState()) {
-            if (lastSentSnapEndSeqno >= lastReadSeqno) {
-                return false;
-            }
+    // An atomic read of vbucket state without acquiring the
+    // reader lock for state should suffice here.
+    if (vbucket && vbucket->getState() == vbucket_state_replica) {
+        if (lastSentSnapEndSeqno >= lastReadSeqno) {
+            return false;
         }
     }
     return true;
