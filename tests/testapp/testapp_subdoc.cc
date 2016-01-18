@@ -399,6 +399,7 @@ void test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd
     // c). Check -2 treated as invalid index (only -1 permitted).
     expect_subdoc_cmd(SubdocCmd(cmd, "array", "[-2]"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL, "");
+    reconnect_to_server();
 
     // d). Check failure accessing out-of-range index.
     expect_subdoc_cmd(SubdocCmd(cmd, "array", "[3]"),
@@ -416,10 +417,12 @@ void test_subdoc_fetch_array_simple(bool compressed, protocol_binary_command cmd
     std::string too_long_path(1024 + 1, '.');
     expect_subdoc_cmd(SubdocCmd(cmd, "array", too_long_path),
                       PROTOCOL_BINARY_RESPONSE_EINVAL, "");
+    reconnect_to_server();
 
     // g). Check that incorrect flags (i.e. non-zero) is invalid.
     expect_subdoc_cmd(SubdocCmd(cmd, "array", "[0]", "", SUBDOC_FLAG_MKDIR_P),
                       PROTOCOL_BINARY_RESPONSE_EINVAL, "");
+    reconnect_to_server();
 
     delete_object("array");
 }
@@ -1539,12 +1542,14 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[-1]", "3"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL, "");
+    reconnect_to_server();
     validate_object("a", "[]");
 
     // c). MKDIR_P flag is not valid for ARRAY_INSERT
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[0]", "1", SUBDOC_FLAG_MKDIR_P),
                       PROTOCOL_BINARY_RESPONSE_EINVAL, "");
+    reconnect_to_server();
     validate_object("a", "[]");
 
     // d). A path larger than len(array) should fail.
@@ -1557,6 +1562,7 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT,
                                 "a", "[0].foo", "1"),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL, "");
+    reconnect_to_server();
     validate_object("a", "[]");
 
     delete_object("a");
@@ -1784,6 +1790,7 @@ TEST_P(McdTestappTest, SubdocExpiry_Single)
     SubdocCmd get(PROTOCOL_BINARY_CMD_SUBDOC_GET, "ephemeral", "[0]");
     get.expiry = 666;
     expect_subdoc_cmd(get, PROTOCOL_BINARY_RESPONSE_EINVAL, "");
+    reconnect_to_server();
 
     // Perform a REPLACE operation, setting a expiry of 1s.
     SubdocCmd replace(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "ephemeral", "[0]",

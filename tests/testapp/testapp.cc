@@ -1678,6 +1678,7 @@ TEST_P(McdTestappTest, DelayedFlushNotSupported) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_FLUSH,
                                   PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    reconnect_to_server();
 
     len = mcbp_flush_command(send.bytes, sizeof(send.bytes),
                              PROTOCOL_BINARY_CMD_FLUSHQ, 2, true);
@@ -1685,6 +1686,7 @@ TEST_P(McdTestappTest, DelayedFlushNotSupported) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_FLUSHQ,
                                   PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    reconnect_to_server();
 
     // Verify that the key is still there!
     len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
@@ -2128,6 +2130,7 @@ TEST_P(McdTestappTest, IOCTL_Set) {
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_IOCTL_SET,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
+    reconnect_to_server();
 
     /* Very long (> IOCTL_KEY_LENGTH) is invalid. */
     {
@@ -2141,6 +2144,7 @@ TEST_P(McdTestappTest, IOCTL_Set) {
         mcbp_validate_response_header(&buffer.response,
                                       PROTOCOL_BINARY_CMD_IOCTL_SET,
                                       PROTOCOL_BINARY_RESPONSE_EINVAL);
+        reconnect_to_server();
     }
 
     /* release_free_memory always returns OK, regardless of how much was freed.*/
@@ -3088,6 +3092,7 @@ TEST_P(McdTestappTest, SessionCtrlToken) {
     cb_assert(safe_recv_packet(&buffer.response, sizeof(buffer.bytes)));
     cb_assert(buffer.response.message.header.response.status ==
               PROTOCOL_BINARY_RESPONSE_EINVAL);
+    reconnect_to_server();
     cb_assert(old_token == get_session_ctrl_token());
 
     /* Validate that you can't set it by providing an incorrect cas */
@@ -3165,6 +3170,7 @@ TEST_P(McdTestappTest, DCP_Noop) {
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_DCP_NOOP,
                                   PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    reconnect_to_server();
 
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                            PROTOCOL_BINARY_CMD_DCP_NOOP,
@@ -3198,6 +3204,7 @@ TEST_P(McdTestappTest, DCP_BufferAck) {
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
                                   PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    reconnect_to_server();
 
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                            PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
@@ -3208,6 +3215,7 @@ TEST_P(McdTestappTest, DCP_BufferAck) {
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
+    reconnect_to_server();
 
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                            PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT,
@@ -3242,6 +3250,7 @@ TEST_P(McdTestappTest, DCP_Control) {
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_DCP_CONTROL,
                                   PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+    reconnect_to_server();
 
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                            PROTOCOL_BINARY_CMD_DCP_CONTROL,
@@ -3252,6 +3261,7 @@ TEST_P(McdTestappTest, DCP_Control) {
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_DCP_CONTROL,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
+    reconnect_to_server();
 
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                            PROTOCOL_BINARY_CMD_DCP_CONTROL,
@@ -3262,6 +3272,7 @@ TEST_P(McdTestappTest, DCP_Control) {
     mcbp_validate_response_header(&buffer.response,
                                   PROTOCOL_BINARY_CMD_DCP_CONTROL,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
+    reconnect_to_server();
 
     len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                            PROTOCOL_BINARY_CMD_DCP_CONTROL,

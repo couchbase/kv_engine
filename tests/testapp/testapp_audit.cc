@@ -181,6 +181,9 @@ TEST_F(AuditTest, AuditIllegalPacket) {
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
 
+    // An invalid packet causes memcached to disconnect from the client.
+    // So need to perform a reconnect to send the shutdown command.
+    reconnect_to_server();
     // stop memcached so it writes out the audit logs.
     sendShutdown(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     waitForShutdown();

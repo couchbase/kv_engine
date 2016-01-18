@@ -4695,10 +4695,12 @@ static void process_bin_packet(McbpConnection* c) {
 
         if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             LOG_WARNING(c,
-                        "%u: Invalid format for specified for %s - %d",
+                        "%u: Invalid format for specified for %s - %d - "
+                        "closing connection",
                         c->getId(), memcached_opcode_2_text(opcode), result);
             audit_invalid_packet(c);
             mcbp_write_packet(c, result);
+            c->setWriteAndGo(conn_closing);
             return;
         }
 

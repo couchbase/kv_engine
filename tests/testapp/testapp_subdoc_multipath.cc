@@ -108,6 +108,7 @@ static void test_subdoc_multi_lookup_getmulti() {
     expected.clear();
     expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
                       expected);
+    reconnect_to_server();
 
     delete_object("dict");
 }
@@ -170,6 +171,7 @@ TEST_P(McdTestappTest, SubdocMultiLookup_ExistsMulti)
     expected.clear();
     expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
                       expected);
+    reconnect_to_server();
 
     delete_object("dict");
 }
@@ -250,6 +252,7 @@ static void test_subdoc_multi_mutation_dict_add_max() {
                               "\"value_" + max_id + '"'});
     expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUBDOC_INVALID_COMBO,
                       std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+    reconnect_to_server();
 
     // Document should be unmodified.
     validate_object("dict", "{}");
@@ -412,6 +415,7 @@ TEST_P(McdTestappTest, SubdocMultiMutation_Expiry) {
     lookup.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_EXISTS,
                             SUBDOC_FLAG_NONE, "[0]" });
     expect_subdoc_cmd(lookup, PROTOCOL_BINARY_RESPONSE_EINVAL, {});
+    reconnect_to_server();
 
     // Perform a MULTI_REPLACE operation, setting a expiry of 1s.
     SubdocMultiMutationCmd mutation;
