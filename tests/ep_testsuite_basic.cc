@@ -753,7 +753,7 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     uint16_t vbucketId = 0;
 
     unl(h, h1, key, vbucketId);
-    check(last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS,
+    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "expected the key to be missing...");
 
     item *i = NULL;
