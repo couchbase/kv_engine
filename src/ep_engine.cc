@@ -760,9 +760,10 @@ extern "C" {
             if (!vb) {
                 *msg = "That's not my bucket.";
                 res =  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+            } else {
+                *msg = "NOT_FOUND";
+                res = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-            *msg = "NOT_FOUND";
-            res =  PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
         }
 
         return res;

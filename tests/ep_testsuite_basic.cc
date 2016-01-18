@@ -798,6 +798,18 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+static enum test_result test_unl_nmvb(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    const char *key = "k2";
+    uint16_t vbucketId = 10;
+
+    unl(h, h1, key, vbucketId);
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+          "expected NOT_MY_VBUCKET to unlocking a key in a vbucket we don't own");
+
+    return SUCCESS;
+}
+
 static enum test_result test_set_get_hit_bin(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char binaryData[] = "abcdefg\0gfedcba";
     cb_assert(sizeof(binaryData) != strlen(binaryData));
@@ -2477,6 +2489,8 @@ BaseTestCase testsuite_testcases[] = {
                  NULL, prepare, cleanup),
         TestCase("unl",  test_unl, test_setup, teardown,
                  NULL, prepare, cleanup),
+        TestCase("unl not my vbucket", test_unl_nmvb,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("set+get hit (bin)", test_set_get_hit_bin,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("set with cas non-existent", test_set_with_cas_non_existent,
