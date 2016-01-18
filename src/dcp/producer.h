@@ -247,6 +247,7 @@ private:
     AtomicValue<size_t> totalBytesSent;
 
     size_t roundRobinVbReady;
+    ExTask checkpointCreatorTask;
     static const uint32_t defaultNoopInerval;
 
     /**

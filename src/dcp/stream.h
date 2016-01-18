@@ -20,13 +20,15 @@
 
 #include "config.h"
 
-#include "vbucket.h"
+#include "ep_engine.h"
+#include "ext_meta_parser.h"
 #include "dcp/dcp-types.h"
 #include "dcp/producer.h"
-#include "ext_meta_parser.h"
 #include "response.h"
+#include "vbucket.h"
 
 #include <atomic>
+#include <climits>
 #include <queue>
 
 class EventuallyPersistentEngine;
@@ -171,13 +173,16 @@ private:
     AtomicValue <uint64_t> readyQueueMemory;
 };
 
+
+class ActiveStreamCheckpointProcessorTask;
+
 class ActiveStream : public Stream {
 public:
     ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
                  const std::string &name, uint32_t flags, uint32_t opaque,
                  uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
                  uint64_t vb_uuid, uint64_t snap_start_seqno,
-                 uint64_t snap_end_seqno);
+                 uint64_t snap_end_seqno, ExTask task);
 
     ~ActiveStream();
 
@@ -222,6 +227,9 @@ public:
 
     bool isSendMutationKeyOnlyEnabled() const;
 
+    // Runs on ActiveStreamCheckpointProcessorTask
+    void nextCheckpointItemTask();
+
 private:
 
     void transitionState(stream_state_t newState);
@@ -238,7 +246,7 @@ private:
 
     DcpResponse* nextQueuedItem();
 
-    void nextCheckpointItem();
+    bool nextCheckpointItem();
 
     void snapshot(std::deque<MutationResponse*>& snapshot, bool mark);
 
@@ -305,6 +313,48 @@ private:
 
     //! Last snapshot end seqno sent to the DCP client
     uint64_t lastSentSnapEndSeqno;
+    ExTask checkpointCreatorTask;
+};
+
+
+class ActiveStreamCheckpointProcessorTask : public GlobalTask {
+public:
+    ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e)
+      : GlobalTask(&e, Priority::ActiveStreamCheckpointProcessor, INT_MAX, false),
+      notified(false),
+      iterationsBeforeYield(e.getConfiguration()
+                            .getDcpProducerSnapshotMarkerYieldLimit()) { }
+
+    std::string getDescription() {
+        std::string rv("Process checkpoint(s) for DCP producer");
+        return rv;
+    }
+
+    bool run();
+    void schedule(stream_t stream);
+    void wakeup();
+
+private:
+
+    stream_t queuePop() {
+        stream_t rval;
+        LockHolder lh(workQueueLock);
+        if (!queue.empty()) {
+            rval = queue.front();
+            queue.pop_front();
+        }
+        return rval;
+    }
+
+    bool queueEmpty() {
+        LockHolder lh(workQueueLock);
+        return queue.empty();
+    }
+
+    Mutex workQueueLock;
+    std::deque<stream_t> queue;
+    AtomicValue<bool> notified;
+    size_t iterationsBeforeYield;
 };
 
 class NotifierStream : public Stream {

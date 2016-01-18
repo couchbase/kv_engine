@@ -265,9 +265,11 @@ public:
      */
     GetValue get(const std::string &key, uint16_t vbucket,
                  const void *cookie,
-                 get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
-                                             HONOR_STATES | TRACK_REFERENCE |
-                                             DELETE_TEMP)) {
+                 get_options_t options = static_cast<get_options_t>(
+                                                        QUEUE_BG_FETCH |
+                                                        HONOR_STATES |
+                                                        TRACK_REFERENCE |
+                                                        DELETE_TEMP)) {
         return getInternal(key, vbucket, cookie, vbucket_state_active,
                            options);
     }
@@ -286,9 +288,11 @@ public:
      */
     GetValue getReplica(const std::string &key, uint16_t vbucket,
                         const void *cookie,
-                        get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
-                                                    HONOR_STATES | TRACK_REFERENCE |
-                                                    DELETE_TEMP)) {
+                        get_options_t options = static_cast<get_options_t>(
+                                                        QUEUE_BG_FETCH |
+                                                        HONOR_STATES |
+                                                        TRACK_REFERENCE |
+                                                        DELETE_TEMP)) {
         return getInternal(key, vbucket, cookie, vbucket_state_replica,
                            options);
     }
