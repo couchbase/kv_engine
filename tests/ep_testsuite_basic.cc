@@ -752,9 +752,20 @@ static enum test_result test_unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const char *key = "k2";
     uint16_t vbucketId = 0;
 
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
+    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+
     unl(h, h1, key, vbucketId);
-    checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
-          "expected the key to be missing...");
+
+    if (eviction_policy == "full_eviction") {
+        checkeq(PROTOCOL_BINARY_RESPONSE_ETMPFAIL, last_status.load(),
+                "expected a TMPFAIL");
+    } else {
+        checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
+                "expected the key to be missing...");
+    }
 
     item *i = NULL;
     checkeq(ENGINE_SUCCESS,
