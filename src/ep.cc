@@ -2985,8 +2985,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
             }
             v = vb->ht.unlocked_find(key, bucket_num, true, false);
             v->setDeleted();
+            v->setCas(*cas);
         } else if (v->isTempInitialItem()) {
             v->setDeleted();
+            v->setCas(*cas);
         }
     }
 

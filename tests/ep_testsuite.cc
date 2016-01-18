@@ -1899,7 +1899,6 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
         h1->release(h, NULL, i);
     }
 
-    wait_for_str_stat_to_be(h, h1, "ep_dcp_pending_notifications", "false", NULL);
     // Should get a stream end
     dcp_step(h, h1, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
@@ -13507,6 +13506,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("delete_with_meta race with concurrent delete",
                  test_delete_with_meta_race_with_delete, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("delete_with_meta race with concurrent delete",
+                 test_delete_with_meta_race_with_delete, test_setup,
+                 teardown, "item_eviction_policy=full_eviction",
+                 prepare, cleanup),
         TestCase("delete_with_meta race with concurrent set",
                  test_delete_with_meta_race_with_set, test_setup,
                  teardown, NULL, prepare, cleanup),
