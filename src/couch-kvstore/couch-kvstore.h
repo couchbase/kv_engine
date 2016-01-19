@@ -410,6 +410,15 @@ public:
     size_t getNumItems(uint16_t vbid, uint64_t min_seq, uint64_t max_seq) override;
 
     /**
+     * This method will return the total number of items in the vbucket. Unlike
+     * the getNumItems function that returns items within a specified range of
+     * sequence numbers, this will return all the items in the vbucket.
+     *
+     * vbid - vbucket id
+     */
+    size_t getItemCount(uint16_t vbid) override;
+
+    /**
      * Do a rollback to the specified seqNo on the particular vbucket
      *
      * @param vbid The vbucket of the file that's to be rolled back
@@ -553,10 +562,6 @@ private:
     /* deleted docs in each file, indexed by vBucket. RelaxedAtomic
        to allow stats access witout lock */
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
-
-    /* non-deleted docs in each file, indexed by vBucket.
-       RelaxedAtomic to allow stats access witout lock. */
-    std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
 
     /* pending file deletions */
     AtomicQueue<std::string> pendingFileDeletions;

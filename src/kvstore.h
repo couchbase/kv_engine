@@ -613,6 +613,13 @@ public:
         return 0;
     }
 
+    /**
+     * This method will return the total number of items in the vbucket
+     *
+     * vbid - vbucket id
+     */
+    virtual size_t getItemCount(uint16_t vbid) = 0;
+
     virtual RollbackResult rollback(uint16_t vbid, uint64_t rollbackseqno,
                                     std::shared_ptr<RollbackCB> cb) = 0;
 
@@ -677,6 +684,9 @@ protected:
     KVStoreConfig &configuration;
     bool readOnly;
     std::vector<vbucket_state *> cachedVBStates;
+    /* non-deleted docs in each file, indexed by vBucket.
+       RelaxedAtomic to allow stats access without lock. */
+    std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
     std::list<PersistenceCallback *> pcbs;
     void createDataDir(const std::string& dbname);
 

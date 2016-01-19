@@ -1433,6 +1433,10 @@ size_t ForestKVStore::getNumItems(fdb_kvs_handle* kvsHandle,
     return totalCount;
 }
 
+size_t ForestKVStore::getItemCount(uint16_t vbid) {
+        return cachedDocCount.at(vbid);
+}
+
 RollbackResult ForestKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                                        std::shared_ptr<RollbackCB> cb) {
    fdb_kvs_handle *kvsHandle = NULL;

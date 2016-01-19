@@ -257,7 +257,7 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
     // pre-allocate lookup maps (vectors) given we have a relatively
     // small, fixed number of vBuckets.
     dbFileRevMap.assign(numDbFiles, Couchbase::RelaxedAtomic<uint64_t>(1));
-    cachedDocCount.assign(numDbFiles, Couchbase::RelaxedAtomic<size_t>(-1));
+    cachedDocCount.assign(numDbFiles, Couchbase::RelaxedAtomic<size_t>(0));
     cachedDeleteCount.assign(numDbFiles, Couchbase::RelaxedAtomic<size_t>(-1));
     cachedVBStates.assign(numDbFiles, nullptr);
 
@@ -2287,6 +2287,35 @@ size_t CouchKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,
             " with error:" + couchstore_strerror(errCode));
     }
     return count;
+}
+
+size_t CouchKVStore::getItemCount(uint16_t vbid) {
+    if (!isReadOnly()) {
+        return cachedDocCount.at(vbid);
+    }
+
+    Db *db = NULL;
+    DbInfo info;
+    uint64_t rev = dbFileRevMap.at(vbid);
+    couchstore_error_t errCode = openDB(vbid, rev, &db,
+                                        COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode == COUCHSTORE_SUCCESS) {
+        errCode = couchstore_db_info(db, &info);
+        if (errCode != COUCHSTORE_SUCCESS) {
+            throw std::runtime_error("CouchKVStore::getItemCount: Failed to "
+                "get item count for vbucket: " + std::to_string(vbid) +
+                " rev: " + std::to_string(rev) + "with error: " +
+                couchstore_strerror(errCode));
+        }
+        closeDatabaseHandle(db);
+    } else {
+        throw std::invalid_argument("CouchKVStore::getItemCount: Failed to "
+            "open database file for vBucket = " + std::to_string(vbid) +
+            " rev = " + std::to_string(rev) +
+            " with error:" + couchstore_strerror(errCode));
+    }
+
+    return info.doc_count;
 }
 
 RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,

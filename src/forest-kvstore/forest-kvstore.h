@@ -245,6 +245,13 @@ class ForestKVStore : public KVStore
     size_t getNumItems(uint16_t vbid, uint64_t min_seq, uint64_t max_seq) override;
 
     /**
+     * This method will return the total number of items in the vbucket
+     *
+     * vbid - vbucket id
+     */
+    size_t getItemCount(uint16_t vbid) override;
+
+    /**
      * Get the number of deleted items that are persisted to a vbucket KVStore
      * instance
      *
@@ -305,7 +312,6 @@ private:
     std::unordered_map<uint16_t, fdb_kvs_handle *> writeHandleMap;
     std::unordered_map<uint16_t, fdb_kvs_handle *> readHandleMap;
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
-    std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
     fdb_kvs_handle *vbStateHandle;
     fdb_config fileConfig;
     fdb_kvs_config kvsConfig;

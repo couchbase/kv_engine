@@ -3185,9 +3185,9 @@ public:
                         ++vbucket->opsCreate;
                         vbucket->incrMetaDataDisk(*queuedItem);
                     } else { // Update in full eviction mode.
-                        vbucket->ht.decrNumTotalItems();
                         ++vbucket->opsUpdate;
                     }
+
                     v->setNewCacheItem(false);
                 } else { // Update in value-only or full eviction mode.
                     ++vbucket->opsUpdate;
@@ -3263,20 +3263,12 @@ public:
             //  2. rev seqno of queued item matches rev seqno of hash table item
             if (v && v->isDeleted() &&
                 (queuedItem->getRevSeqno() == v->getRevSeqno())) {
-                bool newCacheItem = v->isNewCacheItem();
                 bool deleted = vbucket->ht.unlocked_del(queuedItem->getKey(),
                                                         bucket_num);
                 if (!deleted) {
                     throw std::logic_error("PersistenceCallback:callback: "
                             "Failed to delete key '" + queuedItem->getKey() +
                             "' from bucket " + std::to_string(bucket_num));
-                }
-                if (newCacheItem && value > 0) {
-                    // Need to decrement the item counter again for an item that
-                    // exists on DB file, but not in memory (i.e., full eviction),
-                    // because we created the temp item in memory and incremented
-                    // the item counter when a deletion is pushed in the queue.
-                    vbucket->ht.decrNumTotalItems();
                 }
 
                 /**
@@ -3301,6 +3293,10 @@ public:
             LOG(EXTENSION_LOG_WARNING, "%s", ss.str().c_str());
             redirty();
         }
+    }
+
+    RCPtr<VBucket>& getVBucket() {
+        return vbucket;
     }
 
 private:
@@ -3527,6 +3523,23 @@ void EventuallyPersistentStore::commit(uint16_t shardId) {
         LOG(EXTENSION_LOG_WARNING, "Flusher commit failed!!! Retry in "
             "1 sec...\n");
         sleep(1);
+    }
+
+    //Update the total items in the case of full eviction
+    if (getItemEvictionPolicy() == FULL_EVICTION) {
+        std::unordered_set<uint16_t> vbSet;
+        for (auto pcbIter : pcbs) {
+            PersistenceCallback *pcb = pcbIter;
+            RCPtr<VBucket>& vb = pcb->getVBucket();
+            uint16_t vbid = vb->getId();
+            auto found = vbSet.find(vbid);
+            if (found == vbSet.end()) {
+                vbSet.insert(vbid);
+                KVStore *rwUnderlying = getRWUnderlying(vbid);
+                size_t numTotalItems = rwUnderlying->getItemCount(vbid);
+                vb->ht.setNumTotalItems(numTotalItems);
+            }
+        }
     }
 
     while (!pcbs.empty()) {

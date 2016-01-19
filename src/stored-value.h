@@ -896,6 +896,10 @@ public:
         return numTotalItems;
     }
 
+    void setNumTotalItems(size_t totalItems) {
+        numTotalItems = totalItems;
+    }
+
     void decrNumItems(void) {
         size_t count;
         do {
