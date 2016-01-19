@@ -1194,7 +1194,7 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,
 }
 
 PassiveStream::~PassiveStream() {
-    uint32_t unackedBytes = clearBuffer();
+    uint32_t unackedBytes = clearBuffer_UNLOCKED();
     if (transitionState(STREAM_DEAD)) {
         // Destructed a "live" stream, log it.
         LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRId16 ") Destructing stream."
@@ -1204,15 +1204,18 @@ PassiveStream::~PassiveStream() {
     }
 }
 
-uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status,
-                                         LockHolder *slh) {
+uint32_t PassiveStream::setDead(end_stream_status_t status) {
+    /* Hold buffer lock so that we clear out all items before we set the stream
+       to dead state. We do not want to add any new message to the buffer or
+       process any items in the buffer once we set the stream state to dead. */
+    LockHolder lh(buffer.bufMutex);
+    uint32_t unackedBytes = clearBuffer_UNLOCKED();
     bool killed = false;
+
+    LockHolder slh(streamMutex);
     if (transitionState(STREAM_DEAD)) {
         killed = true;
     }
-    slh->unlock();
-
-    uint32_t unackedBytes = clearBuffer();
 
     if (killed) {
         EXTENSION_LOG_LEVEL logLevel = EXTENSION_LOG_NOTICE;
@@ -1226,11 +1229,6 @@ uint32_t PassiveStream::setDead_UNLOCKED(end_stream_status_t status,
             unackedBytes, getEndStreamStatusStr(status));
     }
     return unackedBytes;
-}
-
-uint32_t PassiveStream::setDead(end_stream_status_t status) {
-    LockHolder lh(streamMutex);
-    return setDead_UNLOCKED(status, &lh);
 }
 
 void PassiveStream::acceptStream(uint16_t status, uint32_t add_opaque) {
@@ -1400,6 +1398,13 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
 
     while (count < PassiveStream::batchSize && !buffer.messages.empty()) {
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+        /* If the stream is in dead state we should not process any remaining
+           items in the buffer, we should rather clear them */
+        if (state_ == STREAM_DEAD) {
+            total_bytes_processed += clearBuffer_UNLOCKED();
+            return all_processed;
+        }
+
         DcpResponse *response = buffer.messages.front();
         message_bytes = response->getMessageSize();
 
@@ -1653,8 +1658,7 @@ DcpResponse* PassiveStream::next() {
     return response;
 }
 
-uint32_t PassiveStream::clearBuffer() {
-    LockHolder lh(buffer.bufMutex);
+uint32_t PassiveStream::clearBuffer_UNLOCKED() {
     uint32_t unackedBytes = buffer.bytes;
 
     while (!buffer.messages.empty()) {

@@ -423,10 +423,7 @@ private:
 
     bool transitionState(stream_state_t newState);
 
-    uint32_t clearBuffer();
-
-    uint32_t setDead_UNLOCKED(end_stream_status_t status,
-                              LockHolder *slh);
+    uint32_t clearBuffer_UNLOCKED();
 
     const char* getEndStreamStatusStr(end_stream_status_t status);
 
@@ -444,6 +441,8 @@ private:
         Buffer() : bytes(0), items(0) {}
         size_t bytes;
         size_t items;
+        /* Lock ordering w.r.t to streamMutex:
+           First acquire bufMutex and then streamMutex */
         Mutex bufMutex;
         std::queue<DcpResponse*> messages;
     } buffer;
