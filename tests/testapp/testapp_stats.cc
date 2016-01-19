@@ -200,7 +200,7 @@ TEST_P(StatsTest, TestAggregate) {
     }
 }
 
-TEST_P(StatsTest, TestConnections) {
+TEST_P(StatsTest, DISABLED_TestConnections) {
     MemcachedConnection& conn = getConnection();
     unique_cJSON_ptr stats;
     ASSERT_NO_THROW(stats = conn.stats("connections"));

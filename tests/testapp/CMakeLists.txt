@@ -74,12 +74,9 @@ ADD_TEST(NAME memcached-getset-unit-tests
         COMMAND memcached_testapp --gtest_filter=TransportProtocols/GetSetTest.*)
 
 # Run the stats tests
-# It seems to be something weird in this test causing it to sporadically
-# time out for the connection tests. Let's disable the test until we know
-# the root cause of the issue
-#ADD_TEST(NAME memcached-stats-unit-tests
-#        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-#        COMMAND memcached_testapp --gtest_filter=TransportProtocols/StatsTest.*)
+ADD_TEST(NAME memcached-stats-unit-tests
+        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+        COMMAND memcached_testapp --gtest_filter=TransportProtocols/StatsTest.*)
 
 # Run the unit tests for the memcached binary protocol over a plain socket
 ADD_TEST(NAME memcached-mcbp-unit-tests-plain
