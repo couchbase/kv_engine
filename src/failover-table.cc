@@ -46,7 +46,7 @@ failover_entry_t FailoverTable::getLatestEntry() {
 }
 
 uint64_t FailoverTable::getLatestUUID() {
-    return latest_uuid;
+    return latest_uuid.load();
 }
 
 void FailoverTable::createEntry(uint64_t high_seqno) {

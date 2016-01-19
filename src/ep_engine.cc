@@ -6181,13 +6181,13 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setDriftCounterState(
 
     std::stringstream result;
 
-    uint64_t vb_uuid = vb->failovers->getLatestUUID();
-    vb_uuid = htonll(vb_uuid);
-    int64_t last_seqno = vb->setDriftCounterState(initialDriftCount, timeSync);
-    last_seqno = htonll(last_seqno);
+    set_drift_state_resp_t resp = vb->setDriftCounterState(initialDriftCount,
+                                                           timeSync);
+    uint64_t uuid = htonll(resp.last_vb_uuid);
+    int64_t seqno = htonll(resp.last_seqno);
 
-    result.write((char*) &vb_uuid, sizeof(vb_uuid));
-    result.write((char*) &last_seqno, sizeof(last_seqno));
+    result.write((char*) &uuid, sizeof(uuid));
+    result.write((char*) &seqno, sizeof(seqno));
 
     return sendResponse(response, NULL, 0, NULL, 0,
                         result.str().data(), result.str().length(),

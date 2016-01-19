@@ -22,11 +22,17 @@
 
 #include "bloomfilter.h"
 #include "checkpoint.h"
+#include "failover-table.h"
 #include "kvstore.h"
 #include "stored-value.h"
 #include "utility.h"
 
 #include <queue>
+
+typedef struct {
+    uint64_t last_vb_uuid;
+    int64_t last_seqno;
+} set_drift_state_resp_t;
 
 class BgFetcher;
 
@@ -236,12 +242,26 @@ public:
      * To set drift counter's initial value
      * and to toggle the timeSync between ON/OFF.
      *
-     * Returns highSeqno of vbucket
+     * Returns last_vbuuid and last_seqno of vbucket (atomically)
      */
-    int64_t setDriftCounterState(int64_t initial_drift, uint8_t time_sync) {
+    set_drift_state_resp_t setDriftCounterState(int64_t initial_drift,
+                                                uint8_t time_sync) {
         drift_counter = initial_drift;
         time_sync_enabled = time_sync;
-        return getHighSeqno();
+
+        // Get vbucket uuid from the failover table, and then get
+        // the vbucket high seqno, return these 2 values as long as
+        // the uuid did not change after getting the high seqno.
+        uint64_t last_vbuuid = 0;
+        int64_t last_seqno = 0;
+        do {
+            last_vbuuid = failovers->getLatestUUID();
+            last_seqno = getHighSeqno();
+        } while (failovers->getLatestUUID() != last_vbuuid);
+        set_drift_state_resp_t resp;
+        resp.last_vb_uuid = last_vbuuid;
+        resp.last_seqno = last_seqno;
+        return resp;
     }
 
     int64_t getDriftCounter() {
