@@ -3183,7 +3183,11 @@ public:
             StoredValue *v = store.fetchValidValue(vbucket,
                                                    queuedItem->getKey(),
                                                    bucket_num, true, false);
-            if (v && v->isDeleted()) {
+            // Delete the item in the hash table iff:
+            //  1. Item is existent in hashtable, and deleted flag is true
+            //  2. rev seqno of queued item matches rev seqno of hash table item
+            if (v && v->isDeleted() &&
+                (queuedItem->getRevSeqno() == v->getRevSeqno())) {
                 bool newCacheItem = v->isNewCacheItem();
                 bool deleted = vbucket->ht.unlocked_del(queuedItem->getKey(),
                                                         bucket_num);
