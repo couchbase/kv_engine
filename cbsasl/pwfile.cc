@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 #include "pwfile.h"
+#include "password_database.h"
 #include "cbsasl_internal.h"
 #include "user.h"
 
@@ -29,42 +30,100 @@
 #include <platform/strerror.h>
 #include <platform/timeutils.h>
 
-typedef std::unordered_map<std::string, Couchbase::User> user_hashtable_t;
+class PasswordDatabaseManager {
+public:
+    PasswordDatabaseManager()
+        : db(new Couchbase::PasswordDatabase) {
 
-// The mutex protecting access to the user database
-static std::mutex uhash_lock;
+    }
 
-// The in-memory user database (Map of username -> user objects).
-static user_hashtable_t user_ht;
+    void swap(std::unique_ptr<Couchbase::PasswordDatabase>& ndb) {
+        std::lock_guard<std::mutex> lock(dbmutex);
+        db.swap(ndb);
+    }
+
+    Couchbase::User find(const std::string& username) {
+        std::lock_guard<std::mutex> lock(dbmutex);
+        return db->find(username);
+    }
+
+private:
+    std::mutex dbmutex;
+    std::unique_ptr<Couchbase::PasswordDatabase> db;
+};
+
+static PasswordDatabaseManager pwmgr;
 
 void free_user_ht(void) {
-    user_ht.clear();
+    std::unique_ptr<Couchbase::PasswordDatabase> ndb(
+        new Couchbase::PasswordDatabase);
+    pwmgr.swap(ndb);
 }
 
 bool find_pw(const std::string& user, std::string& password) {
-    std::lock_guard<std::mutex> guard(uhash_lock);
-    auto it = user_ht.find(user);
-    if (it != user_ht.end()) {
-        password = it->second.getPlaintextPassword();
-        return true;
-    } else {
-        return false;
+    Couchbase::User u = pwmgr.find(user);
+    if (!u.isDummy()) {
+        try {
+            const auto& meta = u.getPassword(Mechanism::PLAIN);
+            password.assign(meta.getPassword());
+            return true;
+        } catch (...) { ;
+        }
     }
+    return false;
 }
 
 bool find_user(const std::string& username, Couchbase::User& user) {
-    std::lock_guard<std::mutex> guard(uhash_lock);
-    auto it = user_ht.find(username);
-    if (it != user_ht.end()) {
-        user = it->second;
-        return true;
-    } else {
-        return false;
-    }
+    user = pwmgr.find(username);
+    return !user.isDummy();
 }
 
+cbsasl_error_t parse_user_db(const std::string content, bool file) {
+    try {
+        using namespace Couchbase;
+        auto start = gethrtime();
+        std::unique_ptr<PasswordDatabase> db(
+            new PasswordDatabase(content, file));
 
-cbsasl_error_t load_user_db(void) {
+        if (file) {
+            std::string logmessage(
+                "Loading [" + content + "] took " +
+                Couchbase::hrtime2text(gethrtime() - start));
+            cbsasl_log(nullptr, cbsasl_loglevel_t::Debug, logmessage);
+        }
+        pwmgr.swap(db);
+    } catch (std::exception& e) {
+        std::string message("Failed loading [");
+        if (file) {
+            message.append(content);
+        } else {
+            message.append("generated json");
+        }
+        message.append("]: ");
+        message.append(e.what());
+        cbsasl_log(nullptr, cbsasl_loglevel_t::Error, message);
+        return CBSASL_FAIL;
+    } catch (...) {
+        std::string message("Failed loading [");
+        if (file) {
+            message.append(content);
+        } else {
+            message.append("generated json");
+        }
+        message.append("]: Unknown error");
+        cbsasl_log(nullptr, cbsasl_loglevel_t::Error, message);
+    }
+
+    return CBSASL_OK;
+}
+
+/**
+ * The isasl pwfile is the old style format of this file.
+ *
+ * Let's just parse it and build up the JSON needed from the
+ * new style password database as documented in CBSASL.md
+ */
+static cbsasl_error_t load_isasl_user_db(void) {
     const char* filename = getenv("ISASL_PWFILE");
 
     if (!filename) {
@@ -81,66 +140,79 @@ cbsasl_error_t load_user_db(void) {
         return CBSASL_FAIL;
     }
 
-    auto start = gethrtime();
+    unique_cJSON_ptr root(cJSON_CreateObject());
+    if (root.get() == nullptr) {
+        throw std::bad_alloc();
+    }
+    auto* users = cJSON_CreateArray();
+    if (users == nullptr) {
+        throw std::bad_alloc();
+    }
+    cJSON_AddItemToObject(root.get(), "users", users);
 
-    try {
-        user_hashtable_t new_ut;
+    /* File has lines that are newline terminated.
+     * File may have comment lines that must being with '#'.
+     * Lines should look like...
+     *   <NAME><whitespace><PASSWORD><whitespace><CONFIG><optional_whitespace>
+     */
+    char up[128];
+    while (fgets(up, sizeof(up), sfile)) {
+        if (up[0] != '#') {
+            using std::istream_iterator;
+            using std::vector;
+            using std::string;
 
-        /* File has lines that are newline terminated.
-         * File may have comment lines that must being with '#'.
-         * Lines should look like...
-         *   <NAME><whitespace><PASSWORD><whitespace><CONFIG><optional_whitespace>
-         */
-        char up[128];
-        while (fgets(up, sizeof(up), sfile)) {
-            if (up[0] != '#') {
-                using std::istream_iterator;
-                using std::vector;
-                using std::string;
+            std::istringstream iss(up);
+            vector<string> tokens{istream_iterator<string>{iss},
+                                  istream_iterator<string>{}};
 
-                std::istringstream iss(up);
-                vector<string> tokens{istream_iterator<string>{iss},
-                                      istream_iterator<string>{}};
-
-                if (tokens.empty()) {
-                    // empty line
-                    continue;
-                }
-                std::string passwd;
-                if (tokens.size() > 1) {
-                    passwd = tokens[1];
-                }
-
-                if (cbsasl_get_loglevel(nullptr) ==
-                    cbsasl_loglevel_t::Password) {
-                    std::string logmessage(
-                        "Adding user " + tokens[0] + " [" + passwd + "]");
-                    cbsasl_log(nullptr, cbsasl_loglevel_t::Password,
-                               logmessage);
-                } else {
-                    std::string logmessage("Adding user " + tokens[0]);
-                    cbsasl_log(nullptr, cbsasl_loglevel_t::Debug, logmessage);
-                }
-                new_ut.emplace(tokens[0], Couchbase::User(tokens[0], passwd));
+            if (tokens.empty()) {
+                // empty line
+                continue;
             }
-        }
+            std::string passwd;
+            if (tokens.size() > 1) {
+                passwd = tokens[1];
+            }
 
-        fclose(sfile);
-        /* Replace the current configuration with the new one */
-        {
-            std::lock_guard<std::mutex> guard(uhash_lock);
-            free_user_ht();
-            user_ht = new_ut;
-        }
+            if (cbsasl_get_loglevel(nullptr) ==
+                cbsasl_loglevel_t::Password) {
+                std::string logmessage(
+                    "Adding user " + tokens[0] + " [" + passwd + "]");
+                cbsasl_log(nullptr, cbsasl_loglevel_t::Password,
+                           logmessage);
+            } else {
+                std::string logmessage("Adding user " + tokens[0]);
+                cbsasl_log(nullptr, cbsasl_loglevel_t::Debug, logmessage);
+            }
 
-    } catch (std::bad_alloc&) {
-        fclose(sfile);
-        return CBSASL_NOMEM;
+            Couchbase::User u(Couchbase::User(tokens[0], passwd));
+            cJSON_AddItemToArray(users, u.to_json().release());
+        }
     }
 
-    std::string logmessage("Loading [" + std::string(filename) + "] took " +
-                           Couchbase::hrtime2text(gethrtime() - start));
-    cbsasl_log(nullptr, cbsasl_loglevel_t::Debug, logmessage);
+    fclose(sfile);
 
-    return CBSASL_OK;
+    char *ptr = cJSON_PrintUnformatted(root.get());
+    if (ptr == nullptr) {
+        throw std::bad_alloc();
+    }
+    std::string content(ptr);
+    cJSON_Free(ptr);
+
+    return parse_user_db(content, false);
+}
+
+cbsasl_error_t load_user_db(void) {
+    try {
+        const char* filename = getenv("CBSASL_PWFILE");
+
+        if (filename) {
+            return parse_user_db(filename, true);
+        }
+
+        return load_isasl_user_db();
+    } catch (std::bad_alloc&) {
+        return CBSASL_NOMEM;
+    }
 }
