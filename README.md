@@ -12,6 +12,7 @@ eventually persistent engine -
 
 * [KV-Engine Architecture](docs/Architecture.md)
 * [Role Based Access Control](daemon/RBAC.md)
+* [CBSASL](cbsasl/CBSASL.md)
 
 # Protocols
 
