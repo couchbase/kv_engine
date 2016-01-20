@@ -132,7 +132,10 @@ public:
                                 unsigned inputlen, const char** output,
                                 unsigned* outputlen) override;
 
-    virtual const std::string& getSalt() = 0;
+    virtual void getSaltedPassword(std::vector<uint8_t>& dest) override {
+        const auto& pw = user.getPassword(mechanism).getPassword();
+        std::copy(pw.begin(), pw.end(), std::back_inserter(dest));
+    }
 
     Couchbase::User user;
 };
@@ -146,16 +149,6 @@ public:
         : ScramShaServerBackend(MECH_NAME_SCRAM_SHA1,
                                 Mechanism::SCRAM_SHA1,
                                 Couchbase::Crypto::Algorithm::SHA1) { }
-
-    virtual const std::string& getSalt() override {
-        return user.getSha1Salt();
-    }
-
-protected:
-    virtual void getSaltedPassword(std::vector<uint8_t>& dest) override {
-        const auto& pass = user.getSaltedSha1Password();
-        std::copy(pass.begin(), pass.end(), std::back_inserter(dest));
-    }
 };
 
 /**
@@ -167,16 +160,6 @@ public:
         : ScramShaServerBackend(MECH_NAME_SCRAM_SHA256,
                                 Mechanism::SCRAM_SHA256,
                                 Couchbase::Crypto::Algorithm::SHA256) { }
-
-    virtual const std::string& getSalt() override {
-        return user.getSha256Salt();
-    }
-
-protected:
-    virtual void getSaltedPassword(std::vector<uint8_t>& dest) override {
-        const auto& pass = user.getSaltedSha256Password();
-        std::copy(pass.begin(), pass.end(), std::back_inserter(dest));
-    }
 };
 
 /**
@@ -188,16 +171,6 @@ public:
         : ScramShaServerBackend(MECH_NAME_SCRAM_SHA512,
                                 Mechanism::SCRAM_SHA512,
                                 Couchbase::Crypto::Algorithm::SHA512) { }
-
-    virtual const std::string& getSalt() override {
-        return user.getSha512Salt();
-    }
-
-protected:
-    virtual void getSaltedPassword(std::vector<uint8_t>& dest) override {
-        const auto& pass = user.getSaltedSha512Password();
-        std::copy(pass.begin(), pass.end(), std::back_inserter(dest));
-    }
 };
 
 /**

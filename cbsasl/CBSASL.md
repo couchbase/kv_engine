@@ -34,13 +34,30 @@ down by calling `cbsasl_server_term`.
 
 ### User database
 
-The current implementation of the user database is stored in a file passed
-to the system through the environment variable named `ISASL_PWFILE`. This is
-a plain text file with the following syntax
+The user database is stored in JSON format with the following syntax:
 
-    # lines starting with a hash is ignored
-    username plain-text-password
+    {
+         "users" : [
+             {
+                 "n" : "username",
+                 "sha512" : {
+                     "h" : "base64 encoded sha512 hash of the password",
+                     "s" : "base64 encoded salt",
+                     "i" : iteration-count
+                 },
+                 "sha256" : {
+                     "h" : "base64 encoded sha256 hash of the password",
+                     "s" : "base64 encoded salt",
+                     "i" : iteration-count
+                 },
+                 "sha1" : {
+                     "h" : "base64 encoded sha1 hash of the password",
+                     "s" : "base64 encoded salt",
+                     "i" : iteration-count
+                 },
+                 "plain" : "base64 encoded plain text password"
+             }
+         ]
+     }
 
-Given that we don't store the SHA of the password the salt and the SHA's for
-the password is generated when the file is loaded (with a fixed iteration
-count set to 4k).
+ When the support for CRAM-MD5 is removed we should remove the `plain` entry.

@@ -17,14 +17,93 @@
 #pragma once
 
 #include <array>
+#include <cJSON.h>
 #include <cstdint>
 #include <string>
 #include "cbcrypto.h"
+#include <vector>
+#include <map>
+#include <cJSON_utils.h>
 #include "cbsasl_internal.h"
 
 namespace Couchbase {
     class User {
     public:
+        /**
+         * To allow multiple authentication schemes we need to store
+         * some metadata for each of the different scheme.
+         */
+        class PasswordMetaData {
+        public:
+            /**
+             * Create a new instance of the PasswordMetaData
+             */
+            PasswordMetaData()
+                : iteration_count(0) {
+
+            };
+
+            /**
+             * Create a new instance of the PasswordMetaData with
+             * the specified attributes
+             *
+             * @param h the password
+             * @param s the salt used (Base64 encoded)
+             * @param i iteration count
+             */
+            PasswordMetaData(const std::string& h,
+                             const std::string& s = "",
+                             int i = 0)
+                : salt(s),
+                  password(h),
+                  iteration_count(i) {
+
+            }
+
+            /**
+             * Create a new instance of the PasswordMetaData and
+             * initialize it from the specified JSON. The JSON *MUST*
+             * be of the following syntax:
+             *
+             *     {
+             *         "h" : "base64 encoded password",
+             *         "s" : "base64 encoded salt",
+             *         "i" : "iteration count"
+             *     }
+             *
+             * @param obj pointer to the cJSON structure
+             */
+            PasswordMetaData(cJSON* obj);
+
+            /**
+             * This is a helper function used from the unit tests
+             * to generate a JSON representation of a user
+             */
+            cJSON* to_json() const;
+
+            const std::string& getSalt() const {
+                return salt;
+            }
+
+            const std::string& getPassword() const {
+                return password;
+            }
+
+            int getIterationCount() const {
+                return iteration_count;
+            }
+
+        private:
+            // Base 64 encoded version of the salt
+            std::string salt;
+
+            // The actual password used
+            std::string password;
+
+            // The iteration count used for generating the password
+            int iteration_count;
+        };
+
         /**
          * Create a dummy user entry.
          *
@@ -35,11 +114,48 @@ namespace Couchbase {
          * to look up the user (to respond with the SALT and iteration
          * count).
          */
-        User()
-            : iterationCount(4096),
-              dummy(true) {
+        User() : dummy(true) {
 
         }
+
+        /**
+         * Create a new User object with the specified username / password
+         * combination. In addition we'll generate a new Salt and a
+         * salted SHA1 hashed password.
+         *
+         * @param unm the username to use
+         * @param passwd the password to use
+         */
+        User(const std::string& unm, const std::string& passwd);
+
+        /**
+         * Create a user entry and initialize it from the supplied
+         * JSON structure:
+         *
+         *       {
+         *            "n" : "username",
+         *            "sha512" : {
+         *                "h" : "base64 encoded sha512 hash of the password",
+         *                "s" : "base64 encoded salt",
+         *                "i" : iteration-count
+         *            },
+         *            "sha256" : {
+         *                "h" : "base64 encoded sha256 hash of the password",
+         *                "s" : "base64 encoded salt",
+         *                "i" : iteration-count
+         *            },
+         *            "sha1" : {
+         *                "h" : "base64 encoded sha1 hash of the password",
+         *                "s" : "base64 encoded salt",
+         *                "i" : iteration-count
+         *            },
+         *            "plain" : "base64 encoded plain text password"
+         *       }
+         *
+         * @param obj the object containing the JSON description
+         * @throws std::runtime_error if there is a syntax error
+         */
+        User(cJSON* obj);
 
         /**
          * Generate the secrets for a dummy object.
@@ -56,102 +172,10 @@ namespace Couchbase {
         void generateSecrets(const Mechanism& mech);
 
         /**
-         * Create a new User object with the specified username / password
-         * combination. In addition we'll generate a new Salt and a
-         * salted SHA1 hashed password.
-         *
-         * @param unm the username to use
-         * @param passwd the password to use
-         */
-        User(const std::string& unm, const std::string& passwd);
-
-        /**
          * Get the username for this entry
          */
         const std::string& getUsername() const {
             return username;
-        }
-
-        /**
-         * Get the raw password in plain text
-         *
-         * @return plain text password
-         */
-        const std::string& getPlaintextPassword() const {
-            return plaintextPassword;
-        }
-
-        /**
-         * Get the salt used to generate the salted sha1 version of the
-         * password. The salt value is stored (and returned) base64 encoded
-         * given that all use of the salt on the server side (where this
-         * method is used) only use the base64 encoded value.
-         *
-         * @return base64 encoded version of the salt
-         */
-        const std::string& getSha1Salt() const {
-            return sha1Salt;
-        }
-
-        /**
-         * Get the Salted SHA1 digest
-         *
-         * @return salted sha1 password
-         */
-        const std::vector<uint8_t>& getSaltedSha1Password() const {
-            return saltedSha1Password;
-        }
-
-
-        /**
-         * Get the salt used to generate the salted sha256 version of the
-         * password. The salt value is stored (and returned) base64 encoded
-         * given that all use of the salt on the server side (where this
-         * method is used) only use the base64 encoded value.
-         *
-         * @return base64 encoded version of the salt
-         */
-        const std::string& getSha256Salt() const {
-            return sha256Salt;
-        }
-
-        /**
-         * Get the Salted SHA256 digest
-         *
-         * @return salted sha256 password
-         */
-        const std::vector<uint8_t>& getSaltedSha256Password() const {
-            return saltedSha256Password;
-        }
-
-        /**
-         * Get the salt used to generate the salted sha512 version of the
-         * password. The salt value is stored (and returned) base64 encoded
-         * given that all use of the salt on the server side (where this
-         * method is used) only use the base64 encoded value.
-         *
-         * @return base64 encoded version of the salt
-         */
-        const std::string& getSha512Salt() const {
-            return sha512Salt;
-        }
-
-        /**
-         * Get the Salted SHA512 digest
-         *
-         * @return salted sha512 password
-         */
-        const std::vector<uint8_t>& getSaltedSha512Password() const {
-            return saltedSha512Password;
-        }
-
-        /**
-         * Get the iteration count used for the hashing
-         *
-         * @return the iteration count used in PKCS5_PBKDF2_HMAC
-         */
-        int getIterationCount() const {
-            return iterationCount;
         }
 
         /**
@@ -161,24 +185,33 @@ namespace Couchbase {
             return dummy;
         }
 
+        /**
+         * Get the password metadata used for the requested mechanism
+         *
+         * @param mech the mechanism to retrieve the metadata for
+         * @return the passwod metadata
+         * @throws std::illegal_arguement if the mechanism isn't supported
+         */
+        const PasswordMetaData& getPassword(const Mechanism& mech) const;
+
+        /**
+         * Generate a JSON encoding of this object (it is primarily used
+         * from the test suite to generate a user database)
+         */
+        unique_cJSON_ptr to_json() const;
+
+        /**
+         * Generate a textual representation of the user object (in JSON)
+         */
+        std::string to_string() const;
+
     protected:
+        void generateSecrets(const Mechanism& mech,
+                             const std::string& passwd);
+
+        std::map<Mechanism, PasswordMetaData> password;
+
         std::string username;
-
-        std::string plaintextPassword;
-
-        std::string sha1Salt;
-
-        std::vector<uint8_t> saltedSha1Password;
-
-        std::string sha256Salt;
-
-        std::vector<uint8_t> saltedSha256Password;
-
-        std::string sha512Salt;
-
-        std::vector<uint8_t> saltedSha512Password;
-
-        int iterationCount;
 
         bool dummy;
     };

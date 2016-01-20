@@ -411,14 +411,18 @@ cbsasl_error_t ScramShaServerBackend::start(cbsasl_conn_t* conn,
                    "User [" + username + "] doesn't exist.. using dummy");
         user.generateSecrets(mechanism);
     }
+
+    const auto& passwordMeta = user.getPassword(mechanism);
+
     conn->server->username.assign(username);
     nonce = clientNonce + std::string(serverNonce.data(), serverNonce.size());
 
     // build up the server-first-message
     std::ostringstream out;
     addAttribute(out, 'r', nonce, true);
-    addAttribute(out, 's', Couchbase::Base64::decode(getSalt()), true);
-    addAttribute(out, 'i', user.getIterationCount(), false);
+    addAttribute(out, 's', Couchbase::Base64::decode(passwordMeta.getSalt()),
+                 true);
+    addAttribute(out, 'i', passwordMeta.getIterationCount(), false);
     server_first_message = out.str();
 
     *output = server_first_message.data();
