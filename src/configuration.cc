@@ -167,9 +167,7 @@ void Configuration::setParameter(const std::string &key, bool value) {
     std::map<std::string, value_t>::iterator validator = attributes.find(key);
     if (validator != attributes.end()) {
         if (validator->second.validator != NULL) {
-            if (!validator->second.validator->validateBool(key, value)) {
-                throw std::runtime_error("value out of range.");
-            }
+            validator->second.validator->validateBool(key, value);
         }
     }
     attributes[key].datatype = DT_BOOL;
@@ -187,9 +185,7 @@ void Configuration::setParameter(const std::string &key, size_t value) {
     std::map<std::string, value_t>::iterator validator = attributes.find(key);
     if (validator != attributes.end()) {
         if (validator->second.validator != NULL) {
-            if (!validator->second.validator->validateSize(key, value)) {
-                throw std::runtime_error("value out of range.");
-            }
+            validator->second.validator->validateSize(key, value);
         }
     }
     attributes[key].datatype = DT_SIZE;
@@ -212,9 +208,7 @@ void Configuration::setParameter(const std::string &key, ssize_t value) {
     std::map<std::string, value_t>::iterator validator = attributes.find(key);
     if (validator != attributes.end()) {
         if (validator->second.validator != NULL) {
-            if (!validator->second.validator->validateSSize(key, value)) {
-                throw std::runtime_error("value out of range.");
-            }
+            validator->second.validator->validateSSize(key, value);
         }
     }
     attributes[key].datatype = DT_SSIZE;
@@ -238,9 +232,7 @@ void Configuration::setParameter(const std::string &key, float value) {
     std::map<std::string, value_t>::iterator validator = attributes.find(key);
     if (validator != attributes.end()) {
         if (validator->second.validator != NULL) {
-            if (!validator->second.validator->validateFloat(key, value)) {
-                throw std::runtime_error("value out of range.");
-            }
+            validator->second.validator->validateFloat(key, value);
         }
     }
 
@@ -268,9 +260,7 @@ void Configuration::setParameter(const std::string &key, const char *value) {
     std::map<std::string, value_t>::iterator validator = attributes.find(key);
     if (validator != attributes.end()) {
         if (validator->second.validator != NULL) {
-            if (!validator->second.validator->validateString(key, value)) {
-                throw std::runtime_error("value out of range.");
-            }
+            validator->second.validator->validateString(key, value);
         }
     }
 
@@ -302,7 +292,7 @@ void Configuration::addValueChangedListener(const std::string &key,
 
 ValueChangedValidator *Configuration::setValueValidator(const std::string &key,
                                             ValueChangedValidator *validator) {
-    ValueChangedValidator *ret = 0;
+    ValueChangedValidator *ret = nullptr;
     LockHolder lh(mutex);
     if (attributes.find(key) != attributes.end()) {
         ret = attributes[key].validator;
