@@ -167,6 +167,7 @@ struct settings {
     char prefix_delimiter;  /* character that marks a key prefix (for stats) */
     bool detail_enabled;    /* nonzero if we're collecting detailed stats */
     bool allow_detailed;    /* detailed stats commands are allowed */
+    bool dedupe_nmvb_maps; /* should we dedupe the maps in NMVB responses */
 
     /* Maximum number of io events to process based on the priority of the
        connection */
@@ -370,6 +371,9 @@ struct conn {
         BIO *application;
         BIO *network;
     } ssl;
+
+    /* The revision number of the clustermap sent to the client */
+    int clustermap_revno;
 };
 
 /* States for the connection list_state */

@@ -360,6 +360,7 @@ static void settings_init(void) {
     settings.admin = NULL;
     settings.disable_admin = false;
     settings.datatype = false;
+    settings.dedupe_nmvb_maps = false;
 }
 
 /*
@@ -940,6 +941,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->refcount = 1;
 
     MEMCACHED_CONN_ALLOCATE(c->sfd);
+    c->clustermap_revno = -2;
 
     perform_callbacks(ON_CONNECT, NULL, c);
 
@@ -995,6 +997,7 @@ static void conn_cleanup(conn *c) {
         free(c->ssl.out.buffer);
         memset(&c->ssl, 0, sizeof(c->ssl));
     }
+    c->clustermap_revno = -2;
 }
 
 void conn_close(conn *c) {
@@ -1441,6 +1444,41 @@ static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERRO
     return ret;
 }
 
+static int get_clustermap_revno(const char *map, size_t mapsize) {
+    /* Try to locate the "rev": field in the map. Unfortunately
+     * we can't use the function strnstr because it's not available
+     * on all platforms
+     */
+    const char* prefix = "\"rev\":";
+    size_t plen = strlen(prefix);
+    size_t index;
+
+    if (mapsize == 0 || *map != '{' || mapsize < (plen + 1)) {
+        /* This doesn't look like our cluster map */
+        return -1;
+    }
+    mapsize -= plen;
+
+    for (index = 1; index < mapsize; ++index) {
+        if (memcmp(map + index, prefix, plen) == 0) {
+            index += plen;
+            /* Found :-) */
+            while (isspace(map[index])) {
+                ++index;
+            }
+
+            if (!isdigit(map[index])) {
+                return -1;
+            }
+
+            return atoi(map + index);
+        }
+    }
+
+    /* not found */
+    return -1;
+}
+
 static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
                                        const void *map,
                                        size_t mapsize)
@@ -1448,7 +1486,20 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     char *buf;
     conn *c = (conn*)cookie;
     protocol_binary_response_header header;
-    size_t needed = mapsize+ sizeof(protocol_binary_response_header);
+    size_t needed = sizeof(protocol_binary_response_header);
+
+    if (settings.dedupe_nmvb_maps) {
+        int revno = get_clustermap_revno(map, mapsize);
+        if (revno == c->clustermap_revno) {
+            /* The client already have this map... */
+            mapsize = 0;
+        } else if (revno != -1) {
+            c->clustermap_revno = revno;
+        }
+    }
+
+    needed += mapsize;
+
     if (!grow_dynamic_buffer(c, needed)) {
         if (settings.verbose > 0) {
             settings.extensions.logger->log(EXTENSION_LOG_INFO, c,
@@ -5276,6 +5327,7 @@ static void ioctl_get_executor(conn *c, void *packet)
 
 static void ioctl_set_executor(conn *c, void *packet)
 {
+    protocol_binary_response_status ret = PROTOCOL_BINARY_RESPONSE_SUCCESS;
     protocol_binary_request_ioctl_set *req = packet;
 
     size_t keylen = ntohs(req->message.header.request.keylen);
@@ -5287,17 +5339,31 @@ static void ioctl_set_executor(conn *c, void *packet)
 
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
     const char* value = key + keylen;
-    (void)value; /* Value currently unused. */
 
     if (strncmp("release_free_memory", key, keylen) == 0 &&
         keylen == strlen("release_free_memory")) {
         mc_release_free_memory();
         settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
                 "%d: IOCTL_SET: release_free_memory called\n", c->sfd);
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, 0);
+    } else if (strncmp("dedupe_nmvb_maps", key, keylen) == 0 &&
+               keylen == strlen("dedupe_nmvb_maps")) {
+        size_t bodylen = ntohl(req->message.header.request.bodylen) - keylen;
+        if (bodylen == 4 && strncmp("true", value, bodylen) == 0) {
+            settings.dedupe_nmvb_maps = true;
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Enable NMVB dedupe", c->sfd);
+        } else if (bodylen == 5 && strncmp("false", value, bodylen) == 0) {
+            settings.dedupe_nmvb_maps = false;
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, c,
+                                            "%d: Disable NMVB dedupe", c->sfd);
+        } else {
+            ret = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
     } else {
-        write_bin_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL, 0);
+        ret = PROTOCOL_BINARY_RESPONSE_EINVAL;
     }
+
+    write_bin_packet(c, ret, 0);
 }
 
 static void not_supported_executor(conn *c, void *packet)
@@ -6140,6 +6206,9 @@ static void process_stat_settings(ADD_STAT add_stats, void *c) {
 
     APPEND_STAT("auth_sasl_engine", "%s", "cbsasl");
     APPEND_STAT("auth_required_sasl", "%s", settings.require_sasl ? "yes" : "no");
+
+    APPEND_STAT("dedupe_nmvb_maps", "%s",
+                settings.dedupe_nmvb_maps ? "true" : "false");
     {
         EXTENSION_DAEMON_DESCRIPTOR *ptr;
         for (ptr = settings.extensions.daemons; ptr != NULL; ptr = ptr->next) {

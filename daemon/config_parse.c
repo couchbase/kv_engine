@@ -192,6 +192,10 @@ static void get_detailed_enabled(cJSON *o) {
     settings.detail_enabled = get_bool_value(o, o->string);
 }
 
+static void get_dedupe_nmvb_maps(cJSON *o) {
+    settings.dedupe_nmvb_maps = get_bool_value(o, o->string);
+}
+
 static void get_prefix_delimiter(cJSON *o) {
     if (o->type != cJSON_String) {
         fprintf(stderr, "Invalid value specified for prefix_delimiter\n");
@@ -493,6 +497,7 @@ void read_config_file(const char *file)
         { "pid_file", get_pid_file },
         { "bio_drain_buffer_sz", get_bio_drain_buffer_sz },
         { "datatype_support", get_datatype },
+        { "dedupe_nmvb_maps", get_dedupe_nmvb_maps },
         { NULL, NULL}
     };
     cJSON *obj;
