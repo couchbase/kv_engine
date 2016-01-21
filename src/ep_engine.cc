@@ -308,7 +308,7 @@ extern "C" {
                                                  EventuallyPersistentEngine *e,
                                                  const char *keyz,
                                                  const char *valz,
-                                                 const char **msg, size_t *) {
+                                                 std::string &msg) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         try {
@@ -327,11 +327,11 @@ extern "C" {
                 checkNumeric(valz);
                 e->getConfiguration().setReplicationThrottleCapPcnt(v);
             } else {
-                *msg = "Unknown config param";
+                msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-        } catch(std::runtime_error &) {
-            *msg = "Value out of range.";
+        } catch(std::runtime_error& error) {
+            msg = error.what();
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
@@ -342,8 +342,7 @@ extern "C" {
                                                  EventuallyPersistentEngine *e,
                                                               const char *keyz,
                                                               const char *valz,
-                                                              const char **msg,
-                                                              size_t *) {
+                                                             std::string &msg) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         try {
@@ -380,11 +379,11 @@ extern "C" {
                     e->getConfiguration().setEnableChkMerge(false);
                 }
             } else {
-                *msg = "Unknown config param";
+                msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-        } catch(std::runtime_error &) {
-            *msg = "Value out of range.";
+        } catch(std::runtime_error& error) {
+            msg = error.what();
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
@@ -395,8 +394,7 @@ extern "C" {
                                                  EventuallyPersistentEngine *e,
                                                  const char *keyz,
                                                  const char *valz,
-                                                 const char **msg,
-                                                 size_t *) {
+                                                 std::string &msg) {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         // Handle the actual mutation.
@@ -583,11 +581,11 @@ extern "C" {
                 int vbid = atoi(valz);
                 e->runVbStatePersistTask(vbid);
             } else {
-                *msg = "Unknown config param";
+                msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-        } catch(std::runtime_error&) {
-            *msg = "Value out of range.";
+        } catch(std::runtime_error& error) {
+            msg = error.what();
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
@@ -773,8 +771,7 @@ extern "C" {
                                             EventuallyPersistentEngine *e,
                                             protocol_binary_request_set_param
                                                                      *req,
-                                            const char **msg,
-                                            size_t *msg_size) {
+                                            std::string &msg) {
 
         size_t keylen = ntohs(req->message.header.request.keylen);
         uint8_t extlen = req->message.header.request.extlen;
@@ -796,7 +793,7 @@ extern "C" {
 
         // Read the key.
         if (keylen >= sizeof(keyz)) {
-            *msg = "Key is too large.";
+            msg = "Key is too large.";
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
         memcpy(keyz, keyp, keylen);
@@ -804,7 +801,7 @@ extern "C" {
 
         // Read the value.
         if (vallen >= sizeof(valz)) {
-            *msg = "Value is too large.";
+            msg = "Value is too large.";
             return PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
         memcpy(valz, valuep, vallen);
@@ -814,13 +811,13 @@ extern "C" {
 
         switch (paramtype) {
         case protocol_binary_engine_param_flush:
-            rv = setFlushParam(e, keyz, valz, msg, msg_size);
+            rv = setFlushParam(e, keyz, valz, msg);
             break;
         case protocol_binary_engine_param_tap:
-            rv = setTapParam(e, keyz, valz, msg, msg_size);
+            rv = setTapParam(e, keyz, valz, msg);
             break;
         case protocol_binary_engine_param_checkpoint:
-            rv = setCheckpointParam(e, keyz, valz, msg, msg_size);
+            rv = setCheckpointParam(e, keyz, valz, msg);
             break;
         default:
             rv = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
@@ -1125,6 +1122,7 @@ extern "C" {
     {
         protocol_binary_response_status res =
                                       PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
+        std::string dynamic_msg;
         const char *msg = NULL;
         size_t msg_size = 0;
         Item *itm = NULL;
@@ -1205,7 +1203,9 @@ extern "C" {
         case PROTOCOL_BINARY_CMD_SET_PARAM:
             res = setParam(h,
                   reinterpret_cast<protocol_binary_request_set_param*>(request),
-                            &msg, &msg_size);
+                           dynamic_msg);
+            msg = dynamic_msg.c_str();
+            msg_size = dynamic_msg.length();
             h->decrementSessionCtr();
             break;
         case PROTOCOL_BINARY_CMD_EVICT_KEY:

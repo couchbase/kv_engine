@@ -4035,6 +4035,16 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_set_param_message(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    set_param(h, h1, protocol_binary_engine_param_flush, "alog_task_time", "50");
+
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+        "Expected an invalid value error for an out of bounds alog_task_time");
+    check(std::string("Validation Error").compare(last_body), "Expected a "
+            "validation error in the response body");
+    return SUCCESS;
+}
+
 static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *it = NULL;
     check(set_vbucket_state(h, h1, 0, vbucket_state_active), "Failed to set VB0 state.");
@@ -9127,6 +9137,8 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test access scanner", test_access_scanner, test_setup,
                  teardown, "alog_path=/tmp/epaccess.log;chk_remover_stime=1;"
                  "max_size=6291456", prepare, cleanup),
+        TestCase("test set_param message", test_set_param_message, test_setup,
+                 teardown, NULL, prepare, cleanup),
 
         // Stats tests
         TestCase("item stats", test_item_stats, test_setup, teardown, NULL,
