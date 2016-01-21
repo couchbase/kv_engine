@@ -1064,7 +1064,7 @@ static int execute_test(engine_test_t test,
      * Combine test.cfg (internal config parameters) and
      * default_cfg (command line parameters) for the test case.
      *
-     * test.cfg will have higher priority over default_cfg in
+     * default_cfg will have higher priority over test.cfg in
      * case of redundant parameters.
      */
     std::string cfg;
@@ -1086,10 +1086,7 @@ static int execute_test(engine_test_t test,
                 }
                 std::string k(temp.substr(0, j));
                 std::string v(temp.substr(j + 1, temp.size()));
-                if (map.find(k) == map.end()) {
-                    // Fresh entry
-                    map[k] = v;
-                }
+                map[k] = v;
             }
             cfg.clear();
             std::map<std::string, std::string>::iterator it;
