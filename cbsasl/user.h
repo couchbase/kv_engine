@@ -44,7 +44,8 @@ namespace Couchbase {
          * count).
          */
         User()
-            : dummy(true) {
+            : iterationCount(4096),
+              dummy(true) {
 
         }
 
