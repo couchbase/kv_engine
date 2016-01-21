@@ -53,6 +53,7 @@
 #include "dcp/consumer.h"
 #include "dcp/producer.h"
 #include "warmup.h"
+#include "string_utils.h"
 
 static AtomicValue<ALLOCATOR_HOOKS_API*> hooksApi;
 static AtomicValue<SERVER_LOG_API*> loggerApi;
@@ -312,25 +313,35 @@ extern "C" {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         try {
-            int v = atoi(valz);
             if (strcmp(keyz, "tap_keepalive") == 0) {
-                checkNumeric(valz);
+                int v = std::stoi(valz);
                 validate(v, 0, MAX_TAP_KEEP_ALIVE);
                 e->setTapKeepAlive(static_cast<uint32_t>(v));
             } else if (strcmp(keyz, "replication_throttle_threshold") == 0) {
-                checkNumeric(valz);
-                e->getConfiguration().setReplicationThrottleThreshold(v);
+                e->getConfiguration().setReplicationThrottleThreshold(std::stoull(valz));
             } else if (strcmp(keyz, "replication_throttle_queue_cap") == 0) {
-                checkNumeric(valz);
-                e->getConfiguration().setReplicationThrottleQueueCap(v);
+                e->getConfiguration().setReplicationThrottleQueueCap(std::stoll(valz));
             } else if (strcmp(keyz, "replication_throttle_cap_pcnt") == 0) {
-                checkNumeric(valz);
-                e->getConfiguration().setReplicationThrottleCapPcnt(v);
+                e->getConfiguration().setReplicationThrottleCapPcnt(std::stoull(valz));
             } else {
                 msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-        } catch(std::runtime_error& error) {
+        // Handles exceptions thrown by the standard
+        // library stoi/stoul style functions when not numeric
+        } catch(std::invalid_argument& error) {
+            msg = "Argument was not numeric";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+
+        // Handles exceptions thrown by the standard library stoi/stoul
+        // style functions when the conversion does not fit in the datatype
+        } catch(std::out_of_range& error) {
+            msg = "Argument was out of range";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+
+        // Handles any miscellaenous exceptions in addition to the range_error
+        // exceptions thrown by the configuration::set<param>() methods
+        } catch(std::exception& error) {
             msg = error.what();
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
@@ -346,43 +357,52 @@ extern "C" {
         protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
 
         try {
-            int v = atoi(valz);
             if (strcmp(keyz, "chk_max_items") == 0) {
-                checkNumeric(valz);
-                validate(v, MIN_CHECKPOINT_ITEMS, MAX_CHECKPOINT_ITEMS);
+                size_t v = std::stoull(valz);
+                validate(v, size_t(MIN_CHECKPOINT_ITEMS),
+                         size_t(MAX_CHECKPOINT_ITEMS));
                 e->getConfiguration().setChkMaxItems(v);
             } else if (strcmp(keyz, "chk_period") == 0) {
-                checkNumeric(valz);
-                validate(v, MIN_CHECKPOINT_PERIOD, MAX_CHECKPOINT_PERIOD);
+                size_t v = std::stoull(valz);
+                validate(v, size_t(MIN_CHECKPOINT_PERIOD),
+                         size_t(MAX_CHECKPOINT_PERIOD));
                 e->getConfiguration().setChkPeriod(v);
             } else if (strcmp(keyz, "max_checkpoints") == 0) {
-                checkNumeric(valz);
-                validate(v, DEFAULT_MAX_CHECKPOINTS,
-                         MAX_CHECKPOINTS_UPPER_BOUND);
+                size_t v = std::stoull(valz);
+                validate(v, size_t(DEFAULT_MAX_CHECKPOINTS),
+                         size_t(MAX_CHECKPOINTS_UPPER_BOUND));
                 e->getConfiguration().setMaxCheckpoints(v);
             } else if (strcmp(keyz, "item_num_based_new_chk") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setItemNumBasedNewChk(true);
-                } else {
-                    e->getConfiguration().setItemNumBasedNewChk(false);
-                }
+                e->getConfiguration().setItemNumBasedNewChk(cb_stob(valz));
             } else if (strcmp(keyz, "keep_closed_chks") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setKeepClosedChks(true);
-                } else {
-                    e->getConfiguration().setKeepClosedChks(false);
-                }
+                e->getConfiguration().setKeepClosedChks(cb_stob(valz));
             } else if (strcmp(keyz, "enable_chk_merge") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setEnableChkMerge(true);
-                } else {
-                    e->getConfiguration().setEnableChkMerge(false);
-                }
+                e->getConfiguration().setEnableChkMerge(cb_stob(valz));
             } else {
                 msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-        } catch(std::runtime_error& error) {
+
+        // Handles exceptions thrown by the cb_stob function
+        } catch(invalid_argument_bool& error) {
+            msg = error.what();
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+
+        // Handles exceptions thrown by the standard
+        // library stoi/stoul style functions when not numeric
+        } catch(std::invalid_argument& error) {
+            msg = "Argument was not numeric";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+
+        // Handles exceptions thrown by the standard library stoi/stoul
+        // style functions when the conversion does not fit in the datatype
+        } catch(std::out_of_range& error) {
+            msg = "Argument was out of range";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+
+        // Handles any miscellaenous exceptions in addition to the range_error
+        // exceptions thrown by the configuration::set<param>() methods
+        } catch(std::exception& error) {
             msg = error.what();
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
@@ -399,24 +419,13 @@ extern "C" {
 
         // Handle the actual mutation.
         try {
-            int v = atoi(valz);
             if (strcmp(keyz, "bg_fetch_delay") == 0) {
-                checkNumeric(valz);
-                e->getConfiguration().setBgFetchDelay(v);
+                e->getConfiguration().setBgFetchDelay(std::stoull(valz));
             } else if (strcmp(keyz, "flushall_enabled") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setFlushallEnabled(true);
-                } else if(strcmp(valz, "false") == 0) {
-                    e->getConfiguration().setFlushallEnabled(false);
-                } else {
-                    throw std::runtime_error("value out of range.");
-                }
+                e->getConfiguration().setFlushallEnabled(cb_stob(valz));
             } else if (strcmp(keyz, "max_size") == 0) {
-                char *ptr = NULL;
-                checkNumeric(valz);
-                uint64_t vsize = strtoull(valz, &ptr, 10);
-                validate(vsize, static_cast<uint64_t>(0),
-                         std::numeric_limits<uint64_t>::max());
+                size_t vsize = std::stoull(valz);
+
                 e->getConfiguration().setMaxSize(vsize);
                 EPStats &st = e->getEpStats();
                 e->getConfiguration().setMemLowWat(percentOf(vsize,
@@ -424,31 +433,18 @@ extern "C" {
                 e->getConfiguration().setMemHighWat(percentOf(vsize,
                                                    st.mem_high_wat_percent));
             } else if (strcmp(keyz, "mem_low_wat") == 0) {
-                char *ptr = NULL;
-                checkNumeric(valz);
-                uint64_t vsize = strtoull(valz, &ptr, 10);
-                validate(vsize, static_cast<uint64_t>(0),
-                         std::numeric_limits<uint64_t>::max());
-                e->getConfiguration().setMemLowWat(vsize);
+                e->getConfiguration().setMemLowWat(std::stoull(valz));
             } else if (strcmp(keyz, "mem_high_wat") == 0) {
-                char *ptr = NULL;
-                checkNumeric(valz);
-                uint64_t vsize = strtoull(valz, &ptr, 10);
-                validate(vsize, static_cast<uint64_t>(0),
-                         std::numeric_limits<uint64_t>::max());
-                e->getConfiguration().setMemHighWat(vsize);
+                e->getConfiguration().setMemHighWat(std::stoull(valz));
             } else if (strcmp(keyz, "backfill_mem_threshold") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, 100);
-                e->getConfiguration().setBackfillMemThreshold(v);
+                e->getConfiguration().setBackfillMemThreshold(
+                        std::stoull(valz));
             } else if (strcmp(keyz, "compaction_exp_mem_threshold") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, 100);
-                e->getConfiguration().setCompactionExpMemThreshold(v);
+                e->getConfiguration().setCompactionExpMemThreshold(
+                        std::stoull(valz));
             } else if (strcmp(keyz, "mutation_mem_threshold") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, 100);
-                e->getConfiguration().setMutationMemThreshold(v);
+                e->getConfiguration().setMutationMemThreshold(
+                        std::stoull(valz));
             } else if (strcmp(keyz, "timing_log") == 0) {
                 EPStats &stats = e->getEpStats();
                 std::ostream *old = stats.timingLog;
@@ -470,121 +466,97 @@ extern "C" {
                     }
                 }
             } else if (strcmp(keyz, "exp_pager_enabled") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setExpPagerEnabled(true);
-                } else if(strcmp(valz, "false") == 0) {
-                    e->getConfiguration().setExpPagerEnabled(false);
-                } else {
-                    throw std::runtime_error("value out of range.");
-                }
+                e->getConfiguration().setExpPagerEnabled(cb_stob(valz));
             } else if (strcmp(keyz, "exp_pager_stime") == 0) {
-                char *ptr = NULL;
-                checkNumeric(valz);
-                uint64_t vsize = strtoull(valz, &ptr, 10);
-                validate(vsize, static_cast<uint64_t>(0),
-                         std::numeric_limits<uint64_t>::max());
-                e->getConfiguration().setExpPagerStime((size_t)vsize);
+                e->getConfiguration().setExpPagerStime(std::stoull(valz));
             } else if (strcmp(keyz, "exp_pager_initial_run_time") == 0) {
-                checkNumeric(valz);
-                e->getConfiguration().setExpPagerInitialRunTime(v);
+                e->getConfiguration().setExpPagerInitialRunTime(
+                        std::stoll(valz));
             } else if (strcmp(keyz, "access_scanner_enabled") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setAccessScannerEnabled(true);
-                } else if (strcmp(valz, "false") == 0) {
-                    e->getConfiguration().setAccessScannerEnabled(false);
-                } else {
-                    throw std::runtime_error("Value expected: true/false.");
-                }
+                e->getConfiguration().setAccessScannerEnabled(cb_stob(valz));
             } else if (strcmp(keyz, "alog_sleep_time") == 0) {
-                checkNumeric(valz);
-                e->getConfiguration().setAlogSleepTime(v);
+                e->getConfiguration().setAlogSleepTime(std::stoull(valz));
             } else if (strcmp(keyz, "alog_task_time") == 0) {
-                checkNumeric(valz);
-                e->getConfiguration().setAlogTaskTime(v);
+                e->getConfiguration().setAlogTaskTime(std::stoull(valz));
             } else if (strcmp(keyz, "pager_active_vb_pcnt") == 0) {
-                checkNumeric(valz);
-                e->getConfiguration().setPagerActiveVbPcnt(v);
+                e->getConfiguration().setPagerActiveVbPcnt(std::stoull(valz));
             } else if (strcmp(keyz, "warmup_min_memory_threshold") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, std::numeric_limits<int>::max());
-                e->getConfiguration().setWarmupMinMemoryThreshold(v);
+                e->getConfiguration().setWarmupMinMemoryThreshold(
+                        std::stoull(valz));
             } else if (strcmp(keyz, "warmup_min_items_threshold") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, std::numeric_limits<int>::max());
-                e->getConfiguration().setWarmupMinItemsThreshold(v);
+                e->getConfiguration().setWarmupMinItemsThreshold(
+                        std::stoull(valz));
             } else if (strcmp(keyz, "max_num_readers") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, std::numeric_limits<int>::max());
-                e->getConfiguration().setMaxNumReaders(v);
-                ExecutorPool::get()->setMaxReaders(v);
+                size_t value = std::stoull(valz);
+                e->getConfiguration().setMaxNumReaders(value);
+                ExecutorPool::get()->setMaxReaders(value);
             } else if (strcmp(keyz, "max_num_writers") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, std::numeric_limits<int>::max());
-                e->getConfiguration().setMaxNumWriters(v);
-                ExecutorPool::get()->setMaxWriters(v);
+                size_t value = std::stoull(valz);
+                e->getConfiguration().setMaxNumWriters(value);
+                ExecutorPool::get()->setMaxWriters(value);
             } else if (strcmp(keyz, "max_num_auxio") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, std::numeric_limits<int>::max());
-                e->getConfiguration().setMaxNumAuxio(v);
-                ExecutorPool::get()->setMaxAuxIO(v);
+                size_t value = std::stoull(valz);
+                e->getConfiguration().setMaxNumAuxio(value);
+                ExecutorPool::get()->setMaxAuxIO(value);
             } else if (strcmp(keyz, "max_num_nonio") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, std::numeric_limits<int>::max());
-                e->getConfiguration().setMaxNumNonio(v);
-                ExecutorPool::get()->setMaxNonIO(v);
+                size_t value = std::stoull(valz);
+                e->getConfiguration().setMaxNumNonio(value);
+                ExecutorPool::get()->setMaxNonIO(value);
             } else if (strcmp(keyz, "bfilter_enabled") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setBfilterEnabled(true);
-                } else if (strcmp(valz, "false") == 0) {
-                    e->getConfiguration().setBfilterEnabled(false);
-                } else {
-                    throw std::runtime_error("Value expected: true/false.");
-                }
+                e->getConfiguration().setBfilterEnabled(cb_stob(valz));
             } else if (strcmp(keyz, "bfilter_residency_threshold") == 0) {
-                float val = atof(valz);
-                if (val >= 0.0 && val <= 1.0) {
-                    e->getConfiguration().setBfilterResidencyThreshold(val);
-                } else {
-                    throw std::runtime_error("Value out of range [0.0-1.0].");
-                }
+                e->getConfiguration().setBfilterResidencyThreshold(
+                        std::stof(valz));
             } else if (strcmp(keyz, "defragmenter_enabled") == 0) {
-                if (strcmp(valz, "true") == 0) {
-                    e->getConfiguration().setDefragmenterEnabled(true);
-                } else {
-                    e->getConfiguration().setDefragmenterEnabled(false);
-                }
+                e->getConfiguration().setDefragmenterEnabled(cb_stob(valz));
             } else if (strcmp(keyz, "defragmenter_interval") == 0) {
-                checkNumeric(valz);
-                validate(v, 1, std::numeric_limits<int>::max());
+                size_t v = std::stoull(valz);
+                // Adding separate validation as external limit is minimum 1
+                // to prevent setting defragmenter to constantly run
+                validate(v, size_t(1), std::numeric_limits<size_t>::max());
                 e->getConfiguration().setDefragmenterInterval(v);
             } else if (strcmp(keyz, "defragmenter_age_threshold") == 0) {
-                checkNumeric(valz);
-                validate(v, 0, std::numeric_limits<int>::max());
-                e->getConfiguration().setDefragmenterAgeThreshold(v);
+                e->getConfiguration().setDefragmenterAgeThreshold(
+                        std::stoull(valz));
             } else if (strcmp(keyz, "defragmenter_chunk_duration") == 0) {
-                checkNumeric(valz);
-                validate(v, 1, std::numeric_limits<int>::max());
-                e->getConfiguration().setDefragmenterChunkDuration(v);
+                e->getConfiguration().setDefragmenterChunkDuration(
+                        std::stoull(valz));
             } else if (strcmp(keyz, "defragmenter_run") == 0) {
                 e->runDefragmenterTask();
             } else if (strcmp(keyz, "compaction_write_queue_cap") == 0) {
-                checkNumeric(valz);
-                validate(v, 1, std::numeric_limits<int>::max());
-                e->getConfiguration().setCompactionWriteQueueCap(v);
+                e->getConfiguration().setCompactionWriteQueueCap(
+                        std::stoull(valz));
             } else if (strcmp(keyz, "dcp_min_compression_ratio") == 0) {
-                float val = atof(valz);
-                validate(val, (float)0.0, std::numeric_limits<float>::max());
-                e->getConfiguration().setDcpMinCompressionRatio(val);
+                e->getConfiguration().setDcpMinCompressionRatio(
+                        std::stof(valz));
             } else if (strcmp(keyz, "access_scanner_run") == 0) {
                 e->runAccessScannerTask();
             } else if (strcmp(keyz, "vb_state_persist_run") == 0) {
-                int vbid = atoi(valz);
-                e->runVbStatePersistTask(vbid);
+                e->runVbStatePersistTask(std::stoi(valz));
             } else {
                 msg = "Unknown config param";
                 rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
             }
-        } catch(std::runtime_error& error) {
+        // Handles exceptions thrown by the cb_stob function
+        } catch(invalid_argument_bool& error) {
+            msg = error.what();
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+
+        // Handles exceptions thrown by the standard
+        // library stoi/stoul style functions when not numeric
+        } catch(std::invalid_argument& error) {
+            msg = "Argument was not numeric";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+
+        // Handles exceptions thrown by the standard library stoi/stoul
+        // style functions when the conversion does not fit in the datatype
+        } catch(std::out_of_range& error) {
+            msg = "Argument was out of range";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+
+        // Handles any miscellaneous exceptions in addition to the range_error
+        // exceptions thrown by the configuration::set<param>() methods
+        } catch(std::exception& error) {
             msg = error.what();
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }

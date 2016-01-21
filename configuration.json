@@ -101,7 +101,13 @@
         "bfilter_residency_threshold": {
             "default": "0.1",
             "desr" : "If resident ratio (during full eviction) were found less than this threshold, compaction will include all items into bloomfilter",
-            "type" : "float"
+            "type" : "float",
+            "validator": {
+                "range": {
+                    "max": 1.0,
+                    "min": 0.0
+                }
+            }
         },
         "compaction_exp_mem_threshold": {
             "default": "85",
@@ -129,7 +135,12 @@
         "compaction_write_queue_cap": {
             "default": "10000",
             "desr" : "Disk write queue threshold after which compaction tasks will be made to snooze, if there are already pending compaction tasks",
-            "type" : "size_t"
+            "type" : "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
         },
         "config_file": {
             "default": "",
@@ -202,7 +213,12 @@
         "defragmenter_chunk_duration": {
             "default": "20",
             "descr": "Maximum time (in ms) defragmentation task will run for before being paused (and resumed at the next defragmenter_interval).",
-            "type": "size_t"
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
         },
         "enable_chk_merge": {
             "default": "false",
@@ -578,7 +594,12 @@
         "dcp_min_compression_ratio": {
             "default": "0.85",
             "desr": "Compression ratio to be achieved above which producer will ship documents as is",
-            "type": "float"
+            "type": "float",
+            "validator": {
+                "range": {
+                    "min": 0.0
+                }
+            }
         },
         "dcp_noop_interval": {
             "default": "180",

@@ -160,6 +160,7 @@ ADD_LIBRARY(ep SHARED
             src/replicationthrottle.cc
             src/sizes.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
+            src/string_utils.cc
             src/stored-value.cc
             src/tapconnection.cc
             src/tasks.cc
@@ -245,6 +246,11 @@ TARGET_LINK_LIBRARIES(ep-engine_priority_test platform)
 
 ADD_EXECUTABLE(ep-engine_ringbuffer_test tests/module_tests/ringbuffer_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_ringbuffer_test platform)
+
+ADD_EXECUTABLE(ep-engine_string_utils_test
+               tests/module_tests/string_utils_test.cc
+               src/string_utils.cc)
+TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
 ADD_EXECUTABLE(ep-engine_failover_table_test tests/module_tests/failover_table_test.cc
                         src/failover-table.cc src/testlogger.cc
