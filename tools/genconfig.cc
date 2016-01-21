@@ -43,68 +43,102 @@ std::map<string, getValidatorCode> validators;
 map<string, string> getters;
 map<string, string> datatypes;
 
-
-static std::ostream& operator <<(std::ostream &out, const cJSON *o) {
-    switch (o->type) {
-    case cJSON_Number:
-        if (o->valueint != o->valuedouble) {
-            out << (float)o->valuedouble;
-        } else {
-            out << o->valueint;
-        }
-        break;
-    case cJSON_String:
-        out << '"' << o->valuestring << '"';
-        break;
-    default:
-        cerr << "Internal error.. unknow json code" << endl;
-        abort();
-    }
-    return out;
-}
-
-static bool isFloat(const cJSON *o) {
-    return o->valueint != o->valuedouble;
-}
+static string getDatatype(const std::string& key, cJSON* o);
 
 static string getRangeValidatorCode(const std::string &key, cJSON *o) {
-    // the range validator should contain a "min" and "max" element
-    cJSON *min = cJSON_GetObjectItem(o, "min");
-    cJSON *max = cJSON_GetObjectItem(o, "max");
+    cJSON* validator = cJSON_GetObjectItem(o, "validator");
 
-    if (min == 0 || max == 0) {
+    cJSON* n = cJSON_GetArrayItem(validator, 0);
+    if (n == NULL) {
+        return "";
+    }
+
+    // the range validator should contain a "min" or a "max" element
+    cJSON* min = cJSON_GetObjectItem(n, "min");
+    cJSON* max = cJSON_GetObjectItem(n, "max");
+
+    if (min == nullptr && max == nullptr) {
         cerr << "Incorrect syntax for a range validator specified for"
              << "\"" << key << "\"." << endl
-             <<"You need both a min and max clause." << endl;
+             <<"You need at least one of a min or a max clause." << endl;
         exit(1);
     }
 
-    if (min->type != max->type || min->type != cJSON_Number) {
+    if (min && min->type != cJSON_Number) {
         cerr << "Incorrect datatype for the range validator specified for "
              << "\"" << key << "\"." << endl
              << "Only numbers are supported." << endl;
         exit(1);
     }
-
-    stringstream ss;
-    if (isFloat(min) || isFloat(max)) {
-        ss << "(new FloatRangeValidator())->min((float)" << min << ")->max((float)" << max << ")";
-    } else {
-        ss << "(new SizeRangeValidator())->min(" << min << ")->max(" << max << ")";
+    if (max && max->type != cJSON_Number) {
+        cerr << "Incorrect datatype for the range validator specified for "
+        << "\"" << key << "\"." << endl
+        << "Only numbers are supported." << endl;
+        exit(1);
     }
 
-    return ss.str();
+    string validator_type;
+    string mins;
+    string maxs;
+
+    if (getDatatype(key, o) == "float") {
+        validator_type = "FloatRangeValidator";
+        if (min) {
+            mins = to_string(min->valuedouble);
+        } else {
+            mins = "std::numeric_limits<float>::min()";
+        }
+        if (max) {
+            maxs = to_string(max->valuedouble);
+        } else {
+            maxs = "std::numeric_limits<float>::max()";
+        }
+
+    } else if (getDatatype(key, o) == "ssize_t") {
+        validator_type = "SSizeRangeValidator";
+        if (min) {
+            mins = to_string(min->valueint);
+        } else {
+            mins = "std::numeric_limits<ssize_t>::min()";
+        }
+        if (max) {
+            maxs = to_string(max->valueint);
+        } else {
+            maxs = "std::numeric_limits<ssize_t>::max()";
+        }
+    } else {
+        validator_type = "SizeRangeValidator";
+        if (min) {
+            mins = to_string(min->valueint);
+        } else {
+            mins = "std::numeric_limits<size_t>::min()";
+        }
+        if (max) {
+            maxs = to_string(max->valueint);
+        } else {
+            maxs = "std::numeric_limits<size_t>::max()";
+        }
+    }
+
+    string out = "(new " + validator_type + "())->min(" + mins + ")->max(" + maxs + ")";
+    return out;
 }
 
 static string getEnumValidatorCode(const std::string &key, cJSON *o) {
+    cJSON *validator = cJSON_GetObjectItem(o, "validator");
 
-    if (o->type != cJSON_Array) {
+    cJSON *n = cJSON_GetArrayItem(validator, 0);
+    if (n == NULL) {
+        return "";
+    }
+
+    if (n->type != cJSON_Array) {
         cerr << "Incorrect enum value for " << key
              << ".  Array of values is required." << endl;
         exit(1);
     }
 
-    if (cJSON_GetArraySize(o) < 1) {
+    if (cJSON_GetArraySize(n) < 1) {
         cerr << "At least one validator enum element is required ("
              << key << ")" << endl;
         exit(1);
@@ -113,7 +147,7 @@ static string getEnumValidatorCode(const std::string &key, cJSON *o) {
     stringstream ss;
     ss << "(new EnumValidator())";
 
-    for (cJSON *p(o->child); p; p = p->next) {
+    for (cJSON* p(n->child); p; p = p->next) {
         if (p->type != cJSON_String) {
             cerr << "Incorrect validator for " << key
                  << ", all enum entries must be strings." << endl;
@@ -230,7 +264,13 @@ static string getValidator(const std::string &key, cJSON *o) {
         return "";
     }
 
-    cJSON *n = cJSON_GetArrayItem(o, 0);
+    cJSON* validator = cJSON_GetObjectItem(o, "validator");
+
+    if (validator == NULL) {
+        return "";
+    }
+
+    cJSON* n = cJSON_GetArrayItem(validator, 0);
     if (n == NULL) {
         return "";
     }
@@ -244,7 +284,7 @@ static string getValidator(const std::string &key, cJSON *o) {
         exit(1);
     }
 
-    return (iter->second)(key, n);
+    return (iter->second)(key, o);
 }
 
 static string getGetterPrefix(const string &str) {
@@ -291,8 +331,7 @@ static void generate(cJSON *o) {
         }
     }
 
-    string validator = getValidator(config_name,
-                                    cJSON_GetObjectItem(o, "validator"));
+    string validator = getValidator(config_name, o);
 
     // Generate prototypes
     prototypes << "    " << type
