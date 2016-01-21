@@ -97,6 +97,11 @@ struct settings {
     breakpad_settings_t breakpad; /* Breakpad crash catcher settings */
     const char *ssl_cipher_list; /* The SSL cipher list to use */
 
+    /**
+     * Should we deduplicate the cluster maps from the Not My VBucket messages
+     */
+    bool dedupe_nmvb_maps;
+
     /* flags for each of the above config options, indicating if they were
      * specified in a parsed config file.
      */
@@ -120,6 +125,7 @@ struct settings {
         bool root;
         bool breakpad;
         bool ssl_cipher_list;
+        bool dedupe_nmvb_maps;
     } has;
     /*************************************************************************
      * These settings are not exposed to the user, and are either derived from

@@ -297,6 +297,8 @@ static void settings_init(void) {
     settings.breakpad.enabled = false;
     settings.breakpad.minidump_dir = NULL;
     settings.breakpad.content = CONTENT_DEFAULT;
+
+    settings.dedupe_nmvb_maps = false;
 }
 
 static void settings_init_relocable_files(void)
@@ -805,6 +807,41 @@ static protocol_binary_response_status engine_error_2_protocol_error(ENGINE_ERRO
     return ret;
 }
 
+static int get_clustermap_revno(const char *map, size_t mapsize) {
+    /* Try to locate the "rev": field in the map. Unfortunately
+     * we can't use the function strnstr because it's not available
+     * on all platforms
+     */
+    const char* prefix = "\"rev\":";
+    size_t plen = strlen(prefix);
+    size_t index;
+
+    if (mapsize == 0 || *map != '{' || mapsize < (plen + 1)) {
+        /* This doesn't look like our cluster map */
+        return -1;
+    }
+    mapsize -= plen;
+
+    for (index = 1; index < mapsize; ++index) {
+        if (memcmp(map + index, prefix, plen) == 0) {
+            index += plen;
+            /* Found :-) */
+            while (isspace(map[index])) {
+                ++index;
+            }
+
+            if (!isdigit(map[index])) {
+                return -1;
+            }
+
+            return atoi(map + index);
+        }
+    }
+
+    /* not found */
+    return -1;
+}
+
 static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
                                        const void *map,
                                        size_t mapsize)
@@ -812,7 +849,19 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void *cookie,
     char *buf;
     conn *c = (conn*)cookie;
     protocol_binary_response_header header;
-    size_t needed = mapsize+ sizeof(protocol_binary_response_header);
+    size_t needed = sizeof(protocol_binary_response_header);
+
+    if (settings.dedupe_nmvb_maps) {
+        int revno = get_clustermap_revno(map, mapsize);
+        if (revno == c->clustermap_revno) {
+            /* The client already have this map... */
+            mapsize = 0;
+        } else if (revno != -1) {
+            c->clustermap_revno = revno;
+        }
+    }
+
+    needed += mapsize;
     if (!grow_dynamic_buffer(c, needed)) {
         if (settings.verbose > 0) {
             settings.extensions.logger->log(EXTENSION_LOG_INFO, c,

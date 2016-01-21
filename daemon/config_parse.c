@@ -689,6 +689,18 @@ static bool get_datatype(cJSON *o, struct settings *settings,
     }
 }
 
+static bool get_dedupe_nmvb_maps(cJSON* o, struct settings* settings,
+                                 char** error_msg) {
+    bool value;
+    if (get_bool_value(o, o->string, &value, error_msg)) {
+        settings->dedupe_nmvb_maps = value;
+        settings->has.dedupe_nmvb_maps = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
 static bool parse_breakpad(cJSON *o, struct settings *settings,
                            char** error_msg) {
     if (o->type != cJSON_Object) {
@@ -1095,6 +1107,12 @@ static bool dyna_validate_breakpad(const struct settings *new_settings,
     return true;
 }
 
+static bool dyna_validate_always_true(const struct settings *new_settings,
+                                      cJSON* errors) {
+    /* Its dynamic :-) */
+    return true;
+}
+
 /* dynamic reconfiguration handlers ******************************************/
 
 static void dyna_reconfig_iface_maxconns(const struct interface *new_if,
@@ -1314,6 +1332,13 @@ static void dyna_reconfig_ssl_cipher_list(const struct settings *new_settings) {
     }
 }
 
+static void dyna_reconfig_dedupe_nmvb_maps(const struct settings* new_settings) {
+    if (new_settings->has.dedupe_nmvb_maps) {
+        settings.dedupe_nmvb_maps = new_settings->dedupe_nmvb_maps;
+        settings.has.dedupe_nmvb_maps = true;
+    }
+}
+
 /* list of handlers for each setting */
 
 struct {
@@ -1346,6 +1371,8 @@ struct {
     { "ssl_cipher_list", get_ssl_cipher_list, dyna_validate_ssl_cipher_list,
       dyna_reconfig_ssl_cipher_list },
     { "breakpad", parse_breakpad, dyna_validate_breakpad, dyna_reconfig_breakpad },
+    { "dedupe_nmvb_maps", get_dedupe_nmvb_maps, dyna_validate_always_true,
+      dyna_reconfig_dedupe_nmvb_maps},
     { NULL, NULL, NULL, NULL }
 };
 

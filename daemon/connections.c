@@ -338,6 +338,7 @@ conn *conn_new(const SOCKET sfd, in_port_t parent_port,
     c->aiostat = ENGINE_SUCCESS;
     c->ewouldblock = false;
     c->refcount = 1;
+    c->clustermap_revno = -2;
 
     MEMCACHED_CONN_ALLOCATE(c->sfd);
 
@@ -408,6 +409,7 @@ static void conn_cleanup(conn *c) {
         SSL_CTX_free(c->ssl.ctx);
         memset(&c->ssl, 0, sizeof(c->ssl));
     }
+    c->clustermap_revno = -2;
 }
 
 void conn_close(conn *c) {

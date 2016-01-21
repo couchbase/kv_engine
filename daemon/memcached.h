@@ -356,6 +356,9 @@ struct conn {
     } ssl;
 
     auth_context_t *auth_context;
+
+    /* The revision number of the clustermap sent to the client */
+    int clustermap_revno;
 };
 
 /* list of listening connections */
