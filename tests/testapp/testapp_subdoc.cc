@@ -889,7 +889,7 @@ void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
     // Configure the ewouldblock_engine to inject fake CAS failure for the
     // 3rd call (i.e. the 1st engine->store() attempt). We only expect 6 calls
     // total, so also make anything after that fail.
-    ewouldblock_engine_configure(ENGINE_KEY_EEXISTS, EWBEngineMode_SEQUENCE,
+    ewouldblock_engine_configure(ENGINE_KEY_EEXISTS, EWBEngineMode::Sequence,
                                  0xffffffc4 /* <3 MSBytes all-ones>, 0b11,000,100 */);
 
     // .. Yet a client request should succeed, as internal CAS failure should
@@ -902,7 +902,7 @@ void McdTestappTest::test_subdoc_dict_add_cas(bool compress,
 
     // Setup ewouldblock_engine - first two calls succeed, 3rd (engine->store)
     // fails. Do not expect more than 3 calls so make any further calls error.
-    ewouldblock_engine_configure(ENGINE_KEY_EEXISTS, EWBEngineMode_SEQUENCE,
+    ewouldblock_engine_configure(ENGINE_KEY_EEXISTS, EWBEngineMode::Sequence,
                                  0xfffffffc /* <3 MSBytes all-ones>, 0b11,111,100 */);
 
     expect_subdoc_cmd(SubdocCmd(cmd, "dict","new_int4", "4",
@@ -1753,8 +1753,9 @@ TEST_P(McdTestappTest, SubdocCASAutoRetry)
 
     // 1. Setup ewouldblock_engine - make the first three store commands return
     // EXISTS.
-    ewouldblock_engine_configure(/*not used for this mode*/ENGINE_SUCCESS,
-                                 EWBEngineMode_CAS_MISMATCH, 3);
+    ewouldblock_engine_configure(ENGINE_SUCCESS, // not used for this mode
+                                 EWBEngineMode::CasMismatch,
+                                 3);
 
     // Issue a DICT_ADD without an explicit CAS. We should have an auto-retry
     // occur (and the command succeed).
@@ -1764,15 +1765,16 @@ TEST_P(McdTestappTest, SubdocCASAutoRetry)
 
     // 2. Now retry with MAXIMUM_ATTEMPTS-1 CAS mismatches - this should still
     // succeed.
-    ewouldblock_engine_configure(/*not used for this mode*/ENGINE_SUCCESS,
-                                 EWBEngineMode_CAS_MISMATCH, 99);
+    ewouldblock_engine_configure(ENGINE_SUCCESS, // not used for this mode
+                                 EWBEngineMode::CasMismatch, 99);
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                                 "a", "key2", "2"),
                       PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
 
     // 3. Now with MAXIMUM_ATTEMPTS CAS mismatches - this should return TMPFAIL.
-    ewouldblock_engine_configure(/*not used for this mode*/ENGINE_SUCCESS,
-                                 EWBEngineMode_CAS_MISMATCH, 100);
+    ewouldblock_engine_configure(ENGINE_SUCCESS, // not used for this mode
+                                 EWBEngineMode::CasMismatch,
+                                 100);
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                                 "a", "key3", "3"),
                       PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "");
@@ -1836,7 +1838,8 @@ TEST_P(McdTestappTest, SubdocGet_NotMyVbucket)
     store_object("array", array);
 
     // Make the next engine operation (get) return NOT_MY_VBUCKET.
-    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode_NEXT_N, 1);
+    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode::Next_N,
+                                 1);
 
     // Should fail with NOT-MY-VBUCKET, and a non-zero length body including the
     // cluster config.
@@ -1860,7 +1863,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_NotMyVbucket)
     // Configure the ewouldblock_engine to inject fake NOT-MY-VBUCKET failure
     // for the 3rd call (i.e. the 1st engine->store() attempt). We only expect 6 calls
     // total, so also make anything after that fail.
-    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode_SEQUENCE,
+    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode::Sequence,
                                  0xffffffc4 /* <3 MSBytes all-ones>, 0b11,000,100 */);
 
     // Should fail with NOT-MY-VBUCKET, and a non-zero length body including the

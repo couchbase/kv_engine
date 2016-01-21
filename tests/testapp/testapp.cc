@@ -186,7 +186,7 @@ void TestappTest::SetUp() {
     ASSERT_NE(INVALID_SOCKET, sock);
 
     // Set ewouldblock_engine test harness to default mode.
-    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_FIRST,
+    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::First,
                                  /*unused*/0);
 
     enabled_hello_features.clear();
@@ -224,7 +224,7 @@ void McdTestappTest::SetUp() {
     }
 
     // Set ewouldblock_engine test harness to default mode.
-    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_FIRST,
+    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::First,
                                  /*unused*/0);
 }
 
@@ -1016,8 +1016,8 @@ bool safe_recv_packet(void *buf, size_t size) {
 // Configues the ewouldblock_engine to use the given mode; value
 // is a mode-specific parameter.
 void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
-                                                  EWBEngine_Mode mode,
-                                                  uint32_t value) {
+                                               const EWBEngineMode& mode,
+                                               uint32_t value) {
     union {
         request_ewouldblock_ctl request;
         protocol_binary_response_no_extras response;
@@ -1027,7 +1027,7 @@ void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL,
                                   NULL, 0, NULL, 0);
-    buffer.request.message.body.mode = htonl(mode);
+    buffer.request.message.body.mode = htonl(static_cast<uint32_t>(mode));
     buffer.request.message.body.value = htonl(value);
     buffer.request.message.body.inject_error = htonl(err_code);
 
@@ -1041,7 +1041,7 @@ void TestappTest::ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
 
 void TestappTest::ewouldblock_engine_disable() {
     // Value for err_code doesn't matter...
-    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_NEXT_N, 0);
+    ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N, 0);
 }
 
 // Note: retained as a seperate function as other tests call this.

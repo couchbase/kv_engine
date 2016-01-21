@@ -332,7 +332,7 @@ public:
         if (request->request.opcode == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
             request_ewouldblock_ctl* req =
                     reinterpret_cast<request_ewouldblock_ctl*>(request);
-            const EWBEngine_Mode mode = static_cast<EWBEngine_Mode>(ntohl(req->message.body.mode));
+            const EWBEngineMode mode = static_cast<EWBEngineMode>(ntohl(req->message.body.mode));
             const uint32_t value = ntohl(req->message.body.value);
             const ENGINE_ERROR_CODE injected_error =
                     static_cast<ENGINE_ERROR_CODE>(ntohl(req->message.body.inject_error));
@@ -341,23 +341,23 @@ public:
 
             // Validate mode, and construct new fault injector.
             switch (mode) {
-                case EWBEngineMode_NEXT_N:
+                case EWBEngineMode::Next_N:
                     new_mode = std::make_shared<ErrOnNextN>(injected_error, value);
                     break;
 
-                case EWBEngineMode_RANDOM:
+                case EWBEngineMode::Random:
                     new_mode = std::make_shared<ErrRandom>(injected_error, value);
                     break;
 
-                case EWBEngineMode_FIRST:
+                case EWBEngineMode::First:
                     new_mode = std::make_shared<ErrOnFirst>(injected_error);
                     break;
 
-                case EWBEngineMode_SEQUENCE:
+                case EWBEngineMode::Sequence:
                     new_mode = std::make_shared<ErrSequence>(injected_error, value);
                     break;
 
-                case EWBEngineMode_CAS_MISMATCH:
+                case EWBEngineMode::CasMismatch:
                     new_mode = std::make_shared<CASMismatch>(value);
                     break;
 

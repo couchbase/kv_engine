@@ -102,7 +102,7 @@ public:
         ASSERT_NE(INVALID_SOCKET, sock);
 
         // Set ewouldblock_engine test harness to default mode.
-        ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_FIRST,
+        ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::First,
                                      /*unused*/0);
         setControlToken();
     }

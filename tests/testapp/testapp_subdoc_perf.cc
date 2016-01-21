@@ -39,7 +39,7 @@ public:
     void SetUp() {
         TestappTest::SetUp();
         // Performance test - disable ewouldblock_engine.
-        ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode_NEXT_N,
+        ewouldblock_engine_configure(ENGINE_EWOULDBLOCK, EWBEngineMode::Next_N,
                                      0);
         iterations = 5000;
     }

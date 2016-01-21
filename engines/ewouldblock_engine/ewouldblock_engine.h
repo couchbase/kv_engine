@@ -58,28 +58,27 @@ extern "C" {
 
 // The mode the engine is currently operating in. Determines when it will
 // inject EWOULDBLOCK instead of the real return code.
-enum EWBEngine_Mode {
-    EWBEngineMode_NEXT_N, // Make the next_N calls into engine return
-                          // {inject_error}. N specified by the {value} field.
-  
-    EWBEngineMode_RANDOM, // Randomly return {inject_error}. Chance to return
-                          // {inject_error} is specified as an integer
-                          // percentage (1,100) in the {value} field.
-  
-    EWBEngineMode_FIRST,  // The first call to a given function from each
-                          // connection will return {inject_error}, with the
-                          // next (and subsequent) calls to he *same*
-                          // function operating normally. Calling a
-                          // different function will reset back to
-                          // failing again.  In other words, return
-                          // {inject_error} iif the previous function was not
-                          // this one.
+enum class EWBEngineMode : uint32_t {
+    // Make the next_N calls into engine return {inject_error}. N specified
+    // by the {value} field.
+    Next_N = 0,
 
-    EWBEngineMode_SEQUENCE, // Make the next N calls return a sequence of either
-                          // their normal value or the injected error code.
-                          // The sequence can be up to 32 elements long.
+    // Randomly return {inject_error}. Chance to return {inject_error} is
+    // specified as an integer percentage (1,100) in the {value} field.
+    Random = 1,
 
-    EWBEngineMode_CAS_MISMATCH, // Simulate CAS mismatch - make the next N
-                          // store operations return KEY_EEXISTS. N specified
-                          // by the {value} field.
+    // The first call to a given function from each connection will return
+    // {inject_error}, with the next (and subsequent) calls to he *same*
+    // function operating normally. Calling a different function will reset
+    // back to failing again.  In other words, return {inject_error} iif the
+    // previous function was not this one.
+    First = 2,
+
+    // Make the next N calls return a sequence of either their normal value or
+    // the injected error code. The sequence can be up to 32 elements long.
+    Sequence = 3,
+
+    // Simulate CAS mismatch - make the next N store operations return
+    // KEY_EEXISTS. N specified by the {value} field.
+    CasMismatch = 4
 };

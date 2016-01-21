@@ -108,7 +108,7 @@ protected:
 
     /* Configure the ewouldblock error-injecting engine */
     static void ewouldblock_engine_configure(ENGINE_ERROR_CODE err_code,
-                                             EWBEngine_Mode mode,
+                                             const EWBEngineMode& mode,
                                              uint32_t value);
 
     /* Disable the ewouldblock_engine. */
