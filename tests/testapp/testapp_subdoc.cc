@@ -1844,8 +1844,7 @@ TEST_P(McdTestappTest, SubdocGet_NotMyVbucket)
     // Should fail with NOT-MY-VBUCKET, and a non-zero length body including the
     // cluster config.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[0]"),
-                      PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-                      "EWB_Engine dummy vb map");
+                      PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "");
 
     // Second attempt should succced (as only next 1 engine op was set to fail).
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "array", "[0]"),
@@ -1870,8 +1869,7 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_NotMyVbucket)
     // cluster config.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
                                 "array", "", "1"),
-                      PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
-                      "EWB_Engine dummy vb map");
+                      PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, "");
 
     // Second attempt should succced (as only next 1 engine op was set to fail).
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,

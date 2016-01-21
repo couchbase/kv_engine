@@ -4212,6 +4212,72 @@ TEST_P(McdTestappTest, test_MB_16198) {
 }
 
 
+/**
+ * Test that we dedupe NVMB requests
+ */
+TEST_P(McdTestappTest, test_MB_17506) {
+    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode::Next_N,
+                                 2);
+    union {
+        protocol_binary_request_tap_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    // the next two ops should return not my vbucket...
+    std::string key = "key";
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_GET,
+                     key.data(), key.length(), nullptr, 0);
+
+    safe_send(frame.payload.data(), frame.payload.size(), false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_GET,
+                                  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+
+    EXPECT_NE(0, buffer.response.message.header.response.bodylen);
+    std::string payload(
+        (char*)buffer.response.bytes + sizeof(buffer.response.message.header),
+        buffer.response.message.header.response.bodylen);
+    unique_cJSON_ptr ptr(cJSON_Parse(payload.c_str()));
+    EXPECT_NE(nullptr, ptr.get());
+    EXPECT_NE(nullptr, cJSON_GetObjectItem(ptr.get(), "rev"));
+
+    // Resend the command, and this time we shouldn't get the cluster map in
+    // the return
+    safe_send(frame.payload.data(), frame.payload.size(), false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_GET,
+                                  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+
+    EXPECT_EQ(0, buffer.response.message.header.response.bodylen);
+
+
+    // Change the clustermap
+    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET,
+                                 EWBEngineMode::IncrementClusterMapRevno, 0);
+    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode::Next_N,
+                                 2);
+
+    // Rensend the request and expect a new clustermap
+    safe_send(frame.payload.data(), frame.payload.size(), false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_GET,
+                                  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+
+    EXPECT_NE(0, buffer.response.message.header.response.bodylen);
+
+    // Resend the command, and this time we shouldn't get the cluster map in
+    // the return
+    safe_send(frame.payload.data(), frame.payload.size(), false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_GET,
+                                  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+
+    EXPECT_EQ(0, buffer.response.message.header.response.bodylen);
+}
+
+
 INSTANTIATE_TEST_CASE_P(PlainOrSSL,
                         McdTestappTest,
                         ::testing::Values(Transport::Plain, Transport::SSL));

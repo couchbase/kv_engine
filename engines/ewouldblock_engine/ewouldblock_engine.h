@@ -80,5 +80,9 @@ enum class EWBEngineMode : uint32_t {
 
     // Simulate CAS mismatch - make the next N store operations return
     // KEY_EEXISTS. N specified by the {value} field.
-    CasMismatch = 4
+    CasMismatch = 4,
+
+    // Increment the cluster map sequence number. Value and inject_error is
+    // ignored for this opcode
+    IncrementClusterMapRevno = 5
 };

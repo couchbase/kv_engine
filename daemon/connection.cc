@@ -69,15 +69,15 @@ Connection::Connection(SOCKET sfd, event_base* b)
       bucketEngine(nullptr),
       peername("unknown"),
       sockname("unknown"),
-      priority(Priority::Medium) {
+      priority(Priority::Medium),
+      clustermap_revno(-2) {
     MEMCACHED_CONN_CREATE(this);
 }
 
 Connection::Connection(SOCKET sock,
                        event_base* b,
                        const struct listening_port& interface)
-    : Connection(sock, b)
-{
+    : Connection(sock, b) {
     parent_port = interface.port;
     resolveConnectionName(false);
     setAuthContext(auth_create(NULL, peername.c_str(), sockname.c_str()));
@@ -272,6 +272,12 @@ cJSON* Connection::toJSON() const {
         json_add_uintptr_to_object(obj, "thread", (uintptr_t)thread.load(
             std::memory_order::memory_order_relaxed));
         cJSON_AddStringToObject(obj, "priority", to_string(priority));
+
+        if (clustermap_revno == -2) {
+            cJSON_AddStringToObject(obj, "clustermap_revno", "unknown");
+        } else {
+            cJSON_AddNumberToObject(obj, "clustermap_revno", clustermap_revno);
+        }
     }
     return obj;
 }

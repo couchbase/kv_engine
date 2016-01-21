@@ -337,6 +337,15 @@ public:
 
     virtual void runEventLoop(short which) = 0;
 
+
+    int getClustermapRevno() const {
+        return clustermap_revno;
+    }
+
+    void setClustermapRevno(int clustermap_revno) {
+        Connection::clustermap_revno = clustermap_revno;
+    }
+
 protected:
     Connection(SOCKET sfd, event_base* b);
 
@@ -413,6 +422,9 @@ protected:
 
     /** The connections priority */
     Priority priority;
+
+    /** The cluster map revision used by this client */
+    int clustermap_revno;
 };
 
 /**

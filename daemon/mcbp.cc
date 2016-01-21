@@ -22,13 +22,57 @@
 
 #include <snappy-c.h>
 
+static int get_clustermap_revno(const char *map, size_t mapsize) {
+    /* Try to locate the "rev": field in the map. Unfortunately
+     * we can't use the function strnstr because it's not available
+     * on all platforms
+     */
+    const std::string prefix = "\"rev\":";
+
+    if (mapsize == 0 || *map != '{' || mapsize < (prefix.length() + 1) ) {
+        /* This doesn't look like our cluster map */
+        return -1;
+    }
+    mapsize -= prefix.length();
+
+    for (size_t index = 1; index < mapsize; ++index) {
+        if (memcmp(map + index, prefix.data(), prefix.length()) == 0) {
+            index += prefix.length();
+            /* Found :-) */
+            while (isspace(map[index])) {
+                ++index;
+            }
+
+            if (!isdigit(map[index])) {
+                return -1;
+            }
+
+            return atoi(map + index);
+        }
+    }
+
+    /* not found */
+    return -1;
+}
+
 static ENGINE_ERROR_CODE get_vb_map_cb(const void* cookie,
                                        const void* map,
                                        size_t mapsize) {
     char* buf;
     McbpConnection* c = (McbpConnection*)cookie;
     protocol_binary_response_header header;
-    size_t needed = mapsize + sizeof(protocol_binary_response_header);
+    int revno = get_clustermap_revno(reinterpret_cast<const char*>(map),
+                                     mapsize);
+    size_t needed = sizeof(protocol_binary_response_header);
+
+    if (revno == c->getClustermapRevno()) {
+        /* The client already have this map... */
+        mapsize = 0;
+    } else if (revno != -1) {
+        c->setClustermapRevno(revno);
+    }
+
+    needed += mapsize;
     if (!c->growDynamicBuffer(needed)) {
         LOG_WARNING(c, "<%d ERROR: Failed to allocate memory for response",
                     c->getId());

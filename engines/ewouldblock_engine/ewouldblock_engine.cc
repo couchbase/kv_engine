@@ -361,6 +361,13 @@ public:
                     new_mode = std::make_shared<CASMismatch>(value);
                     break;
 
+                case EWBEngineMode::IncrementClusterMapRevno:
+                    ewb->clustermap_revno++;
+                    response(nullptr, 0, nullptr, 0, nullptr, 0,
+                             PROTOCOL_BINARY_RAW_BYTES,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
+                    return ENGINE_SUCCESS;
+
                 default:
                     break;
             }
@@ -436,8 +443,9 @@ public:
         auto logger = ewb->gsa()->log->get_logger();
         logger->log(EXTENSION_LOG_DEBUG, NULL, "EWB_Engine::get_engine_vb_map");
 
-        const char dummy_vb_map[] = "EWB_Engine dummy vb map";
-        callback(cookie, dummy_vb_map, strlen(dummy_vb_map));
+        std::string vbmap =
+            "{\"rev\":" + std::to_string(ewb->clustermap_revno.load()) + "}";
+        callback(cookie, vbmap.data(), vbmap.length());
 
         return ENGINE_SUCCESS;
     }
@@ -454,6 +462,8 @@ public:
     ENGINE_HANDLE* real_handle;
     ENGINE_HANDLE_V1* real_engine;
     engine_reference* real_engine_ref;
+
+    std::atomic_int clustermap_revno;
 
 private:
 
@@ -669,6 +679,8 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     info.eng_info.description = "EWOULDBLOCK Engine";
     info.eng_info.features[info.eng_info.num_features++].feature = ENGINE_FEATURE_LRU;
     info.eng_info.features[info.eng_info.num_features++].feature = ENGINE_FEATURE_DATATYPE;
+
+    clustermap_revno = 1;
 
     // Spin up a background thread to perform IO notifications.
     if (cb_create_named_thread(&notification_thread, &process_pending_queue,
