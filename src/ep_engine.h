@@ -346,7 +346,11 @@ public:
                 delete itm;
                 return ENGINE_TMPFAIL;
             }
-            cb_assert(itm->getCas());
+            if (itm->getCas() == 0) {
+                // A zero cas should not be possible for a valid item
+                delete itm;
+                return ENGINE_EINVAL;
+            }
             if ((errno != ERANGE) && (isspace(*endptr)
                                       || (*endptr == '\0' && endptr != data))) {
                 if (increment) {
