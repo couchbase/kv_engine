@@ -10609,6 +10609,9 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, last_status.load(),
             "Expected Not Supported, as Time sync hasn't been enabled yet");
 
+    checkeq(0, get_int_stat(h, h1, "vb_0:drift_counter", "vbucket-details"),
+            "Unexpected initial drift counter for vb 0");
+
     set_drift_counter_state(h, h1, 1000, 0x01);
 
     time_sync = get_str_stat(h, h1, "vb_0:time_sync", "vbucket-details");
