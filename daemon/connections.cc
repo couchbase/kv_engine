@@ -564,3 +564,43 @@ static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
         /* Partial data exists; leave the buffer with the connection. */
     }
 }
+
+ENGINE_ERROR_CODE apply_connection_trace_mask(const std::string& key,
+                                              const std::string& mask) {
+    const std::string prefix("trace.connection.");
+    std::string connid = key.substr(prefix.length());
+    auto idx = connid.find('.');
+    if (idx != std::string::npos) {
+        connid.resize(idx);
+    }
+
+    uint32_t id;
+    try {
+        id = static_cast<uint32_t>(std::stoi(connid));
+    } catch (...) {
+        return ENGINE_EINVAL;
+    }
+
+    bool enable = mask != "0";
+    bool found = false;
+
+    {
+        // Lock the connection array to avoid race conditions with
+        // connections being added / removed / destroyed
+        std::unique_lock<std::mutex> lock(connections.mutex);
+        for (auto* c : connections.conns) {
+            if (c->getId() == id) {
+                c->setTraceEnabled(enable);
+                found = true;
+            }
+        }
+    }
+
+    if (found) {
+        const char *message = enable ? "Enabled" : "Disabled";
+        LOG_NOTICE(nullptr, "%s trace for %u", message, id);
+        return ENGINE_SUCCESS;
+    }
+
+    return ENGINE_KEY_ENOENT;
+}

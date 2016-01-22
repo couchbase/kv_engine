@@ -990,12 +990,18 @@ void McbpConnection::setState(TaskFunction next_state) {
 }
 
 void McbpConnection::runStateMachinery() {
-    do {
-        if (settings.verbose) {
+    if (isTraceEnabled()) {
+        do {
+            // @todo we should have a TRACE scope!!
+            LOGGER(EXTENSION_LOG_NOTICE, this, "%u - Running task: (%s)",
+                   getId(), stateMachine->getCurrentTaskName());
+        } while (stateMachine->execute(*this));
+    } else {
+        do {
             LOG_DEBUG(this, "%u - Running task: (%s)", getId(),
                       stateMachine->getCurrentTaskName());
-        }
-    } while (stateMachine->execute(*this));
+        } while (stateMachine->execute(*this));
+    }
 }
 
 /**

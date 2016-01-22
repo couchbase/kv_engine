@@ -346,6 +346,14 @@ public:
         Connection::clustermap_revno = clustermap_revno;
     }
 
+    bool isTraceEnabled() const {
+        return trace_enabled;
+    }
+
+    void setTraceEnabled(bool trace_enabled) {
+        Connection::trace_enabled = trace_enabled;
+    }
+
 protected:
     Connection(SOCKET sfd, event_base* b);
 
@@ -425,6 +433,13 @@ protected:
 
     /** The cluster map revision used by this client */
     int clustermap_revno;
+
+    /**
+     * is trace enabled for this connection or not. Initially we'll just
+     * have an on/off switch.. We'll be refactoring this into multiple
+     * subgroups at some point.
+     */
+    bool trace_enabled;
 };
 
 /**

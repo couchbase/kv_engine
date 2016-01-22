@@ -70,7 +70,8 @@ Connection::Connection(SOCKET sfd, event_base* b)
       peername("unknown"),
       sockname("unknown"),
       priority(Priority::Medium),
-      clustermap_revno(-2) {
+      clustermap_revno(-2),
+      trace_enabled(false) {
     MEMCACHED_CONN_CREATE(this);
 }
 
