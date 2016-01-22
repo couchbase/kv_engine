@@ -41,6 +41,11 @@ void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction t
             connection.setCurrentEvent(EV_WRITE);
             task = conn_ship_log;
         }
+
+        if (task == conn_read) {
+            // If we're starting to read data, reset any running timers
+            connection.setStart(0);
+        }
     }
 
     if (settings.verbose > 2 || task == conn_closing
