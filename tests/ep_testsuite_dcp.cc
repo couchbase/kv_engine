@@ -549,134 +549,118 @@ extern "C" {
 
 static enum test_result test_dcp_vbtakeover_no_stream(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
-
-    int num_items = 10;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
+    for (auto j = 0; j < 10; ++j) {
+        item *i = nullptr;
+        const auto key = "key" + std::to_string(j);
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data", &i),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, nullptr, i);
     }
-
-    int est = get_int_stat(h, h1, "estimate", "dcp-vbtakeover 0");
+    const auto est = get_int_stat(h, h1, "estimate", "dcp-vbtakeover 0");
     checkeq(10, est, "Invalid estimate for non-existent stream");
-
     checkeq(ENGINE_NOT_MY_VBUCKET,
-            h1->get_stats(h, NULL, "dcp-vbtakeover 1",
+            h1->get_stats(h, nullptr, "dcp-vbtakeover 1",
                           strlen("dcp-vbtakeover 1"), add_stats),
             "Expected not my vbucket");
-
     return SUCCESS;
 }
 
 static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
-
-    int num_items = 10;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+    for (auto j = 0; j < 10; ++j) {
+        item *i = nullptr;
+        const auto key = "key" + std::to_string(j);
+        checkeq(ENGINE_SUCCESS, store(h, h1, nullptr, OPERATION_SET,
+                                      key.c_str(), "data", &i),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, nullptr, i);
     }
-
-    const void *cookie = testHarness.create_cookie();
+    const auto *cookie = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t seqno = 0;
+    const uint16_t vbucket = 0;
     uint32_t opaque = 0;
-    uint32_t flags = DCP_OPEN_NOTIFIER;
-    const char *name = "unittest";
-    uint16_t nname = strlen(name);
+    uint64_t start = 0;
 
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie, opaque, seqno, DCP_OPEN_NOTIFIER,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp notifier open connection.");
-
     // Get notification for an old item
-    notifier_request(h, h1, cookie, ++opaque, 0, 0, true);
+    notifier_request(h, h1, cookie, ++opaque, vbucket, start, true);
     dcp_step(h, h1, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
-            dcp_last_op,
-            "Expected stream end");
-
+            dcp_last_op, "Expected stream end");
     // Get notification when we're slightly behind
-    notifier_request(h, h1, cookie, ++opaque, 0, 9, true);
+    start += 9;
+    notifier_request(h, h1, cookie, ++opaque, vbucket, start, true);
     dcp_step(h, h1, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
-            dcp_last_op,
-            "Expected stream end");
-
+            dcp_last_op, "Expected stream end");
     // Wait for notification of a future item
-    notifier_request(h, h1, cookie, ++opaque, 0, 20, true);
+    start += 11;
+    notifier_request(h, h1, cookie, ++opaque, vbucket, start, true);
     dcp_step(h, h1, cookie);
-
-    for (int j = 0; j < 5; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
+    for (auto j = 0; j < 5; ++j) {
+        item *i = nullptr;
+        const auto key = "key" + std::to_string(j);
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                store(h, h1, nullptr, OPERATION_SET, key.c_str(),
+                      "data", &i),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, nullptr, i);
     }
-
     // Shouldn't get a stream end yet
     dcp_step(h, h1, cookie);
     check(dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_END,
           "Wasn't expecting a stream end");
-
-    for (int j = 0; j < 6; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
+    for (auto j = 0; j < 6; ++j) {
+        item *i = nullptr;
+        const auto key = "key" + std::to_string(j);
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
+                store(h, h1, nullptr, OPERATION_SET, key.c_str(),
+                      "data", &i),
                 "Failed to store a value");
-        h1->release(h, NULL, i);
+        h1->release(h, nullptr, i);
     }
-
     // Should get a stream end
     dcp_step(h, h1, cookie);
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
-            dcp_last_op,
-            "Expected stream end");
-
+            dcp_last_op, "Expected stream end");
     testHarness.destroy_cookie(cookie);
-
     return SUCCESS;
 }
 
 static enum test_result test_dcp_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const void *cookie1 = testHarness.create_cookie();
-    uint32_t opaque = 0;
-    uint32_t seqno = 0;
-    uint32_t flags = 0;
-    const char *name = "unittest";
-    uint16_t nname = strlen(name);
-
+    const auto *cookie1 = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t opaque = 0;
+    const uint32_t seqno = 0;
+    const uint32_t flags = 0;
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie1, opaque, seqno, flags,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp consumer open connection.");
 
-    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
-    int created = get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp");
+    const auto stat_type("eq_dcpq:" + name + ":type");
+    auto type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    const auto stat_created("eq_dcpq:" + name + ":created");
+    const auto created = get_int_stat(h, h1, stat_created.c_str(), "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
     testHarness.destroy_cookie(cookie1);
 
     testHarness.time_travel(600);
 
-    const void *cookie2 = testHarness.create_cookie();
+    const auto *cookie2 = testHarness.create_cookie();
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie2, opaque, seqno, flags,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp consumer open connection.");
 
-    type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
-    check(get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp") > created,
+    check(get_int_stat(h, h1, stat_created.c_str(), "dcp") > created,
           "New dcp stream is not newer");
     testHarness.destroy_cookie(cookie2);
 
@@ -685,18 +669,18 @@ static enum test_result test_dcp_consumer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
 static enum test_result test_dcp_consumer_flow_control_none(ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
-    const void *cookie1 = testHarness.create_cookie();
-    uint32_t opaque = 0;
-    uint32_t seqno = 0;
-    uint32_t flags = 0;
-    std::string name("unittest");
-    std::string stats_buffer("eq_dcpq:" + name + ":max_buffer_bytes");
-
-    checkeq(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name.c_str(),
-                         name.length()), ENGINE_SUCCESS,
+    const auto *cookie1 = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t opaque = 0;
+    const uint32_t seqno = 0;
+    const uint32_t flags = 0;
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie1, opaque, seqno, flags,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp consumer open connection.");
 
-    checkeq((uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"), (uint32_t)0,
+    const auto stat_name("eq_dcpq:" + name + ":max_buffer_bytes");
+    checkeq(0, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not zero");
     testHarness.destroy_cookie(cookie1);
 
@@ -705,20 +689,20 @@ static enum test_result test_dcp_consumer_flow_control_none(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_consumer_flow_control_static(ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
-    const void *cookie1 = testHarness.create_cookie();
-    const uint32_t flow_ctl_buf_def_size = 10485760;
-    uint32_t opaque = 0;
-    uint32_t seqno = 0;
-    uint32_t flags = 0;
-    std::string name("unittest");
-    std::string stats_buffer("eq_dcpq:" + name + ":max_buffer_bytes");
-
-    checkeq(h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name.c_str(),
-                         name.length()), ENGINE_SUCCESS,
+    const auto *cookie1 = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t opaque = 0;
+    const uint32_t seqno = 0;
+    const uint32_t flags = 0;
+    const auto flow_ctl_buf_def_size = 10485760;
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie1, opaque, seqno, flags,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp consumer open connection.");
 
-    checkeq((uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
-            flow_ctl_buf_def_size,
+    const auto stat_name("eq_dcpq:" + name + ":max_buffer_bytes");
+    checkeq(flow_ctl_buf_def_size,
+            get_int_stat(h, h1, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to default value");
     testHarness.destroy_cookie(cookie1);
 
@@ -727,17 +711,11 @@ static enum test_result test_dcp_consumer_flow_control_static(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_consumer_flow_control_dynamic(ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
-    const void *cookie1 = testHarness.create_cookie();
-    uint32_t opaque = 0;
-    uint32_t seqno = 0;
-    uint32_t flags = 0;
-    const char *name = "unittest";
-    uint16_t nname = strlen(name);
-    char stats_buffer[50];
-
-    snprintf(stats_buffer, sizeof(stats_buffer),
-             "eq_dcpq:%s:max_buffer_bytes", name);
-
+    const auto *cookie1 = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t opaque = 0;
+    const uint32_t seqno = 0;
+    const uint32_t flags = 0;
     /* Check the min limit */
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
               "500000000");
@@ -745,61 +723,70 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(ENGINE_HANDLE *h,
             "Incorrect new size.");
 
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie1, opaque, seqno, flags,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp consumer open connection.");
 
-    checkeq(10485760, get_int_stat(h, h1, stats_buffer, "dcp"),
+    const auto stat_name("eq_dcpq:" + name + ":max_buffer_bytes");
+    checkeq(10485760,
+            get_int_stat(h, h1, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to min");
     testHarness.destroy_cookie(cookie1);
 
     /* Check the size as percentage of the bucket memory */
-    const void *cookie2 = testHarness.create_cookie();
+    const auto *cookie2 = testHarness.create_cookie();
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
               "2000000000");
     checkeq(2000000000, get_int_stat(h, h1, "ep_max_size"),
             "Incorrect new size.");
 
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie2, opaque, seqno, flags,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp consumer open connection.");
 
-    checkeq(20000000, get_int_stat(h, h1, stats_buffer, "dcp"),
+    checkeq(20000000,
+            get_int_stat(h, h1, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to 1% of mem size");
     testHarness.destroy_cookie(cookie2);
 
     /* Check the case when mem used by flow control bufs hit the threshold */
     /* Create around 10 more connections to use more than 10% of the total
        memory */
-    for (int count = 0; count < 10; count++) {
-        const void *cookie = testHarness.create_cookie();
+    for (auto count = 0; count < 10; count++) {
+        const auto *cookie = testHarness.create_cookie();
         checkeq(ENGINE_SUCCESS,
-                h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+                h1->dcp.open(h, cookie, opaque, seqno, flags,
+                             (void*)name.c_str(), name.size()),
                 "Failed dcp consumer open connection.");
         testHarness.destroy_cookie(cookie);
     }
     /* By now mem used by flow control bufs would have crossed the threshold */
-    const void *cookie3 = testHarness.create_cookie();
+    const auto *cookie3 = testHarness.create_cookie();
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie3, opaque, seqno, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie3, opaque, seqno, flags,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp consumer open connection.");
 
-    checkeq(10485760, get_int_stat(h, h1, stats_buffer, "dcp"),
+    checkeq(10485760,
+            get_int_stat(h, h1, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to min after threshold is hit");
     testHarness.destroy_cookie(cookie3);
 
     /* Check the max limit */
-    const void *cookie4 = testHarness.create_cookie();
+    const auto *cookie4 = testHarness.create_cookie();
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
               "7000000000");
     checkeq(static_cast<uint64_t>(7000000000),
-            get_ull_stat(h, h1, "ep_max_size"),
-            "Incorrect new size.");
+            get_ull_stat(h, h1, "ep_max_size"), "Incorrect new size.");
 
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie4, opaque, seqno, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie4, opaque, seqno, flags,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp consumer open connection.");
 
-    checkeq(52428800, get_int_stat(h, h1, stats_buffer, "dcp"),
+    checkeq(52428800,
+            get_int_stat(h, h1, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size beyond max");
     testHarness.destroy_cookie(cookie4);
 
@@ -809,93 +796,85 @@ static enum test_result test_dcp_consumer_flow_control_dynamic(ENGINE_HANDLE *h,
 static enum test_result test_dcp_consumer_flow_control_aggressive(
                                                         ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
-    const size_t ep_max_size = 1200000000;
-    const uint32_t flow_ctl_buf_min = 10485760, flow_ctl_buf_max = 52428800;
-    const double bucketMemQuotaFraction = 0.05;
-    const int8_t max_conns = 6;
-    const void *cookie[max_conns] = {NULL};
-
-    uint32_t opaque = 0, seqno = 0, flags = 0;
-    std::string name("unittest_");
+    const auto max_conns = 6;
+    const void *cookie[max_conns];
+    const auto flow_ctl_buf_max = 52428800;
+    const auto flow_ctl_buf_min = 10485760;
+    const auto ep_max_size = 1200000000;
+    const auto bucketMemQuotaFraction = 0.05;
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
+              std::to_string(ep_max_size).c_str());
+    checkeq(ep_max_size, get_int_stat(h, h1, "ep_max_size"), "Incorrect new size.");
 
     /* Create first connection */
-    name += std::to_string(0);
-    std::string stats_buffer("eq_dcpq:" + name + ":max_buffer_bytes");
-
-    std::string ep_max_size_buf(std::to_string(ep_max_size));
-    set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
-              ep_max_size_buf.c_str());
-    checkeq(ep_max_size, (size_t)get_int_stat(h, h1, "ep_max_size"),
-            "Incorrect new size.");
+    const std::string name("unittest_");
+    const auto name1(name + "0");
+    const uint32_t opaque = 0;
+    const uint32_t seqno = 0;
+    const uint32_t flags = 0;
+    cookie[0] = testHarness.create_cookie();
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie[0], opaque, seqno, flags,
+                         (void*)name1.c_str(), name1.size()),
+            "Failed dcp consumer open connection.");
 
     /* Check the max limit */
-    cookie[0] = testHarness.create_cookie();
-    checkeq(ENGINE_SUCCESS, h1->dcp.open(h, cookie[0], opaque, seqno, flags,
-                                         (void*)name.c_str(), name.length()),
-            "Failed dcp consumer open connection.");
-    checkeq(flow_ctl_buf_max,
-            (uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
+    auto stat_name = "eq_dcpq:" + name1 + ":max_buffer_bytes";
+    checkeq(flow_ctl_buf_max, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to max");
 
-    /* Create 4 more connections */
-    for (int count = 1; count < max_conns-1; count++) {
+    /* Create at least 4 more connections */
+    for (auto count = 1; count < max_conns - 1; count++) {
         cookie[count] = testHarness.create_cookie();
-        std::string name1("unittest_" + std::to_string(count));
-        stats_buffer.clear();
-        stats_buffer.append("eq_dcpq:" + name1 + ":max_buffer_bytes");
-        checkeq(ENGINE_SUCCESS, h1->dcp.open(h, cookie[count], opaque, seqno,
-                                             flags, (void*)name1.c_str(),
-                                             name1.length()),
+        const auto name2(name + std::to_string(count));
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.open(h, cookie[count], opaque, seqno, flags,
+                             (void*)name2.c_str(), name2.length()),
                 "Failed dcp consumer open connection.");
 
-        for (int i = 0; i <= count; i++) {
+        for (auto i = 0; i <= count; i++) {
             /* Check if the buffer size of all connections has changed */
-            std::string name2("unittest_" + std::to_string(i));
-            stats_buffer.clear();
-            stats_buffer.append("eq_dcpq:" + name2 + ":max_buffer_bytes");
-            checkeq((uint32_t)((ep_max_size * bucketMemQuotaFraction)/
-                               (count+1)),
-                    (uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
+            const auto stat_name("eq_dcpq:" + name + std::to_string(i) +
+                               ":max_buffer_bytes");
+            checkeq((int)((ep_max_size * bucketMemQuotaFraction) / (count+1)),
+                    get_int_stat(h, h1, stat_name.c_str(), "dcp"),
                     "Flow Control Buffer Size not correct");
         }
     }
 
     /* Opening another connection should set the buffer size to min value */
-    cookie[max_conns-1] = testHarness.create_cookie();
-    name.clear();
-    name.append("unittest_" +std::to_string((max_conns-1)));
-    stats_buffer.clear();
-    stats_buffer.append("eq_dcpq:" + name + ":max_buffer_bytes");
-    checkeq(ENGINE_SUCCESS, h1->dcp.open(h, cookie[max_conns-1], opaque, seqno,
-                                         flags, (void*)name.c_str(),
-                                         name.length()),
+    cookie[max_conns - 1] = testHarness.create_cookie();
+    const auto name3(name + std::to_string(max_conns - 1));
+    const auto stat_name2("eq_dcpq:" + name3 + ":max_buffer_bytes");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie[max_conns - 1], opaque, seqno, flags,
+                         (void*)name3.c_str(), name3.size()),
             "Failed dcp consumer open connection.");
-    checkeq(flow_ctl_buf_min,
-            (uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
+    checkeq(flow_ctl_buf_min, get_int_stat(h, h1, stat_name2.c_str(), "dcp"),
             "Flow Control Buffer Size not equal to min");
 
-    /* Disconnect connections and see if flow control buffer size of existing
-       conns increase */
-    for (int count = 0; count < max_conns/2; count++) {
+    /* Disconnect connections and see if flow control
+     * buffer size of existing conns increase
+     */
+    for (auto count = 0; count < max_conns / 2; count++) {
         testHarness.destroy_cookie(cookie[count]);
     }
     /* Wait for disconnected connections to be deleted */
     wait_for_stat_to_be(h, h1, "ep_dcp_dead_conn_count", 0, "dcp");
 
     /* Check if the buffer size of all connections has increased */
-    uint32_t exp_buf_size = (uint32_t)((ep_max_size * bucketMemQuotaFraction)/
-                                       ((max_conns - max_conns/2)));
+    const auto exp_buf_size = (int)((ep_max_size * bucketMemQuotaFraction) /
+                              (max_conns - (max_conns / 2)));
+
     /* Also check if we get control message indicating the flow control buffer
        size change from the consumer connections */
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
+    const auto producers(get_dcp_producers(h, h1));
 
-    for (int i = max_conns/2; i < max_conns; i++) {
+    for (auto i = max_conns / 2; i < max_conns; i++) {
         /* Check if the buffer size of all connections has changed */
-        std::string name1("unittest_" + std::to_string(i));
-        stats_buffer.clear();
-        stats_buffer.append("eq_dcpq:" + name1 + ":max_buffer_bytes");
-        checkeq(exp_buf_size,
-                (uint32_t)get_int_stat(h, h1, stats_buffer.c_str(), "dcp"),
+        const auto name4(name + std::to_string(i));
+        const auto stat_name3("eq_dcpq:" + name4 + ":max_buffer_bytes");
+        checkeq(exp_buf_size, get_int_stat(h, h1, stat_name3.c_str(), "dcp"),
                 "Flow Control Buffer Size not correct");
         checkeq(ENGINE_WANT_MORE, h1->dcp.step(h, cookie[i], producers.get()),
                 "Pending flow control buffer change not processed");
@@ -903,44 +882,43 @@ static enum test_result test_dcp_consumer_flow_control_aggressive(
                 "Flow ctl buf size change control message not received");
         checkeq(0, dcp_last_key.compare("connection_buffer_size"),
                 "Flow ctl buf size change control message key error");
-        checkeq((int)exp_buf_size, atoi(dcp_last_value.c_str()),
+        checkeq(exp_buf_size, atoi(dcp_last_value.c_str()),
                 "Flow ctl buf size in control message not correct");
     }
-
     /* Disconnect remaining connections */
-    for (int count = max_conns/2; count < max_conns; count++) {
+    for (auto count = max_conns / 2; count < max_conns; count++) {
         testHarness.destroy_cookie(cookie[count]);
     }
+
     return SUCCESS;
 }
 
 static enum test_result test_dcp_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    const void *cookie1 = testHarness.create_cookie();
-    uint32_t opaque = 0;
-    uint32_t seqno = 0;
-    uint32_t flags = DCP_OPEN_PRODUCER;
-    const char *name  = "unittest";
-    uint16_t nname = strlen(name);
-
+    const auto *cookie1 = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t opaque = 0;
+    const uint32_t seqno = 0;
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie1, opaque, seqno, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie1, opaque, seqno, DCP_OPEN_PRODUCER,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp producer open connection.");
-
-    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
-    int created = get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp");
+    const auto stat_type("eq_dcpq:" + name + ":type");
+    auto type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    const auto stat_created("eq_dcpq:" + name + ":created");
+    const auto created = get_int_stat(h, h1, stat_created.c_str(), "dcp");
     checkeq(0, type.compare("producer"), "Producer not found");
     testHarness.destroy_cookie(cookie1);
 
     testHarness.time_travel(600);
 
-    const void *cookie2 = testHarness.create_cookie();
+    const auto *cookie2 = testHarness.create_cookie();
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie2, opaque, seqno, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie2, opaque, seqno, DCP_OPEN_PRODUCER,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp producer open connection.");
-
-    type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
     checkeq(0, type.compare("producer"), "Producer not found");
-    check(get_int_stat(h, h1, "eq_dcpq:unittest:created", "dcp") > created,
+    check(get_int_stat(h, h1, stat_created.c_str(), "dcp") > created,
           "New dcp stream is not newer");
     testHarness.destroy_cookie(cookie2);
 
@@ -948,100 +926,134 @@ static enum test_result test_dcp_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 }
 
 static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-
-    const void *cookie = testHarness.create_cookie();
-    const char *name = "unittest";
-    uint32_t opaque = 1;
-
+    const auto *cookie = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t seqno = 0;
+    uint32_t opaque = 0;
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
-                         strlen(name)),
+            h1->dcp.open(h, cookie, opaque, seqno, DCP_OPEN_PRODUCER,
+                         (void*)name.c_str(), name.size()),
             "Failed dcp producer open connection.");
-
+    const std::string param1_name("connection_buffer_size");
+    const std::string param1_value("1024");
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                            "1024", 4),
+            h1->dcp.control(h, cookie, ++opaque,
+                            param1_name.c_str(), param1_name.size(),
+                            param1_value.c_str(), param1_value.size()),
             "Failed to establish connection buffer");
-
+    const std::string param2_name("enable_noop");
+    const std::string param2_value("true");
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.control(h, cookie, ++opaque, "enable_noop", 11, "true", 4),
+            h1->dcp.control(h, cookie, ++opaque,
+                            param2_name.c_str(), param2_name.size(),
+                            param2_value.c_str(), param2_value.size()),
             "Failed to enable no-ops");
 
     testHarness.time_travel(201);
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
-    bool done = false;
+    const auto producers(get_dcp_producers(h, h1));
+    auto done = false;
     while (!done) {
-        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
-        if (err == ENGINE_DISCONNECT) {
+        if (h1->dcp.step(h, cookie, producers.get()) == ENGINE_DISCONNECT) {
             done = true;
-        } else {
-            if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
-                done = true;
-                checkeq(1, get_int_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp"),
-                        "Didn't send noop");
-                sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_NOOP,
-                           PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
-                checkeq(0, get_int_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp"),
-                        "Didn't ack noop");
-            } else if (dcp_last_op != 0) {
-                abort();
-            }
-
-            dcp_last_op = 0;
+        } else if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
+            done = true;
+            // Producer opaques are hard coded to start from 10M
+            checkeq(10000001, (int)dcp_last_opaque,
+                    "dcp_last_opaque != 10,000,001");
+            const auto stat_name("eq_dcpq:" + name + ":noop_wait");
+            checkeq(1, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+                    "Didn't send noop");
+            sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_NOOP,
+                       PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
+            checkeq(0, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+                    "Didn't ack noop");
+        } else if (dcp_last_op != 0) {
+            abort();
         }
+        dcp_last_op = 0;
     }
-
     testHarness.destroy_cookie(cookie);
+
     return SUCCESS;
 }
 
 static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
                                            ENGINE_HANDLE_V1 *h1) {
-    const void *cookie = testHarness.create_cookie();
-    const char *name = "unittest";
-    uint32_t opaque = 1;
-
+    const auto *cookie = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t seqno = 0;
+    uint32_t opaque = 0;
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
-                         strlen(name)),
-            "Failed dcp producer open connection.");
-
+            h1->dcp.open(h, cookie, opaque, seqno, DCP_OPEN_PRODUCER,
+                         (void*)name.c_str(), name.size()),
+                         "Failed dcp producer open connection.");
+    const std::string param1_name("connection_buffer_size");
+    const std::string param1_value("1024");
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                            "1024", 4),
+            h1->dcp.control(h, cookie, ++opaque,
+                            param1_name.c_str(), param1_name.size(),
+                            param1_value.c_str(), param1_value.size()),
             "Failed to establish connection buffer");
-
+    const std::string param2_name("enable_noop");
+    const std::string param2_value("true");
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.control(h, cookie, ++opaque, "enable_noop", 11, "true", 4),
+            h1->dcp.control(h, cookie, ++opaque,
+                            param2_name.c_str(), param2_name.size(),
+                            param2_value.c_str(), param2_value.size()),
             "Failed to enable no-ops");
 
     testHarness.time_travel(201);
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
-    bool done = false;
-    bool disconnected = false;
-    while (!done) {
-        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
-        if (err == ENGINE_DISCONNECT) {
-            done = true;
-            disconnected = true;
-        } else {
-            if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
-                checkeq(1, get_int_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp"),
-                        "Didn't send noop");
-                testHarness.time_travel(201);
-            } else if (dcp_last_op != 0) {
-                abort();
-            }
-
-            dcp_last_op = 0;
+    const auto producers(get_dcp_producers(h, h1));
+    while (h1->dcp.step(h, cookie, producers.get()) != ENGINE_DISCONNECT) {
+        if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
+            // Producer opaques are hard coded to start from 10M
+            checkeq(10000001, (int)dcp_last_opaque,
+                    "dcp_last_opaque != 10,000,001");
+            const auto stat_name("eq_dcpq:" + name + ":noop_wait");
+            checkeq(1, get_int_stat(h, h1, stat_name.c_str(), "dcp"),
+                    "Didn't send noop");
+            testHarness.time_travel(201);
+        } else if (dcp_last_op != 0) {
+            abort();
         }
     }
-
-    check(disconnected, "Connection should have been disconnected");
-
     testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    const auto *cookie = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t seqno = 0;
+    const uint32_t flags = 0;
+    const uint16_t vbucket = 0;
+    uint32_t opaque = 0;
+    // Open consumer connection
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags,
+                         (void*)name.c_str(), name.size()),
+            "Failed dcp Consumer open connection.");
+    add_stream_for_consumer(h, h1, cookie, opaque, vbucket, flags,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    testHarness.time_travel(201);
+    // No-op not recieved for 201 seconds. Should be ok.
+    const auto producers(get_dcp_producers(h, h1));
+    checkeq(ENGINE_SUCCESS, h1->dcp.step(h, cookie, producers.get()),
+            "Expected engine success");
+
+    testHarness.time_travel(200);
+
+    // Message not recieved for over 400 seconds. Should disconnect.
+    checkeq(ENGINE_DISCONNECT, h1->dcp.step(h, cookie, producers.get()),
+            "Expected engine disconnect");
+    testHarness.destroy_cookie(cookie);
+
     return SUCCESS;
 }
 
@@ -3443,46 +3455,6 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
-                                               ENGINE_HANDLE_V1 *h1) {
-
-    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
-          "Failed to set vbucket state.");
-
-    const void *cookie = testHarness.create_cookie();
-    uint32_t opaque = 0xFFFF0000;
-    uint32_t flags = 0;
-    const char *name = "unittest";
-    uint16_t nname = strlen(name);
-
-    // Open consumer connection
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
-            "Failed dcp Consumer open connection.");
-
-    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
-    testHarness.time_travel(201);
-
-    // No-op not recieved for 201 seconds. Should be ok.
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.step(h, cookie, producers.get()),
-            "Expected engine success");
-
-    testHarness.time_travel(200);
-
-    // Message not recieved for over 400 seconds. Should disconnect.
-    checkeq(ENGINE_DISCONNECT,
-            h1->dcp.step(h, cookie, producers.get()),
-            "Expected engine disconnect");
-
-    testHarness.destroy_cookie(cookie);
-
-    return SUCCESS;
-}
-
 
 static enum test_result test_dcp_replica_stream_backfill(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1)
@@ -4345,12 +4317,12 @@ const char *default_dbname = "./ep_testsuite_dcp";
 
 BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp vbtakeover stat no stream",
-                 test_dcp_vbtakeover_no_stream, test_setup, teardown, NULL,
+                 test_dcp_vbtakeover_no_stream, test_setup, teardown, nullptr,
                  prepare, cleanup),
         TestCase("test dcp notifier", test_dcp_notifier, test_setup, teardown,
-                 NULL, prepare, cleanup),
+                 nullptr, prepare, cleanup),
         TestCase("test open consumer", test_dcp_consumer_open,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test dcp consumer flow control none",
                  test_dcp_consumer_flow_control_none,
                  test_setup, teardown, "dcp_flow_control_policy=none",
@@ -4368,13 +4340,13 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, "dcp_flow_control_policy=aggressive",
                  prepare, cleanup),
         TestCase("test open producer", test_dcp_producer_open,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test dcp noop", test_dcp_noop, test_setup, teardown, NULL,
+                 test_setup, teardown, nullptr, prepare, cleanup),
+        TestCase("test dcp noop", test_dcp_noop, test_setup, teardown, nullptr,
                  prepare, cleanup),
         TestCase("test dcp noop failure", test_dcp_noop_fail, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, nullptr, prepare, cleanup),
         TestCase("test dcp consumer noop", test_dcp_consumer_noop, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, nullptr, prepare, cleanup),
         TestCase("test dcp replica stream backfill",
                  test_dcp_replica_stream_backfill, test_setup, teardown,
                  "chk_remover_stime=1;max_checkpoints=2", prepare, cleanup),
