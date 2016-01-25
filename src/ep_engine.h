@@ -624,6 +624,7 @@ public:
     }
 
     void handleDisconnect(const void *cookie);
+    void handleDeleteBucket(const void *cookie);
 
     protocol_binary_response_status stopFlusher(const char **msg, size_t *msg_size) {
         (void) msg_size;

@@ -1763,6 +1763,24 @@ extern "C" {
         releaseHandle(static_cast<ENGINE_HANDLE*>(c));
     }
 
+    static void EvpHandleDeleteBucket(const void *cookie,
+                                      ENGINE_EVENT_TYPE type,
+                                      const void *event_data,
+                                      const void *cb_data) {
+        if (type != ON_DELETE_BUCKET) {
+            throw std::invalid_argument("EvpHandleDeleteBucket: type "
+                    "(which is" + std::to_string(type) +
+                    ") is not ON_DELETE_BUCKET");
+        }
+        if (event_data != nullptr) {
+            throw std::invalid_argument("EvpHandleDeleteBucket: event_data "
+                    "is not NULL");
+        }
+        void *c = const_cast<void*>(cb_data);
+        getHandle(static_cast<ENGINE_HANDLE*>(c))->handleDeleteBucket(cookie);
+        releaseHandle(static_cast<ENGINE_HANDLE*>(c));
+    }
+
     void EvpSetLogLevel(ENGINE_HANDLE* handle, EXTENSION_LOG_LEVEL level) {
         log_level.store(level, std::memory_order_relaxed);
     }
@@ -2138,8 +2156,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         return ENGINE_ENOMEM;
     }
 
-    // Register the callback
+    // Register the ON_DISCONNECT callback
     registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
+
+    // Register the ON_DELETE_BUCKET callback
+    registerEngineCallback(ON_DELETE_BUCKET, EvpHandleDeleteBucket, this);
 
     // Complete the initialization of the ep-store
     if (!epstore->initialize()) {
@@ -6253,6 +6274,13 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
                 break;
         }
     }
+}
+
+void EventuallyPersistentEngine::handleDeleteBucket(const void *cookie) {
+    LOG(EXTENSION_LOG_NOTICE, "Shutting down TAP,DCP connections for bucket "
+        "whose cookie is: %p", cookie);
+    tapConnMap->shutdownAllConnections();
+    dcpConnMap_->shutdownAllConnections();
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(
