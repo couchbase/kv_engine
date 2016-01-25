@@ -278,6 +278,15 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
         }
         break;
 
+    case ON_DELETE_BUCKET: {
+        /** cookie is the bucket entry */
+        auto* bucket = reinterpret_cast<const Bucket*>(cookie);
+        for (auto& handler : bucket->engine_event_handlers[type]) {
+            handler.cb(cookie, ON_DELETE_BUCKET, data, handler.cb_data);
+        }
+        break;
+    }
+
     default:
         throw std::invalid_argument("perform_callbacks: type "
                 "(which is " + std::to_string(type) +
@@ -290,16 +299,17 @@ static void register_callback(ENGINE_HANDLE *eh,
                               EVENT_CALLBACK cb,
                               const void *cb_data)
 {
+    int idx;
     switch (type) {
     /*
      * The following events operates on a connection which is passed in
      * as the cookie.
      */
     case ON_DISCONNECT:
+    case ON_DELETE_BUCKET:
         if (eh == nullptr) {
             throw std::invalid_argument("register_callback: 'eh' must be non-NULL");
         }
-        int idx;
         for (idx = 0; idx < settings.max_buckets; ++idx) {
             if ((void *)eh == (void *)all_buckets[idx].engine) {
                 break;
@@ -1878,6 +1888,8 @@ void DestroyBucketThread::destroy() {
         return;
     }
 
+    perform_callbacks(ON_DELETE_BUCKET, nullptr, &all_buckets[idx]);
+
     LOG_NOTICE(&connection, ">%u Delete bucket [%s]. Wait for clients to disconnect",
                connection.getId(), name.c_str());
 
@@ -2539,8 +2551,18 @@ int main (int argc, char **argv) {
 
     LOG_NOTICE(NULL, "Initiating graceful shutdown.");
 
-    LOG_NOTICE(NULL, "Shutting down audit daemon");
+    LOG_NOTICE(nullptr, "Notify engines about shutdown");
+    cb_mutex_enter(&buckets_lock);
+    for (int ii = 0; ii < settings.max_buckets; ++ii) {
+        cb_mutex_enter(&all_buckets[ii].mutex);
+        if (all_buckets[ii].state == BucketState::Ready) {
+            perform_callbacks(ON_DELETE_BUCKET, nullptr, &all_buckets[ii]);
+        }
+        cb_mutex_exit(&all_buckets[ii].mutex);
+    }
+    cb_mutex_exit(&buckets_lock);
 
+    LOG_NOTICE(NULL, "Shutting down audit daemon");
     /* Close down the audit daemon cleanly */
     shutdown_auditdaemon();
 
