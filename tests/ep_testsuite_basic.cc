@@ -1587,9 +1587,25 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     check_key_value(h, h1, "mykey", "somevalue", strlen("somevalue"));
 
+    check(get_meta(h, h1, "mykey"), "Get meta failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Get meta failed");
+
+    uint64_t curr_cas = last_meta.cas;
+    uint64_t curr_exptime = last_meta.exptime;
+    uint64_t curr_revseqno = last_meta.revSeqno;
+
     touch(h, h1, "mykey", 0, (time(NULL) + 10));
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "touch mykey");
+
+    check(get_meta(h, h1, "mykey"), "Get meta failed");
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
+            "Get meta failed");
+
+    check(last_meta.cas != curr_cas, "touch should have updated the CAS");
+    check(last_meta.exptime != curr_exptime, "touch should have updated the expiry time");
+    check(last_meta.revSeqno == curr_revseqno + 1, "touch should have incremented rev seqno");
 
     // time-travel 9 secs..
     testHarness.time_travel(9);
