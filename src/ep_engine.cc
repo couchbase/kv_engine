@@ -1056,9 +1056,9 @@ extern "C" {
                 res = PROTOCOL_BINARY_RESPONSE_EINVAL;
                 break;
             case ENGINE_EWOULDBLOCK:
-                LOG(EXTENSION_LOG_INFO, "Request to compact db file id: %d is "
-                        "in EWOULDBLOCK state until the database file is "
-                        "compacted on disk", compactreq.db_file_id);
+                LOG(EXTENSION_LOG_NOTICE,
+                    "Compaction of db file id: %d scheduled "
+                            "(awaiting completion).", compactreq.db_file_id);
                 e->storeEngineSpecific(cookie, req);
                 return ENGINE_EWOULDBLOCK;
             case ENGINE_TMPFAIL:
