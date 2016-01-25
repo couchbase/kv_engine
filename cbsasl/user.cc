@@ -25,7 +25,8 @@
 #include <platform/random.h>
 #include <stdexcept>
 
-std::atomic<int> IterationCount(4096);
+// Reduce the iteration count to 10 while we're waiting for MB-17617
+std::atomic<int> IterationCount(10);
 
 /**
  * Generate a salt and store it base64 encoded into the salt
