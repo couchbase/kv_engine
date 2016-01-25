@@ -252,13 +252,36 @@ static enum test_result test_whitespace_db(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(h, NULL, NULL, 0, add_stats),
            "Failed to get stats.");
-    if (vals["ep_dbname"] != std::string(WHITESPACE_DB)) {
-        std::cerr << "Expected dbname = ``" << WHITESPACE_DB << "''"
-                  << ", got ``" << vals["ep_dbname"] << "''" << std::endl;
+
+    std::string dbname;
+    std::string policy = vals.find("ep_item_eviction_policy")->second;
+    dbname.assign(policy + std::string(WHITESPACE_DB));
+
+    std::string oldparam("dbname=" + vals["ep_dbname"]);
+    std::string newparam("dbname=" + dbname);
+    std::string config = testHarness.get_current_testcase()->cfg;
+    std::string::size_type found = config.find(oldparam);
+    if (found != config.npos) {
+        config.replace(found, oldparam.size(), newparam);
+    }
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              config.c_str(),
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    vals.clear();
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+           "Failed to get stats.");
+
+    if (vals["ep_dbname"] != dbname) {
+        std::cerr << "Expected dbname = '" << dbname << "'"
+                  << ", got '" << vals["ep_dbname"] << "'" << std::endl;
         return FAIL;
     }
 
-    check(access(WHITESPACE_DB, F_OK) != -1, "I expected the whitespace db to exist");
+    check(access(dbname.c_str(), F_OK) != -1, "I expected the whitespace db to exist");
     return SUCCESS;
 }
 

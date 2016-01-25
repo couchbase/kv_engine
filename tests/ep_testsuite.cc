@@ -3909,6 +3909,28 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
 
 static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
                                                      ENGINE_HANDLE_V1 *h1) {
+
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
+    std::string policy = vals.find("ep_item_eviction_policy")->second;
+    std::string name = vals.find("ep_alog_path")->second;
+    check(!name.empty(), "No access log path specified!");
+
+    std::string oldparam(".log");
+    std::string newparam(policy + oldparam);
+    std::string config = testHarness.get_current_testcase()->cfg;
+    std::string::size_type found = config.find(oldparam);
+    if (found != config.npos) {
+        config.replace(found, oldparam.size(), newparam);
+    }
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              config.c_str(),
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
     std::string err_msg;
     // Check access scanner is enabled and alog_task_time is at default
     cb_assert(get_bool_stat(h, h1, "ep_access_scanner_enabled"));
@@ -3970,10 +3992,37 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
 
 static enum test_result test_access_scanner(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
+
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
+    std::string policy = vals.find("ep_item_eviction_policy")->second;
+    std::string name = vals.find("ep_alog_path")->second;
+    check(!name.empty(), "No access log path specified!");
+
+    std::string oldparam(".log");
+    std::string newparam(policy + oldparam);
+    std::string config = testHarness.get_current_testcase()->cfg;
+    std::string::size_type found = config.find(oldparam);
+    if (found != config.npos) {
+        config.replace(found, oldparam.size(), newparam);
+    }
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              config.c_str(),
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
+    name = vals.find("ep_alog_path")->second;
+
     const int num_shards = get_int_stat(h, h1, "ep_workload:num_shards",
                                         "workload");
     int access_scanner_skips = 0, alog_runs = 0;
-    std::string name("/tmp/epaccess.log.0");
+    name = name + ".0";
     std::string prev(name + ".old");
 
     /* Get the resident ratio down to below 90% */
@@ -9110,18 +9159,12 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("bloomfilter conf", test_bloomfilter_conf, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("test bloomfilters with value-only eviction",
+        TestCase("test bloomfilters",
                  test_bloomfilters, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("test bloomfilters with full eviction",
-                 test_bloomfilters, test_setup,
-                 teardown, "item_eviction_policy=full_eviction", prepare, cleanup),
-        TestCase("test bloomfilters with store apis - value_only eviction",
+        TestCase("test bloomfilters with store apis",
                  test_bloomfilters_with_store_apis, test_setup,
                  teardown, NULL, prepare, cleanup),
-        TestCase("test bloomfilters with store apis - full_eviction",
-                 test_bloomfilters_with_store_apis, test_setup,
-                 teardown, "item_eviction_policy=full_eviction", prepare, cleanup),
         TestCase("test bloomfilters's in a delete+set scenario",
                  test_bloomfilter_delete_plus_set_scenario, test_setup,
                  teardown, NULL, prepare, cleanup),
@@ -9132,13 +9175,12 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test session cas validation", test_session_cas_validation,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test access scanner settings", test_access_scanner_settings,
-                 test_setup, teardown, "alog_path=/tmp/epaccess.log",
-                 prepare, cleanup),
+                 test_setup, teardown, "alog_path=./epaccess.log", prepare, cleanup),
         TestCase("test access scanner", test_access_scanner, test_setup,
-                 teardown, "alog_path=/tmp/epaccess.log;chk_remover_stime=1;"
+                 teardown, "alog_path=./epaccess.log;chk_remover_stime=1;"
                  "max_size=6291456", prepare, cleanup),
         TestCase("test set_param message", test_set_param_message, test_setup,
-                 teardown, NULL, prepare, cleanup),
+                 teardown, "chk_remover_stime=1;max_size=6291456", prepare, cleanup),
 
         // Stats tests
         TestCase("item stats", test_item_stats, test_setup, teardown, NULL,
