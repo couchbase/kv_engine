@@ -3612,13 +3612,10 @@ static void sasl_auth_executor(McbpConnection* c, void* packet) {
     c->setAuthenticated(false);
     switch (result) {
     case CBSASL_OK: {
-        audit_auth_success(c);
-        if (settings.verbose > 0) {
-            LOG_INFO(c, "%u: Client %s authenticated as %s",
-                     c->getId(), c->getPeername().c_str(), c->getUsername());
-        }
-
         c->setAuthenticated(true);
+        audit_auth_success(c);
+        LOG_INFO(c, "%u: Client %s authenticated as %s",
+                    c->getId(), c->getPeername().c_str(), c->getUsername());
         mcbp_write_response(c, out, 0, 0, outlen);
 
         /*

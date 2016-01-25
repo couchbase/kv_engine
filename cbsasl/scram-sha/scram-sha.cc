@@ -445,7 +445,7 @@ cbsasl_error_t ScramShaServerBackend::start(cbsasl_conn_t* conn,
                    "User [" + username + "] doesn't exist.. using dummy");
         user.generateSecrets(mechanism);
     }
-
+    conn->server->username.assign(username);
     nonce = clientNonce + std::string(serverNonce.data(), serverNonce.size());
 
     // build up the server-first-message
