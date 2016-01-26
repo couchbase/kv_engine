@@ -38,7 +38,8 @@ KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
 
 }
 KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets, uint16_t _maxShards,
-                             std::string& _dbname, std::string& _backend,
+                             const std::string& _dbname,
+                             const std::string& _backend,
                              uint16_t _shardId)
     : maxVBuckets(_maxVBuckets), maxShards(_maxShards), dbname(_dbname),
       backend(_backend), shardId(_shardId) {

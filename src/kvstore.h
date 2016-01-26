@@ -312,7 +312,8 @@ public:
     KVStoreConfig(Configuration& config, uint16_t shardId);
 
     KVStoreConfig(uint16_t _maxVBuckets, uint16_t _maxShards,
-                  std::string& _dbname, std::string& _backend,
+                  const std::string& _dbname,
+                  const std::string& _backend,
                   uint16_t _shardId);
 
     uint16_t getMaxVBuckets() {

@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2010 Couchbase, Inc
+ *     Copyright 2016 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,6 +23,7 @@
 #include "compress.h"
 #include "kvstore.h"
 
+#include <gtest/gtest.h>
 #include <unordered_map>
 
 extern "C" {
@@ -63,9 +64,9 @@ public:
         start(s), end(e), vb(vbid) { }
 
     void callback(CacheLookup &lookup) {
-        cb_assert(lookup.getVBucketId() == vb);
-        cb_assert(start <= lookup.getBySeqno());
-        cb_assert(lookup.getBySeqno() <= end);
+        EXPECT_EQ(vb, lookup.getVBucketId());
+        EXPECT_LE(start, lookup.getBySeqno());
+        EXPECT_LE(lookup.getBySeqno(), end);
     }
 
 private:
@@ -84,20 +85,22 @@ public:
 
     void callback(GetValue &result) {
         if (expectCompressed) {
-            cb_assert(result.getValue()->getDataType() ==
-                      PROTOCOL_BINARY_DATATYPE_COMPRESSED);
+            EXPECT_EQ(PROTOCOL_BINARY_DATATYPE_COMPRESSED,
+                      result.getValue()->getDataType());
             snap_buf output;
-            cb_assert(doSnappyUncompress(result.getValue()->getData(),
+            EXPECT_EQ(SNAP_SUCCESS,
+                      doSnappyUncompress(result.getValue()->getData(),
                                          result.getValue()->getNBytes(),
-                                         output) ==
-                      SNAP_SUCCESS);
-            cb_assert(strncmp("value",
+                                         output));
+            EXPECT_EQ(0,
+                      strncmp("value",
                               output.buf.get(),
-                              output.len) == 0);
+                              output.len));
         } else {
-            cb_assert(strncmp("value",
+            EXPECT_EQ(0,
+                      strncmp("value",
                               result.getValue()->getData(),
-                              result.getValue()->getNBytes()) == 0);
+                              result.getValue()->getNBytes()));
         }
         delete result.getValue();
     }
@@ -106,19 +109,32 @@ private:
     bool expectCompressed;
 };
 
-void basic_kvstore_test(std::string& backend) {
-    std::string data_dir("/tmp/kvstore-test");
-
-    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
-
-    KVStoreConfig config(1024, 4, data_dir, backend, 0);
-    KVStore* kvstore = KVStoreFactory::create(config);
+// Creates and initializes a KVStore with the given config
+static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config) {
+    auto kvstore = std::unique_ptr<KVStore>(KVStoreFactory::create(config));
 
     StatsCallback sc;
     std::string failoverLog("");
     vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0,
                         failoverLog);
     kvstore->snapshotVBucket(0, state, &sc);
+
+    return kvstore;
+}
+
+class CouchAndForestTest : public ::testing::TestWithParam<std::string> {
+};
+
+class CouchKVStoreTest : public ::testing::TestWithParam<std::string> {
+};
+
+/* Test basic set / get of a document */
+TEST_P(CouchAndForestTest, BasicTest) {
+    std::string data_dir("/tmp/kvstore-test");
+    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+
+    KVStoreConfig config(1024, 4, data_dir, GetParam(), 0);
+    auto kvstore = setup_kv_store(config);
 
     kvstore->begin();
 
@@ -126,26 +142,18 @@ void basic_kvstore_test(std::string& backend) {
     WriteCallback wc;
     kvstore->set(item, wc);
 
-    kvstore->commit(&sc);
+    EXPECT_TRUE(kvstore->commit(nullptr));
 
     GetCallback gc;
     kvstore->get("key", 0, gc);
-    delete kvstore;
 }
 
-void kvstore_get_compressed_test(std::string& backend) {
+TEST(CouchKVStoreTest, CompressedTest) {
     std::string data_dir("/tmp/kvstore-test");
-
     CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
 
-    KVStoreConfig config(1024, 4, data_dir, backend, 0);
-    KVStore* kvstore = KVStoreFactory::create(config);
-
-    StatsCallback sc;
-    std::string failoverLog("");
-    vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0,
-                        failoverLog);
-    kvstore->snapshotVBucket(0, state, &sc);
+    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    auto kvstore = setup_kv_store(config);
 
     kvstore->begin();
 
@@ -157,6 +165,7 @@ void kvstore_get_compressed_test(std::string& backend) {
                   0, 0, "value", 5, &datatype, 1, 0, i);
         kvstore->set(item, wc);
     }
+    StatsCallback sc;
     kvstore->commit(&sc);
 
     std::shared_ptr<Callback<GetValue> > cb(new GetCallback(true));
@@ -166,20 +175,21 @@ void kvstore_get_compressed_test(std::string& backend) {
                                        DocumentFilter::ALL_ITEMS,
                                        ValueFilter::VALUES_COMPRESSED);
 
-    cb_assert(scanCtx);
-    cb_assert(kvstore->scan(scanCtx) == scan_success);
+    ASSERT_NE(nullptr, scanCtx);
+    EXPECT_EQ(scan_success, kvstore->scan(scanCtx));
     kvstore->destroyScanContext(scanCtx);
-    delete kvstore;
 }
+
+// Test cases which run on both Couchstore and ForestDB
+INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
+                        CouchAndForestTest,
+                        ::testing::Values("couchdb", "forestdb"));
 
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
 int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    ::testing::InitGoogleTest(&argc, argv);
     putenv(allow_no_stats_env);
-    std::string backend("couchdb");
-    basic_kvstore_test(backend);
-    kvstore_get_compressed_test(backend);
-    backend = "forestdb";
-    basic_kvstore_test(backend);
+
+    return RUN_ALL_TESTS();
 }
