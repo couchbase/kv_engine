@@ -3970,6 +3970,22 @@ void EventuallyPersistentStore::addKVStoreTimingStats(ADD_STAT add_stat,
     }
 }
 
+bool EventuallyPersistentStore::getKVStoreStat(const char* name, size_t& value) {
+    value = 0;
+    bool success = true;
+    for (auto* shard : vbMap.shards) {
+        size_t per_shard_value;
+
+        success &= shard->getROUnderlying()->getStat(name, per_shard_value);
+        value += per_shard_value;
+
+        success &= shard->getRWUnderlying()->getStat(name, per_shard_value);
+        value += per_shard_value;
+    }
+    return success;
+}
+
+
 KVStore *EventuallyPersistentStore::getOneROUnderlying(void) {
     return vbMap.shards[EP_PRIMARY_SHARD]->getROUnderlying();
 }

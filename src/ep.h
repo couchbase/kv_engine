@@ -820,6 +820,16 @@ public:
 
     void addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie);
 
+    /* Given a named KVStore statistic, return the value of that statistic,
+     * accumulated across any shards.
+     *
+     * @param name The name of the statistic
+     * @param[out] value The value of the statistic.
+     * @return True if the statistic was successfully returned via {value},
+     *              else false.
+     */
+    bool getKVStoreStat(const char* name, size_t& value);
+
     void resetUnderlyingStats(void);
     KVStore *getOneROUnderlying(void);
     KVStore *getOneRWUnderlying(void);

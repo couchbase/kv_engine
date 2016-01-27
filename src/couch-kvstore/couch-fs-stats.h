@@ -20,6 +20,8 @@
 
 #include "config.h"
 
+#include "atomic.h"
+
 #include <libcouchstore/couch_db.h>
 
 #include <platform/histogram.h>
@@ -43,6 +45,11 @@ public:
     Histogram<size_t> writeSizeHisto;
     //Time spent in sync
     Histogram<hrtime_t> syncTimeHisto;
+
+    // total bytes read from disk.
+    AtomicValue<size_t> totalBytesRead;
+    // Total bytes written to disk.
+    AtomicValue<size_t> totalBytesWritten;
 
     void reset() {
         readTimeHisto.reset();

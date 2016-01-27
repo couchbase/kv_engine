@@ -407,6 +407,18 @@ public:
     }
 
     /**
+     * Request the specified statistic name from the kvstore.
+     *
+     * @param name The name of the statistic to fetch.
+     * @param[out] value Value of the given stat (if exists).
+     * @return True if the stat exists, is of type size_t and was successfully
+     *         returned, else false.
+     */
+    virtual bool getStat(const char* name, size_t& value) {
+        return false;
+    }
+
+    /**
      * Show kvstore specific timing stats.
      *
      * @param prefix prefix to use for the stats

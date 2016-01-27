@@ -3619,6 +3619,18 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_cursors_dropped",
                     epstats.cursorsDropped, add_stat, cookie);
 
+
+    // Note: These are also reported per-shard in 'kvstore' stats, however
+    // we want to be able to graph these over time, and hence need to expose
+    // to ns_sever at the top-level.
+    size_t value = 0;
+    if (epstore->getKVStoreStat("io_total_read_bytes", value)) {
+        add_casted_stat("ep_io_total_read_bytes",  value, add_stat, cookie);
+    }
+    if (epstore->getKVStoreStat("io_total_write_bytes", value)) {
+        add_casted_stat("ep_io_total_write_bytes",  value, add_stat, cookie);
+    }
+
     return ENGINE_SUCCESS;
 }
 

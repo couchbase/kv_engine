@@ -99,7 +99,7 @@ public:
     AtomicValue<size_t> io_num_write;
     //! Number of bytes read
     AtomicValue<size_t> io_read_bytes;
-    //! Number of bytes written
+    //! Number of bytes written (key + value + application rev metadata)
     AtomicValue<size_t> io_write_bytes;
 
     /* for flush and vb delete, no error handling in CouchKVStore, such
@@ -423,6 +423,8 @@ public:
      */
     void addTimingStats(const std::string &prefix, ADD_STAT add_stat,
                         const void *c);
+
+    virtual bool getStat(const char* name, size_t& value);
 
     /**
      * Resets couchstore stats

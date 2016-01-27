@@ -101,7 +101,12 @@ extern "C" {
         }
         sf->last_offs = off;
         BlockTimer bt(&sf->stats->readTimeHisto);
-        return sf->orig_ops->pread(errinfo, sf->orig_handle, buf, sz, off);
+        ssize_t result = sf->orig_ops->pread(errinfo, sf->orig_handle, buf,
+                                             sz, off);
+        if (result > 0) {
+            sf->stats->totalBytesRead += result;
+        }
+        return result;
     }
 
     static ssize_t cfs_pwrite(couchstore_error_info_t *errinfo,
@@ -112,7 +117,12 @@ extern "C" {
         StatFile* sf = reinterpret_cast<StatFile*>(h);
         sf->stats->writeSizeHisto.add(sz);
         BlockTimer bt(&sf->stats->writeTimeHisto);
-        return sf->orig_ops->pwrite(errinfo, sf->orig_handle, buf, sz, off);
+        ssize_t result = sf->orig_ops->pwrite(errinfo, sf->orig_handle, buf,
+                                              sz, off);
+        if (result > 0) {
+            sf->stats->totalBytesWritten += result;
+        }
+        return result;
     }
 
     static cs_off_t cfs_goto_eof(couchstore_error_info_t *errinfo,

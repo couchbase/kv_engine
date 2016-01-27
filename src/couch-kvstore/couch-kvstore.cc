@@ -1041,6 +1041,10 @@ void CouchKVStore::addStats(const std::string &prefix,
     addStat(prefix_str, "io_read_bytes", st.io_read_bytes, add_stat, c);
     addStat(prefix_str, "io_write_bytes", st.io_write_bytes, add_stat, c);
 
+    addStat(prefix_str, "io_total_read_bytes", st.fsStats.totalBytesRead,
+            add_stat, c);
+    addStat(prefix_str, "io_total_write_bytes", st.fsStats.totalBytesWritten,
+            add_stat, c);
 }
 
 void CouchKVStore::addTimingStats(const std::string &prefix,
@@ -1065,6 +1069,18 @@ void CouchKVStore::addTimingStats(const std::string &prefix,
     addStat(prefix_str, "fsReadSize",  st.fsStats.readSizeHisto,  add_stat, c);
     addStat(prefix_str, "fsWriteSize", st.fsStats.writeSizeHisto, add_stat, c);
     addStat(prefix_str, "fsReadSeek",  st.fsStats.readSeekHisto,  add_stat, c);
+}
+
+bool CouchKVStore::getStat(const char* name, size_t& value)  {
+    if (strcmp("io_total_read_bytes", name) == 0) {
+        value = st.fsStats.totalBytesRead;
+        return true;
+    } else if (strcmp("io_total_write_bytes", name) == 0) {
+        value = st.fsStats.totalBytesWritten;
+        return true;
+    }
+
+    return false;
 }
 
 template <typename T>

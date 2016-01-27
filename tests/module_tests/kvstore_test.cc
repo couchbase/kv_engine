@@ -22,6 +22,7 @@
 #include "callbacks.h"
 #include "compress.h"
 #include "kvstore.h"
+#include "couch-kvstore/couch-kvstore.h"
 
 #include <gtest/gtest.h>
 #include <unordered_map>
@@ -122,6 +123,19 @@ static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config) {
     return kvstore;
 }
 
+/* Test callback for stats handling.
+ * 'cookie' is a std::unordered_map<std::string, std::string) which stats
+ * are accumulated in.
+ */
+static void add_stat_callback(const char *key, const uint16_t klen,
+                              const char *val, const uint32_t vlen,
+                              const void *cookie) {
+    auto* map = reinterpret_cast<std::map<std::string, std::string>*>(
+            const_cast<void*>(cookie));
+    ASSERT_NE(nullptr, map);
+    map->emplace(std::string(key, klen), std::string(val, vlen));
+}
+
 class CouchAndForestTest : public ::testing::TestWithParam<std::string> {
 };
 
@@ -179,6 +193,40 @@ TEST(CouchKVStoreTest, CompressedTest) {
     EXPECT_EQ(scan_success, kvstore->scan(scanCtx));
     kvstore->destroyScanContext(scanCtx);
 }
+
+// Verify the stats returned from operations are accurate.
+TEST(CouchKVStoreTest, StatsTest) {
+    std::string data_dir("/tmp/kvstore-test");
+    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+
+    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    auto kvstore = setup_kv_store(config);
+
+    // Perform a transaction with a single mutation (set) in it.
+    kvstore->begin();
+    const std::string key{"key"};
+    const std::string value{"value"};
+    Item item(key.c_str(), key.size(), 0, 0, value.c_str(), value.size());
+    WriteCallback wc;
+    kvstore->set(item, wc);
+
+    StatsCallback sc;
+    EXPECT_TRUE(kvstore->commit(&sc));
+    // Check statistics are correct.
+    std::map<std::string, std::string> stats;
+    kvstore->addStats("", add_stat_callback, &stats);
+    EXPECT_EQ("1", stats[":io_num_write"]);
+    const size_t io_write_bytes = stoul(stats[":io_write_bytes"]);
+    EXPECT_EQ(key.size() + value.size() + COUCHSTORE_METADATA_SIZE,
+              io_write_bytes);
+
+    // Hard to determine exactly how many bytes should have been written, but
+    // expect non-zero, and least as many as the actual documents.
+    const size_t io_total_write_bytes = stoul(stats[":io_total_write_bytes"]);
+    EXPECT_GT(io_total_write_bytes, 0);
+    EXPECT_GE(io_total_write_bytes, io_write_bytes);
+}
+
 
 // Test cases which run on both Couchstore and ForestDB
 INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
