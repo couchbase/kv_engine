@@ -582,10 +582,7 @@ void ActiveStreamCheckpointProcessorTask::wakeup() {
 }
 
 void ActiveStreamCheckpointProcessorTask::schedule(stream_t stream) {
-    {
-        LockHolder lh(workQueueLock);
-        queue.push_back(stream);
-    }
+    pushUnique(stream);
 
     bool expected = false;
     if (notified.compare_exchange_strong(expected, true)) {

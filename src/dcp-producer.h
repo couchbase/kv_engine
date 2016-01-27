@@ -197,6 +197,90 @@ public:
 
 private:
 
+    /**
+     * DcpProducerReadyQueue is a std::queue wrapper for managing a
+     * queue of vbucket's that are ready for a DCP producer to process.
+     * The queue does not allow duplicates and the push_unique method enforces
+     * this. The interface is generally customised for the needs of getNextItem
+     * and is thread safe as the frontend operations and DCPProducer threads
+     * are accessing this data.
+     *
+     * Internally a std::queue and std::set track the contents and the std::set
+     * enables a fast exists method which is used by front-end threads.
+     */
+    class DcpProducerReadyQueue {
+    public:
+        bool exists(uint16_t vbucket) {
+            LockHolder lh(lock);
+            return (queuedValues.count(vbucket) != 0);
+        }
+
+        /**
+         * Return true and set the ref-param 'frontValue' if the queue is not
+         * empty. frontValue is set to the front of the queue.
+         */
+        bool popFront(uint16_t &frontValue) {
+            LockHolder lh(lock);
+            if (!readyQueue.empty()) {
+                frontValue = readyQueue.front();
+                readyQueue.pop();
+                queuedValues.erase(frontValue);
+                return true;
+            }
+            return false;
+        }
+
+        /**
+         * Pop the front item.
+         * Safe to call on an empty list
+         */
+        void pop() {
+            LockHolder lh(lock);
+            if (!readyQueue.empty()) {
+                queuedValues.erase(readyQueue.front());
+                readyQueue.pop();
+            }
+        }
+
+        /**
+         * Push the vbucket only if it's not already in the queue
+         * Return true if the vbucket was added to the queue.
+         */
+        bool pushUnique(uint16_t vbucket) {
+            LockHolder lh(lock);
+            if (queuedValues.count(vbucket) == 0) {
+                readyQueue.push(vbucket);
+                queuedValues.insert(vbucket);
+                return true;
+            }
+            return false;
+        }
+
+        /**
+         * Move the front item to the back of the queue
+         */
+        void moveFrontToback() {
+            LockHolder lh(lock);
+            if (readyQueue.size() > 1) {
+                readyQueue.push(readyQueue.front());
+                readyQueue.pop();
+            }
+        }
+
+    private:
+        Mutex lock;
+
+        /* a queue of vbuckets that are ready for producing */
+        std::queue<uint16_t> readyQueue;
+
+        /**
+         * maintain a std::set of values that are in the readyQueue. find() is
+         * performed by front-end threads so we want it to be efficient so just
+         * a set lookup is required.
+         */
+        std::set<uint16_t> queuedValues;
+    };
+
     DcpResponse* getNextItem();
 
     size_t getItemsRemaining();
@@ -222,22 +306,18 @@ private:
     BufferLog log;
 
     BackfillManager* backfillMgr;
-    std::list<uint16_t> ready;
 
     // Guards all accesses to streams map. If only reading elements in streams
     // (i.e. not adding / removing elements) then can acquire ReadLock, even
     // if a non-const method is called on stream_t.
     RWLock streamsMutex;
-
-    std::vector<AtomicValue<bool> > vbReady;
-    AtomicValue<bool> notifiedVbReady;
+    DcpProducerReadyQueue ready;
 
     std::map<uint16_t, stream_t> streams;
 
     AtomicValue<size_t> itemsSent;
     AtomicValue<size_t> totalBytesSent;
 
-    size_t roundRobinVbReady;
     ExTask checkpointCreatorTask;
     static const uint32_t defaultNoopInerval;
 };
