@@ -786,6 +786,8 @@ void Warmup::scheduleLoadingKVPairs()
 void Warmup::loadKVPairsforShard(uint16_t shardId)
 {
     bool maybe_enable_traffic = false;
+    scan_error_t errorCode = scan_success;
+
     if (store->getItemEvictionPolicy() == FULL_EVICTION) {
         maybe_enable_traffic = true;
     }
@@ -803,8 +805,12 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
         ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0, false,
                                                     true, false);
         if (ctx) {
-            kvstore->scan(ctx);
+            errorCode = kvstore->scan(ctx);
             kvstore->destroyScanContext(ctx);
+            if (errorCode == scan_again) { // ENGINE_ENOMEM
+                // skip loading remaining VBuckets as memory limit was reached
+                break;
+            }
         }
     }
     if (++threadtask_count == store->vbMap.numShards) {
@@ -828,6 +834,8 @@ void Warmup::scheduleLoadingData()
 
 void Warmup::loadDataforShard(uint16_t shardId)
 {
+    scan_error_t errorCode = scan_success;
+
     KVStore* kvstore = store->getROUnderlyingByShard(shardId);
     LoadStorageKVPairCallback *load_cb =
         new LoadStorageKVPairCallback(store, true, state.getState());
@@ -840,8 +848,12 @@ void Warmup::loadDataforShard(uint16_t shardId)
         ScanContext* ctx = kvstore->initScanContext(cb, cl, *itr, 0, false,
                                                     true, false);
         if (ctx) {
-            kvstore->scan(ctx);
+            errorCode = kvstore->scan(ctx);
             kvstore->destroyScanContext(ctx);
+            if (errorCode == scan_again) { // ENGINE_ENOMEM
+                // skip loading remaining VBuckets as memory limit was reached
+                break;
+            }
         }
     }
 
