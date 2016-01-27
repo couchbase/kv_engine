@@ -1592,7 +1592,7 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Get meta failed");
 
     uint64_t curr_cas = last_meta.cas;
-    uint64_t curr_exptime = last_meta.exptime;
+    time_t curr_exptime = last_meta.exptime;
     uint64_t curr_revseqno = last_meta.revSeqno;
 
     touch(h, h1, "mykey", 0, (time(NULL) + 10));
@@ -1935,7 +1935,7 @@ static enum test_result test_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     checkeq(ENGINE_SUCCESS, h1->remove(h, NULL, "key", 3, &cas, 0, &mut_info),
             "Failed remove with value.");
-    checkeq(orig_cas + 1, cas, "Cas mismatch on delete");
+    check(orig_cas != cas, "Expected CAS to be updated on delete");
     checkeq(ENGINE_KEY_ENOENT, verify_key(h, h1, "key"), "Expected missing key");
     checkeq(vb_uuid, mut_info.vbucket_uuid, "Expected valid vbucket uuid");
     checkeq(high_seqno + 1, mut_info.seqno, "Expected valid sequence number");

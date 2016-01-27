@@ -624,6 +624,7 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                     }
                 } else if (v->isExpired(startTime) && !v->isDeleted()) {
                     vb->ht.unlocked_softDelete(v, 0, getItemEvictionPolicy());
+                    v->setCas(vb->nextHLCCas());
                     queueDirty(vb, v, &lh, NULL, false);
                 }
             } else {
@@ -641,6 +642,7 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                         v->setDeleted();
                         v->setRevSeqno(revSeqno);
                         vb->ht.unlocked_softDelete(v, 0, eviction_policy);
+                        v->setCas(vb->nextHLCCas());
                         queueDirty(vb, v, &lh, NULL, false);
                     }
                 }
@@ -679,6 +681,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
             if (queueExpired && vb->getState() == vbucket_state_active) {
                 incExpirationStat(vb, EXP_BY_ACCESS);
                 vb->ht.unlocked_softDelete(v, 0, eviction_policy);
+                v->setCas(vb->nextHLCCas());
                 queueDirty(vb, v, NULL, NULL, false, true);
             }
             return wantDeleted ? v : NULL;
@@ -2865,6 +2868,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     }
     mutation_type_t delrv;
     delrv = vb->ht.unlocked_softDelete(v, *cas, eviction_policy);
+    if (v) {
+        v->setCas(vb->nextHLCCas());
+    }
 
     if (itemMeta && v) {
         itemMeta->revSeqno = v->getRevSeqno();

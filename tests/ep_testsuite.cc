@@ -5435,7 +5435,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_deleted_flag, "Expected deleted flag to be set");
     check(last_meta.revSeqno == it->getRevSeqno() + 1, "Expected seqno to match");
-    check(last_meta.cas == it->getCas() + 1, "Expected cas to match");
+    check(last_meta.cas != it->getCas() , "Expected cas to be different");
     check(last_meta.flags == it->getFlags(), "Expected flags to match");
 
     // check the stat again
@@ -7381,7 +7381,7 @@ static enum test_result test_observe_with_not_found(ENGINE_HANDLE *h, ENGINE_HAN
     memcpy(&persisted, last_body.data() + 42, sizeof(uint8_t));
     check(persisted == OBS_STATE_LOGICAL_DEL, "Expected persisted in result");
     memcpy(&cas, last_body.data() + 43, sizeof(uint64_t));
-    check(ntohll(cas) == cas3 + 1, "Wrong cas in result");
+    check(ntohll(cas) != cas3, "Expected cas to be different");
 
     return SUCCESS;
 }
@@ -7592,7 +7592,7 @@ static enum test_result test_exp_persisted_set_del(ENGINE_HANDLE *h,
     check(get_meta(h, h1, "key3"), "Expected to get meta");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     check(last_meta.revSeqno == 4, "Expected seqno to match");
-    check(last_meta.cas == 4, "Expected cas to match");
+    check(last_meta.cas != 3, "Expected cas to be different");
     check(last_meta.flags == 0, "Expected flags to match");
 
     return SUCCESS;
@@ -8442,7 +8442,7 @@ static enum test_result test_del_with_item_eviction(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             h1->remove(h, NULL, "key", 3, &cas, 0, &mut_info),
             "Failed remove with value.");
-    check(orig_cas + 1 == cas, "Cas mismatch on delete");
+    check(orig_cas != cas, "Expected CAS to be different on delete");
     check(ENGINE_KEY_ENOENT == verify_key(h, h1, "key"), "Expected missing key");
     check(vb_uuid == mut_info.vbucket_uuid, "Expected valid vbucket uuid");
     check(high_seqno + 1 == mut_info.seqno, "Expected valid sequence number");

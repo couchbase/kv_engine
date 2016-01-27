@@ -426,7 +426,7 @@ public:
     /**
      * Logically delete this object.
      */
-    void del(HashTable &ht, bool isMetaDelete=false) {
+    void del(HashTable &ht) {
         if (isDeleted()) {
             return;
         }
@@ -434,9 +434,6 @@ public:
         reduceCacheSize(ht, valuelen());
         resetValue();
         markDirty();
-        if (!isMetaDelete) {
-            setCas(getCas() + 1);
-        }
     }
 
 
@@ -1263,7 +1260,7 @@ public:
                     decrNumNonResidentItems();
                 }
                 v->setRevSeqno(metadata.revSeqno);
-                v->del(*this, use_meta);
+                v->del(*this);
                 updateMaxDeletedRevSeqno(v->getRevSeqno());
                 return rv;
             }
@@ -1299,7 +1296,7 @@ public:
                 v->setFlags(metadata.flags);
                 v->setExptime(metadata.exptime);
             }
-            v->del(*this, use_meta);
+            v->del(*this);
             updateMaxDeletedRevSeqno(v->getRevSeqno());
         }
         return rv;
