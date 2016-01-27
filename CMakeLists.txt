@@ -444,11 +444,11 @@ SET(_ep_testsuite_basic_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E 
 # Basic engine tests: value-only eviction mode
 ADD_TEST(NAME ep-engine_basic_tests
          COMMAND ${_ep_testsuite_basic_cmdline} -v -e "dbname=./value_eviction_basic")
-SET_TESTS_PROPERTIES(ep-engine_basic_tests PROPERTIES TIMEOUT 400)
+SET_TESTS_PROPERTIES(ep-engine_basic_tests PROPERTIES TIMEOUT 600)
 
 ADD_TEST(NAME ep-engine_full_eviction_basic
          COMMAND ${_ep_testsuite_basic_cmdline} -v -e "item_eviction_policy=full_eviction;dbname=./full_eviction_basic")
-SET_TESTS_PROPERTIES(ep-engine_full_eviction_basic PROPERTIES TIMEOUT 400)
+SET_TESTS_PROPERTIES(ep-engine_full_eviction_basic PROPERTIES TIMEOUT 600)
 
 # ============================================================================ #
 
@@ -458,12 +458,12 @@ SET(_ep_testsuite_dcp_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${
 # DCP engine tests: value-only eviction mode
 ADD_TEST(NAME ep-engine_dcp_tests
          COMMAND ${_ep_testsuite_dcp_cmdline} -v -e "dbname=./value_eviction_dcp")
-SET_TESTS_PROPERTIES(ep-engine_dcp_tests PROPERTIES TIMEOUT 1800)
+SET_TESTS_PROPERTIES(ep-engine_dcp_tests PROPERTIES TIMEOUT 1200)
 
 # DCP engine tests: value-only eviction mode
 ADD_TEST(NAME ep-engine_full_eviction_dcp
          COMMAND ${_ep_testsuite_dcp_cmdline} -v -e "item_eviction_policy=full_eviction;dbname=./full_eviction_dcp")
-SET_TESTS_PROPERTIES(ep-engine_full_eviction_dcp PROPERTIES TIMEOUT 1800)
+SET_TESTS_PROPERTIES(ep-engine_full_eviction_dcp PROPERTIES TIMEOUT 1200)
 
 # ============================================================================ #
 
