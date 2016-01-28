@@ -16,6 +16,7 @@
  */
 #include "config.h"
 #include "cbsasl/scram-sha/scram-sha.h"
+#include "cbsasl/scram-sha/stringutils.h"
 #include "cbsasl/pwfile.h"
 #include "cbsasl/cbsasl.h"
 #include "cbsasl/util.h"
@@ -119,8 +120,7 @@ void ScramShaBackend::addAttribute(std::ostream& out, char key,
 
     switch (key) {
     case 'n' : // username ..
-        // @todo should be run through SASLprep...
-        out << SASLPrep(value);
+        out << encodeUsername(SASLPrep(value));
         break;
 
     case 'r' : // client nonce.. printable characters
@@ -429,15 +429,12 @@ cbsasl_error_t ScramShaServerBackend::start(cbsasl_conn_t* conn,
         return CBSASL_BADPARAM;
     }
 
-    // validate the scram_username
-    // @todo this should be "decoded" from SASLprep
-    // (at least map =2C (,) and =3D (=)
-    for (const auto& c : username) {
-        if (!isupper(c) && !islower(c) && c != '_') {
-            cbsasl_log(conn, cbsasl_loglevel_t::Error,
-                       "Invalid character in username detected");
-            return CBSASL_BADPARAM;
-        }
+    try {
+        username = decodeUsername(username);
+    } catch (std::runtime_error&) {
+        cbsasl_log(conn, cbsasl_loglevel_t::Error,
+                   "Invalid character in username detected");
+        return CBSASL_BADPARAM;
     }
 
     if (!find_user(username, user)) {

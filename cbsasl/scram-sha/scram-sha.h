@@ -53,29 +53,6 @@ protected:
     }
 
     /**
-     * Apply https://www.ietf.org/rfc/rfc4013.txt to the input string
-     *
-     * I haven't implemented this yet, so for now just ensure that
-     * the array consists of plain characters (and '_').
-     *
-     * @param value the input value to encode
-     * @return the string with the SASLprep logic applied
-     */
-    std::string SASLPrep(const std::string& value) {
-        // Until we support the SASLprep code (RFC4013), it has to
-        // be printable ascii (allow _ for now...
-        // @todo need to verify '_'
-
-        for (const auto &c : value) {
-            if (!isupper(c) && !islower(c) && c != '_') {
-                throw std::invalid_argument("ScramShaBackend::SASLPrep: "
-                                                "Invalid character");
-            }
-        }
-        return value;
-    }
-
-    /**
      * Add a property to the message list according to
      * https://www.ietf.org/rfc/rfc5802.txt section 5.1
      *
