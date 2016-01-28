@@ -271,10 +271,10 @@ bool FailoverTable::loadFromJSON(cJSON *json) {
         cJSON* jid = cJSON_GetObjectItem(it, "id");
         cJSON* jseq = cJSON_GetObjectItem(it, "seq");
 
-        if (jid && jid->type != cJSON_Number) {
+        if (!jid || jid->type != cJSON_Number) {
             return false;
         }
-        if (jseq && jseq->type != cJSON_Number){
+        if (!jseq || jseq->type != cJSON_Number){
                 return false;
         }
 
