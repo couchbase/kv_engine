@@ -530,7 +530,6 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
         return ENGINE_SUCCESS;
     }
 
-    ret = ENGINE_SUCCESS;
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
     switch (resp->getEvent()) {
         case DCP_ADD_STREAM:

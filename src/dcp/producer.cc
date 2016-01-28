@@ -349,8 +349,6 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         }
     }
 
-    ret = ENGINE_SUCCESS;
-
     Item* itmCpy = NULL;
     if (resp->getEvent() == DCP_MUTATION) {
         try {
