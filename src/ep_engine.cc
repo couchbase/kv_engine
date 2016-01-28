@@ -2658,8 +2658,6 @@ bool EventuallyPersistentEngine::createTapQueue(const void *cookie,
                 ptr += sizeof(uint64_t);
                 lastCheckpointIds[ntohs(vbid)] = ntohll(checkpointId);
             }
-            nuserdata -=
-                        ((sizeof(uint16_t) + sizeof(uint64_t)) * nCheckpoints);
         }
     }
 

@@ -252,6 +252,8 @@ void MurmurHash3_x86_128 ( const void * key, const int len,
      */
     // ((uint32_t*)out)[2] = h3;
     // ((uint32_t*)out)[3] = h4;
+    (void) h3;
+    (void) h4;
 }
 
 //-----------------------------------------------------------------------------
@@ -337,6 +339,7 @@ void MurmurHash3_x64_128 ( const void * key, const int len,
      * Considering a 64-bit output.
      */
     // ((uint64_t*)out)[1] = h2;
+    (void) h2;
 }
 
 //-----------------------------------------------------------------------------

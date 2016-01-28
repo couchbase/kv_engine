@@ -93,7 +93,6 @@ public:
         memcpy(&_blockCount, buf.data() + offset, sizeof(_blockCount));
         offset += sizeof(_blockCount);
         memcpy(&_rdwr, buf.data() + offset, sizeof(_rdwr));
-        offset += sizeof(_rdwr);
     }
 
     uint32_t version() const {
