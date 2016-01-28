@@ -133,7 +133,8 @@ static void add_stat_callback(const char *key, const uint16_t klen,
     auto* map = reinterpret_cast<std::map<std::string, std::string>*>(
             const_cast<void*>(cookie));
     ASSERT_NE(nullptr, map);
-    map->emplace(std::string(key, klen), std::string(val, vlen));
+    map->insert(std::make_pair(std::string(key, klen),
+                               std::string(val, vlen)));
 }
 
 class CouchAndForestTest : public ::testing::TestWithParam<std::string> {
