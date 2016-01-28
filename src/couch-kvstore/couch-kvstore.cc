@@ -656,11 +656,11 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
             datatype = PROTOCOL_BINARY_RAW_BYTES;
         }
 
-        DocInfo *docinfo = (DocInfo *) calloc (sizeof(DocInfo) +
+        DocInfo *docinfo = (DocInfo *) calloc (1,
+                                               sizeof(DocInfo) +
                                                (*info)->id.size +
                                                (*info)->rev_meta.size +
                                                FLEX_DATA_OFFSET + EXT_META_LEN +
-                                               sizeof(uint8_t),
                                                sizeof(uint8_t));
         if (!docinfo) {
             LOG(EXTENSION_LOG_WARNING, "Failed to allocate docInfo, "
@@ -700,10 +700,10 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
     } else if ((*info)->rev_meta.size == DEFAULT_META_LEN + 2) {
         // Metadata doesn't have conflict_resolution_mode,
         // provision space for this flag.
-        DocInfo *docinfo = (DocInfo *) calloc (sizeof(DocInfo) +
+        DocInfo *docinfo = (DocInfo *) calloc (1,
+                                               sizeof(DocInfo) +
                                                (*info)->id.size +
                                                (*info)->rev_meta.size +
-                                               sizeof(uint8_t),
                                                sizeof(uint8_t));
         if (!docinfo) {
             LOG(EXTENSION_LOG_WARNING, "Failed to allocate docInfo, "
