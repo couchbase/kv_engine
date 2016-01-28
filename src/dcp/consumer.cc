@@ -738,8 +738,8 @@ void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
     flowControl.addStats(add_stat, c);
 }
 
-void DcpConsumer::aggregateQueueStats(ConnCounter* aggregator) {
-    aggregator->conn_queueBackoff += backoffs;
+void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) {
+    aggregator.conn_queueBackoff += backoffs;
 }
 
 process_items_error_t DcpConsumer::processBufferedItems() {

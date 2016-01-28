@@ -1182,20 +1182,15 @@ void TapProducer::addStats(ADD_STAT add_stat, const void *c) {
     }
 }
 
-void TapProducer::aggregateQueueStats(ConnCounter* aggregator) {
+void TapProducer::aggregateQueueStats(ConnCounter& aggregator) {
     LockHolder lh(queueLock);
-    if (!aggregator) {
-        LOG(EXTENSION_LOG_WARNING,
-            "%s Pointer to the queue stats aggregator is NULL!!!", logHeader());
-        return;
-    }
-    aggregator->conn_queue += getQueueSize_UNLOCKED();
-    aggregator->conn_queueFill += queueFill;
-    aggregator->conn_queueDrain += queueDrain;
-    aggregator->conn_queueBackoff += numTapNack;
-    aggregator->conn_queueBackfillRemaining += getBackfillRemaining_UNLOCKED();
-    aggregator->conn_queueItemOnDisk += (bgJobIssued - bgJobCompleted);
-    aggregator->conn_totalBacklogSize += getBackfillRemaining_UNLOCKED() +
+    aggregator.conn_queue += getQueueSize_UNLOCKED();
+    aggregator.conn_queueFill += queueFill;
+    aggregator.conn_queueDrain += queueDrain;
+    aggregator.conn_queueBackoff += numTapNack;
+    aggregator.conn_queueBackfillRemaining += getBackfillRemaining_UNLOCKED();
+    aggregator.conn_queueItemOnDisk += (bgJobIssued - bgJobCompleted);
+    aggregator.conn_totalBacklogSize += getBackfillRemaining_UNLOCKED() +
         getRemainingOnCheckpoints_UNLOCKED();
 }
 

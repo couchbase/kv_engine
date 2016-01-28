@@ -90,7 +90,7 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c);
 
-    void aggregateQueueStats(ConnCounter* aggregator);
+    void aggregateQueueStats(ConnCounter& aggregator);
 
     void notifyStreamReady(uint16_t vbucket);
 

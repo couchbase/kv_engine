@@ -64,7 +64,7 @@ public:
     bool addTOStatsIfStreamTempDisconnected(ADD_STAT add_stat, const void* c,
                                             uint16_t vbid);
 
-    void aggregateQueueStats(ConnCounter* aggregator);
+    void aggregateQueueStats(ConnCounter& aggregator);
 
     void setDisconnect(bool disconnect);
 

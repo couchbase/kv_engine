@@ -308,7 +308,7 @@ public:
         }
     }
 
-    virtual void aggregateQueueStats(ConnCounter* stats_aggregator) {
+    virtual void aggregateQueueStats(ConnCounter& stats_aggregator) {
         // Empty
     }
 
@@ -859,7 +859,7 @@ public:
     virtual void addStats(ADD_STAT add_stat, const void *c);
     virtual void processedEvent(uint16_t event, ENGINE_ERROR_CODE ret);
 
-    void aggregateQueueStats(ConnCounter* stats_aggregator);
+    void aggregateQueueStats(ConnCounter& stats_aggregator);
 
     void suspendedConnection_UNLOCKED(bool value);
     void suspendedConnection(bool value);

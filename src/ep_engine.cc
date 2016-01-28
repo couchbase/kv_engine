@@ -3896,23 +3896,23 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doCheckpointStats(
  * Function object to send stats for a single tap or dcp connection.
  */
 struct ConnStatBuilder {
-    ConnStatBuilder(const void *c, ADD_STAT as, ConnCounter* tc)
+    ConnStatBuilder(const void *c, ADD_STAT as, ConnCounter& tc)
         : cookie(c), add_stat(as), aggregator(tc) {}
 
     void operator() (connection_t &tc) {
-        ++aggregator->totalConns;
+        ++aggregator.totalConns;
         tc->addStats(add_stat, cookie);
 
         Producer *tp = dynamic_cast<Producer*>(tc.get());
         if (tp) {
-            ++aggregator->totalProducers;
+            ++aggregator.totalProducers;
             tp->aggregateQueueStats(aggregator);
         }
     }
 
     const void *cookie;
     ADD_STAT    add_stat;
-    ConnCounter* aggregator;
+    ConnCounter& aggregator;
 };
 
 struct ConnAggStatBuilder {
@@ -3952,7 +3952,7 @@ struct ConnAggStatBuilder {
             ++counter.totalProducers;
         }
 
-        c->aggregateQueueStats(&counter);
+        c->aggregateQueueStats(counter);
 
         ConnCounter* total = getTotalCounter();
         *total += counter;
@@ -4081,7 +4081,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doConnAggStats(
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
                                                          ADD_STAT add_stat) {
     ConnCounter aggregator;
-    ConnStatBuilder tapVisitor(cookie, add_stat, &aggregator);
+    ConnStatBuilder tapVisitor(cookie, add_stat, aggregator);
     tapConnMap->each(tapVisitor);
 
     add_casted_stat("ep_tap_total_fetched", stats.numTapFetched,
@@ -4157,7 +4157,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTapStats(const void *cookie,
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(const void *cookie,
                                                          ADD_STAT add_stat) {
     ConnCounter aggregator;
-    ConnStatBuilder dcpVisitor(cookie, add_stat, &aggregator);
+    ConnStatBuilder dcpVisitor(cookie, add_stat, aggregator);
     dcpConnMap_->each(dcpVisitor);
 
     add_casted_stat("ep_dcp_count", aggregator.totalConns, add_stat, cookie);

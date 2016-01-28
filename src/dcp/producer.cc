@@ -753,16 +753,11 @@ bool DcpProducer::addTOStatsIfStreamTempDisconnected(ADD_STAT add_stat,
     return false;
 }
 
-void DcpProducer::aggregateQueueStats(ConnCounter* aggregator) {
-    if (!aggregator) {
-        LOG(EXTENSION_LOG_WARNING, "%s Pointer to the queue stats aggregator"
-            " is NULL!!!", logHeader());
-        return;
-    }
-    aggregator->conn_queueDrain += itemsSent;
-    aggregator->conn_totalBytes += totalBytesSent;
-    aggregator->conn_queueRemaining += getItemsRemaining();
-    aggregator->conn_queueBackfillRemaining += totalBackfillBacklogs;
+void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) {
+    aggregator.conn_queueDrain += itemsSent;
+    aggregator.conn_totalBytes += totalBytesSent;
+    aggregator.conn_queueRemaining += getItemsRemaining();
+    aggregator.conn_queueBackfillRemaining += totalBackfillBacklogs;
 }
 
 void DcpProducer::notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno) {
