@@ -33,8 +33,7 @@ VBucketMap::VBucketMap(Configuration &config,
     size(config.getMaxVbuckets())
 {
     WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();
-    numShards = workload.getNumShards();
-    for (size_t shardId = 0; shardId < numShards; shardId++) {
+    for (size_t shardId = 0; shardId < workload.getNumShards(); shardId++) {
         KVShard *shard = new KVShard(shardId, store);
         shards.push_back(shard);
     }
@@ -184,7 +183,7 @@ void VBucketMap::addBuckets(const std::vector<VBucket*> &newBuckets) {
 }
 
 KVShard* VBucketMap::getShardByVbId(id_type id) const {
-    return shards[id % numShards];
+    return shards[id % shards.size()];
 }
 
 KVShard* VBucketMap::getShard(KVShard::id_type shardId) const {
@@ -192,5 +191,5 @@ KVShard* VBucketMap::getShard(KVShard::id_type shardId) const {
 }
 
 size_t VBucketMap::getNumShards() const {
-    return numShards;
+    return shards.size();
 }

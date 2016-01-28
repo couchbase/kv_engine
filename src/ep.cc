@@ -518,7 +518,7 @@ Warmup* EventuallyPersistentStore::getWarmup(void) const {
 }
 
 bool EventuallyPersistentStore::startFlusher() {
-    for (uint16_t i = 0; i < vbMap.numShards; ++i) {
+    for (uint16_t i = 0; i < vbMap.shards.size(); ++i) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
         flusher->start();
     }
@@ -526,7 +526,7 @@ bool EventuallyPersistentStore::startFlusher() {
 }
 
 void EventuallyPersistentStore::stopFlusher() {
-    for (uint16_t i = 0; i < vbMap.numShards; i++) {
+    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
         bool rv = flusher->stop(stats.forceShutdown);
         if (rv && !stats.forceShutdown) {
@@ -537,7 +537,7 @@ void EventuallyPersistentStore::stopFlusher() {
 
 bool EventuallyPersistentStore::pauseFlusher() {
     bool rv = true;
-    for (uint16_t i = 0; i < vbMap.numShards; i++) {
+    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
         if (!flusher->pause()) {
             LOG(EXTENSION_LOG_WARNING, "Attempted to pause flusher in state "
@@ -550,7 +550,7 @@ bool EventuallyPersistentStore::pauseFlusher() {
 
 bool EventuallyPersistentStore::resumeFlusher() {
     bool rv = true;
-    for (uint16_t i = 0; i < vbMap.numShards; i++) {
+    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
         if (!flusher->resume()) {
             LOG(EXTENSION_LOG_WARNING,
@@ -564,7 +564,7 @@ bool EventuallyPersistentStore::resumeFlusher() {
 
 void EventuallyPersistentStore::wakeUpFlusher() {
     if (stats.diskQueueSize.load() == 0) {
-        for (uint16_t i = 0; i < vbMap.numShards; i++) {
+        for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
             Flusher *flusher = vbMap.shards[i]->getFlusher();
             flusher->wake();
         }
@@ -572,7 +572,7 @@ void EventuallyPersistentStore::wakeUpFlusher() {
 }
 
 bool EventuallyPersistentStore::startBgFetcher() {
-    for (uint16_t i = 0; i < vbMap.numShards; i++) {
+    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
         if (bgfetcher == NULL) {
             LOG(EXTENSION_LOG_WARNING,
@@ -585,7 +585,7 @@ bool EventuallyPersistentStore::startBgFetcher() {
 }
 
 void EventuallyPersistentStore::stopBgFetcher() {
-    for (uint16_t i = 0; i < vbMap.numShards; i++) {
+    for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         BgFetcher *bgfetcher = vbMap.shards[i]->getBgFetcher();
         if (multiBGFetchEnabled() && bgfetcher->pendingJob()) {
             LOG(EXTENSION_LOG_WARNING,
@@ -1372,7 +1372,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 bool EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
     KVShard *shard = NULL;
     if (p == Priority::VBucketPersistHighPriority) {
-        for (size_t i = 0; i < vbMap.numShards; ++i) {
+        for (size_t i = 0; i < vbMap.shards.size(); ++i) {
             shard = vbMap.shards[i];
             if (shard->setHighPriorityVbSnapshotFlag(true)) {
                 ExTask task = new VBSnapshotTask(&engine, p, i, true);
@@ -1380,7 +1380,7 @@ bool EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
             }
         }
     } else {
-        for (size_t i = 0; i < vbMap.numShards; ++i) {
+        for (size_t i = 0; i < vbMap.shards.size(); ++i) {
             shard = vbMap.shards[i];
             if (shard->setLowPriorityVbSnapshotFlag(true)) {
                 ExTask task = new VBSnapshotTask(&engine, p, i, true);
@@ -3956,7 +3956,7 @@ bool VBucketVisitorTask::run() {
 
 void EventuallyPersistentStore::resetUnderlyingStats(void)
 {
-    for (size_t i = 0; i < vbMap.numShards; i++) {
+    for (size_t i = 0; i < vbMap.shards.size(); i++) {
         KVShard *shard = vbMap.shards[i];
         shard->getRWUnderlying()->resetStats();
         shard->getROUnderlying()->resetStats();
@@ -3970,7 +3970,7 @@ void EventuallyPersistentStore::resetUnderlyingStats(void)
 
 void EventuallyPersistentStore::addKVStoreStats(ADD_STAT add_stat,
                                                 const void* cookie) {
-    for (size_t i = 0; i < vbMap.numShards; i++) {
+    for (size_t i = 0; i < vbMap.shards.size(); i++) {
         std::stringstream rwPrefix;
         std::stringstream roPrefix;
         rwPrefix << "rw_" << i;
@@ -3984,7 +3984,7 @@ void EventuallyPersistentStore::addKVStoreStats(ADD_STAT add_stat,
 
 void EventuallyPersistentStore::addKVStoreTimingStats(ADD_STAT add_stat,
                                                       const void* cookie) {
-    for (size_t i = 0; i < vbMap.numShards; i++) {
+    for (size_t i = 0; i < vbMap.shards.size(); i++) {
         std::stringstream rwPrefix;
         std::stringstream roPrefix;
         rwPrefix << "rw_" << i;

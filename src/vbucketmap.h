@@ -72,7 +72,6 @@ private:
     AtomicValue<uint64_t> *persistenceCheckpointIds;
     AtomicValue<uint64_t> *persistenceSeqnos;
     const id_type size;
-    size_t numShards;
 
     DISALLOW_COPY_AND_ASSIGN(VBucketMap);
 };

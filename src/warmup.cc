@@ -372,11 +372,12 @@ Warmup::Warmup(EventuallyPersistentStore& st)
       warmupComplete(false),
       estimatedWarmupCount(std::numeric_limits<size_t>::max())
 {
-    shardVbStates = new std::map<uint16_t, vbucket_state>[
-                                                       store.vbMap.numShards];
-    shardVbIds = new std::vector<uint16_t>[store.vbMap.numShards];
-    shardKeyDumpStatus = new bool[store.vbMap.numShards];
-    for (size_t i = 0; i < store.vbMap.numShards; i++) {
+    const size_t num_shards = store.vbMap.getNumShards();
+
+    shardVbStates = new std::map<uint16_t, vbucket_state>[num_shards];
+    shardVbIds = new std::vector<uint16_t>[num_shards];
+    shardKeyDumpStatus = new bool[num_shards];
+    for (size_t i = 0; i < num_shards; i++) {
         shardKeyDumpStatus[i] = false;
     }
 }
@@ -511,7 +512,7 @@ void Warmup::createVBuckets(uint16_t shardId) {
         store.vbMap.setPersistenceSeqno(vbid, vbs.highSeqno);
     }
 
-    if (++threadtask_count == store.vbMap.numShards) {
+    if (++threadtask_count == store.vbMap.getNumShards()) {
         transition(WarmupState::EstimateDatabaseItemCount);
     }
 }
@@ -551,7 +552,7 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
     estimatedItemCount.fetch_add(item_count);
     estimateTime.fetch_add(gethrtime() - st);
 
-    if (++threadtask_count == store.vbMap.numShards) {
+    if (++threadtask_count == store.vbMap.getNumShards()) {
         if (store.getItemEvictionPolicy() == VALUE_ONLY) {
             transition(WarmupState::KeyDump);
         } else {
@@ -593,9 +594,9 @@ void Warmup::keyDumpforShard(uint16_t shardId)
 
     shardKeyDumpStatus[shardId] = true;
 
-    if (++threadtask_count == store.vbMap.numShards) {
+    if (++threadtask_count == store.vbMap.getNumShards()) {
         bool success = false;
-        for (size_t i = 0; i < store.vbMap.numShards; i++) {
+        for (size_t i = 0; i < store.vbMap.getNumShards(); i++) {
             if (shardKeyDumpStatus[i]) {
                 success = true;
             } else {
@@ -715,7 +716,7 @@ void Warmup::loadingAccessLog(uint16_t shardId)
     }
 
     delete load_cb;
-    if (++threadtask_count == store.vbMap.numShards) {
+    if (++threadtask_count == store.vbMap.getNumShards()) {
         if (!store.maybeEnableTraffic()) {
             transition(WarmupState::LoadingData);
         } else {
@@ -802,7 +803,7 @@ void Warmup::loadKVPairsforShard(uint16_t shardId)
             kvstore->destroyScanContext(ctx);
         }
     }
-    if (++threadtask_count == store.vbMap.numShards) {
+    if (++threadtask_count == store.vbMap.getNumShards()) {
         transition(WarmupState::Done);
     }
 }
@@ -840,7 +841,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
         }
     }
 
-    if (++threadtask_count == store.vbMap.numShards) {
+    if (++threadtask_count == store.vbMap.getNumShards()) {
         transition(WarmupState::Done);
     }
 }
@@ -1010,7 +1011,7 @@ void Warmup::populateShardVbStates()
                 continue;
             }
             std::map<uint16_t, vbucket_state> &shardVB =
-                shardVbStates[vb % store.vbMap.numShards];
+                shardVbStates[vb % store.vbMap.getNumShards()];
             shardVB.insert(std::pair<uint16_t, vbucket_state>(vb,
                                                           *(allVbStates[vb])));
         }
