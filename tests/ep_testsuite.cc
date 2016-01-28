@@ -1776,7 +1776,15 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     char eng_specific[9];
     memset(eng_specific, 0, sizeof(eng_specific));
     for (size_t i = 0; i < 8192; ++i) {
-        char *data = static_cast<char *>(malloc(i));
+
+        char* data;
+        // Clang static analyzer doesn't like malloc of 0
+        if(i != 0) {
+            data = static_cast<char *>(malloc(i));
+        } else {
+            data = nullptr;
+        }
+
         memset(data, 'x', i);
         checkeq(ENGINE_SUCCESS,
                 h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
