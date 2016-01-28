@@ -161,7 +161,8 @@ bool ProgressTracker::shouldContinueVisiting() {
 
     bool should_continue = true;
 
-    if (visited_items < next_visit_count_check) {
+    if (visited_items < next_visit_count_check
+        || visited_items == previous_visited) {
         // Not yet reached enough items to check time; ok to continue.
         return true;
     } else {

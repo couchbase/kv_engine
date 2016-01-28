@@ -107,13 +107,15 @@ void printResult(const std::string label, size_t value, const std::string units)
               << std::right << std::setw(11) << value << " " << units << std::endl;
 }
 
+static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=1";
+
 int main(void) {
     /* Setup mock time functions */
     start_time = time(0);
     ep_abs_time = mock_abstime;
     ep_current_time = mock_current_time;
 
-    putenv(strdup("ALLOW_NO_STATS_UPDATE=1"));
+    putenv(allow_no_stats_env);
 
     /* Create and populate a vbucket */
     EPStats stats;
