@@ -192,9 +192,6 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
         endStream(END_STREAM_OK);
         itemsReady.store(true);
         // lock is released on leaving the scope
-    } else {
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") %sstream created!",
-            producer->logHeader(), vb, type);
     }
 }
 

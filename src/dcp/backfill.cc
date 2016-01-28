@@ -223,7 +223,9 @@ backfill_status_t DCPBackfill::complete(bool cancelled) {
     ActiveStream* as = static_cast<ActiveStream*>(stream.get());
     as->completeBackfill();
 
-    LOG(EXTENSION_LOG_NOTICE,
+    EXTENSION_LOG_LEVEL severity = cancelled ? EXTENSION_LOG_NOTICE
+                                             : EXTENSION_LOG_INFO;
+    LOG(severity,
         "%s (vb %d) Backfill task (%" PRIu64 " to %" PRIu64 ") %s",
         as->logHeader(), vbid, startSeqno, endSeqno,
         cancelled ? "cancelled" : "finished");
