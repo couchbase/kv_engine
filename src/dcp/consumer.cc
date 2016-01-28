@@ -814,9 +814,10 @@ DcpResponse* DcpConsumer::getNextItem() {
             case DCP_SNAPSHOT_MARKER:
                 break;
             default:
-                LOG(EXTENSION_LOG_WARNING, "%s Consumer is attempting to write"
-                    " an unexpected event %d", logHeader(), op->getEvent());
-                abort();
+                throw std::logic_error(
+                        std::string("DcpConsumer::getNextItem: ") + logHeader() +
+                        " is attempting to write an unexpected event: " +
+                        std::to_string(op->getEvent()));
         }
 
         ready.push_back(vbucket);
@@ -933,7 +934,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
     }
 
     if ((ep_current_time() - lastNoopTime) > (noopInterval * 2)) {
-        LOG(EXTENSION_LOG_WARNING, "%s Disconnecting because noop message has "
+        LOG(EXTENSION_LOG_NOTICE, "%s Disconnecting because noop message has "
             "not been received for %u seconds", logHeader(), (noopInterval * 2));
         return ENGINE_DISCONNECT;
     }

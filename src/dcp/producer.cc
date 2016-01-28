@@ -860,9 +860,11 @@ DcpResponse* DcpProducer::getNextItem() {
             case DCP_SET_VBUCKET:
                 break;
             default:
-                LOG(EXTENSION_LOG_WARNING, "%s Producer is attempting to write"
-                    " an unexpected event %d", logHeader(), op->getEvent());
-                abort();
+                throw std::logic_error(
+                        std::string("DcpProducer::getNextItem: ") + logHeader() +
+                        " is attempting to write an unexpected event: " +
+                        std::to_string(op->getEvent()));
+
         }
 
         ready.pushUnique(vbucket);
@@ -908,7 +910,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(struct dcp_message_producers* produ
     if (noopCtx.enabled) {
         size_t sinceTime = ep_current_time() - noopCtx.sendTime;
         if (noopCtx.pendingRecv && sinceTime > noopCtx.noopInterval) {
-            LOG(EXTENSION_LOG_WARNING, "%s Disconnected because the connection"
+            LOG(EXTENSION_LOG_NOTICE, "%s Disconnected because the connection"
                 " appears to be dead", logHeader());
             return ENGINE_DISCONNECT;
         } else if (!noopCtx.pendingRecv && sinceTime > noopCtx.noopInterval) {

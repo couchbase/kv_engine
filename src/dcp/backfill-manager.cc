@@ -199,7 +199,7 @@ backfill_status_t BackfillManager::backfill() {
     }
 
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
-        LOG(EXTENSION_LOG_WARNING, "DCP backfilling task temporarily suspended "
+        LOG(EXTENSION_LOG_NOTICE, "DCP backfilling task temporarily suspended "
             "because the current memory usage is too high");
         return backfill_snooze;
     }

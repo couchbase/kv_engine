@@ -133,10 +133,10 @@ backfill_status_t DCPBackfill::run() {
             return complete(false);
         case backfill_state_done:
             return backfill_finished;
-        default:
-            LOG(EXTENSION_LOG_WARNING, "Invalid backfill state");
-            abort();
     }
+
+    throw std::logic_error("DCPBackfill::run: Invalid backfill state " +
+                           std::to_string(state));
 }
 
 uint16_t DCPBackfill::getVBucketId() {
@@ -163,7 +163,7 @@ backfill_status_t DCPBackfill::create() {
     ActiveStream* as = static_cast<ActiveStream*>(stream.get());
 
     if (lastPersistedSeqno < endSeqno) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Rescheduling backfill"
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Rescheduling backfill"
             "because backfill up to seqno %" PRIu64 " is needed but only up to "
             "%" PRIu64 " is persisted", as->logHeader(), vbid, endSeqno,
             lastPersistedSeqno);
