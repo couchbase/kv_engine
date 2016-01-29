@@ -59,7 +59,7 @@ static const int MUTATION_FAILED = -1;
 static const int DOC_NOT_FOUND = 0;
 static const int MUTATION_SUCCESS = 1;
 
-static const int64_t INITIAL_DRIFT = 0;
+static const int64_t INITIAL_DRIFT = -140737488355328; //lowest possible 48-bit integer
 
 typedef struct {
     std::list<VBucketBGFetchItem *> bgfetched_list;
