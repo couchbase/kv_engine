@@ -124,6 +124,13 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     } else {
         setLogHeader("DCP (Producer) " + getName() + " -");
     }
+    // Reduce the minimum log level of view engine DCP streams as they are
+    // extremely noisy due to creating new stream, per vbucket,per design doc
+    // every ~10s.
+    if (name.find("eq_dcpq:mapreduce_view") != std::string::npos ||
+        name.find("eq_dcpq:spatial_view") != std::string::npos) {
+        logger.min_log_level = EXTENSION_LOG_WARNING;
+    }
 
     engine_.setDCPPriority(getCookie(), CONN_PRIORITY_MED);
     priority.assign("medium");
