@@ -892,6 +892,18 @@ void DcpConsumer::closeAllStreams() {
     }
 }
 
+void DcpConsumer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
+    passive_stream_t stream = streams[vbucket];
+    if (stream) {
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") State changed to "
+            "%s, closing passive stream!",
+            logHeader(), vbucket, std::to_string(state).c_str());
+        uint32_t bytesCleared = stream->setDead(END_STREAM_STATE);
+        flowControl.incrFreedBytes(bytesCleared);
+        streams[vbucket].reset();
+    }
+}
+
 ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producers) {
     if (pendingEnableNoop) {
         ENGINE_ERROR_CODE ret;

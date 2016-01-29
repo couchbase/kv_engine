@@ -1724,6 +1724,8 @@ const char* PassiveStream::getEndStreamStatusStr(end_stream_status_t status)
             return "The stream closed due to a close stream message";
         case END_STREAM_DISCONNECTED:
             return "The stream closed early because the conn was disconnected";
+        case END_STREAM_STATE:
+            return "The stream closed early because the vbucket state changed";
         default:
             break;
     }

@@ -96,6 +96,8 @@ public:
 
     void closeAllStreams();
 
+    void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
+
     process_items_error_t processBufferedItems();
 
     uint64_t incrOpaqueCounter();

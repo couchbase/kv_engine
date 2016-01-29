@@ -2087,8 +2087,8 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_failover_scenario_with_dcp(ENGINE_HANDLE *h,
-                                                        ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_failover_scenario_one_with_dcp(ENGINE_HANDLE *h,
+                                                            ENGINE_HANDLE_V1 *h1) {
 
     int num_items = 50;
     for (int j = 0; j < num_items; ++j) {
@@ -2154,6 +2154,84 @@ static enum test_result test_failover_scenario_with_dcp(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     checkeq(0, get_int_stat(h, h1, "ep_diskqueue_items"),
             "Unexpected diskqueue");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static enum test_result test_failover_scenario_two_with_dcp(ENGINE_HANDLE *h,
+                                                            ENGINE_HANDLE_V1 *h1) {
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open consumer connection
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, 0, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
+
+    // Set up a passive stream
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque =
+        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+
+    // Snapshot marker indicating 5 mutations will follow
+    checkeq(ENGINE_SUCCESS, h1->dcp.snapshot_marker(h, cookie, stream_opaque,
+                                                    0, 0, 5, 0),
+            "Failed to send marker!");
+
+    // Send 4 mutations
+    uint64_t i;
+    for (i = 1; i <= 4; i++) {
+        std::string key("key" + std::to_string(i));
+        checkeq(ENGINE_SUCCESS, h1->dcp.mutation(h, cookie, stream_opaque,
+                                                 key.c_str(), key.length(),
+                                                 "value", 5,
+                                                 i * 3, 0, 0,
+                                                 PROTOCOL_BINARY_RAW_BYTES,
+                                                 i, 0, 0, 0, "", 0,
+                                                 INITIAL_NRU_VALUE),
+                "Failed dcp mutate.");
+    }
+
+    // Simulate failover
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set vbucket state.");
+    wait_for_flusher_to_settle(h, h1);
+
+    int openCheckpointId = get_int_stat(h, h1, "vb_0:open_checkpoint_id",
+                                        "checkpoint");
+
+    // Front-end operations (sets)
+    for (int j = 1; j <= 2; ++j) {
+        item *i = NULL;
+        std::string key("key_" + std::to_string(j));
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", &i),
+                "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    // Wait for a new open checkpoint
+    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", openCheckpointId + 1,
+                        "checkpoint");
+
+    // Consumer processes 5th mutation
+    std::string key("key" + std::to_string(i));
+    checkeq(ENGINE_KEY_ENOENT,
+            h1->dcp.mutation(h, cookie, stream_opaque, key.c_str(), key.length(),
+                             "value", 5, i * 3, 0, 0,
+                             PROTOCOL_BINARY_RAW_BYTES,
+                             i, 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
+            "Unexpected response for the mutation!");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -4141,8 +4219,11 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, "chk_remover_stime=1", prepare, cleanup),
         TestCase("test dcp consumer takeover", test_dcp_consumer_takeover,
                  test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("test failover scenario with dcp",
-                 test_failover_scenario_with_dcp, test_setup, teardown,
+        TestCase("test failover scenario one with dcp",
+                 test_failover_scenario_one_with_dcp, test_setup, teardown,
+                 NULL, prepare, cleanup),
+        TestCase("test failover scenario two with dcp",
+                 test_failover_scenario_two_with_dcp, test_setup, teardown,
                  NULL, prepare, cleanup),
         TestCase("test add stream", test_dcp_add_stream, test_setup, teardown,
                  "dcp_enable_noop=false", prepare, cleanup),
