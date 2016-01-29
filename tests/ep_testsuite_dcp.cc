@@ -39,6 +39,10 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        bool skipEstimateCheck = false,
                        uint64_t *total_bytes = NULL,
                        bool simulate_cursor_dropping = false) {
+
+    /* Reset any stale dcp data */
+    clear_dcp_data();
+
     uint32_t opaque = 1;
     uint16_t nname = strlen(name);
 
