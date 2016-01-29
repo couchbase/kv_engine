@@ -1780,7 +1780,7 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
         memset(data, 'x', i);
         checkeq(ENGINE_SUCCESS,
                 h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                               1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                               1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 1,
                                PROTOCOL_BINARY_RAW_BYTES,
                                data, i, 0),
                 "Failed tap notify.");
@@ -1799,13 +1799,13 @@ static enum test_result test_tap_rcvr_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE
         data = '0' + i;
         checkeq(ENGINE_SUCCESS,
                 h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                               1, 0, TAP_CHECKPOINT_START, 1, "", 0, 828, 0, 0,
+                               1, 0, TAP_CHECKPOINT_START, 1, "", 0, 828, 0, 1,
                                PROTOCOL_BINARY_RAW_BYTES,
                                &data, 1, 1),
                 "Failed tap notify.");
         checkeq(ENGINE_SUCCESS,
                 h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                               1, 0, TAP_CHECKPOINT_END, 1, "", 0, 828, 0, 0,
+                               1, 0, TAP_CHECKPOINT_END, 1, "", 0, 828, 0, 1,
                                PROTOCOL_BINARY_RAW_BYTES,
                                &data, 1, 1),
                 "Failed tap notify.");
@@ -1822,7 +1822,7 @@ static enum test_result test_tap_rcvr_set_vbstate(ENGINE_HANDLE *h, ENGINE_HANDL
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
     checkeq(ENGINE_SUCCESS,
             h1->tap_notify(h, NULL, eng_specific, sizeof(vb_state),
-                           1, 0, TAP_VBUCKET_SET, 1, "", 0, 828, 0, 0,
+                           1, 0, TAP_VBUCKET_SET, 1, "", 0, 828, 0, 1,
                            PROTOCOL_BINARY_RAW_BYTES,
                            "", 0, 1),
             "Failed tap notify.");
@@ -1837,7 +1837,7 @@ static enum test_result test_tap_rcvr_mutate_dead(ENGINE_HANDLE *h, ENGINE_HANDL
     memset(eng_specific, 0, sizeof(eng_specific));
     checkeq(ENGINE_NOT_MY_VBUCKET,
             h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 1,
                            PROTOCOL_BINARY_RAW_BYTES,
                            "data", 4, 1),
             "Expected not my vbucket.");
@@ -1850,7 +1850,7 @@ static enum test_result test_tap_rcvr_mutate_pending(ENGINE_HANDLE *h, ENGINE_HA
     memset(eng_specific, 0, sizeof(eng_specific));
     checkeq(ENGINE_SUCCESS,
             h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 1,
                            PROTOCOL_BINARY_RAW_BYTES,
                            "data", 4, 1),
             "Expected expected success.");
@@ -1863,7 +1863,7 @@ static enum test_result test_tap_rcvr_mutate_replica(ENGINE_HANDLE *h, ENGINE_HA
     memset(eng_specific, 0, sizeof(eng_specific));
     checkeq(ENGINE_SUCCESS,
             h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 1,
                            PROTOCOL_BINARY_RAW_BYTES,
                            "data", 4, 1),
             "Expected expected success.");
@@ -1891,7 +1891,7 @@ static enum test_result test_tap_rcvr_mutate_replica_locked(ENGINE_HANDLE *h,
     memset(eng_specific, 0, sizeof(eng_specific));
     checkeq(ENGINE_SUCCESS,
             h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 0,
+                           1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 1,
                            PROTOCOL_BINARY_RAW_BYTES,
                            "data", 4, 0),
             "Expected expected success.");
@@ -1903,7 +1903,7 @@ static enum test_result test_tap_rcvr_delete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
     memset(eng_specific, 0, sizeof(eng_specific));
     checkeq(ENGINE_SUCCESS,
             h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                           1, 0, TAP_DELETION, 0, "key", 3, 0, 0, 0,
+                           1, 0, TAP_DELETION, 0, "key", 3, 0, 0, 1,
                            PROTOCOL_BINARY_RAW_BYTES,
                            0, 0, 0),
             "Failed tap notify.");
@@ -1915,7 +1915,7 @@ static enum test_result test_tap_rcvr_delete_dead(ENGINE_HANDLE *h, ENGINE_HANDL
     memset(eng_specific, 0, sizeof(eng_specific));
     checkeq(ENGINE_NOT_MY_VBUCKET,
             h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 1,
                            PROTOCOL_BINARY_RAW_BYTES,
                            NULL, 0, 1),
             "Expected not my vbucket.");
@@ -1929,7 +1929,7 @@ static enum test_result test_tap_rcvr_delete_pending(ENGINE_HANDLE *h, ENGINE_HA
     memset(eng_specific, 0, sizeof(eng_specific));
     checkeq(ENGINE_SUCCESS,
             h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 1,
                            PROTOCOL_BINARY_RAW_BYTES,
                            NULL, 0, 1),
             "Expected expected success.");
@@ -1943,7 +1943,7 @@ static enum test_result test_tap_rcvr_delete_replica(ENGINE_HANDLE *h, ENGINE_HA
     memset(eng_specific, 0, sizeof(eng_specific));
     checkeq(ENGINE_SUCCESS,
             h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 1,
                            PROTOCOL_BINARY_RAW_BYTES,
                            NULL, 0, 1),
             "Expected expected success.");
@@ -1968,7 +1968,7 @@ static enum test_result test_tap_rcvr_delete_replica_locked(ENGINE_HANDLE *h,
     memset(eng_specific, 0, sizeof(eng_specific));
     checkeq(ENGINE_SUCCESS,
             h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
-                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 0,
+                           1, 0, TAP_DELETION, 1, "key", 3, 0, 0, 1,
                            PROTOCOL_BINARY_RAW_BYTES,
                            NULL, 0, 0),
             "Expected expected success.");
@@ -2947,7 +2947,7 @@ static enum test_result test_tap_notify(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
         char eng_specific[9];
         memset(eng_specific, 0, sizeof(eng_specific));
         r = h1->tap_notify(h, cookie, eng_specific, sizeof(eng_specific), 1, 0,
-                           TAP_MUTATION, 0, key.c_str(), key.length(), 0, 0, 0,
+                           TAP_MUTATION, 0, key.c_str(), key.length(), 0, 0, 0x1,
                            0, buffer, 1024, 0);
     } while (r == ENGINE_SUCCESS);
     checkeq(ENGINE_TMPFAIL, r, "non-acking streams should etmpfail");
@@ -3847,7 +3847,7 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
 
     ItemMetaData itm_meta;
     itm_meta.revSeqno = 10;
-    itm_meta.cas = 0;
+    itm_meta.cas = 0x1;
     itm_meta.exptime = 0;
     itm_meta.flags = 0;
 
@@ -5999,6 +5999,7 @@ static enum test_result test_delete_with_meta_race_with_delete(ENGINE_HANDLE *h,
     uint16_t keylen2 = (uint16_t)strlen(key2);
     item *i = NULL;
     ItemMetaData itm_meta;
+    itm_meta.cas = 0x1;
     // check the stat
     size_t temp = get_int_stat(h, h1, "ep_num_ops_del_meta");
     check(temp == 0, "Expect zero ops");

@@ -387,7 +387,8 @@ public:
                 return ENGINE_TMPFAIL;
             }
             if (itm->getCas() == 0) {
-                // A zero cas for the item shouldn't be possible...
+                // A zero cas should not be possible for a valid item
+                delete itm;
                 return ENGINE_EINVAL;
             }
             if ((errno != ERANGE) && (isspace(*endptr)

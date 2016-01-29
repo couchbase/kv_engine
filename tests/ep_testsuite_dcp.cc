@@ -383,7 +383,7 @@ static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                   uint64_t start, uint64_t end,
                                   uint64_t snap_start_seqno,
                                   uint64_t snap_end_seqno,
-                                  uint8_t cas = 0, uint8_t datatype = 1,
+                                  uint8_t cas = 0x1, uint8_t datatype = 1,
                                   uint32_t exprtime = 0, uint32_t lockTime = 0,
                                   uint64_t revSeqno = 0)
 {
@@ -1504,12 +1504,15 @@ static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
 
                     bytes_read += dcp_last_packet_size;
                     break;
+                case 0:
+                    break;
                 default:
                      // Aborting ...
                     std::stringstream ss;
                     ss << "Unexpected DCP operation: " << dcp_last_op;
                     check(false, ss.str().c_str());
             }
+            dcp_last_op = 0;
         }
     } while (!done);
 
@@ -2982,7 +2985,7 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     char *data = static_cast<char *>(malloc(dataLen));
     memset(data, 'x', dataLen);
 
-    uint8_t cas = 0;
+    uint8_t cas = 0x1;
     uint16_t vbucket = 0;
     uint8_t datatype = 1;
     uint64_t bySeqno = 10;
@@ -3060,7 +3063,7 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
     char *data = static_cast<char *>(malloc(dataLen));
     memset(data, 'x', dataLen);
 
-    uint8_t cas = 0;
+    uint8_t cas = 0x1;
     uint16_t vbucket = 0;
     uint8_t datatype = 1;
     uint64_t bySeqno = 10;
@@ -3139,7 +3142,7 @@ static enum test_result test_dcp_consumer_delete(ENGINE_HANDLE *h, ENGINE_HANDLE
 
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0;
-    uint8_t cas = 0;
+    uint8_t cas = 0x1;
     uint16_t vbucket = 0;
     uint32_t flags = 0;
     uint64_t bySeqno = 10;
@@ -3206,7 +3209,7 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
 
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0;
-    uint8_t cas = 0;
+    uint8_t cas = 0x1;
     uint16_t vbucket = 0;
     uint32_t flags = 0;
     uint64_t bySeqno = 10;

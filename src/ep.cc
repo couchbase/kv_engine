@@ -1055,6 +1055,13 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
     }
 }
 
+static bool isValidCas(const uint64_t &itmCas) {
+    if (itmCas == 0 || itmCas == static_cast<uint64_t>(-1)) {
+        return false;
+    }
+    return true;
+}
+
 ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
                                                         const Item &itm,
                                                         uint8_t nru,
@@ -1074,6 +1081,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
         vb->getState() == vbucket_state_active) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    //check for the incoming item's CAS validity
+    if (!isValidCas(itm.getCas())) {
+        return ENGINE_KEY_EEXISTS;
     }
 
     int bucket_num(0);
@@ -2279,6 +2291,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
         return ENGINE_TMPFAIL;
     }
 
+    //check for the incoming item's CAS validity
+    if (!isValidCas(itm.getCas())) {
+        return ENGINE_KEY_EEXISTS;
+    }
+
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(itm.getKey(), &bucket_num);
     StoredValue *v = vb->ht.unlocked_find(itm.getKey(), bucket_num, true,
@@ -2928,6 +2945,11 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         LOG(EXTENSION_LOG_DEBUG, "(vb %u) Returned TMPFAIL to a deleteWithMeta "
                 "op, because takeover is lagging", vb->getId());
         return ENGINE_TMPFAIL;
+    }
+
+    //check for the incoming item's CAS validity
+    if (!isValidCas(itemMeta->cas)) {
+        return ENGINE_KEY_EEXISTS;
     }
 
     int bucket_num(0);

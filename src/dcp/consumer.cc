@@ -749,7 +749,16 @@ process_items_error_t DcpConsumer::processBufferedItems() {
     int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
     for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
 
-        passive_stream_t stream = streams[vbucket];
+        passive_stream_t stream;
+        if (streams[vbucket]) {
+            // only assign a stream if there is one present to reduce
+            // the amount of cycles the RCPtr spinlock will use.
+            stream = streams[vbucket];
+        }
+
+        // Now that we think there's a stream, check again in-case it was
+        // removed after our first "cheap" if (streams[vb]) test and the actual
+        // copy construction onto stream.
         if (!stream) {
             continue;
         }
