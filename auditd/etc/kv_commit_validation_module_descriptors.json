@@ -1,0 +1,18 @@
+{
+  "modules": [
+    {
+      "auditd": {
+        "startid": 4096,
+        "file": "memcached/auditd/etc/auditd_descriptor.json",
+        "header": "memcached/auditd/auditd_audit_events.h"
+      }
+    },
+    {
+      "memcached": {
+        "startid": 20480,
+        "file": "memcached/etc/memcached_descriptor.json",
+        "header": "memcached/memcached_audit_events.h"
+      }
+    }
+  ]
+}
