@@ -152,6 +152,7 @@ ADD_LIBRARY(ep SHARED
             src/htresizer.cc
             src/item.cc
             src/item_pager.cc
+            src/logger.cc
             src/kvshard.cc
             src/memory_tracker.cc
             src/murmurhash3.cc

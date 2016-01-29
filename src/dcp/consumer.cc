@@ -134,14 +134,16 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
 
     RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
     if (!vb) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Add stream failed because this "
-            "vbucket doesn't exist", logHeader(), vbucket);
+        logger.log(EXTENSION_LOG_WARNING,
+            "(vb %d) Add stream failed because this vbucket doesn't exist",
+            vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
 
     if (vb->getState() == vbucket_state_active) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Add stream failed because this "
-            "vbucket happens to be in active state", logHeader(), vbucket);
+        logger.log(EXTENSION_LOG_WARNING,
+            "(vb %d) Add stream failed because this vbucket happens to be in "
+            "active state", vbucket);
         return ENGINE_NOT_MY_VBUCKET;
     }
 
@@ -609,8 +611,9 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
     }
 
     if (!validOpaque) {
-        LOG(EXTENSION_LOG_WARNING, "%s Received response with opaque %"
-            PRIu32 " and that stream no longer exists", logHeader(), opaque);
+        logger.log(EXTENSION_LOG_WARNING,
+            "Received response with opaque %" PRIu32 " and that stream no "
+                    "longer exists", opaque);
         return ENGINE_KEY_ENOENT;
     }
 

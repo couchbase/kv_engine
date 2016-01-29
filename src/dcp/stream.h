@@ -223,7 +223,7 @@ public:
 
     uint64_t getLastSentSeqno();
 
-    const char* logHeader();
+    const Logger& getLogger() const;
 
     bool isSendMutationKeyOnlyEnabled() const;
 

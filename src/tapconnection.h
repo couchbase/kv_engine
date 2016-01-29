@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 
+#include "logger.h"
 #include "statwriter.h"
 #include "vbucket.h"
 #include "utility.h"
@@ -254,12 +255,14 @@ public:
     }
 
     const char* logHeader() {
-        return logString.c_str();
+        return logger.prefix.c_str();
     }
 
     void setLogHeader(const std::string &header) {
-        logString = header;
+        logger.prefix = header;
     }
+
+    const Logger& getLogger() const;
 
     void releaseReference(bool force = false);
 
@@ -394,13 +397,13 @@ protected:
     EPStats &stats;
     bool supportCheckpointSync_;
 
+    //! The logger for this connection
+    Logger logger;
+
 private:
 
      //! The name for this connection
     std::string name;
-
-    //! The string used to prefix all log messages for this connection
-    std::string logString;
 
     //! The cookie representing this connection (provided by the memcached code)
     AtomicValue<void*> cookie;

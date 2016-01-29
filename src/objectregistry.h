@@ -19,6 +19,8 @@
 
 #include "config.h"
 
+#include "atomic.h"
+
 class EventuallyPersistentEngine;
 class Blob;
 class Item;

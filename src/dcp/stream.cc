@@ -168,9 +168,9 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
         }
     }
 
-    LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") Creating %sstream "
-        "with start seqno %" PRIu64 " and end seqno %" PRIu64"",
-        producer->logHeader(), vb, type, st_seqno, en_seqno);
+    producer->getLogger().log(EXTENSION_LOG_NOTICE,
+        "(vb %" PRIu16 ") Creating %sstream with start seqno %" PRIu64
+        " and end seqno %" PRIu64, vb, type, st_seqno, en_seqno);
 
     backfillItems.memory = 0;
     backfillItems.disk = 0;
@@ -271,17 +271,17 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         if (end_seqno_ > endSeqno) {
             /* We possibly have items in the open checkpoint
                (incomplete snapshot) */
-            LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") Merging backfill"
-                " and memory snapshot for a replica vbucket, start seqno "
-                "%" PRIu64 " and end seqno %" PRIu64 "",
-                producer->logHeader(), vb_, startSeqno, endSeqno);
+            producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                "(vb %" PRIu16 ") Merging backfill and memory snapshot for a "
+                "replica vbucket, start seqno %" PRIu64 " and end seqno %" PRIu64,
+                vb_, startSeqno, endSeqno);
             endSeqno = end_seqno_;
         }
     }
 
-    LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") Sending disk snapshot with "
-        "start seqno %" PRIu64 " and end seqno %" PRIu64 "",
-        producer->logHeader(), vb_, startSeqno, endSeqno);
+    producer->getLogger().log(EXTENSION_LOG_NOTICE,
+        "(vb %" PRIu16 ") Sending disk snapshot with start seqno %" PRIu64
+        " and end seqno %" PRIu64, vb_, startSeqno, endSeqno);
     pushToReadyQ(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
                                     MARKER_FLAG_DISK));
     lastSentSnapEndSeqno = endSeqno;
@@ -347,10 +347,10 @@ void ActiveStream::completeBackfill() {
         LockHolder lh(streamMutex);
         if (state_ == STREAM_BACKFILLING) {
             isBackfillTaskRunning = false;
-            LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") Backfill complete, "
-                "%" PRIu64 " items read from disk, %" PRIu64 " from memory,"
-                " last seqno read: %" PRIu64 "",
-                producer->logHeader(), vb_, uint64_t(backfillItems.disk.load()),
+            producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                "(vb %" PRIu16 ") Backfill complete, %" PRIu64 " items read "
+                "from disk, %" PRIu64 " from memory, last seqno read: %" PRIu64,
+                vb_, uint64_t(backfillItems.disk.load()),
                 uint64_t(backfillItems.memory.load()), lastReadSeqno.load());
         }
     }
@@ -376,8 +376,9 @@ void ActiveStream::setVBucketStateAckRecieved() {
     bool transitionVbucket = false;
     if (state_ == STREAM_TAKEOVER_WAIT) {
         if (takeoverState == vbucket_state_pending) {
-            LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") Receive ack for set "
-                "vbucket state to pending message", producer->logHeader(), vb_);
+            producer->getLogger().log(EXTENSION_LOG_INFO,
+                "(vb %" PRIu16 ") Receive ack for set vbucket state to pending "
+                "message", vb_);
 
             takeoverState = vbucket_state_active;
             transitionVbucket = true;
@@ -387,13 +388,14 @@ void ActiveStream::setVBucketStateAckRecieved() {
             RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
             engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
                                                   false, false);
-            LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") Vbucket marked as "
-                "dead, last sent seqno: %" PRIu64 ", high seqno: %" PRIu64 "",
-                producer->logHeader(), vb_, lastSentSeqno.load(),
-                vbucket->getHighSeqno());
+            producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                "(vb %" PRIu16 ") Vbucket marked as dead, last sent seqno: %"
+                PRIu64 ", high seqno: %" PRIu64,
+                vb_, lastSentSeqno.load(), vbucket->getHighSeqno());
         } else {
-            LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") Receive ack for set "
-                "vbucket state to active message", producer->logHeader(), vb_);
+            producer->getLogger().log(EXTENSION_LOG_INFO,
+                "(vb %" PRIu16 ") Receive ack for set vbucket state to active "
+                "message", vb_);
             endStream(END_STREAM_OK);
             lh.unlock();
         }
@@ -410,9 +412,9 @@ void ActiveStream::setVBucketStateAckRecieved() {
                                                   false, false);
         }
     } else {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") Unexpected ack for set "
-            "vbucket op on stream '%s' state '%s'", producer->logHeader(), vb_,
-            name_.c_str(), stateName(state_));
+        producer->getLogger().log(EXTENSION_LOG_WARNING,
+            "(vb %" PRIu16 ") Unexpected ack for set vbucket op on stream '%s' "
+            "state '%s'", vb_, name_.c_str(), stateName(state_));
     }
 
 }
@@ -812,11 +814,12 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             pushToReadyQ(new StreamEndResponse(opaque_, reason, vb_));
         }
         transitionState(STREAM_DEAD);
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Stream closing, "
+        producer->getLogger().log(EXTENSION_LOG_NOTICE,
+            "(vb %d) Stream closing, "
             "%" PRIu64 " items sent from backfill phase, "
             "%" PRIu64 " items sent from memory phase, "
             "%" PRIu64 " was last seqno sent, reason: %s",
-            producer->logHeader(), vb_,
+            vb_,
             uint64_t(backfillItems.sent.load()),
             uint64_t(itemsFromMemoryPhase.load()), lastSentSeqno.load(),
             getEndStreamStatusStr(reason));
@@ -900,8 +903,9 @@ const char* ActiveStream::getEndStreamStatusStr(end_stream_status_t status)
 }
 
 void ActiveStream::transitionState(stream_state_t newState) {
-    LOG(EXTENSION_LOG_DEBUG, "%s (vb %d) Transitioning from %s to %s",
-        producer->logHeader(), vb_, stateName(state_), stateName(newState));
+    producer->getLogger().log(EXTENSION_LOG_DEBUG,
+                              "(vb %d) Transitioning from %s to %s",
+                              vb_, stateName(state_), stateName(newState));
 
     if (state_ == newState) {
         return;
@@ -1033,9 +1037,9 @@ ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId,
     return emd;
 }
 
-const char* ActiveStream::logHeader()
+const Logger& ActiveStream::getLogger() const
 {
-    return producer->logHeader();
+    return producer->getLogger();
 }
 
 bool ActiveStream::isSendMutationKeyOnlyEnabled() const
@@ -1075,9 +1079,9 @@ NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
 
     type_ = STREAM_NOTIFIER;
 
-    LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) stream created with start seqno "
-        "%" PRIu64 " and end seqno %" PRIu64,
-        producer->logHeader(), vb, st_seqno, en_seqno);
+    producer->getLogger().log(EXTENSION_LOG_NOTICE,
+        "(vb %d) stream created with start seqno %" PRIu64 " and end seqno %"
+        PRIu64, vb, st_seqno, en_seqno);
 }
 
 uint32_t NotifierStream::setDead(end_stream_status_t status) {
@@ -1128,8 +1132,9 @@ DcpResponse* NotifierStream::next() {
 }
 
 void NotifierStream::transitionState(stream_state_t newState) {
-    LOG(EXTENSION_LOG_DEBUG, "%s (vb %d) Transitioning from %s to %s",
-        producer->logHeader(), vb_, stateName(state_), stateName(newState));
+    producer->getLogger().log(EXTENSION_LOG_DEBUG,
+        "(vb %d) Transitioning from %s to %s", vb_,
+        stateName(state_), stateName(newState));
 
     if (state_ == newState) {
         return;
@@ -1179,11 +1184,12 @@ PassiveStream::PassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t c,
     type_ = STREAM_PASSIVE;
 
     const char* type = (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) ? "takeover" : "";
-    LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRId16 ") Attempting to add %s stream"
+    consumer->getLogger().log(EXTENSION_LOG_NOTICE,
+        "(vb %" PRId16 ") Attempting to add %s stream"
         " with start seqno %" PRIu64 ", end seqno %" PRIu64 ","
         " vbucket uuid %" PRIu64 ", snap start seqno %" PRIu64 ","
         " snap end seqno %" PRIu64 ", and vb_high_seqno %" PRIu64 "",
-        consumer->logHeader(), vb, type, st_seqno, en_seqno, vb_uuid,
+        vb, type, st_seqno, en_seqno, vb_uuid,
         snap_start_seqno, snap_end_seqno, vb_high_seqno);
 }
 
@@ -1191,10 +1197,10 @@ PassiveStream::~PassiveStream() {
     uint32_t unackedBytes = clearBuffer_UNLOCKED();
     if (transitionState(STREAM_DEAD)) {
         // Destructed a "live" stream, log it.
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRId16 ") Destructing stream."
+        consumer->getLogger().log(EXTENSION_LOG_NOTICE,
+            "(vb %" PRId16 ") Destructing stream."
             " last_seqno is %" PRIu64 ", unAckedBytes is %" PRIu32 ".",
-            consumer->logHeader(), vb_, last_seqno.load(),
-            unackedBytes);
+            vb_, last_seqno.load(), unackedBytes);
     }
 }
 
@@ -1216,11 +1222,10 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
         if (END_STREAM_DISCONNECTED == status) {
             logLevel = EXTENSION_LOG_WARNING;
         }
-        LOG(logLevel, "%s (vb %" PRId16 ") Setting stream to dead"
-            " state, last_seqno is %" PRIu64 ", unAckedBytes is %" PRIu32 ","
-            " status is %s",
-            consumer->logHeader(), vb_, last_seqno.load(),
-            unackedBytes, getEndStreamStatusStr(status));
+        consumer->getLogger().log(logLevel,
+            "(vb %" PRId16 ") Setting stream to dead state, last_seqno is %"
+            PRIu64 ", unAckedBytes is %" PRIu32 ", status is %s",
+            vb_, last_seqno.load(), unackedBytes, getEndStreamStatusStr(status));
     }
     return unackedBytes;
 }
@@ -1256,11 +1261,12 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
     start_seqno_ = info.start;
     snap_end_seqno_ = info.range.end;
 
-    LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Attempting to reconnect stream "
-        "with opaque %" PRIu32 ", start seq no %" PRIu64 ", end seq no %" PRIu64
+    consumer->getLogger().log(EXTENSION_LOG_NOTICE,
+        "(vb %d) Attempting to reconnect stream with opaque %" PRIu32
+        ", start seq no %" PRIu64 ", end seq no %" PRIu64
         ", snap start seqno %" PRIu64 ", and snap end seqno %" PRIu64,
-        consumer->logHeader(), vb_, new_opaque,
-        start_seqno, end_seqno_, snap_start_seqno_, snap_end_seqno_);
+        vb_, new_opaque, start_seqno, end_seqno_,
+        snap_start_seqno_, snap_end_seqno_);
 
     LockHolder lh(streamMutex);
     last_seqno.store(start_seqno);
@@ -1294,10 +1300,11 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
             MutationResponse* m = static_cast<MutationResponse*>(resp);
             uint64_t bySeqno = m->getBySeqno();
             if (bySeqno <= last_seqno.load()) {
-                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous (out of "
-                    "sequence) mutation received, with opaque: %" PRIu32 ", its "
-                    "seqno (%" PRIu64 ") is not greater than last received seqno "
-                    "(%" PRIu64 "); Dropping mutation!", consumer->logHeader(),
+                consumer->getLogger().log(EXTENSION_LOG_WARNING,
+                    "(vb %d) Erroneous (out of sequence) mutation received, "
+                    "with opaque: %" PRIu32 ", its seqno (%" PRIu64 ") is not "
+                    "greater than last received seqno (%" PRIu64 "); "
+                    "Dropping mutation!",
                     vb_, opaque_, bySeqno, last_seqno.load());
                 delete m;
                 return ENGINE_ERANGE;
@@ -1311,12 +1318,12 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
             uint64_t snapStart = s->getStartSeqno();
             uint64_t snapEnd = s->getEndSeqno();
             if (snapStart < last_seqno.load() && snapEnd <= last_seqno.load()) {
-                LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous snapshot "
-                    "marker received, with opaque: %" PRIu32 ", its start "
+                consumer->getLogger().log(EXTENSION_LOG_WARNING,
+                    "(vb %d) Erroneous snapshot marker received, with "
+                    "opaque: %" PRIu32 ", its start "
                     "(%" PRIu64 "), and end (%" PRIu64 ") are less than last "
                     "received seqno (%" PRIu64 "); Dropping marker!",
-                    consumer->logHeader(), vb_, opaque_, snapStart, snapEnd,
-                    last_seqno.load());
+                    vb_, opaque_, snapStart, snapEnd, last_seqno.load());
                 delete s;
                 return ENGINE_ERANGE;
             }
@@ -1330,9 +1337,9 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         }
         default:
         {
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Unknown DCP op received: %d;"
-                " Disconnecting connection..",
-                consumer->logHeader(), vb_, resp->getEvent());
+            consumer->getLogger().log(EXTENSION_LOG_WARNING,
+                "(vb %d) Unknown DCP op received: %d; Disconnecting connection..",
+                vb_, resp->getEvent());
             return ENGINE_DISCONNECT;
         }
     }
@@ -1462,11 +1469,12 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
 
     if (mutation->getBySeqno() < cur_snapshot_start.load() ||
         mutation->getBySeqno() > cur_snapshot_end.load()) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous mutation [sequence "
+        consumer->getLogger().log(EXTENSION_LOG_WARNING,
+            "(vb %d) Erroneous mutation [sequence "
             "number does not fall in the expected snapshot range : "
             "{snapshot_start (%" PRIu64 ") <= seq_no (%" PRIu64 ") <= "
             "snapshot_end (%" PRIu64 ")]; Dropping the mutation!",
-            consumer->logHeader(), vb_, cur_snapshot_start.load(),
+            vb_, cur_snapshot_start.load(),
             mutation->getBySeqno(), cur_snapshot_end.load());
         return ENGINE_ERANGE;
     }
@@ -1489,8 +1497,8 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     // the producer side doesn't do anything with them anyways let's just log
     // them for now until we come up with a better solution.
     if (ret != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "%s Got an error code %d while trying to "
-            "process  mutation", consumer->logHeader(), ret);
+        consumer->getLogger().log(EXTENSION_LOG_WARNING,
+            "Got an error code %d while trying to process mutation", ret);
     } else {
         handleSnapshotEnd(vb, mutation->getBySeqno());
     }
@@ -1506,11 +1514,12 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
 
     if (deletion->getBySeqno() < cur_snapshot_start.load() ||
         deletion->getBySeqno() > cur_snapshot_end.load()) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous deletion [sequence "
+        consumer->getLogger().log(EXTENSION_LOG_WARNING,
+            "(vb %d) Erroneous deletion [sequence "
             "number does not fall in the expected snapshot range : "
             "{snapshot_start (%" PRIu64 ") <= seq_no (%" PRIu64 ") <= "
             "snapshot_end (%" PRIu64 ")]; Dropping the deletion!",
-            consumer->logHeader(), vb_, cur_snapshot_start.load(),
+            vb_, cur_snapshot_start.load(),
             deletion->getBySeqno(), cur_snapshot_end.load());
         return ENGINE_ERANGE;
     }
@@ -1533,8 +1542,8 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     // the producer side doesn't do anything with them anyways let's just log
     // them for now until we come up with a better solution.
     if (ret != ENGINE_SUCCESS) {
-        LOG(EXTENSION_LOG_WARNING, "%s Got an error code %d while trying to "
-            "process  deletion", consumer->logHeader(), ret);
+        consumer->getLogger().log(EXTENSION_LOG_WARNING,
+            "Got an error code %d while trying to process deletion", ret);
     } else {
         handleSnapshotEnd(vb, deletion->getBySeqno());
     }
@@ -1669,8 +1678,9 @@ uint32_t PassiveStream::clearBuffer_UNLOCKED() {
 }
 
 bool PassiveStream::transitionState(stream_state_t newState) {
-    LOG(EXTENSION_LOG_DEBUG, "%s (vb %d) Transitioning from %s to %s",
-        consumer->logHeader(), vb_, stateName(state_), stateName(newState));
+    consumer->getLogger().log(EXTENSION_LOG_DEBUG,
+        "(vb %d) Transitioning from %s to %s",
+        vb_, stateName(state_), stateName(newState));
 
     if (state_ == newState) {
         return false;

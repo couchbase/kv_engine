@@ -44,6 +44,7 @@
 #include "connmap.h"
 #include "common.h"
 #include "htresizer.h"
+#include "logger.h"
 #include "memory_tracker.h"
 #include "stats-info.h"
 #define STATWRITER_NAMESPACE core_engine
@@ -56,8 +57,10 @@
 #include "string_utils.h"
 
 static AtomicValue<ALLOCATOR_HOOKS_API*> hooksApi;
-static AtomicValue<SERVER_LOG_API*> loggerApi;
-static AtomicValue<EXTENSION_LOG_LEVEL> log_level;
+
+// The global logger instance, used by LOG() when components don't specify
+// their own more specific logger.
+static Logger global_logger;
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -1782,7 +1785,7 @@ extern "C" {
     }
 
     void EvpSetLogLevel(ENGINE_HANDLE* handle, EXTENSION_LOG_LEVEL level) {
-        log_level.store(level, std::memory_order_relaxed);
+        Logger::setGlobalLogLevel(level);
     }
 
     /**
@@ -1805,7 +1808,8 @@ extern "C" {
         }
 
         hooksApi.store(api->alloc_hooks, std::memory_order_relaxed);
-        loggerApi.store(api->log, std::memory_order_relaxed);
+        Logger::setLoggerAPI(api->log);
+
         MemoryTracker::getInstance();
         ObjectRegistry::initialize(api->alloc_hooks->get_allocation_size);
 
@@ -1908,36 +1912,10 @@ extern "C" {
 } // C linkage
 
 void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
-    char buffer[2048];
-
-    if (loggerApi.load(std::memory_order_relaxed) != nullptr) {
-        static EXTENSION_LOGGER_DESCRIPTOR* logger;
-        if (logger == nullptr) {
-            // This locking isn't really needed because get_logger will
-            // always return the same address, but it'll keep thread sanitizer
-            // and other tools from complaining ;-)
-            static std::mutex mutex;
-            std::lock_guard<std::mutex> guard(mutex);
-            logger = loggerApi.load(std::memory_order_relaxed)->get_logger();
-            log_level.store(loggerApi.load(std::memory_order_relaxed)->get_level(),
-                            std::memory_order_relaxed);
-        }
-
-        if (log_level.load(std::memory_order_relaxed) <= severity) {
-            EventuallyPersistentEngine *engine = ObjectRegistry::onSwitchThread(NULL, true);
-            va_list va;
-            va_start(va, fmt);
-            vsnprintf(buffer, sizeof(buffer) - 1, fmt, va);
-            if (engine) {
-                logger->log(severity, NULL, "(%s) %s", engine->getName().c_str(),
-                            buffer);
-            } else {
-                logger->log(severity, NULL, "(No Engine) %s", buffer);
-            }
-            va_end(va);
-            ObjectRegistry::onSwitchThread(engine);
-        }
-    }
+    va_list va;
+    va_start(va, fmt);
+    global_logger.vlog(severity, fmt, va);
+    va_end(va);
 }
 
 ALLOCATOR_HOOKS_API *getHooksApi(void) {

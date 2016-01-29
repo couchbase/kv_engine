@@ -68,7 +68,8 @@ void CacheCallback::callback(CacheLookup &lookup) {
                         v->toItem(false, lookup.getVBucketId());
         } catch (const std::bad_alloc&) {
             setStatus(ENGINE_ENOMEM);
-            LOG(EXTENSION_LOG_WARNING, "Alloc error when trying to create an "
+            as->getLogger().log(EXTENSION_LOG_WARNING,
+                           "Alloc error when trying to create an "
                 "item copy from hash table. Item key %s; seqno %" PRIi64 "; "
                 "vb %u; isSendMutationKeyOnlyEnabled %d", v->getKey().c_str(),
                 v->getBySeqno(), lookup.getVBucketId(),
@@ -163,10 +164,9 @@ backfill_status_t DCPBackfill::create() {
     ActiveStream* as = static_cast<ActiveStream*>(stream.get());
 
     if (lastPersistedSeqno < endSeqno) {
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Rescheduling backfill"
+        as->getLogger().log(EXTENSION_LOG_NOTICE, "(vb %d) Rescheduling backfill"
             "because backfill up to seqno %" PRIu64 " is needed but only up to "
-            "%" PRIu64 " is persisted", as->logHeader(), vbid, endSeqno,
-            lastPersistedSeqno);
+            "%" PRIu64 " is persisted", vbid, endSeqno, lastPersistedSeqno);
         return backfill_snooze;
     }
 
@@ -225,9 +225,9 @@ backfill_status_t DCPBackfill::complete(bool cancelled) {
 
     EXTENSION_LOG_LEVEL severity = cancelled ? EXTENSION_LOG_NOTICE
                                              : EXTENSION_LOG_INFO;
-    LOG(severity,
-        "%s (vb %d) Backfill task (%" PRIu64 " to %" PRIu64 ") %s",
-        as->logHeader(), vbid, startSeqno, endSeqno,
+    as->getLogger().log(severity,
+        "(vb %d) Backfill task (%" PRIu64 " to %" PRIu64 ") %s",
+        vbid, startSeqno, endSeqno,
         cancelled ? "cancelled" : "finished");
 
     transitionState(backfill_state_done);
