@@ -1,4 +1,19 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ *     Copyright 2016 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
 
 #include "logger_test_common.h"
 
@@ -12,27 +27,85 @@
 
 #include <gtest/gtest.h>
 
-TEST(LoggerTest, Rotate) {
-    EXTENSION_ERROR_CODE ret;
-    int ii;
 
-    std::vector<std::string> files;
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test.rotate");
-    if (!files.empty()) {
-        remove_files(files);
+class LoggerTest : public ::testing::Test {
+protected:
+    virtual void SetUp() {
+        files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+
+        if (!files.empty()) {
+            remove_files(files);
+        }
+
+        /* Note: Ensure buffer is at least 4* larger than the expected message
+         * length, otherwise the writer will be blocked waiting for the flusher
+         * thread to timeout and write (as we haven't actually hit the 75%
+         * watermark which would normally trigger an immediate flush).
+         */
+        ret = memcached_extensions_initialize("unit_test=true;"
+                  "loglevel=warning;cyclesize=1024;buffersize=8192;"
+                  "sleeptime=1;filename=logger_test", get_server_api);
+        cb_assert(ret == EXTENSION_SUCCESS);
+
     }
+    EXTENSION_ERROR_CODE ret;
+    std::vector<std::string> files;
+};
 
 
-    // Note: Ensure buffer is at least 4* larger than the expected message
-    // length, otherwise the writer will be blocked waiting for the flusher
-    // thread to timeout and write (as we haven't actually hit the 75%
-    // watermark which would normally trigger an immediate flush).
-    ret = memcached_extensions_initialize("unit_test=true;"
-            "loglevel=warning;cyclesize=1024;buffersize=512;sleeptime=1;"
-            "filename=log_test.rotate", get_server_api);
-    cb_assert(ret == EXTENSION_SUCCESS);
+TEST_F(LoggerTest, MessageSizeBigWithNewLine) {
+    char message[2048];
+    for (auto i = 0; i < 2046; i++) {
+        message[i] = 'x';
+    }
+    message[2046] = '\n';
+    message[2047] = '\0';
+    logger->log(EXTENSION_LOG_DETAIL, nullptr, message);
+    logger->shutdown(false);
 
-    for (ii = 0; ii < 8192; ++ii) {
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+    cb_assert(files.size() == 1);
+    remove_files(files);
+}
+
+
+TEST_F(LoggerTest, MessageSizeBigWithNoNewLine) {
+    char message[2048];
+    for (auto i = 0; i < 2047; i++) {
+        message[i] = 'x';
+    }
+    message[2047] = '\0';
+    logger->log(EXTENSION_LOG_DETAIL, nullptr, message);
+    logger->shutdown(false);
+
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+    cb_assert(files.size() == 1);
+    remove_files(files);
+}
+
+
+TEST_F(LoggerTest, MessageSizeSmallWithNewLine) {
+    logger->log(EXTENSION_LOG_DETAIL, nullptr, "small_message\n");
+    logger->shutdown(false);
+
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+    cb_assert(files.size() == 1);
+    remove_files(files);
+}
+
+
+TEST_F(LoggerTest, MessageSizeSmallWithNoNewLine) {
+    logger->log(EXTENSION_LOG_DETAIL, nullptr, "small_message");
+    logger->shutdown(false);
+
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
+    cb_assert(files.size() == 1);
+    remove_files(files);
+}
+
+
+TEST_F(LoggerTest, Rotate) {
+    for (auto ii = 0; ii < 8192; ++ii) {
         logger->log(EXTENSION_LOG_DETAIL, NULL,
                     "Hei hopp, dette er bare noe tull... Paa tide med %05u!!",
                     ii);
@@ -40,7 +113,7 @@ TEST(LoggerTest, Rotate) {
 
     logger->shutdown(false);
 
-    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("log_test");
+    files = CouchbaseDirectoryUtilities::findFilesWithPrefix("logger_test");
 
     // The cyclesize isn't a hard limit. We don't truncate entries that
     // won't fit to move to the next file. We'll rather dump the entire
@@ -76,10 +149,10 @@ static std::string create_filename(const std::string &prefix,
 }
 
 // There are too many spurious test failures with this test.
-TEST(LoggerTest, DISABLED_Dedupe) {
+TEST_F(LoggerTest, DISABLED_Dedupe) {
     EXTENSION_ERROR_CODE ret;
     int ii;
-    std::string filename = create_filename("log_test", "dedupe");
+    std::string filename = create_filename("logger_test", "dedupe");
 
     std::vector<std::string> files;
     files = CouchbaseDirectoryUtilities::findFilesWithPrefix(filename);

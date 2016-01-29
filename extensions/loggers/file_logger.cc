@@ -65,7 +65,7 @@ static struct logbuffer {
 } buffers[2];
 
 /* The index in the buffers where we're currently inserting more data */
-static int currbuffer;
+static int currbuffer = 0;
 
 /* Are we running in a unit test (don't print warnings to stderr) */
 static bool unit_test = false;
@@ -104,7 +104,7 @@ static pid_t pid;
  */
 static struct {
     /* The last message being added to the log */
-    char buffer[512];
+    char buffer[2048];
     /* The number of times we've seen this message */
     int count;
     /* The offset into the buffer for where the text start (after the
@@ -302,15 +302,34 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
     len = vsnprintf(event.msg, avail_char_in_msg, fmt, ap);
     va_end(ap);
 
+    /* array indices start from zero, so need to offset length by minus one */
+    auto index = len - 1;
     /* If an encoding error occurs with vsnprintf a -ive number is returned */
-    if ((len <= static_cast<int>(avail_char_in_msg)) && (len >= 0)) {
-        /* add a new line to the message if not already there */
-        if (event.msg[len - 1] != '\n') {
-            event.msg[len++] = '\n';
-            event.msg[len] ='\0';
+    if (len >= 0) {
+        if (len < static_cast<int>(avail_char_in_msg)) {
+            /* add a new line to the message if not already there */
+            if (event.msg[index] != '\n') {
+                event.msg[index + 1] = '\n';
+                event.msg[index + 2] = '\0';
+            } else {
+                event.msg[index + 1] = '\0';
+            }
+        } else {
+            /* len is equal avail_char_in_msg */
+
+            /* index to array element containing last character
+             * (excluding terminating character)
+             */
+            index = avail_char_in_msg - 1;
+            if (event.msg[index] != '\n') {
+                fprintf(stderr, "Syslog message being truncated... too big \n");
+                event.msg[index] = '\n';
+            }
+            event.msg[index + 1] = '\0';
         }
     } else {
         fprintf(stderr, "Syslog message dropped... too big \n");
+        return;
     }
 
     switch (severity) {
@@ -449,7 +468,7 @@ static volatile int run = 1;
 static cb_thread_t tid;
 static FILE *fp;
 
-static void logger_thead_main(void* arg)
+static void logger_thread_main(void* arg)
 {
     size_t currsize = 0;
 
@@ -515,6 +534,12 @@ static void logger_thead_main(void* arg)
         }
     }
 
+    /* The log file might not be open, however we may have
+     * an event in the buffer that needs flushing to a file.
+     */
+    if (buffers[currbuffer].offset != 0 && !fp) {
+        fp = open_logfile(reinterpret_cast<const char*>(arg));
+    }
     if (fp) {
         flush_all_buffers_to_file(fp);
         close_logfile(fp);
@@ -584,6 +609,17 @@ MEMCACHED_PUBLIC_API
 EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
                                                      GET_SERVER_API get_server_api)
 {
+    /* memcached_logger_test invokes memcached_extensions_initialize
+     * for each test.  Therefore it is necessary to ensure the following
+     * state is reset.
+     */
+    run = 1;
+    fp = nullptr;
+    lastlog.buffer[0] = '\0';
+    lastlog.count = 0;
+    lastlog.offset = 0;
+    lastlog.created = 0;
+
     char *fname = NULL;
 
     cb_mutex_initialize(&mutex);
@@ -687,7 +723,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         return EXTENSION_FATAL;
     }
 
-    if (cb_create_named_thread(&tid, logger_thead_main, fname, 0,
+    if (cb_create_named_thread(&tid, logger_thread_main, fname, 0,
                                "mc:file_logger") < 0) {
         fprintf(stderr, "Failed to initialize the logger\n");
         free(fname);
