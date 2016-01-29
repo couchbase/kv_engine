@@ -1399,6 +1399,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
            items in the buffer, we should rather clear them */
         if (state_ == STREAM_DEAD) {
             total_bytes_processed += clearBuffer_UNLOCKED();
+            processed_bytes = total_bytes_processed;
             return all_processed;
         }
 
