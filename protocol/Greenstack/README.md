@@ -231,7 +231,7 @@ the following range:
 </table>
 
 The current set of status codes is defined in
-<a href="include/libgreenstack/Status.h">include/libgreenstack/Status.h</a><
+<a href="/include/libgreenstack/Status.h">/include/libgreenstack/Status.h</a>
 
 ### Flex header length
 
