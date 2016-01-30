@@ -1593,10 +1593,11 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
             uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
             vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
         } else {
-            double maxSize = static_cast<double>(engine->getEpStats().getMaxDataSize());
-            double mem_threshold = StoredValue::getMutationMemThreshold();
-            double mem_used = static_cast<double>(engine->getEpStats().getTotalMemoryUsed());
-            if (maxSize * mem_threshold < mem_used) {
+            size_t mem_threshold = engine->getEpStats().mem_high_wat.load();
+            size_t mem_used = engine->getEpStats().getTotalMemoryUsed();
+            /* We want to add a new replica checkpoint if the mem usage is above
+               high watermark (85%) */
+            if (mem_threshold < mem_used) {
                 uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
                 vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
             }
