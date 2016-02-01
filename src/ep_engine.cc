@@ -2291,7 +2291,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
 
     case OPERATION_APPEND:
     case OPERATION_PREPEND: {
-        bool locked;
+        bool locked = false;
         do {
             if ((ret = get(cookie, &i, it->getKey().c_str(),
                            it->getNKey(), vbucket)) == ENGINE_SUCCESS) {
