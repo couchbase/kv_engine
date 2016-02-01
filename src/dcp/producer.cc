@@ -768,9 +768,9 @@ void DcpProducer::notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno) {
 void DcpProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
     stream_t stream = findStreamByVbid(vbucket);
     if (stream) {
-        LOG(EXTENSION_LOG_NOTICE, "%s (vb %" PRIu16 ") State changed to "
+        LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") State changed to "
             "%s, closing active stream!",
-            logHeader(), vbucket, std::to_string(state).c_str());
+            logHeader(), vbucket, VBucket::toString(state));
         stream->setDead(END_STREAM_STATE);
     }
 }

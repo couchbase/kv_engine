@@ -1031,14 +1031,15 @@ void DcpConnMap::shutdownAllConnections() {
     }
 }
 
-void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
+void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
+                                     bool closeInboundStreams) {
     LockHolder lh(connsLock);
     std::map<const void*, connection_t>::iterator itr = map_.begin();
     for (; itr != map_.end(); ++itr) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
         if (producer) {
             producer->vbucketStateChanged(vbucket, state);
-        } else {
+        } else if (closeInboundStreams) {
             static_cast<DcpConsumer*>(itr->second.get())->vbucketStateChanged(
                                                                 vbucket, state);
         }

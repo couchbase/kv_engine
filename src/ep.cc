@@ -1305,7 +1305,17 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
     if (vb) {
         vbucket_state_t oldstate = vb->getState();
         if (oldstate != to && notify_dcp) {
-            engine.getDcpConnMap().vbucketStateChanged(vbid, to);
+            bool closeInboundStreams = false;
+            if (oldstate == vbucket_state_replica &&
+                to == vbucket_state_active) {
+                /**
+                 * Close inbound (passive) streams into the vbucket
+                 * only in case of a failover.
+                 */
+                closeInboundStreams = true;
+            }
+            engine.getDcpConnMap().vbucketStateChanged(vbid, to,
+                                                       closeInboundStreams);
         }
 
         vb->setState(to);

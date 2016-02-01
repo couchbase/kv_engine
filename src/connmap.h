@@ -461,7 +461,17 @@ public:
 
     void removeVBConnections(connection_t &conn);
 
-    void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
+    /**
+     * Close outbound (active) streams for a vbucket whenever a state
+     * change is detected. In case of failovers, close inbound (passive)
+     * streams as well.
+     *
+     * @param vbucket the vbucket id
+     * @param state the new state of the vbucket
+     * @closeInboundStreams bool flag indicating failover
+     */
+    void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
+                             bool closeInboundStreams = true);
 
     void shutdownAllConnections();
 
