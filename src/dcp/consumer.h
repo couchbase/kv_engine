@@ -23,11 +23,10 @@
 #include <relaxed_atomic.h>
 
 #include "connmap.h"
+#include "dcp/dcp-types.h"
 #include "dcp/flow-control.h"
-#include "tapconnection.h"
-
 #include "dcp/stream.h"
-typedef RCPtr<PassiveStream> passive_stream_t;
+#include "tapconnection.h"
 
 class DcpResponse;
 class StreamEndResponse;
@@ -114,6 +113,8 @@ public:
 
     void taskCancelled();
 
+    bool notifiedProcesser(bool to);
+
 private:
 
     DcpResponse* getNextItem();
@@ -141,9 +142,13 @@ private:
 
     ENGINE_ERROR_CODE supportCursorDropping(struct dcp_message_producers* producers);
 
+    void notifyVbucketReady(uint16_t vbucket);
+
     uint64_t opaqueCounter;
     size_t processerTaskId;
-    AtomicValue<bool> itemsToProcess;
+
+    DcpReadyQueue vbReady;
+    AtomicValue<bool> processerNotification;
 
     Mutex readyMutex;
     std::list<uint16_t> ready;

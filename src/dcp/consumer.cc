@@ -23,6 +23,8 @@
 #include "dcp/stream.h"
 #include "dcp/response.h"
 
+#include <climits>
+
 const std::string DcpConsumer::noopCtrlMsg = "enable_noop";
 const std::string DcpConsumer::noopIntervalCtrlMsg = "set_noop_interval";
 const std::string DcpConsumer::connBufferCtrlMsg = "connection_buffer_size";
@@ -54,18 +56,28 @@ bool Processer::run() {
         return false;
     }
 
+    double sleepFor = 0;
     switch (consumer->processBufferedItems()) {
-        case all_processed:
-            snooze(1);
-            break;
-        case more_to_process:
+    case all_processed:
+        sleepFor = INT_MAX;
+        break;
+    case more_to_process:
+        sleepFor = 0;
+        break;
+    case cannot_process:
+        sleepFor = 5;
+        break;
+    }
+
+    if (consumer->notifiedProcesser(false)) {
+        snooze(0);
+    } else {
+        snooze(sleepFor);
+        // Check if the processer was notified again,
+        // in which case the task should wake immediately.
+        if (consumer->notifiedProcesser(false)) {
             snooze(0);
-            break;
-        case cannot_process:
-            snooze(5);
-            break;
-        default:
-            abort();
+        }
     }
 
     return true;
@@ -85,7 +97,7 @@ Processer::~Processer() {
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name), opaqueCounter(0), processerTaskId(0),
-      itemsToProcess(false), lastNoopTime(ep_current_time()), backoffs(0),
+      lastNoopTime(ep_current_time()), backoffs(0),
       taskAlreadyCancelled(false), flowControl(engine, this)
 {
     Configuration& config = engine.getConfiguration();
@@ -224,10 +236,8 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
 
         err = stream->messageReceived(response);
 
-        bool disable = false;
-        if (err == ENGINE_TMPFAIL &&
-            itemsToProcess.compare_exchange_strong(disable, true)) {
-            ExecutorPool::get()->wake(processerTaskId);
+        if (err == ENGINE_TMPFAIL) {
+            notifyVbucketReady(vbucket);
         }
     }
 
@@ -292,10 +302,8 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
 
         err = stream->messageReceived(response);
 
-        bool disable = false;
-        if (err == ENGINE_TMPFAIL &&
-            itemsToProcess.compare_exchange_strong(disable, true)) {
-            ExecutorPool::get()->wake(processerTaskId);
+        if (err == ENGINE_TMPFAIL) {
+            notifyVbucketReady(vbucket);
         }
     }
 
@@ -355,10 +363,8 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
 
         err = stream->messageReceived(response);
 
-        bool disable = false;
-        if (err == ENGINE_TMPFAIL &&
-            itemsToProcess.compare_exchange_strong(disable, true)) {
-            ExecutorPool::get()->wake(processerTaskId);
+        if (err == ENGINE_TMPFAIL) {
+            notifyVbucketReady(vbucket);
         }
     }
 
@@ -411,10 +417,8 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
 
         err = stream->messageReceived(response);
 
-        bool disable = false;
-        if (err == ENGINE_TMPFAIL &&
-            itemsToProcess.compare_exchange_strong(disable, true)) {
-            ExecutorPool::get()->wake(processerTaskId);
+        if (err == ENGINE_TMPFAIL) {
+            notifyVbucketReady(vbucket);
         }
     }
 
@@ -460,10 +464,8 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
 
         err = stream->messageReceived(response);
 
-        bool disable = false;
-        if (err == ENGINE_TMPFAIL &&
-            itemsToProcess.compare_exchange_strong(disable, true)) {
-            ExecutorPool::get()->wake(processerTaskId);
+        if (err == ENGINE_TMPFAIL) {
+            notifyVbucketReady(vbucket);
         }
     }
 
@@ -745,12 +747,9 @@ void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) {
 }
 
 process_items_error_t DcpConsumer::processBufferedItems() {
-    itemsToProcess.store(false);
     process_items_error_t process_ret = all_processed;
-
-    int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
-    for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
-
+    uint16_t vbucket = 0;
+    while (vbReady.popFront(vbucket)) {
         passive_stream_t stream;
         if (streams[vbucket]) {
             // only assign a stream if there is one present to reduce
@@ -766,7 +765,6 @@ process_items_error_t DcpConsumer::processBufferedItems() {
         }
 
         uint32_t bytes_processed;
-
         do {
             if (!engine_.getReplicationThrottle().shouldProcess()) {
                 backoffs++;
@@ -777,20 +775,47 @@ process_items_error_t DcpConsumer::processBufferedItems() {
             process_ret = stream->processBufferedMessages(bytes_processed);
             flowControl.incrFreedBytes(bytes_processed);
         } while (bytes_processed > 0 && process_ret != cannot_process);
-    }
 
-    if (flowControl.isBufferSufficientlyDrained()) {
-        /* Notify memcached to get flow control buffer ack out. We cannot wait
-           till the ConnManager daemon task notifies the memcached as it would
-           cause delay in buffer ack being sent out to the producer */
-        engine_.getDcpConnMap().notifyPausedConnection(this, false);
-    }
+        if (flowControl.isBufferSufficientlyDrained()) {
+            /**
+             * Notify memcached to get flow control buffer ack out.
+             * We cannot wait till the ConnManager daemon task notifies
+             * the memcached as it would cause delay in buffer ack being
+             * sent out to the producer.
+             */
+            engine_.getDcpConnMap().notifyPausedConnection(this, false);
+        }
 
-    if (process_ret == all_processed && itemsToProcess.load()) {
-        return more_to_process;
+        if (process_ret == all_processed) {
+            return more_to_process;
+        }
+
+        if (process_ret == cannot_process) {
+            // If items for current vbucket weren't processed,
+            // re-add current vbucket
+            if (vbReady.size()) {
+                // If there are more vbuckets in queue, do not sleep.
+                process_ret = more_to_process;
+            }
+            vbReady.pushUnique(vbucket);
+        }
+
+        return process_ret;
     }
 
     return process_ret;
+}
+
+void DcpConsumer::notifyVbucketReady(uint16_t vbucket) {
+    if (vbReady.pushUnique(vbucket) &&
+        notifiedProcesser(true)) {
+        ExecutorPool::get()->wake(processerTaskId);
+    }
+}
+
+bool DcpConsumer::notifiedProcesser(bool to) {
+    bool inverse = !to;
+    return processerNotification.compare_exchange_strong(inverse, to);
 }
 
 DcpResponse* DcpConsumer::getNextItem() {
