@@ -28,6 +28,11 @@
 #define NUM_THREADS 50
 #define NUM_TIMES 10000
 
+// Clang analyzer doesn't really understand
+// our custom smart-pointers so we'll skip compiling
+// this test under the clang analyzer
+#ifndef __clang_analyzer__
+
 class Doodad : public RCValue {
 public:
     Doodad() {
@@ -139,3 +144,6 @@ int main() {
     testOperators();
     testAtomicPtr();
 }
+#else
+int main() {}
+#endif

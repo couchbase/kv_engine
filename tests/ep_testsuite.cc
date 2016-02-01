@@ -1775,25 +1775,16 @@ static enum test_result test_stats_diskinfo(ENGINE_HANDLE *h,
 static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     char eng_specific[9];
     memset(eng_specific, 0, sizeof(eng_specific));
+    std::vector<char> data(8192, 'x');
     for (size_t i = 0; i < 8192; ++i) {
 
-        char* data;
-        // Clang static analyzer doesn't like malloc of 0
-        if(i != 0) {
-            data = static_cast<char *>(malloc(i));
-        } else {
-            data = nullptr;
-        }
-
-        memset(data, 'x', i);
         checkeq(ENGINE_SUCCESS,
                 h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                                1, 0, TAP_MUTATION, 1, "key", 3, 828, 0, 1,
                                PROTOCOL_BINARY_RAW_BYTES,
-                               data, i, 0),
+                               data.data(), i, 0),
                 "Failed tap notify.");
-        check_key_value(h, h1, "key", data, i);
-        free(data);
+        check_key_value(h, h1, "key", data.data(), i);
     }
     return SUCCESS;
 }

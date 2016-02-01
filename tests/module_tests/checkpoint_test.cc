@@ -346,8 +346,6 @@ TEST_F(CheckpointTest, reset_checkpoint_id) {
     EXPECT_EQ(13, items.size());
     items.clear();
 
-    chk = 1;
-    lastMutationId = 0;
     manager->checkAndAddNewCheckpoint(1, vbucket);
     manager->getAllItemsForCursor(cursor, items);
     EXPECT_EQ(0, items.size());
