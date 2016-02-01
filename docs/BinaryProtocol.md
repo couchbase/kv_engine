@@ -145,66 +145,66 @@ Possible values of this two-byte field:
 Possible values of the one-byte field. See [Commands](#Commands) for more
 information about a given command.
 
-| Raw  | Description                                      |
-| -----|--------------------------------------------------|
-| 0x00 | [Get](#0x00-get)                                 |
-| 0x01 | [Set](#0x01-set)                                 |
-| 0x02 | [Add](#0x02-add)                                 |
-| 0x03 | [Replace](#0x03-replace)                         |
-| 0x04 | [Delete](#0x04-delete)                           |
-| 0x05 | [Increment](#0x05-increment)                     |
-| 0x06 | [Decrement](#0x06-decrement)                     |
-| 0x07 | [Quit](#0x07-quit)                               |
-| 0x08 | [Flush](#0x08-flush)                             |
-| 0x09 | [GetQ](#0x09-getq-get-quietly)                   |
-| 0x0a | [No-op](#0x0a-no-op)                             |
-| 0x0b | [Version](#0x0b-version)                         |
-| 0x0c | [GetK](#0x0c-getk-get-with-key)                  |
-| 0x0d | [GetKQ](#0x0d-getkq-get-with-key-quietly)        |
-| 0x0e | [Append](#0x0e-append)                           |
-| 0x0f | [Prepend](#0x0f-prepend)                         |
-| 0x10 | [Stat](#0x10-stat)                               |
-| 0x11 | [SetQ](#0x11-setq-set-quietly)                   |
-| 0x12 | [AddQ](#0x12-addq-add-quietly)                   |
-| 0x13 | [ReplaceQ](#0x13-replaceq-replace-quietly)       |
-| 0x14 | [DeleteQ](#0x14-deleteq-delete-quietly)          |
-| 0x15 | [IncrementQ](#0x15-incrementq-increment-quietly) |
-| 0x16 | [DecrementQ](#0x16-decrementq-decrement-quietly) |
-| 0x17 | [QuitQ](#0x17-quitq-quit-quietly)                |
-| 0x18 | [FlushQ](#0x18-flushq-flush-quietly)             |
-| 0x19 | [AppendQ](#0x19-appendq-append-quietly)          |
-| 0x1a | [PrependQ](#0x1a-prependq-prepend-quietly)       |
-| 0x1b | [Verbosity](#0x1b-verbosity)                     |
-| 0x1c | [Touch](#0x1c-touch)                             |
-| 0x1d | [GAT](#0x1d-gat-get-and-touch)                   |
-| 0x1e | [GATQ](#0x1e-gatq-get-and-touch-quietly)         |
-| 0x20 | [SASL list mechs](sasl.md#0x20-list-mech)        |
-| 0x21 | [SASL Auth](sasl.md#0x21-sasl-auth)              |
-| 0x22 | [SASL Step](sasl.md0x22-sasl-step)               |
-| 0x30 | RGet                                             |
-| 0x31 | RSet                                             |
-| 0x32 | RSetQ                                            |
-| 0x33 | RAppend                                          |
-| 0x34 | RAppendQ                                         |
-| 0x35 | RPrepend                                         |
-| 0x36 | RPrependQ                                        |
-| 0x37 | RDelete                                          |
-| 0x38 | RDeleteQ                                         |
-| 0x39 | RIncr                                            |
-| 0x3a | RIncrQ                                           |
-| 0x3b | RDecr                                            |
-| 0x3c | RDecrQ                                           |
-| 0x3d | [Set VBucket](#0x3d-set-vbucket)                 |
-| 0x3e | [Get VBucket](#0x3e-get-vbucket)                 |
-| 0x3f | [Del VBucket](#0x3f-del-vbucket)                 |
-| 0x40 | [TAP Connect](#0x40-tap-connect)                 |
-| 0x41 | [TAP Mutation](#0x41-tap-mutation)               |
-| 0x42 | [TAP Delete](#0x42-tap-delete)                   |
-| 0x43 | [TAP Flush](#0x43-tap-flush)                     |
-| 0x44 | [TAP Opaque](#0x44-tap-opaque)                   |
-| 0x45 | [TAP VBucket Set](#0x45-tap-vbucket-set)         |
-| 0x46 | [TAP Checkout Start](#0x46-tap-checkpoint-start) |
-| 0x47 | [TAP Checkpoint End](#0x47-tap-checkpoint-end)   |
+| Raw  | Description                                             |
+| -----|---------------------------------------------------------|
+| 0x00 | [Get](#0x00-get)                                        |
+| 0x01 | [Set](#0x01-set)                                        |
+| 0x02 | [Add](#0x02-add)                                        |
+| 0x03 | [Replace](#0x03-replace)                                |
+| 0x04 | [Delete](#0x04-delete)                                  |
+| 0x05 | [Increment](#0x05-increment)                            |
+| 0x06 | [Decrement](#0x06-decrement)                            |
+| 0x07 | [Quit](#0x07-quit)                                      |
+| 0x08 | [Flush](#0x08-flush)                                    |
+| 0x09 | [GetQ](#0x09-getq-get-quietly)                          |
+| 0x0a | [No-op](#0x0a-no-op)                                    |
+| 0x0b | [Version](#0x0b-version)                                |
+| 0x0c | [GetK](#0x0c-getk-get-with-key)                         |
+| 0x0d | [GetKQ](#0x0d-getkq-get-with-key-quietly)               |
+| 0x0e | [Append](#0x0e-append)                                  |
+| 0x0f | [Prepend](#0x0f-prepend)                                |
+| 0x10 | [Stat](#0x10-stat)                                      |
+| 0x11 | [SetQ](#0x11-setq-set-quietly)                          |
+| 0x12 | [AddQ](#0x12-addq-add-quietly)                          |
+| 0x13 | [ReplaceQ](#0x13-replaceq-replace-quietly)              |
+| 0x14 | [DeleteQ](#0x14-deleteq-delete-quietly)                 |
+| 0x15 | [IncrementQ](#0x15-incrementq-increment-quietly)        |
+| 0x16 | [DecrementQ](#0x16-decrementq-decrement-quietly)        |
+| 0x17 | [QuitQ](#0x17-quitq-quit-quietly)                       |
+| 0x18 | [FlushQ](#0x18-flushq-flush-quietly)                    |
+| 0x19 | [AppendQ](#0x19-appendq-append-quietly)                 |
+| 0x1a | [PrependQ](#0x1a-prependq-prepend-quietly)              |
+| 0x1b | [Verbosity](#0x1b-verbosity)                            |
+| 0x1c | [Touch](#0x1c-touch)                                    |
+| 0x1d | [GAT](#0x1d-gat-get-and-touch)                          |
+| 0x1e | [GATQ](#0x1e-gatq-get-and-touch-quietly)                |
+| 0x20 | [SASL list mechs](sasl.md#0x20-list-mech)               |
+| 0x21 | [SASL Auth](sasl.md#0x21-sasl-auth)                     |
+| 0x22 | [SASL Step](sasl.md0x22-sasl-step)                      |
+| 0x30 | RGet                                                    |
+| 0x31 | RSet                                                    |
+| 0x32 | RSetQ                                                   |
+| 0x33 | RAppend                                                 |
+| 0x34 | RAppendQ                                                |
+| 0x35 | RPrepend                                                |
+| 0x36 | RPrependQ                                               |
+| 0x37 | RDelete                                                 |
+| 0x38 | RDeleteQ                                                |
+| 0x39 | RIncr                                                   |
+| 0x3a | RIncrQ                                                  |
+| 0x3b | RDecr                                                   |
+| 0x3c | RDecrQ                                                  |
+| 0x3d | [Set VBucket](#0x3d-set-vbucket)                        |
+| 0x3e | [Get VBucket](#0x3e-get-vbucket)                        |
+| 0x3f | [Del VBucket](#0x3f-del-vbucket)                        |
+| 0x40 | [TAP Connect](TAP.md#0x40-tap-connect)                  |
+| 0x41 | [TAP Mutation](TAP.md#0x41-tap-mutation)                |
+| 0x42 | [TAP Delete](TAP.md#0x42-tap-delete)                    |
+| 0x43 | [TAP Flush](TAP.md#0x43-tap-flush)                      |
+| 0x44 | [TAP Opaque](TAP.md#0x44-tap-opaque)                    |
+| 0x45 | [TAP VBucket Set](TAP.md#0x45-tap-vbucket-set)          |
+| 0x46 | [TAP Checkout Start](TAP.md#0x46-tap-checkpoint-start)  |
+| 0x47 | [TAP Checkpoint End](TAP.md#0x47-tap-checkpoint-end)    |
 
 As a convention all of the commands ending with "Q" for Quiet. A quiet version
 of a command will omit responses that are considered uninteresting. Whether a
@@ -1315,20 +1315,3 @@ Example
 ### 0x3f Del VBucket
 **TODO: add me**
 
-### 0x40 TAP Connect
-**TODO: add me**
-
-### 0x41 TAP Mutation
-### 0x42 TAP Delete
-### 0x43 TAP Flush
-**TODO: add me**
-
-### 0x44 TAP Opaque
-**TODO: add me**
-
-### 0x45 TAP VBucket Set
-**TODO: add me**
-
-### 0x46 TAP Checkpoint Start
-### 0x47 TAP Checkpoint End
-**TODO: add me**

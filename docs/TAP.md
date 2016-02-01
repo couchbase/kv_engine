@@ -67,7 +67,9 @@ tells the server what we're interested in receiving and then the
 server begins sending /client/ commands back across the connection
 until the connection is terminated.
 
-## Initial Base Message
+## Request Command
+
+### 0x40 TAP Connect
 
 A TAP stream begins with a binary protocol message with the ID of `0x40` .
 
@@ -114,8 +116,6 @@ would appear as follows.
     Flags        (24-27): 0x00000000
     Name         (28-32): [node1]
 
-## Options
-
 Additional TAP options may be specified as a 32-bit flags specifying
 options. The flags will appear in the "extras" section of the request
 packet. If omitted, it is assumed that all flags are 0.
@@ -123,7 +123,17 @@ packet. If omitted, it is assumed that all flags are 0.
 Options may or may not have values. For options that do, the values
 will appear in the body in the order they're defined (LSB \-> MSB).
 
-### Backfill
+| Raw  | Description       |
+| -----|-------------------|
+| 0x01 | BACKFILL          |
+| 0x02 | DUMP              |
+| 0x04 | LIST_VBUCKETS     |
+| 0x08 | TAKEOVER_VBUCKETS |
+| 0x10 | SUPPORT_ACK       |
+| 0x20 | KEYS_ONLY         |
+| 0x80 | REGISTERED_CLIENT |
+
+#### Backfill
 
 `BACKFILL` (`0x01`) contains a single 64-bit body that represents
 the oldest entry (from epoch) you're interested in. Specifying a time
@@ -545,7 +555,7 @@ You may of course mix all of the fields:
         vbucket  (49-50): 0x0003 (3)
         vbucket  (51-52): 0x0004 (4)
 
-### Response Commands
+## Response Commands
 
 After initiating TAP, a series of responses will begin streaming
 commands back to the caller. These commands are similar to, but not
@@ -556,7 +566,7 @@ as well as a TTL to avoid replication loops.
 
 *todo: describe extended formats*
 
-#### Mutation
+### 0x41 TAP Mutation
 
 All mutation events arrive as `TAP_MUTATION` (`0x41`) events. These
 are conceptualy similar to set commands. A mutation event for key
@@ -620,7 +630,7 @@ length of any meta data sent along with the key and value. This
 meta-data will be placed between the Item Expiry field and the Key
 field.*
 
-#### Delete
+### 0x42 TAP Delete
 
 `TAP_DELETE` (`0x42`) may contain an engine specific section. A
 typical packet for deletion of "mykey" with a TTL of 255 without any
@@ -674,7 +684,7 @@ length of any meta data sent along with the key and value. This
 meta-data will be placed between the Item Expiry field and the Key
 field.*
 
-#### Flush
+### 0x43 TAP Flush
 
 `TAP_FLUSH` (`0x43`) may contain an engine specific section. This
 message is used to replicate a flush_all command. A typical flush
@@ -720,7 +730,7 @@ like this:
     Reserved        (31): 00
 
 
-#### Opaque
+### 0x44 TAP Opaque
 
 The purpose of the `TAP_OPAQUE` (`0x44`) packet is for engine
 writers to be able to send control data to the consumer.
@@ -821,7 +831,7 @@ and is closing it's connection to the receiver.
 usage with the addition of new data. It is not recommended for use in
 normal production setting.*
 
-#### Set vbucket
+### 0x45 TAP VBucket Set
 
 The purpose of the `TAP_VBUCKET` (`0x45`) packet is to set the
 state of a virtual bucket in the consumer (this is part of vbucket
@@ -869,7 +879,7 @@ takeover)
     Reserved        (31): 00
     VB State     (32-35): 0x00000003 (pending)
 
-#### Checkpoint Start
+### 0x46 TAP Checkpoint Start
 
 The purpose of the `TAP_CHECKPOINT_START` (`0x46`) packet is to
 tell the TAP consumer that we are starting a new checkpoint.
@@ -918,7 +928,7 @@ tell the TAP consumer that we are starting a new checkpoint.
     Reserved        (31): 00
     VB State     (32-39): 0x000000000000000ff (checkpoint 255)
 
-#### Checkpoint End
+### 0x47 TAP Checkpoint End
 
 The purpose of the `TAP_CHECKPOINT_END` (`0x47`) packet is to tell
 the TAP consumer that we are ending a checkpoint.
