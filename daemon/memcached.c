@@ -652,8 +652,8 @@ static ssize_t key_to_printable_buffer(char *dest, size_t destsz,
 
     ptr = dest + nw;
     destsz -= nw;
-    if (nkey > destsz) {
-        nkey = destsz;
+    if (nkey >= destsz) {
+        nkey = destsz - 1;
     }
 
     for (ii = 0; ii < nkey; ++ii, ++key, ++ptr) {
