@@ -1,5 +1,5 @@
 ADD_LIBRARY(mcutils STATIC utilities.cc utilities.h)
-TARGET_LINK_LIBRARIES(mcutils cbsasl)
+TARGET_LINK_LIBRARIES(mcutils mcbp cbsasl)
 
 ADD_SUBDIRECTORY(cbsasladm)
 ADD_SUBDIRECTORY(cbtrace)
