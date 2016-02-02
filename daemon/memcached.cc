@@ -2304,6 +2304,7 @@ static int sasl_getopt_callback(void*, const char*,
         if (settings.sasl_mechanisms != nullptr) {
             *result = settings.sasl_mechanisms;
             *len = strlen(settings.sasl_mechanisms);
+            return CBSASL_OK;
         }
     }
 
