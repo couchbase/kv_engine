@@ -379,15 +379,15 @@ void mcbp_validate_response_header(protocol_binary_response_no_extras* response,
 
         case PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION:
             EXPECT_EQ(0, header->response.keylen);
-            /* extlen/bodylen are permitted to be either zero, or 16 if
-             * MUTATION_SEQNO is enabled.
+            /* extlen is either zero, or 16 if MUTATION_SEQNO is enabled.
+             * bodylen is at least as big as extlen.
              */
             if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
                 EXPECT_EQ(16, header->response.extlen);
-                EXPECT_EQ(16u, header->response.bodylen);
+                EXPECT_GE(header->response.bodylen, 16u);
             } else {
                 EXPECT_EQ(0u, header->response.extlen);
-                EXPECT_EQ(0u, header->response.bodylen);
+                EXPECT_GE(header->response.bodylen, 0u);
             }
             EXPECT_NE(0u, header->response.cas);
             break;

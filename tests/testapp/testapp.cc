@@ -2655,6 +2655,7 @@ void validate_object(const char *key, const std::string& expected_value) {
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
     char* ptr = receive.data() + sizeof(*response) + 4;
     size_t vallen = response->message.header.response.bodylen - 4;
+    ASSERT_EQ(expected_value.size(), vallen);
     std::string actual(ptr, vallen);
     EXPECT_EQ(expected_value, actual);
 }

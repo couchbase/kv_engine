@@ -272,16 +272,14 @@ TEST_F(SubdocPerfTest, Array5k_PushFirst_Multipath) {
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
-            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
             mutation.specs.clear();
         }
     }
 
     // If there are any remaining specs, send them.
     if (!mutation.specs.empty()) {
-        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
     }
 
     delete_object("list");
@@ -302,16 +300,14 @@ TEST_F(SubdocPerfTest, Array5k_RemoveFirst_Multipath) {
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
-            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
             mutation.specs.clear();
         }
     }
 
     // If there are any remaining specs, send them.
     if (!mutation.specs.empty()) {
-        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
     }
 
     delete_object("list");
@@ -330,16 +326,14 @@ TEST_F(SubdocPerfTest, Array5k_ReplaceFirst_Multipath) {
                                   SUBDOC_FLAG_NONE, "[0]", "1"});
 
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
-            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
             mutation.specs.clear();
         }
     }
 
     // If there are any remaining specs, send them.
     if (!mutation.specs.empty()) {
-        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
     }
 
     delete_object("list");
@@ -359,16 +353,14 @@ TEST_F(SubdocPerfTest, Array5k_ReplaceMiddle_Multipath) {
                                   SUBDOC_FLAG_NONE, path, "1"});
 
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
-            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
             mutation.specs.clear();
         }
     }
 
     // If there are any remaining specs, send them.
     if (!mutation.specs.empty()) {
-        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
     }
 
     delete_object("list");
@@ -389,16 +381,14 @@ TEST_F(SubdocPerfTest, Dict5k_Add_Multipath) {
         // Once we have accumulated the maximum number of mutation specs
         // (paths) permitted, send the request.
         if (mutation.specs.size() == PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS) {
-            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+            expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
             mutation.specs.clear();
         }
     }
 
     // If there are any remaining specs, send them.
     if (!mutation.specs.empty()) {
-        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          std::make_pair(PROTOCOL_BINARY_RESPONSE_SUCCESS, 0));
+        expect_subdoc_cmd(mutation, PROTOCOL_BINARY_RESPONSE_SUCCESS, {});
     }
 
     delete_object("dict");

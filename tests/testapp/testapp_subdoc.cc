@@ -251,7 +251,7 @@ std::ostream& operator<< (std::ostream& os, const std::vector<uint8_t>& v)
 // Overload for multi-mutation responses
 uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
                               protocol_binary_response_status expected_status,
-                              SubdocMultiMutationResult expected_first_failure) {
+                              const std::vector<SubdocMultiMutationResult>& expected_results) {
     union {
         protocol_binary_response_subdocument response;
         char bytes[1024];
@@ -270,7 +270,7 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
     const char* val_ptr = receive.bytes + sizeof(header) +
                           header.response.extlen;
     const size_t vallen = header.response.bodylen - header.response.extlen;
-    std::vector<uint8_t> value(val_ptr, val_ptr + vallen);
+    std::string value(val_ptr, val_ptr + vallen);
 
     if (expected_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         if (enabled_hello_features.count(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO) > 0) {
@@ -278,16 +278,43 @@ uint64_t recv_subdoc_response(protocol_binary_command expected_cmd,
         } else {
             EXPECT_EQ(0u, header.response.extlen);
         }
-        EXPECT_EQ(0u, vallen)
-            << "Incorrect value:'" << value << "'";
+
+        for (const auto& result : expected_results) {
+            // Should always have at least 7 bytes in result -
+            // index, status, resultlen.
+            EXPECT_GE(value.size(),
+                      sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint32_t));
+
+            // Extract fields from result spec and validate.
+            uint8_t actual_index = *reinterpret_cast<uint8_t*>(&value[0]);
+            value.erase(value.begin());
+            EXPECT_EQ(result.index, actual_index);
+
+            uint16_t actual_status = ntohs(*reinterpret_cast<uint16_t*>(&value[0]));
+            value.erase(value.begin(), value.begin() + 2);
+            EXPECT_EQ(result.status, actual_status);
+
+            uint32_t actual_resultlen = ntohl(*reinterpret_cast<uint32_t*>(&value[0]));
+            value.erase(value.begin(), value.begin() + 4);
+            EXPECT_EQ(result.result.size(), actual_resultlen);
+
+            std::string actual_result = value.substr(0, actual_resultlen);
+            value.erase(value.begin(), value.begin() + actual_resultlen);
+            EXPECT_EQ(result.result, actual_result);
+        }
+        // Should have consumed all of the value.
+        EXPECT_EQ(0u, value.size());
+
     } else if (expected_status == PROTOCOL_BINARY_RESPONSE_SUBDOC_MULTI_PATH_FAILURE) {
         // Specific path failed - should have a 3-byte body containing
         // specific status and index of first failing spec.
         EXPECT_EQ(3, vallen) << "Incorrect value:'" << std::string(val_ptr, vallen) << '"';
-        uint16_t actual_fail_spec_status = ntohs(*reinterpret_cast<const uint16_t*>(val_ptr));
-        uint8_t actual_fail_index = val_ptr[2];
-        EXPECT_EQ(expected_first_failure.first, actual_fail_spec_status);
-        EXPECT_EQ(expected_first_failure.second, actual_fail_index);
+        uint8_t actual_fail_index = *val_ptr;
+        uint16_t actual_fail_spec_status =
+                ntohs(*reinterpret_cast<const uint16_t*>(val_ptr + sizeof(actual_fail_index)));
+        EXPECT_EQ(1, expected_results.size());
+        EXPECT_EQ(expected_results[0].index, actual_fail_index);
+        EXPECT_EQ(expected_results[0].status, actual_fail_spec_status);
     } else {
         // Top-level error - should have zero body.
         EXPECT_EQ(0u, vallen);
@@ -315,14 +342,14 @@ uint64_t expect_subdoc_cmd(const SubdocMultiLookupCmd& cmd,
 }
 
 // Overload for multi-mutation commands.
-uint64_t expect_subdoc_cmd(const SubdocMultiCmd& cmd,
+uint64_t expect_subdoc_cmd(const SubdocMultiMutationCmd& cmd,
                            protocol_binary_response_status expected_status,
-                           SubdocMultiMutationResult expected_first_failure) {
+                           const std::vector<SubdocMultiMutationResult>& expected_results) {
     std::vector<char> payload = cmd.encode();
     safe_send(payload.data(), payload.size(), false);
 
     return recv_subdoc_response(cmd.command, expected_status,
-                                expected_first_failure);
+                                expected_results);
 }
 
 void store_object(const std::string& key,

@@ -873,6 +873,33 @@ static void encode_mutation_descr(SubdocCmdContext* context, char* buffer)
     std::memcpy(buffer, &descr, sizeof(descr));
 }
 
+/* Encodes the specified multi-mutation result into the given the given buffer.
+ * @param index The operation index.
+ * @param op Operation spec to encode.
+ * @param buffer Buffer to encode into
+ * @return The number of bytes written into the buffer.
+ */
+static size_t encode_multi_mutation_result_spec(uint8_t index,
+                                                const SubdocCmdContext::OperationSpec& op,
+                                                char* buffer)
+{
+    char* cursor = buffer;
+
+    // Always encode the index and status.
+    *reinterpret_cast<uint8_t*>(cursor) = index;
+    cursor += sizeof(uint8_t);
+    *reinterpret_cast<uint16_t*>(cursor) = htons(op.status);
+    cursor += sizeof(uint16_t);
+
+    // Also encode resultlen if status is success.
+    if (op.status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        const auto& mloc = op.result.matchloc();
+        *reinterpret_cast<uint32_t*>(cursor) = htonl(mloc.length);
+        cursor += sizeof(uint32_t);
+    }
+    return cursor - buffer;
+}
+
 /* Construct and send a response to a single-path request back to the client.
  */
 static void subdoc_single_response(SubdocCmdContext* context) {
@@ -932,81 +959,106 @@ static void subdoc_multi_mutation_response(SubdocCmdContext* context) {
     protocol_binary_response_subdocument* rsp =
             reinterpret_cast<protocol_binary_response_subdocument*>(c->write.buf);
 
-    // MULTI_MUTATION: On success zero-length body (with optional 16byte
-    // mutation descriptor in extras).
-    // On failure body indicates the status code and index of the first failing
+    // MULTI_MUTATION: On success, zero to N multi_mutation_result_spec objects
+    // (one for each spec which wants to return a value), with optional 16byte
+    // mutation descriptor in extras if MUTATION_SEQNO is enabled.
+    //
+    // On failure body indicates the index and status code of the first failing
     // spec.
-    if (context->overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        if (c->isSupportsMutationExtras()) {
-            DynamicBuffer& extras_buf = c->getDynamicBuffer();
-            const size_t extlen = sizeof(mutation_descr_t);
-            if (!extras_buf.grow(extlen)) {
-                // Unable to form complete response.
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
-                return;
-            }
+    DynamicBuffer& response_buf = c->getDynamicBuffer();
+    size_t extlen = 0;
+    char* extras_ptr = nullptr;
 
-            char* const response_extras = extras_buf.getCurrent();
-            encode_mutation_descr(context, response_extras);
-            extras_buf.moveOffset(sizeof(extlen));
-
-            // Finally send header and extras (empty body).
-            if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_SUCCESS, extlen,
-                /*keylen*/0, extlen,
-                                PROTOCOL_BINARY_RAW_BYTES) == -1) {
-                c->setState(conn_closing);
-                return;
-            }
-            c->addIov(reinterpret_cast<void*>(response_extras), extlen);
-
-        } else {
-            // No extras, just send respose with zero body.
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-            return;
-        }
-    } else {
-        uint16_t first_failing_status;
-        uint8_t first_failing_idx = 0xff;
-        for (size_t ii = 0; ii < context->ops.size(); ii++) {
-            if (context->ops[ii].status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-                first_failing_status = context->ops[ii].status;
-                first_failing_idx = ii;
-                break;
-            }
-        }
-        if (first_failing_idx == 0xff) {
-            // Something's gone wrong, we didn't find *any* unsuccessful spec.
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-            return;
-        }
-
-        DynamicBuffer& response_buf = c->getDynamicBuffer();
-        const size_t response_bodylen = sizeof(uint16_t) + sizeof(uint8_t);
-        if (!response_buf.grow(response_bodylen)) {
+    // Encode mutation extras into buffer if success & they were requested.
+    if (context->overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS &&
+            c->isSupportsMutationExtras()) {
+        extlen = sizeof(mutation_descr_t);
+        if (!response_buf.grow(extlen)) {
             // Unable to form complete response.
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
             return;
         }
+        extras_ptr = response_buf.getCurrent();
+        encode_mutation_descr(context, extras_ptr);
+        response_buf.moveOffset(extlen);
+    }
 
-        // Build header and add response body iovec.
-        if (mcbp_add_header(c, context->overall_status, /*extlen*/
-                            0, /*keylen*/0,
-                            response_bodylen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
-            c->setState(conn_closing);
-            return;
+    // Calculate how much space we need in our dynamic buffer, and total body
+    // size to encode into the header.
+    size_t response_buf_needed;
+    size_t iov_len = 0;
+    if (context->overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        // on success, one per each non-zero length result.
+        response_buf_needed = 0;
+        for (size_t ii = 0; ii < context->ops.size(); ii++) {
+            const auto& op = context->ops[ii];
+            const auto mloc = op.result.matchloc();
+            if (op.traits.response_has_value && mloc.length > 0) {
+                response_buf_needed += sizeof(uint8_t) + sizeof(uint16_t) +
+                                       sizeof(uint32_t);
+                iov_len += mloc.length;
+            }
         }
-        rsp->message.header.response.cas = htonll(c->getCAS());
+    } else {
+        // Just one - index and status of first failure.
+        response_buf_needed = sizeof(uint8_t) + sizeof(uint16_t);
+    }
 
-        // Convert body to network order and add to response buffer
-        first_failing_status = htons(first_failing_status);
+    // We need two iovecs per operation result:
+    // 1. result_spec header (index, status; resultlen for successful specs).
+    //    Use the dynamicBuffer for this.
+    // 2. actual value - this already resides in the Subdoc::Result.
+    if (!response_buf.grow(response_buf_needed)) {
+        // Unable to form complete response.
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        return;
+    }
 
-        char* const response_body = response_buf.getCurrent();
-        std::memcpy(response_body, &first_failing_status,
-                    sizeof(first_failing_status));
-        std::memcpy(response_body + sizeof(first_failing_status),
-                    &first_failing_idx, sizeof(first_failing_idx));
+    // Allocated required resource - build the header.
+    if (mcbp_add_header(c, context->overall_status, extlen, /*keylen*/0,
+                        extlen + response_buf_needed + iov_len,
+                        PROTOCOL_BINARY_RAW_BYTES)
+            == -1) {
+        c->setState(conn_closing);
+        return;
+    }
+    rsp->message.header.response.cas = htonll(c->getCAS());
 
-        c->addIov(reinterpret_cast<void*>(response_body), response_bodylen);
+    // Append extras if requested.
+    if (extlen > 0) {
+        c->addIov(reinterpret_cast<void*>(extras_ptr), extlen);
+    }
+
+    // Append the iovecs for each operation result.
+    for (size_t ii = 0; ii < context->ops.size(); ii++) {
+        const auto& op = context->ops[ii];
+        // Successful - encode all non-zero length results.
+        if (context->overall_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            const auto mloc = op.result.matchloc();
+            if (op.traits.response_has_value && mloc.length > 0) {
+                char* header = response_buf.getCurrent();
+                size_t header_sz =
+                        encode_multi_mutation_result_spec(ii, op, header);
+
+                c->addIov(reinterpret_cast<void*>(header), header_sz);
+                c->addIov(mloc.at, mloc.length);
+
+                response_buf.moveOffset(header_sz);
+            }
+        } else {
+            // Failure - encode first unsuccessful path index and status.
+            if (op.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+                char* header = response_buf.getCurrent();
+                size_t header_sz =
+                        encode_multi_mutation_result_spec(ii, op, header);
+
+                c->addIov(reinterpret_cast<void*>(header), header_sz);
+                response_buf.moveOffset(header_sz);
+
+                // Only the first unsuccessful op is reported.
+                break;
+            }
+        }
     }
     c->setState(conn_mwrite);
 }

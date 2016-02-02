@@ -943,12 +943,40 @@ extern "C"
     } protocol_binary_response_subdoc_multi_lookup;
 
     /**
-     * SUBDOC_MULTI_MUTATION - Body is either empty (if all mutations
-     *                         successful), or contains the sub-code and
-     *                         index of the first failed mutation spec..
+     * SUBDOC_MULTI_MUTATION response
+     *
+     * Extras is either 0 or 16 if MUTATION_SEQNO is enabled.
+     *
+     * Body consists of a variable number of subdoc_multi_mutation_result_spec
+     * structs:
+     *
+     * On success (header.status == SUCCESS), zero or more result specs, one for
+     * each multi_mutation_spec which wishes to return a value.
+     *
+     * Mutation Result (success):
+     *   [0..N] of:
+     *                   1 @0 : index - Index of multi_mutation spec this result
+     *                          corresponds to.
+     *                   2 @1 : status - Status of the mutation (should always
+     *                          be SUCCESS for successful multi-mutation
+     *                          requests).
+     *                   4 @3 : resultlen - Result value length
+     *           resultlen @7 : Value payload
+     *
+
+     * On one of more of the mutation specs failing, there is exactly one
+     * result spec, specifying the index and status code of the first failing
+     * mutation spec.
+     *
      * Mutation Result (failure):
-     *                   2 @0 : Status code of first spec which failed.
-     *                   1 @2 : 0-based index of the first spec which failed.
+     *   1 of:
+     *                   1 @0 : index - Index of multi_mutation spec this result
+     *                          corresponds to.
+     *                   2 @1 : status - Status of the mutation (should always be
+     *                          !SUCCESS for failures).
+     *
+     * (Note: On failure the multi_mutation_result_spec only includes the
+     *        first two fields).
      */
     typedef union {
         struct {

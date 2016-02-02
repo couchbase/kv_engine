@@ -70,8 +70,28 @@ struct SubdocCmd {
 typedef std::pair<protocol_binary_response_status,
                   std::string> SubdocMultiLookupResult;
 
-typedef std::pair<protocol_binary_response_status,
-                  uint8_t> SubdocMultiMutationResult;
+/* The result of an operation on a particular path performed in a
+ * multi-mutation.
+ */
+struct SubdocMultiMutationResult {
+
+    SubdocMultiMutationResult(uint8_t index_,
+                              protocol_binary_response_status status_)
+    : index(index_),
+      status(status_),
+      result() {}
+
+    SubdocMultiMutationResult(uint8_t index_,
+                              protocol_binary_response_status status_,
+                              const std::string& result_)
+    : index(index_),
+      status(status_),
+      result(result_) {}
+
+    uint8_t index;
+    protocol_binary_response_status status;
+    std::string result;
+};
 
 /* Encodes and sends a sub-document command with the given parameters, receives
  * the response and validates that the status matches the expected one.
@@ -87,9 +107,9 @@ uint64_t expect_subdoc_cmd(const SubdocMultiLookupCmd& cmd,
                            protocol_binary_response_status expected_status,
                            const std::vector<SubdocMultiLookupResult>& expected_results);
 
-uint64_t expect_subdoc_cmd(const SubdocMultiCmd& cmd,
+uint64_t expect_subdoc_cmd(const SubdocMultiMutationCmd& cmd,
                            protocol_binary_response_status expected_status,
-                           SubdocMultiMutationResult expected_first_failure);
+                           const std::vector<SubdocMultiMutationResult>& expected_results);
 
 
 void store_object(const std::string& key,
