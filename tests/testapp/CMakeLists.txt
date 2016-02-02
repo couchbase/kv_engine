@@ -1,5 +1,5 @@
 ADD_EXECUTABLE(memcached_testapp
-               ${Memcached_SOURCE_DIR}/programs/utilities.c
+               ${Memcached_SOURCE_DIR}/programs/utilities.cc
                ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
                testapp.cc
                testapp.h
