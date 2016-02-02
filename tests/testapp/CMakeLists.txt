@@ -1,5 +1,4 @@
 ADD_EXECUTABLE(memcached_testapp
-               ${Memcached_SOURCE_DIR}/programs/utilities.cc
                ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
                testapp.cc
                testapp.h
@@ -37,6 +36,7 @@ ADD_DEPENDENCIES(memcached_testapp blackhole_logger default_engine
 
 TARGET_LINK_LIBRARIES(memcached_testapp
                       mcd_util
+                      mcutils
                       cbsasl
                       greenstack
                       cJSON

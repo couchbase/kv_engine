@@ -19,12 +19,15 @@
 #include "utilities/protocol2text.h"
 #include <cbsasl/cbsasl.h>
 #include <iostream>
+#include <libmcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
 #include <openssl/conf.h>
 #include <openssl/engine.h>
 #include <vector>
 
 #include "utilities.h"
+
+static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
 
 void ensure_send(BIO* bio, const void* data, int nbytes) {
     int total = 0;
@@ -107,16 +110,26 @@ static void sendCommand(BIO* bio,
     memcpy(buffer.data() + sizeof(req.bytes), key.data(), key.length());
     memcpy(buffer.data() + sizeof(req.bytes) + key.length(), value.data(),
            value.length());
-    ensure_send(bio, buffer.data(), buffer.size());
+    sendCommand(bio, buffer);
 }
 
-static void readResponse(BIO* bio, std::vector<uint8_t>& buffer) {
+void sendCommand(BIO* bio, const std::vector<uint8_t>& buffer) {
+    ensure_send(bio, buffer.data(), buffer.size());
+    if (packet_dump) {
+        Couchbase::MCBP::dump(buffer.data(), std::cerr);
+    }
+}
+
+void readResponse(BIO* bio, std::vector<uint8_t>& buffer) {
     protocol_binary_response_no_extras res;
     ensure_recv(bio, res.bytes, sizeof(res.bytes));
     uint32_t bodylen = ntohl(res.message.header.response.bodylen);
     buffer.resize(sizeof(res.bytes) + bodylen);
     memcpy(buffer.data(), res.bytes, sizeof(res.bytes));
     ensure_recv(bio, buffer.data() + sizeof(res.bytes), bodylen);
+    if (packet_dump) {
+        Couchbase::MCBP::dump(buffer.data(), std::cerr);
+    }
 
     auto* r = reinterpret_cast<protocol_binary_response_header*>(buffer.data());
     r->response.bodylen = ntohl(r->response.bodylen);
