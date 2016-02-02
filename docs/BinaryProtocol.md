@@ -178,9 +178,9 @@ information about a given command.
 | 0x1c | [Touch](#0x1c-touch)                             |
 | 0x1d | [GAT](#0x1d-gat-get-and-touch)                   |
 | 0x1e | [GATQ](#0x1e-gatq-get-and-touch-quietly)         |
-| 0x20 | SASL list mechs                                  |
-| 0x21 | SASL Auth                                        |
-| 0x22 | SASL Step                                        |
+| 0x20 | [SASL list mechs](sasl.md#0x20-list-mech)        |
+| 0x21 | [SASL Auth](sasl.md#0x21-sasl-auth)              |
+| 0x22 | [SASL Step](sasl.md0x22-sasl-step)               |
 | 0x30 | RGet                                             |
 | 0x31 | RSet                                             |
 | 0x32 | RSetQ                                            |
