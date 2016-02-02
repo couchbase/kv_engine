@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc
+ *     Copyright 2016 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 
 #include "debug_helpers.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 
@@ -24,9 +25,8 @@ ssize_t buf_to_printable_buffer(char *dest, size_t destsz,
                                 const char *src, size_t srcsz)
 {
     char *ptr = dest;
-    if (srcsz > destsz) {
-        srcsz = destsz;
-    }
+    // Constrain src if dest cannot hold it all.
+    srcsz = std::max(srcsz, destsz - 1);
 
     for (size_t ii = 0; ii < srcsz; ++ii, ++src, ++ptr) {
         if (std::isgraph(*src)) {
