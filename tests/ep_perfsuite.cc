@@ -644,6 +644,12 @@ static void perf_dcp_client(struct Handle_args *ha) {
                     }
                     bytes_read += dcp_last_packet_size;
                     break;
+                case 0:
+                    /* Consider case where no messages were ready on the last
+                     * step call so we will just ignore this case. Note that we
+                     * check for 0 because we clear the dcp_last_op value below.
+                     */
+                    break;
                 default:
                     break;
             }
