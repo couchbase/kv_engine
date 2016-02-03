@@ -2453,16 +2453,20 @@ GetValue EventuallyPersistentStore::getAndUpdateTtl(const std::string &key,
             return rv;
         }
 
-        if (exptime != v->getExptime()) {
+        const bool exptime_mutated = exptime != v->getExptime();
+        if (exptime_mutated) {
             v->markDirty();
             v->setExptime(exptime);
             v->setCas(vb->nextHLCCas());
             v->setRevSeqno(v->getRevSeqno()+1);
-            queueDirty(vb, v, &lh, NULL);
         }
 
         GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
                     ENGINE_SUCCESS, v->getBySeqno());
+
+        if (exptime_mutated) {
+            queueDirty(vb, v, &lh, NULL);
+        }
 
         return rv;
     } else {
