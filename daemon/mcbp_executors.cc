@@ -2832,7 +2832,7 @@ static void add_set_replace_executor(McbpConnection* c, void* packet,
             break;
         default:;
         }
-    } else {
+    } else if (ret != ENGINE_EWOULDBLOCK) {
         SLAB_INCR(c, cmd_set, key, nkey);
     }
 
@@ -2987,9 +2987,8 @@ static void append_prepend_executor(McbpConnection* c,
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
     }
 
-    SLAB_INCR(c, cmd_set, key, nkey);
-
     if (!c->isEwouldblock()) {
+        SLAB_INCR(c, cmd_set, key, nkey);
         /* release the c->item reference */
         c->getBucketEngine()->release(c->getBucketEngineAsV0(), c,
                                       c->getItem());

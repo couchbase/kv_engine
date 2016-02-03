@@ -76,6 +76,47 @@ TEST_P(StatsTest, TestReset) {
     EXPECT_EQ(0, count->valueint);
 }
 
+/**
+ * MB-17815: The cmd_set stat is incremented multiple times if the underlying
+ * engine returns EWOULDBLOCK (which would happen for all operations when
+ * the underlying engine is operating in full eviction mode and the document
+ * isn't resident)
+ */
+TEST_P(StatsTest, Test_MB_17815) {
+    MemcachedConnection& conn = getConnection();
+    unique_cJSON_ptr stats;
+
+    ASSERT_NO_THROW(conn.stats("reset"));
+
+    ASSERT_NO_THROW(stats = conn.stats(""));
+    auto* count = cJSON_GetObjectItem(stats.get(), "cmd_set");
+    ASSERT_NE(nullptr, count);
+    EXPECT_EQ(cJSON_Number, count->type);
+    EXPECT_EQ(0, count->valueint);
+
+    conn.configureEwouldBlockEngine(EWBEngineMode::Sequence,
+                                    ENGINE_EWOULDBLOCK,
+                                    0xfffffffd);
+
+    Document doc;
+    doc.info.cas = Greenstack::CAS::Wildcard;
+    doc.info.compression = Greenstack::Compression::None;
+    doc.info.datatype = Greenstack::Datatype::Json;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+    char* ptr = cJSON_Print(memcached_cfg.get());
+    std::copy(ptr, ptr + strlen(ptr), std::back_inserter(doc.value));
+    cJSON_Free(ptr);
+
+    EXPECT_NO_THROW(conn.mutate(doc, 0, Greenstack::MutationType::Add));
+    ASSERT_NO_THROW(stats = conn.stats(""));
+    count = cJSON_GetObjectItem(stats.get(), "cmd_set");
+    ASSERT_NE(nullptr, count);
+    EXPECT_EQ(cJSON_Number, count->type);
+    EXPECT_EQ(1, count->valueint);
+}
+
+
 TEST_P(StatsTest, TestSettings) {
     MemcachedConnection& conn = getConnection();
     // @todo verify that I get all of the expected settings. for now
