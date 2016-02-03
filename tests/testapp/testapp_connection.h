@@ -21,9 +21,11 @@
 #include <cJSON.h>
 #include <cJSON_utils.h>
 #include <cstdlib>
+#include <engines/ewouldblock_engine/ewouldblock_engine.h>
 #include <libgreenstack/Greenstack.h>
 #include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>
+#include <memcached/types.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -297,6 +299,16 @@ public:
     virtual std::string to_string() = 0;
 
     void reconnect();
+
+    /**
+     * Try to configure the ewouldblock engine
+     *
+     * See the header /engines/ewouldblock_engine/ewouldblock_engine.h
+     * for a full description on the parameters.
+     */
+    virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
+                                            ENGINE_ERROR_CODE err_code = ENGINE_EWOULDBLOCK,
+                                            uint32_t value = 0) = 0;
 
 protected:
     MemcachedConnection(in_port_t port, sa_family_t family, bool ssl,

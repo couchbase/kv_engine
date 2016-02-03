@@ -30,6 +30,7 @@
 #include <memcached/protocol_binary.h>
 #include <array>
 #include <include/memcached/protocol_binary.h>
+#include <engines/ewouldblock_engine/ewouldblock_engine.h>
 
 /////////////////////////////////////////////////////////////////////////
 // SASL related functions
@@ -586,4 +587,34 @@ unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand
     }
 
     return ret;
+}
+
+void MemcachedBinprotConnection::configureEwouldBlockEngine(
+    const EWBEngineMode& mode, ENGINE_ERROR_CODE err_code, uint32_t value) {
+
+
+    request_ewouldblock_ctl request;
+    memset(request.bytes, 0, sizeof(request.bytes));
+    request.message.header.request.magic = 0x80;
+    request.message.header.request.opcode = PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL;
+    request.message.header.request.extlen = 12;
+    request.message.header.request.bodylen = htonl(12);
+    request.message.body.inject_error = htonl(err_code);
+    request.message.body.mode = htonl(static_cast<uint32_t>(mode));
+    request.message.body.value = htonl(value);
+
+    Frame frame;
+    frame.payload.resize(sizeof(request.bytes));
+    memcpy(frame.payload.data(), request.bytes, frame.payload.size());
+    sendFrame(frame);
+
+    recvFrame(frame);
+    auto* bytes = frame.payload.data();
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
+    auto& header = rsp->message.header.response;
+    if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Failed to configure ewouldblock engine",
+                              Protocol::Memcached,
+                              header.status);
+    }
 }

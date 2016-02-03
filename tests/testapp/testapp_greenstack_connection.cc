@@ -408,3 +408,8 @@ Greenstack::UniqueMessagePtr MemcachedGreenstackConnection::recvMessage() {
 unique_cJSON_ptr MemcachedGreenstackConnection::stats(const std::string& subcommand) {
     throw std::runtime_error("Not implemented for Greenstack");
 }
+
+void MemcachedGreenstackConnection::configureEwouldBlockEngine(
+    const EWBEngineMode& mode, ENGINE_ERROR_CODE err_code, uint32_t value) {
+    throw std::runtime_error("Not implemented for Greenstack");
+}

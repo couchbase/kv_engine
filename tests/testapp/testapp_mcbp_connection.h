@@ -60,5 +60,10 @@ public:
 
     void setMutationSeqnoSupport(bool enable);
 
+
+    virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
+                                            ENGINE_ERROR_CODE err_code,
+                                            uint32_t value) override;
+
     std::array<bool, 3> features;
 };

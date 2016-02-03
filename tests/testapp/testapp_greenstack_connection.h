@@ -106,6 +106,11 @@ public:
         return saslMechanisms;
     }
 
+
+    virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
+                                            ENGINE_ERROR_CODE err_code,
+                                            uint32_t value) override;
+
 protected:
     Greenstack::UniqueMessagePtr recvMessage();
 
