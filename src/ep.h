@@ -525,7 +525,7 @@ public:
     void snapshotVBuckets(const Priority &priority, uint16_t shardId);
 
     /* transfer should be set to true *only* if this vbucket is becoming master
-     * as the result of the previous master cleanly handing off contorol. */
+     * as the result of the previous master cleanly handing off control. */
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state,
                                       bool transfer, bool notify_dcp = true);
 

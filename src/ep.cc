@@ -1306,8 +1306,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vbucket_state_t oldstate = vb->getState();
         if (oldstate != to && notify_dcp) {
             bool closeInboundStreams = false;
-            if (oldstate == vbucket_state_replica &&
-                to == vbucket_state_active) {
+            if (to == vbucket_state_active && !transfer) {
                 /**
                  * Close inbound (passive) streams into the vbucket
                  * only in case of a failover.
