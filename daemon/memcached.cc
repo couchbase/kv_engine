@@ -44,6 +44,7 @@
 #include "memcached_openssl.h"
 #include "privileges.h"
 #include "greenstack.h"
+#include "mcbpdestroybuckettask.h"
 
 #include <platform/backtrace.h>
 #include <platform/strerror.h>
@@ -1860,6 +1861,16 @@ void DestroyBucketThread::destroy() {
     ENGINE_ERROR_CODE ret = ENGINE_KEY_ENOENT;
     cb_mutex_enter(&buckets_lock);
 
+    /*
+     * The destroy function will have access to a connection if the
+     * McbpDestroyBucketTask originated from delete_bucket_executor().
+     * However if we are in the process of shuting down and the
+     * McbpDestroyBucketTask originated from main() then connection
+     * will be set to nullptr.
+     */
+    const auto* connection_id = (connection == nullptr) ? "<none>"
+                                : std::to_string(connection->getId()).c_str();
+
     int idx = 0;
     for (int ii = 0; ii < settings.max_buckets; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
@@ -1881,8 +1892,8 @@ void DestroyBucketThread::destroy() {
 
     if (ret != ENGINE_SUCCESS) {
         auto code = engine_error_2_mcbp_protocol_error(ret);
-        LOG_NOTICE(&connection, "<>%u Delete bucket [%s]: %s",
-                   connection.getId(), name.c_str(),
+        LOG_NOTICE(connection, "%s Delete bucket [%s]: %s",
+                   connection_id, name.c_str(),
                    memcached_status_2_text(code));
         result = ret;
         return;
@@ -1890,12 +1901,12 @@ void DestroyBucketThread::destroy() {
 
     perform_callbacks(ON_DELETE_BUCKET, nullptr, &all_buckets[idx]);
 
-    LOG_NOTICE(&connection, ">%u Delete bucket [%s]. Wait for clients to disconnect",
-               connection.getId(), name.c_str());
+    LOG_NOTICE(connection, "%s Delete bucket [%s]. Wait for clients to disconnect",
+               connection_id, name.c_str());
 
     /* If this thread is connected to the requested bucket... release it */
-    if (idx == connection.getBucketIndex()) {
-        disassociate_bucket(&connection);
+    if (connection != nullptr && idx == connection->getBucketIndex()) {
+        disassociate_bucket(connection);
     }
 
     /* Let all of the worker threads start invalidating connections */
@@ -1904,10 +1915,9 @@ void DestroyBucketThread::destroy() {
     /* Wait until all users disconnected... */
     cb_mutex_enter(&all_buckets[idx].mutex);
     while (all_buckets[idx].clients > 0) {
-        LOG_NOTICE(&connection,
+        LOG_NOTICE(connection,
                    "%u Delete bucket [%s]. Still waiting: %u clients connected",
-                   connection.getId(), name.c_str(), all_buckets[idx].clients);
-
+                   connection_id, name.c_str(), all_buckets[idx].clients);
         /* drop the lock and notify the worker threads */
         cb_mutex_exit(&all_buckets[idx].mutex);
         threads_notify_bucket_deletion();
@@ -1922,17 +1932,28 @@ void DestroyBucketThread::destroy() {
     /* Tell the worker threads to stop trying to invalidating connections */
     threads_complete_bucket_deletion();
 
-    /* assert that all associations are gone. */
-    assert_no_associations(idx);
+    /*
+     * We cannot call assert_no_assocations(idx) because it iterates
+     * over all connections and calls c->getBucketIndex().  The problem
+     * is that a worker thread can call associate_initial_bucket() or
+     * associate_bucket() at the same time.  This could lead to a call
+     * to c->setBucketIndex(0) (the "no bucket"), which although safe,
+     * raises a threadsanitizer warning.
 
-    LOG_NOTICE(&connection, "%u Delete bucket [%s]. Shut down the bucket",
-               connection.getId(), name.c_str());
+     * Note, if associate_bucket() attempts to associate a connection
+     * with a bucket that has been destroyed, or is in the process of
+     * being destroyed, the association will fail because
+     * BucketState != Ready.  See associate_bucket() for more details.
+     */
+
+    LOG_NOTICE(connection, "%s Delete bucket [%s]. Shut down the bucket",
+               connection_id, name.c_str());
 
     all_buckets[idx].engine->destroy
         (v1_handle_2_handle(all_buckets[idx].engine), force);
 
-    LOG_NOTICE(&connection, "%u Delete bucket [%s]. Clean up allocated resources ",
-               connection.getId(), name.c_str());
+    LOG_NOTICE(connection, "%s Delete bucket [%s]. Clean up allocated resources ",
+               connection_id, name.c_str());
 
     /* Clean up the stats... */
     delete[]all_buckets[idx].stats;
@@ -1952,9 +1973,8 @@ void DestroyBucketThread::destroy() {
     // don't need lock because all timing data uses atomics
     all_buckets[idx].timings.reset();
 
-    LOG_NOTICE(&connection, "<%u Delete bucket [%s] complete",
-               connection.getId(), name.c_str());
-
+    LOG_NOTICE(connection, "%s Delete bucket [%s] complete",
+               connection_id, name.c_str());
     result = ENGINE_SUCCESS;
 }
 
@@ -2552,12 +2572,21 @@ int main (int argc, char **argv) {
 
     LOG_NOTICE(NULL, "Initiating graceful shutdown.");
 
-    LOG_NOTICE(nullptr, "Notify engines about shutdown");
     cb_mutex_enter(&buckets_lock);
-    for (int ii = 0; ii < settings.max_buckets; ++ii) {
+    /*
+     * Start at one (not zero) because zero is reserved for "no bucket".
+     * The "no bucket" has a state of BucketState::Ready but no name.
+     */
+    for (int ii = 1; ii < settings.max_buckets; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (all_buckets[ii].state == BucketState::Ready) {
-            perform_callbacks(ON_DELETE_BUCKET, nullptr, &all_buckets[ii]);
+            LOG_NOTICE(nullptr, "Scheduling McbpDestroyBucketTask for bucket %s",
+                       all_buckets[ii].name);
+            std::shared_ptr<Task> task = std::make_shared<McbpDestroyBucketTask>(
+                                             all_buckets[ii].name, false, nullptr);
+            std::lock_guard<std::mutex> guard(task->getMutex());
+            reinterpret_cast<McbpDestroyBucketTask*>(task.get())->start();
+            executorPool->schedule(task, false);
         }
         cb_mutex_exit(&all_buckets[ii].mutex);
     }

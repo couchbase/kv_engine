@@ -307,7 +307,7 @@ public:
      */
     DestroyBucketThread(const std::string& name_,
                         bool force_,
-                        Connection& connection_,
+                        Connection* connection_,
                         Task* task_)
         : Couchbase::Thread("mc:bucket_del"),
           name(name_),
@@ -317,7 +317,7 @@ public:
           result(ENGINE_DISCONNECT) {
     }
 
-    Connection& getConnection() const {
+    Connection* getConnection() const {
         return connection;
     }
 
@@ -337,7 +337,7 @@ private:
 
     std::string name;
     bool force;
-    Connection& connection;
+    Connection* connection;
     Task* task;
     ENGINE_ERROR_CODE result;
 };

@@ -32,6 +32,7 @@
 #include "mcbp_validators.h"
 #include "mcbp_topkeys.h"
 #include "enginemap.h"
+#include "mcbpdestroybuckettask.h"
 
 #include <memcached/audit_interface.h>
 #include <snappy-c.h>
@@ -4354,46 +4355,6 @@ static void list_bucket_executor(McbpConnection* c, void*) {
     }
 }
 
-/**
- * Override the DestroyBucketTask so that we can have our own notification
- * mechanism to kickstart the clients thread
- */
-class McbpDestroyBucketTask : public Task {
-public:
-    McbpDestroyBucketTask(const std::string& name_,
-                          bool force_,
-                          Connection& connection_)
-        : thread(name_, force_, connection_, this) {
-    }
-
-    // start the bucket deletion
-    // May throw std::bad_alloc if we're failing to start the thread
-    void start() {
-        thread.start();
-    }
-
-    virtual bool execute() override {
-        return true;
-    }
-
-    // notifyExecutionComplete is called from the executor while holding
-    // the mutex lock, but we're calling notify_io_complete which in turn
-    // tries to lock the threads lock. We held that lock when we scheduled
-    // the task, so thread sanitizer will complain about potential
-    // deadlock since we're now locking in the oposite order.
-    // Given that we know that the executor is _blocked_ waiting for
-    // this call to complete (and no one else should touch this object
-    // while waiting for the call) lets just unlock and lock again..
-    virtual void notifyExecutionComplete() override {
-        getMutex().unlock();
-        notify_io_complete(&thread.getConnection(),
-                           thread.getResult());
-        getMutex().lock();
-    }
-
-    DestroyBucketThread thread;
-};
-
 
 static void delete_bucket_executor(McbpConnection* c, void* packet) {
     ENGINE_ERROR_CODE ret = c->getAiostat();
@@ -4424,7 +4385,7 @@ static void delete_bucket_executor(McbpConnection* c, void* packet) {
 
             if (parse_config(config.c_str(), items, stderr) == 0) {
                 std::shared_ptr<Task> task = std::make_shared<McbpDestroyBucketTask>(
-                    name, force, *c);
+                    name, force, c);
                 std::lock_guard<std::mutex> guard(task->getMutex());
                 reinterpret_cast<McbpDestroyBucketTask*>(task.get())->start();
                 ret = ENGINE_EWOULDBLOCK;
