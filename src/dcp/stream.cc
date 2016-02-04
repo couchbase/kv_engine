@@ -373,7 +373,6 @@ void ActiveStream::snapshotMarkerAckReceived() {
 
 void ActiveStream::setVBucketStateAckRecieved() {
     LockHolder lh(streamMutex);
-    bool transitionVbucket = false;
     if (state_ == STREAM_TAKEOVER_WAIT) {
         if (takeoverState == vbucket_state_pending) {
             producer->getLogger().log(EXTENSION_LOG_INFO,
@@ -381,13 +380,12 @@ void ActiveStream::setVBucketStateAckRecieved() {
                 "message", vb_);
 
             takeoverState = vbucket_state_active;
-            transitionVbucket = true;
             transitionState(STREAM_TAKEOVER_SEND);
             lh.unlock();
 
-            RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
             engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
                                                   false, false);
+            RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
             producer->getLogger().log(EXTENSION_LOG_NOTICE,
                 "(vb %" PRIu16 ") Vbucket marked as dead, last sent seqno: %"
                 PRIu64 ", high seqno: %" PRIu64,
@@ -402,14 +400,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
 
         bool inverse = false;
         if (itemsReady.compare_exchange_strong(inverse, true)) {
-            if (transitionVbucket) {
-                engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
-                                                      false, false);
-            }
             producer->notifyStreamReady(vb_, true);
-        } else if (transitionVbucket) {
-            engine->getEpStore()->setVBucketState(vb_, vbucket_state_dead,
-                                                  false, false);
         }
     } else {
         producer->getLogger().log(EXTENSION_LOG_WARNING,
