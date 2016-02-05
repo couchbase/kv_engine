@@ -14,7 +14,8 @@ static const char * const feature_descriptions[] = {
     "access control",
     "multi tenancy",
     "LRU",
-    "vbuckets"
+    "vbuckets",
+    "datatype",
 };
 
 struct engine_reference {

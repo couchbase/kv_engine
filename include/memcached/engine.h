@@ -162,7 +162,7 @@ extern "C" {
         ENGINE_FEATURE_VBUCKET, /* Cache implements virtual buckets */
         ENGINE_FEATURE_DATATYPE /**< uses datatype field */
 
-#define LAST_REGISTERED_ENGINE_FEATURE ENGINE_FEATURE_VBUCKET
+#define LAST_REGISTERED_ENGINE_FEATURE ENGINE_FEATURE_DATATYPE
     } engine_feature_t;
 
     typedef struct {
