@@ -923,13 +923,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
     }
 }
 
-static bool isValidCas(const uint64_t &itmCas) {
-    if (itmCas == 0 || itmCas == static_cast<uint64_t>(-1)) {
-        return false;
-    }
-    return true;
-}
-
 ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
                                                         const Item &itm,
                                                         uint8_t nru,
@@ -945,7 +938,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
     }
 
     //check for the incoming item's CAS validity
-    if (!isValidCas(itm.getCas())) {
+    if (!Item::isValidCas(itm.getCas())) {
         return ENGINE_KEY_EEXISTS;
     }
 
@@ -2076,7 +2069,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
     }
 
     //check for the incoming item's CAS validity
-    if (!isValidCas(itm.getCas())) {
+    if (!Item::isValidCas(itm.getCas())) {
         return ENGINE_KEY_EEXISTS;
     }
 
@@ -2728,7 +2721,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
     }
 
     //check for the incoming item's CAS validity
-    if (!isValidCas(itemMeta->cas)) {
+    if (!Item::isValidCas(itemMeta->cas)) {
         return ENGINE_KEY_EEXISTS;
     }
 

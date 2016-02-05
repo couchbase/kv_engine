@@ -81,7 +81,17 @@ static void checkeqfn(T exp, T got, const char *msg, const char *file, const int
     }
 }
 
+template <typename T>
+static void checknefn(T exp, T got, const char *msg, const char *file, const int linenum) {
+    if (exp == got) {
+        std::stringstream ss;
+        ss << "Expected `" << exp << "' to not equal `" << got << "' - " << msg;
+        abort_msg(ss.str().c_str(), file, linenum);
+    }
+}
+
 #define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
+#define checkne(a, b, c) checknefn(a, b, c, __FILE__, __LINE__)
 
 extern "C" {
 #define check(expr, msg) \
@@ -163,6 +173,23 @@ static void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(info.nvalue == 1, "info.nvalue != 1");
     check(vlen == info.value[0].iov_len, "Value length mismatch");
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
+}
+
+// Fetches the CAS of the specified key.
+static uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                        const std::string& key) {
+    item *i = NULL;
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &i, key.c_str(), key.size(), /*vBucket*/0),
+            "Failed to get key");
+
+    item_info info;
+    info.nvalue = 1;
+    check(h1->get_item_info(h, NULL, i, &info),
+          "Failed to get item info for key");
+    h1->release(h, NULL, i);
+
+    return info.cas;
 }
 
 static void check_observe_seqno(bool failover, uint8_t format_type, uint16_t vb_id,
@@ -9845,6 +9872,136 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
+// Check that an incoming DCP mutation which has an invalid CAS is fixed up
+// by the engine.
+static enum test_result test_mb17517_cas_minus_1_dcp(ENGINE_HANDLE *h,
+                                                     ENGINE_HANDLE_V1 *h1) {
+    // Attempt to insert a item with CAS of -1 via DCP.
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    std::string name = "test_mb17517_cas_minus_1";
+
+    // Switch vb 0 to replica (to accept DCP mutaitons).
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state to replica.");
+
+    // Open consumer connection
+    checkeq(h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name.c_str(),
+                         name.size()),
+            ENGINE_SUCCESS, "Failed DCP Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque = get_int_stat(h, h1,
+                                          ("eq_dcpq:" + name + ":stream_0_opaque").c_str(),
+                                          "dcp");
+
+    h1->dcp.snapshot_marker(h, cookie,  stream_opaque, /*vbid*/0,
+                            /*start*/0, /*end*/3, /*flags*/2);
+
+    // Create two items via a DCP mutation.
+    const std::string prefix{"bad_CAS_DCP"};
+    std::string value{"value"};
+    for (unsigned int ii = 0; ii < 2; ii++) {
+        std::string key{prefix + std::to_string(ii)};
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.mutation(h, cookie, stream_opaque, key.c_str(), key.size(),
+                                 value.c_str(), value.size(), /*cas*/-1,
+                                 /*vbucket*/0,
+                                 /*flags*/0, PROTOCOL_BINARY_RAW_BYTES,
+                                 /*by_seqno*/ii + 1, /*rev_seqno*/1,
+                                 /*expiration*/0, /*lock_time*/0,
+                                 /*meta*/nullptr, /*nmeta*/0, INITIAL_NRU_VALUE),
+                                 "Expected DCP mutation with CAS:-1 to succeed");
+    }
+
+    // Ensure we have processed the mutations.
+    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", 2);
+
+    // Delete one of them (to allow us to test DCP deletion).
+    std::string delete_key{prefix + "0"};
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.deletion(h, cookie, stream_opaque, delete_key.c_str(),
+                             delete_key.size(), /*cas*/-1, /*vbucket*/0,
+                             /*by_seqno*/3, /*rev_seqno*/2,
+                             /*meta*/nullptr, /*nmeta*/0),
+                             "Expected DCP deletion with CAS:-1 to succeed");
+
+    // Ensure we have processed the deletion.
+    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", 1);
+
+    // Flip vBucket to active so we can access the documents in it.
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set vbucket state to active.");
+
+    // Check that a valid CAS was regenerated for the (non-deleted) mutation.
+    std::string key{prefix + "1"};
+    auto cas = get_CAS(h, h1, key);
+    checkne(~uint64_t(0), cas, "CAS via get() is still -1");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+// Check that an incoming TAP mutation which has an invalid CAS is fixed up
+// by the engine.
+static enum test_result test_mb17517_cas_minus_1_tap(ENGINE_HANDLE *h,
+                                                     ENGINE_HANDLE_V1 *h1) {
+    const uint16_t vbucket = 0;
+    // Need a replica vBucket to send mutations into.
+    check(set_vbucket_state(h, h1, vbucket, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    char eng_specific[9];
+    memset(eng_specific, 0, sizeof(eng_specific));
+
+    // Create two items via TAP.
+    std::string prefix{"bad_CAS_TAP"};
+    std::string value{"value"};
+    for (unsigned int ii = 0; ii < 2; ii++) {
+        std::string key{prefix + std::to_string(ii)};
+        checkeq(ENGINE_SUCCESS,
+                h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                               /*TTL*/1, /*tap_flags*/0, TAP_MUTATION,
+                               /*tap_seqno*/ii + 1,
+                               key.c_str(), key.size(), /*flags*/0, /*exptime*/0,
+                               /*CAS*/-1, PROTOCOL_BINARY_RAW_BYTES,
+                           value.c_str(), value.size(), vbucket),
+            "Expected tap_notify to succeed.");
+    }
+
+    // Ensure we have processed the mutations.
+    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", 2);
+
+    // Delete one of the items.
+    std::string delete_key{prefix + "0"};
+    checkeq(ENGINE_SUCCESS,
+            h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
+                           /*TTL*/1, /*tap_flags*/0, TAP_DELETION,
+                           /*tap_seqno*/2, delete_key.c_str(),
+                           delete_key.size(), /*flags*/0, /*exptime*/0,
+                           /*CAS*/-1, PROTOCOL_BINARY_RAW_BYTES,
+                       value.c_str(), value.size(), vbucket),
+        "Expected tap_notify to succeed.");
+
+    // Ensure we have processed the deletion.
+    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", 1);
+
+    // Flip vBucket to active so we can access the documents in it.
+    check(set_vbucket_state(h, h1, 0, vbucket_state_active),
+          "Failed to set vbucket state to active.");
+
+    // Check that a valid CAS was regenerated for the (non-deleted) mutation.
+    std::string key{prefix + "1"};
+    auto cas = get_CAS(h, h1, key);
+    checkne(~uint64_t(0), cas, "CAS via get() is still -1");
+
+    return SUCCESS;
+}
+
 extern "C" {
     static void wait_for_persistence_thread(void *arg) {
         struct handle_pair *hp = static_cast<handle_pair *>(arg);
@@ -14875,6 +15032,12 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, "compaction_exp_mem_threshold=85",
                  prepare, cleanup),
         TestCase("test dcp early termination", test_dcp_early_termination,
+                 test_setup, teardown, NULL, prepare, cleanup),
+
+        TestCase("test MB-17517 CAS -1 DCP", test_mb17517_cas_minus_1_dcp,
+                 test_setup, teardown, NULL, prepare, cleanup),
+
+        TestCase("test MB-17517 CAS -1 TAP", test_mb17517_cas_minus_1_tap,
                  test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
