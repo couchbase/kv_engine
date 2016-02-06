@@ -4314,6 +4314,8 @@ void McdEnvironment::SetUp() {
              << " " << std::endl;
         isasl << line.rdbuf();
     }
+    isasl << "bucket-1 1S|=,%#x1" << std::endl;
+    isasl << "bucket-2 secret" << std::endl;
 
     // Add the file to the exec environment
     snprintf(isasl_env_var, sizeof(isasl_env_var),

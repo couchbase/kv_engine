@@ -23,6 +23,8 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_rbac.cc
                testapp_rbac.h
                testapp_require_init.cc
+               testapp_sasl.cc
+               testapp_sasl.h
                testapp_shutdown.cc
                testapp_stats.cc
                testapp_stats.h
@@ -73,6 +75,11 @@ ADD_TEST(NAME memcached-getset-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=TransportProtocols/GetSetTest.*)
 
+# Run the sasl tests
+ADD_TEST(NAME memcached-sasl-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=TransportProtocols/SaslTest.*)
+
 # Run the stats tests
 ADD_TEST(NAME memcached-stats-unit-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -114,5 +121,6 @@ SET_TESTS_PROPERTIES(memcached-bucket-unit-tests PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-getset-unit-tests PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-plain PROPERTIES TIMEOUT 200)
 SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
+SET_TESTS_PROPERTIES(memcached-sasl-tests PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-shutdown-tests PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-stats-unit-tests PROPERTIES TIMEOUT 60)

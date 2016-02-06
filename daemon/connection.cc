@@ -291,3 +291,13 @@ std::string Connection::getDescription() const {
     descr += " ]";
     return descr;
 }
+
+void Connection::restartAuthentication() {
+    sasl_conn.reset(create_new_cbsasl_server_t());
+    admin = false;
+    authenticated = false;
+    username = "";
+    setAuthContext(auth_create(nullptr,
+                               getPeername().c_str(),
+                               getSockname().c_str()));
+}

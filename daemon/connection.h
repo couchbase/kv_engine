@@ -354,6 +354,12 @@ public:
         Connection::trace_enabled = trace_enabled;
     }
 
+    /**
+     * Restart the authentication (this clears all of the authentication
+     * data...)
+     */
+    void restartAuthentication();
+
 protected:
     Connection(SOCKET sfd, event_base* b);
 
