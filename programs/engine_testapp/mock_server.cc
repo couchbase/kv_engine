@@ -5,6 +5,7 @@
 #include "config.h"
 #include <stdlib.h>
 #include <string.h>
+#include <atomic>
 #include <time.h>
 #include <memcached/engine.h>
 #include <memcached/extension.h>
@@ -25,9 +26,11 @@ struct mock_extensions {
 
 std::array<std::list<mock_callbacks>, MAX_ENGINE_EVENT_TYPE + 1> mock_event_handlers;
 
-time_t process_started;     /* when the mock server was started */
-rel_time_t time_travel_offset;
-static cb_mutex_t time_mutex;
+std::atomic<time_t> process_started;     /* when the mock server was started */
+
+/* Offset from 'real' time used to test time handling */
+std::atomic<rel_time_t> time_travel_offset;
+
 /* ref_mutex to guard references, and object deletion in case references becomes zero */
 static cb_mutex_t ref_mutex;
 struct mock_extensions extensions;
@@ -158,7 +161,6 @@ static const char *mock_get_server_version(void) {
 /* time-sensitive callers can call it by hand with this, outside the
    normal ever-1-second timer */
 static rel_time_t mock_get_current_time(void) {
-    cb_mutex_enter(&time_mutex);
 #ifdef WIN32
     rel_time_t result = (rel_time_t)(time(NULL) - process_started + time_travel_offset);
 #else
@@ -166,7 +168,6 @@ static rel_time_t mock_get_current_time(void) {
     gettimeofday(&timer, NULL);
     rel_time_t result = (rel_time_t) (timer.tv_sec - process_started + time_travel_offset);
 #endif
-    cb_mutex_exit(&time_mutex);
     return result;
 }
 
@@ -206,9 +207,7 @@ static time_t mock_abstime(const rel_time_t exptime)
 }
 
 void mock_time_travel(int by) {
-    cb_mutex_enter(&time_mutex);
     time_travel_offset += by;
-    cb_mutex_exit(&time_mutex);
 }
 
 static int mock_parse_config(const char *str, struct config_item items[], FILE *error) {
@@ -418,7 +417,6 @@ void init_mock_server(bool log_to_stderr) {
     session_cas = 0x0102030405060708;
     session_ctr = 0;
     cb_mutex_initialize(&session_mutex);
-    cb_mutex_initialize(&time_mutex);
     cb_mutex_initialize(&ref_mutex);
 }
 
