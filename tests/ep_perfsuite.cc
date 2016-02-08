@@ -468,6 +468,41 @@ struct Handle_args {
     std::vector<size_t> bytes_received;
 };
 
+/* Generates random strings of characters based on the input alphabet.
+ */
+class UniformCharacterDistribution {
+public:
+    UniformCharacterDistribution(const std::string& alphabet_)
+    : alphabet(alphabet_),
+      uid(0, alphabet.size()) {}
+
+    template< class Generator >
+    char operator()(Generator& g) {
+        return alphabet[uid(g)];
+    }
+
+private:
+    // Set of characters to randomly select from
+    std::string alphabet;
+
+    // Underlying integer distribution used to select character.
+    std::uniform_int_distribution<> uid;
+};
+
+
+/* Generates a random string of the given length.
+ */
+template< class Generator>
+static std::string make_random_string(UniformCharacterDistribution& dist,
+                                      Generator& gen,
+                                      size_t len) {
+    std::string result(len, 0);
+    std::generate_n(result.begin(), len, [&]() {
+        return dist(gen);
+    });
+    return result;
+}
+
 std::vector<std::string> genVectorOfValues(Doc_format type,
                                            size_t count, size_t maxSize) {
     static const char alphabet[] =
@@ -480,6 +515,8 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
     std::random_device ran;
     std::default_random_engine dre(ran());
     std::uniform_int_distribution<> uid(0, sizeof(alphabet) - 2);
+
+    UniformCharacterDistribution alpha_dist(alphabet);
 
     std::vector<std::string> vals;
     vals.reserve(count);
@@ -500,25 +537,29 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
             break;
         case Doc_format::JSON_RANDOM:
             for (size_t i = 0; i < count; ++i) {
+                // Generate a fixed-format document with random field values.
                 len = ((i + 1) * 10) % maxSize; // Set field length
                 len = (len == 0) ? 10 : len;    // Adjust field length
-                std::string str;
-                str.reserve(len);
-                std::generate_n(std::back_inserter(str), len, [&]() {
-                    return alphabet[uid(dre)];
-                });
-                vals.push_back("{"
-                               "\"one\":\"" + std::to_string(i) + "\", "
-                               "\"two\":\"" + str.substr(1, len * 0.003) + "\", "
-                               "\"three\":\"" + str.substr(2, len * 0.001) + "\", "
-                               "\"four\": \"" + str.substr(3, len * 0.002) + "\", "
-                               "\"five\":\"" + str.substr(0, len * 0.05) + "\", "
-                               "\"six\":\"" + "\"{1, 2, 3, 4, 5}\", "
-                               "\"seven\":\"" + str.substr(4, len * 0.01) + "\", "
-                               "\"eight\":\"" + str.substr(5, len * 0.01) + "\", "
-                               "\"nine\":\"" + "{'abc', 'def', 'ghi'}\", "
-                               "\"ten\":\"" + "0.123456789\", "
-                               "}");
+
+                vals.push_back(
+                        "{"
+                        "\"one\":\"" + std::to_string(i) + "\", "
+                        "\"two\":\"" +
+                        make_random_string(alpha_dist, dre, len * 0.003) + "\", "
+                        "\"three\":\"" +
+                        make_random_string(alpha_dist, dre, len * 0.001) + "\", "
+                        "\"four\": \"" +
+                        make_random_string(alpha_dist, dre, len * 0.002) + "\", "
+                        "\"five\":\"" +
+                        make_random_string(alpha_dist, dre, len * 0.05) + "\", "
+                        "\"six\":\"{1, 2, 3, 4, 5}\", "
+                        "\"seven\":\"" +
+                        make_random_string(alpha_dist, dre, len * 0.01) + "\", "
+                        "\"eight\":\"" +
+                        make_random_string(alpha_dist, dre, len * 0.01) + "\", "
+                        "\"nine\":{'abc', 'def', 'ghi'}\", "
+                        "\"ten\":\"0.123456789\""
+                        "}");
             }
             break;
         case Doc_format::BINARY_RANDOM:
