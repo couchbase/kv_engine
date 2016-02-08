@@ -514,8 +514,6 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
 
     std::random_device ran;
     std::default_random_engine dre(ran());
-    std::uniform_int_distribution<> uid(0, sizeof(alphabet) - 2);
-
     UniformCharacterDistribution alpha_dist(alphabet);
 
     std::vector<std::string> vals;
@@ -566,10 +564,9 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
             for (size_t i = 0; i < count; ++i) {
                 len = ((i + 1) * 10) % maxSize; // Set field length
                 len = (len == 0) ? 10 : len;    // Adjust field length
-                std::string str;
-                str.reserve(len);
-                std::generate_n(std::back_inserter(str), len, [&]() {
-                    return alphabet[uid(dre)];
+                std::string str(len, 0);
+                std::generate_n(str.begin(), len, [&]() {
+                    return dre();
                 });
                 vals.push_back(str);
             }
@@ -596,8 +593,9 @@ static void perf_load_client(ENGINE_HANDLE *h,
     vals = genVectorOfValues(typeOfData, count, 100000);
 
     for (int i = 0; i < count; ++i) {
-        checkeq(store(h, h1, NULL, OPERATION_SET, keys[i].c_str(),
-                      vals[i].c_str(), &it, 0, vbid),
+        checkeq(storeCasVb11(h, h1, NULL, OPERATION_SET, keys[i].c_str(),
+                             vals[i].data(), vals[i].size(), /*flags*/9258,
+                             &it, 0, vbid),
                 ENGINE_SUCCESS,
                 "Failed set.");
         insertTimes.push_back(gethrtime());
