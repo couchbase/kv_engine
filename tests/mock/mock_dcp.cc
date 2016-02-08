@@ -183,7 +183,7 @@ static ENGINE_ERROR_CODE mock_mutation(const void* cookie,
     dcp_last_meta = meta;
     dcp_last_nmeta = nmeta;
     dcp_last_nru = nru;
-    dcp_last_packet_size = 55 + dcp_last_key.length() + item->getValMemSize();
+    dcp_last_packet_size = 55 + dcp_last_key.length() + item->getNBytes();
     return ENGINE_SUCCESS;
 }
 
