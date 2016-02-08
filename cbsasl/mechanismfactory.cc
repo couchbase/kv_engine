@@ -48,7 +48,17 @@ public:
      *             to use string comparisons).
      */
     MechInfo(const char *nm, bool en, const Mechanism &mech) :
-        name(nm), enabled(en), mechanism(mech) {}
+        name(nm), mechanism(mech) {
+        // Use the setter in order to initialize the enabled member due
+        // to the fact that we need to check a compile time flag in order
+        // to see if it is possible to use it or not (and to avoid the number
+        // #ifdef's in the code). (I could of course have made the entire
+        // info class in the ifdef (and only push it into the the array if
+        // it exists etc, but that make "refactor" and find usages in my
+        // tool (clion) less effective as it only search/replace for code
+        // that is actually being compiled.
+        setEnabled(en);
+    }
 
     virtual UniqueMechanismBackend createServerBackend() = 0;
     virtual UniqueMechanismBackend createClientBackend() = 0;
@@ -62,7 +72,7 @@ public:
     }
 
 
-    void setEnabled(bool enabled) {
+    virtual void setEnabled(bool enabled) {
         MechInfo::enabled = enabled;
     }
 
@@ -81,13 +91,7 @@ protected:
 class Scram512MechInfo : public MechInfo {
 public:
     Scram512MechInfo()
-        : MechInfo(MECH_NAME_SCRAM_SHA512,
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
-                   true,
-#else
-                   false,
-#endif
-                   Mechanism::SCRAM_SHA512) { }
+        : MechInfo(MECH_NAME_SCRAM_SHA512, true, Mechanism::SCRAM_SHA512) { }
 
     virtual UniqueMechanismBackend createServerBackend() override {
         return UniqueMechanismBackend(new ScramSha512ServerBackend);
@@ -96,18 +100,20 @@ public:
     virtual UniqueMechanismBackend createClientBackend() override {
         return UniqueMechanismBackend(new ScramSha512ClientBackend);
     }
+
+    virtual void setEnabled(bool enabled) override {
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
+        MechInfo::setEnabled(enabled);
+#else
+        MechInfo::setEnabled(false);
+#endif
+    }
 };
 
 class Scram256MechInfo : public MechInfo {
 public:
     Scram256MechInfo()
-        : MechInfo(MECH_NAME_SCRAM_SHA256,
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
-                   true,
-#else
-                   false,
-#endif
-                   Mechanism::SCRAM_SHA256) { }
+        : MechInfo(MECH_NAME_SCRAM_SHA256, true, Mechanism::SCRAM_SHA256) { }
 
     virtual UniqueMechanismBackend createServerBackend() override {
         return UniqueMechanismBackend(new ScramSha256ServerBackend);
@@ -116,18 +122,20 @@ public:
     virtual UniqueMechanismBackend createClientBackend() override {
         return UniqueMechanismBackend(new ScramSha256ClientBackend);
     }
+
+    virtual void setEnabled(bool enabled) override {
+#ifdef HAVE_PKCS5_PBKDF2_HMAC
+        MechInfo::setEnabled(enabled);
+#else
+        MechInfo::setEnabled(false);
+#endif
+    }
 };
 
 class Scram1MechInfo : public MechInfo {
 public:
     Scram1MechInfo()
-        : MechInfo(MECH_NAME_SCRAM_SHA1,
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
-                   true,
-#else
-                   false,
-#endif
-                   Mechanism::SCRAM_SHA1) { }
+        : MechInfo(MECH_NAME_SCRAM_SHA1, true, Mechanism::SCRAM_SHA1) { }
 
     virtual UniqueMechanismBackend createServerBackend() override {
         return UniqueMechanismBackend(new ScramSha1ServerBackend);
@@ -135,6 +143,14 @@ public:
 
     virtual UniqueMechanismBackend createClientBackend() override {
         return UniqueMechanismBackend(new ScramSha1ClientBackend);
+    }
+
+    virtual void setEnabled(bool enabled) override {
+#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
+        MechInfo::setEnabled(enabled);
+#else
+        MechInfo::setEnabled(false);
+#endif
     }
 };
 
@@ -166,12 +182,12 @@ public:
     }
 };
 
-const std::vector< std::shared_ptr<MechInfo> > availableMechs = {
-    std::make_shared<Scram512MechInfo>(),
-    std::make_shared<Scram256MechInfo>(),
-    std::make_shared<Scram1MechInfo>(),
-    std::make_shared<CramMd5MechInfo>(),
-    std::make_shared<PlainMechInfo>()
+const std::array<std::unique_ptr<MechInfo>, 5> availableMechs = {
+    std::unique_ptr<MechInfo>{new Scram512MechInfo()},
+    std::unique_ptr<MechInfo>{new Scram256MechInfo()},
+    std::unique_ptr<MechInfo>{new Scram1MechInfo()},
+    std::unique_ptr<MechInfo>{new CramMd5MechInfo()},
+    std::unique_ptr<MechInfo>{new PlainMechInfo()}
 };
 
 void cbsasl_set_available_mechanisms(cbsasl_getopt_fn getopt_fn,
