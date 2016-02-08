@@ -513,7 +513,7 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
     size_t len = 0;
 
     std::random_device ran;
-    std::default_random_engine dre(ran());
+    std::mt19937 dre(ran());
     UniformCharacterDistribution alpha_dist(alphabet);
 
     std::vector<std::string> vals;
