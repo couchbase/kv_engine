@@ -79,6 +79,19 @@ extern "C" {
                                    int* count);
 
     /**
+     * Convert a sasl error code to a textual representation
+     *
+     * @param conn the connection object who genertated the error code
+     * @param error the error value to look up
+     * @return pointer to a textual string describing the error. This pointer
+     *         is valid as long as the conn object is valid (caller should not
+     *         free this pointer)
+     */
+    CBSASL_PUBLIC_API
+    const char* cbsasl_strerror(cbsasl_conn_t* conn,
+                                cbsasl_error_t error);
+
+    /**
      * Initializes the sasl server
      *
      * This function initializes the server by loading passwords from the cbsasl

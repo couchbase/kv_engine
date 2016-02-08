@@ -221,6 +221,12 @@ struct cbsasl_conn_st {
     void* getopt_ctx;
 
     /**
+     * Just a holder for the last error message string
+     * created with cbsasl_strerror
+     */
+    std::string errormsg;
+
+    /**
      * The "client api" part use this member (and may ensure that it isn't
      * being incorrectly being used by the server by verifying that
      * server.get() == nullptr

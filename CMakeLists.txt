@@ -173,6 +173,7 @@ LIST(APPEND CBSASL_SOURCES
      ${Memcached_SOURCE_DIR}/cbsasl/scram-sha/stringutils.h
      ${Memcached_SOURCE_DIR}/cbsasl/server.cc
      ${Memcached_SOURCE_DIR}/cbsasl/strcmp.c
+     ${Memcached_SOURCE_DIR}/cbsasl/strerror.cc
      ${Memcached_SOURCE_DIR}/cbsasl/user.cc
      ${Memcached_SOURCE_DIR}/cbsasl/user.h
      ${Memcached_SOURCE_DIR}/cbsasl/util.h)

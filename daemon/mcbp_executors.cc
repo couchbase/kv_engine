@@ -3560,14 +3560,19 @@ static void sasl_list_mech_executor(McbpConnection* c, void*) {
     const char* result_string = NULL;
     unsigned int string_length = 0;
 
-    if (cbsasl_listmech(c->getSaslConn(), nullptr, nullptr, " ", nullptr,
-                        &result_string, &string_length, nullptr) != CBSASL_OK) {
+    auto ret = cbsasl_listmech(c->getSaslConn(), nullptr, nullptr, " ",
+                               nullptr, &result_string, &string_length,
+                               nullptr);
+
+    if (ret == CBSASL_OK) {
+        mcbp_write_response(c, (char*)result_string, 0, 0, string_length);
+    } else  {
         /* Perhaps there's a better error for this... */
-        LOG_WARNING(c, "%u: Failed to list SASL mechanisms.", c->getId());
+        LOG_WARNING(c, "%u: Failed to list SASL mechanisms: %s", c->getId(),
+                    cbsasl_strerror(c->getSaslConn(), ret));
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
         return;
     }
-    mcbp_write_response(c, (char*)result_string, 0, 0, string_length);
 }
 
 static void sasl_auth_executor(McbpConnection* c, void* packet) {
@@ -3599,7 +3604,7 @@ static void sasl_auth_executor(McbpConnection* c, void* packet) {
 
     const char* out = NULL;
     unsigned int outlen = 0;
-    int result;
+    cbsasl_error_t result;
 
     if (c->getCmd() == PROTOCOL_BINARY_CMD_SASL_AUTH) {
         c->restartAuthentication();
@@ -3612,7 +3617,7 @@ static void sasl_auth_executor(McbpConnection* c, void* packet) {
 
     c->setAuthenticated(false);
     switch (result) {
-    case CBSASL_OK: {
+    case CBSASL_OK:
         c->setAuthenticated(true);
         audit_auth_success(c);
         LOG_INFO(c, "%u: Client %s authenticated as %s",
@@ -3640,12 +3645,10 @@ static void sasl_auth_executor(McbpConnection* c, void* packet) {
         /* associate the connection with the appropriate bucket */
         /* @TODO Trond do we really want to do this? */
         associate_bucket(c, c->getUsername());
-    }
+
         break;
     case CBSASL_CONTINUE:
-        if (settings.verbose) {
-            LOG_INFO(c, "%u: SASL continue", c->getId(), result);
-        }
+        LOG_INFO(c, "%u: SASL continue", c->getId(), result);
 
         if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
                             outlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
@@ -3680,7 +3683,8 @@ static void sasl_auth_executor(McbpConnection* c, void* packet) {
             LOG_WARNING(c, "%u: Invalid username/password combination",
                         c->getId());
         } else {
-            LOG_WARNING(c, "%u: Unknown sasl response: %d", c->getId(), result);
+            LOG_WARNING(c, "%u: Unknown sasl response: %s", c->getId(),
+                        cbsasl_strerror(c->getSaslConn(), result));
         }
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
 

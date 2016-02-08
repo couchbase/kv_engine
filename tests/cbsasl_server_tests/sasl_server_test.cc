@@ -166,7 +166,7 @@ TEST_F(SaslServerTest, ListMechsSpecialized) {
 TEST_F(SaslServerTest, BadMech) {
     cbsasl_error_t err = cbsasl_server_start(conn, "bad_mech", nullptr, 0,
                                              nullptr, nullptr);
-    ASSERT_EQ(CBSASL_BADPARAM, err);
+    ASSERT_EQ(CBSASL_NOMECH, err);
 }
 
 TEST_F(SaslServerTest, PlainCorrectPassword) {
