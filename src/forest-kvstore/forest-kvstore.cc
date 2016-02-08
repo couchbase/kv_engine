@@ -972,7 +972,6 @@ void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
         for (fitr = fetches.begin(); fitr != fetches.end(); ++fitr) {
             (*fitr)->value = gcb.val;
         }
-        meta_only = true;
     }
 }
 
