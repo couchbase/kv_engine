@@ -94,7 +94,11 @@ static void mock_decrement_session_ctr() {
     cb_mutex_exit(&(session_mutex));
 }
 
+#ifdef WIN32
 static SOCKET mock_get_socket_fd(const void *cookie) {
+#else
+static int mock_get_socket_fd(const void *cookie) {
+#endif
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     return c->sfd;
 }
