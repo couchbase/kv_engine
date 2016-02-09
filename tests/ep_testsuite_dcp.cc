@@ -262,10 +262,16 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                                PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     break;
                 case 0:
-                    /* No messages were ready on the last step call so we
-                     * should just ignore this case. Note that we check for 0
-                     * because we clear the dcp_last_op value below.
+                    /* No messages were ready on the last step call, so we
+                     * wait till the conn is notified of new item.
+                     * Note that we check for 0 because we clear the
+                     * dcp_last_op value below.
                      */
+                    testHarness.lock_cookie(cookie);
+                    /* waitfor_cookie() waits on a condition variable. But the
+                       api expects the cookie to be locked before calling it */
+                    testHarness.waitfor_cookie(cookie);
+                    testHarness.unlock_cookie(cookie);
                     break;
                 default:
                     // Aborting ...
