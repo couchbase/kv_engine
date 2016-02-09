@@ -48,16 +48,7 @@ public:
      *             to use string comparisons).
      */
     MechInfo(const char *nm, bool en, const Mechanism &mech) :
-        name(nm), mechanism(mech) {
-        // Use the setter in order to initialize the enabled member due
-        // to the fact that we need to check a compile time flag in order
-        // to see if it is possible to use it or not (and to avoid the number
-        // #ifdef's in the code). (I could of course have made the entire
-        // info class in the ifdef (and only push it into the the array if
-        // it exists etc, but that make "refactor" and find usages in my
-        // tool (clion) less effective as it only search/replace for code
-        // that is actually being compiled.
-        setEnabled(en);
+        name(nm), enabled(en), mechanism(mech) {
     }
 
     virtual UniqueMechanismBackend createServerBackend() = 0;
@@ -71,11 +62,23 @@ public:
         return enabled;
     }
 
+    /**
+     * Some of our backends require support from openssl, which seems
+     * to be packaged up differently on our platforms so all mechanisms
+     * isn't supported on all platforms.
+     *
+     * @return true if the mechanism is supported on this platform
+     */
+    virtual bool isMechanismSupported() = 0;
 
-    virtual void setEnabled(bool enabled) {
-        MechInfo::enabled = enabled;
+    void setEnabled(bool enabled) {
+        if (isMechanismSupported()) {
+            MechInfo::enabled = enabled;
+        } else {
+            // This mechanism can't be enabled on this platform
+            MechInfo::enabled = false;
+        }
     }
-
 
     const Mechanism& getMechanism() const {
         return mechanism;
@@ -91,7 +94,9 @@ protected:
 class Scram512MechInfo : public MechInfo {
 public:
     Scram512MechInfo()
-        : MechInfo(MECH_NAME_SCRAM_SHA512, true, Mechanism::SCRAM_SHA512) { }
+        : MechInfo(MECH_NAME_SCRAM_SHA512, true, Mechanism::SCRAM_SHA512) {
+        setEnabled(isMechanismSupported());
+    }
 
     virtual UniqueMechanismBackend createServerBackend() override {
         return UniqueMechanismBackend(new ScramSha512ServerBackend);
@@ -101,11 +106,11 @@ public:
         return UniqueMechanismBackend(new ScramSha512ClientBackend);
     }
 
-    virtual void setEnabled(bool enabled) override {
+    virtual bool isMechanismSupported() override {
 #ifdef HAVE_PKCS5_PBKDF2_HMAC
-        MechInfo::setEnabled(enabled);
+        return true;
 #else
-        MechInfo::setEnabled(false);
+        return false;
 #endif
     }
 };
@@ -113,7 +118,9 @@ public:
 class Scram256MechInfo : public MechInfo {
 public:
     Scram256MechInfo()
-        : MechInfo(MECH_NAME_SCRAM_SHA256, true, Mechanism::SCRAM_SHA256) { }
+        : MechInfo(MECH_NAME_SCRAM_SHA256, true, Mechanism::SCRAM_SHA256) {
+        setEnabled(isMechanismSupported());
+    }
 
     virtual UniqueMechanismBackend createServerBackend() override {
         return UniqueMechanismBackend(new ScramSha256ServerBackend);
@@ -123,11 +130,11 @@ public:
         return UniqueMechanismBackend(new ScramSha256ClientBackend);
     }
 
-    virtual void setEnabled(bool enabled) override {
+    virtual bool isMechanismSupported() override {
 #ifdef HAVE_PKCS5_PBKDF2_HMAC
-        MechInfo::setEnabled(enabled);
+        return true;
 #else
-        MechInfo::setEnabled(false);
+        return false;
 #endif
     }
 };
@@ -135,7 +142,9 @@ public:
 class Scram1MechInfo : public MechInfo {
 public:
     Scram1MechInfo()
-        : MechInfo(MECH_NAME_SCRAM_SHA1, true, Mechanism::SCRAM_SHA1) { }
+        : MechInfo(MECH_NAME_SCRAM_SHA1, true, Mechanism::SCRAM_SHA1) {
+        setEnabled(isMechanismSupported());
+    }
 
     virtual UniqueMechanismBackend createServerBackend() override {
         return UniqueMechanismBackend(new ScramSha1ServerBackend);
@@ -145,11 +154,11 @@ public:
         return UniqueMechanismBackend(new ScramSha1ClientBackend);
     }
 
-    virtual void setEnabled(bool enabled) override {
+    virtual bool isMechanismSupported() override {
 #ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
-        MechInfo::setEnabled(enabled);
+        return true;
 #else
-        MechInfo::setEnabled(false);
+        return false;
 #endif
     }
 };
@@ -166,6 +175,10 @@ public:
     virtual UniqueMechanismBackend createClientBackend() override {
         return UniqueMechanismBackend(new CramMd5ClientBackend);
     }
+
+    virtual bool isMechanismSupported() override {
+        return true;
+    }
 };
 
 class PlainMechInfo : public MechInfo {
@@ -179,6 +192,10 @@ public:
 
     virtual UniqueMechanismBackend createClientBackend() override {
         return UniqueMechanismBackend(new PlainClientBackend);
+    }
+
+    virtual bool isMechanismSupported() override {
+        return true;
     }
 };
 
