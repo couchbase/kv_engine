@@ -20,6 +20,8 @@
 
 #include "config.h"
 
+#include "ep_engine.h"
+
 #include <queue>
 
 class EventuallyPersistentEngine;

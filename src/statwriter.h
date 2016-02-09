@@ -15,6 +15,9 @@
  *   limitations under the License.
  */
 
+#ifndef SRC_STATWRITER_H_
+#define SRC_STATWRITER_H_ 1
+
 #include "config.h"
 
 #include <memcached/engine.h>
@@ -22,11 +25,10 @@
 
 #include <iostream>
 
-#include "ep_engine.h"
 #include "histo.h"
+#include "objectregistry.h"
 
-#ifndef SRC_STATWRITER_H_
-#define SRC_STATWRITER_H_ 1
+class EventuallyPersistentEngine;
 
 namespace STATWRITER_NAMESPACE {
 

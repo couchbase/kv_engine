@@ -29,9 +29,12 @@
 
 #include "atomic.h"
 #include "common.h"
+#include "item.h"
 #include "locks.h"
 #include "mutex.h"
 #include "statwriter.h"
+#include "tasks.h"
+#include "vbucket.h"
 
 // forward decl
 class ConnHandler;
