@@ -277,7 +277,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
        itemsFromBackfill(0), itemsFromMemory(0), firstMarkerSent(false),
        waitForSnapshot(0), engine(e), producer(p),
        isBackfillTaskRunning(false), lastSentSnapEndSeqno(0),
-       checkpointCreatorTask(task) {
+       checkpointCreatorTask(task), chkptItemsExtractionInProgress(false) {
 
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -634,6 +634,8 @@ bool ActiveStream::nextCheckpointItem() {
         static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->schedule(this);
         return true;
+    } else if (chkptItemsExtractionInProgress) {
+        return true;
     }
     return false;
 }
@@ -704,6 +706,9 @@ void ActiveStream::nextCheckpointItemTask() {
 
 void ActiveStream::getOutstandingItems(RCPtr<VBucket> &vb,
                                        std::deque<queued_item> &items) {
+    // Commencing item processing - set guard flag.
+    chkptItemsExtractionInProgress.store(true);
+
     vb->checkpointManager.getAllItemsForCursor(name_, items);
     if (vb->checkpointManager.getNumCheckpoints() > 1) {
         engine->getEpStore()->wakeUpCheckpointRemover();
@@ -712,41 +717,40 @@ void ActiveStream::getOutstandingItems(RCPtr<VBucket> &vb,
 
 
 void ActiveStream::processItems(std::deque<queued_item>& items) {
-    bool mark = false;
-    if (items.empty()) {
-        producer->notifyStreamReady(vb_, true);
-        return;
-    }
-
-    if (items.front()->getOperation() == queue_op_checkpoint_start) {
-        mark = true;
-    }
-
-    std::deque<MutationResponse*> mutations;
-    std::deque<queued_item>::iterator itemItr;
-    for (itemItr = items.begin(); itemItr != items.end(); itemItr++) {
-        queued_item& qi = *itemItr;
-
-        if (qi->getOperation() == queue_op_set ||
-            qi->getOperation() == queue_op_del) {
-            curChkSeqno = qi->getBySeqno();
-            lastReadSeqno = qi->getBySeqno();
-
-            mutations.push_back(new MutationResponse(qi, opaque_));
-        } else if (qi->getOperation() == queue_op_checkpoint_start) {
-            snapshot(mutations, mark);
+    if (!items.empty()) {
+        bool mark = false;
+        if (items.front()->getOperation() == queue_op_checkpoint_start) {
             mark = true;
+        }
+
+        std::deque<MutationResponse*> mutations;
+        std::deque<queued_item>::iterator itemItr;
+        for (itemItr = items.begin(); itemItr != items.end(); itemItr++) {
+            queued_item& qi = *itemItr;
+
+            if (qi->getOperation() == queue_op_set ||
+                qi->getOperation() == queue_op_del) {
+                curChkSeqno = qi->getBySeqno();
+                lastReadSeqno = qi->getBySeqno();
+
+                mutations.push_back(new MutationResponse(qi, opaque_));
+            } else if (qi->getOperation() == queue_op_checkpoint_start) {
+                snapshot(mutations, mark);
+                mark = true;
+            }
+        }
+
+        if (mutations.empty()) {
+            // If we only got checkpoint start or ends check to see if there are
+            // any more snapshots before pausing the stream.
+            nextCheckpointItemTask();
+        } else {
+            snapshot(mutations, mark);
         }
     }
 
-    if (mutations.empty()) {
-        // If we only got checkpoint start or ends check to see if there are
-        // any more snapshots before pausing the stream.
-        nextCheckpointItemTask();
-    } else {
-        snapshot(mutations, mark);
-    }
-    // ...notify...
+    // Completed item processing - clear guard flag and notify producer.
+    chkptItemsExtractionInProgress.store(false);
     producer->notifyStreamReady(vb_, true);
 }
 

@@ -220,6 +220,8 @@ protected:
     // and pass onto the producer associated with this stream.
     void processItems(std::deque<queued_item>& items);
 
+    bool nextCheckpointItem();
+
 private:
 
     void transitionState(stream_state_t newState);
@@ -235,8 +237,6 @@ private:
     DcpResponse* deadPhase();
 
     DcpResponse* nextQueuedItem();
-
-    bool nextCheckpointItem();
 
     void snapshot(std::deque<MutationResponse*>& snapshot, bool mark);
 
@@ -274,7 +274,14 @@ private:
 
     //! Last snapshot end seqno sent to the DCP client
     uint64_t lastSentSnapEndSeqno;
+
     ExTask checkpointCreatorTask;
+
+    /* Flag used by checkpointCreatorTask that is set before all items are
+       extracted for given checkpoint cursor, and is unset after all retrieved
+       items are added to the readyQ */
+    AtomicValue<bool> chkptItemsExtractionInProgress;
+
 };
 
 
