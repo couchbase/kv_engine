@@ -102,7 +102,7 @@ bool tap_cp(BIO* source, BIO* dest, bool verbose) {
                 auto* res = reinterpret_cast<protocol_binary_response_no_extras*>(ptr);
                 if (res->message.header.response.status != 0) {
                     auto st = ntohs(res->message.header.response.status);
-                    fprintf(stderr, "Reveived: %d %s\n",st,
+                    fprintf(stderr, "Received: %d %s\n",st,
                             memcached_status_2_text((protocol_binary_response_status)st));
                 }
             } else {
