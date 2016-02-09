@@ -175,7 +175,7 @@ protected:
         const char* serverdata;
         unsigned int serverlen;
         err = cbsasl_server_start(server.get(), chosenmech, data, len,
-                                  (unsigned char**)&serverdata, &serverlen);
+                                  &serverdata, &serverlen);
         if (err == CBSASL_OK) {
             free(client_context.secret);
             return;

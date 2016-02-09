@@ -164,7 +164,7 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t* conn,
                                    const char* mech,
                                    const char* clientin,
                                    unsigned int clientinlen,
-                                   unsigned char** serverout,
+                                   const char** serverout,
                                    unsigned int* serveroutlen) {
     if (conn == nullptr) {
         return CBSASL_BADPARAM;
@@ -192,7 +192,7 @@ cbsasl_error_t cbsasl_server_start(cbsasl_conn_t* conn,
     }
 
     return server->mech->start(conn, clientin, clientinlen,
-                               (const char**)serverout, serveroutlen);
+                               serverout, serveroutlen);
 }
 
 CBSASL_PUBLIC_API

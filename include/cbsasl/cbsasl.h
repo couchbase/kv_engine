@@ -159,7 +159,7 @@ extern "C" {
                                        const char *mech,
                                        const char *clientin,
                                        unsigned int clientinlen,
-                                       unsigned char **serverout,
+                                       const char **serverout,
                                        unsigned int *serveroutlen);
 
     /**
