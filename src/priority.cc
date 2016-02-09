@@ -28,6 +28,7 @@ const Priority Priority::VKeyStatBgFetcherPriority(VKEY_STAT_BGFETCHER_ID, 3);
 // Priorities for Auxiliary IO tasks
 const Priority Priority::TapBgFetcherPriority(TAP_BGFETCHER_ID, 1);
 const Priority Priority::AccessScannerPriority(ACCESS_SCANNER_ID, 3);
+const Priority Priority::ActiveStreamCheckpointProcessor(ACTIVE_STREAM_CHKPT_PROCESSOR_ID, 5);
 const Priority Priority::BackfillTaskPriority(BACKFILL_TASK_ID, 8);
 
 // Priorities for Read-Write IO tasks
@@ -53,7 +54,6 @@ const Priority Priority::TapConnMgrPriority(TAP_CONN_MGR_ID, 8);
 const Priority Priority::WorkLoadMonitorPriority(WORKLOAD_MONITOR_TASK_ID, 10);
 const Priority Priority::HTResizePriority(HT_RESIZER_ID, 211);
 const Priority Priority::TapResumePriority(TAP_RESUME_ID, 316);
-const Priority Priority::ActiveStreamCheckpointProcessor(ACTIVE_STREAM_CHKPT_PROCESSOR_ID, 5);
 
 const char *Priority::getTypeName(const type_id_t i) {
         switch (i) {
