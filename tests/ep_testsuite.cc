@@ -3406,11 +3406,12 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        nname) == ENGINE_SUCCESS,
           "Failed dcp producer open connection.");
 
-    std::string flow_control_buf_sz = std::to_string(flow_control_buf_size);
+    std::stringstream flow_control_buf_sz;
+    flow_control_buf_sz << flow_control_buf_size;
     checkeq(ENGINE_SUCCESS,
             h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                            flow_control_buf_sz.c_str(),
-                            flow_control_buf_sz.length()),
+                            flow_control_buf_sz.str().c_str(),
+                            flow_control_buf_sz.str().length()),
             "Failed to establish connection buffer");
     char stats_buffer[50] = {0};
     if (flow_control_buf_size) {
@@ -4802,9 +4803,11 @@ static enum test_result test_dcp_producer_flow_control(ENGINE_HANDLE *h,
     const int num_items = 10;
     for (int j = 0; j < num_items; ++j) {
         item *i = NULL;
-        std::string key("key" + std::to_string(j));
+        std::stringstream key;
+        key << "key" << j;
         checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key.c_str(), "123456789", &i),
+                store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
+                      "123456789", &i),
                 "Failed to store a value");
         h1->release(h, NULL, i);
     }
