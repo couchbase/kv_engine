@@ -212,6 +212,14 @@ public:
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();
 
+protected:
+    // Returns the outstanding items for the stream's checkpoint cursor.
+    std::deque<queued_item> getOutstandingItems(RCPtr<VBucket> &vb);
+
+    // Given a set of queued items, create mutation responses for each item,
+    // and pass onto the producer associated with this stream.
+    void processItems(std::deque<queued_item>& items);
+
 private:
 
     void transitionState(stream_state_t newState);
