@@ -21,6 +21,9 @@
 #include "mcbp.h"
 #include "mcbp_executors.h"
 #include "connections.h"
+#include "sasl_tasks.h"
+#include "runtime.h"
+#include "mcaudit.h"
 
 void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction task) {
     // Moving to the same state is legal
@@ -630,6 +633,70 @@ bool conn_delete_bucket(McbpConnection *c) {
         c->setState(conn_closing);
     } else {
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+    }
+
+    return true;
+}
+
+bool conn_sasl_auth(McbpConnection* c) {
+    c->setAiostat(ENGINE_SUCCESS);
+    c->setEwouldblock(false);
+
+    auto* ctx = reinterpret_cast<SaslCommandContext*>(c->getCommandContext());
+    auto task = reinterpret_cast<SaslAuthTask*>(ctx->task.get());
+
+    switch (task->getError()) {
+    case CBSASL_OK:
+        mcbp_write_response(c, task->getResponse(), 0, 0,
+                            task->getResponse_length());
+        get_thread_stats(c)->auth_cmds++;
+        break;
+    case CBSASL_CONTINUE:
+        LOG_INFO(c, "%u: SASL continue", c->getId());
+
+        if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
+                            task->getResponse_length(),
+                            PROTOCOL_BINARY_RAW_BYTES) == -1) {
+            c->setState(conn_closing);
+            return true;
+        }
+        c->addIov(task->getResponse(), task->getResponse_length());
+        c->setState(conn_mwrite);
+        c->setWriteAndGo(conn_new_cmd);
+        break;
+    case CBSASL_BADPARAM:
+        LOG_WARNING(c, "%u: Bad sasl params", c->getId());
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
+        {
+            auto* ts = get_thread_stats(c);
+            ts->auth_cmds++;
+            ts->auth_errors++;
+        }
+        break;
+    default:
+        if (!is_server_initialized()) {
+            LOG_WARNING(c, "%u: SASL AUTH failure during initialization",
+                        c->getId());
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
+            c->setWriteAndGo(conn_closing);
+            return true;
+        }
+
+        if (task->getError() == CBSASL_NOUSER ||
+            task->getError() == CBSASL_PWERR) {
+            audit_auth_failure(c, task->getError() == CBSASL_NOUSER ?
+                                  "Unknown user" : "Incorrect password");
+            LOG_WARNING(c, "%u: Invalid username/password combination",
+                        c->getId());
+        } else {
+            LOG_WARNING(c, "%u: Unknown sasl response: %s", c->getId(),
+                        cbsasl_strerror(c->getSaslConn(), task->getError()));
+        }
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
+
+        auto* ts = get_thread_stats(c);
+        ts->auth_cmds++;
+        ts->auth_errors++;
     }
 
     return true;

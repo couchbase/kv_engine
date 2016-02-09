@@ -97,3 +97,4 @@ bool conn_flush(McbpConnection* c);
 bool conn_audit_configuring(McbpConnection* c);
 bool conn_create_bucket(McbpConnection* c);
 bool conn_delete_bucket(McbpConnection* c);
+bool conn_sasl_auth(McbpConnection* c);

@@ -106,6 +106,8 @@ ADD_EXECUTABLE(memcached
                rbac_impl.h
                runtime.cc
                runtime.h
+               sasl_tasks.cc
+               sasl_tasks.h
                session_cas.cc
                session_cas.h
                settings.h

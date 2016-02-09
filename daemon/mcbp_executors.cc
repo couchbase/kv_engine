@@ -33,6 +33,7 @@
 #include "mcbp_topkeys.h"
 #include "enginemap.h"
 #include "mcbpdestroybuckettask.h"
+#include "sasl_tasks.h"
 
 #include <memcached/audit_interface.h>
 #include <snappy-c.h>
@@ -3577,121 +3578,30 @@ static void sasl_list_mech_executor(McbpConnection* c, void*) {
 
 static void sasl_auth_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
-    char mech[1024];
     int nkey = c->binary_header.request.keylen;
     int vlen = c->binary_header.request.bodylen - nkey;
 
-    if (nkey > 1023) {
-        /* too big.. */
-        LOG_WARNING(c, "%u: sasl error. key: %d > 1023", c->getId(), nkey);
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
-        return;
-    }
+    const char *ptr = reinterpret_cast<char*>(req->bytes) + sizeof(req->bytes);
 
-    memcpy(mech, req->bytes + sizeof(req->bytes), nkey);
-    mech[nkey] = '\0';
+    std::string mechanism(ptr, nkey);
+    std::string challenge(ptr + nkey, vlen);
 
-    if (settings.verbose) {
-        LOG_DEBUG(c, "%u: SASL auth with mech: '%s' with %d bytes of data",
-                  c->getId(), mech, vlen);
-    }
+    LOG_DEBUG(c, "%u: SASL auth with mech: '%s' with %d bytes of data",
+              c->getId(), mechanism.c_str(), vlen);
 
-    char* challenge =
-        reinterpret_cast<char*>(req->bytes + sizeof(req->bytes) + nkey);
-    if (vlen == 0) {
-        challenge = NULL;
-    }
-
-    const char* out = NULL;
-    unsigned int outlen = 0;
-    cbsasl_error_t result;
+    std::shared_ptr<Task> task;
 
     if (c->getCmd() == PROTOCOL_BINARY_CMD_SASL_AUTH) {
-        c->restartAuthentication();
-        result = cbsasl_server_start(c->getSaslConn(), mech, challenge, vlen,
-                                     &out, &outlen);
+        task = std::make_shared<StartSaslAuthTask>(*c, mechanism, challenge);
     } else {
-        result = cbsasl_server_step(c->getSaslConn(), challenge, vlen,
-                                    &out, &outlen);
+        task = std::make_shared<StepSaslAuthTask>(*c, mechanism, challenge);
     }
+    c->setCommandContext(new SaslCommandContext(task));
 
-    c->setAuthenticated(false);
-    switch (result) {
-    case CBSASL_OK:
-        c->setAuthenticated(true);
-        audit_auth_success(c);
-        LOG_INFO(c, "%u: Client %s authenticated as %s",
-                    c->getId(), c->getPeername().c_str(), c->getUsername());
-        mcbp_write_response(c, out, 0, 0, outlen);
-
-        /*
-         * We've successfully changed our user identity.
-         * Update the authentication context
-         */
-        c->setAuthContext(auth_create(c->getUsername(),
-                                      c->getPeername().c_str(),
-                                      c->getSockname().c_str()));
-
-        if (settings.disable_admin) {
-            /* "everyone is admins" */
-            c->setAdmin(true);
-        } else if (settings.admin != NULL) {
-            if (strcmp(settings.admin, c->getUsername()) == 0) {
-                c->setAdmin(true);
-            }
-        }
-        get_thread_stats(c)->auth_cmds++;
-
-        /* associate the connection with the appropriate bucket */
-        /* @TODO Trond do we really want to do this? */
-        associate_bucket(c, c->getUsername());
-
-        break;
-    case CBSASL_CONTINUE:
-        LOG_INFO(c, "%u: SASL continue", c->getId(), result);
-
-        if (mcbp_add_header(c, PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE, 0, 0,
-                            outlen, PROTOCOL_BINARY_RAW_BYTES) == -1) {
-            c->setState(conn_closing);
-            return;
-        }
-        c->addIov(out, outlen);
-        c->setState(conn_mwrite);
-        c->setWriteAndGo(conn_new_cmd);
-        break;
-    case CBSASL_BADPARAM:
-        LOG_WARNING(c, "%u: Bad sasl params: %d", c->getId(), result);
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
-        {
-            auto* ts = get_thread_stats(c);
-            ts->auth_cmds++;
-            ts->auth_errors++;
-        }
-        break;
-    default:
-        if (!is_server_initialized()) {
-            LOG_WARNING(c, "%u: SASL AUTH failure during initialization",
-                        c->getId());
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
-            c->setWriteAndGo(conn_closing);
-            return;
-        }
-
-        if (result == CBSASL_NOUSER || result == CBSASL_PWERR) {
-            audit_auth_failure(c, result == CBSASL_NOUSER ?
-                                  "Unknown user" : "Incorrect password");
-            LOG_WARNING(c, "%u: Invalid username/password combination",
-                        c->getId());
-        } else {
-            LOG_WARNING(c, "%u: Unknown sasl response: %s", c->getId(),
-                        cbsasl_strerror(c->getSaslConn(), result));
-        }
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
-
-        auto* ts = get_thread_stats(c);
-        ts->auth_cmds++;
-        ts->auth_errors++;
-    }
+    c->setEwouldblock(true);
+    c->setState(conn_sasl_auth);
+    std::lock_guard<std::mutex> guard(task->getMutex());
+    executorPool->schedule(task, true);
 }
 
 static void noop_executor(McbpConnection* c, void*) {
