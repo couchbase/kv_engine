@@ -182,12 +182,18 @@ public:
     }
 };
 
-const std::array<std::unique_ptr<MechInfo>, 5> availableMechs = {
-    std::unique_ptr<MechInfo>{new Scram512MechInfo()},
-    std::unique_ptr<MechInfo>{new Scram256MechInfo()},
-    std::unique_ptr<MechInfo>{new Scram1MechInfo()},
-    std::unique_ptr<MechInfo>{new CramMd5MechInfo()},
-    std::unique_ptr<MechInfo>{new PlainMechInfo()}
+static Scram512MechInfo scram512MechInfo;
+static Scram256MechInfo scram256MechInfo;
+static Scram1MechInfo scram1MechInfo;
+static CramMd5MechInfo cramMd5MechInfo;
+static PlainMechInfo plainMechInfo;
+
+static std::array<MechInfo*, 5> availableMechs = {
+     &scram512MechInfo,
+     &scram256MechInfo,
+     &scram1MechInfo,
+     &cramMd5MechInfo,
+     &plainMechInfo
 };
 
 void cbsasl_set_available_mechanisms(cbsasl_getopt_fn getopt_fn,
