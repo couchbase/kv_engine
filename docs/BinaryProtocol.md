@@ -130,8 +130,8 @@ Possible values of this two-byte field:
 | 0x0005 | Item not stored                       |
 | 0x0006 | Incr/Decr on a non-numeric value      |
 | 0x0007 | The vbucket belongs to another server |
-| 0x0008 | Authentication error                  |
-| 0x0009 | Authentication continue               |
+| 0x0020 | Authentication error                  |
+| 0x0021 | Authentication continue               |
 | 0x0081 | Unknown command                       |
 | 0x0082 | Out of memory                         |
 | 0x0083 | Not supported                         |
