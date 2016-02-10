@@ -220,9 +220,17 @@ information about a given command.
 | 0x1c | [Touch](#0x1c-touch)                                    |
 | 0x1d | [GAT](#0x1d-gat-get-and-touch)                          |
 | 0x1e | [GATQ](#0x1e-gatq-get-and-touch-quietly)                |
+| 0x1f | Hello |
 | 0x20 | [SASL list mechs](sasl.md#0x20-list-mech)               |
 | 0x21 | [SASL Auth](sasl.md#0x21-sasl-auth)                     |
 | 0x22 | [SASL Step](sasl.md0x22-sasl-step)                      |
+| 0x23 | Ioctl get |
+| 0x24 | Ioctl set |
+| 0x25 | Config validate |
+| 0x26 | Config reload |
+| 0x27 | Audit put |
+| 0x28 | Audit config reload |
+| 0x29 | Shutdown |
 | 0x30 | RGet                                                    |
 | 0x31 | RSet                                                    |
 | 0x32 | RSetQ                                                   |
@@ -247,6 +255,85 @@ information about a given command.
 | 0x45 | [TAP VBucket Set](TAP.md#0x45-tap-vbucket-set)          |
 | 0x46 | [TAP Checkout Start](TAP.md#0x46-tap-checkpoint-start)  |
 | 0x47 | [TAP Checkpoint End](TAP.md#0x47-tap-checkpoint-end)    |
+| 0x48 | Get all vb seqnos |
+| 0x50 | Dcp Open |
+| 0x51 | Dcp add stream |
+| 0x52 | Dcp close stream |
+| 0x53 | Dcp stream req |
+| 0x54 | Dcp get failover log |
+| 0x55 | Dcp stream end |
+| 0x56 | Dcp snapshot marker |
+| 0x57 | Dcp mutation |
+| 0x58 | Dcp deletion |
+| 0x59 | Dcp expiration |
+| 0x5a | Dcp flush |
+| 0x5b | Dcp set vbucket state |
+| 0x5c | Dcp noop |
+| 0x5d | Dcp buffer acknowledgement |
+| 0x5e | Dcp control |
+| 0x5f | Dcp reserved4 |
+| 0x80 | Stop persistence |
+| 0x81 | Start persistence |
+| 0x82 | Set param |
+| 0x83 | Get replica |
+| 0x85 | Create bucket |
+| 0x86 | Delete bucket |
+| 0x87 | List buckets |
+| 0x88 | Select bucket |
+| 0x8a | Assume role |
+| 0x91 | Observe seqno |
+| 0x92 | Observe |
+| 0x93 | Evict key |
+| 0x94 | Get locked |
+| 0x95 | Unlock key |
+| 0x97 | Last closed checkpoint |
+| 0x9e | Deregister tap client |
+| 0x9f | Reset replication chain |
+| 0xa0 | Get meta |
+| 0xa1 | Getq meta |
+| 0xa2 | Set with meta |
+| 0xa3 | Setq with meta |
+| 0xa4 | Add with meta |
+| 0xa5 | Addq with meta |
+| 0xa6 | Snapshot vb states |
+| 0xa7 | Vbucket batch count |
+| 0xa8 | Del with meta |
+| 0xa9 | Delq with meta |
+| 0xaa | Create checkpoint |
+| 0xac | Notify vbucket update |
+| 0xad | Enable traffic |
+| 0xae | Disable traffic |
+| 0xb0 | Change vb filter |
+| 0xb1 | Checkpoint persistence |
+| 0xb2 | Return meta |
+| 0xb3 | Compact db |
+| 0xb4 | Set cluster config |
+| 0xb5 | Get cluster config |
+| 0xb6 | Get random key |
+| 0xb7 | Seqno persistence |
+| 0xb8 | Get keys |
+| 0xc1 | Set drift counter state |
+| 0xc2 | Get adjusted time |
+| 0xc5 | Subdoc get |
+| 0xc6 | Subdoc exists |
+| 0xc7 | Subdoc dict add |
+| 0xc8 | Subdoc dict upsert |
+| 0xc9 | Subdoc delete |
+| 0xca | Subdoc replace |
+| 0xcb | Subdoc array push last |
+| 0xcc | Subdoc array push first |
+| 0xcd | Subdoc array insert |
+| 0xce | Subdoc array add unique |
+| 0xcf | Subdoc counter |
+| 0xd0 | Subdoc multi lookup |
+| 0xd1 | Subdoc multi mutation |
+| 0xf0 | Scrub |
+| 0xf1 | Isasl refresh |
+| 0xf2 | Ssl certs refresh |
+| 0xf3 | Get cmd timer |
+| 0xf4 | Set ctrl token |
+| 0xf5 | Get ctrl token |
+| 0xf6 | Init complete |
 
 As a convention all of the commands ending with "Q" for Quiet. A quiet version
 of a command will omit responses that are considered uninteresting. Whether a
