@@ -130,15 +130,57 @@ Possible values of this two-byte field:
 | 0x0005 | Item not stored                       |
 | 0x0006 | Incr/Decr on a non-numeric value      |
 | 0x0007 | The vbucket belongs to another server |
+| 0x0008 | The connection is not connected to a bucket |
+| 0x001f | The authentication context is stale, please re-authenticate |
 | 0x0020 | Authentication error                  |
 | 0x0021 | Authentication continue               |
+| 0x0022 | The requested value is outside the legal ranges |
+| 0x0023 | Rollback required                     |
+| 0x0024 | No access                             |
+| 0x0025 | The node is being initialized         |
 | 0x0081 | Unknown command                       |
 | 0x0082 | Out of memory                         |
 | 0x0083 | Not supported                         |
 | 0x0084 | Internal error                        |
 | 0x0085 | Busy                                  |
 | 0x0086 | Temporary failure                     |
+| 0x00c0 | (Subdoc) The provided path does not exist in the document |
+| 0x00c1 | (Subdoc) One of path components treats a non-dictionary as a dictionary, or a non-array as an array|
+| 0x00c2 | (Subdoc) The path’s syntax was incorrect |
+| 0x00c3 | (Subdoc) The path provided is too large; either the string is too long, or it contains too many components |
+| 0x00c4 | (Subdoc) The document has too many levels to parse |
+| 0x00c5 | (Subdoc) The value provided will invalidate the JSON if inserted |
+| 0x00c6 | (Subdoc) The existing document is not valid JSON |
+| 0x00c7 | (Subdoc) The existing number is out of the valid range for arithmetic ops |
+| 0x00c8 | (Subdoc) The operation would result in a number outside the valid range |
+| 0x00c9 | (Subdoc) The requested operation requires the path to not already exist, but it exists |
+| 0x00ca | (Subdoc) Inserting the value would cause the document to be too deep |
+| 0x00cb | (Subdoc) An invalid combination of commands was specified |
+| 0x00cc | (Subdoc) Specified key was successfully found, but one or more path operations failed. Examine the individual lookup_result (MULTI_LOOKUP) / mutation_result (MULTI_MUTATION) structures for details. |
 
+
+A well written client should provide logic to gracefully recover from
+unknown error codes being returned. The status code falls into two main
+categories: *Success* or *Failure*.
+
+If the operation was successfully performed the status field is set to
+`No error`. All other return values means that the operation was not
+performed, and these error codes falls into two categories: *temporarily* and
+*permanent*.
+
+* A *temporary* failure is a problem that might go away by resending the
+  operation. There is currently two status codes that may be returned for that:
+
+  * `Busy` - The server is too busy to handle your request, please back off
+  * `Temporary failure` - The server hit a problem that a retry might fix
+
+* A *permanent* failure is a problem is a failure where the server expects the
+  same result if the command is resent (unless an external actor act on the
+  system (ex: define a user/bucket, change ownership of vbuckets etc). Some
+  permanent failures may be resolved by simply running other commands (ex:
+  `No bucket` may be resolved by selecting a bucket, `Authentication stale`
+  may be resolved by re-authenticating to the server). Other permanent
+  failures may require the connection to be re-established.
 
 ### Command Opcodes
 
