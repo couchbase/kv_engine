@@ -831,6 +831,49 @@ static enum test_result test_dcp_vbtakeover_no_stream(ENGINE_HANDLE *h,
             h1->get_stats(h, nullptr, "dcp-vbtakeover 1",
                           strlen("dcp-vbtakeover 1"), add_stats),
             "Expected not my vbucket");
+
+    return SUCCESS;
+}
+
+/*
+ * The following test is similar to the test_dcp_consumer_open test and
+ * test_dcp_producer_open test, in that it opens a connections, then
+ * immediately closes it.
+ * It then moves time forward and repeats the creation of a connection and
+ * checks that the new connection was created after the previous connection.
+ */
+
+static enum test_result test_dcp_notifier_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const auto *cookie1 = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t seqno = 0;
+    uint32_t opaque = 0;
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie1, opaque, seqno, DCP_OPEN_NOTIFIER,
+                         (void*)name.c_str(), name.size()),
+            "Failed dcp consumer open connection.");
+
+    const std::string stat_type("eq_dcpq:" + name + ":type");
+    auto type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    const std::string stat_created("eq_dcpq:" + name + ":created");
+    const auto created = get_int_stat(h, h1, stat_created.c_str(), "dcp");
+    checkeq(0, type.compare("notifier"), "Notifier not found");
+    testHarness.destroy_cookie(cookie1);
+
+    testHarness.time_travel(600);
+
+    const auto *cookie2 = testHarness.create_cookie();
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie2, opaque, seqno, DCP_OPEN_NOTIFIER,
+                         (void*)name.c_str(), name.size()),
+            "Failed dcp consumer open connection.");
+
+    type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    checkeq(0, type.compare("notifier"), "Notifier not found");
+    check(get_int_stat(h, h1, stat_created.c_str(), "dcp") >= created + 600,
+          "New dcp stream is not newer");
+    testHarness.destroy_cookie(cookie2);
+
     return SUCCESS;
 }
 
@@ -897,6 +940,55 @@ static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
             dcp_last_op, "Expected stream end");
     testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+/*
+ * The following test is similar to the previous test
+ * (test_dcp_notifier) , whereby a notifier connection is opened and
+ * notifier_requests are made checking for the occurance of stream
+ * end commands.
+ *
+ * In the following test we make a notifier_request equal to
+ * the number of operations performed (in this case one).  The test is
+ * to ensure that a stream end is not received.  A second operation is
+ * then performed and this time we check for the occurance of a
+ * stream end command.
+ */
+
+static enum test_result test_dcp_notifier_equal_to_number_of_items(
+                        ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    item *ii = nullptr;
+    const std::string key("key0");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data", &ii),
+            "Failed to store a value");
+    h1->release(h, nullptr, ii);
+    const auto *cookie = testHarness.create_cookie();
+    const std::string name("unittest");
+    const uint32_t seqno = 0;
+    const uint16_t vbucket = 0;
+    const uint64_t start = 1;
+    uint32_t opaque = 0;
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, DCP_OPEN_NOTIFIER,
+                         (void*)name.c_str(), name.size()),
+            "Failed dcp notifier open connection.");
+    // Should not get a stream end
+    notifier_request(h, h1, cookie, ++opaque, vbucket, start, true);
+    dcp_step(h, h1, cookie);
+    check(dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_END,
+          "Wasn't expecting a stream end");
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, "key0", "data", &ii),
+            "Failed to store a value");
+    h1->release(h, nullptr, ii);
+    dcp_step(h, h1, cookie);
+    checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
+            dcp_last_op, "Expected stream end");
+    testHarness.destroy_cookie(cookie);
+
     return SUCCESS;
 }
 
@@ -4968,8 +5060,13 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp vbtakeover stat no stream",
                  test_dcp_vbtakeover_no_stream, test_setup, teardown, nullptr,
                  prepare, cleanup),
+        TestCase("test dcp notifier open", test_dcp_notifier_open, test_setup,
+                 teardown, nullptr, prepare, cleanup),
         TestCase("test dcp notifier", test_dcp_notifier, test_setup, teardown,
                  nullptr, prepare, cleanup),
+        TestCase("test dcp notifier equal number of items",
+                 test_dcp_notifier_equal_to_number_of_items,
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test open consumer", test_dcp_consumer_open,
                  test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test dcp consumer flow control none",
