@@ -690,7 +690,8 @@ void ActiveStreamCheckpointProcessorTask::schedule(stream_t stream) {
 void ActiveStream::nextCheckpointItemTask() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
     if (vbucket) {
-        std::deque<queued_item> items = getOutstandingItems(vbucket);
+        std::deque<queued_item> items;
+        getOutstandingItems(vbucket, items);
         processItems(items);
     } else {
         /* The entity deleting the vbucket must set stream to dead,
@@ -701,14 +702,12 @@ void ActiveStream::nextCheckpointItemTask() {
     }
 }
 
-std::deque<queued_item> ActiveStream::getOutstandingItems(RCPtr<VBucket> &vb) {
-    std::deque<queued_item> items;
+void ActiveStream::getOutstandingItems(RCPtr<VBucket> &vb,
+                                       std::deque<queued_item> &items) {
     vb->checkpointManager.getAllItemsForCursor(name_, items);
     if (vb->checkpointManager.getNumCheckpoints() > 1) {
         engine->getEpStore()->wakeUpCheckpointRemover();
     }
-
-    return items;
 }
 
 
