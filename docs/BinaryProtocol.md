@@ -343,11 +343,16 @@ for examples of commands that include quiet variants.
 
 ### Data Types
 
-Possible values of the one-byte field:
+Possible values of the one-byte field which is a bit-filed.
 
-| Raw  | Description |
+| Bit  | Description |
 | -----|-------------|
-| 0x00 | Raw bytes   |
+| 0x01 | JSON |
+| 0x02 | Snappy compressed |
+
+If no bits is set the datatype is considered to be RAW. In order to utilize
+the datatype bits the client needs to notify the server that it supports
+datatype bits by performing a successful HELLO with the DATATYPE feature.
 
 ## Commands
 
