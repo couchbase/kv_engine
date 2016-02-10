@@ -27,6 +27,7 @@
 
 #include <gtest/gtest.h>
 
+#include "extensions/loggers/file_logger_utilities.h"
 
 class LoggerTest : public ::testing::Test {
 protected:
@@ -220,4 +221,69 @@ TEST_F(LoggerTest, DISABLED_Dedupe) {
 
     fclose(fp);
     remove_files(files);
+}
+
+class LoggerUtilitiesTest : public ::testing::Test {
+public:
+
+    LoggerUtilitiesTest()
+        : prefix("logger-util") { }
+
+    void SetUp() {
+        cleanup();
+    }
+
+    void TearDown() {
+        cleanup();
+    }
+
+protected:
+    void createFile(unsigned long id, const std::string& sep = ".",
+                    const std::string& suffix = ".txt") {
+        std::string fname(prefix);
+        fname.append(sep);
+        fname.append(std::to_string(id));
+        fname.append(suffix);
+        FILE* fp = fopen(fname.c_str(), "a");
+        ASSERT_NE(nullptr, fp);
+        fclose(fp);
+    }
+
+    void cleanup() {
+        using namespace CouchbaseDirectoryUtilities;
+        auto files = findFilesWithPrefix(prefix);
+        for (auto& file : files) {
+            rmrf(file);
+        }
+    }
+
+    std::string prefix;
+};
+
+TEST_F(LoggerUtilitiesTest, NoFiles) {
+    EXPECT_EQ(0, find_first_logfile_id(prefix));
+}
+
+TEST_F(LoggerUtilitiesTest, OneFile) {
+    createFile(1);
+    EXPECT_EQ(2, find_first_logfile_id(prefix));
+}
+
+TEST_F(LoggerUtilitiesTest, MultipleFile) {
+    createFile(1);
+    createFile(100);
+    createFile(5);
+    createFile(1000);
+    createFile(2);
+    EXPECT_EQ(1001, find_first_logfile_id(prefix));
+}
+
+TEST_F(LoggerUtilitiesTest, TestInvalidExtension) {
+    createFile(1, ".", "");
+    EXPECT_EQ(0, find_first_logfile_id(prefix));
+}
+
+TEST_F(LoggerUtilitiesTest, TestInvalidSeparator) {
+    createFile(1, "-", ".txt");
+    EXPECT_EQ(0, find_first_logfile_id(prefix));
 }

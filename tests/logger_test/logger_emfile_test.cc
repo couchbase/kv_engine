@@ -91,7 +91,7 @@ int main() {
 
     // Wait for first log file to be created, and open it
     int log_file;
-    while ((log_file = open("log_test_emfile.0.txt", O_RDONLY)) == -1) {
+    while ((log_file = open("log_test_emfile.000000.txt", O_RDONLY)) == -1) {
         usleep(10);
     }
 
@@ -120,7 +120,7 @@ int main() {
 
     // Wait for second log file to be created, and open it
     close(log_file);
-    while ((log_file = open("log_test_emfile.1.txt", O_RDONLY)) == -1) {
+    while ((log_file = open("log_test_emfile.000001.txt", O_RDONLY)) == -1) {
         usleep(10);
     }
 

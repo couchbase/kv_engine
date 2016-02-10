@@ -1,4 +1,6 @@
 ADD_EXECUTABLE(memcached_logger_test
+               ${Memcached_SOURCE_DIR}/extensions/loggers/file_logger_utilities.h
+               ${Memcached_SOURCE_DIR}/extensions/loggers/file_logger_utilities.cc
                logger_test_common.cc
                logger_test.cc)
 TARGET_LINK_LIBRARIES(memcached_logger_test gtest gtest_main mcd_util file_logger dirutils)

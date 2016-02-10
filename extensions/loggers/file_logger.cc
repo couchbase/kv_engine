@@ -30,6 +30,7 @@
 #include <memcached/isotime.h>
 
 #include "extensions/protocol_extension.h"
+#include "file_logger_utilities.h"
 
 /* Pointer to the server API */
 static SERVER_HANDLE_V1 *sapi;
@@ -116,8 +117,6 @@ static struct {
      */
     time_t created;
 } lastlog;
-
-static const char *extension = "txt";
 
 static void do_add_log_entry(const char *msg, size_t size) {
     /* wait until there is room in the current buffer */
@@ -369,9 +368,9 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
     syslog_event_receiver(&event);
 }
 
+static unsigned long next_file_id = 0;
 
 static FILE *open_logfile(const char *fnm) {
-    static unsigned int next_id = 0;
     char fname[1024];
     FILE *ret;
 
@@ -381,15 +380,15 @@ static FILE *open_logfile(const char *fnm) {
     // search from *after* the last successful open call - i.e. try_id always
     // starts from one after the last successful open, otherwise we can
     // re-open the existing log file and overwrite it!
-    unsigned int try_id = next_id;
+    unsigned long try_id = next_file_id;
     do {
-        sprintf(fname, "%s.%d.%s", fnm, try_id++, extension);
+        sprintf(fname, "%s.%06lu.txt", fnm, try_id++);
     } while (access(fname, F_OK) == 0);
 
     ret = fopen(fname, "ab");
     if (ret != nullptr) {
         setbuf(ret, nullptr);
-        next_id = try_id;
+        next_file_id = try_id;
     }
 
     return ret;
@@ -722,6 +721,8 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
         free(buffers[1].data);
         return EXTENSION_FATAL;
     }
+
+    next_file_id = find_first_logfile_id(fname);
 
     if (cb_create_named_thread(&tid, logger_thread_main, fname, 0,
                                "mc:file_logger") < 0) {
