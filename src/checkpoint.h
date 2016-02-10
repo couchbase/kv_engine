@@ -53,11 +53,15 @@ enum checkpoint_state {
     CHECKPOINT_CLOSED  //!< The checkpoint is not open.
 };
 
+// List is used for queueing mutations as vector incurs shift operations for
+// deduplication.
+typedef std::list<queued_item> CheckpointQueue;
+
 /**
  * A checkpoint index entry.
  */
 struct index_entry {
-    std::list<queued_item>::iterator position;
+    CheckpointQueue::iterator position;
     int64_t mutation_id;
 };
 
@@ -116,7 +120,7 @@ public:
 
     CheckpointCursor(const std::string &n,
                      std::list<Checkpoint*>::iterator checkpoint,
-                     std::list<queued_item>::iterator pos,
+                     CheckpointQueue::iterator pos,
                      size_t os,
                      bool beginningOnChkCollapse,
                      MustSendCheckpointEnd needsCheckpointEndMetaItem) :
@@ -154,7 +158,7 @@ public:
 private:
     std::string                      name;
     std::list<Checkpoint*>::iterator currentCheckpoint;
-    std::list<queued_item>::iterator currentPos;
+    CheckpointQueue::iterator currentPos;
 
     // The offset (in terms of items) this cursor is from the start of the
     // cursors' current checkpoint. Used to calculate how many items this
@@ -306,13 +310,13 @@ public:
                              CheckpointManager *checkpointManager);
 
     uint64_t getLowSeqno() {
-        std::list<queued_item>::iterator pos = toWrite.begin();
+        CheckpointQueue::iterator pos = toWrite.begin();
         pos++;
         return (*pos)->getBySeqno();
     }
 
     uint64_t getHighSeqno() {
-        std::list<queued_item>::reverse_iterator pos = toWrite.rbegin();
+        CheckpointQueue::reverse_iterator pos = toWrite.rbegin();
         return (*pos)->getBySeqno();
     }
 
@@ -332,19 +336,19 @@ public:
         snapEndSeqno = seqno;
     }
 
-    std::list<queued_item>::iterator begin() {
+    CheckpointQueue::iterator begin() {
         return toWrite.begin();
     }
 
-    std::list<queued_item>::iterator end() {
+    CheckpointQueue::iterator end() {
         return toWrite.end();
     }
 
-    std::list<queued_item>::reverse_iterator rbegin() {
+    CheckpointQueue::reverse_iterator rbegin() {
         return toWrite.rbegin();
     }
 
-    std::list<queued_item>::reverse_iterator rend() {
+    CheckpointQueue::reverse_iterator rend() {
         return toWrite.rend();
     }
 
@@ -410,8 +414,7 @@ private:
     checkpoint_state               checkpointState;
     size_t                         numItems;
     std::set<std::string>          cursors; // List of cursors with their unique names.
-    // List is used for queueing mutations as vector incurs shift operations for deduplication.
-    std::list<queued_item>         toWrite;
+    CheckpointQueue                toWrite;
     checkpoint_index               keyIndex;
     /* Index for meta keys like "dummy_key" */
     checkpoint_index               metaKeyIndex;
