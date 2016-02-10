@@ -1470,6 +1470,20 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         return ENGINE_ERANGE;
     }
 
+    // MB-17517: Check for the incoming item's CAS validity. We /shouldn't/
+    // receive anything without a valid CAS, however given that versions without
+    // this check may send us "bad" CAS values, we should regenerate them (which
+    // is better than rejecting the data entirely).
+    if (!Item::isValidCas(mutation->getItem()->getCas())) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Invalid CAS (0x%" PRIx64 ") received for mutation {vb:%" PRIu16
+            ", seqno:%" PRId64 "}. Regenerating new CAS",
+            consumer->logHeader(),
+            mutation->getItem()->getCas(), vb_,
+            mutation->getItem()->getBySeqno());
+        mutation->getItem()->setCas();
+    }
+
     ENGINE_ERROR_CODE ret;
     if (vb->isBackfillPhase()) {
         ret = engine->getEpStore()->addTAPBackfillItem(*mutation->getItem(),
@@ -1518,6 +1532,16 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     uint64_t delCas = 0;
     ENGINE_ERROR_CODE ret;
     ItemMetaData meta = deletion->getItem()->getMetaData();
+
+    // MB-17517: Check for the incoming item's CAS validity.
+    if (!Item::isValidCas(meta.cas)) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Invalid CAS (0x%" PRIx64 ") received for deletion {vb:%" PRIu16
+            ", seqno:%" PRId64 "}. Regenerating new CAS",
+            consumer->logHeader(), meta.cas, vb_, deletion->getBySeqno());
+        meta.cas = Item::nextCas();
+    }
+
     ret = engine->getEpStore()->deleteWithMeta(deletion->getItem()->getKey(),
                                                &delCas, NULL, deletion->getVBucket(),
                                                consumer->getCookie(), true,

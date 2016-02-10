@@ -658,6 +658,15 @@ public:
         return gethrtime() + (++casCounter);
     }
 
+    /* Returns true if the specified CAS is valid */
+    static bool isValidCas(const uint64_t& itmCas) {
+        if (itmCas == 0 || itmCas == static_cast<uint64_t>(-1)) {
+            return false;
+        }
+        return true;
+    }
+
+
     void setConflictResMode(enum conflict_resolution_mode conf_res_value) {
         conflictResMode = static_cast<uint8_t>(conf_res_value);
     }
