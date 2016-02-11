@@ -329,6 +329,10 @@ static void mock_perform_callbacks(ENGINE_EVENT_TYPE type,
     }
 }
 
+void mock_init_alloc_hooks(void) {
+    init_alloc_hooks();
+}
+
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
    static SERVER_CORE_API core_api;
