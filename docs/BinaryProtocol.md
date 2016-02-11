@@ -220,7 +220,7 @@ information about a given command.
 | 0x1c | [Touch](#0x1c-touch)                                    |
 | 0x1d | [GAT](#0x1d-gat-get-and-touch)                          |
 | 0x1e | [GATQ](#0x1e-gatq-get-and-touch-quietly)                |
-| 0x1f | Hello |
+| 0x1f | [HELO](#0x1f-helo) |
 | 0x20 | [SASL list mechs](sasl.md#0x20-list-mech)               |
 | 0x21 | [SASL Auth](sasl.md#0x21-sasl-auth)                     |
 | 0x22 | [SASL Step](sasl.md0x22-sasl-step)                      |
@@ -1444,8 +1444,141 @@ cache.
 Example
 **TODO: add me**
 
+### 0x1f HELO
+
+The `HELO` command may be used to enable / disable features on the server
+similar to the [EHLO command in SMTP](https://www.ietf.org/rfc/rfc2821.txt).
+A well written client should identify itself by sending the `HELO` command
+providing its name and version in the "User agent name".
+
+Request:
+
+* MUST NOT have extra
+* SHOULD have key
+* SHOULD have value
+
+The key should contain the agent name
+The value should contain the various features to enable. Each feature is
+a two byte value in network byte order.
+
+The following features is defined:
+
+| Value  | Feature |
+|--------|---------|
+| 0x0001 | Datatype |
+| 0x0002 | TLS |
+| 0x0003 | TCP Nodelay |
+| 0x0004 | Mutation seqno |
+| 0x0005 | TCP Delay |
+
+* `Datatype` - The client understands the 'non-null' values in the
+  [datatype field](#data-types). The server expects the client to fill
+   in the correct values in the datatype field, and accepts that the server
+   returns the value encoded as specified in the datatype field.
+* `TLS` - The client wants to TLS and send STARTTLS
+* `TCP Nodelay` - The client requests the server to set TCP NODELAY on the
+  socket used by this connection.
+* `Mutation seqno` - The client requests the server to add the sequence number
+  for a mutation to the response packet used in mutations.
+* `TCP Delay` - The client requests the server to set TCP DELAY on the socket
+  used by this connection.
+
+Response:
+
+* MUST NOT have extras.
+* MUST NOT have key.
+* MAY have value.
+
+The server replies with all of the features the client requested that
+the server agreed to enable.
+
+#### Example
+
+The following example requests all defined features from the server
+specifying the user agent "mchello v1.0".
+
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| 0x80          | 0x1f          | 0x00          | 0x0c          |
+        +---------------+---------------+---------------+---------------+
+       4| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       8| 0x00          | 0x00          | 0x00          | 0x16          |
+        +---------------+---------------+---------------+---------------+
+      12| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      16| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      20| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      24| 0x6d ('m')    | 0x63 ('c')    | 0x68 ('h')    | 0x65 ('e')    |
+        +---------------+---------------+---------------+---------------+
+      28| 0x6c ('l')    | 0x6c ('l')    | 0x6f ('o')    | 0x20 (' ')    |
+        +---------------+---------------+---------------+---------------+
+      32| 0x76 ('v')    | 0x31 ('1')    | 0x2e ('.')    | 0x30 ('0')    |
+        +---------------+---------------+---------------+---------------+
+      36| 0x00          | 0x01          | 0x00          | 0x02          |
+        +---------------+---------------+---------------+---------------+
+      40| 0x00          | 0x03          | 0x00          | 0x04          |
+        +---------------+---------------+---------------+---------------+
+      44| 0x00          | 0x05          |
+        +---------------+---------------+
+        Total 46 bytes (24 bytes header, 12 bytes key and 10 value)
+
+    Field        (offset) (value)
+    Magic        (0)    : 0x80
+    Opcode       (1)    : 0x1f
+    Key length   (2,3)  : 0x000c
+    Extra length (4)    : 0x00
+    Data type    (5)    : 0x00
+    Vbucket      (6,7)  : 0x0000
+    Total body   (8-11) : 0x00000016
+    Opaque       (12-15): 0x00000000
+    CAS          (16-23): 0x00000000
+    Extras              : None
+    Key                 : The textual string "mchello v1.0"
+
+
+The following example shows that the server agreed to enable 0x0003 and
+0x0004.
+
+
+      Byte/     0       |       1       |       2       |       3       |
+         /              |               |               |               |
+        |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+        +---------------+---------------+---------------+---------------+
+       0| 0x81          | 0x1f          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       4| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+       8| 0x00          | 0x00          | 0x00          | 0x04          |
+        +---------------+---------------+---------------+---------------+
+      12| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      16| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      20| 0x00          | 0x00          | 0x00          | 0x00          |
+        +---------------+---------------+---------------+---------------+
+      24| 0x00          | 0x03          | 0x00          | 0x04          |
+        +---------------+---------------+---------------+---------------+
+        Total 28 bytes (24 bytes header and 4 value)
+
+    Field        (offset) (value)
+    Magic        (0)    : 0x81
+    Opcode       (1)    : 0x1f
+    Key length   (2,3)  : 0x0000
+    Extra length (4)    : 0x00
+    Data type    (5)    : 0x00
+    Status       (6,7)  : 0x0000
+    Total body   (8-11) : 0x00000004
+    Opaque       (12-15): 0x00000000
+    CAS          (16-23): 0x00000000
+
+
 ### 0x3d Set VBucket
 ### 0x3e Get VBucket
 ### 0x3f Del VBucket
 **TODO: add me**
-
