@@ -340,6 +340,9 @@ static void mock_set_log_level(EXTENSION_LOG_LEVEL severity) {
     log_level = severity;
 }
 
+void mock_init_alloc_hooks() {
+    init_alloc_hooks();
+}
 
 SERVER_HANDLE_V1 *get_mock_server_api(void)
 {
