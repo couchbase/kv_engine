@@ -21,13 +21,9 @@
 
 #include <platform/dirutils.h>
 
-// Simple backport of the GTest-style EXPECT_EQ macro.
-#define EXPECT_EQ(a, b, msg) \
-    do { \
-        if ((a) != (b)) { \
-            throw std::runtime_error(msg); \
-        } \
-    } while(0)
+#include <gtest/gtest.h>
+
+static const char test_dbname[] = "stream_test_db";
 
 // Mock of the ActiveStream class. Wraps the real ActiveStream, but exposes
 // normally protected methods publically for test purposes.
@@ -56,78 +52,105 @@ public:
     }
 };
 
+class StreamTest : public ::testing::Test {
+protected:
+    void SetUp() {
+        // Paranoia - kill any existing files in case they are left over
+        // from a previous run.
+        CouchbaseDirectoryUtilities::rmrf(test_dbname);
+
+        // Setup an engine with a single active vBucket.
+        EXPECT_EQ(ENGINE_SUCCESS,
+                  create_instance(1, get_mock_server_api, &handle))
+            << "Failed to create ep engine instance";
+        EXPECT_EQ(1, handle->interface) << "Unexpected engine handle version";
+        engine_v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
+
+        engine = reinterpret_cast<EventuallyPersistentEngine*>(handle);
+        ObjectRegistry::onSwitchThread(engine);
+        std::string config = "dbname=" + std::string(test_dbname);
+        EXPECT_EQ(ENGINE_SUCCESS, engine->initialize(config.c_str()))
+            << "Failed to initialize engine.";
+
+        engine->setVBucketState(vbid, vbucket_state_active, false);
+
+        // Wait for warmup to complete.
+        while (engine->getEpStore()->isWarmingUp()) {
+            usleep(10);
+        }
+
+        // Set AuxIO threads to zero, so that the producer's
+        // ActiveStreamCheckpointProcesserTask doesn't run.
+        ExecutorPool::get()->setMaxAuxIO(0);
+    }
+
+    void TearDown() {
+        producer->clearCheckpointProcessorTaskQueues();
+        // Destroy various engine objects
+        vb0.reset();
+        stream.reset();
+        producer.reset();
+        engine_v1->destroy(handle, false);
+        destroy_engine();
+
+        // Cleanup any files we created.
+        CouchbaseDirectoryUtilities::rmrf(test_dbname);
+    }
+
+    // Setup a DCP producer and attach a stream and cursor to it.
+    void setup_dcp_stream() {
+        producer = new DcpProducer(*engine, /*cookie*/nullptr,
+                                   "test_producer", /*notifyOnly*/false);
+        stream = new MockActiveStream(engine, producer,
+                                      producer->getName(), /*flags*/0,
+                                      /*opaque*/0, vbid,
+                                      /*st_seqno*/0,
+                                      /*en_seqno*/~0,
+                                      /*vb_uuid*/0xabcd,
+                                      /*snap_start_seqno*/0,
+                                      /*snap_end_seqno*/~0);
+        vb0 = engine->getVBucket(0);
+        EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
+        EXPECT_FALSE(vb0->checkpointManager.registerCursor(producer->getName()))
+            << "Found an existing TAP cursor when attempting to register ours";
+    }
+
+    const uint16_t vbid = 0;
+
+    ENGINE_HANDLE* handle;
+    ENGINE_HANDLE_V1* engine_v1;
+    EventuallyPersistentEngine* engine;
+    dcp_producer_t producer;
+    stream_t stream;
+    RCPtr<VBucket> vb0;
+};
+
+static void store_item(EventuallyPersistentEngine& engine,
+                       const uint16_t vbid, const std::string& key,
+                       const std::string& value) {
+    Item item(key.c_str(), key.size(), /*flags*/0, /*exp*/0, value.c_str(),
+              value.size());
+    uint64_t cas;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine.store(NULL, &item, &cas, OPERATION_SET, vbid));
+}
+
 /* Regression test for MB-17766 - ensure that when an ActiveStream is preparing
  * queued items to be sent out via a DCP consumer, that nextCheckpointItem()
  * doesn't incorrectly return false (meaning that there are no more checkpoint
  * items to send).
  */
-static void test_mb17766(const std::string& test_dbname) {
-    // Init alloc hooks
-    mock_init_alloc_hooks();
-
-    // Setup an engine with a single active vBucket.
-    ENGINE_HANDLE* handle;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              create_instance(1, get_mock_server_api, &handle),
-              "Failed to created ep engine instance");
-    EXPECT_EQ(1, handle->interface, "Unexpected engine handle version");
-    ENGINE_HANDLE_V1* engine_v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
-
-    // Init mock server
-    init_mock_server(handle);
-
-    EventuallyPersistentEngine* engine =
-            reinterpret_cast<EventuallyPersistentEngine*>(handle);
-    ObjectRegistry::onSwitchThread(engine);
-    std::string config = "dbname=" + test_dbname;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              engine->initialize(config.c_str()),
-              "Failed to initialize engine.");
-
-    const uint16_t vbid = 0;
-    engine->setVBucketState(vbid, vbucket_state_active, false);
-
-    // Wait for warmup to complete.
-    while (engine->getEpStore()->isWarmingUp()) {
-        usleep(10);
-    }
-
-    // Set AuxIO threads to zero, so that the producer's
-    // ActiveStreamCheckpointProcesserTask doesn't run.
-    ExecutorPool::get()->setMaxAuxIO(0);
+TEST_F(StreamTest, test_mb17766) {
 
     // Add an item.
-    std::string value("value");
-    Item item("key", 3, /*flags*/0, /*exp*/0, value.c_str(), value.size());
+    store_item(*engine, vbid, "key", "value");
 
-    uint64_t cas;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              engine->store(NULL, &item, &cas, OPERATION_SET, vbid),
-              "Store failed");
-
-    // Create a DCP producer and register with checkpoint Manager.
-    dcp_producer_t producer = new DcpProducer(*engine, /*cookie*/nullptr,
-                                              "test_mb_17766_producer",
-                                              /*notifyOnly*/false);
-    stream_t stream = new MockActiveStream(engine, producer,
-                                           producer->getName(),
-                                           /*flags*/0,
-                                            /*opaque*/0, vbid,
-                                            /*st_seqno*/0,
-                                            /*en_seqno*/~0,
-                                            /*vb_uuid*/0xabcd,
-                                            /*snap_start_seqno*/0,
-                                            /*snap_end_seqno*/~0);
-
-    RCPtr<VBucket> vb0 = engine->getVBucket(0);
-    EXPECT_EQ(true, vb0, "Failed to get valid VBucket object for id 0");
-    vb0->checkpointManager.registerCursor(producer->getName());
+    setup_dcp_stream();
 
     // Should start with nextCheckpointItem() returning true.
     MockActiveStream* mock_stream = static_cast<MockActiveStream*>(stream.get());
-    EXPECT_EQ(true,
-              mock_stream->public_nextCheckpointItem(),
-              "nextCheckpointItem() should initially be true.");
+    EXPECT_TRUE(mock_stream->public_nextCheckpointItem())
+        << "nextCheckpointItem() should initially be true.";
 
     std::vector<queued_item> items;
 
@@ -135,24 +158,15 @@ static void test_mb17766(const std::string& test_dbname) {
     mock_stream->public_getOutstandingItems(vb0, items);
 
     // REGRESSION CHECK: nextCheckpointItem() should still return true
-    EXPECT_EQ(true,
-              mock_stream->public_nextCheckpointItem(),
-              "nextCheckpointItem() after getting outstanding items should be true.");
+    EXPECT_TRUE(mock_stream->public_nextCheckpointItem())
+        << "nextCheckpointItem() after getting outstanding items should be true.";
 
     // Process the set of items
     mock_stream->public_processItems(items);
 
     // Should finish with nextCheckpointItem() returning false.
-    EXPECT_EQ(false,
-              mock_stream->public_nextCheckpointItem(),
-              "nextCheckpointItem() after processing items should be false.");
-
-    producer->clearCheckpointProcessorTaskQueues();
-    vb0.reset();
-    stream.reset();
-    producer.reset();
-    engine_v1->destroy(handle, /*force*/false);
-    destroy_engine();
+    EXPECT_FALSE(mock_stream->public_nextCheckpointItem())
+        << "nextCheckpointItem() after processing items should be false.";
 }
 
 /* static storage for environment variable set by putenv(). */
@@ -160,18 +174,10 @@ static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
+
     putenv(allow_no_stats_env);
+    init_mock_server(/*log to stderr*/false);
 
-    bool success = true;
-    try {
-        test_mb17766("stream_test_db");
-    } catch (std::exception& e) {
-        std::cerr << "FAILED: " << e.what() << std::endl;
-        success = false;
-    }
-
-    // Cleanup any files we created.
-    CouchbaseDirectoryUtilities::rmrf("stream_test_db");
-
-    return success ? 0 : 1;
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

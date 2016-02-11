@@ -234,7 +234,7 @@ ADD_EXECUTABLE(ep-engine_stream_test
   ${FOREST_KVSTORE_SOURCE}
   ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_dummy.cc
   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
-TARGET_LINK_LIBRARIES(ep-engine_stream_test couchstore cJSON dirutils forestdb JSON_checker mcd_util platform)
+TARGET_LINK_LIBRARIES(ep-engine_stream_test couchstore cJSON dirutils forestdb gtest JSON_checker mcd_util platform)
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
