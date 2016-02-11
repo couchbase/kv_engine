@@ -342,3 +342,19 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     checkeq(vlen, info.value[0].iov_len, "Value length mismatch");
     check(memcmp(info.value[0].iov_base, val, vlen) == 0, "Data mismatch");
 }
+
+uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                 const std::string& key) {
+    item *i = NULL;
+    checkeq(ENGINE_SUCCESS,
+            h1->get(h, NULL, &i, key.c_str(), key.size(), /*vBucket*/0),
+            "Failed to get key");
+
+    item_info info;
+    info.nvalue = 1;
+    check(h1->get_item_info(h, NULL, i, &info),
+          "Failed to get item info for key");
+    h1->release(h, NULL, i);
+
+    return info.cas;
+}

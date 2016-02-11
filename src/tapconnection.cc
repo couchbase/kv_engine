@@ -2166,6 +2166,15 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
                                         const void* meta, uint16_t nmeta) {
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
 
+    // MB-17517: Check for the incoming item's CAS validity.
+    if (!Item::isValidCas(cas)) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Invalid CAS (0x%" PRIx64 ") received for mutation {vb:%" PRIu16
+            ", seqno:%" PRIu64 "}. Regenerating new CAS",
+            logHeader(), cas, vbucket, bySeqno);
+        cas = Item::nextCas();
+    }
+
     Item *item = new Item(key, nkey, flags, exptime, value, nvalue,
                           &datatype, EXT_META_LEN, cas, -1,
                           vbucket, revSeqno);
@@ -2214,7 +2223,12 @@ ENGINE_ERROR_CODE TapConsumer::deletion(uint32_t opaque, const void* key,
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     EventuallyPersistentStore* epstore = engine_.getEpStore();
 
-    if (cas == 0) {
+    // MB-17517: Check for the incoming item's CAS validity.
+    if (!Item::isValidCas(cas)) {
+        LOG(EXTENSION_LOG_WARNING,
+            "%s Invalid CAS (0x%" PRIx64 ") received for deletion {vb:%" PRIu16
+            ", seqno:%" PRIu64 "}. Regenerating new CAS",
+            logHeader(), cas, vbucket, bySeqno);
         cas = Item::nextCas();
     }
 
