@@ -3898,7 +3898,9 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        bool time_sync_enabled = false,
                        uint8_t exp_conflict_res = 0,
                        bool skipEstimateCheck = false,
-                       uint64_t *total_bytes = NULL) {
+                       uint64_t *total_bytes = NULL,
+                       uint64_t flow_control_buf_size = 1024,
+                       bool disable_ack = false) {
     uint32_t opaque = 1;
     uint16_t nname = strlen(name);
 
@@ -3906,9 +3908,26 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                        nname) == ENGINE_SUCCESS,
           "Failed dcp producer open connection.");
 
-    check(h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                          "1024", 4) == ENGINE_SUCCESS,
-          "Failed to establish connection buffer");
+    std::stringstream flow_control_buf_sz;
+    flow_control_buf_sz << flow_control_buf_size;
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                            flow_control_buf_sz.str().c_str(),
+                            flow_control_buf_sz.str().length()),
+            "Failed to establish connection buffer");
+    char stats_buffer[50] = {0};
+    if (flow_control_buf_size) {
+        snprintf(stats_buffer, sizeof(stats_buffer),
+                 "eq_dcpq:%s:max_buffer_bytes", name);
+        checkeq(static_cast<int>(flow_control_buf_size),
+                get_int_stat(h, h1, stats_buffer, "dcp"),
+                "Buffer Size did not get set correctly");
+    } else {
+        snprintf(stats_buffer, sizeof(stats_buffer),
+                 "eq_dcpq:%s:flow_control", name);
+        std::string status = get_str_stat(h, h1, stats_buffer, "dcp");
+        checkeq(0, status.compare("disabled"), "Flow control enabled!");
+    }
 
     check(h1->dcp.control(h, cookie, ++opaque, "enable_ext_metadata", 19,
                           "true", 4) == ENGINE_SUCCESS,
@@ -3971,6 +3990,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     }
 
     bool done = false;
+    bool exp_all_items_streamed = true;
     int num_mutations = 0;
     int num_deletions = 0;
     int num_snapshot_marker = 0;
@@ -3984,12 +4004,13 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     uint64_t last_by_seqno = 0;
     uint32_t bytes_read = 0;
     uint64_t all_bytes = 0;
-    if (total_bytes) {
-        all_bytes = *total_bytes;
-    }
+    uint64_t total_acked_bytes = 0;
+    uint64_t ack_limit = flow_control_buf_size/2;
+
     do {
-        if (bytes_read > 512) {
+        if (!disable_ack && (bytes_read > ack_limit)) {
             h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
+            total_acked_bytes += bytes_read;
             bytes_read = 0;
         }
         ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers);
@@ -4087,6 +4108,13 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                      * should just ignore this case. Note that we check for 0
                      * because we clear the dcp_last_op value below.
                      */
+                     if (disable_ack && flow_control_buf_size) {
+                         /* If there is no acking and if flow control is enabled
+                            we are done because producer should not send us any
+                            more items. */
+                         done = true;
+                         exp_all_items_streamed = false;
+                     }
                      break;
                 default:
                     break;
@@ -4098,7 +4126,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     } while (!done);
 
     if (total_bytes) {
-        *total_bytes = all_bytes;
+        *total_bytes = *total_bytes + all_bytes;
     }
     check(num_mutations == exp_mutations, "Invalid number of mutations");
     check(num_deletions == exp_deletions, "Invalid number of deletes");
@@ -4111,12 +4139,23 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     }
 
     /* Check if the readyQ size goes to zero after all items are streamed */
-    char stats_ready_queue_memory[50];
-    snprintf(stats_ready_queue_memory, sizeof(stats_ready_queue_memory),
-             "eq_dcpq:%s:stream_0_ready_queue_memory", name);
-    check((uint64_t)get_ull_stat(h, h1, stats_ready_queue_memory, "dcp")
-          == 0, "readyQ size did not go to zero");
+    if (exp_all_items_streamed) {
+        char stats_ready_queue_memory[50];
+        snprintf(stats_ready_queue_memory, sizeof(stats_ready_queue_memory),
+                 "eq_dcpq:%s:stream_0_ready_queue_memory", name);
+        check((uint64_t)get_ull_stat(h, h1, stats_ready_queue_memory, "dcp")
+              == 0, "readyQ size did not go to zero");
+    }
 
+    /* Check if the producer has updated flow control stat correctly */
+    if (flow_control_buf_size) {
+        memset(stats_buffer, 0, 50);
+        snprintf(stats_buffer, sizeof(stats_buffer), "eq_dcpq:%s:unacked_bytes",
+                 name);
+        checkeq(static_cast<int>(all_bytes - total_acked_bytes),
+                get_int_stat(h, h1, stats_buffer, "dcp"),
+                "Buffer Size did not get set correctly");
+    }
     free(producers);
 }
 
@@ -5462,6 +5501,48 @@ static enum test_result test_dcp_buffer_log_size(ENGINE_HANDLE *h,
     check(status.compare("disabled") == 0, "Flow control enabled!");
 
     testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_producer_flow_control(ENGINE_HANDLE *h,
+                                                       ENGINE_HANDLE_V1 *h1) {
+    /* Write 10 items */
+    const int num_items = 10;
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream key;
+        key << "key" << j;
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
+                      "123456789", &i),
+                "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    /* Disable flow control and stream all items. The producer should stream all
+     items even when we do not send acks */
+    std::string name("unittest");
+    const void *cookie = testHarness.create_cookie();
+    dcp_stream(h, h1, name.c_str(), cookie, 0, 0, 0, num_items, vb_uuid, 0,
+               0, num_items, 0, 1, 0, false, false, 0, false, NULL,
+               0 /* do not enable flow control */,
+               true /* do not ack */);
+
+    /* Set flow control buffer to a very low value such that producer is not
+     expected to send more than 1 item when we do not send acks */
+    std::string name1("unittest1");
+    const void *cookie1 = testHarness.create_cookie();
+    dcp_stream(h, h1, name1.c_str(), cookie1, 0, 0, 0, num_items, vb_uuid,
+               0, 0, 1, 0, 1, 0, false, false, 0, false, NULL,
+               100 /* flow control buf to low value */,
+               true /* do not ack */);
+
+    testHarness.destroy_cookie(cookie);
+    testHarness.destroy_cookie(cookie1);
 
     return SUCCESS;
 }
@@ -14898,6 +14979,9 @@ engine_test_t* get_tests(void) {
                 cleanup),
         TestCase("test change dcp buffer log size", test_dcp_buffer_log_size,
                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test dcp producer flow control",
+                 test_dcp_producer_flow_control, test_setup, teardown, NULL,
+                 prepare, cleanup),
         TestCase("test get failover log", test_dcp_get_failover_log,
                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test add stream exists", test_dcp_add_stream_exists,
