@@ -526,8 +526,9 @@ public:
 
     size_t getNumCheckpoints();
 
-    /* Returns the count of Items that the given cursor has yet to process (i.e.
-     * between the cursor's current position and the end of
+    /* Returns the count of Items (excluding meta items) that the given cursor
+     * has yet to process (i.e. between the cursor's current position and the
+     * end of the last checkpoint).
      */
     size_t getNumItemsForCursor(const std::string &name);
 

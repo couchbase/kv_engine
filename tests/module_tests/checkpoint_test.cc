@@ -515,6 +515,104 @@ TEST_F(CheckpointTest, ItemBasedCheckpointCreation) {
     EXPECT_EQ(2, manager->getNumOpenChkItems()); // 1x op_ckpt_start, 1x op_set
 }
 
+// Test checkpoint and cursor accounting - when checkpoints are closed the
+// offset of cursors is updated as appropriate.
+TEST_F(CheckpointTest, CursorOffsetOnCheckpointClose) {
+
+    // Add two items to the initial (open) checkpoint.
+    for (auto i : {1,2}) {
+        queued_item qi(new Item("key" + std::to_string(i), vbucket->getId(),
+                                queue_op_set, /*revSeq*/0, /*bySeq*/0));
+        EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+    }
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(3, manager->getNumOpenChkItems()); // 1x op_checkpoint_start, 2x op_set
+    EXPECT_EQ(3, manager->getNumItems());
+
+    // Use the existing persistence cursor for this test:
+    EXPECT_EQ(2, manager->getNumItemsForCursor(CheckpointManager::pCursorName))
+        << "Cursor should initially have two items pending";
+
+    // Check de-dupe counting - after adding another item with the same key,
+    // should still see two items.
+    queued_item qi(new Item("key1", vbucket->getId(),
+                            queue_op_set, /*revSeq*/0, /*bySeq*/0));
+    EXPECT_FALSE(manager->queueDirty(vbucket, qi, true))
+        << "Adding a duplicate key to open checkpoint should not increase queue size";
+
+    EXPECT_EQ(2, manager->getNumItemsForCursor(CheckpointManager::pCursorName))
+        << "Expected 2 items for cursor (2x op_set) after adding a duplicate.";
+
+    // Create a new checkpoint (closing the current open one).
+    manager->createNewCheckpoint();
+    EXPECT_EQ(1, manager->getNumOpenChkItems())
+        << "Expected 1 item (1x op_checkpoint_start)";
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+
+    // Advance cursor - first to get the 'checkpoint_start' meta item,
+    // and a second time to get the a 'proper' mutation.
+    bool isLastMutationItem;
+    auto item = manager->nextItem(CheckpointManager::pCursorName, isLastMutationItem);
+    EXPECT_TRUE(item->isCheckPointMetaItem());
+    EXPECT_FALSE(isLastMutationItem);
+
+    item = manager->nextItem(CheckpointManager::pCursorName, isLastMutationItem);
+    EXPECT_FALSE(item->isCheckPointMetaItem());
+    EXPECT_FALSE(isLastMutationItem);
+    EXPECT_EQ(1, manager->getNumItemsForCursor(CheckpointManager::pCursorName))
+        << "Expected 1 item for cursor after advancing by 1";
+
+    // Add two items to the newly-opened checkpoint. Same keys as 1st ckpt,
+    // but cannot de-dupe across checkpoints.
+    for (auto ii : {1,2}) {
+        queued_item qi(new Item("key" + std::to_string(ii), vbucket->getId(),
+                                queue_op_set, /*revSeq*/1, /*bySeq*/0));
+        EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+    }
+
+    EXPECT_EQ(3, manager->getNumItemsForCursor(CheckpointManager::pCursorName))
+        << "Expected 3 items for cursor after adding 2 more to new checkpoint";
+
+    // Advance the cursor 'out' of the first checkpoint.
+    item = manager->nextItem(CheckpointManager::pCursorName, isLastMutationItem);
+    EXPECT_FALSE(item->isCheckPointMetaItem());
+    EXPECT_TRUE(isLastMutationItem);
+
+    // Now at the end of the first checkpoint, move into the next checkpoint.
+    item = manager->nextItem(CheckpointManager::pCursorName, isLastMutationItem);
+    EXPECT_TRUE(item->isCheckPointMetaItem());
+    EXPECT_TRUE(isLastMutationItem);
+    item = manager->nextItem(CheckpointManager::pCursorName, isLastMutationItem);
+    EXPECT_TRUE(item->isCheckPointMetaItem());
+    EXPECT_FALSE(isLastMutationItem);
+
+    // Tell Checkpoint manager the items have been persisted, so it advances
+    // pCursorPreCheckpointId, which will allow us to remove the closed
+    // unreferenced checkpoints.
+    manager->itemsPersisted();
+
+    // Both previous checkpoints are unreferenced. Close them. This will
+    // cause the offset of this cursor to be recalculated.
+    bool new_open_ckpt_created;
+    EXPECT_EQ(2, manager->removeClosedUnrefCheckpoints(vbucket,
+                                                           new_open_ckpt_created));
+
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+
+    EXPECT_EQ(2, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+
+    // Drain the remaining items.
+    item = manager->nextItem(CheckpointManager::pCursorName, isLastMutationItem);
+    EXPECT_FALSE(item->isCheckPointMetaItem());
+    EXPECT_FALSE(isLastMutationItem);
+    item = manager->nextItem(CheckpointManager::pCursorName, isLastMutationItem);
+    EXPECT_FALSE(item->isCheckPointMetaItem());
+    EXPECT_TRUE(isLastMutationItem);
+
+    EXPECT_EQ(0, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+}
+
+
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
