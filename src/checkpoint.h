@@ -405,10 +405,12 @@ class CheckpointManager {
     friend class TapConsumer;
 public:
 
+    typedef std::shared_ptr<Callback<uint16_t> > FlusherCallback;
+
     CheckpointManager(EPStats &st, uint16_t vbucket, CheckpointConfig &config,
                       int64_t lastSeqno, uint64_t lastSnapStart,
                       uint64_t lastSnapEnd,
-                      std::shared_ptr<Callback<uint16_t> > cb,
+                      FlusherCallback cb,
                       uint64_t checkpointId = 1) :
         stats(st), checkpointConfig(config), vbucketId(vbucket), numItems(0),
         lastBySeqno(lastSeqno), lastClosedChkBySeqno(lastSeqno),
@@ -614,7 +616,8 @@ public:
 
     void notifyFlusher() {
         if (flusherCB) {
-            flusherCB->callback(vbucketId);
+            uint16_t vbid = vbucketId;
+            flusherCB->callback(vbid);
         }
     }
 
@@ -706,7 +709,7 @@ private:
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
     Mutex                    queueLock;
-    uint16_t                 vbucketId;
+    const uint16_t           vbucketId;
     AtomicValue<size_t>      numItems;
     int64_t                  lastBySeqno;
     int64_t                  lastClosedChkBySeqno;
@@ -716,7 +719,7 @@ private:
     uint64_t                 pCursorPreCheckpointId;
     cursor_index             connCursors;
 
-    std::shared_ptr<Callback<uint16_t> > flusherCB;
+    FlusherCallback          flusherCB;
 };
 
 /**
