@@ -26,9 +26,6 @@
 class EventuallyPersistentEngine;
 class ScanContext;
 
-class Stream;
-typedef SingleThreadedRCPtr<Stream> stream_t;
-
 typedef enum {
     backfill_state_init,
     backfill_state_scanning,

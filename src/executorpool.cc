@@ -21,6 +21,8 @@
 #include <queue>
 #include <sstream>
 
+#include "configuration.h"
+#include "ep_engine.h"
 #include "statwriter.h"
 #include "taskqueue.h"
 #include "executorpool.h"

@@ -23,8 +23,9 @@
 #include "atomic.h"
 #include "dcp-stream.h"
 #include "dcp-producer.h"
-#include "vbucket.h"
+#include "ep_engine.h"
 #include "ext_meta_parser.h"
+#include "vbucket.h"
 
 #include <queue>
 
@@ -37,7 +38,11 @@ class DcpResponse;
 class DcpConsumer;
 typedef SingleThreadedRCPtr<DcpConsumer> dcp_consumer_t;
 
+class DcpProducer;
 typedef SingleThreadedRCPtr<DcpProducer> dcp_producer_t;
+
+class Stream;
+typedef SingleThreadedRCPtr<Stream> stream_t;
 
 typedef enum {
     STREAM_PENDING,
@@ -217,6 +222,16 @@ public:
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();
 
+protected:
+    // Returns the outstanding items for the stream's checkpoint cursor.
+    void getOutstandingItems(RCPtr<VBucket> &vb, std::vector<queued_item> &items);
+
+    // Given a set of queued items, create mutation responses for each item,
+    // and pass onto the producer associated with this stream.
+    void processItems(std::vector<queued_item>& items);
+
+    bool nextCheckpointItem();
+
 private:
 
     void transitionState(stream_state_t newState);
@@ -232,8 +247,6 @@ private:
     DcpResponse* deadPhase();
 
     DcpResponse* nextQueuedItem();
-
-    bool nextCheckpointItem();
 
     void snapshot(std::deque<MutationResponse*>& snapshot, bool mark);
 
@@ -282,7 +295,14 @@ private:
 
     //! Last snapshot end seqno sent to the DCP client
     uint64_t lastSentSnapEndSeqno;
+
     ExTask checkpointCreatorTask;
+
+    /* Flag used by checkpointCreatorTask that is set before all items are
+       extracted for given checkpoint cursor, and is unset after all retrieved
+       items are added to the readyQ */
+    AtomicValue<bool> chkptItemsExtractionInProgress;
+
 };
 
 
