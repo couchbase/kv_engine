@@ -323,7 +323,13 @@ public:
     uint32_t getMessageSize() {
         uint32_t base = item_->isDeleted() ? deletionBaseMsgBytes :
                                              mutationBaseMsgBytes;
-        uint32_t body = item_->getNKey() + item_->getNBytes();
+        uint32_t body = 0;
+        if (payloadType == KEY_VALUE) {
+            body = item_->getNKey() + item_->getNBytes();
+        } else { // KEY_ONLY
+            body = item_->getNKey();
+        }
+
         if (emd) {
             body += emd->getExtMeta().second;
         }
