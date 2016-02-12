@@ -130,6 +130,10 @@ private:
     std::string                      name;
     std::list<Checkpoint*>::iterator currentCheckpoint;
     std::list<queued_item>::iterator currentPos;
+
+    // The offset (in terms of items) this cursor is from the start of the
+    // cursors' current checkpoint. Used to calculate how many items this
+    // cursor has remaining.
     AtomicValue<size_t>              offset;
     bool                             fromBeginningOnChkCollapse;
 };
@@ -396,7 +400,7 @@ typedef std::pair<uint64_t, bool> CursorRegResult;
 
 /**
  * Representation of a checkpoint manager that maintains the list of checkpoints
- * for each vbucket.
+ * for a given vbucket.
  */
 class CheckpointManager {
     friend class Checkpoint;
@@ -511,7 +515,8 @@ public:
                                           std::vector<queued_item> &items);
 
     /**
-     * Return the total number of items that belong to this checkpoint manager.
+     * Return the total number of items (including meta items) that belong to
+     * this checkpoint manager.
      */
     size_t getNumItems() {
         return numItems;
@@ -521,6 +526,9 @@ public:
 
     size_t getNumCheckpoints();
 
+    /* Returns the count of Items that the given cursor has yet to process (i.e.
+     * between the cursor's current position and the end of
+     */
     size_t getNumItemsForCursor(const std::string &name);
 
     void clear(vbucket_state_t vbState) {
@@ -710,6 +718,9 @@ private:
     CheckpointConfig        &checkpointConfig;
     Mutex                    queueLock;
     const uint16_t           vbucketId;
+
+    // Total number of items (including meta items) in /all/ checkpoints managed
+    // by this object.
     AtomicValue<size_t>      numItems;
     int64_t                  lastBySeqno;
     int64_t                  lastClosedChkBySeqno;

@@ -219,6 +219,9 @@ public:
 
     void addTakeoverStats(ADD_STAT add_stat, const void *c);
 
+    /* Returns a count of how many items are outstanding to be sent for this
+     * stream's vBucket.
+     */
     size_t getItemsRemaining();
 
     uint64_t getLastSentSeqno();
