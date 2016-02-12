@@ -50,6 +50,14 @@ public:
     bool public_nextCheckpointItem() {
         return nextCheckpointItem();
     }
+
+    const std::queue<DcpResponse*>& public_readyQ() {
+        return readyQ;
+    }
+
+    DcpResponse* public_nextQueuedItem() {
+        return nextQueuedItem();
+    }
 };
 
 class StreamTest : public ::testing::Test {
@@ -167,6 +175,78 @@ TEST_F(StreamTest, test_mb17766) {
     // Should finish with nextCheckpointItem() returning false.
     EXPECT_FALSE(mock_stream->public_nextCheckpointItem())
         << "nextCheckpointItem() after processing items should be false.";
+}
+
+// Check that the items remaining statistic is accurate and is unaffected
+// by de-duplication.
+TEST_F(StreamTest, DISABLED_MB17653_ItemsRemaining) {
+
+    // Create 10 mutations to the same key which, while increasing the high
+    // seqno by 10 will result in de-duplication and hence only one actual
+    // mutation being added to the checkpoint items.
+    const int set_op_count = 10;
+    for (unsigned int ii = 0; ii < set_op_count; ii++) {
+        store_item(*engine, vbid, "key", "value");
+    }
+
+    setup_dcp_stream();
+
+    // Should start with one item remaining.
+    MockActiveStream* mock_stream = static_cast<MockActiveStream*>(stream.get());
+
+    EXPECT_EQ(1, mock_stream->getItemsRemaining())
+        << "Unexpected initial stream item count";
+
+    // Populate the streams' ready queue with items from the checkpoint,
+    // advancing the streams' cursor. Should result in no change in items
+    // remaining (they still haven't been send out of the stream).
+    mock_stream->nextCheckpointItemTask();
+    EXPECT_EQ(1, mock_stream->getItemsRemaining())
+        << "Mismatch after moving items to ready queue";
+
+    // Add another mutation. As we have already iterated over all checkpoint
+    // items and put into the streams' ready queue, de-duplication of this new
+    // mutation (from the point of view of the stream) isn't possible, so items
+    // remaining should increase by one.
+    store_item(*engine, vbid, "key", "value");
+    EXPECT_EQ(2, mock_stream->getItemsRemaining())
+        << "Mismatch after populating readyQ and storing 1 more item";
+
+    // Now actually drain the items from the readyQ and see how many we received,
+    // excluding meta items. This will result in all but one of the checkpoint
+    // items (the one we added just above) being drained.
+    auto* response = mock_stream->public_nextQueuedItem();
+    ASSERT_NE(nullptr, response);
+    EXPECT_TRUE(response->isMetaEvent()) << "Expected 1st item to be meta";
+
+    response = mock_stream->public_nextQueuedItem();
+    ASSERT_NE(nullptr, response);
+    EXPECT_FALSE(response->isMetaEvent()) << "Expected 2nd item to be non-meta";
+
+    response = mock_stream->public_nextQueuedItem();
+    EXPECT_EQ(nullptr, response) << "Expected there to not be a 3rd item.";
+
+    EXPECT_EQ(1, mock_stream->getItemsRemaining())
+        << "Expected to have 1 item remaining (in checkpoint) after draining readyQ";
+
+    // Add another 10 mutations on a different key. This should only result in
+    // us having one more item (not 10) due to de-duplication in
+    // checkpoints.
+    for (unsigned int ii = 0; ii < set_op_count; ii++) {
+        store_item(*engine, vbid, "key_2", "value");
+    }
+
+    EXPECT_EQ(2, mock_stream->getItemsRemaining())
+        << "Expected two items after adding 1 more to existing checkpoint";
+
+    // Copy items into readyQ a second time, and drain readyQ so we should
+    // have no items left.
+    mock_stream->nextCheckpointItemTask();
+    while (mock_stream->public_nextQueuedItem() != nullptr) {
+        // empty;
+    }
+    EXPECT_EQ(0, mock_stream->getItemsRemaining())
+        << "Should have 0 items remaining after advancing cursor and draining readyQ";
 }
 
 /* static storage for environment variable set by putenv(). */

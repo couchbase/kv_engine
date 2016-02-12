@@ -63,6 +63,31 @@ public:
         return event_;
     }
 
+    /* Returns true if this response is a meta event (i.e. not an operation on
+     * an actual user document.
+     */
+    bool isMetaEvent() const {
+        switch (event_) {
+        case DCP_MUTATION:
+        case DCP_DELETION:
+        case DCP_EXPIRATION:
+        case DCP_FLUSH:
+            return false;
+
+        case DCP_SET_VBUCKET:
+        case DCP_STREAM_REQ:
+        case DCP_STREAM_END:
+        case DCP_SNAPSHOT_MARKER:
+        case DCP_ADD_STREAM:
+            return true;
+
+        default:
+            throw std::invalid_argument(
+                    "DcpResponse::isMetaEvent: Invalid event_ " +
+                    std::to_string(event_));
+        }
+    }
+
     virtual uint32_t getMessageSize() = 0;
 
 private:

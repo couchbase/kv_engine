@@ -243,6 +243,8 @@ protected:
 
     bool nextCheckpointItem();
 
+    DcpResponse* nextQueuedItem();
+
 private:
 
     void transitionState(stream_state_t newState);
@@ -256,8 +258,6 @@ private:
     DcpResponse* takeoverWaitPhase();
 
     DcpResponse* deadPhase();
-
-    DcpResponse* nextQueuedItem();
 
     void snapshot(std::deque<MutationResponse*>& snapshot, bool mark);
 
