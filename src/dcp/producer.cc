@@ -56,7 +56,7 @@ bool DcpProducer::BufferLog::insert(size_t bytes) {
     // If the log is not enabled
     // or there is space, allow the insert
     if (!isEnabled_UNLOCKED() || !isFull_UNLOCKED()) {
-        bytesSent += bytesSent;
+        bytesSent += bytes;
         inserted = true;
     }
     return inserted;
