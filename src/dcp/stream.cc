@@ -50,7 +50,9 @@ Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
       start_seqno_(start_seqno), end_seqno_(end_seqno), vb_uuid_(vb_uuid),
       snap_start_seqno_(snap_start_seqno),
       snap_end_seqno_(snap_end_seqno),
-      state_(STREAM_PENDING), itemsReady(false), readyQueueMemory(0) {
+      state_(STREAM_PENDING), itemsReady(false),
+      readyQ_non_meta_items(0),
+      readyQueueMemory(0) {
 }
 
 Stream::~Stream() {
@@ -72,6 +74,9 @@ void Stream::pushToReadyQ(DcpResponse* resp)
    /* expect streamMutex.ownsLock() == true */
     if (resp) {
         readyQ.push(resp);
+        if (!resp->isMetaEvent()) {
+            readyQ_non_meta_items++;
+        }
         readyQueueMemory.fetch_add(resp->getMessageSize(),
                                    std::memory_order_relaxed);
     }
@@ -81,8 +86,13 @@ void Stream::popFromReadyQ(void)
 {
     /* expect streamMutex.ownsLock() == true */
     if (!readyQ.empty()) {
-        uint32_t respSize = readyQ.front()->getMessageSize();
+        const auto& front = readyQ.front();
+        if (!front->isMetaEvent()) {
+            readyQ_non_meta_items--;
+        }
+        const uint32_t respSize = front->getMessageSize();
         readyQ.pop();
+
         /* Decrement the readyQ size */
         if (respSize <= readyQueueMemory.load(std::memory_order_relaxed)) {
             readyQueueMemory.fetch_sub(respSize, std::memory_order_relaxed);
@@ -1012,19 +1022,11 @@ size_t ActiveStream::getItemsRemaining() {
         return 0;
     }
 
-    uint64_t high_seqno = vbucket->getHighSeqno();
-
-    if (end_seqno_ < high_seqno) {
-        if (end_seqno_ > lastSentSeqno.load()) {
-            return (end_seqno_ - lastSentSeqno.load());
-        }
-    } else {
-        if (high_seqno > lastSentSeqno.load()) {
-            return (high_seqno - lastSentSeqno.load());
-        }
-    }
-
-    return 0;
+    // Items remaining is the sum of:
+    // (a) Items outstanding in checkpoints
+    // (b) Items pending in our readyQ, excluding any meta items.
+    return vbucket->checkpointManager.getNumItemsForCursor(name_) +
+            readyQ_non_meta_items;
 }
 
 uint64_t ActiveStream::getLastSentSeqno() {

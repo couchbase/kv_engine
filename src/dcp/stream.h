@@ -163,6 +163,11 @@ protected:
     Mutex streamMutex;
     std::queue<DcpResponse*> readyQ;
 
+    // Number of items in the readyQ that are not meta items. Used for
+    // calculating getItemsRemaining(). Atomic so it can be safely read by
+    // getItemsRemaining() without acquiring streamMutex.
+    AtomicValue<size_t> readyQ_non_meta_items;
+
     const static uint64_t dcpMaxSeqno;
 
 private:

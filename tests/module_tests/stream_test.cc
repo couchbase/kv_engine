@@ -179,7 +179,7 @@ TEST_F(StreamTest, test_mb17766) {
 
 // Check that the items remaining statistic is accurate and is unaffected
 // by de-duplication.
-TEST_F(StreamTest, DISABLED_MB17653_ItemsRemaining) {
+TEST_F(StreamTest, MB17653_ItemsRemaining) {
 
     // Create 10 mutations to the same key which, while increasing the high
     // seqno by 10 will result in de-duplication and hence only one actual
@@ -215,15 +215,15 @@ TEST_F(StreamTest, DISABLED_MB17653_ItemsRemaining) {
     // Now actually drain the items from the readyQ and see how many we received,
     // excluding meta items. This will result in all but one of the checkpoint
     // items (the one we added just above) being drained.
-    auto* response = mock_stream->public_nextQueuedItem();
+    std::unique_ptr<DcpResponse> response(mock_stream->public_nextQueuedItem());
     ASSERT_NE(nullptr, response);
     EXPECT_TRUE(response->isMetaEvent()) << "Expected 1st item to be meta";
 
-    response = mock_stream->public_nextQueuedItem();
+    response.reset(mock_stream->public_nextQueuedItem());
     ASSERT_NE(nullptr, response);
     EXPECT_FALSE(response->isMetaEvent()) << "Expected 2nd item to be non-meta";
 
-    response = mock_stream->public_nextQueuedItem();
+    response.reset(mock_stream->public_nextQueuedItem());
     EXPECT_EQ(nullptr, response) << "Expected there to not be a 3rd item.";
 
     EXPECT_EQ(1, mock_stream->getItemsRemaining())
@@ -242,9 +242,9 @@ TEST_F(StreamTest, DISABLED_MB17653_ItemsRemaining) {
     // Copy items into readyQ a second time, and drain readyQ so we should
     // have no items left.
     mock_stream->nextCheckpointItemTask();
-    while (mock_stream->public_nextQueuedItem() != nullptr) {
-        // empty;
-    }
+    do {
+        response.reset(mock_stream->public_nextQueuedItem());
+    } while (response);
     EXPECT_EQ(0, mock_stream->getItemsRemaining())
         << "Should have 0 items remaining after advancing cursor and draining readyQ";
 }
