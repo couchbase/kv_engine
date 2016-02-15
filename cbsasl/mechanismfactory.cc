@@ -21,6 +21,7 @@
 #include "scram-sha/scram-sha.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <iterator>
 #include <memory>
@@ -323,24 +324,27 @@ static bool containsMechanism(const std::string& mechlist,
     } while (true);
 }
 
+static bool isSeparator(const char c) {
+    if (c == '-' || std::ispunct(c) == 0) {
+        return false;
+    }
+
+    return true;
+}
+
 Mechanism MechanismFactory::selectMechanism(const std::string& mechlist) {
     std::string uppercase(mechlist);
     std::transform(uppercase.begin(), uppercase.end(), uppercase.begin(),
                    toupper);
+    std::replace_if(uppercase.begin(), uppercase.end(), isSeparator, ' ');
 
-    if (containsMechanism(uppercase, MECH_NAME_SCRAM_SHA512)) {
-        return Mechanism::SCRAM_SHA512;
-    } else if (containsMechanism(uppercase, MECH_NAME_SCRAM_SHA256)) {
-        return Mechanism::SCRAM_SHA256;
-    } else if (containsMechanism(uppercase, MECH_NAME_SCRAM_SHA1)) {
-        return Mechanism::SCRAM_SHA1;
-    } else if (containsMechanism(uppercase, MECH_NAME_CRAM_MD5)) {
-        return Mechanism::CRAM_MD5;
-    } else if (containsMechanism(uppercase, MECH_NAME_PLAIN)) {
-        return Mechanism::PLAIN;
-    } else {
-        return Mechanism::UNKNOWN;
+    for (const auto & m : availableMechs) {
+        if (m->isEnabled() && containsMechanism(uppercase, m->getName())) {
+            return m->getMechanism();
+        }
     }
+
+    return Mechanism::UNKNOWN;
 }
 
 cbsasl_error_t MechanismFactory::list(cbsasl_conn_t* conn, const char* user,

@@ -234,3 +234,7 @@ TEST_F(SaslClientServerTest, SCRAM_SHA512) {
     test_auth("SCRAM-SHA512");
 }
 #endif
+
+TEST_F(SaslClientServerTest, AutoSelectMechamism) {
+    test_auth("(SCRAM-SHA512,SCRAM-SHA256,SCRAM-SHA1,CRAM-MD5,PLAIN)");
+}
