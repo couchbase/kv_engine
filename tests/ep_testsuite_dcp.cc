@@ -27,33 +27,98 @@
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
-                       const void *cookie, uint16_t vbucket, uint32_t flags,
-                       uint64_t start, uint64_t end, uint64_t vb_uuid,
-                       uint64_t snap_start_seqno, uint64_t snap_end_seqno,
-                       int exp_mutations, int exp_deletions, int exp_markers,
-                       int extra_takeover_ops,
-                       bool exp_disk_snapshot = false,
-                       bool time_sync_enabled = false,
-                       uint8_t exp_conflict_res = 0,
-                       bool skipEstimateCheck = false,
-                       uint64_t *total_bytes = NULL,
-                       bool simulate_cursor_dropping = false,
-                       uint64_t flow_control_buf_size = 1024,
-                       bool disable_ack = false) {
+struct SeqnoRange {
+    uint64_t start;
+    uint64_t end;
+};
 
+class DcpStreamCtx {
+public:
+    DcpStreamCtx()
+        : vbucket(0),
+          flags(0),
+          vb_uuid(0),
+          exp_mutations(0),
+          exp_deletions(0),
+          exp_markers(0),
+          extra_takeover_ops(0),
+          exp_disk_snapshot(false),
+          time_sync_enabled(false),
+          exp_conflict_res(0),
+          skip_estimate_check(false)
+    {
+        seqno = {0, static_cast<uint64_t>(~0)};
+        snapshot = {0, static_cast<uint64_t>(~0)};
+    }
 
+    uint16_t vbucket;
+    uint32_t flags;
+    uint64_t vb_uuid;
+    SeqnoRange seqno;
+    SeqnoRange snapshot;
+    size_t exp_mutations;
+    size_t exp_deletions;
+    size_t exp_markers;
+    size_t extra_takeover_ops;
+    bool exp_disk_snapshot;
+    bool time_sync_enabled;
+    uint8_t exp_conflict_res;
+    bool skip_estimate_check;
+};
+
+class TestDcpConsumer {
+public:
+    TestDcpConsumer(const std::string &_name, const void *_cookie,
+                    DcpStreamCtx &_ctx)
+        : name(_name),
+          cookie(_cookie),
+          ctx(_ctx),
+          total_bytes(0),
+          simulate_cursor_dropping(false),
+          flow_control_buf_size(1024),
+          disable_ack(false) { }
+
+    uint64_t getTotalBytes() {
+        return total_bytes;
+    }
+
+    void simulateCursorDropping() {
+        simulate_cursor_dropping = true;
+    }
+
+    void setFlowControlBufSize(uint64_t to) {
+        flow_control_buf_size = to;
+    }
+
+    void disableAcking() {
+        disable_ack = true;
+    }
+
+    void run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+
+private:
+    const std::string name;
+    const void *cookie;
+    DcpStreamCtx ctx;
+    uint64_t total_bytes;
+    bool simulate_cursor_dropping;
+    uint64_t flow_control_buf_size;
+    bool disable_ack;
+};
+
+void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     /* Reset any stale dcp data */
     clear_dcp_data();
 
     uint32_t opaque = 1;
-    uint16_t nname = strlen(name);
 
+    /* Set up Producer at server */
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER, (void*)name,
-                         nname),
+            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER,
+                         (void*)name.c_str(), name.length()),
             "Failed dcp producer open connection.");
 
+    /* Set flow control buffer size */
     std::string flow_control_buf_sz(std::to_string(flow_control_buf_size));
     checkeq(ENGINE_SUCCESS,
             h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
@@ -63,13 +128,13 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     char stats_buffer[50] = {0};
     if (flow_control_buf_size) {
         snprintf(stats_buffer, sizeof(stats_buffer),
-                 "eq_dcpq:%s:max_buffer_bytes", name);
+                 "eq_dcpq:%s:max_buffer_bytes", name.c_str());
         checkeq(static_cast<int>(flow_control_buf_size),
                 get_int_stat(h, h1, stats_buffer, "dcp"),
                 "Buffer Size did not get set correctly");
     } else {
         snprintf(stats_buffer, sizeof(stats_buffer),
-                 "eq_dcpq:%s:flow_control", name);
+                 "eq_dcpq:%s:flow_control", name.c_str());
         std::string status = get_str_stat(h, h1, stats_buffer, "dcp");
         checkeq(0, status.compare("disabled"), "Flow control enabled!");
     }
@@ -79,78 +144,88 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                             "true", 4),
             "Failed to enable xdcr extras");
 
+    /* Initiate stream request */
     uint64_t rollback = 0;
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.stream_req(h, cookie, flags, opaque, vbucket, start, end,
-                               vb_uuid, snap_start_seqno, snap_end_seqno,
+            h1->dcp.stream_req(h, cookie, ctx.flags, opaque, ctx.vbucket,
+                               ctx.seqno.start, ctx.seqno.end, ctx.vb_uuid,
+                               ctx.snapshot.start, ctx.snapshot.end,
                                &rollback, mock_dcp_add_failover_log),
             "Failed to initiate stream request");
 
-    if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-        end  = std::numeric_limits<uint64_t>::max();
-    } else if (flags & DCP_ADD_STREAM_FLAG_LATEST ||
-               flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
-        std::string high_seqno("vb_" + std::to_string(vbucket) + ":high_seqno");
-        end = get_int_stat(h, h1, high_seqno.c_str(), "vbucket-seqno");
+    if (ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+        ctx.seqno.end  = std::numeric_limits<uint64_t>::max();
+    } else if (ctx.flags & DCP_ADD_STREAM_FLAG_LATEST ||
+               ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+        std::string high_seqno("vb_" + std::to_string(ctx.vbucket) + ":high_seqno");
+        ctx.seqno.end = get_ull_stat(h, h1, high_seqno.c_str(), "vbucket-seqno");
     }
 
     std::stringstream stats_flags;
-    stats_flags << "eq_dcpq:" << name << ":stream_" << vbucket << "_flags";
-    checkeq(flags,
+    stats_flags << "eq_dcpq:" << name.c_str() << ":stream_"
+                << ctx.vbucket << "_flags";
+    checkeq(ctx.flags,
             (uint32_t)get_int_stat(h, h1, stats_flags.str().c_str(), "dcp"),
             "Flags didn't match");
 
     std::stringstream stats_opaque;
-    stats_opaque << "eq_dcpq:" << name << ":stream_" << vbucket << "_opaque";
+    stats_opaque << "eq_dcpq:" << name.c_str() << ":stream_"
+                 << ctx.vbucket << "_opaque";
     checkeq(opaque,
             (uint32_t)get_int_stat(h, h1, stats_opaque.str().c_str(), "dcp"),
             "Opaque didn't match");
 
     std::stringstream stats_start_seqno;
-    stats_start_seqno << "eq_dcpq:" << name << ":stream_" << vbucket << "_start_seqno";
-    checkeq(start,
+    stats_start_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
+                      << ctx.vbucket << "_start_seqno";
+    checkeq(ctx.seqno.start,
             (uint64_t)get_ull_stat(h, h1, stats_start_seqno.str().c_str(), "dcp"),
             "Start Seqno Didn't match");
 
     std::stringstream stats_end_seqno;
-    stats_end_seqno << "eq_dcpq:" << name << ":stream_" << vbucket << "_end_seqno";
-    checkeq(end,
+    stats_end_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
+                    << ctx.vbucket << "_end_seqno";
+    checkeq(ctx.seqno.end,
             (uint64_t)get_ull_stat(h, h1, stats_end_seqno.str().c_str(), "dcp"),
             "End Seqno didn't match");
 
     std::stringstream stats_vb_uuid;
-    stats_vb_uuid << "eq_dcpq:" << name << ":stream_" << vbucket << "_vb_uuid";
-    checkeq(vb_uuid,
+    stats_vb_uuid << "eq_dcpq:" << name.c_str() << ":stream_"
+                  << ctx.vbucket << "_vb_uuid";
+    checkeq(ctx.vb_uuid,
             (uint64_t)get_ull_stat(h, h1, stats_vb_uuid.str().c_str(), "dcp"),
             "VBucket UUID didn't match");
 
     std::stringstream stats_snap_seqno;
-    stats_snap_seqno << "eq_dcpq:" << name << ":stream_" << vbucket << "_snap_start_seqno";
-    checkeq(snap_start_seqno,
+    stats_snap_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
+                     << ctx.vbucket << "_snap_start_seqno";
+    checkeq(ctx.snapshot.start,
             (uint64_t)get_ull_stat(h, h1, stats_snap_seqno.str().c_str(), "dcp"),
             "snap start seqno didn't match");
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
-    if ((flags & DCP_ADD_STREAM_FLAG_TAKEOVER) && !skipEstimateCheck) {
-        std::string high_seqno_str("vb_" + std::to_string(vbucket) +
+    if ((ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) &&
+        !ctx.skip_estimate_check) {
+        std::string high_seqno_str("vb_" + std::to_string(ctx.vbucket) +
                                    ":high_seqno");
         uint64_t vb_high_seqno = get_ull_stat(h, h1, high_seqno_str.c_str(),
                                               "vbucket-seqno");
-        uint64_t est = vb_high_seqno - start;
+        uint64_t est = vb_high_seqno - ctx.seqno.start;
         std::stringstream stats_takeover;
-        stats_takeover << "dcp-vbtakeover " << vbucket << " " << name;
-        wait_for_stat_to_be_lte(h, h1, "estimate", est,
+        stats_takeover << "dcp-vbtakeover " << ctx.vbucket
+                       << " " << name.c_str();
+        wait_for_stat_to_be_lte(h, h1, "estimate", static_cast<int>(est),
                                 stats_takeover.str().c_str());
     }
 
     bool done = false;
     bool exp_all_items_streamed = true;
-    int num_mutations = 0;
-    int num_deletions = 0;
-    int num_snapshot_markers = 0;
-    int num_set_vbucket_pending = 0;
-    int num_set_vbucket_active = 0;
+    size_t num_mutations = 0;
+    size_t num_deletions = 0;
+    size_t num_snapshot_markers = 0;
+    size_t num_set_vbucket_pending = 0;
+    size_t num_set_vbucket_active = 0;
 
     ExtendedMetaData *emd = NULL;
     bool pending_marker_ack = false;
@@ -160,7 +235,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     uint32_t bytes_read = 0;
     uint64_t all_bytes = 0;
     uint64_t total_acked_bytes = 0;
-    uint64_t ack_limit = flow_control_buf_size/2;
+    uint64_t ack_limit = flow_control_buf_size / 2;
 
     bool delay_buffer_acking = false;
     if (simulate_cursor_dropping) {
@@ -181,7 +256,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                 sleep(2);
                 delay_buffer_acking = false;
             }
-            h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, vbucket, bytes_read);
+            h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
             total_acked_bytes += bytes_read;
             bytes_read = 0;
         }
@@ -200,7 +275,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                         sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
-                    if (time_sync_enabled) {
+                    if (ctx.time_sync_enabled) {
                         checkeq(static_cast<size_t>(16), dcp_last_meta.size(),
                                 "Expected extended meta in mutation packet");
                     } else {
@@ -210,7 +285,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
                     emd = new ExtendedMetaData(dcp_last_meta.c_str(),
                                                dcp_last_meta.size());
-                    checkeq(exp_conflict_res, emd->getConflictResMode(),
+                    checkeq(ctx.exp_conflict_res, emd->getConflictResMode(),
                             "Unexpected conflict resolution mode");
                     delete emd;
                     break;
@@ -224,7 +299,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                         sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
                     }
-                    if (time_sync_enabled) {
+                    if (ctx.time_sync_enabled) {
                         checkeq(static_cast<size_t>(16),
                                 dcp_last_meta.size(),
                                 "Expected adjusted time in mutation packet");
@@ -236,7 +311,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
                     emd = new ExtendedMetaData(dcp_last_meta.c_str(),
                                                dcp_last_meta.size());
-                    checkeq(exp_conflict_res, emd->getConflictResMode(),
+                    checkeq(ctx.exp_conflict_res, emd->getConflictResMode(),
                             "Unexpected conflict resolution mode");
                     delete emd;
                     break;
@@ -246,7 +321,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                     all_bytes += dcp_last_packet_size;
                     break;
                 case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
-                    if (exp_disk_snapshot && num_snapshot_markers == 0) {
+                    if (ctx.exp_disk_snapshot && num_snapshot_markers == 0) {
                         checkeq(static_cast<uint32_t>(1),
                                 dcp_last_flags, "Expected disk snapshot");
                     }
@@ -263,14 +338,13 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
                 case PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE:
                     if (dcp_last_vbucket_state == vbucket_state_pending) {
                         num_set_vbucket_pending++;
-                        for (int j = 0; j < extra_takeover_ops; ++j) {
+                        for (size_t j = 0; j < ctx.extra_takeover_ops; ++j) {
                             item *i = NULL;
-                            std::stringstream ss;
-                            ss << "key" << j;
+                            std::string key("key" + std::to_string(j));
                             checkeq(ENGINE_SUCCESS,
                                     store(h, h1, NULL, OPERATION_SET,
-                                          ss.str().c_str(), "data", &i,
-                                          0, vbucket),
+                                          key.c_str(), "data", &i,
+                                          0, ctx.vbucket),
                                     "Failed to store a value");
                             h1->release(h, NULL, i);
                         }
@@ -315,42 +389,43 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
         }
     } while (!done);
 
-    if (total_bytes) {
-        *total_bytes += all_bytes;
-    }
+    total_bytes += all_bytes;
 
     if (simulate_cursor_dropping) {
         if (num_snapshot_markers == 0) {
             cb_assert(num_mutations == 0 && num_deletions == 0);
         } else {
-            check(num_mutations <= exp_mutations, "Invalid number of mutations");
-            check(num_deletions <= exp_deletions, "Invalid number of deletes");
+            check(num_mutations <= ctx.exp_mutations, "Invalid number of mutations");
+            check(num_deletions <= ctx.exp_deletions, "Invalid number of deletes");
         }
     } else {
         // Account for cursors that may have been dropped because
         // of high memory usage
         if (get_int_stat(h, h1, "ep_cursors_dropped") > 0) {
-            check(num_snapshot_markers <= exp_markers, "Invalid number of markers");
-            check(num_mutations <= exp_mutations, "Invalid number of mutations");
-            check(num_deletions <= exp_deletions, "Invalid number of deletions");
+            check(num_snapshot_markers <= ctx.exp_markers, "Invalid number of markers");
+            check(num_mutations <= ctx.exp_mutations, "Invalid number of mutations");
+            check(num_deletions <= ctx.exp_deletions, "Invalid number of deletions");
         } else {
-            checkeq(exp_mutations, num_mutations, "Invalid number of mutations");
-            checkeq(exp_deletions, num_deletions, "Invalid number of deletes");
-            checkeq(exp_markers, num_snapshot_markers,
+            checkeq(ctx.exp_mutations, num_mutations, "Invalid number of mutations");
+            checkeq(ctx.exp_deletions, num_deletions, "Invalid number of deletes");
+            checkeq(ctx.exp_markers, num_snapshot_markers,
                     "Didn't receive expected number of snapshot marker");
         }
     }
 
-    if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-        checkeq(1, num_set_vbucket_pending, "Didn't receive pending set state");
-        checkeq(1, num_set_vbucket_active, "Didn't receive active set state");
+    if (ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+        checkeq(static_cast<size_t>(1), num_set_vbucket_pending,
+                "Didn't receive pending set state");
+        checkeq(static_cast<size_t>(1), num_set_vbucket_active,
+                "Didn't receive active set state");
     }
 
     /* Check if the readyQ size goes to zero after all items are streamed */
     if (exp_all_items_streamed) {
         std::stringstream stats_ready_queue_memory;
-        stats_ready_queue_memory << "eq_dcpq:" << name << ":stream_" << vbucket
-            << "_ready_queue_memory";
+        stats_ready_queue_memory << "eq_dcpq:" << name.c_str()
+                                 << ":stream_" << ctx.vbucket
+                                 << "_ready_queue_memory";
         checkeq(static_cast<uint64_t>(0),
                 get_ull_stat(h, h1, stats_ready_queue_memory.str().c_str(), "dcp"),
                 "readyQ size did not go to zero");
@@ -360,9 +435,9 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
     if (flow_control_buf_size) {
         memset(stats_buffer, 0, 50);
         snprintf(stats_buffer, sizeof(stats_buffer), "eq_dcpq:%s:unacked_bytes",
-                 name);
-        checkeq(static_cast<int>(all_bytes - total_acked_bytes),
-                get_int_stat(h, h1, stats_buffer, "dcp"),
+                 name.c_str());
+        checkeq((all_bytes - total_acked_bytes),
+                get_ull_stat(h, h1, stats_buffer, "dcp"),
                 "Buffer Size did not get set correctly");
     }
 }
@@ -1085,12 +1160,18 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
 
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-
     const void *cookie = testHarness.create_cookie();
 
-    dcp_stream(h, h1, "unittest", cookie, 0, 0, 95, 209, vb_uuid, 95, 95, 105,
-               100, 2, 0);
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {95, 209};
+    ctx.snapshot = {95, 95};
+    ctx.exp_mutations = 105;
+    ctx.exp_deletions = 100;
+    ctx.exp_markers = 2;
+
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -1127,12 +1208,20 @@ static enum test_result test_dcp_producer_stream_req_partial_with_time_sync(
 
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-
     const void *cookie = testHarness.create_cookie();
 
-    dcp_stream(h, h1, "unittest", cookie, 0, 0, 95, 209, vb_uuid, 95, 95, 105,
-               100, 2, 0, false, true, 1);
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {95, 209};
+    ctx.snapshot = {95, 95};
+    ctx.exp_mutations = 105;
+    ctx.exp_deletions = 100;
+    ctx.exp_markers = 2;
+    ctx.time_sync_enabled = true;
+    ctx.exp_conflict_res = 1;
+
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -1159,13 +1248,16 @@ static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
 
-    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-
     const void *cookie = testHarness.create_cookie();
 
-    dcp_stream(h, h1, "unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0,
-               num_items, 0, 1, 0);
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.exp_mutations = num_items;
+    ctx.exp_markers = 1;
+
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -1193,12 +1285,16 @@ static enum test_result test_dcp_producer_stream_req_disk(ENGINE_HANDLE *h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be_gte(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-
     const void *cookie = testHarness.create_cookie();
 
-    dcp_stream(h, h1,"unittest", cookie, 0, 0, 0, 200, vb_uuid, 0, 0, 200, 0, 1,
-               0);
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, 200};
+    ctx.exp_mutations = 200;
+    ctx.exp_markers = 1;
+
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -1225,13 +1321,17 @@ static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    uint32_t flags = DCP_ADD_STREAM_FLAG_DISKONLY;
-
     const void *cookie = testHarness.create_cookie();
 
-    dcp_stream(h, h1, "unittest", cookie, 0, flags, 0, -1, vb_uuid, 0, 0, 300,
-               0, 1, 0);
+    DcpStreamCtx ctx;
+    ctx.flags = DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, static_cast<uint64_t>(-1)};
+    ctx.exp_mutations = 300;
+    ctx.exp_markers = 1;
+
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -1257,12 +1357,17 @@ static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-
     const void *cookie = testHarness.create_cookie();
 
-    dcp_stream(h, h1, "unittest", cookie, 0, 0, 200, 300, vb_uuid, 200, 200,
-               100, 0, 1, 0);
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {200, 300};
+    ctx.snapshot = {200, 200};
+    ctx.exp_mutations = 100;
+    ctx.exp_markers = 1;
+
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -1296,16 +1401,19 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     int num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
     cb_assert(num_non_resident >= ((float)(50/100) * i));
 
-    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "5242880");
     cb_assert(get_int_stat(h, h1, "vb_active_perc_mem_resident") < 50);
 
     const void *cookie = testHarness.create_cookie();
 
-    dcp_stream(h, h1,"unittest", cookie, 0, 0, 0, end, vb_uuid, 0, 0, i, 0, 1,
-               0);
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.exp_mutations = i;
+    ctx.exp_markers = 1;
+
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -1331,13 +1439,19 @@ static enum test_result test_dcp_producer_stream_latest(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     const void *cookie = testHarness.create_cookie();
 
-    uint32_t flags = DCP_ADD_STREAM_FLAG_LATEST;
-    dcp_stream(h, h1, "unittest", cookie, 0, flags, 200, 205, vb_uuid, 200, 200,
-               100, 0, 1, 0);
+    DcpStreamCtx ctx;
+    ctx.flags = DCP_ADD_STREAM_FLAG_LATEST;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {200, 205};
+    ctx.snapshot = {200, 200};
+    ctx.exp_mutations = 100;
+    ctx.exp_markers = 1;
+
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -1387,17 +1501,23 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-
     const void *cookie[5];
 
     uint64_t total_bytes = 0;
     for (int j = 0; j < 5; ++j) {
-        char name[12];
-        snprintf(name, sizeof(name), "unittest_%d", j);
+        std::string name("unittest_" + std::to_string(j));
         cookie[j] = testHarness.create_cookie();
-        dcp_stream(h, h1, name, cookie[j], 0, 0, 200, 300, vb_uuid, 200, 200,
-                   100, 0, 1, 0, false, false, 0, false, &total_bytes);
+
+        DcpStreamCtx ctx;
+        ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+        ctx.seqno = {200, 300};
+        ctx.snapshot = {200, 200};
+        ctx.exp_mutations = 100;
+        ctx.exp_markers = 1;
+
+        TestDcpConsumer tdc(name, cookie[j], ctx);
+        tdc.run(h, h1);
+        total_bytes += tdc.getTotalBytes();
     }
 
     checkeq(5, get_int_stat(h, h1, "unittest:producer_count", "dcpagg _"),
@@ -1441,15 +1561,21 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
         }
     }
 
-    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     const void *cookie = testHarness.create_cookie();
 
     start_persistence(h, h1);
     std::string name("unittest");
 
-    dcp_stream(h, h1, name.c_str(), cookie, 0, 0, 0, end, vb_uuid, 0, 0, i,
-               0, 1, 0, false, false, 0, true, NULL, true);
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.exp_mutations = i;
+    ctx.exp_markers = 1;
+    ctx.skip_estimate_check = true;
+
+    TestDcpConsumer tdc(name, cookie, ctx);
+    tdc.simulateCursorDropping();
+    tdc.run(h, h1);
 
     checkeq(static_cast<uint8_t>(PROTOCOL_BINARY_CMD_DCP_STREAM_END),
             dcp_last_op,
@@ -1539,6 +1665,7 @@ static test_result test_dcp_value_compression(ENGINE_HANDLE *h,
 
     do {
         if (bytes_read > 512) {
+            /* vbucket set at 0 here, as it isn't used. */
             h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
             bytes_read = 0;
         }
@@ -1628,8 +1755,6 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
     int num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
     cb_assert(num_non_resident >= (((float)(100 - rr_thresh)/100) * num_items));
 
-    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
               "52428800");
@@ -1637,10 +1762,17 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
 
     const void *cookie = testHarness.create_cookie();
 
+    DcpStreamCtx ctx1;
+    ctx1.flags = DCP_ADD_STREAM_FLAG_NO_VALUE;
+    ctx1.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx1.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx1.exp_mutations = num_items;
+    ctx1.exp_markers = 1;
+
     /* Stream mutations with "no_value" flag set */
-    dcp_stream(h, h1, "unittest", cookie, 0, DCP_ADD_STREAM_FLAG_NO_VALUE, 0,
-               end, vb_uuid, 0, 0, num_items, 0, 1, 0, false, false, 0, false,
-               &total_bytes);
+    TestDcpConsumer tdc1("unittest", cookie, ctx1);
+    tdc1.run(h, h1);
+    total_bytes = tdc1.getTotalBytes();
 
     /* basebytes mutation + nmeta (when no ext_meta is expected) */
     const int packet_fixed_size = dcp_mutation_base_msg_bytes +
@@ -1654,14 +1786,20 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
 
     /* Stream without NO_VALUE flag (default) and expect both key and value for
        all mutations */
-    total_bytes = 0;
     const void *cookie1 = testHarness.create_cookie();
 
     dcp_last_op = 0;
     dcp_last_nru = 0;
 
-    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, 0, end, vb_uuid, 0, 0,
-               num_items, 0, 1, 0, false, false, 0, false, &total_bytes);
+    DcpStreamCtx ctx2;
+    ctx2.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx2.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx2.exp_mutations = num_items;
+    ctx2.exp_markers = 1;
+
+    TestDcpConsumer tdc2("unittest1", cookie1, ctx2);
+    tdc2.run(h, h1);
+    total_bytes = tdc2.getTotalBytes();
 
     /* Just add total value size to estimated bytes */
     est_bytes += (value.length() * num_items);
@@ -1693,14 +1831,20 @@ static enum test_result test_dcp_producer_stream_mem_no_value(
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-
     const void *cookie = testHarness.create_cookie();
 
+    DcpStreamCtx ctx1;
+    ctx1.flags = DCP_ADD_STREAM_FLAG_NO_VALUE;
+    ctx1.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx1.seqno = {start, end};
+    ctx1.snapshot = {start, start};
+    ctx1.exp_mutations = end - start;
+    ctx1.exp_markers = 1;
+
     /* Stream mutations with "no_value" flag set */
-    dcp_stream(h, h1, "unittest", cookie, 0, DCP_ADD_STREAM_FLAG_NO_VALUE,
-               start, end, vb_uuid, 200, 200, (end-start), 0, 1, 0, false,
-               false, 0, false, &total_bytes);
+    TestDcpConsumer tdc1("unittest", cookie, ctx1);
+    tdc1.run(h, h1);
+    total_bytes = tdc1.getTotalBytes();
 
     /* basebytes mutation + nmeta (when no ext_meta is expected) */
     const int packet_fixed_size = dcp_mutation_base_msg_bytes +
@@ -1716,11 +1860,18 @@ static enum test_result test_dcp_producer_stream_mem_no_value(
 
     /* Stream without NO_VALUE flag (default) and expect both key and value for
      all mutations */
-    total_bytes = 0;
     const void *cookie1 = testHarness.create_cookie();
 
-    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, start, end, vb_uuid, 200, 200,
-               (end-start), 0, 1, 0, false, false, 0, false, &total_bytes);
+    DcpStreamCtx ctx2;
+    ctx2.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx2.seqno = {start, end};
+    ctx2.snapshot = {start, start};
+    ctx2.exp_mutations = end - start;
+    ctx2.exp_markers = 1;
+
+    TestDcpConsumer tdc2("unittest1", cookie1, ctx2);
+    tdc2.run(h, h1);
+    total_bytes = tdc2.getTotalBytes();
 
     /* Just add total value size to estimated bytes */
     est_bytes += (value.length() * (end-start));
@@ -1744,11 +1895,16 @@ static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     const void *cookie = testHarness.create_cookie();
 
-    uint32_t flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    DcpStreamCtx ctx;
+    ctx.flags = DCP_ADD_STREAM_FLAG_TAKEOVER;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, 1000};
+    ctx.exp_mutations = 20;
+    ctx.exp_markers = 2;
+    ctx.extra_takeover_ops = 10;
 
-    dcp_stream(h, h1, "unittest", cookie, 0, flags, 0, 1000, vb_uuid, 0, 0, 20,
-               0, 2, 10);
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     check(verify_vbucket_state(h, h1, 0, vbucket_state_dead), "Wrong vb state");
 
@@ -2860,25 +3016,38 @@ static enum test_result test_dcp_producer_flow_control(ENGINE_HANDLE *h,
     }
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
     /* Disable flow control and stream all items. The producer should stream all
      items even when we do not send acks */
     std::string name("unittest");
+
+    DcpStreamCtx ctx1;
+    ctx1.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx1.seqno = {0, num_items};
+    ctx1.exp_mutations = num_items;
+    ctx1.exp_markers = 1;
+
     const void *cookie = testHarness.create_cookie();
-    dcp_stream(h, h1, name.c_str(), cookie, 0, 0, 0, num_items, vb_uuid, 0,
-               0, num_items, 0, 1, 0, false, false, 0, false, NULL, false,
-               0 /* do not enable flow control */,
-               true /* do not ack */);
+    TestDcpConsumer tdc1(name, cookie, ctx1);
+    tdc1.setFlowControlBufSize(0);  // Disabling flow control
+    tdc1.disableAcking();           // Do not ack
+    tdc1.run(h, h1);
 
     /* Set flow control buffer to a very low value such that producer is not
      expected to send more than 1 item when we do not send acks */
     std::string name1("unittest1");
+
+    DcpStreamCtx ctx2;
+    ctx2.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx2.seqno = {0, num_items};
+    ctx2.exp_mutations = 1;
+    ctx2.exp_markers = 1;
+
     const void *cookie1 = testHarness.create_cookie();
-    dcp_stream(h, h1, name1.c_str(), cookie1, 0, 0, 0, num_items, vb_uuid,
-               0, 0, 1, 0, 1, 0, false, false, 0, false, NULL, false,
-               100 /* flow control buf to low value */,
-               true /* do not ack */);
+    TestDcpConsumer tdc2(name1, cookie1, ctx2);
+    tdc2.setFlowControlBufSize(100);    // Flow control buf set to low value
+    tdc2.disableAcking();               // Do not ack
+    tdc2.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
     testHarness.destroy_cookie(cookie1);
@@ -3491,11 +3660,16 @@ static enum test_result test_dcp_replica_stream_backfill(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "vb_0:high_seqno", num_items,
                         "vbucket-seqno");
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, num_items};
+    ctx.exp_mutations = num_items;
+    ctx.exp_markers = 1;
 
     const void *cookie1 = testHarness.create_cookie();
-    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, 0, num_items, vb_uuid, 0, 0,
-               num_items, 0, 1, 0);
+    TestDcpConsumer tdc("unittest1", cookie1, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie1);
     testHarness.destroy_cookie(cookie);
@@ -3535,11 +3709,16 @@ static enum test_result test_dcp_replica_stream_in_memory(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "vb_0:high_seqno", num_items,
                         "vbucket-seqno");
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, num_items};
+    ctx.exp_mutations = num_items;
+    ctx.exp_markers = 1;
 
     const void *cookie1 = testHarness.create_cookie();
-    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, 0, num_items, vb_uuid, 0, 0,
-               num_items, 0, 1, 0);
+    TestDcpConsumer tdc("unittest1", cookie1, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie1);
     testHarness.destroy_cookie(cookie);
@@ -3594,11 +3773,15 @@ static enum test_result test_dcp_replica_stream_all(ENGINE_HANDLE *h,
     /* Wait for a checkpoint to be removed */
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
 
-    uint64_t end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.exp_mutations = 300;
+    ctx.exp_markers = 1;
+
     const void *cookie1 = testHarness.create_cookie();
-    dcp_stream(h, h1, "unittest1", cookie1, 0, 0, 0, end, vb_uuid, 0, 0, 300, 0,
-               1, 0);
+    TestDcpConsumer tdc("unittest1", cookie1, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie1);
     testHarness.destroy_cookie(cookie);
@@ -3634,7 +3817,6 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
     item_info info;
     mutation_descr_t mut_info;
-    uint64_t vb_uuid = 0;
     uint64_t cas = 0;
     uint32_t high_seqno = 0;
     const int num_items = 3;
@@ -3642,7 +3824,6 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
 
     memset(&info, 0, sizeof(info));
 
-    vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     /* Set 3 items */
     for (int count = 0; count < num_items; count++){
         checkeq(ENGINE_SUCCESS,
@@ -3678,10 +3859,17 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
 
     /* Create a DCP stream */
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
+    ctx.exp_mutations = 1;
+    ctx.exp_deletions = 1;
+    ctx.exp_markers = 1;
+    ctx.skip_estimate_check = true;
+
     const void *cookie = testHarness.create_cookie();
-    high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-    dcp_stream(h, h1, "unittest", cookie, 0, 0, 0, high_seqno, vb_uuid, 0, 0,
-               1, 1, 1, 0, false, false, 0, true);
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -3713,9 +3901,16 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     /* Create a DCP stream to send 3 items to the replica */
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = vb_uuid;
+    ctx.seqno = {0, high_seqno};
+    ctx.exp_mutations = 3;
+    ctx.exp_markers = 1;
+    ctx.skip_estimate_check = true;
+
     const void *cookie = testHarness.create_cookie();
-    dcp_stream(h, h1, "unittest", cookie, 0, 0, 0, high_seqno, vb_uuid, 0, 0,
-               3, 0, 1, 0, false, false, 0, true);
+    TestDcpConsumer tdc("unittest", cookie, ctx);
+    tdc.run(h, h1);
 
     testHarness.destroy_cookie(cookie);
 
@@ -4506,10 +4701,8 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("test dcp early termination", test_dcp_early_termination,
                  test_setup, teardown, NULL, prepare, cleanup),
-
         TestCase("test MB-17517 CAS -1 DCP", test_mb17517_cas_minus_1_dcp,
                  test_setup, teardown, NULL, prepare, cleanup),
-
         TestCase("test MB-17517 CAS -1 TAP", test_mb17517_cas_minus_1_tap,
                  test_setup, teardown, NULL, prepare, cleanup),
 
