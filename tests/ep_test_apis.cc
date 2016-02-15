@@ -226,15 +226,16 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
 }
 
 void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             int64_t initialDriftCount, uint8_t timeSync) {
+                             int64_t initialDriftCount) {
 
     protocol_binary_request_header *request;
 
     int64_t driftCount = htonll(initialDriftCount);
+    uint8_t timeSync = 0x00;
     uint8_t extlen = sizeof(driftCount) + sizeof(timeSync);
     char *ext = new char[extlen];
-    memcpy(ext, (char*)&driftCount, sizeof(driftCount));
-    memcpy(ext + sizeof(driftCount), (char*)&timeSync, sizeof(timeSync));
+    memcpy(ext, (char *)&driftCount, sizeof(driftCount));
+    memcpy(ext + sizeof(driftCount), (char *)&timeSync, sizeof(timeSync));
 
     request = createPacket(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
                            0, 0, ext, extlen);

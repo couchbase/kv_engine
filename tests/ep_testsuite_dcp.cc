@@ -1482,7 +1482,7 @@ static enum test_result test_dcp_producer_stream_req_partial_with_time_sync(
                                                              ENGINE_HANDLE *h,
                                                              ENGINE_HANDLE_V1 *h1) {
 
-    set_drift_counter_state(h, h1, 1000, 0x01);
+    set_drift_counter_state(h, h1, /* initial drift */1000);
 
     int num_items = 200;
     for (int j = 0; j < num_items; ++j) {
@@ -3837,7 +3837,7 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
-    set_drift_counter_state(h, h1, 1000, 0x01);
+    set_drift_counter_state(h, h1, /* initial_drift */1000);
 
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -3990,7 +3990,8 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
                                                         ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
 
-    set_drift_counter_state(h, h1, 1000, 0x01);
+    //Set drift value
+    set_drift_counter_state(h, h1, /* initial drift */1000);
 
     // Store an item
     item *i = NULL;
@@ -5179,8 +5180,8 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request with time sync (partial)",
                  test_dcp_producer_stream_req_partial_with_time_sync,
-                 test_setup, teardown,
-                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
+                 test_setup, teardown, "chk_remover_stime=1;chk_max_items=100;"
+                 "time_synchronization=enabled_with_drift", prepare, cleanup),
         TestCase("test producer stream request (full)",
                  test_dcp_producer_stream_req_full, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
@@ -5298,13 +5299,15 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("dcp consumer mutate", test_dcp_consumer_mutate, test_setup,
                  teardown, "dcp_enable_noop=false", prepare, cleanup),
         TestCase("dcp consumer mutate with time sync",
-                 test_dcp_consumer_mutate_with_time_sync, test_setup,
-                 teardown, "dcp_enable_noop=false", prepare, cleanup),
+                 test_dcp_consumer_mutate_with_time_sync, test_setup, teardown,
+                 "dcp_enable_noop=false;time_synchronization=enabled_with_drift",
+                 prepare, cleanup),
         TestCase("dcp consumer delete", test_dcp_consumer_delete, test_setup,
                  teardown, "dcp_enable_noop=false", prepare, cleanup),
         TestCase("dcp consumer delete with time sync",
-                 test_dcp_consumer_delete_with_time_sync, test_setup,
-                 teardown, "dcp_enable_noop=false", prepare, cleanup),
+                 test_dcp_consumer_delete_with_time_sync, test_setup, teardown,
+                 "dcp_enable_noop=false;time_synchronization=enabled_with_drift",
+                 prepare, cleanup),
         TestCase("dcp failover log", test_failover_log_dcp, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,

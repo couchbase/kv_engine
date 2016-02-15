@@ -1062,7 +1062,7 @@ ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId,
     ExtendedMetaData *emd = NULL;
     if (producer->isExtMetaDataEnabled()) {
         RCPtr<VBucket> vb = engine->getVBucket(vBucketId);
-        if (vb && vb->isTimeSyncEnabled()) {
+        if (vb && vb->getTimeSyncConfig() == time_sync_t::ENABLED_WITH_DRIFT) {
             int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
             emd = new ExtendedMetaData(adjustedTime, conflictResMode);
         } else {
