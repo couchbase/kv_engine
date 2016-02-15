@@ -19,6 +19,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_BINARY_DIR}/src
                            ${SNAPPY_INCLUDE_DIR}
                            ${Platform_SOURCE_DIR}/include
+                           ${Memcached_SOURCE_DIR}
                            ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
                            ${ForestDB_SOURCE_DIR}/include
@@ -177,6 +178,64 @@ SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore forestdb
   dirutils platform ${LIBEVENT_LIBRARIES})
 
+ADD_EXECUTABLE(ep-engine_stream_test
+  tests/module_tests/stream_test.cc
+  src/access_scanner.cc
+  src/atomic.cc
+  src/backfill.cc
+  src/bgfetcher.cc
+  src/bloomfilter.cc
+  src/checkpoint.cc
+  src/checkpoint_remover.cc
+  src/conflict_resolution.cc
+  src/compress.cc
+  src/connmap.cc
+  src/dcp/backfill.cc
+  src/dcp/backfill-manager.cc
+  src/dcp/consumer.cc
+  src/dcp/flow-control.cc
+  src/dcp/flow-control-manager.cc
+  src/dcp/producer.cc
+  src/dcp/response.cc
+  src/dcp/stream.cc
+  src/defragmenter.cc
+  src/defragmenter_visitor.cc
+  src/ep.cc
+  src/ep_engine.cc
+  src/ep_time.c
+  src/executorpool.cc
+  src/executorthread.cc
+  src/ext_meta_parser.cc
+  src/failover-table.cc
+  src/flusher.cc
+  src/htresizer.cc
+  src/item.cc
+  src/item_pager.cc
+  src/kvshard.cc
+  src/logger.cc
+  src/memory_tracker.cc
+  src/murmurhash3.cc
+  src/mutation_log.cc
+  src/objectregistry.cc
+  src/priority.cc
+  src/tapconnection.cc
+  src/replicationthrottle.cc
+  src/stored-value.cc
+  src/string_utils.cc
+  src/tasks.cc
+  src/taskqueue.cc
+  src/vbucket.cc
+  src/vbucketmap.cc
+  src/warmup.cc
+  ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
+  ${CONFIG_SOURCE}
+  ${KVSTORE_SOURCE}
+  ${COUCH_KVSTORE_SOURCE}
+  ${FOREST_KVSTORE_SOURCE}
+  ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_dummy.cc
+  ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
+TARGET_LINK_LIBRARIES(ep-engine_stream_test couchstore cJSON dirutils forestdb JSON_checker mcd_util platform)
+
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
   src/atomic.cc
@@ -282,6 +341,7 @@ ADD_TEST(ep-engine_mutex_test ep-engine_mutex_test)
 ADD_TEST(ep-engine_priority_test ep-engine_priority_test)
 ADD_TEST(ep-engine_ringbuffer_test ep-engine_ringbuffer_test)
 ADD_TEST(ep-engine_kvstore_test ep-engine_kvstore_test)
+ADD_TEST(ep-engine_stream_test ep-engine_stream_test)
 
 ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")

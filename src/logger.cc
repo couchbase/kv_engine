@@ -76,11 +76,13 @@ void Logger::vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) con
     vsnprintf(buffer + pos, sizeof(buffer) - pos, fmt, va);
 
     // Log it.
-    if (engine) {
-        logger->log(severity, NULL, "(%s) %s", engine->getName().c_str(),
-                    buffer);
-    } else {
-        logger->log(severity, NULL, "(No Engine) %s", buffer);
+    if (logger) {
+        if (engine) {
+            logger->log(severity, NULL, "(%s) %s", engine->getName().c_str(),
+                        buffer);
+        } else {
+            logger->log(severity, NULL, "(No Engine) %s", buffer);
+        }
     }
 
     ObjectRegistry::onSwitchThread(engine);
