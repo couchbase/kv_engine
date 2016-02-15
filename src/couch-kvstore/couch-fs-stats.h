@@ -19,11 +19,11 @@
 #define SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_ 1
 
 #include "config.h"
-
 #include "atomic.h"
 
-#include <libcouchstore/couch_db.h>
+#include <memory>
 
+#include <libcouchstore/couch_db.h>
 #include <platform/histogram.h>
 
 struct CouchstoreStats {
@@ -65,6 +65,6 @@ public:
     }
 };
 
-couch_file_ops getCouchstoreStatsOps(CouchstoreStats* stats);
+std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(CouchstoreStats& stats);
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_

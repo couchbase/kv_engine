@@ -269,7 +269,7 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
     intransaction(false), backfillCounter(0)
 {
     createDataDir(dbname);
-    statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
+    statCollectingFileOps = getCouchstoreStatsOps(st.fsStats);
 
     // init db file map with default revision number, 1
     numDbFiles = configuration.getMaxVBuckets();
@@ -291,7 +291,7 @@ CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
     intransaction(false)
 {
     createDataDir(dbname);
-    statCollectingFileOps = getCouchstoreStatsOps(&st.fsStats);
+    statCollectingFileOps = getCouchstoreStatsOps(st.fsStats);
 }
 
 void CouchKVStore::initialize() {
@@ -794,7 +794,7 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx,
 
     couchstore_compact_hook       hook = time_purge_hook;
     couchstore_docinfo_hook      dhook = edit_docinfo_hook;
-    const couch_file_ops     *def_iops = couchstore_get_default_file_ops();
+    FileOpsInterface         *def_iops = couchstore_get_default_file_ops();
     Db                      *compactdb = NULL;
     Db                       *targetDb = NULL;
     couchstore_error_t         errCode = COUCHSTORE_SUCCESS;
@@ -1289,7 +1289,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
                                         uint64_t *newFileRev,
                                         bool reset) {
     std::string dbFileName = getDBFileName(dbname, vbucketId, fileRev);
-    couch_file_ops* ops = &statCollectingFileOps;
+    FileOpsInterface* ops = statCollectingFileOps.get();
 
     uint64_t newRevNum = fileRev;
     couchstore_error_t errorCode = COUCHSTORE_SUCCESS;
@@ -1365,7 +1365,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
 
 couchstore_error_t CouchKVStore::openDB_retry(std::string &dbfile,
                                               uint64_t options,
-                                              const couch_file_ops *ops,
+                                              FileOpsInterface *ops,
                                               Db** db, uint64_t *newFileRev) {
     int retry = 0;
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;

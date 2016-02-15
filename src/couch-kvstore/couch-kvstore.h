@@ -22,6 +22,7 @@
 #include "libcouchstore/couch_db.h"
 
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -486,7 +487,7 @@ private:
                               uint64_t options, uint64_t *newFileRev = NULL,
                               bool reset=false);
     couchstore_error_t openDB_retry(std::string &dbfile, uint64_t options,
-                                    const couch_file_ops *ops,
+                                    FileOpsInterface *ops,
                                     Db **db, uint64_t *newFileRev);
     couchstore_error_t saveDocs(uint16_t vbid, uint64_t rev, Doc **docs,
                                 DocInfo **docinfos, size_t docCount,
@@ -529,7 +530,7 @@ private:
 
     /* all stats */
     CouchKVStoreStats   st;
-    couch_file_ops statCollectingFileOps;
+    std::unique_ptr<FileOpsInterface> statCollectingFileOps;
     /* deleted docs in each file, indexed by vBucket. RelaxedAtomic
        to allow stats access witout lock */
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
