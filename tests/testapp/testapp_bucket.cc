@@ -21,11 +21,12 @@
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         BucketTest,
-                        ::testing::Values(TransportProtocols::PlainMcbp,
-                                          TransportProtocols::PlainIpv6Mcbp,
-                                          TransportProtocols::SslMcbp,
-                                          TransportProtocols::SslIpv6Mcbp
-                                         ));
+                        ::testing::Values(TransportProtocols::McbpPlain,
+                                          TransportProtocols::McbpIpv6Plain,
+                                          TransportProtocols::McbpSsl,
+                                          TransportProtocols::McbpIpv6Ssl
+                                         ),
+                        ::testing::PrintToStringParamName());
 
 TEST_P(BucketTest, TestNameTooLong) {
     auto& connection = getConnection();

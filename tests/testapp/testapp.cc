@@ -94,13 +94,13 @@ static void destroy_ssl_socket();
 const char* to_string(const Transport& transport) {
     switch (transport) {
     case Transport::Plain:
-        return "Transport::Plain";
+        return "Plain";
     case Transport::SSL:
-        return "Transport::SSL";
+        return "SSL";
     case Transport::PlainIpv6:
-        return "Transport::PlainIpv6";
+        return "PlainIpv6";
     case Transport::SslIpv6:
-        return "Transport::SslIpv6";
+        return "SslIpv6";
     }
     throw std::logic_error("Unknown transport");
 }
@@ -4410,10 +4410,10 @@ TEST_P(McdTestappTest, test_MB_17506_dedupe) {
 }
 
 
-
-INSTANTIATE_TEST_CASE_P(PlainOrSSL,
+INSTANTIATE_TEST_CASE_P(Transport,
                         McdTestappTest,
-                        ::testing::Values(Transport::Plain, Transport::SSL));
+                        ::testing::Values(Transport::Plain, Transport::SSL),
+                        ::testing::PrintToStringParamName());
 
 void McdEnvironment::SetUp() {
     // Create an rbac config file for use for all tests

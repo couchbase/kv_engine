@@ -26,22 +26,22 @@ std::ostream& operator<<(std::ostream& os, const TransportProtocols& t) {
 
 const char* to_string(const TransportProtocols& transport) {
     switch (transport) {
-    case TransportProtocols::PlainMcbp:
+    case TransportProtocols::McbpPlain:
         return "Mcbp";
-    case TransportProtocols::PlainGreenstack:
+    case TransportProtocols::GreenstackPlain:
         return "Greenstack";
-    case TransportProtocols::PlainIpv6Mcbp:
-        return "Mcbp-Ipv6";
-    case TransportProtocols::PlainIpv6Greenstack:
-        return "Greenstack-Ipv6";
-    case TransportProtocols::SslMcbp:
-        return "Mcbp-Ssl";
-    case TransportProtocols::SslGreenstack:
-        return "Greenstack-Ssl";
-    case TransportProtocols::SslIpv6Mcbp:
-        return "Mcbp-Ipv6-Ssl";
-    case TransportProtocols::SslIpv6Greenstack:
-        return "Greenstack-Ipv6-Ssl";
+    case TransportProtocols::McbpIpv6Plain:
+        return "McbpIpv6";
+    case TransportProtocols::GreenstackIpv6Plain:
+        return "GreenstackIpv6";
+    case TransportProtocols::McbpSsl:
+        return "McbpSsl";
+    case TransportProtocols::GreenstackSsl:
+        return "GreenstackSsl";
+    case TransportProtocols::McbpIpv6Ssl:
+        return "McbpIpv6Ssl";
+    case TransportProtocols::GreenstackIpv6Ssl:
+        return "GreenstackIpv6Ssl";
     }
     throw std::logic_error("Unknown transport");
 }
@@ -61,28 +61,28 @@ MemcachedConnection& TestappClientTest::prepare(MemcachedConnection& connection)
 
 MemcachedConnection& TestappClientTest::getConnection() {
     switch (GetParam()) {
-    case TransportProtocols::PlainMcbp:
+    case TransportProtocols::McbpPlain:
         return prepare(connectionMap.getConnection(Protocol::Memcached,
                                                    false, AF_INET));
-    case TransportProtocols::PlainGreenstack:
+    case TransportProtocols::GreenstackPlain:
         return prepare(connectionMap.getConnection(Protocol::Greenstack,
                                                    false, AF_INET));
-    case TransportProtocols::PlainIpv6Mcbp:
+    case TransportProtocols::McbpIpv6Plain:
         return prepare(connectionMap.getConnection(Protocol::Memcached,
                                                    false, AF_INET6));
-    case TransportProtocols::PlainIpv6Greenstack:
+    case TransportProtocols::GreenstackIpv6Plain:
         return prepare(connectionMap.getConnection(Protocol::Greenstack,
                                                    false, AF_INET6));
-    case TransportProtocols::SslMcbp:
+    case TransportProtocols::McbpSsl:
         return prepare(connectionMap.getConnection(Protocol::Memcached,
                                                    true, AF_INET));
-    case TransportProtocols::SslGreenstack:
+    case TransportProtocols::GreenstackSsl:
         return prepare(connectionMap.getConnection(Protocol::Greenstack,
                                                    true, AF_INET));
-    case TransportProtocols::SslIpv6Mcbp:
+    case TransportProtocols::McbpIpv6Ssl:
         return prepare(connectionMap.getConnection(Protocol::Memcached,
                                                    true, AF_INET6));
-    case TransportProtocols::SslIpv6Greenstack:
+    case TransportProtocols::GreenstackIpv6Ssl:
         return prepare(connectionMap.getConnection(Protocol::Greenstack,
                                                    true, AF_INET6));
     }

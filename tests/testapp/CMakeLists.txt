@@ -51,7 +51,7 @@ target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 ADD_TEST(NAME memcached-basic-unit-tests-bulk
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp
-                    --gtest_filter=*-PlainOrSSL/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*:*ConnectionTimeout*)
+                    --gtest_filter=*-Transport/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*:*ConnectionTimeout*)
 
 ADD_TEST(NAME memcached-basic-unit-tests-require-init
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -85,12 +85,12 @@ ADD_TEST(NAME memcached-stats-unit-tests
 # Run the unit tests for the memcached binary protocol over a plain socket
 ADD_TEST(NAME memcached-mcbp-unit-tests-plain
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/0:-*/BucketTest*:-*Greenstack*)
+        COMMAND memcached_testapp --gtest_filter=Transport/*/Plain:-*/BucketTest*:-*Greenstack*)
 
 # Run the unit tests for the memcached binary protocol over SSL
 ADD_TEST(NAME memcached-mcbp-unit-tests-ssl
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
-        COMMAND memcached_testapp --gtest_filter=PlainOrSSL/*/1:-*/BucketTest*:-*Greenstack*)
+        COMMAND memcached_testapp --gtest_filter=Transport/*/SSL:-*/BucketTest*:-*Greenstack*)
 
 # Run the shutdown tests
 ADD_TEST(NAME memcached-shutdown-tests

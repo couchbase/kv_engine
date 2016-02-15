@@ -21,7 +21,7 @@
 
 // Disabled while we're refactoring to bufferevents
 
-INSTANTIATE_TEST_CASE_P(PlainOrSSL,
+INSTANTIATE_TEST_CASE_P(Transport,
                         GreenstackTest,
                         ::testing::Values(Transport::Plain,
                                           Transport::PlainIpv6,
