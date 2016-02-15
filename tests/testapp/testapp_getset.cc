@@ -22,11 +22,12 @@
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         GetSetTest,
-                        ::testing::Values(TransportProtocols::PlainMcbp,
-                                          TransportProtocols::PlainIpv6Mcbp,
-                                          TransportProtocols::SslMcbp,
-                                          TransportProtocols::SslIpv6Mcbp
-                                         ));
+                        ::testing::Values(TransportProtocols::McbpPlain,
+                                          TransportProtocols::McbpIpv6Plain,
+                                          TransportProtocols::McbpSsl,
+                                          TransportProtocols::McbpIpv6Ssl
+                                         ),
+                        ::testing::PrintToStringParamName());
 
 TEST_P(GetSetTest, TestAdd) {
     MemcachedConnection& conn = getConnection();

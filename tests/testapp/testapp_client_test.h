@@ -21,14 +21,14 @@
 #include "testapp.h"
 
 enum class TransportProtocols {
-    PlainMcbp,
-    PlainGreenstack,
-    SslMcbp,
-    SslGreenstack,
-    PlainIpv6Mcbp,
-    PlainIpv6Greenstack,
-    SslIpv6Mcbp,
-    SslIpv6Greenstack
+    McbpPlain,
+    GreenstackPlain,
+    McbpSsl,
+    GreenstackSsl,
+    McbpIpv6Plain,
+    GreenstackIpv6Plain,
+    McbpIpv6Ssl,
+    GreenstackIpv6Ssl
 };
 
 std::ostream& operator << (std::ostream& os, const TransportProtocols& t);

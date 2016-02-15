@@ -18,11 +18,12 @@
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         SaslTest,
-                        ::testing::Values(TransportProtocols::PlainMcbp,
-                                          TransportProtocols::PlainIpv6Mcbp,
-                                          TransportProtocols::SslMcbp,
-                                          TransportProtocols::SslIpv6Mcbp
-                                         ));
+                        ::testing::Values(TransportProtocols::McbpPlain,
+                                          TransportProtocols::McbpIpv6Plain,
+                                          TransportProtocols::McbpSsl,
+                                          TransportProtocols::McbpIpv6Ssl
+                                         ),
+                        ::testing::PrintToStringParamName());
 
 static const std::string bucket1("bucket-1");
 static const std::string password1("1S|=,%#x1");
