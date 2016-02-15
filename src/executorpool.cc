@@ -177,11 +177,11 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
 }
 
 ExecutorPool::~ExecutorPool(void) {
+    _stopAndJoinThreads();
+
     delete [] curWorkers;
     delete[] maxWorkers;
     delete[] numReadyTasks;
-
-    _stopAndJoinThreads();
 
     if (isHiPrioQset) {
         for (size_t i = 0; i < numTaskSets; i++) {
