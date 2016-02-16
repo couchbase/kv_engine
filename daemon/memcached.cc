@@ -2639,19 +2639,31 @@ int main (int argc, char **argv) {
     LOG_NOTICE(nullptr, "Shutting down executor pool");
     delete executorPool.release();
 
+    LOG_NOTICE(NULL, "Releasing signal handlers");
     release_signal_handlers();
 
+    LOG_NOTICE(NULL, "Shutting down SASL server");
     cbsasl_server_term();
+
+    LOG_NOTICE(NULL, "Releasing connection objects");
     destroy_connections();
 
+    LOG_NOTICE(NULL, "Shutting down engine map");
     shutdown_engine_map();
+
+    LOG_NOTICE(NULL, "Removing breakpad");
     destroy_breakpad();
 
+    LOG_NOTICE(NULL, "Releasing callbacks");
     free_callbacks();
+
+    LOG_NOTICE(NULL, "Releasing settings");
     free_settings(&settings);
 
+    LOG_NOTICE(NULL, "Shutting down OpenSSL");
     shutdown_openssl();
 
+    LOG_NOTICE(NULL, "Shutting down libevent");
     event_base_free(main_base);
 
     LOG_NOTICE(NULL, "Shutdown complete.");
