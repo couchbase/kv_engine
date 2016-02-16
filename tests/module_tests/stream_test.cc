@@ -107,19 +107,18 @@ static void test_mb17766(const std::string& test_dbname) {
                                               /*notifyOnly*/false);
     ExTask task = new ActiveStreamCheckpointProcessorTask(*engine);
     stream_t stream = new MockActiveStream(engine, producer,
-                                           "test_mb17766", /*flags*/0,
+                                           producer->getName(),
+                                           /*flags*/0,
                                             /*opaque*/0, vbid,
                                             /*st_seqno*/0,
-                                            /*en_seqno*/0,
+                                            /*en_seqno*/~0,
                                             /*vb_uuid*/0xabcd,
                                             /*snap_start_seqno*/0,
-                                            /*snap_end_seqno*/0, task);
+                                            /*snap_end_seqno*/~0, task);
 
     RCPtr<VBucket> vb0 = engine->getVBucket(0);
     EXPECT_EQ(true, vb0, "Failed to get valid VBucket object for id 0");
-    EXPECT_EQ(false,
-              vb0->checkpointManager.registerCursor("test_mb17766"),
-              "Found an existing TAP cursor when attemping to register ours");
+    vb0->checkpointManager.registerCursor(producer->getName());
 
     // Should start with nextCheckpointItem() returning true.
     MockActiveStream* mock_stream = static_cast<MockActiveStream*>(stream.get());
