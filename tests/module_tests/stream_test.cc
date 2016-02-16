@@ -70,6 +70,8 @@ static void test_mb17766(const std::string& test_dbname) {
     EXPECT_EQ(ENGINE_SUCCESS,
               create_instance(1, get_mock_server_api, &handle),
               "Failed to created ep engine instance");
+    EXPECT_EQ(1, handle->interface, "Unexpected engine handle version");
+    ENGINE_HANDLE_V1* engine_v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
 
     // Init mock server
     init_mock_server(handle);
@@ -103,10 +105,8 @@ static void test_mb17766(const std::string& test_dbname) {
               engine->store(NULL, &item, &cas, OPERATION_SET, vbid),
               "Store failed");
 
-    const void *cookie = create_mock_cookie();
-
     // Create a DCP producer and register with checkpoint Manager.
-    dcp_producer_t producer = new DcpProducer(*engine, cookie,
+    dcp_producer_t producer = new DcpProducer(*engine, /*cookie*/nullptr,
                                               "test_mb_17766_producer",
                                               /*notifyOnly*/false);
     stream_t stream = new MockActiveStream(engine, producer,
@@ -148,16 +148,19 @@ static void test_mb17766(const std::string& test_dbname) {
               "nextCheckpointItem() after processing items should be false.");
 
     producer->clearCheckpointProcessorTaskQueues();
+    vb0.reset();
     stream.reset();
     producer.reset();
-    engine->destroy(false);
+    engine_v1->destroy(handle, /*force*/false);
     destroy_engine();
-    destroy_mock_cookie(cookie);
 }
+
+/* static storage for environment variable set by putenv(). */
+static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
-    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+    putenv(allow_no_stats_env);
 
     bool success = true;
     try {
