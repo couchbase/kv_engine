@@ -268,8 +268,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
                            const std::string &n, uint32_t flags,
                            uint32_t opaque, uint16_t vb, uint64_t st_seqno,
                            uint64_t en_seqno, uint64_t vb_uuid,
-                           uint64_t snap_start_seqno, uint64_t snap_end_seqno,
-                           ExTask task)
+                           uint64_t snap_start_seqno, uint64_t snap_end_seqno)
     :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
               snap_start_seqno, snap_end_seqno),
        lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
@@ -277,7 +276,7 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
        itemsFromBackfill(0), itemsFromMemory(0), firstMarkerSent(false),
        waitForSnapshot(0), engine(e), producer(p),
        isBackfillTaskRunning(false), lastSentSnapEndSeqno(0),
-       checkpointCreatorTask(task), chkptItemsExtractionInProgress(false) {
+       chkptItemsExtractionInProgress(false) {
 
     const char* type = "";
     if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
@@ -631,8 +630,7 @@ bool ActiveStream::nextCheckpointItem() {
     RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
     if (vbucket && vbucket->checkpointManager.getNumItemsForTAPConnection(name_) > 0) {
         // schedule this stream to build the next checkpoint
-        static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
-        ->schedule(this);
+        producer->scheduleCheckpointProcessorTask(this);
         return true;
     } else if (chkptItemsExtractionInProgress) {
         return true;
@@ -687,6 +685,14 @@ void ActiveStreamCheckpointProcessorTask::schedule(stream_t stream) {
     if (notified.compare_exchange_strong(expected, true)) {
         wakeup();
     }
+}
+
+void ActiveStreamCheckpointProcessorTask::clearQueues() {
+    LockHolder lh(workQueueLock);
+    while (!queue.empty()) {
+        queue.pop();
+    }
+    queuedVbuckets.clear();
 }
 
 void ActiveStream::nextCheckpointItemTask() {
