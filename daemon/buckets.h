@@ -277,6 +277,10 @@ public:
         return result;
     }
 
+    const std::string& getErrorMessage() const {
+        return error;
+    }
+
 protected:
     virtual void run() override;
 
@@ -292,6 +296,7 @@ private:
     Connection& connection;
     Task* task;
     ENGINE_ERROR_CODE result;
+    std::string error;
 };
 
 /**

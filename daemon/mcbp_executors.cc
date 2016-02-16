@@ -4210,17 +4210,12 @@ static void create_bucket_executor(McbpConnection* c, void* packet) {
 
             std::string errors;
             BucketType type = module_to_bucket_type(value.c_str());
-            if (BucketValidator::validateBucketName(name, errors) &&
-                BucketValidator::validateBucketType(type, errors)) {
-                std::shared_ptr<Task> task = std::make_shared<McbpCreateBucketTask>(
-                    name, config, type, *c);
-                std::lock_guard<std::mutex> guard(task->getMutex());
-                reinterpret_cast<McbpCreateBucketTask*>(task.get())->start();
-                ret = ENGINE_EWOULDBLOCK;
-                executorPool->schedule(task, false);
-            } else {
-                ret = ENGINE_EINVAL;
-            }
+            std::shared_ptr<Task> task = std::make_shared<McbpCreateBucketTask>(
+                name, config, type, *c);
+            std::lock_guard<std::mutex> guard(task->getMutex());
+            reinterpret_cast<McbpCreateBucketTask*>(task.get())->start();
+            ret = ENGINE_EWOULDBLOCK;
+            executorPool->schedule(task, false);
         } catch (const std::bad_alloc&) {
             ret = ENGINE_ENOMEM;
         }

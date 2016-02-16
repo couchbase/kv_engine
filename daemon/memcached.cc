@@ -1723,6 +1723,25 @@ static SERVER_HANDLE_V1 *get_server_api(void)
 
 /* BUCKET FUNCTIONS */
 void CreateBucketThread::create() {
+    LOG_NOTICE(&connection, "%u Create bucket [%s]",
+               connection.getId(), name.c_str());
+
+    if (!BucketValidator::validateBucketName(name, error)) {
+        LOG_WARNING(&connection,
+                    "%u Create bucket [%s] failed - Invalid bucket name",
+                    connection.getId(), name.c_str());
+        result = ENGINE_EINVAL;
+        return;
+    }
+
+    if (!BucketValidator::validateBucketType(type, error)) {
+        LOG_WARNING(&connection,
+                    "%u Create bucket [%s] failed - Invalid bucket type",
+                    connection.getId(), name.c_str());
+        result = ENGINE_EINVAL;
+        return;
+    }
+
     int ii;
     int first_free = -1;
     bool found = false;
@@ -1741,8 +1760,13 @@ void CreateBucketThread::create() {
 
     if (found) {
         result = ENGINE_KEY_EEXISTS;
+        LOG_WARNING(&connection, "%u Create bucket [%s] failed - Already exists",
+                   connection.getId(), name.c_str());
     } else if (first_free == -1) {
         result = ENGINE_E2BIG;
+        LOG_WARNING(&connection,
+                    "%u Create bucket [%s] failed - Too many buckets",
+                    connection.getId(), name.c_str());
     } else {
         result = ENGINE_SUCCESS;
         ii = first_free;
@@ -1758,7 +1782,9 @@ void CreateBucketThread::create() {
             all_buckets[ii].topkeys = new TopKeys(settings.topkeys_size);
         } catch (const std::bad_alloc &) {
             result = ENGINE_ENOMEM;
-        }
+            LOG_WARNING(&connection,
+                        "%u Create bucket [%s] failed - out of memory",
+                        connection.getId(), name.c_str());        }
         cb_mutex_exit(&all_buckets[ii].mutex);
     }
     cb_mutex_exit(&buckets_lock);
