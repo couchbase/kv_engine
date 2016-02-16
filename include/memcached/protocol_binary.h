@@ -171,9 +171,9 @@ extern "C"
          * for arithmetic ops (cannot be represented as an int64_t). */
         PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE = 0xc7,
 
-        /** [For arithmetic ops] The operation would result in a number
-         * outside the valid range (cannot be represented as an int64_t). */
-        PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE = 0xc8,
+        /** [For arithmetic ops] The delta supplied is invalid. It is either
+         * 0, not an integer, or out of the int64 range */
+        PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_EINVAL = 0xc8,
 
         /** [For mutations only] The requested operation requires the path to
          * not already exist, but it exists. */

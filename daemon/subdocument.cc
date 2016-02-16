@@ -606,20 +606,17 @@ subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
     case Subdoc::Error::NUM_E2BIG:
         return PROTOCOL_BINARY_RESPONSE_SUBDOC_NUM_ERANGE;
 
-    case Subdoc::Error::DELTA_E2BIG:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE;
+    case Subdoc::Error::DELTA_EINVAL:
+        return PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_EINVAL;
 
     case Subdoc::Error::VALUE_CANTINSERT:
         return PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT;
 
+    case Subdoc::Error::DELTA_OVERFLOW:
+        return PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT;
+
     case Subdoc::Error::VALUE_ETOODEEP:
         return PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_ETOODEEP;
-
-    case Subdoc::Error::VALUE_EBADNUMBER:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE;
-
-    case Subdoc::Error::VALUE_EZERODELTA:
-        return PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE;
 
     default:
         // TODO: handle remaining errors.

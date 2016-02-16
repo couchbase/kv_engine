@@ -1718,7 +1718,7 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
     // b). A further increment by one should fail.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                 "a", "key", "1"),
-                      PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE, "");
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT, "");
 
     delete_object("a");
 
@@ -1738,7 +1738,7 @@ TEST_P(McdTestappTest, SubdocCounter_Limits)
     // b). A further decrement by one should fail.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                 "b", "key", "-1"),
-                      PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE, "");
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_VALUE_CANTINSERT, "");
 
     delete_object("b");
 }
@@ -1752,7 +1752,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidIncr)
     for (auto& incr : NOT_INTEGER) {
         expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                     "a", "key", incr),
-                          PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE, "");
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_EINVAL, "");
         auto result = fetch_value("a");
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first)
             << " using increment '" << incr << "'";
@@ -1762,7 +1762,7 @@ TEST_P(McdTestappTest, SubdocCounter_InvalidIncr)
     // Cannot increment by zero.
     expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
                                 "a", "key", "0"),
-                      PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_ERANGE, "");
+                      PROTOCOL_BINARY_RESPONSE_SUBDOC_DELTA_EINVAL, "");
     auto result = fetch_value("a");
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, result.first);
     EXPECT_EQ(doc, result.second);
