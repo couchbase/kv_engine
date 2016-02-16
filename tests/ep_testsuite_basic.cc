@@ -1980,6 +1980,10 @@ static enum test_result test_set_delete_invalid_cas(ENGINE_HANDLE *h, ENGINE_HAN
 
     checkeq(ENGINE_KEY_EEXISTS, del(h, h1, "key", info.cas + 1, 0),
           "Didn't expect to be able to remove the item with wrong cas");
+
+    checkeq(ENGINE_SUCCESS, del(h, h1, "key", info.cas, 0),
+        "Subsequent delete with correct CAS did not succeed");
+
     return SUCCESS;
 }
 

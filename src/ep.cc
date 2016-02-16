@@ -2874,17 +2874,16 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     }
     mutation_type_t delrv;
     delrv = vb->ht.unlocked_softDelete(v, *cas, eviction_policy);
-    if (v) {
+    if (v && (delrv == NOT_FOUND || delrv == WAS_DIRTY || delrv == WAS_CLEAN)) {
         v->setCas(vb->nextHLCCas());
+        *cas = v->getCas();
+        if (itemMeta != nullptr) {
+            itemMeta->revSeqno = v->getRevSeqno();
+            itemMeta->cas = v->getCas();
+            itemMeta->flags = v->getFlags();
+            itemMeta->exptime = v->getExptime();
+        }
     }
-
-    if (itemMeta && v) {
-        itemMeta->revSeqno = v->getRevSeqno();
-        itemMeta->cas = v->getCas();
-        itemMeta->flags = v->getFlags();
-        itemMeta->exptime = v->getExptime();
-    }
-    *cas = v ? v->getCas() : 0;
 
     uint64_t seqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
