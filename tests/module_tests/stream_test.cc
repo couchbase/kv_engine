@@ -84,6 +84,10 @@ static void test_mb17766(const std::string& test_dbname) {
         usleep(10);
     }
 
+    // Set AuxIO threads to zero, so that the producer's
+    // ActiveStreamCheckpointProcesserTask doesn't run.
+    ExecutorPool::get()->setMaxAuxIO(0);
+
     // Add an item.
     std::string value("value");
     Item item("key", /*flags*/0, /*exp*/0, value.c_str(), value.size());
