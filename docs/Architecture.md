@@ -93,6 +93,13 @@ The Connection object is bound to a thread object, and never changes (Except
 for clients running TAP, which are moved over to the TAP thread after the
 initial packet).
 
+If the connection is idle for a configurable (through
+`connection_idle_time`) amount of time (5 minutes by default) it is
+automatically disconnected unless:
+
+* The connection authenticated as `_admin`
+* The connection is used for TAP or DCP
+
 ### Threads
 
 Memcached uses a number of threads engineered to service a large number of
