@@ -31,7 +31,9 @@ public:
     CouchstoreStats() :
         readSeekHisto(ExponentialGenerator<size_t>(1, 2), 50),
         readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
-        writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25) { }
+        writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
+        totalBytesRead(0),
+        totalBytesWritten(0) { }
 
     //Read time length
     Histogram<hrtime_t> readTimeHisto;
@@ -58,6 +60,8 @@ public:
         writeTimeHisto.reset();
         writeSizeHisto.reset();
         syncTimeHisto.reset();
+        totalBytesRead = 0;
+        totalBytesWritten = 0;
     }
 };
 
