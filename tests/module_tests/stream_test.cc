@@ -37,9 +37,9 @@ public:
                      const std::string &name, uint32_t flags, uint32_t opaque,
                      uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
                      uint64_t vb_uuid, uint64_t snap_start_seqno,
-                     uint64_t snap_end_seqno, ExTask task)
+                     uint64_t snap_end_seqno)
     : ActiveStream(e, p, name, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
-                   snap_start_seqno, snap_end_seqno, task) {}
+                   snap_start_seqno, snap_end_seqno) {}
 
     // Expose underlying protected ActiveStream methods as public
     void public_getOutstandingItems(RCPtr<VBucket> &vb,
@@ -90,6 +90,10 @@ static void test_mb17766(const std::string& test_dbname) {
         usleep(10);
     }
 
+    // Set AuxIO threads to zero, so that the producer's
+    // ActiveStreamCheckpointProcesserTask doesn't run.
+    ExecutorPool::get()->setMaxAuxIO(0);
+
     // Add an item.
     std::string value("value");
     Item item("key", 3, /*flags*/0, /*exp*/0, value.c_str(), value.size());
@@ -105,7 +109,6 @@ static void test_mb17766(const std::string& test_dbname) {
     dcp_producer_t producer = new DcpProducer(*engine, cookie,
                                               "test_mb_17766_producer",
                                               /*notifyOnly*/false);
-    ExTask task = new ActiveStreamCheckpointProcessorTask(*engine);
     stream_t stream = new MockActiveStream(engine, producer,
                                            producer->getName(),
                                            /*flags*/0,
@@ -114,7 +117,7 @@ static void test_mb17766(const std::string& test_dbname) {
                                             /*en_seqno*/~0,
                                             /*vb_uuid*/0xabcd,
                                             /*snap_start_seqno*/0,
-                                            /*snap_end_seqno*/~0, task);
+                                            /*snap_end_seqno*/~0);
 
     RCPtr<VBucket> vb0 = engine->getVBucket(0);
     EXPECT_EQ(true, vb0, "Failed to get valid VBucket object for id 0");
@@ -144,6 +147,7 @@ static void test_mb17766(const std::string& test_dbname) {
               mock_stream->public_nextCheckpointItem(),
               "nextCheckpointItem() after processing items should be false.");
 
+    producer->clearCheckpointProcessorTaskQueues();
     stream.reset();
     producer.reset();
     engine->destroy(false);

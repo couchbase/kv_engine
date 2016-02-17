@@ -202,6 +202,17 @@ public:
     */
     bool bufferLogInsert(size_t bytes);
 
+    /*
+        Schedules active stream checkpoint processor task
+        for given stream.
+    */
+    void scheduleCheckpointProcessorTask(stream_t s);
+
+    /*
+        Clears active stream checkpoint processor task's queue.
+    */
+    void clearCheckpointProcessorTaskQueues();
+
 private:
 
 
