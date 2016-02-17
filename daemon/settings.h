@@ -48,6 +48,7 @@ struct interface {
     bool ipv6;
     bool ipv4;
     bool tcp_nodelay;
+    bool management;
     Protocol protocol;
 };
 

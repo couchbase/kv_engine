@@ -615,6 +615,12 @@ static bool get_interface_ssl(int idx, cJSON *r, struct interface* iface,
     return true;
 }
 
+static bool get_interface_management(int idx, cJSON *r, struct interface* iface,
+                               char **error_msg) {
+    return get_bool_value(r, r->string, &iface->management, error_msg);
+}
+
+
 static bool handle_interface(int idx, cJSON *r, struct interface* iface_list,
                              char **error_msg) {
     /* set default values */
@@ -623,6 +629,7 @@ static bool handle_interface(int idx, cJSON *r, struct interface* iface_list,
     iface->ipv4 = true;
     iface->ipv6 = true;
     iface->tcp_nodelay = true;
+    iface->management = false;
 
     if (r->type == cJSON_Object) {
         struct {
@@ -637,6 +644,7 @@ static bool handle_interface(int idx, cJSON *r, struct interface* iface_list,
             { "ipv6", get_interface_ipv6 },
             { "tcp_nodelay", get_interface_tcp_nodelay },
             { "ssl", get_interface_ssl },
+            { "management", get_interface_management },
             { "protocol", get_interface_protocol },
             { NULL, NULL }
         };

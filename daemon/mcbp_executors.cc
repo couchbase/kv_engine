@@ -455,6 +455,8 @@ void process_stat_settings(ADD_STAT add_stat_callback, void* c) {
         snprintf(interface + offset, sizeof(interface) - offset,
                  "-tcp_nodelay");
         add_stat(c, add_stat_callback, interface, ifce.tcp_nodelay);
+        snprintf(interface + offset, sizeof(interface) - offset, "-management");
+        add_stat(c, add_stat_callback, interface, ifce.management);
 
         if (ifce.ssl.enabled) {
             snprintf(interface + offset, sizeof(interface) - offset,

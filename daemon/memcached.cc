@@ -1004,6 +1004,7 @@ static void add_listening_port(struct interface *interf, in_port_t port, sa_fami
         }
 
         newport.tcp_nodelay = interf->tcp_nodelay;
+        newport.management = interf->management;
         newport.protocol = interf->protocol;
 
         stats.listening_ports.push_back(newport);
@@ -1171,6 +1172,13 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
                                                     ntohs(my_sockaddr.in6.sin6_port));
                             listenport = ntohs(my_sockaddr.in6.sin6_port);
                         }
+
+                        if (interf->management) {
+                            cJSON_AddTrueToObject(obj, "management");
+                        } else {
+                            cJSON_AddFalseToObject(obj, "management");
+                        }
+
                         cJSON_AddItemToArray(portArray, obj);
                     } else {
                         if (next->ai_addr->sa_family == AF_INET) {

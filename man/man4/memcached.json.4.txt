@@ -136,6 +136,11 @@ object describing a single interface with the following properties:
     ssl           An object specifying SSL related properties.
                   See below.
 
+    management    A boolean value if this interface is used by the
+                  management system. If `init_complete` is set to
+                  true memcached will only enable management interfaces
+                  until it receives INIT_COMPLETE
+
     protocol      A string value specifying the protocol enabled
                   for this port. If not present the memcached binary
                   protocol is used. Legal values: "greenstack" or

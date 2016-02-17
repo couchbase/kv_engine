@@ -395,6 +395,36 @@ static void test_interfaces_7(struct test_ctx *ctx) {
     cb_assert(error_msg != NULL);
 }
 
+static void test_management_interface_1(struct test_ctx *ctx) {
+    /* detect a management tag set to true */
+    cJSON *iface = cJSON_GetArrayItem(cJSON_GetObjectItem(ctx->config,
+                                                          "interfaces"), 0);
+    cJSON_AddTrueToObject(iface, "management");
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg));
+    cb_assert(error_msg == NULL);
+    cb_assert(settings.interfaces[0].management);
+}
+
+static void test_management_interface_2(struct test_ctx *ctx) {
+    /* detect a management tag set to false */
+    cJSON *iface = cJSON_GetArrayItem(cJSON_GetObjectItem(ctx->config,
+                                                          "interfaces"), 0);
+    cJSON_AddFalseToObject(iface, "management");
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg));
+    cb_assert(error_msg == NULL);
+    cb_assert(!settings.interfaces[0].management);
+}
+
+static void test_management_interface_3(struct test_ctx *ctx) {
+    /* detect that a missing management tag means false */
+    cJSON *iface = cJSON_GetArrayItem(cJSON_GetObjectItem(ctx->config,
+                                                          "interfaces"), 0);
+    cb_assert(cJSON_GetObjectItem(iface, "management") == nullptr);
+    cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg));
+    cb_assert(error_msg == NULL);
+    cb_assert(!settings.interfaces[0].management);
+}
+
 static void test_interfaces_duplicate_port(struct test_ctx *ctx) {
     /* Can't have two different interfaces with the same port number. */
 
@@ -740,6 +770,9 @@ int main(void)
         { "interfaces_5", setup_interfaces, test_interfaces_5, teardown },
         { "interfaces_6", setup_interfaces, test_interfaces_6, teardown },
         { "interfaces_7", setup_interfaces, test_interfaces_7, teardown },
+        { "management_interface_true", setup_interfaces, test_management_interface_1, teardown },
+        { "management_interface_false", setup_interfaces, test_management_interface_2, teardown },
+        { "management_interface_missing", setup_interfaces, test_management_interface_3, teardown },
         { "interfaces_duplicate", setup_interfaces, test_interfaces_duplicate_port, teardown },
         { "root invalid path", setup_invalid_root, test_invalid_root, teardown_invalid_root },
         { "max_packet_size", setup_max_packet_size, test_max_packet_size, teardown_max_packet_size },
