@@ -87,7 +87,7 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
             "Failed to initiate stream request");
 
     if (flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-        end  = -1;
+        end  = std::numeric_limits<uint64_t>::max();
     } else if (flags & DCP_ADD_STREAM_FLAG_LATEST ||
                flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
         std::string high_seqno("vb_" + std::to_string(vbucket) + ":high_seqno");
@@ -132,10 +132,12 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 
     std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
-    if ((flags & DCP_ADD_STREAM_FLAG_TAKEOVER) == 0 &&
-        (flags & DCP_ADD_STREAM_FLAG_DISKONLY) == 0 &&
-        !skipEstimateCheck) {
-        int est = end - start;
+    if ((flags & DCP_ADD_STREAM_FLAG_TAKEOVER) && !skipEstimateCheck) {
+        std::string high_seqno_str("vb_" + std::to_string(vbucket) +
+                                   ":high_seqno");
+        uint64_t vb_high_seqno = get_ull_stat(h, h1, high_seqno_str.c_str(),
+                                              "vbucket-seqno");
+        uint64_t est = vb_high_seqno - start;
         std::stringstream stats_takeover;
         stats_takeover << "dcp-vbtakeover " << vbucket << " " << name;
         wait_for_stat_to_be_lte(h, h1, "estimate", est,
