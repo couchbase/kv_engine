@@ -332,13 +332,13 @@ extern "C" {
             }
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
-        } catch(std::invalid_argument& error) {
+        } catch(std::invalid_argument& ) {
             msg = "Argument was not numeric";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
 
         // Handles exceptions thrown by the standard library stoi/stoul
         // style functions when the conversion does not fit in the datatype
-        } catch(std::out_of_range& error) {
+        } catch(std::out_of_range& ) {
             msg = "Argument was out of range";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
 
@@ -393,13 +393,13 @@ extern "C" {
 
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
-        } catch(std::invalid_argument& error) {
+        } catch(std::invalid_argument& ) {
             msg = "Argument was not numeric";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
 
         // Handles exceptions thrown by the standard library stoi/stoul
         // style functions when the conversion does not fit in the datatype
-        } catch(std::out_of_range& error) {
+        } catch(std::out_of_range& ) {
             msg = "Argument was out of range";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
 
@@ -547,13 +547,13 @@ extern "C" {
 
         // Handles exceptions thrown by the standard
         // library stoi/stoul style functions when not numeric
-        } catch(std::invalid_argument& error) {
+        } catch(std::invalid_argument& ) {
             msg = "Argument was not numeric";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
 
         // Handles exceptions thrown by the standard library stoi/stoul
         // style functions when the conversion does not fit in the datatype
-        } catch(std::out_of_range& error) {
+        } catch(std::out_of_range& ) {
             msg = "Argument was out of range";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
 
