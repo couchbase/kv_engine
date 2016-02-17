@@ -266,8 +266,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         streams[vbucket] = new ActiveStream(&engine_, this, getName(), flags,
                                             opaque, vbucket, start_seqno,
                                             end_seqno, vbucket_uuid,
-                                            snap_start_seqno, snap_end_seqno,
-                                            checkpointCreatorTask);
+                                            snap_start_seqno, snap_end_seqno);
         static_cast<ActiveStream*>(streams[vbucket].get())->setActive();
     }
 
@@ -850,4 +849,14 @@ void DcpProducer::flush() {
 
 bool DcpProducer::bufferLogInsert(size_t bytes) {
     return log.insert(bytes);
+}
+
+void DcpProducer::scheduleCheckpointProcessorTask(stream_t s) {
+    static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
+        ->schedule(s);
+}
+
+void DcpProducer::clearCheckpointProcessorTaskQueues() {
+    static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
+        ->clearQueues();
 }

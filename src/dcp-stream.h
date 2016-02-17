@@ -180,7 +180,7 @@ public:
                  const std::string &name, uint32_t flags, uint32_t opaque,
                  uint16_t vb, uint64_t st_seqno, uint64_t en_seqno,
                  uint64_t vb_uuid, uint64_t snap_start_seqno,
-                 uint64_t snap_end_seqno, ExTask task);
+                 uint64_t snap_end_seqno);
 
     ~ActiveStream();
 
@@ -296,8 +296,6 @@ private:
     //! Last snapshot end seqno sent to the DCP client
     uint64_t lastSentSnapEndSeqno;
 
-    ExTask checkpointCreatorTask;
-
     /* Flag used by checkpointCreatorTask that is set before all items are
        extracted for given checkpoint cursor, and is unset after all retrieved
        items are added to the readyQ */
@@ -322,6 +320,7 @@ public:
     bool run();
     void schedule(stream_t stream);
     void wakeup();
+    void clearQueues();
 
 private:
 
