@@ -494,7 +494,7 @@ SET_TESTS_PROPERTIES(ep-engine_engine_tests PROPERTIES TIMEOUT 1800)
 
 # Engine tests: full eviction mode
 ADD_TEST(NAME ep-engine_full_eviction_tests
-         COMMAND ${_ep_testsuite_cmdline} -v -e "item_eviction_policy=full_eviction;dbname=./full_eviction_test")
+         COMMAND ${_ep_testsuite_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_test")
 SET_TESTS_PROPERTIES(ep-engine_full_eviction_tests PROPERTIES TIMEOUT 1800)
 
 # ============================================================================ #
@@ -508,7 +508,7 @@ ADD_TEST(NAME ep-engine_basic_tests
 SET_TESTS_PROPERTIES(ep-engine_basic_tests PROPERTIES TIMEOUT 600)
 
 ADD_TEST(NAME ep-engine_full_eviction_basic
-         COMMAND ${_ep_testsuite_basic_cmdline} -v -e "item_eviction_policy=full_eviction;dbname=./full_eviction_basic")
+         COMMAND ${_ep_testsuite_basic_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_basic")
 SET_TESTS_PROPERTIES(ep-engine_full_eviction_basic PROPERTIES TIMEOUT 600)
 
 # ============================================================================ #
@@ -523,7 +523,7 @@ SET_TESTS_PROPERTIES(ep-engine_dcp_tests PROPERTIES TIMEOUT 1200)
 
 # DCP engine tests: value-only eviction mode
 ADD_TEST(NAME ep-engine_full_eviction_dcp
-         COMMAND ${_ep_testsuite_dcp_cmdline} -v -e "item_eviction_policy=full_eviction;dbname=./full_eviction_dcp")
+         COMMAND ${_ep_testsuite_dcp_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_dcp")
 SET_TESTS_PROPERTIES(ep-engine_full_eviction_dcp PROPERTIES TIMEOUT 1200)
 
 # ============================================================================ #
@@ -549,7 +549,7 @@ ADD_CUSTOM_TARGET(test-full-eviction-perfsuite
                           ep_perfsuite
                   VERBATIM)
 ADD_TEST(NAME ep-engine_full_eviction_perfsuite
-         COMMAND ${_ep_perfsuite_cmdline} -e "item_eviction_policy=full_eviction;dbname=./full_eviction_perf")
+         COMMAND ${_ep_perfsuite_cmdline} -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_perf")
 # ============================================================================ #
 
 ENABLE_CODE_COVERAGE_REPORT()
