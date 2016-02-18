@@ -616,56 +616,64 @@ const char* DcpProducer::getType() const {
 }
 
 DcpResponse* DcpProducer::getNextItem() {
-    setPaused(false);
-    uint16_t vbucket = 0;
-    while (ready.popFront(vbucket)) {
-        if (log.pauseIfFull()) {
-            ready.pushUnique(vbucket);
-            return NULL;
-        }
+    do {
+        setPaused(false);
 
-        DcpResponse* op = NULL;
-        {
-            ReaderLockHolder rlh(streamsMutex);
-            std::map<uint16_t, stream_t>::iterator it = streams.find(vbucket);
-            if (it == streams.end()) {
+        uint16_t vbucket = 0;
+        while (ready.popFront(vbucket)) {
+            if (log.pauseIfFull()) {
+                ready.pushUnique(vbucket);
+                return NULL;
+            }
+
+            DcpResponse* op = NULL;
+            {
+                ReaderLockHolder rlh(streamsMutex);
+                std::map<uint16_t, stream_t>::iterator it = streams.find(vbucket);
+                if (it == streams.end()) {
+                    continue;
+                }
+                op = it->second->next();
+            }
+
+            if (!op) {
+                // stream is empty, try another vbucket.
                 continue;
             }
-            op = it->second->next();
+
+            switch (op->getEvent()) {
+                case DCP_SNAPSHOT_MARKER:
+                case DCP_MUTATION:
+                case DCP_DELETION:
+                case DCP_EXPIRATION:
+                case DCP_STREAM_END:
+                case DCP_SET_VBUCKET:
+                    break;
+                default:
+                    LOG(EXTENSION_LOG_WARNING, "%s Producer is attempting to write"
+                        " an unexpected event %d", logHeader(), op->getEvent());
+                    abort();
+            }
+
+            ready.pushUnique(vbucket);
+
+            if (op->getEvent() == DCP_MUTATION || op->getEvent() == DCP_DELETION ||
+                op->getEvent() == DCP_EXPIRATION) {
+                itemsSent++;
+            }
+
+            totalBytesSent.fetch_add(op->getMessageSize());
+
+            return op;
         }
 
-        if (!op) {
-            // stream is empty, try another vbucket.
-            continue;
-        }
+        // flag we are paused
+        setPaused(true);
 
-        switch (op->getEvent()) {
-            case DCP_SNAPSHOT_MARKER:
-            case DCP_MUTATION:
-            case DCP_DELETION:
-            case DCP_EXPIRATION:
-            case DCP_STREAM_END:
-            case DCP_SET_VBUCKET:
-                break;
-            default:
-                LOG(EXTENSION_LOG_WARNING, "%s Producer is attempting to write"
-                    " an unexpected event %d", logHeader(), op->getEvent());
-                abort();
-        }
-
-        ready.pushUnique(vbucket);
-
-        if (op->getEvent() == DCP_MUTATION || op->getEvent() == DCP_DELETION ||
-            op->getEvent() == DCP_EXPIRATION) {
-            itemsSent++;
-        }
-
-        totalBytesSent.fetch_add(op->getMessageSize());
-
-        return op;
-    }
-
-    setPaused(true);
+        // re-check the ready queue.
+        // A new vbucket could of became ready and the notifier could of seen
+        // paused = false, so reloop so we don't miss an operation.
+    } while(!ready.empty());
 
     return NULL;
 }

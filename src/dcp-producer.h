@@ -254,15 +254,9 @@ private:
             return false;
         }
 
-        /**
-         * Move the front item to the back of the queue
-         */
-        void moveFrontToback() {
+        bool empty() {
             LockHolder lh(lock);
-            if (readyQueue.size() > 1) {
-                readyQueue.push(readyQueue.front());
-                readyQueue.pop();
-            }
+            return readyQueue.empty();
         }
 
     private:
