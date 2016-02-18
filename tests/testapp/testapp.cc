@@ -29,6 +29,7 @@
 #include <platform/platform.h>
 #include <fstream>
 #include <platform/dirutils.h>
+#include <platform/backtrace.h>
 #include "memcached/openssl.h"
 #include "programs/utilities.h"
 #include "utilities/protocol2text.h"
@@ -937,6 +938,7 @@ void safe_send(const void* buf, size_t len, bool hickup)
         if (nw == -1) {
             if (errno != EINTR) {
                 fprintf(stderr, "Failed to write: %s\n", phase_get_errno());
+                print_backtrace_to_file(stderr);
                 abort();
             }
         } else {
