@@ -53,9 +53,13 @@ static void conn_destructor(Connection *c);
 static Connection *allocate_connection(SOCKET sfd,
                                        event_base *base,
                                        const struct listening_port &interface);
-static Connection* allocate_listen_connection(SOCKET sfd,
-                                              event_base* base,
-                                              in_port_t port);
+
+static ListenConnection* allocate_listen_connection(SOCKET sfd,
+                                                    event_base* base,
+                                                    in_port_t port,
+                                                    sa_family_t family,
+                                                    const struct interface& interf);
+
 static Connection *allocate_pipe_connection(int fd, event_base *base);
 static void release_connection(Connection *c);
 
@@ -146,10 +150,12 @@ void run_event_loop(Connection* c, short which) {
     }
 }
 
-Connection* conn_new_server(const SOCKET sfd,
-                            in_port_t parent_port,
-                            struct event_base* base) {
-    Connection* c = allocate_listen_connection(sfd, base, parent_port);
+ListenConnection* conn_new_server(const SOCKET sfd,
+                                  in_port_t parent_port,
+                                  sa_family_t family,
+                                  const struct interface& interf,
+                                  struct event_base* base) {
+    auto* c = allocate_listen_connection(sfd, base, parent_port, family, interf);
     if (c == nullptr) {
         return nullptr;
     }
@@ -440,13 +446,15 @@ static Connection *allocate_connection(SOCKET sfd,
     }
 }
 
-static Connection *allocate_listen_connection(SOCKET sfd,
-                                              event_base *base,
-                                              in_port_t port) {
-    Connection *ret = nullptr;
+static ListenConnection* allocate_listen_connection(SOCKET sfd,
+                                                    event_base* base,
+                                                    in_port_t port,
+                                                    sa_family_t family,
+                                                    const struct interface& interf) {
+    ListenConnection *ret = nullptr;
 
     try {
-        ret = new ListenConnection(sfd, base, port);
+        ret = new ListenConnection(sfd, base, port, family, interf);
         std::lock_guard<std::mutex> lock(connections.mutex);
         connections.conns.push_back(ret);
         stats.conn_structs++;

@@ -328,6 +328,7 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON_AddNumberToObject(obj, "backlog", BACKLOG);
     cJSON_AddStringToObject(obj, "host", "*");
     cJSON_AddStringToObject(obj, "protocol", "memcached");
+    cJSON_AddTrueToObject(obj, "management");
     cJSON_AddItemToArray(array, obj);
 
     // One interface using the memcached binary protocol over SSL
@@ -403,7 +404,7 @@ int write_config_to_file(const char* config, const char *fname) {
  * @return the decoded cJSON representation
  * @throw a string if something goes wrong
  */
-static cJSON* loadJsonFile(const std::string &file) {
+unique_cJSON_ptr loadJsonFile(const std::string &file) {
     std::ifstream myfile(file, std::ios::in | std::ios::binary);
     if (!myfile.is_open()) {
         std::string msg("Failed to open file: ");
@@ -415,14 +416,14 @@ static cJSON* loadJsonFile(const std::string &file) {
                     std::istreambuf_iterator<char>());
 
     myfile.close();
-    cJSON *obj = cJSON_Parse(str.c_str());
-    if (obj == nullptr) {
+    unique_cJSON_ptr ret(cJSON_Parse(str.c_str()));
+    if (ret.get() == nullptr) {
         std::string msg("Failed to parse file: ");
         msg.append(file);
         throw msg;
     }
 
-    return obj;
+    return ret;
 }
 
 /**
@@ -451,7 +452,7 @@ void TestappTest::start_server(in_port_t* port_out,
              "MEMCACHED_PORT_FILENAME=memcached_ports.%lu.%lu",
              (long)getpid(), (unsigned long)time(NULL));
     remove(filename);
-
+    portnumber_file.assign(filename);
     static char topkeys_env[] = "MEMCACHED_TOP_KEYS=10";
     putenv(topkeys_env);
 
@@ -554,12 +555,12 @@ void TestappTest::start_server(in_port_t* port_out,
     *port_out = (in_port_t)-1;
     *ssl_port_out = (in_port_t)-1;
 
-    cJSON* portnumbers;
+    unique_cJSON_ptr portnumbers;
     ASSERT_NO_THROW(portnumbers = loadJsonFile(filename));
     ASSERT_NE(nullptr, portnumbers);
-    ASSERT_NO_THROW(connectionMap.initialize(portnumbers));
+    ASSERT_NO_THROW(connectionMap.initialize(portnumbers.get()));
 
-    cJSON* array = cJSON_GetObjectItem(portnumbers, "ports");
+    cJSON* array = cJSON_GetObjectItem(portnumbers.get(), "ports");
     ASSERT_NE(nullptr, array) << "ports not found in portnumber file";
 
     auto numEntries = cJSON_GetArraySize(array);
@@ -590,7 +591,6 @@ void TestappTest::start_server(in_port_t* port_out,
         }
         *out_port = static_cast<in_port_t>(port->valueint);
     }
-    cJSON_Delete(portnumbers);
     EXPECT_EQ(0, remove(filename));
 }
 
@@ -4335,6 +4335,7 @@ void McdEnvironment::TearDown() {
 
 char McdEnvironment::isasl_env_var[256];
 unique_cJSON_ptr TestappTest::memcached_cfg;
+std::string TestappTest::portnumber_file;
 std::string TestappTest::config_file;
 ConnectionMap TestappTest::connectionMap;
 uint64_t TestappTest::token;

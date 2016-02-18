@@ -3966,6 +3966,7 @@ static void init_complete_executor(McbpConnection* c, void* packet) {
         set_server_initialized(true);
         session_cas.decrement_session_counter();
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        perform_callbacks(ON_INIT_COMPLETE, nullptr, nullptr);
     } else {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
     }

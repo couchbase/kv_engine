@@ -22,10 +22,21 @@
 #include <exception>
 #include <utilities/protocol2text.h>
 #include <platform/strerror.h>
+#include <string>
+#include <memory>
 
-ListenConnection::ListenConnection(SOCKET sfd, event_base* b, in_port_t port)
+ListenConnection::ListenConnection(SOCKET sfd,
+                                   event_base* b,
+                                   in_port_t port,
+                                   sa_family_t fam,
+                                   const interface& interf)
     : Connection(sfd, b),
       registered_in_libevent(false),
+      family(fam),
+      backlog(interf.backlog),
+      ssl(interf.ssl.cert != nullptr),
+      management(interf.management),
+      protocol(interf.protocol),
       ev(event_new(b, sfd, EV_READ | EV_PERSIST, listen_event_handler,
                    reinterpret_cast<void*>(this))) {
 
@@ -53,6 +64,14 @@ const Protocol ListenConnection::getProtocol() const {
 
 void ListenConnection::enable() {
     if (!registered_in_libevent) {
+        if (management || is_server_initialized()) {
+            LOG_NOTICE(this, "%u Listen on %s", getId(), getSockname().c_str());
+            if (listen(getSocketDescriptor(), backlog) == SOCKET_ERROR) {
+                LOG_WARNING(this, "%u: Failed to listen on %s: %s",
+                            getId(), getSockname().c_str(), strerror(errno));
+            }
+        }
+
         if (event_add(ev.get(), NULL) == -1) {
             log_system_error(EXTENSION_LOG_WARNING,
                              NULL,
@@ -65,6 +84,18 @@ void ListenConnection::enable() {
 
 void ListenConnection::disable() {
     if (registered_in_libevent) {
+        if (getSocketDescriptor() != INVALID_SOCKET) {
+            /*
+             * Try to reduce the backlog length so that clients
+             * may get ECONNREFUSED instead of blocking. Note that the
+             * backlog parameter is a hint, so the actual value being
+             * used may be higher than what we try to set it.
+             */
+            if (listen(getSocketDescriptor(), 1) == SOCKET_ERROR) {
+                LOG_WARNING(this, "%u: Failed to set backlog to 1 on %s: %s",
+                            getId(), getSockname().c_str(), strerror(errno));
+            }
+        }
         if (event_del(ev.get()) == -1) {
             log_system_error(EXTENSION_LOG_WARNING,
                              NULL,
@@ -85,4 +116,31 @@ void ListenConnection::runEventLoop(short) {
                     "%d: exception occurred while accepting clients: %s",
                     getId(), e.what());
     }
+}
+
+unique_cJSON_ptr ListenConnection::getDetails() {
+    unique_cJSON_ptr ret(cJSON_CreateObject());
+    cJSON* obj = ret.get();
+
+    if (ssl) {
+        cJSON_AddTrueToObject(obj, "ssl");
+    } else {
+        cJSON_AddFalseToObject(obj, "ssl");
+    }
+
+    cJSON_AddStringToObject(obj, "protocol", to_string(protocol));
+    if (family == AF_INET) {
+        cJSON_AddStringToObject(obj, "family", "AF_INET");
+    } else {
+        cJSON_AddStringToObject(obj, "family", "AF_INET6");
+    }
+
+    cJSON_AddNumberToObject(obj, "port", parent_port);
+    if (management) {
+        cJSON_AddTrueToObject(obj, "management");
+    } else {
+        cJSON_AddFalseToObject(obj, "management");
+    }
+
+    return ret;
 }

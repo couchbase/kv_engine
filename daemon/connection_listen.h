@@ -18,6 +18,7 @@
 
 #include "connection.h"
 
+#include <cJSON_utils.h>
 #include <memory>
 
 /**
@@ -31,7 +32,11 @@ class ListenConnection : public Connection {
 public:
     ListenConnection() = delete;
 
-    ListenConnection(SOCKET sfd, event_base* b, in_port_t port);
+    ListenConnection(SOCKET sfd,
+                     event_base* b,
+                     in_port_t port,
+                     sa_family_t fam,
+                     const struct interface &interf);
 
     virtual ~ListenConnection();
 
@@ -45,8 +50,23 @@ public:
 
     virtual void runEventLoop(short) override;
 
+    bool isManagement() const {
+        return management;
+    }
+
+    /**
+     * Get the details for this connection to put in the portnumber
+     * file so that the test framework may pick up the port numbers
+     */
+    unique_cJSON_ptr getDetails();
+
 protected:
     bool registered_in_libevent;
+    const sa_family_t family;
+    const int backlog;
+    const bool ssl;
+    const bool management;
+    const Protocol protocol;
 
     struct EventDeleter {
         void operator()(struct event* ev) {

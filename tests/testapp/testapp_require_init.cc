@@ -120,6 +120,17 @@ TEST_F(RequireInitTest, NotYetInitialized) {
     noop(false);
 }
 
+TEST_F(RequireInitTest, UserPortsNotPresent) {
+    // The SSL port is not marked as a management port
+    EXPECT_THROW(connectionMap.getConnection(Protocol::Memcached, true,
+                                             AF_INET),
+                 std::runtime_error);
+
+    EXPECT_THROW(connectionMap.getConnection(Protocol::Memcached, true,
+                                             AF_INET6),
+                 std::runtime_error);
+}
+
 TEST_F(RequireInitTest, InitializeNotAuthorized) {
     auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
 
@@ -132,7 +143,7 @@ TEST_F(RequireInitTest, InitializeNotAuthorized) {
     EXPECT_EQ(uint8_t(PROTOCOL_BINARY_RES), frame.payload.at(0));
 
     auto* packet = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
-    // This may lookg wrong to you, but until we're properly initialized
+    // This may look wrong to you, but until we're properly initialized
     // the error sent back to the client is that we're not initialized
     mcbp_validate_response_header(packet, PROTOCOL_BINARY_CMD_INIT_COMPLETE,
                                   PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
@@ -181,6 +192,27 @@ TEST_F(RequireInitTest, InitializeSuccess) {
 
     mcbp_validate_response_header(packet, PROTOCOL_BINARY_CMD_INIT_COMPLETE,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    // We should get a new output file..
+    FILE* fp;
+    time_t start = time(NULL);
+
+    while ((fp = fopen(portnumber_file.c_str(), "r")) == nullptr) {
+        usleep(50);
+        ASSERT_GE(start + 5, time(NULL)); // give up after 5 secs
+    }
+
+    fclose(fp);
+    unique_cJSON_ptr portnumbers;
+    ASSERT_NO_THROW(portnumbers = loadJsonFile(portnumber_file));
+    connectionMap.initialize(portnumbers.get());
+    // And now we should have the SSL connection available
+    EXPECT_NO_THROW(connectionMap.getConnection(Protocol::Memcached, true,
+                                             AF_INET));
+
+
+    EXPECT_EQ(0, remove(portnumber_file.c_str()));
+
     // noop should work :D
     noop(true);
 }

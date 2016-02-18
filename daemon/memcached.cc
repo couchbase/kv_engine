@@ -68,6 +68,7 @@
 #include <engines/default_engine.h>
 #include <vector>
 #include <algorithm>
+#include <cJSON_utils.h>
 
 // MB-14649: log crashing on windows..
 #include <math.h>
@@ -94,6 +95,9 @@ const char* getBucketName(const Connection* c) {
 
 std::atomic<bool> memcached_shutdown;
 std::atomic<bool> service_online;
+// Should we enable to common ports (all of the ports which arn't tagged as
+// management ports)
+static std::atomic<bool> enable_common_ports;
 
 std::unique_ptr<ExecutorPool> executorPool;
 
@@ -103,11 +107,11 @@ std::mutex stats_mutex;
 /*
  * forward declarations
  */
-static SOCKET new_socket(struct addrinfo *ai);
 static void register_callback(ENGINE_HANDLE *eh,
                               ENGINE_EVENT_TYPE type,
                               EVENT_CALLBACK cb, const void *cb_data);
 static SERVER_HANDLE_V1 *get_server_api(void);
+static void create_listen_sockets(bool management);
 
 /* stats */
 static void stats_init(void);
@@ -287,6 +291,15 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
         }
         break;
     }
+
+    case ON_INIT_COMPLETE:
+        if ((data != nullptr) || (cookie != nullptr)) {
+            throw std::invalid_argument("perform_callbacks: data and cookie"
+                                            " should be nullptr");
+        }
+        enable_common_ports.store(true, std::memory_order_release);
+        notify_dispatcher();
+        break;
 
     default:
         throw std::invalid_argument("perform_callbacks: type "
@@ -514,13 +527,6 @@ static void disable_listen(void) {
             continue;
         }
         connection->disable();
-
-        // Set the backlog on the socket to 1, so that people trying to
-        // connect will be rejected.
-        if (listen(connection->getSocketDescriptor(), 1) != 0) {
-            log_socket_error(EXTENSION_LOG_WARNING, NULL,
-                             "listen() failed: %s");
-        }
     }
 }
 
@@ -876,6 +882,12 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
     char buffer[80];
     ssize_t nr = recv(fd, buffer, sizeof(buffer), 0);
 
+    if (enable_common_ports.load()) {
+        enable_common_ports.store(false);
+        create_listen_sockets(false);
+        LOG_NOTICE(NULL, "Initialization complete. Accepting clients.");
+    }
+
     if (nr != -1 && is_listen_disabled()) {
         bool enable = false;
         {
@@ -896,20 +908,7 @@ static void dispatch_event_handler(evutil_socket_t fd, short, void *) {
                     continue;
                 }
 
-                int backlog = 1024;
-                int ii;
                 connection->enable();
-                auto parent_port = next->getParentPort();
-                for (ii = 0; ii < settings.num_interfaces; ++ii) {
-                    if (parent_port == settings.interfaces[ii].port) {
-                        backlog = settings.interfaces[ii].backlog;
-                        break;
-                    }
-                }
-
-                if (listen(next->getSocketDescriptor(), backlog) != 0) {
-                    LOG_WARNING(NULL, "listen() failed", strerror(errno));
-                }
             }
         }
     }
@@ -962,7 +961,7 @@ static void maximize_sndbuf(const SOCKET sfd) {
     }
 }
 
-static SOCKET new_socket(struct addrinfo *ai) {
+static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
     SOCKET sfd;
 
     sfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
@@ -976,6 +975,51 @@ static SOCKET new_socket(struct addrinfo *ai) {
     }
 
     maximize_sndbuf(sfd);
+
+    const struct linger ling = {0, 0};
+    const int flags = 1;
+    int error;
+
+#if defined(WIN32)
+    const char* ling_ptr = reinterpret_cast<const char*>(&ling);
+    const char* flags_ptr = reinterpret_cast<const char*>(&flags);
+#else
+    const void* ling_ptr = reinterpret_cast<const char*>(&ling);
+    const void* flags_ptr = reinterpret_cast<const void*>(&flags);
+#endif
+
+#ifdef IPV6_V6ONLY
+    if (ai->ai_family == AF_INET6) {
+        error = setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, flags_ptr,
+                           sizeof(flags));
+        if (error != 0) {
+            LOG_WARNING(NULL, "setsockopt(IPV6_V6ONLY): %s",
+                        strerror(errno));
+            safe_close(sfd);
+            return INVALID_SOCKET;
+        }
+    }
+#endif
+
+    setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, flags_ptr, sizeof(flags));
+    error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, flags_ptr,
+                       sizeof(flags));
+    if (error != 0) {
+        LOG_WARNING(NULL, "setsockopt(SO_KEEPALIVE): %s", strerror(errno));
+    }
+
+    error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, ling_ptr, sizeof(ling));
+    if (error != 0) {
+        LOG_WARNING(NULL, "setsockopt(SO_LINGER): %s", strerror(errno));
+    }
+
+    if (tcp_nodelay) {
+        error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, flags_ptr,
+                           sizeof(flags));
+        if (error != 0) {
+            LOG_WARNING(NULL, "setsockopt(TCP_NODELAY): %s", strerror(errno));
+        }
+    }
 
     return sfd;
 }
@@ -1041,15 +1085,11 @@ static void add_listening_port(struct interface *interf, in_port_t port, sa_fami
  * Create a socket and bind it to a specific port number
  * @param interface the interface to bind to
  * @param port the port number to bind to
- * @param portArray pointer a cJSON array to store all port numbers.
  */
-static int server_socket(struct interface *interf, cJSON* portArray) {
+static int server_socket(struct interface *interf) {
     SOCKET sfd;
-    struct addrinfo *ai;
-    struct addrinfo *next;
     struct addrinfo hints;
     char port_buf[NI_MAXSERV];
-    int error;
     int success = 0;
     const char *host = NULL;
 
@@ -1073,7 +1113,9 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
             host = interf->host;
         }
     }
-    error = getaddrinfo(host, port_buf, &hints, &ai);
+
+    struct addrinfo *ai;
+    int error = getaddrinfo(host, port_buf, &hints, &ai);
     if (error != 0) {
 #ifdef WIN32
         log_errcode_error(EXTENSION_LOG_WARNING, NULL,
@@ -1088,133 +1130,53 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
         return 1;
     }
 
-    for (next= ai; next; next= next->ai_next) {
-        const struct linger ling = {0, 0};
-        const int flags = 1;
-
-#if defined(WIN32)
-        const char* ling_ptr = reinterpret_cast<const char*>(&ling);
-        const char* flags_ptr = reinterpret_cast<const char*>(&flags);
-#else
-        const void* ling_ptr = reinterpret_cast<const char*>(&ling);
-        const void* flags_ptr = reinterpret_cast<const void*>(&flags);
-#endif
-
-        Connection *listen_conn_add;
-        if ((sfd = new_socket(next)) == INVALID_SOCKET) {
+    for (struct addrinfo* next = ai; next; next = next->ai_next) {
+        if ((sfd = new_server_socket(next, interf->tcp_nodelay)) == INVALID_SOCKET) {
             /* getaddrinfo can return "junk" addresses,
              * we make sure at least one works before erroring.
              */
             continue;
         }
 
-#ifdef IPV6_V6ONLY
-        if (next->ai_family == AF_INET6) {
-            error = setsockopt(sfd, IPPROTO_IPV6, IPV6_V6ONLY, flags_ptr,
-                               sizeof(flags));
-            if (error != 0) {
-                LOG_WARNING(NULL, "setsockopt(IPV6_V6ONLY): %s",
-                            strerror(errno));
-                safe_close(sfd);
-                continue;
-            }
-        }
-#endif
-
-        setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, flags_ptr, sizeof(flags));
-        error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, flags_ptr,
-                           sizeof(flags));
-        if (error != 0) {
-            LOG_WARNING(NULL, "setsockopt(SO_KEEPALIVE): %s", strerror(errno));
-        }
-
-        error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, ling_ptr, sizeof(ling));
-        if (error != 0) {
-            LOG_WARNING(NULL, "setsockopt(SO_LINGER): %s", strerror(errno));
-        }
-
-        if (interf->tcp_nodelay) {
-            error = setsockopt(sfd, IPPROTO_TCP,
-                               TCP_NODELAY, flags_ptr, sizeof(flags));
-            if (error != 0) {
-                LOG_WARNING(NULL, "setsockopt(TCP_NODELAY): %s",
-                            strerror(errno));
-            }
-        }
-
         in_port_t listenport = 0;
         if (bind(sfd, next->ai_addr, (socklen_t)next->ai_addrlen) == SOCKET_ERROR) {
             error = GetLastNetworkError();
             if (!is_addrinuse(error)) {
-                log_errcode_error(EXTENSION_LOG_WARNING, NULL,
-                                  "bind(): %s", error);
+                log_errcode_error(EXTENSION_LOG_WARNING, nullptr,
+                                  "Failed to bind to address: %s", error);
                 safe_close(sfd);
                 freeaddrinfo(ai);
                 return 1;
             }
             safe_close(sfd);
             continue;
-        } else {
-            success++;
-            if (listen(sfd, interf->backlog) == SOCKET_ERROR) {
-                LOG_WARNING(NULL, "listen(): %s", strerror(errno));
-                safe_close(sfd);
-                freeaddrinfo(ai);
-                return 1;
-            }
+        }
 
-            if (next->ai_addr->sa_family == AF_INET ||
-                 next->ai_addr->sa_family == AF_INET6) {
-                union {
-                    struct sockaddr_in in;
-                    struct sockaddr_in6 in6;
-                } my_sockaddr;
-                socklen_t len = sizeof(my_sockaddr);
-                if (getsockname(sfd, (struct sockaddr*)&my_sockaddr, &len)==0) {
-                    if (portArray) {
-                        cJSON *obj = cJSON_CreateObject();
-                        if (interf->ssl.cert != nullptr && interf->ssl.key != nullptr) {
-                            cJSON_AddTrueToObject(obj, "ssl");
-                        } else {
-                            cJSON_AddFalseToObject(obj, "ssl");
-                        }
-                        cJSON_AddStringToObject(obj, "protocol",
-                                                to_string(interf->protocol));
-                        if (next->ai_addr->sa_family == AF_INET) {
-                            cJSON_AddStringToObject(obj, "family", "AF_INET");
-                            cJSON_AddNumberToObject(obj, "port",
-                                                    ntohs(my_sockaddr.in.sin_port));
-                            listenport = ntohs(my_sockaddr.in.sin_port);
-                        } else {
-                            cJSON_AddStringToObject(obj, "family", "AF_INET6");
-                            cJSON_AddNumberToObject(obj, "port",
-                                                    ntohs(my_sockaddr.in6.sin6_port));
-                            listenport = ntohs(my_sockaddr.in6.sin6_port);
-                        }
-
-                        if (interf->management) {
-                            cJSON_AddTrueToObject(obj, "management");
-                        } else {
-                            cJSON_AddFalseToObject(obj, "management");
-                        }
-
-                        cJSON_AddItemToArray(portArray, obj);
-                    } else {
-                        if (next->ai_addr->sa_family == AF_INET) {
-                            listenport = ntohs(my_sockaddr.in.sin_port);
-                        } else {
-                            listenport = ntohs(my_sockaddr.in6.sin6_port);
-                        }
-                    }
+        success++;
+        if (next->ai_addr->sa_family == AF_INET ||
+             next->ai_addr->sa_family == AF_INET6) {
+            union {
+                struct sockaddr_in in;
+                struct sockaddr_in6 in6;
+            } my_sockaddr;
+            socklen_t len = sizeof(my_sockaddr);
+            if (getsockname(sfd, (struct sockaddr*)&my_sockaddr, &len)==0) {
+                if (next->ai_addr->sa_family == AF_INET) {
+                    listenport = ntohs(my_sockaddr.in.sin_port);
+                } else {
+                    listenport = ntohs(my_sockaddr.in6.sin6_port);
                 }
             }
         }
 
-        if (!(listen_conn_add = conn_new_server(sfd, listenport, main_base))) {
+        auto* lconn = conn_new_server(sfd, listenport, next->ai_addr->sa_family,
+                                      *interf, main_base);
+        if (lconn == nullptr) {
             FATAL_ERROR(EXIT_FAILURE, "Failed to create listening connection");
         }
-        listen_conn_add->setNext(listen_conn);
-        listen_conn = listen_conn_add;
+
+        lconn->setNext(listen_conn);
+        listen_conn = lconn;
 
         stats.daemon_conns++;
         stats.curr_conns.fetch_add(1, std::memory_order_relaxed);
@@ -1227,24 +1189,21 @@ static int server_socket(struct interface *interf, cJSON* portArray) {
     return success == 0;
 }
 
-static int server_sockets(FILE *portnumber_file) {
-    cJSON *array = nullptr;
-    if (portnumber_file != nullptr) {
-        array = cJSON_CreateArray();
-    }
-
+static int server_sockets(bool management) {
     int ret = 0;
-    for (int ii = 0; ii < settings.num_interfaces; ++ii) {
-        ret |= server_socket(settings.interfaces + ii, array);
+
+    if (management) {
+        LOG_NOTICE(nullptr, "Enable management port(s)");
+    } else {
+        LOG_NOTICE(nullptr, "Enable user port(s)");
     }
 
-    if (portnumber_file != nullptr) {
-        cJSON* root = cJSON_CreateObject();
-        cJSON_AddItemToObject(root, "ports", array);
-        char* ptr = cJSON_Print(root);
-        fprintf(portnumber_file, "%s\n", ptr);
-        cJSON_Free(ptr);
-        cJSON_Delete(root);
+    for (int ii = 0; ii < settings.num_interfaces; ++ii) {
+        if (management && settings.interfaces[ii].management) {
+            ret |= server_socket(settings.interfaces + ii);
+        } else if (!management && !settings.interfaces[ii].management) {
+            ret |= server_socket(settings.interfaces + ii);
+        }
     }
 
     if (settings.stdin_listen) {
@@ -1252,6 +1211,58 @@ static int server_sockets(FILE *portnumber_file) {
     }
 
     return ret;
+}
+
+static void create_listen_sockets(bool management) {
+    if (server_sockets(management)) {
+        FATAL_ERROR(EX_OSERR, "Failed to create listening socket");
+    }
+
+    if (management && !settings.require_init) {
+        // the client is not expecting us to update the port set at
+        // later time, so enable all ports immediately
+        if (server_sockets(false)) {
+            FATAL_ERROR(EX_OSERR, "Failed to create listening socket");
+        }
+    }
+
+    const char* portnumber_filename = getenv("MEMCACHED_PORT_FILENAME");
+    if (portnumber_filename != nullptr) {
+        std::string temp_portnumber_filename;
+        temp_portnumber_filename.assign(portnumber_filename);
+        temp_portnumber_filename.append(".lck");
+
+        FILE* portnumber_file = nullptr;
+        portnumber_file = fopen(temp_portnumber_filename.c_str(), "a");
+        if (portnumber_file == nullptr) {
+            FATAL_ERROR(EX_OSERR, "Failed to open \"%s\": %s",
+                        temp_portnumber_filename.c_str(), strerror(errno));
+        }
+
+        unique_cJSON_ptr array(cJSON_CreateArray());
+
+        for (auto* c = listen_conn; c!= nullptr; c = c->getNext()) {
+            auto* lc = dynamic_cast<ListenConnection*>(c);
+            if (lc == nullptr) {
+                throw std::logic_error("server_sockets: listen_conn contains"
+                                           " illegal objects: " +
+                                       to_string(c->toJSON(), false));
+            }
+            cJSON_AddItemToArray(array.get(), lc->getDetails().release());
+        }
+
+        unique_cJSON_ptr root(cJSON_CreateObject());
+        cJSON_AddItemToObject(root.get(), "ports", array.release());
+        fprintf(portnumber_file, "%s\n", to_string(root, true).c_str());
+        fclose(portnumber_file);
+        LOG_NOTICE(nullptr, "Port numbers available in %s",
+                   portnumber_filename);
+        if (rename(temp_portnumber_filename.c_str(), portnumber_filename) == -1) {
+            FATAL_ERROR(EX_OSERR, "Failed to rename \"%s\" to \"%s\": %s",
+                        temp_portnumber_filename.c_str(), portnumber_filename,
+                        strerror(errno));
+        }
+    }
 }
 
 #ifdef WIN32
@@ -2585,31 +2596,7 @@ int main (int argc, char **argv) {
     mc_time_init(main_base);
 
     /* create the listening socket, bind it, and init */
-    {
-        const char *portnumber_filename = getenv("MEMCACHED_PORT_FILENAME");
-        std::string temp_portnumber_filename;
-        FILE *portnumber_file = nullptr;
-
-        if (portnumber_filename != nullptr) {
-            temp_portnumber_filename.assign(portnumber_filename);
-            temp_portnumber_filename.append(".lck");
-
-            portnumber_file = fopen(temp_portnumber_filename.c_str(), "a");
-            if (portnumber_file == nullptr) {
-                FATAL_ERROR(EX_OSERR, "Failed to open \"%s\": %s",
-                            temp_portnumber_filename.c_str(), strerror(errno));
-            }
-        }
-
-        if (server_sockets(portnumber_file)) {
-            FATAL_ERROR(EX_OSERR, "Failed to create listening socket");
-        }
-
-        if (portnumber_file) {
-            fclose(portnumber_file);
-            rename(temp_portnumber_filename.c_str(), portnumber_filename);
-        }
-    }
+    create_listen_sockets(true);
 
     /* Drop privileges no longer needed */
     drop_privileges();
@@ -2619,7 +2606,12 @@ int main (int argc, char **argv) {
 
     if (!memcached_shutdown) {
         /* enter the event loop */
-        LOG_NOTICE(NULL, "Initialization complete. Accepting clients.");
+        if (settings.require_init) {
+            LOG_NOTICE(nullptr,
+                       "Accepting management clients to initialize buckets");
+        } else {
+            LOG_NOTICE(nullptr, "Initialization complete. Accepting clients.");
+        }
         service_online = true;
         event_base_loop(main_base, 0);
         service_online = false;

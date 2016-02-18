@@ -116,7 +116,7 @@ protected:
 
     // JSON configuration (as JSON object) memcached was configured with.
     static unique_cJSON_ptr memcached_cfg;
-
+    static std::string portnumber_file;
     static std::string config_file;
 
     static ConnectionMap connectionMap;
@@ -230,3 +230,5 @@ stats_response_t request_stats();
  */
 uint64_t extract_single_stat(const stats_response_t& stats,
                                       const char* name);
+
+unique_cJSON_ptr loadJsonFile(const std::string &file);

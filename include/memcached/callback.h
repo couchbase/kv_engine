@@ -15,10 +15,11 @@ extern "C" {
     typedef enum {
         ON_DISCONNECT = 0, /**< A connection was terminated. */
         ON_LOG_LEVEL = 1, /**< Changed log level */
-        ON_DELETE_BUCKET = 2 /**< Deletion of the bucket is initiated */
+        ON_DELETE_BUCKET = 2, /**< Deletion of the bucket is initiated */
+        ON_INIT_COMPLETE = 3, // < Server received init complete (internal only)
     } ENGINE_EVENT_TYPE;
 
-    #define MAX_ENGINE_EVENT_TYPE 3
+    #define MAX_ENGINE_EVENT_TYPE 4
 
     /**
      * Callback for server events.

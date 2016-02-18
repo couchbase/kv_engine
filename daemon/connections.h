@@ -82,10 +82,15 @@ Connection* conn_new(const SOCKET sfd,
  *
  * @param sfd the socket descriptor
  * @param parent_port the port number
+ * @param family the address family used for the port
+ * @param interf the interface description
  * @param base the event base to use for the socket
  */
-Connection* conn_new_server(const SOCKET sfd, in_port_t parent_port,
-                            struct event_base* base);
+ListenConnection* conn_new_server(const SOCKET sfd,
+                                  in_port_t parent_port,
+                                  sa_family_t family,
+                                  const struct interface& interf,
+                                  struct event_base* base);
 
 /*
  * Creates a new connection to a pipe, e.g. stdin.
