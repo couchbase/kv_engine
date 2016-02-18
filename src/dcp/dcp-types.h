@@ -116,6 +116,11 @@ public:
         return readyQueue.size();
     }
 
+    bool empty() {
+        LockHolder lh(lock);
+        return readyQueue.empty();
+    }
+
 private:
     Mutex lock;
 
