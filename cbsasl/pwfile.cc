@@ -18,6 +18,7 @@
 #include "password_database.h"
 #include "cbsasl_internal.h"
 #include "user.h"
+#include "pwconv.h"
 
 #include <cstring>
 #include <iterator>
@@ -78,38 +79,28 @@ bool find_user(const std::string& username, Couchbase::User& user) {
     return !user.isDummy();
 }
 
-cbsasl_error_t parse_user_db(const std::string content, bool file) {
+cbsasl_error_t parse_user_db(const std::string content) {
     try {
         using namespace Couchbase;
         auto start = gethrtime();
         std::unique_ptr<PasswordDatabase> db(
-            new PasswordDatabase(content, file));
+            new PasswordDatabase(content, true));
 
-        if (file) {
-            std::string logmessage(
-                "Loading [" + content + "] took " +
-                Couchbase::hrtime2text(gethrtime() - start));
+        std::string logmessage(
+            "Loading [" + content + "] took " +
+            Couchbase::hrtime2text(gethrtime() - start));
             cbsasl_log(nullptr, cbsasl_loglevel_t::Debug, logmessage);
-        }
         pwmgr.swap(db);
     } catch (std::exception& e) {
         std::string message("Failed loading [");
-        if (file) {
-            message.append(content);
-        } else {
-            message.append("generated json");
-        }
+        message.append(content);
         message.append("]: ");
         message.append(e.what());
         cbsasl_log(nullptr, cbsasl_loglevel_t::Error, message);
         return CBSASL_FAIL;
     } catch (...) {
         std::string message("Failed loading [");
-        if (file) {
-            message.append(content);
-        } else {
-            message.append("generated json");
-        }
+        message.append(content);
         message.append("]: Unknown error");
         cbsasl_log(nullptr, cbsasl_loglevel_t::Error, message);
     }
@@ -132,75 +123,19 @@ static cbsasl_error_t load_isasl_user_db(void) {
         return CBSASL_OK;
     }
 
-    FILE* sfile = fopen(filename, "r");
-    if (sfile == nullptr) {
-        std::string logmessage(
-            "Failed to open [" + std::string(filename) + "]: " + cb_strerror());
-        cbsasl_log(nullptr, cbsasl_loglevel_t::Error, logmessage);
+    std::string ofile(filename);
+    ofile.append(".pwconv");
+    try {
+        cbsasl_pwconv(filename, ofile);
+    } catch (std::runtime_error &e) {
+        cbsasl_log(nullptr, cbsasl_loglevel_t::Error, e.what());
         return CBSASL_FAIL;
     }
 
-    unique_cJSON_ptr root(cJSON_CreateObject());
-    if (root.get() == nullptr) {
-        throw std::bad_alloc();
-    }
-    auto* users = cJSON_CreateArray();
-    if (users == nullptr) {
-        throw std::bad_alloc();
-    }
-    cJSON_AddItemToObject(root.get(), "users", users);
+    auto ret = parse_user_db(ofile);
+    remove(ofile.c_str());
 
-    /* File has lines that are newline terminated.
-     * File may have comment lines that must being with '#'.
-     * Lines should look like...
-     *   <NAME><whitespace><PASSWORD><whitespace><CONFIG><optional_whitespace>
-     */
-    char up[128];
-    while (fgets(up, sizeof(up), sfile)) {
-        if (up[0] != '#') {
-            using std::istream_iterator;
-            using std::vector;
-            using std::string;
-
-            std::istringstream iss(up);
-            vector<string> tokens{istream_iterator<string>{iss},
-                                  istream_iterator<string>{}};
-
-            if (tokens.empty()) {
-                // empty line
-                continue;
-            }
-            std::string passwd;
-            if (tokens.size() > 1) {
-                passwd = tokens[1];
-            }
-
-            if (cbsasl_get_loglevel(nullptr) ==
-                cbsasl_loglevel_t::Password) {
-                std::string logmessage(
-                    "Adding user " + tokens[0] + " [" + passwd + "]");
-                cbsasl_log(nullptr, cbsasl_loglevel_t::Password,
-                           logmessage);
-            } else {
-                std::string logmessage("Adding user " + tokens[0]);
-                cbsasl_log(nullptr, cbsasl_loglevel_t::Debug, logmessage);
-            }
-
-            Couchbase::User u(Couchbase::User(tokens[0], passwd));
-            cJSON_AddItemToArray(users, u.to_json().release());
-        }
-    }
-
-    fclose(sfile);
-
-    char *ptr = cJSON_PrintUnformatted(root.get());
-    if (ptr == nullptr) {
-        throw std::bad_alloc();
-    }
-    std::string content(ptr);
-    cJSON_Free(ptr);
-
-    return parse_user_db(content, false);
+    return ret;
 }
 
 cbsasl_error_t load_user_db(void) {
@@ -208,7 +143,7 @@ cbsasl_error_t load_user_db(void) {
         const char* filename = getenv("CBSASL_PWFILE");
 
         if (filename) {
-            return parse_user_db(filename, true);
+            return parse_user_db(filename);
         }
 
         return load_isasl_user_db();
