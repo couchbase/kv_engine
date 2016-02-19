@@ -46,7 +46,8 @@ public:
           time_sync_enabled(false),
           exp_conflict_res(0),
           skip_estimate_check(false),
-          live_frontend_client(false)
+          live_frontend_client(false),
+          skip_verification(false)
     {
         seqno = {0, static_cast<uint64_t>(~0)};
         snapshot = {0, static_cast<uint64_t>(~0)};
@@ -71,6 +72,12 @@ public:
        the number of snapshot markers received is difficult.
     */
     bool live_frontend_client;
+    /*
+       skip_verification to be set to true if verification of mutation count,
+       deletion count, marker count etc. is to be skipped at the end of
+       streaming.
+     */
+    bool skip_verification;
 
 };
 
@@ -462,66 +469,68 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     total_bytes += all_bytes;
 
     for (const auto& ctx : stream_ctxs) {
-        auto &stats = vb_stats[ctx.vbucket];
-        if (simulate_cursor_dropping) {
-            if (stats.num_snapshot_markers == 0) {
-                cb_assert(stats.num_mutations == 0 &&
-                          stats.num_deletions == 0);
-            } else {
-                check(stats.num_mutations <= ctx.exp_mutations,
-                      "Invalid number of mutations");
-                check(stats.num_deletions <= ctx.exp_deletions,
-                      "Invalid number of deletes");
-            }
-        } else {
-            // Account for cursors that may have been dropped because
-            // of high memory usage
-            if (get_int_stat(h, h1, "ep_cursors_dropped") > 0) {
-                // Hard to predict exact number of markers to be received
-                // if in case of a live parallel front end load
-                if (!ctx.live_frontend_client) {
-                    check(stats.num_snapshot_markers <= ctx.exp_markers,
-                          "Invalid number of markers");
+        if (!ctx.skip_verification) {
+            auto &stats = vb_stats[ctx.vbucket];
+            if (simulate_cursor_dropping) {
+                if (stats.num_snapshot_markers == 0) {
+                    cb_assert(stats.num_mutations == 0 &&
+                              stats.num_deletions == 0);
+                } else {
+                    check(stats.num_mutations <= ctx.exp_mutations,
+                          "Invalid number of mutations");
+                    check(stats.num_deletions <= ctx.exp_deletions,
+                          "Invalid number of deletes");
                 }
-                check(stats.num_mutations <= ctx.exp_mutations,
-                      "Invalid number of mutations");
-                check(stats.num_deletions <= ctx.exp_deletions,
-                      "Invalid number of deletions");
             } else {
-                checkeq(ctx.exp_mutations, stats.num_mutations,
-                        "Invalid number of mutations");
-                checkeq(ctx.exp_deletions, stats.num_deletions,
-                        "Invalid number of deletes");
-                if (ctx.live_frontend_client) {
+                // Account for cursors that may have been dropped because
+                // of high memory usage
+                if (get_int_stat(h, h1, "ep_cursors_dropped") > 0) {
                     // Hard to predict exact number of markers to be received
                     // if in case of a live parallel front end load
-                    if (ctx.exp_mutations > 0 || ctx.exp_deletions > 0) {
-                        check(stats.num_snapshot_markers >= 1,
-                              "Snapshot marker count can't be zero");
+                    if (!ctx.live_frontend_client) {
+                        check(stats.num_snapshot_markers <= ctx.exp_markers,
+                              "Invalid number of markers");
                     }
+                    check(stats.num_mutations <= ctx.exp_mutations,
+                          "Invalid number of mutations");
+                    check(stats.num_deletions <= ctx.exp_deletions,
+                          "Invalid number of deletions");
                 } else {
-                    checkeq(ctx.exp_markers, stats.num_snapshot_markers,
-                            "Unexpected number of snapshot markers");
+                    checkeq(ctx.exp_mutations, stats.num_mutations,
+                            "Invalid number of mutations");
+                    checkeq(ctx.exp_deletions, stats.num_deletions,
+                            "Invalid number of deletes");
+                    if (ctx.live_frontend_client) {
+                        // Hard to predict exact number of markers to be received
+                        // if in case of a live parallel front end load
+                        if (ctx.exp_mutations > 0 || ctx.exp_deletions > 0) {
+                            check(stats.num_snapshot_markers >= 1,
+                                  "Snapshot marker count can't be zero");
+                        }
+                    } else {
+                        checkeq(ctx.exp_markers, stats.num_snapshot_markers,
+                                "Unexpected number of snapshot markers");
+                    }
                 }
             }
-        }
 
-        if (ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-            checkeq(static_cast<size_t>(1), stats.num_set_vbucket_pending,
-                    "Didn't receive pending set state");
-            checkeq(static_cast<size_t>(1), stats.num_set_vbucket_active,
-                    "Didn't receive active set state");
-        }
+            if (ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+                checkeq(static_cast<size_t>(1), stats.num_set_vbucket_pending,
+                        "Didn't receive pending set state");
+                checkeq(static_cast<size_t>(1), stats.num_set_vbucket_active,
+                        "Didn't receive active set state");
+            }
 
-        /* Check if the readyQ size goes to zero after all items are streamed */
-        if (exp_all_items_streamed) {
-            std::stringstream stats_ready_queue_memory;
-            stats_ready_queue_memory << "eq_dcpq:" << name.c_str()
-                                     << ":stream_" << ctx.vbucket
-                                     << "_ready_queue_memory";
-            checkeq(static_cast<uint64_t>(0),
-                    get_ull_stat(h, h1, stats_ready_queue_memory.str().c_str(), "dcp"),
-                    "readyQ size did not go to zero");
+            /* Check if the readyQ size goes to zero after all items are streamed */
+            if (exp_all_items_streamed) {
+                std::stringstream stats_ready_queue_memory;
+                stats_ready_queue_memory << "eq_dcpq:" << name.c_str()
+                                         << ":stream_" << ctx.vbucket
+                                         << "_ready_queue_memory";
+                checkeq(static_cast<uint64_t>(0),
+                        get_ull_stat(h, h1, stats_ready_queue_memory.str().c_str(), "dcp"),
+                        "readyQ size did not go to zero");
+            }
         }
     }
 
@@ -644,6 +653,14 @@ struct writer_thread_ctx {
     uint16_t vbid;
 };
 
+struct continuous_dcp_ctx {
+    ENGINE_HANDLE *h;
+    ENGINE_HANDLE_V1 *h1;
+    const void *cookie;
+    uint16_t vbid;
+    const std::string &name;
+};
+
 //Forward declaration required for dcp_thread_func
 static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                         const void* cookie, uint32_t opaque,
@@ -734,6 +751,22 @@ extern "C" {
                     "Failed to store value");
             wtc->h1->release(wtc->h, nullptr, itm);
         }
+    }
+
+    static void continuous_dcp_thread(void *args) {
+        struct continuous_dcp_ctx *cdc = static_cast<continuous_dcp_ctx *>(args);
+
+        DcpStreamCtx ctx;
+        ctx.vbucket = cdc->vbid;
+        std::string vbuuid_entry("vb_" + std::to_string(cdc->vbid) + ":0:id");
+        ctx.vb_uuid = get_ull_stat(cdc->h, cdc->h1,
+                                   vbuuid_entry.c_str(), "failovers");
+        ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
+        ctx.skip_verification = true;
+
+        TestDcpConsumer tdc(cdc->name, cdc->cookie);
+        tdc.addStreamCtx(ctx);
+        tdc.run(cdc->h, cdc->h1);
     }
 }
 
@@ -4708,6 +4741,46 @@ static enum test_result test_dcp_multiple_streams(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1) {
+
+    const void *cookie = testHarness.create_cookie();
+
+    // Set up a DcpTestConsumer that would remain in in-memory mode
+    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, "unittest"};
+    cb_thread_t dcp_thread;
+    cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0) == 0);
+
+    // Wait for producer to be created
+    wait_for_stat_to_be(h, h1, "ep_dcp_producer_count", 1, "dcp");
+
+    // Write a mutation
+    item *i;
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, nullptr, OPERATION_SET, "key", "value", &i),
+            "Failed to store a value");
+    h1->release(h, NULL, i);
+
+    // Wait for producer to stream that item
+    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:items_sent", 1, "dcp");
+
+    // Change vbucket state to pending
+    check(set_vbucket_state(h, h1, 0, vbucket_state_pending),
+          "Failed set vbucket state on 1");
+
+    // Expect DcpTestConsumer to close
+    cb_assert(cb_join_thread(dcp_thread) == 0);
+
+    // Expect dcp_last_flags to carry END_STREAM_STATE as reason
+    // for stream closure
+    checkeq(static_cast<uint32_t>(2),
+            dcp_last_flags, "Last DCP flag not END_STREAM_STATE");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 
 // Test manifest //////////////////////////////////////////////////////////////
 
@@ -4907,6 +4980,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test MB-17517 CAS -1 TAP", test_mb17517_cas_minus_1_tap,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test dcp multiple streams", test_dcp_multiple_streams,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test dcp on vbucket state change",
+                 test_dcp_on_vbucket_state_change,
                  test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
