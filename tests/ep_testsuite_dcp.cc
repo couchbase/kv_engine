@@ -33,6 +33,11 @@ struct SeqnoRange {
 };
 
 class DcpStreamCtx {
+/**
+ * This class represents all attributes required for
+ * a stream. Objects of this class type are to be fed
+ * to TestDcpConsumer.
+ */
 public:
     DcpStreamCtx()
         : vbucket(0),
@@ -53,18 +58,31 @@ public:
         snapshot = {0, static_cast<uint64_t>(~0)};
     }
 
+    /* Vbucket Id */
     uint16_t vbucket;
+    /* Stream flags */
     uint32_t flags;
+    /* Vbucket UUID */
     uint64_t vb_uuid;
+    /* Sequence number range */
     SeqnoRange seqno;
+    /* Snapshot range */
     SeqnoRange snapshot;
+    /* Number of mutations expected (for verification) */
     size_t exp_mutations;
+    /* Number of deletions expected (for verification) */
     size_t exp_deletions;
+    /* Number of snapshot markers expected (for verification) */
     size_t exp_markers;
+    /* Extra front end mutations as part of takeover */
     size_t extra_takeover_ops;
+    /* Flag - expect disk snapshot or not */
     bool exp_disk_snapshot;
+    /* Flag - indicating time sync status */
     bool time_sync_enabled;
+    /* Expected conflict resolution flag */
     uint8_t exp_conflict_res;
+    /* Skip estimate check during takeover */
     bool skip_estimate_check;
     /*
        live_frontend_client to be set to true when streaming is done in parallel
@@ -82,6 +100,11 @@ public:
 };
 
 class TestDcpConsumer {
+/**
+ * This class represents a DcpConsumer which is responsible
+ * for spawning a DcpProducer at the server and receiving
+ * messages from it.
+ */
 public:
     TestDcpConsumer(const std::string &_name, const void *_cookie)
         : name(_name),
@@ -114,12 +137,19 @@ public:
     void run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 
 private:
+    /* Connection name */
     const std::string name;
+    /* Connection cookie */
     const void *cookie;
+    /* Vector containing information of streams */
     std::vector<DcpStreamCtx> stream_ctxs;
+    /* Total bytes received */
     uint64_t total_bytes;
+    /* Flag to simulate cursor dropping */
     bool simulate_cursor_dropping;
+    /* Flow control buffer size */
     uint64_t flow_control_buf_size;
+    /* Flag to disable acking */
     bool disable_ack;
 };
 
