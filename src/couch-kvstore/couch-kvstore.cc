@@ -2140,7 +2140,9 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     std::list<VBucketBGFetchItem *> &fetches = bg_itm_ctx.bgfetched_list;
     std::list<VBucketBGFetchItem *>::iterator itr = fetches.begin();
 
+    bool return_val_ownership_transferred = false;
     for (itr = fetches.begin(); itr != fetches.end(); ++itr) {
+        return_val_ownership_transferred = true;
         // populate return value for remaining fetch items with the
         // same seqid
         (*itr)->value = returnVal;
@@ -2150,6 +2152,13 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
                                  returnVal.getValue()->getNBytes());
         }
     }
+    if (!return_val_ownership_transferred) {
+        LOG(EXTENSION_LOG_WARNING, "CouchKVStore::getMultiCb called with zero"
+            "items in bgfetched_list, vBucket=%d key=%s",
+            cbCtx->vbId, keyStr.c_str());
+        delete returnVal.getValue();
+    }
+
     return 0;
 }
 
