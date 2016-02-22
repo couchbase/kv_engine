@@ -117,6 +117,9 @@ int main(void) {
 
     putenv(allow_no_stats_env);
 
+    // Set number of hashtable locks equal to current JSON config default.
+    HashTable::setDefaultNumLocks(47);
+
     /* Create and populate a vbucket */
     EPStats stats;
     CheckpointConfig config;

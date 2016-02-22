@@ -342,6 +342,7 @@ ADD_TEST(ep-engine_priority_test ep-engine_priority_test)
 ADD_TEST(ep-engine_ringbuffer_test ep-engine_ringbuffer_test)
 ADD_TEST(ep-engine_kvstore_test ep-engine_kvstore_test)
 ADD_TEST(ep-engine_stream_test ep-engine_stream_test)
+ADD_TEST(ep-engine_defragmenter_test ep-engine_defragmenter_test)
 
 ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
