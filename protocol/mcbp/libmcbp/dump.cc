@@ -64,16 +64,20 @@ protected:
     void dumpKey(const uint8_t* location, uint16_t nbytes,
                  std::ostream& out) const {
         if (nbytes != 0) {
+            const ptrdiff_t first = location - root;
+            const ptrdiff_t last = first + nbytes - 1;
+            out << "    Key          (" << first << "-" << last << "): ";
+
             std::string str((const char*)location, nbytes);
 
             for (const auto&c : str) {
                 if (!isprint(c)) {
-                    out << "    Key                 : " << nbytes
+                    out << nbytes
                         << " bytes of binary data" << std::endl;
                     return;
                 }
             }
-            out << "    Key                 : The textual string \"" << str
+            out << "The textual string \"" << str
                 << "\"" << std::endl;
         }
     }
@@ -184,12 +188,12 @@ protected:
         out << "    Field        (offset) (value)" << std::endl;
         out << "    Magic        (0)    : 0x" << (uint32_t(request.bytes[0]) & 0xff) << std::endl;
         out << "    Opcode       (1)    : 0x" << std::setw(2) << (uint32_t(request.bytes[1]) & 0xff) << std::endl;
-        out << "    Key length   (2,3)  : 0x" << std::setw(4) << (ntohs(request.request.keylen) & 0xffff) << std::endl;;
+        out << "    Key length   (2,3)  : 0x" << std::setw(4) << (ntohs(request.request.keylen) & 0xffff) << std::endl;
         out << "    Extra length (4)    : 0x" << std::setw(2) << (uint32_t(request.bytes[4]) & 0xff) << std::endl;
         out << "    Data type    (5)    : 0x" << std::setw(2) << (uint32_t(request.bytes[5]) & 0xff) << std::endl;
-        out << "    Vbucket      (6,7)  : 0x" << std::setw(4) << (ntohs(request.request.vbucket) & 0xffff) << std::endl;;
-        out << "    Total body   (8-11) : 0x" << std::setw(8) << (uint64_t(ntohl(request.request.bodylen)) & 0xffff) << std::endl;;
-        out << "    Opaque       (12-15): 0x" << std::setw(8) << ntohl(request.request.opaque) << std::endl;;
+        out << "    Vbucket      (6,7)  : 0x" << std::setw(4) << (ntohs(request.request.vbucket) & 0xffff) << std::endl;
+        out << "    Total body   (8-11) : 0x" << std::setw(8) << (uint64_t(ntohl(request.request.bodylen)) & 0xffff) << std::endl;
+        out << "    Opaque       (12-15): 0x" << std::setw(8) << ntohl(request.request.opaque) << std::endl;
         out << "    CAS          (16-23): 0x" << std::setw(16) << ntohll(request.request.cas) << std::endl;
         out << std::setfill(' ');
         out.flags(std::ios::dec);
@@ -212,8 +216,53 @@ protected:
 
     }
 
-
     const protocol_binary_request_header& request;
+};
+
+class HelloRequest : public Request {
+public:
+    HelloRequest(const protocol_binary_request_header& req)
+        : Request(req) {
+
+    }
+
+protected:
+    virtual void dumpExtras(std::ostream& out) const override {
+        if (request.request.extlen != 0) {
+            throw std::logic_error(
+                "HelloRequest::dumpExtras(): extlen must be 0");
+        }
+    }
+
+    virtual void dumpValue(std::ostream& out) const override {
+        uint32_t bodylen = ntohl(request.request.bodylen);
+        uint16_t keylen = ntohs(request.request.keylen);
+        bodylen -= keylen;
+
+        if ((bodylen % 2) != 0) {
+            throw std::logic_error(
+                "HelloRequest::dumpValue(): bodylen must be in words");
+        }
+
+        if (bodylen == 0) {
+            return;
+        }
+        uint32_t first = sizeof(request.bytes) + keylen;
+        out << "    Body                :" << std::endl;
+
+        uint32_t total = bodylen / 2;
+        uint32_t offset = sizeof(request.bytes) + keylen;
+        for (uint32_t ii = 0; ii < total; ++ii) {
+            uint16_t feature;
+            memcpy(&feature, request.bytes + offset, 2);
+            offset += 2;
+            feature = ntohs(feature);
+            const char *txt = protocol_feature_2_text(feature);
+            out << "                 (" << first << "-"
+                << first + 1 <<"): " << txt << std::endl;
+            first += 2;
+        }
+    }
 };
 
 class Response : public Frame {
@@ -251,12 +300,12 @@ protected:
         out << "    Field        (offset) (value)" << std::endl;
         out << "    Magic        (0)    : 0x" << (uint32_t(response.bytes[0]) & 0xff) << std::endl;
         out << "    Opcode       (1)    : 0x" << std::setw(2) << (uint32_t(response.bytes[1]) & 0xff) << std::endl;
-        out << "    Key length   (2,3)  : 0x" << std::setw(4) << (ntohs(response.response.keylen) & 0xffff) << std::endl;;
+        out << "    Key length   (2,3)  : 0x" << std::setw(4) << (ntohs(response.response.keylen) & 0xffff) << std::endl;
         out << "    Extra length (4)    : 0x" << std::setw(2) << (uint32_t(response.bytes[4]) & 0xff) << std::endl;
         out << "    Data type    (5)    : 0x" << std::setw(2) << (uint32_t(response.bytes[5]) & 0xff) << std::endl;
-        out << "    Status       (6,7)  : 0x" << std::setw(4) << (ntohs(response.response.status) & 0xffff) << std::endl;;
-        out << "    Total body   (8-11) : 0x" << std::setw(8) << (uint64_t(ntohl(response.response.bodylen)) & 0xffff) << std::endl;;
-        out << "    Opaque       (12-15): 0x" << std::setw(8) << response.response.opaque << std::endl;;
+        out << "    Status       (6,7)  : 0x" << std::setw(4) << (ntohs(response.response.status) & 0xffff) << std::endl;
+        out << "    Total body   (8-11) : 0x" << std::setw(8) << (uint64_t(ntohl(response.response.bodylen)) & 0xffff) << std::endl;
+        out << "    Opaque       (12-15): 0x" << std::setw(8) << response.response.opaque << std::endl;
         out << "    CAS          (16-23): 0x" << std::setw(16) << response.response.cas << std::endl;
         out << std::setfill(' ');
         out.flags(std::ios::dec);
@@ -279,21 +328,80 @@ protected:
 
     }
 
-
     const protocol_binary_response_header& response;
 };
 
+class HelloResponse : public Response {
+public:
+    HelloResponse(const protocol_binary_response_header& res)
+        : Response(res) {
+
+    }
+
+protected:
+    virtual void dumpExtras(std::ostream& out) const override {
+        if (response.response.extlen != 0) {
+            throw std::logic_error(
+                "HelloResponse::dumpExtras(): extlen must be 0");
+        }
+    }
+
+    virtual void dumpKey(std::ostream& out) const override {
+        if (response.response.keylen != 0) {
+            throw std::logic_error(
+                "HelloResponse::dumpKey(): keylen must be 0");
+        }
+    }
+
+    virtual void dumpValue(std::ostream& out) const override {
+        uint32_t bodylen = ntohl(response.response.bodylen);
+
+        if ((bodylen % 2) != 0) {
+            throw std::logic_error(
+                "HelloRequest::dumpValue(): bodylen must be in words");
+        }
+
+        if (bodylen == 0) {
+            return;
+        }
+        uint32_t first = sizeof(response.bytes);
+        out << "    Body                :" << std::endl;
+
+        uint32_t total = bodylen / 2;
+        uint32_t offset = sizeof(response.bytes);
+        for (uint32_t ii = 0; ii < total; ++ii) {
+            uint16_t feature;
+            memcpy(&feature, response.bytes + offset, 2);
+            offset += 2;
+            feature = ntohs(feature);
+            const char *txt = protocol_feature_2_text(feature);
+            out << "                 (" << first << "-"
+            << first + 1 <<"): " << txt << std::endl;
+            first += 2;
+        }
+    }
+};
 
 static void dump_request(const protocol_binary_request_header* req,
                          std::ostream& out) {
-    // @todo Create sublcases that decode the extras correctly
-    out << Request(*req) << std::endl;
+    switch (req->request.opcode) {
+    case PROTOCOL_BINARY_CMD_HELLO:
+        out << HelloRequest(*req) << std::endl;
+        break;
+    default:
+        out << Request(*req) << std::endl;
+    }
 }
 
 static void dump_response(const protocol_binary_response_header* res,
                           std::ostream& out) {
-    // @todo Create sublcases that decode the extras correctly
-    out << Response(*res) << std::endl;
+    switch (res->response.opcode) {
+    case PROTOCOL_BINARY_CMD_HELLO:
+        out << HelloResponse(*res) << std::endl;
+        break;
+    default:
+        out << Response(*res) << std::endl;
+    }
 }
 
 void Couchbase::MCBP::dump(const uint8_t* packet, std::ostream& out) {
