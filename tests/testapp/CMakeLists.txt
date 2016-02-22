@@ -23,7 +23,8 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_stats.h
                testapp_subdoc.cc
                testapp_subdoc_multipath.cc
-               testapp_subdoc_perf.cc)
+               testapp_subdoc_perf.cc
+               testapp_timeout.cc)
 
 ADD_DEPENDENCIES(memcached_testapp blackhole_logger default_engine
                  ewouldblock_engine memcached nobucket testapp_extension)
@@ -49,7 +50,7 @@ target_compile_options(memcached_testapp PRIVATE ${CB_CXX_FLAGS_NO_OPTIMIZE})
 ADD_TEST(NAME memcached-basic-unit-tests-bulk
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_testapp
-                    --gtest_filter=*-PlainOrSSL/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*)
+                    --gtest_filter=*-PlainOrSSL/*:*PerfTest.*:ShutdownTest.*:RequireInitTest.*:*TransportProtocols*:*Greenstack*:AuditTest*:*ConnectionTimeout*)
 
 ADD_TEST(NAME memcached-basic-unit-tests-require-init
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -95,6 +96,12 @@ ADD_TEST(NAME memcached-shutdown-tests
         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
         COMMAND memcached_testapp --gtest_filter=ShutdownTest.*)
 
+# Run the connection timeout tests
+ADD_TEST(NAME memcached-connection-timeout-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND memcached_testapp --gtest_filter=ConnectionTimeoutTest.*)
+
+
 #Disabled while making greenstack use bufferevents
 #ADD_TEST(NAME memcached-greenstack-tests
 #        WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
@@ -119,3 +126,4 @@ SET_TESTS_PROPERTIES(memcached-mcbp-unit-tests-ssl PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-sasl-tests PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-shutdown-tests PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-stats-unit-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-connection-timeout-tests PROPERTIES TIMEOUT 20)

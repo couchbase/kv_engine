@@ -111,6 +111,10 @@ std::ostream& operator << (std::ostream& os, const Transport& t)
 void TestappTest::CreateTestBucket()
 {
     auto& conn = connectionMap.getConnection(Protocol::Memcached, false);
+    // Reconnect to the server so we know we're on a "fresh" connetion
+    // to the server (and not one that might have been catched by the
+    // idle-timer, but not yet noticed on the client side)
+    conn.reconnect();
     ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
 
     char cfg[80];
@@ -129,6 +133,7 @@ void TestappTest::CreateTestBucket()
     mcbp_validate_response_header(rsp,
                                   PROTOCOL_BINARY_CMD_CREATE_BUCKET,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    // Reconnect the object to avoid others to reuse the admin creds
     conn.reconnect();
 }
 

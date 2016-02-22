@@ -86,7 +86,7 @@ bool McbpConnection::registerEvent() {
     struct timeval tv;
     struct timeval* tp = nullptr;
 
-    if (isAdmin() || isDCP()) {
+    if (isAdmin() || isDCP() || isTAP()) {
         tp = nullptr;
         ev_timeout_enabled = false;
     } else {
@@ -136,7 +136,7 @@ bool McbpConnection::updateEvent(const short new_flags) {
         // never update their libevent state we'll forcibly re-enter it half way
         // into the timeout.
 
-        if (ev_timeout_enabled && (isAdmin() || isDCP())) {
+        if (ev_timeout_enabled && (isAdmin() || isDCP() || isTAP())) {
             LOG_DEBUG(this,
                       "%u: Forcibly reset the event connection flags to"
                           " disable timeout", getId());
@@ -185,6 +185,10 @@ bool McbpConnection::updateEvent(const short new_flags) {
     }
 
     return true;
+}
+
+bool McbpConnection::reapplyEventmask() {
+    return updateEvent(ev_flags);
 }
 
 bool McbpConnection::initializeEvent() {

@@ -318,6 +318,12 @@ public:
     bool updateEvent(const short new_flags);
 
     /**
+     * Reapply the event mask (in case of a timeout we might want to do
+     * that)
+     */
+    bool reapplyEventmask();
+
+    /**
      * Unregister the event structure from libevent
      * @return true if success, false otherwise
      */

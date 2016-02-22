@@ -291,7 +291,7 @@ void MemcachedConnection::sendFramePlain(const Frame& frame) {
 
     while (offset < nbytes) {
         auto nw = send(sock, data + offset, nbytes - offset, 0);
-        if (nw < 0) {
+        if (nw <= 0) {
             std::string msg("Failed to send data: ");
             msg.append(cb_strerror());
             throw std::runtime_error(msg);
@@ -329,7 +329,7 @@ void MemcachedConnection::readPlain(Frame& frame, size_t bytes) {
 
     while (total < bytes) {
         auto nr = recv(sock, data + total, bytes - total, 0);
-        if (nr < 0) {
+        if (nr <= 0) {
             std::string msg("Failed to read data: ");
             msg.append(cb_strerror());
             throw std::runtime_error(msg);

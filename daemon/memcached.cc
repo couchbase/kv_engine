@@ -805,9 +805,28 @@ void event_handler(evutil_socket_t fd, short which, void *arg) {
     cb_assert(fd == c->getSocketDescriptor());
 
     if ((which & EV_TIMEOUT) == EV_TIMEOUT) {
-        LOG_NOTICE(c, "%u: Shutting down idle client %s", c->getId(),
-                   c->getDescription().c_str());
-        c->initateShutdown();
+        auto* mcbp = dynamic_cast<McbpConnection*>(c);
+
+        if (mcbp != nullptr && (c->isAdmin() || c->isDCP() || c->isTAP())) {
+            auto* mcbp = dynamic_cast<McbpConnection*>(c);
+            if (c->isAdmin()) {
+                LOG_NOTICE(c, "%u: Timeout for admin connection. (ignore)",
+                           c->getId());
+            } else if (c->isDCP()) {
+                LOG_NOTICE(c, "%u: Timeout for DCP connection. (ignore)",
+                           c->getId());
+            } else if (c->isTAP()) {
+                LOG_NOTICE(c, "%u: Timeout for TAP connection. (ignore)",
+                           c->getId());
+            }
+            if (!mcbp->reapplyEventmask()) {
+                c->initateShutdown();
+            }
+        } else {
+            LOG_NOTICE(c, "%u: Shutting down idle client %s", c->getId(),
+                       c->getDescription().c_str());
+            c->initateShutdown();
+        }
     }
 
     run_event_loop(c, which);
