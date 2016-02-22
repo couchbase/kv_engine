@@ -16,8 +16,8 @@
  */
 
 #include "testapp_client_test.h"
-#include "testapp_greenstack_connection.h"
-#include "testapp_mcbp_connection.h"
+#include <protocol/connection/client_greenstack_connection.h>
+#include <protocol/connection/client_mcbp_connection.h>
 
 std::ostream& operator<<(std::ostream& os, const TransportProtocols& t) {
     os << to_string(t);

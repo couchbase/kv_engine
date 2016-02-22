@@ -17,7 +17,7 @@
 #pragma once
 
 // Utility functions used to build up packets in the memcached binary protocol
-#include "testapp_connection.h"
+#include <protocol/connection/client_connection.h>
 
 #include <cstdlib>
 #include <sys/types.h>

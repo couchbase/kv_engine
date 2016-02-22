@@ -19,7 +19,7 @@
 #include <array>
 #include "config.h"
 
-#include "testapp_connection.h"
+#include "client_connection.h"
 
 class MemcachedBinprotConnection : public MemcachedConnection {
 public:
@@ -27,7 +27,6 @@ public:
         : MemcachedConnection(port, family, ssl, Protocol::Memcached) {
         std::fill(features.begin(), features.end(), false);
     }
-
 
     virtual std::string to_string() override;
 
@@ -53,6 +52,8 @@ public:
                                 const Greenstack::mutation_type_t type) override;
 
     virtual unique_cJSON_ptr stats(const std::string& subcommand) override;
+
+    virtual void sendFrame(const Frame& frame) override;
 
     virtual void recvFrame(Frame& frame) override;
 

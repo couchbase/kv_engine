@@ -1,2 +1,3 @@
 ADD_SUBDIRECTORY(Greenstack)
 ADD_SUBDIRECTORY(mcbp)
+ADD_SUBDIRECTORY(connection)

@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 #include "testapp_bucket.h"
-#include "testapp_greenstack_connection.h"
+#include <protocol/connection/client_greenstack_connection.h>
 
 #include <algorithm>
 

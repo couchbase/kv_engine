@@ -9,16 +9,10 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_bucket.h
                testapp_client_test.cc
                testapp_client_test.h
-               testapp_connection.cc
-               testapp_connection.h
                testapp_getset.cc
                testapp_getset.h
                testapp_greenstack.cc
                testapp_greenstack.h
-               testapp_greenstack_connection.cc
-               testapp_greenstack_connection.h
-               testapp_mcbp_connection.cc
-               testapp_mcbp_connection.h
                testapp_rbac.cc
                testapp_rbac.h
                testapp_require_init.cc
@@ -37,6 +31,7 @@ ADD_DEPENDENCIES(memcached_testapp blackhole_logger default_engine
 TARGET_LINK_LIBRARIES(memcached_testapp
                       mcd_util
                       mcutils
+                      mc_client_connection
                       cbsasl
                       greenstack
                       cJSON

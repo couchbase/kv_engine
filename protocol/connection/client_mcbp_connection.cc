@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2015 Couchbase, Inc.
+ *     Copyright 2016 Couchbase, Inc.
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -14,23 +14,74 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "testapp_mcbp_connection.h"
-#include "testapp_binprot.h"
-#include "testapp.h"
+#include "client_mcbp_connection.h"
 
+#include <array>
 #include <cbsasl/cbsasl.h>
+#include <engines/ewouldblock_engine/ewouldblock_engine.h>
 #include <extensions/protocol/testapp_extension.h>
-#include <gtest/gtest.h>
 #include <iostream>
+#include <iterator>
+#include <libmcbp/mcbp.h>
 #include <memcached/protocol_binary.h>
 #include <platform/strerror.h>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <memcached/protocol_binary.h>
-#include <array>
-#include <include/memcached/protocol_binary.h>
-#include <engines/ewouldblock_engine/ewouldblock_engine.h>
+
+static const bool packet_dump = getenv("COUCHBASE_PACKET_DUMP") != nullptr;
+
+static void mcbp_raw_command(Frame& frame,
+                             uint8_t cmd,
+                             const std::vector<uint8_t>& ext,
+                             const std::string& key,
+                             const std::vector<uint8_t>& value,
+                             uint64_t cas = 0,
+                             uint32_t opaque = 0xdeadbeef) {
+
+    auto& pay = frame.payload;
+    pay.resize(24 + ext.size() + key.size() + value.size());
+    auto* req = reinterpret_cast<protocol_binary_request_header*>(pay.data());
+    auto* buf = req->bytes;
+
+    req->request.magic = PROTOCOL_BINARY_REQ;
+    req->request.opcode = cmd;
+    req->request.extlen = static_cast<uint8_t>(ext.size());
+    req->request.keylen = htons(static_cast<uint16_t>(key.size()));
+    auto bodylen = value.size() + key.size() + ext.size();
+    req->request.bodylen = htonl(static_cast<uint32_t>(bodylen));
+    req->request.opaque = opaque;
+    req->request.cas = cas;
+
+    buf += sizeof(req->bytes);
+    memcpy(buf, ext.data(), ext.size());
+    buf += ext.size();
+    memcpy(buf, key.data(), key.size());
+    buf += key.size();
+    memcpy(buf, value.data(), value.size());
+}
+
+static void mcbp_storage_command(Frame& frame,
+                                 uint8_t cmd,
+                                 const std::string& id,
+                                 const std::vector<uint8_t>& value,
+                                 uint32_t flags,
+                                 uint32_t exp) {
+    frame.reset();
+    std::vector<uint8_t> ext;
+
+
+    if (cmd != PROTOCOL_BINARY_CMD_APPEND &&
+        cmd != PROTOCOL_BINARY_CMD_PREPEND) {
+        uint32_t fl = htonl(flags);
+        uint32_t expiry = htonl(exp);
+        ext.resize(8);
+        memcpy(ext.data(), &fl, sizeof(fl));
+        memcpy(ext.data() + sizeof(fl), &expiry, sizeof(expiry));
+    }
+
+    mcbp_raw_command(frame, cmd, ext, id, value);
+}
 
 /////////////////////////////////////////////////////////////////////////
 // SASL related functions
@@ -70,6 +121,15 @@ static int sasl_get_password(cbsasl_conn_t* conn, void* context, int id,
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the MemcachedBinaryConnection class
 /////////////////////////////////////////////////////////////////////////
+
+void MemcachedBinprotConnection::sendFrame(const Frame& frame) {
+    MemcachedConnection::sendFrame(frame);
+    if (packet_dump) {
+        Couchbase::MCBP::dump(frame.payload.data(), std::cerr);
+    }
+}
+
+
 void MemcachedBinprotConnection::recvFrame(Frame& frame) {
     frame.reset();
     // A memcached packet starts with a 24 byte fixed header
@@ -95,6 +155,10 @@ void MemcachedBinprotConnection::recvFrame(Frame& frame) {
         throw std::runtime_error("Invalid magic received");
     }
     MemcachedConnection::read(frame, bodylen);
+
+    if (packet_dump) {
+        Couchbase::MCBP::dump(frame.payload.data(), std::cerr);
+    }
 }
 
 void MemcachedBinprotConnection::authenticate(const std::string& username,
@@ -142,19 +206,20 @@ void MemcachedBinprotConnection::authenticate(const std::string& username,
     }
 
     Frame request;
-    mcbp_raw_command(request,
-                     PROTOCOL_BINARY_CMD_SASL_AUTH,
-                     chosenmech, strlen(chosenmech),
-                     data, len);
+
+    std::vector<uint8_t> challenge(len);
+    memcpy(challenge.data(), data, len);
+    const std::string mechanism(chosenmech);
+    mcbp_raw_command(request, PROTOCOL_BINARY_CMD_SASL_AUTH,
+                     std::vector<uint8_t>(), mechanism, challenge);
+
     sendFrame(request);
     Frame response;
     recvFrame(response);
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(response.payload.data());
 
-    bool stepped = false;
     while (rsp->message.header.response.status ==
            PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE) {
-        stepped = true;
         int datalen = rsp->message.header.response.bodylen -
                       rsp->message.header.response.keylen -
                       rsp->message.header.response.extlen;
@@ -174,24 +239,17 @@ void MemcachedBinprotConnection::authenticate(const std::string& username,
                 std::string("cbsasl_client_step: ") + std::to_string(err));
         }
         request.reset();
-        mcbp_raw_command(request,
-                         PROTOCOL_BINARY_CMD_SASL_STEP,
-                         chosenmech, strlen(chosenmech), data, len);
+
+        challenge.resize(len);
+        memcpy(challenge.data(), data, len);
+        mcbp_raw_command(request, PROTOCOL_BINARY_CMD_SASL_STEP,
+                         std::vector<uint8_t>(), mechanism, challenge);
 
         sendFrame(request);
         recvFrame(response);
         rsp = reinterpret_cast<protocol_binary_response_no_extras*>(response.payload.data());
     }
 
-    if (stepped) {
-        mcbp_validate_response_header(rsp,
-                                      PROTOCOL_BINARY_CMD_SASL_STEP,
-                                      rsp->message.header.response.status);
-    } else {
-        mcbp_validate_response_header(rsp,
-                                      PROTOCOL_BINARY_CMD_SASL_AUTH,
-                                      rsp->message.header.response.status);
-    }
     cbsasl_dispose(&client);
 
     if (rsp->message.header.response.status !=
@@ -227,8 +285,7 @@ void MemcachedBinprotConnection::createBucket(const std::string& name,
 
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_CREATE_BUCKET,
-                     name.c_str(), name.length(), payload.data(),
-                     payload.size());
+                     std::vector<uint8_t>(), name, payload);
 
     sendFrame(frame);
     recvFrame(frame);
@@ -244,7 +301,7 @@ void MemcachedBinprotConnection::createBucket(const std::string& name,
 void MemcachedBinprotConnection::deleteBucket(const std::string& name) {
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_DELETE_BUCKET,
-                     name.c_str(), name.length(), nullptr, 0);
+                     std::vector<uint8_t>(), name, std::vector<uint8_t>());
     sendFrame(frame);
     recvFrame(frame);
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
@@ -259,7 +316,7 @@ void MemcachedBinprotConnection::deleteBucket(const std::string& name) {
 void MemcachedBinprotConnection::selectBucket(const std::string& name) {
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_SELECT_BUCKET,
-                     name.c_str(), name.length(), nullptr, 0);
+                     std::vector<uint8_t>(), name, std::vector<uint8_t>());
     sendFrame(frame);
     recvFrame(frame);
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
@@ -292,7 +349,7 @@ std::string MemcachedBinprotConnection::to_string() {
 std::vector<std::string> MemcachedBinprotConnection::listBuckets() {
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_LIST_BUCKETS,
-                     nullptr, 0, nullptr, 0);
+                     std::vector<uint8_t>(), "", std::vector<uint8_t>());
     sendFrame(frame);
     recvFrame(frame);
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
@@ -318,7 +375,7 @@ Document MemcachedBinprotConnection::get(const std::string& id,
                                          uint16_t vbucket) {
     Frame frame;
     mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_GET,
-                     id.data(), id.length(), nullptr, 0);
+                     std::vector<uint8_t>(), id, std::vector<uint8_t>());
     auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(frame.payload.data());
     req->message.header.request.vbucket = htons(vbucket);
     sendFrame(frame);
@@ -431,11 +488,12 @@ void MemcachedBinprotConnection::setDatatypeSupport(bool enable) {
         feat.push_back(htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO));
     }
 
+    std::vector<uint8_t> data(feat.size() * sizeof(feat.at(0)));
+    memcpy(data.data(), feat.data(), data.size());
+
     Frame frame;
-    mcbp_raw_command(frame,
-                     PROTOCOL_BINARY_CMD_HELLO,
-                     "mcbp", 4, feat.data(),
-                     feat.size() * 2);
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_HELLO, std::vector<uint8_t>(),
+                     "mcbp", data);
 
     sendFrame(frame);
     recvFrame(frame);
@@ -492,11 +550,12 @@ void MemcachedBinprotConnection::setMutationSeqnoSupport(bool enable) {
         feat.push_back(htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO));
     }
 
+    std::vector<uint8_t> data(feat.size() * sizeof(feat.at(0)));
+    memcpy(data.data(), feat.data(), data.size());
+
     Frame frame;
-    mcbp_raw_command(frame,
-                     PROTOCOL_BINARY_CMD_HELLO,
-                     "mcbp", 4, feat.data(),
-                     feat.size() * 2);
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_HELLO, std::vector<uint8_t>(),
+                     "mcbp", data);
 
     sendFrame(frame);
     recvFrame(frame);
@@ -542,8 +601,8 @@ void MemcachedBinprotConnection::setMutationSeqnoSupport(bool enable) {
 
 unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand) {
     Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_STAT,
-                     subcommand.c_str(), subcommand.length(), nullptr, 0);
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_STAT, std::vector<uint8_t>(),
+                     subcommand, std::vector<uint8_t>());
     sendFrame(frame);
     unique_cJSON_ptr ret(cJSON_CreateObject());
 

@@ -15,8 +15,8 @@
  *   limitations under the License.
  */
 #include "testapp_getset.h"
-#include "testapp_greenstack_connection.h"
-#include "testapp_mcbp_connection.h"
+#include <protocol/connection/client_greenstack_connection.h>
+#include <protocol/connection/client_mcbp_connection.h>
 
 #include <algorithm>
 

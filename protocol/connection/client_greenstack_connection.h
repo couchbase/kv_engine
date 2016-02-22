@@ -16,7 +16,7 @@
  */
 #pragma once
 
-#include "testapp_connection.h"
+#include "client_connection.h"
 #include <libgreenstack/Greenstack.h>
 
 class GreenstackError : public ConnectionError {

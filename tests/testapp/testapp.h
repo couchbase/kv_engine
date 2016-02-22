@@ -36,7 +36,7 @@
 
 #include "engines/ewouldblock_engine/ewouldblock_engine.h"
 
-#include "testapp_connection.h"
+#include <protocol/connection/client_connection.h>
 
 enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
 

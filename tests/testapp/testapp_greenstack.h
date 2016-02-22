@@ -17,7 +17,7 @@
 #pragma once
 
 #include "testapp.h"
-#include "testapp_greenstack_connection.h"
+#include <protocol/connection/client_greenstack_connection.h>
 
 #include <algorithm>
 

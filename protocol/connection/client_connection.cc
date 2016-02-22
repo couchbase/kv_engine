@@ -14,15 +14,12 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include "testapp_connection.h"
-
-#include "testapp_greenstack_connection.h"
-#include "testapp_mcbp_connection.h"
-#include "testapp_binprot.h"
+#include "client_connection.h"
+#include "client_greenstack_connection.h"
+#include "client_mcbp_connection.h"
 
 #include <cbsasl/cbsasl.h>
 #include <extensions/protocol/testapp_extension.h>
-#include <gtest/gtest.h>
 #include <iostream>
 #include <libgreenstack/Greenstack.h>
 #include <memcached/protocol_binary.h>
