@@ -155,6 +155,8 @@ ENDIF (WIN32)
 LIST(APPEND CBSASL_SOURCES
      ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/visibility.h
+     ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.cc
+     ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.h
      ${Memcached_SOURCE_DIR}/cbsasl/cbsasl_internal.h
      ${Memcached_SOURCE_DIR}/cbsasl/client.cc
      ${Memcached_SOURCE_DIR}/cbsasl/common.cc
