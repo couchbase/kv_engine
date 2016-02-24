@@ -72,9 +72,24 @@ typedef struct {
 } snapshot_info_t;
 
 /**
+ * Flag indicating that we must send checkpoint end meta item for the cursor
+ */
+enum class MustSendCheckpointEnd {
+    NO,
+    YES
+};
+
+/**
  * The checkpoint index maps a key to a checkpoint index_entry.
  */
 typedef std::unordered_map<std::string, index_entry> checkpoint_index;
+
+/**
+ * List of pairs containing checkpoint cursor name and corresponding flag
+ * indicating whether we must send checkpoint end meta item for the cursor
+ */
+typedef std::list<std::pair<std::string, MustSendCheckpointEnd>>
+                                                    checkpointCursorInfoList;
 
 class Checkpoint;
 class CheckpointManager;
@@ -96,22 +111,26 @@ public:
           currentCheckpoint(),
           currentPos(),
           offset(0),
-          fromBeginningOnChkCollapse(false) { }
+          fromBeginningOnChkCollapse(false),
+          sendCheckpointEndMetaItem(MustSendCheckpointEnd::YES) { }
 
     CheckpointCursor(const std::string &n,
                      std::list<Checkpoint*>::iterator checkpoint,
                      std::list<queued_item>::iterator pos,
                      size_t os,
-                     bool beginningOnChkCollapse) :
+                     bool beginningOnChkCollapse,
+                     MustSendCheckpointEnd needsCheckpointEndMetaItem) :
         name(n), currentCheckpoint(checkpoint), currentPos(pos),
-        offset(os), fromBeginningOnChkCollapse(beginningOnChkCollapse) { }
+        offset(os), fromBeginningOnChkCollapse(beginningOnChkCollapse),
+        sendCheckpointEndMetaItem(needsCheckpointEndMetaItem) { }
 
     // We need to define the copy construct explicitly due to the fact
     // that std::atomic implicitly deleted the assignment operator
     CheckpointCursor(const CheckpointCursor &other) :
         name(other.name), currentCheckpoint(other.currentCheckpoint),
         currentPos(other.currentPos), offset(other.offset.load()),
-        fromBeginningOnChkCollapse(other.fromBeginningOnChkCollapse) { }
+        fromBeginningOnChkCollapse(other.fromBeginningOnChkCollapse),
+        sendCheckpointEndMetaItem(other.sendCheckpointEndMetaItem) { }
 
     CheckpointCursor &operator=(const CheckpointCursor &other) {
         name.assign(other.name);
@@ -119,12 +138,18 @@ public:
         currentPos = other.currentPos;
         offset.store(other.offset.load());
         fromBeginningOnChkCollapse = other.fromBeginningOnChkCollapse;
+        sendCheckpointEndMetaItem = other.sendCheckpointEndMetaItem;
         return *this;
     }
 
     void decrOffset(size_t decr);
 
     void decrPos();
+
+    /* Indicates whether we must send checkpoint end meta item for the cursor.
+       Currently TAP cursors require checkpoint end meta item to be sent to
+       the consumer. DCP cursors don't have this constraint */
+    MustSendCheckpointEnd shouldSendCheckpointEndMetaItem() const;
 
 private:
     std::string                      name;
@@ -136,6 +161,7 @@ private:
     // cursor has remaining.
     AtomicValue<size_t>              offset;
     bool                             fromBeginningOnChkCollapse;
+    MustSendCheckpointEnd            sendCheckpointEndMetaItem;
 };
 
 /**
@@ -423,7 +449,8 @@ public:
         flusherCB(cb) {
         LockHolder lh(queueLock);
         addNewCheckpoint_UNLOCKED(checkpointId, lastSnapStart, lastSnapEnd);
-        registerCursor_UNLOCKED("persistence", checkpointId);
+            registerCursor_UNLOCKED("persistence", checkpointId, false,
+                                    MustSendCheckpointEnd::NO);
     }
 
     ~CheckpointManager();
@@ -456,23 +483,31 @@ public:
      * startBySeqno and endBySeqno, and close the open checkpoint if endBySeqno
      * belongs to the open checkpoint.
      * @param startBySeqno start bySeqno.
+     * @param needsCheckpointEndMetaItem indicates the CheckpointEndMetaItem
+     *        must not be skipped for the cursor.
      * @return Cursor registration result which consists of (1) the bySeqno with
      * which the cursor can start and (2) flag indicating if the cursor starts
      * with the first item on a checkpoint.
      */
-    CursorRegResult registerCursorBySeqno(const std::string &name,
-                                          uint64_t startBySeqno);
+    CursorRegResult registerCursorBySeqno(
+                            const std::string &name,
+                            uint64_t startBySeqno,
+                            MustSendCheckpointEnd needsCheckpointEndMetaItem);
 
     /**
      * Register the new cursor for a given connection
      * @param name the name of a given connection
      * @param checkpointId the checkpoint Id to start with.
-     * @param alwaysFromBeginning the flag indicating if a cursor should be set to the beginning of
-     * checkpoint to start with, even if the cursor is currently in that checkpoint.
+     * @param alwaysFromBeginning the flag indicating if a cursor should be set
+     *        to the beginning of checkpoint to start with, even if the cursor
+     *        is currently in that checkpoint.
+     * @param needsCheckpointEndMetaItem indicates the CheckpointEndMetaItem
+     *        must not be skipped for the cursor.
      * @return true if the checkpoint to start with exists in the queue.
      */
-    bool registerCursor(const std::string &name, uint64_t checkpointId = 1,
-                        bool alwaysFromBeginning = false);
+    bool registerCursor(const std::string &name, uint64_t checkpointId,
+                        bool alwaysFromBeginning,
+                        MustSendCheckpointEnd needsCheckpointEndMetaItem);
 
     /**
      * Remove the cursor for a given connection.
@@ -491,7 +526,16 @@ public:
 
     size_t getNumOfCursors();
 
-    std::list<std::string> getCursorNames();
+    /**
+     * Get info about all the cursors in this checkpoint manager.
+     * Cursor names and corresponding MustSendCheckpointEnd flag are returned
+     * as a list.
+     * Note that return of info by copy is intended because after this call the
+     * the chkpt manager can be deleted or reset
+     *
+     * @return std list of pair (name, MustSendCheckpointEnd)
+     */
+    checkpointCursorInfoList getAllCursors();
 
     /**
      * Queue an item to be written to persistent layer.
@@ -564,7 +608,7 @@ public:
      */
     uint64_t createNewCheckpoint();
 
-    void resetCursors(const std::list<std::string> &cursors);
+    void resetCursors(checkpointCursorInfoList &cursors);
 
     /**
      * Get id of the previous checkpoint that is followed by the checkpoint
@@ -656,9 +700,11 @@ private:
 
     bool removeCursor_UNLOCKED(const std::string &name);
 
-    bool registerCursor_UNLOCKED(const std::string &name,
-                                    uint64_t checkpointId = 1,
-                                    bool alwaysFromBeginning = false);
+    bool registerCursor_UNLOCKED(
+                            const std::string &name,
+                            uint64_t checkpointId,
+                            bool alwaysFromBeginning,
+                            MustSendCheckpointEnd needsCheckpointEndMetaItem);
 
     size_t getNumItemsForCursor_UNLOCKED(const std::string &name);
 

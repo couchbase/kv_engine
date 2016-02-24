@@ -38,6 +38,9 @@
 
 #define NUM_ITEMS 10000
 
+#define DCP_CURSOR_PREFIX "dcp-client-"
+#define TAP_CURSOR_PREFIX "tap-client-"
+
 struct thread_args {
     SyncObject *mutex;
     SyncObject *gate;
@@ -229,15 +232,15 @@ TEST_F(CheckpointTest, basic_chk_test) {
 
     struct thread_args tap_t_args[NUM_TAP_THREADS];
     for (i = 0; i < NUM_TAP_THREADS; ++i) {
-        std::stringstream name;
-        name << "tap-client-" << i;
+        std::string name(TAP_CURSOR_PREFIX + std::to_string(i));
         tap_t_args[i].checkpoint_manager = checkpoint_manager;
         tap_t_args[i].vbucket = vbucket;
         tap_t_args[i].mutex = mutex;
         tap_t_args[i].gate = gate;
         tap_t_args[i].counter = counter;
-        tap_t_args[i].name = name.str();
-        checkpoint_manager->registerCursor(name.str());
+        tap_t_args[i].name = name;
+        checkpoint_manager->registerCursor(name, 1, false,
+                                           MustSendCheckpointEnd::YES);
     }
 
     // Start a timer so that the test can be killed if it doesn't finish in a
@@ -359,8 +362,8 @@ TEST_F(CheckpointTest, CheckFixture) {
     // Should intially have a single cursor (persistence).
     EXPECT_EQ(1, manager->getNumOfCursors());
     EXPECT_EQ(1, manager->getNumOpenChkItems());
-    for (auto& cursor : manager->getCursorNames()) {
-        EXPECT_EQ(CheckpointManager::pCursorName, cursor);
+    for (auto& cursor : manager->getAllCursors()) {
+        EXPECT_EQ(CheckpointManager::pCursorName, cursor.first);
     }
     // Should initially be zero items to persist.
     EXPECT_EQ(0, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
@@ -612,6 +615,149 @@ TEST_F(CheckpointTest, CursorOffsetOnCheckpointClose) {
     EXPECT_EQ(0, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
 }
 
+// Test the getAllItemsForCursor()
+TEST_F(CheckpointTest, ItemsForCheckpointCursor) {
+    /* We want to have items across 2 checkpoints. Size down the default number
+       of items to create a new checkpoint and recreate the manager */
+    checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
+                                         MIN_CHECKPOINT_ITEMS,
+                                         /*numCheckpoints*/2,
+                                         /*itemBased*/true,
+                                         /*keepClosed*/false,
+                                         /*enableMerge*/false);
+    createManager();
+
+    /* Sanity check initial state */
+    EXPECT_EQ(1, manager->getNumOfCursors());
+    EXPECT_EQ(1, manager->getNumOpenChkItems());
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+
+    /* Add items such that we have 2 checkpoints */
+    queued_item qi;
+    for (unsigned int ii = 0; ii < 2 * MIN_CHECKPOINT_ITEMS; ii++) {
+        qi.reset(new Item("key" + std::to_string(ii), vbucket->getId(),
+                          queue_op_set, /*revSeq*/0, /*bySeq*/0));
+        EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+    }
+
+    /* Check if we have desired number of checkpoints and desired number of
+       items */
+    EXPECT_EQ(2, manager->getNumCheckpoints());
+    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, manager->getNumOpenChkItems());
+    /* MIN_CHECKPOINT_ITEMS items + op_ckpt_start */
+
+    /* Register DCP replication cursor */
+    std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
+    manager->registerCursorBySeqno(dcp_cursor.c_str(), 0,
+                                   MustSendCheckpointEnd::NO);
+
+    /* Get items for persistence*/
+    std::vector<queued_item> items;
+    manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
+
+    /* We should have got (2 * MIN_CHECKPOINT_ITEMS + 3) items. 3 additional are
+       op_ckpt_start, op_ckpt_end and op_ckpt_start */
+    EXPECT_EQ(2 * MIN_CHECKPOINT_ITEMS + 3, items.size());
+
+    /* Get items for DCP replication cursor */
+    items.clear();
+    manager->getAllItemsForCursor(dcp_cursor.c_str(), items);
+    EXPECT_EQ(2 * MIN_CHECKPOINT_ITEMS + 3, items.size());
+}
+
+// Test the checkpoint cursor movement
+TEST_F(CheckpointTest, CursorMovement) {
+    /* We want to have items across 2 checkpoints. Size down the default number
+     of items to create a new checkpoint and recreate the manager */
+    checkpoint_config = CheckpointConfig(DEFAULT_CHECKPOINT_PERIOD,
+                                         MIN_CHECKPOINT_ITEMS,
+                                         /*numCheckpoints*/2,
+                                         /*itemBased*/true,
+                                         /*keepClosed*/false,
+                                         /*enableMerge*/false);
+    createManager();
+
+    /* Sanity check initial state */
+    EXPECT_EQ(1, manager->getNumOfCursors());
+    EXPECT_EQ(1, manager->getNumOpenChkItems());
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+
+    /* Add items such that we have 1 full (max items as per config) checkpoint.
+       Adding another would open new checkpoint */
+    queued_item qi;
+    for (unsigned int ii = 0; ii < MIN_CHECKPOINT_ITEMS; ii++) {
+        qi.reset(new Item("key" + std::to_string(ii), vbucket->getId(),
+                          queue_op_set, /*revSeq*/0, /*bySeq*/0));
+        EXPECT_TRUE(manager->queueDirty(vbucket, qi, true));
+    }
+
+    /* Check if we have desired number of checkpoints and desired number of
+       items */
+    EXPECT_EQ(1, manager->getNumCheckpoints());
+    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, manager->getNumOpenChkItems());
+    /* MIN_CHECKPOINT_ITEMS items + op_ckpt_start */
+
+    /* Register DCP replication cursor */
+    std::string dcp_cursor(DCP_CURSOR_PREFIX + std::to_string(1));
+    manager->registerCursorBySeqno(dcp_cursor.c_str(), 0,
+                                   MustSendCheckpointEnd::NO);
+
+    /* Registor TAP cursor */
+    std::string tap_cursor(TAP_CURSOR_PREFIX + std::to_string(1));
+    manager->registerCursor(tap_cursor, 1, false, MustSendCheckpointEnd::YES);
+
+    /* Get items for persistence cursor */
+    std::vector<queued_item> items;
+    manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
+
+    /* We should have got (MIN_CHECKPOINT_ITEMS + op_ckpt_start) items. */
+    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
+
+    /* Get items for DCP replication cursor */
+    items.clear();
+    manager->getAllItemsForCursor(dcp_cursor.c_str(), items);
+    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, items.size());
+
+    /* Get items for TAP cursor */
+    int num_items = 0;
+    while(true) {
+        bool isLastItem = false;
+        qi = manager->nextItem(tap_cursor, isLastItem);
+        num_items++;
+        if (isLastItem) {
+            break;
+        }
+    }
+    EXPECT_EQ(MIN_CHECKPOINT_ITEMS + 1, num_items);
+
+    uint64_t curr_open_chkpt_id = manager->getOpenCheckpointId_UNLOCKED();
+
+    /* Run the checkpoint remover so that new open checkpoint is created */
+    bool newCheckpointCreated;
+    manager->removeClosedUnrefCheckpoints(vbucket, newCheckpointCreated);
+    EXPECT_EQ(curr_open_chkpt_id + 1, manager->getOpenCheckpointId_UNLOCKED());
+
+    /* Get items for persistence cursor */
+    items.clear();
+    manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
+
+    /* We should have got op_ckpt_start item */
+    EXPECT_EQ(1, items.size());
+
+    /* Get items for DCP replication cursor */
+    items.clear();
+    manager->getAllItemsForCursor(dcp_cursor.c_str(), items);
+    /* Expecting only 1 op_ckpt_start item */
+    EXPECT_EQ(1, items.size());
+
+    /* Get item for TAP cursor. We expect TAP to send op_ckpt_end of last
+       checkpoint. TAP unlike DCP cannot skip the op_ckpt_end message */
+    bool isLastItem = false;
+    qi = manager->nextItem(tap_cursor, isLastItem);
+    EXPECT_EQ(queue_op_checkpoint_end, qi->getOperation());
+    EXPECT_EQ(true, isLastItem);
+
+}
 
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";

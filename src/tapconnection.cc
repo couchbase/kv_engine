@@ -1718,8 +1718,13 @@ void TapProducer::registerCursor(const std::map<uint16_t, uint64_t> &lastCheckpo
             bool prev_session_completed =
                 engine_.getTapConnMap().prevSessionReplicaCompleted(getName());
             // Check if the unified queue contains the checkpoint to start with.
-            bool chk_exists = vb->checkpointManager.registerCursor(getName(),
-                                                                   chk_id_to_start);
+            bool chk_exists = vb->checkpointManager.registerCursor(
+                                                getName(),
+                                                chk_id_to_start,
+                                                /* alwaysFromBeginning */
+                                                false,
+                                                MustSendCheckpointEnd::YES);
+
             if(!prev_session_completed || !chk_exists) {
                 uint64_t chk_id;
                 proto_checkpoint_state cstate;

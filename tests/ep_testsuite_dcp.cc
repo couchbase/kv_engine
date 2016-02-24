@@ -24,8 +24,15 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 #include "mock/mock_dcp.h"
+#include "programs/engine_testapp/mock_server.h"
 
 // Helper functions ///////////////////////////////////////////////////////////
+/* This is a flag that indicates the continuous dcp thread to come out of
+   loop that keeps calling dcp->step().
+   To be set only by the (parent) thread spawning the continuous_dcp_thread.
+   To be checked by continuous_dcp_thread.
+   (This approach seems safer than calling pthread_cancel()) */
+static std::atomic<bool> stop_continuous_dcp_thread(false);
 
 struct SeqnoRange {
     uint64_t start;
@@ -348,7 +355,8 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             bytes_read = 0;
         }
         ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
-        if (err == ENGINE_DISCONNECT) {
+        if ((err == ENGINE_DISCONNECT) ||
+            (stop_continuous_dcp_thread.load(std::memory_order_relaxed))) {
             done = true;
         } else {
             const uint16_t vbid = dcp_last_vbucket;
@@ -465,24 +473,27 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                dcp_last_opaque);
                     break;
                 case 0:
-                    /* No messages were ready on the last step call, so we
-                     * wait till the conn is notified of new item.
-                     * Note that we check for 0 because we clear the
-                     * dcp_last_op value below.
-                     */
-                     if (disable_ack && flow_control_buf_size) {
-                         /* If there is no acking and if flow control is enabled
-                            we are done because producer should not send us any
-                            more items. */
-                         done = true;
-                         exp_all_items_streamed = false;
-                     }
-
-                    testHarness.lock_cookie(cookie);
-                    /* waitfor_cookie() waits on a condition variable. But the
-                       api expects the cookie to be locked before calling it */
-                    testHarness.waitfor_cookie(cookie);
-                    testHarness.unlock_cookie(cookie);
+                    if (disable_ack && flow_control_buf_size) {
+                        /* If there is no acking and if flow control is enabled
+                           we are done because producer should not send us any
+                           more items. We need this to test that producer stops
+                           sending items correctly when there are no acks while
+                           flow control is enabled */
+                        done = true;
+                        exp_all_items_streamed = false;
+                    } else {
+                        /* No messages were ready on the last step call, so we
+                         * wait till the conn is notified of new item.
+                         * Note that we check for 0 because we clear the
+                         * dcp_last_op value below.
+                         */
+                        testHarness.lock_cookie(cookie);
+                        /* waitfor_cookie() waits on a condition variable. But
+                           the api expects the cookie to be locked before
+                           calling it */
+                        testHarness.waitfor_cookie(cookie);
+                        testHarness.unlock_cookie(cookie);
+                    }
                     break;
                 default:
                     // Aborting ...
@@ -689,6 +700,7 @@ struct continuous_dcp_ctx {
     const void *cookie;
     uint16_t vbid;
     const std::string &name;
+    uint64_t start_seqno;
 };
 
 //Forward declaration required for dcp_thread_func
@@ -791,7 +803,8 @@ extern "C" {
         std::string vbuuid_entry("vb_" + std::to_string(cdc->vbid) + ":0:id");
         ctx.vb_uuid = get_ull_stat(cdc->h, cdc->h1,
                                    vbuuid_entry.c_str(), "failovers");
-        ctx.seqno = {0, std::numeric_limits<uint64_t>::max()};
+        ctx.seqno = {cdc->start_seqno, std::numeric_limits<uint64_t>::max()};
+        ctx.snapshot = {cdc->start_seqno, cdc->start_seqno};
         ctx.skip_verification = true;
 
         TestDcpConsumer tdc(cdc->name, cdc->cookie);
@@ -1639,6 +1652,140 @@ static enum test_result test_dcp_producer_stream_latest(ENGINE_HANDLE *h,
     tdc.addStreamCtx(ctx);
     tdc.run(h, h1);
 
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_producer_keep_stream_open(ENGINE_HANDLE *h,
+                                                           ENGINE_HANDLE_V1 *h1)
+{
+    const std::string conn_name("unittest");
+    const int num_items = 2, vb = 0;
+
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::string key("key" + std::to_string(j));
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", &i),
+                "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+
+    const void *cookie = testHarness.create_cookie();
+
+    /* We want to stream items till end and keep the stream open. Then we want
+       to verify the stream is still open */
+    stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
+    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name.c_str(), 0};
+    cb_thread_t dcp_thread;
+    cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
+              == 0);
+
+    /* Wait for producer to be created */
+    wait_for_stat_to_be(h, h1, "ep_dcp_producer_count", 1, "dcp");
+
+    /* Wait for an active stream to be created */
+    const std::string stat_stream_count("eq_dcpq:" + conn_name +
+                                        ":num_streams");
+    wait_for_stat_to_be(h, h1, stat_stream_count.c_str(), 1, "dcp");
+
+    /* Wait for the dcp stream to send upto highest seqno we have */
+    std::string stat_stream_last_sent_seqno("eq_dcpq:" + conn_name + ":stream_"
+                                            + std::to_string(vb) +
+                                            "_last_sent_seqno");
+    wait_for_stat_to_be(h, h1, stat_stream_last_sent_seqno.c_str(), num_items,
+                        "dcp");
+
+    /* Check if the stream is still open after sending out latest items */
+    std::string stat_stream_state("eq_dcpq:" + conn_name + ":stream_" +
+                             std::to_string(vb) + "_state");
+    std::string state = get_str_stat(h, h1, stat_stream_state.c_str(), "dcp");
+    checkeq(state.compare("in-memory"), 0, "Stream is not open");
+
+    /* Before closing the connection stop the thread that continuously polls
+       for dcp data */
+    stop_continuous_dcp_thread.store(true, std::memory_order_relaxed);
+    testHarness.notify_io_complete(cookie, ENGINE_SUCCESS);
+    cb_assert(cb_join_thread(dcp_thread) == 0);
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_producer_stream_cursor_movement(
+                                                        ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
+    const std::string conn_name("unittest");
+    const int num_items = 30, vb = 0;
+    uint64_t curr_chkpt_id = 0;
+    for (int j = 0; j < num_items; ++j) {
+        if (j % 10 == 0) {
+            wait_for_flusher_to_settle(h, h1);
+        }
+        if (j == (num_items - 1)) {
+            /* Since checkpoint max items is set to 10 and we are going to
+               write 30th item, a new checkpoint could be added after
+               writing and persisting the 30th item. I mean, if the checkpoint
+               id is got outside the while loop, there could be an error due to
+               race (flusher and checkpoint remover could run before getting
+               this stat) */
+            curr_chkpt_id = get_ull_stat(h, h1, "vb_0:open_checkpoint_id",
+                                         "checkpoint");
+        }
+        item *i = NULL;
+        std::string key("key" + std::to_string(j));
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", &i),
+                "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+
+    const void *cookie = testHarness.create_cookie();
+
+    /* We want to stream items till end and keep the stream open. We want to
+       verify if the DCP cursor has moved to new open checkpoint */
+    stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
+    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, conn_name.c_str(), 20};
+    cb_thread_t dcp_thread;
+    cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
+              == 0);
+
+    /* Wait for producer to be created */
+    wait_for_stat_to_be(h, h1, "ep_dcp_producer_count", 1, "dcp");
+
+    /* Wait for an active stream to be created */
+    const std::string stat_stream_count("eq_dcpq:" + conn_name +
+                                        ":num_streams");
+    wait_for_stat_to_be(h, h1, stat_stream_count.c_str(), 1, "dcp");
+
+    /* Wait for the dcp stream to send upto highest seqno we have */
+    std::string stat_stream_last_sent_seqno("eq_dcpq:" + conn_name + ":stream_"
+                                            + std::to_string(vb) +
+                                            "_last_sent_seqno");
+    wait_for_stat_to_be(h, h1, stat_stream_last_sent_seqno.c_str(), num_items,
+                        "dcp");
+
+    /* Wait for new open (empty) checkpoint to be added */
+    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", curr_chkpt_id + 1,
+                        "checkpoint");
+
+    /* We want to make sure that no cursors are lingering on any of the previous
+       checkpoints. For that we wait for checkpoint remover to remove all but
+       the latest open checkpoint cursor */
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+
+    /* Before closing the connection stop the thread that continuously polls
+       for dcp data */
+    stop_continuous_dcp_thread.store(true, std::memory_order_relaxed);
+    testHarness.notify_io_complete(cookie, ENGINE_SUCCESS);
+    cb_assert(cb_join_thread(dcp_thread) == 0);
     testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
@@ -4777,7 +4924,8 @@ static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
 
     // Set up a DcpTestConsumer that would remain in in-memory mode
-    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, "unittest"};
+    stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
+    struct continuous_dcp_ctx cdc = {h, h1, cookie, 0, "unittest", 0};
     cb_thread_t dcp_thread;
     cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0) == 0);
 
@@ -4882,6 +5030,12 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test producer stream request (latest flag)",
                  test_dcp_producer_stream_latest, test_setup, teardown, NULL,
                  prepare, cleanup),
+        TestCase("test producer keep stream open",
+                 test_dcp_producer_keep_stream_open, test_setup, teardown,
+                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
+        TestCase("test producer stream cursor movement",
+                 test_dcp_producer_stream_cursor_movement, test_setup, teardown,
+                 "chk_remover_stime=1;chk_max_items=10", prepare, cleanup),
         TestCase("test producer stream request nmvb",
                  test_dcp_producer_stream_req_nmvb, test_setup, teardown, NULL,
                  prepare, cleanup),

@@ -303,7 +303,9 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         }
         // Only re-register the cursor if we still need to get memory snapshots
         CursorRegResult result =
-            vb->checkpointManager.registerCursorBySeqno(name_, chkCursorSeqno);
+            vb->checkpointManager.registerCursorBySeqno(
+                                                name_, chkCursorSeqno,
+                                                MustSendCheckpointEnd::NO);
         curChkSeqno = result.first;
     }
 
@@ -738,11 +740,16 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
                             isSendMutationKeyOnlyEnabled() ? KEY_ONLY :
                                                              KEY_VALUE));
             } else if (qi->getOperation() == queue_op_checkpoint_start) {
+                /* if there are already other mutations, then they belong to the
+                   previous checkpoint and hence we must create a snapshot and
+                   put them onto readyQ */
                 if (!mutations.empty()) {
-                    throw std::logic_error("ActiveStream::nextCheckpointItem: "
-                        "found checkpoint_start queued item but mutations is "
-                        "not empty");
+                    snapshot(mutations, mark);
+                    /* clear out all the mutations since they are already put
+                       onto the readyQ */
+                    mutations.clear();
                 }
+                /* mark true as it indicates a new checkpoint snapshot */
                 mark = true;
             }
         }
@@ -854,8 +861,10 @@ void ActiveStream::scheduleBackfill() {
         }
 
         CursorRegResult result =
-            vbucket->checkpointManager.registerCursorBySeqno(name_,
-                                                             lastReadSeqno.load());
+            vbucket->checkpointManager.registerCursorBySeqno(
+                                                name_,
+                                                lastReadSeqno.load(),
+                                                MustSendCheckpointEnd::NO);
         curChkSeqno = result.first;
         bool isFirstItem = result.second;
 

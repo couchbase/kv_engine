@@ -1705,15 +1705,15 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
         vbMap.removeBucket(vbid);
         lh.unlock();
 
-        std::list<std::string> tap_cursors = vb->checkpointManager.
-                                             getCursorNames();
+        checkpointCursorInfoList cursors =
+                                        vb->checkpointManager.getAllCursors();
         // Delete and recreate the vbucket database file
         scheduleVBDeletion(vb, NULL, 0);
         setVBucketState(vbid, vbstate, false);
 
         // Copy the all cursors from the old vbucket into the new vbucket
         RCPtr<VBucket> newvb = vbMap.getBucket(vbid);
-        newvb->checkpointManager.resetCursors(tap_cursors);
+        newvb->checkpointManager.resetCursors(cursors);
 
         rv = true;
     }

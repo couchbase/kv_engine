@@ -703,6 +703,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     log.addStats(add_stat, c);
 
     ReaderLockHolder rlh(streamsMutex);
+    addStat("num_streams", streams.size(), add_stat, c);
     std::map<uint16_t, stream_t>::iterator itr;
     for (itr = streams.begin(); itr != streams.end(); ++itr) {
         itr->second->addStats(add_stat, c);
