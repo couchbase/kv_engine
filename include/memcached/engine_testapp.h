@@ -33,6 +33,7 @@ struct test_harness {
     void (*lock_cookie)(const void *cookie);
     void (*unlock_cookie)(const void *cookie);
     void (*waitfor_cookie)(const void *cookie);
+    void (*notify_io_complete)(const void *cookie, ENGINE_ERROR_CODE status);
     void (*time_travel)(int offset);
     const engine_test_t* (*get_current_testcase)(void);
     size_t (*get_mapped_bytes)(void);

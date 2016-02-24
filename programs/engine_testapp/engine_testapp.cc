@@ -1048,6 +1048,10 @@ static size_t get_mapped_bytes(void) {
     return mapped_bytes;
 }
 
+static void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status) {
+    get_mock_server_api()->cookie->notify_io_complete(cookie, status);
+}
+
 static void release_free_memory(void) {
     get_mock_server_api()->alloc_hooks->release_free_memory();
 }
@@ -1436,6 +1440,7 @@ int main(int argc, char **argv) {
     harness.lock_cookie = lock_mock_cookie;
     harness.unlock_cookie = unlock_mock_cookie;
     harness.waitfor_cookie = waitfor_mock_cookie;
+    harness.notify_io_complete = notify_io_complete;
     harness.time_travel = mock_time_travel;
     harness.get_current_testcase = get_current_testcase;
     harness.get_mapped_bytes = get_mapped_bytes;
