@@ -1096,7 +1096,7 @@ static void complete_update_bin(conn *c) {
         default:
             ;
         }
-    } else {
+    } else if (ret != ENGINE_EWOULDBLOCK) {
         SLAB_INCR(c, cmd_set, info.info.key, info.info.nkey);
     }
 
