@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include "connmap.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "programs/engine_testapp/mock_server.h"
@@ -23,7 +24,7 @@
 
 #include <gtest/gtest.h>
 
-static const char test_dbname[] = "stream_test_db";
+static const char test_dbname[] = "dcp_test_db";
 
 // Mock of the ActiveStream class. Wraps the real ActiveStream, but exposes
 // normally protected methods publically for test purposes.
@@ -60,7 +61,30 @@ public:
     }
 };
 
-class StreamTest : public ::testing::Test {
+/*
+ * Mock of the DcpConnMap class.  Wraps the real DcpConnMap, but exposes
+ * normally protected methods publically for test purposes.
+ */
+class MockDcpConnMap: public DcpConnMap {
+public:
+    MockDcpConnMap(EventuallyPersistentEngine &theEngine)
+    : DcpConnMap(theEngine)
+    {}
+
+    size_t getNumberOfDeadConnections() {
+        return deadConnections.size();
+    }
+
+    void initialize(conn_notifier_type ntype) {
+        connNotifier_ = new ConnNotifier(ntype, *this);
+        // We do not create a ConnNotifierCallback task
+        // We do not create a ConnManager task
+        // The ConnNotifier is deleted in the DcpConnMap
+        // destructor
+    }
+};
+
+class DCPTest : public ::testing::Test {
 protected:
     void SetUp() {
         // Paranoia - kill any existing files in case they are left over
@@ -90,19 +114,36 @@ protected:
         // Set AuxIO threads to zero, so that the producer's
         // ActiveStreamCheckpointProcesserTask doesn't run.
         ExecutorPool::get()->setMaxAuxIO(0);
+        // Set NonIO threads to zero, so the connManager
+        // task does not run.
+        ExecutorPool::get()->setMaxNonIO(0);
     }
 
+    void TearDown() {
+        // Need to force the destroy (i.e. pass true) because
+        // we have disabled NonIO threads.
+        engine_v1->destroy(handle, true);
+        destroy_engine();
+        // Cleanup any files we created.
+        CouchbaseDirectoryUtilities::rmrf(test_dbname);
+    }
+
+    const uint16_t vbid = 0;
+
+    ENGINE_HANDLE* handle;
+    ENGINE_HANDLE_V1* engine_v1;
+    EventuallyPersistentEngine* engine;
+};
+
+class StreamTest : public DCPTest {
+protected:
     void TearDown() {
         producer->clearCheckpointProcessorTaskQueues();
         // Destroy various engine objects
         vb0.reset();
         stream.reset();
         producer.reset();
-        engine_v1->destroy(handle, false);
-        destroy_engine();
-
-        // Cleanup any files we created.
-        CouchbaseDirectoryUtilities::rmrf(test_dbname);
+        DCPTest::TearDown();
     }
 
     // Setup a DCP producer and attach a stream and cursor to it.
@@ -120,17 +161,12 @@ protected:
         vb0 = engine->getVBucket(0);
         EXPECT_TRUE(vb0) << "Failed to get valid VBucket object for id 0";
         EXPECT_FALSE(vb0->checkpointManager.registerCursor(
-                                                    producer->getName(),
-                                                    1, false,
-                                                    MustSendCheckpointEnd::NO))
+                                                           producer->getName(),
+                                                           1, false,
+                                                           MustSendCheckpointEnd::NO))
             << "Found an existing TAP cursor when attempting to register ours";
     }
 
-    const uint16_t vbid = 0;
-
-    ENGINE_HANDLE* handle;
-    ENGINE_HANDLE_V1* engine_v1;
-    EventuallyPersistentEngine* engine;
     dcp_producer_t producer;
     stream_t stream;
     RCPtr<VBucket> vb0;
@@ -250,6 +286,31 @@ TEST_F(StreamTest, MB17653_ItemsRemaining) {
     } while (response);
     EXPECT_EQ(0, mock_stream->getItemsRemaining())
         << "Should have 0 items remaining after advancing cursor and draining readyQ";
+}
+
+class ConnectionTest : public DCPTest {};
+
+TEST_F(ConnectionTest, test_mb18135) {
+    MockDcpConnMap *connMap = new MockDcpConnMap(*engine);
+    connMap->initialize(DCP_CONN_NOTIFIER);
+    const void *cookie = create_mock_cookie();
+    // Create a new Dcp producer
+    dcp_producer_t producer = connMap->newProducer(cookie, "test_mb18135_producer",
+                                    /*notifyOnly*/false);
+
+    // Disconnect the producer connection
+    connMap->disconnect(cookie);
+    EXPECT_EQ(1, (int)connMap->getNumberOfDeadConnections())
+        << "Unexpected number of dead connections";
+    connMap->shutdownAllConnections();
+    // REGRESSION CHECK: should be zero deadConnections
+    EXPECT_EQ(0, (int)connMap->getNumberOfDeadConnections())
+        << "Dead connections still remain";
+
+    // We do not need to call delete cookie, as that is performed
+    // during the call to shutdownAllConnections.
+    producer.reset();
+    delete connMap;
 }
 
 /* static storage for environment variable set by putenv(). */

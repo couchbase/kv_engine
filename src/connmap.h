@@ -515,6 +515,13 @@ public:
 
     float getMinCompressionRatio();
 
+protected:
+    /*
+     * deadConnections is protected (as opposed to private) because
+     * of the module test ep-engine_dead_connections_test
+     */
+    std::list<connection_t> deadConnections;
+
 private:
 
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
@@ -524,8 +531,6 @@ private:
     void closeAllStreams_UNLOCKED();
 
     void cancelAllTasks_UNLOCKED();
-
-    std::list<connection_t> deadConnections;
 
     SpinLock numBackfillsLock;
     /* Db file memory */
