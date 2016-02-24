@@ -207,6 +207,12 @@ void ScramShaBackend::addAttribute(std::ostream& out, char key, int value,
     }
 }
 
+static std::vector<uint8_t> string2vector(const std::string& str) {
+    std::vector<uint8_t> ret(str.length());
+    std::memcpy(ret.data(), str.data(), ret.size());
+    return ret;
+}
+
 /**
  * Generate the Server Signature. It is computed as:
  *
@@ -215,22 +221,14 @@ void ScramShaBackend::addAttribute(std::ostream& out, char key, int value,
  * ServerSignature := HMAC(ServerKey, AuthMessage)
  */
 std::string ScramShaBackend::getServerSignature() {
-    std::vector<uint8_t> serverKey(digestSize);
-    std::vector<uint8_t> serverSignature(digestSize);
     std::vector<uint8_t> saltedPassword;
-
     getSaltedPassword(saltedPassword);
-    const std::string data("Server Key");
-
-    HMAC(digest, saltedPassword.data(), saltedPassword.size(),
-         reinterpret_cast<const unsigned char*>(data.data()),
-         data.length(), serverKey.data(), nullptr);
+    auto serverKey = Couchbase::Crypto::HMAC(algorithm, saltedPassword,
+                                        string2vector("Server Key"));
 
     std::string authMessage = getAuthMessage();
-
-    HMAC(digest, serverKey.data(), serverKey.size(),
-         reinterpret_cast<const unsigned char*>(authMessage.data()),
-         authMessage.length(), serverSignature.data(), nullptr);
+    auto serverSignature =  Couchbase::Crypto::HMAC(algorithm, serverKey,
+                                                    string2vector(authMessage));
 
     return std::string(reinterpret_cast<const char*>(serverSignature.data()),
                        serverSignature.size());
@@ -249,25 +247,16 @@ std::string ScramShaBackend::getServerSignature() {
  * ClientProof     := ClientKey XOR ClientSignature
  */
 std::string ScramShaBackend::getClientProof() {
-    std::vector<uint8_t> clientKey(digestSize);
-    std::vector<uint8_t> clientSignature(digestSize);
     std::vector<uint8_t> saltedPassword;
 
     getSaltedPassword(saltedPassword);
 
-    const std::string data("Client Key");
-
-    HMAC(digest, saltedPassword.data(), saltedPassword.size(),
-         reinterpret_cast<const unsigned char*>(data.data()),
-         data.length(), clientKey.data(), nullptr);
-
-    std::vector<uint8_t> storedKey;
-    calculateStoredKey(storedKey, clientKey);
-
+    auto clientKey = Couchbase::Crypto::HMAC(algorithm, saltedPassword,
+                                             string2vector("Client Key"));
+    auto storedKey = Couchbase::Crypto::digest(algorithm, clientKey);
     std::string authMessage = getAuthMessage();
-    HMAC(digest, storedKey.data(), storedKey.size(),
-         reinterpret_cast<const unsigned char*>(authMessage.data()),
-         authMessage.length(), clientSignature.data(), nullptr);
+    auto clientSignature = Couchbase::Crypto::HMAC(algorithm, storedKey,
+                                                   string2vector(authMessage));
 
     // Client Proof is ClientKey XOR ClientSignature
     uint8_t* ck = clientKey.data();
@@ -285,33 +274,13 @@ std::string ScramShaBackend::getClientProof() {
                        proof.size());
 }
 
-void ScramShaBackend::calculateStoredKey(std::vector<uint8_t>& storedKey,
-                                         const std::vector<uint8_t>& clientKey) {
-    storedKey.resize(digestSize);
-    switch (mechanism) {
-    case Mechanism::SCRAM_SHA1:
-        SHA1(clientKey.data(), clientKey.size(), storedKey.data());
-        break;
-    case Mechanism::SCRAM_SHA256:
-        SHA256(clientKey.data(), clientKey.size(), storedKey.data());
-        break;
-    case Mechanism::SCRAM_SHA512:
-        SHA512(clientKey.data(), clientKey.size(), storedKey.data());
-        break;
-    default:
-        throw std::logic_error("No support for the requested mechanism");
-    }
-}
-
-
 /********************************************************************
  * Generic SHA Server API
  *******************************************************************/
 ScramShaServerBackend::ScramShaServerBackend(const std::string& mech_name,
                                              const Mechanism& mech,
-                                             const EVP_MD* dig,
-                                             const size_t digSize)
-    : ScramShaBackend(mech_name, mech, dig, digSize) {
+                                             const Couchbase::Crypto::Algorithm algo)
+    : ScramShaBackend(mech_name, mech, algo) {
     /* Generate a challenge */
     Couchbase::RandomGenerator randomGenerator(true);
 
@@ -527,9 +496,8 @@ cbsasl_error_t ScramShaServerBackend::step(cbsasl_conn_t* conn,
  *******************************************************************/
 ScramShaClientBackend::ScramShaClientBackend(const std::string& mech_name,
                                              const Mechanism& mech,
-                                             const EVP_MD* dig,
-                                             const size_t digSize)
-    : ScramShaBackend(mech_name, mech, dig, digSize) {
+                                             const Couchbase::Crypto::Algorithm algo)
+    : ScramShaBackend(mech_name, mech, algo) {
     Couchbase::RandomGenerator randomGenerator(true);
 
     std::array<char, 8> nonce;
@@ -730,57 +698,14 @@ cbsasl_error_t ScramShaClientBackend::step(cbsasl_conn_t* conn,
     }
 }
 
-bool ScramSha1ClientBackend::generateSaltedPassword(const char* ptr, int len) {
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
-    saltedPassword.resize(Couchbase::Sha1DigestSize);
-    if (PKCS5_PBKDF2_HMAC_SHA1(ptr, len,
-                               reinterpret_cast<unsigned const char*>(salt.data()),
-                               int(salt.size()),
-                               iterationCount,
-                               Couchbase::Sha1DigestSize,
-                               saltedPassword.data()) != 1) {
+bool ScramShaClientBackend::generateSaltedPassword(const char* ptr, int len) {
+    std::string secret(ptr, len);
+    try {
+        saltedPassword = Couchbase::Crypto::PBKDF2_HMAC(algorithm, secret,
+                                                        string2vector(salt),
+                                                        iterationCount);
+        return true;
+    } catch (...) {
         return false;
     }
-    return true;
-#else
-    throw std::runtime_error("SHA-1 is not supported on this platform");
-#endif
-}
-
-bool ScramSha256ClientBackend::generateSaltedPassword(const char* ptr,
-                                                      int len) {
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
-    saltedPassword.resize(Couchbase::Sha256DigestSize);
-    if (PKCS5_PBKDF2_HMAC(ptr, len,
-                          reinterpret_cast<unsigned const char*>(salt.data()),
-                          int(salt.size()),
-                          iterationCount,
-                          EVP_sha256(),
-                          Couchbase::Sha256DigestSize,
-                          saltedPassword.data()) != 1) {
-        return false;
-    }
-    return true;
-#else
-    throw std::runtime_error("SHA-256 is not supported on this platform");
-#endif
-}
-
-bool ScramSha512ClientBackend::generateSaltedPassword(const char* ptr,
-                                                      int len) {
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
-    saltedPassword.resize(Couchbase::Sha512DigestSize);
-    if (PKCS5_PBKDF2_HMAC(ptr, len,
-                          reinterpret_cast<unsigned const char*>(salt.data()),
-                          int(salt.size()),
-                          iterationCount,
-                          EVP_sha512(),
-                          Couchbase::Sha512DigestSize,
-                          saltedPassword.data()) != 1) {
-        return false;
-    }
-    return true;
-#else
-    throw std::runtime_error("SHA-512 is not supported on this platform");
-#endif
 }

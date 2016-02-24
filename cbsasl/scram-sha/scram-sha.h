@@ -42,12 +42,10 @@ class ScramShaBackend : public MechanismBackend {
 protected:
     ScramShaBackend(const std::string& mech_name,
                     const Mechanism& mech,
-                    const EVP_MD* dig,
-                    const size_t digSize)
+                    const Couchbase::Crypto::Algorithm algo)
         : MechanismBackend(mech_name),
           mechanism(mech),
-          digest(dig),
-          digestSize(digSize)
+          algorithm(algo)
     {
 
     }
@@ -92,9 +90,6 @@ protected:
 
     virtual void getSaltedPassword(std::vector<uint8_t>& dest) = 0;
 
-    void calculateStoredKey(std::vector<uint8_t>& storedKey,
-                            const std::vector<uint8_t>& clientKey);
-
     /**
      * Get the AUTH message (as specified in the RFC)
      */
@@ -114,8 +109,7 @@ protected:
     std::string nonce;
 
     Mechanism mechanism;
-    const EVP_MD* digest;
-    size_t digestSize;
+    const Couchbase::Crypto::Algorithm algorithm;
 };
 
 /**
@@ -128,8 +122,7 @@ class ScramShaServerBackend : public ScramShaBackend {
 public:
     ScramShaServerBackend(const std::string& mech_name,
                           const Mechanism& mech,
-                          const EVP_MD* dig,
-                          const size_t digSize);
+                          const Couchbase::Crypto::Algorithm algo);
 
     virtual cbsasl_error_t start(cbsasl_conn_t* conn, const char* input,
                                  unsigned inputlen, const char** output,
@@ -152,8 +145,7 @@ public:
     ScramSha1ServerBackend()
         : ScramShaServerBackend(MECH_NAME_SCRAM_SHA1,
                                 Mechanism::SCRAM_SHA1,
-                                EVP_sha1(),
-                                Couchbase::Sha1DigestSize) { }
+                                Couchbase::Crypto::Algorithm::SHA1) { }
 
     virtual const std::string& getSalt() override {
         return user.getSha1Salt();
@@ -174,8 +166,7 @@ public:
     ScramSha256ServerBackend()
         : ScramShaServerBackend(MECH_NAME_SCRAM_SHA256,
                                 Mechanism::SCRAM_SHA256,
-                                EVP_sha256(),
-                                Couchbase::Sha256DigestSize) { }
+                                Couchbase::Crypto::Algorithm::SHA256) { }
 
     virtual const std::string& getSalt() override {
         return user.getSha256Salt();
@@ -196,8 +187,7 @@ public:
     ScramSha512ServerBackend()
         : ScramShaServerBackend(MECH_NAME_SCRAM_SHA512,
                                 Mechanism::SCRAM_SHA512,
-                                EVP_sha512(),
-                                Couchbase::Sha512DigestSize) { }
+                                Couchbase::Crypto::Algorithm::SHA512) { }
 
     virtual const std::string& getSalt() override {
         return user.getSha512Salt();
@@ -218,8 +208,7 @@ class ScramShaClientBackend : public ScramShaBackend {
 public:
     ScramShaClientBackend(const std::string& mech_name,
                           const Mechanism& mech,
-                          const EVP_MD* dig,
-                          const size_t digSize);
+                          const Couchbase::Crypto::Algorithm algo);
 
     virtual cbsasl_error_t start(cbsasl_conn_t* conn, const char* input,
                                  unsigned inputlen, const char** output,
@@ -231,7 +220,7 @@ public:
 
 protected:
 
-    virtual bool generateSaltedPassword(const char *ptr, int len) = 0;
+    bool generateSaltedPassword(const char *ptr, int len);
 
     virtual void getSaltedPassword(std::vector<uint8_t>& dest) override {
         if (saltedPassword.empty()) {
@@ -252,11 +241,7 @@ public:
     ScramSha1ClientBackend()
         : ScramShaClientBackend(MECH_NAME_SCRAM_SHA1,
                                 Mechanism::SCRAM_SHA1,
-                                EVP_sha1(),
-                                Couchbase::Sha1DigestSize) { }
-
-protected:
-    virtual bool generateSaltedPassword(const char* ptr, int len) override;
+                                Couchbase::Crypto::Algorithm::SHA1) { }
 };
 
 class ScramSha256ClientBackend : public ScramShaClientBackend {
@@ -264,11 +249,7 @@ public:
     ScramSha256ClientBackend()
         : ScramShaClientBackend(MECH_NAME_SCRAM_SHA256,
                                 Mechanism::SCRAM_SHA256,
-                                EVP_sha256(),
-                                Couchbase::Sha256DigestSize) { }
-
-protected:
-    virtual bool generateSaltedPassword(const char* ptr, int len) override;
+                                Couchbase::Crypto::Algorithm::SHA256) { }
 };
 
 class ScramSha512ClientBackend : public ScramShaClientBackend {
@@ -276,9 +257,5 @@ public:
     ScramSha512ClientBackend()
         : ScramShaClientBackend(MECH_NAME_SCRAM_SHA512,
                                 Mechanism::SCRAM_SHA512,
-                                EVP_sha512(),
-                                Couchbase::Sha512DigestSize) { }
-
-protected:
-    virtual bool generateSaltedPassword(const char* ptr, int len) override;
+                                Couchbase::Crypto::Algorithm::SHA512) { }
 };

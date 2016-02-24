@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <array>
+#include <cbsasl/cbcrypto.h>
 
 const char* cbpwfile = "cbsasl_test.pw";
 
@@ -219,21 +220,23 @@ TEST_F(SaslClientServerTest, CRAM_MD5) {
     test_auth("CRAM-MD5");
 }
 
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
 TEST_F(SaslClientServerTest, SCRAM_SHA1) {
-    test_auth("SCRAM-SHA1");
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA1)) {
+        test_auth("SCRAM-SHA1");
+    }
 }
-#endif
 
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
 TEST_F(SaslClientServerTest, SCRAM_SHA256) {
-    test_auth("SCRAM-SHA256");
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA256)) {
+        test_auth("SCRAM-SHA256");
+    }
 }
 
 TEST_F(SaslClientServerTest, SCRAM_SHA512) {
-    test_auth("SCRAM-SHA512");
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA512)) {
+        test_auth("SCRAM-SHA512");
+    }
 }
-#endif
 
 TEST_F(SaslClientServerTest, AutoSelectMechamism) {
     test_auth("(SCRAM-SHA512,SCRAM-SHA256,SCRAM-SHA1,CRAM-MD5,PLAIN)");

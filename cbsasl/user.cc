@@ -49,47 +49,40 @@ Couchbase::User::User(const std::string& unm, const std::string& passwd)
       iterationCount(IterationCount.load()),
       dummy(false) {
 
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
-    std::vector<uint8_t> salt(Sha1DigestSize);
+    struct {
+        Crypto::Algorithm algoritm;
+        int digest_length;
+        std::string& salt;
+        std::vector<uint8_t>& salted_password;
+    } algo_info[] = {
+        {
+            Crypto::Algorithm::SHA1,
+            Crypto::SHA1_DIGEST_SIZE,
+            sha1Salt,
+            saltedSha1Password
+        }, {
+            Crypto::Algorithm::SHA256,
+            Crypto::SHA256_DIGEST_SIZE,
+            sha256Salt,
+            saltedSha256Password
+        }, {
+            Crypto::Algorithm::SHA512,
+            Crypto::SHA512_DIGEST_SIZE,
+            sha512Salt,
+            saltedSha512Password
+        }
+    };
 
-    generateSalt(salt, sha1Salt);
-
-    if (PKCS5_PBKDF2_HMAC_SHA1(passwd.data(), int(passwd.size()),
-                               salt.data(), int(salt.size()),
-                               iterationCount,
-                               Sha1DigestSize,
-                               saltedSha1Password.data()) != 1) {
-        throw std::runtime_error("PKCS5_PBKDF2_HMAC_SHA1 failed");
+    for (const auto& info : algo_info) {
+        if (Crypto::isSupported(info.algoritm)) {
+            std::vector<uint8_t> salt(info.digest_length);
+            generateSalt(salt, info.salt);
+            auto digest = Crypto::PBKDF2_HMAC(info.algoritm,
+                                              passwd, salt,
+                                              iterationCount);
+            info.salted_password = digest;
+        }
     }
-#endif
-
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
-    // The version of OpenSSL shipped with MacOSX does not contain
-    // PKCS5_PBKDF2_HMAC and I don't feel like creating an implementation
-    // just for MacOSX (the customer base is too small and this is
-    // a non-essential functionality)
-    salt.resize(Sha256DigestSize);
-    generateSalt(salt, sha256Salt);
-    if (PKCS5_PBKDF2_HMAC(passwd.data(), int(passwd.size()),
-                          salt.data(), int(salt.size()),
-                          iterationCount,
-                          EVP_sha256(),
-                          Sha256DigestSize,
-                          saltedSha256Password.data()) != 1) {
-        throw std::runtime_error("PKCS5_PBKDF2_HMAC SHA256 failed");
-    }
-
-    salt.resize(Sha512DigestSize);
-    generateSalt(salt, sha512Salt);
-    if (PKCS5_PBKDF2_HMAC(passwd.data(), int(passwd.size()),
-                          salt.data(), int(salt.size()),
-                          iterationCount,
-                          EVP_sha512(),
-                          Sha512DigestSize,
-                          saltedSha512Password.data()) != 1) {
-        throw std::runtime_error("PKCS5_PBKDF2_HMAC SHA512 failed");
-    }
-#endif
 }
 
 void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn,
@@ -119,51 +112,34 @@ void Couchbase::User::generateSecrets(const Mechanism& mech) {
     }
 
     std::vector<uint8_t> salt;
+    std::vector<uint8_t> digest;
     std::string passwd;
 
     switch (mech) {
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
     case Mechanism::SCRAM_SHA512:
-        salt.resize(Sha512DigestSize);
+        salt.resize(Crypto::SHA512_DIGEST_SIZE);
         generateSalt(salt, passwd);
         generateSalt(salt, sha512Salt);
-        if (PKCS5_PBKDF2_HMAC(passwd.data(), int(passwd.size()),
-                              salt.data(), int(salt.size()),
-                              iterationCount,
-                              EVP_sha512(),
-                              Sha512DigestSize,
-                              saltedSha512Password.data()) != 1) {
-            throw std::runtime_error("PKCS5_PBKDF2_HMAC SHA512 failed");
-        }
+        digest = Crypto::PBKDF2_HMAC(Crypto::Algorithm::SHA512,
+                                     passwd, salt, iterationCount);
+        std::copy(digest.begin(), digest.end(), saltedSha256Password.begin());
         break;
     case Mechanism::SCRAM_SHA256:
-        salt.resize(Sha256DigestSize);
+        salt.resize(Crypto::SHA256_DIGEST_SIZE);
         generateSalt(salt, passwd);
         generateSalt(salt, sha256Salt);
-        if (PKCS5_PBKDF2_HMAC(passwd.data(), int(passwd.size()),
-                              salt.data(), int(salt.size()),
-                              iterationCount,
-                              EVP_sha256(),
-                              Sha256DigestSize,
-                              saltedSha256Password.data()) != 1) {
-            throw std::runtime_error("PKCS5_PBKDF2_HMAC SHA256 failed");
-        }
+        digest = Crypto::PBKDF2_HMAC(Crypto::Algorithm::SHA256,
+                                     passwd, salt, iterationCount);
+        std::copy(digest.begin(), digest.end(), saltedSha256Password.begin());
         break;
-#endif
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
-        case Mechanism::SCRAM_SHA1:
-        salt.resize(Sha1DigestSize);
+    case Mechanism::SCRAM_SHA1:
+        salt.resize(Crypto::SHA1_DIGEST_SIZE);
         generateSalt(salt, passwd);
         generateSalt(salt, sha1Salt);
-        if (PKCS5_PBKDF2_HMAC_SHA1(passwd.data(), int(passwd.size()),
-                                   salt.data(), int(salt.size()),
-                                   iterationCount,
-                                   Sha1DigestSize,
-                                   saltedSha1Password.data()) != 1) {
-            throw std::runtime_error("PKCS5_PBKDF2_HMAC_SHA1 failed");
-        }
+        digest = Crypto::PBKDF2_HMAC(Crypto::Algorithm::SHA1,
+                                     passwd, salt, iterationCount);
+        std::copy(digest.begin(), digest.end(), saltedSha256Password.begin());
         break;
-#endif
     default:
         throw std::logic_error("Couchbase::User::generateSecrets invalid mech");
     }

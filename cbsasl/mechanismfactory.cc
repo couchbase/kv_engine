@@ -108,11 +108,8 @@ public:
     }
 
     virtual bool isMechanismSupported() override {
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
-        return true;
-#else
-        return false;
-#endif
+        using namespace Couchbase;
+        return Crypto::isSupported(Crypto::Algorithm::SHA512);
     }
 };
 
@@ -132,11 +129,8 @@ public:
     }
 
     virtual bool isMechanismSupported() override {
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
-        return true;
-#else
-        return false;
-#endif
+        using namespace Couchbase;
+        return Crypto::isSupported(Crypto::Algorithm::SHA256);
     }
 };
 
@@ -156,11 +150,8 @@ public:
     }
 
     virtual bool isMechanismSupported() override {
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
-        return true;
-#else
-        return false;
-#endif
+        using namespace Couchbase;
+        return Crypto::isSupported(Crypto::Algorithm::SHA1);
     }
 };
 

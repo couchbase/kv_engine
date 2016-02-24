@@ -19,18 +19,10 @@
 #include <array>
 #include <cstdint>
 #include <string>
+#include "cbcrypto.h"
 #include "cbsasl_internal.h"
 
 namespace Couchbase {
-    const int Sha1DigestSize = 20;
-    typedef std::array<uint8_t, Sha1DigestSize> Sha1Digest;
-
-    const int Sha256DigestSize = 32;
-    typedef std::array<uint8_t, Sha256DigestSize> Sha256Digest;
-
-    const int Sha512DigestSize = 64;
-    typedef std::array<uint8_t, Sha512DigestSize> Sha512Digest;
-
     class User {
     public:
         /**
@@ -106,7 +98,7 @@ namespace Couchbase {
          *
          * @return salted sha1 password
          */
-        const Sha1Digest& getSaltedSha1Password() const {
+        const std::vector<uint8_t>& getSaltedSha1Password() const {
             return saltedSha1Password;
         }
 
@@ -128,7 +120,7 @@ namespace Couchbase {
          *
          * @return salted sha256 password
          */
-        const Sha256Digest& getSaltedSha256Password() const {
+        const std::vector<uint8_t>& getSaltedSha256Password() const {
             return saltedSha256Password;
         }
 
@@ -149,7 +141,7 @@ namespace Couchbase {
          *
          * @return salted sha512 password
          */
-        const Sha512Digest& getSaltedSha512Password() const {
+        const std::vector<uint8_t>& getSaltedSha512Password() const {
             return saltedSha512Password;
         }
 
@@ -176,15 +168,15 @@ namespace Couchbase {
 
         std::string sha1Salt;
 
-        Sha1Digest saltedSha1Password;
+        std::vector<uint8_t> saltedSha1Password;
 
         std::string sha256Salt;
 
-        Sha256Digest saltedSha256Password;
+        std::vector<uint8_t> saltedSha256Password;
 
         std::string sha512Salt;
 
-        Sha512Digest saltedSha512Password;
+        std::vector<uint8_t> saltedSha512Password;
 
         int iterationCount;
 
