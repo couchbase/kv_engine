@@ -131,14 +131,12 @@ os.environ['MEMCACHED_CRASH_TEST'] = "true"
 
 args = [memcached_exe, "-C", os.path.abspath(config_file.name)]
 
-# Spawn memcached from a child thread. We specify a timeout to prevent the test
-# hanging forever if something goes wrong.
+# Spawn memcached from a child thread.
 memcached = Subprocess(args)
-memcached.run(timeout=20)
 
 # Wait for memcached to initialise (and consequently crash due to loading
 # crash_engine).
-(status, stderrdata) = memcached.run(timeout=10)
+(status, stderrdata) = memcached.run(timeout=30)
 
 # Cleanup config_file (no longer needed).
 os.remove(config_file.name)
