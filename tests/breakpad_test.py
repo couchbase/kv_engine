@@ -58,16 +58,30 @@ def invoke_gdb(gdb_exe, program, core_file, commands=[]):
     return gdb.stdout.read()
 
 class Subprocess(object):
-    """Simple wrapper around subprocess to add a timeout to the child process."""
+    """Simple wrapper around subprocess to add a timeout & core file limit
+    to the child process.
+    """
 
     def __init__(self, args):
         self.args = args
         self.process = None
 
     def run(self, timeout):
+        def set_core_file_ulimit():
+            try:
+                import resource
+                resource.setrlimit(resource.RLIMIT_CORE, (0,0))
+            except ImportError:
+                if os.name == 'nt':
+                    # Not possible to set core on Windows.
+                    pass
+                else:
+                    raise
+
         def target():
             self.process = subprocess.Popen(self.args, stderr=subprocess.PIPE,
-                                            env = os.environ)
+                                            env = os.environ,
+                                            preexec_fn=set_core_file_ulimit)
             (_, self.stderrdata) = self.process.communicate()
 
         thread = threading.Thread(target=target)
