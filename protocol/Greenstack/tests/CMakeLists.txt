@@ -10,9 +10,8 @@ add_executable(GreenstackUnitTests BitFieldPackTest.cc
         ByteArrayReaderTest.cc ByteArrayWriterTest.cc
         RequestTest.cc ResponseTest.cc FrameTest.cc
         HelloTest.cc SaslTest.cc MutationTest.cc
-        ${gtest_SOURCE_DIR}/src/gtest-all.cc
-        ${gtest_SOURCE_DIR}/src/gtest_main.cc AssumeRoleTest.cc
+        AssumeRoleTest.cc
         CreateBucketTest.cc DeleteBucketTest.cc ListBucketsTest.cc
         SelectBucketTest.cc GetTest.cc)
-target_link_libraries(GreenstackUnitTests greenstack ${GTEST_THREAD_LIBS})
+target_link_libraries(GreenstackUnitTests greenstack gtest gtest_main ${GTEST_THREAD_LIBS})
 add_test(NAME GreenstackUnitTests COMMAND GreenstackUnitTests)
