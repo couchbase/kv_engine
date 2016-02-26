@@ -169,6 +169,7 @@ static void perf_latency_core(ENGINE_HANDLE *h,
                               std::vector<hrtime_t> &add_timings,
                               std::vector<hrtime_t> &get_timings,
                               std::vector<hrtime_t> &replace_timings,
+                              std::vector<hrtime_t> &append_timings,
                               std::vector<hrtime_t> &delete_timings) {
 
     const void *cookie = testHarness.create_cookie();
@@ -220,6 +221,24 @@ static void perf_latency_core(ENGINE_HANDLE *h,
         h1->release(h, cookie, item);
     }
 
+    // Append
+    // To be "evil" to append, we don't append once to each key, but instead
+    // append to one key until we've exceeded 1MiB.
+    std::string append_data('y', 50);
+    for (int ii = 0; ii < (1024*1024); ii += append_data.size()) {
+        item* item = NULL;
+        const hrtime_t start = gethrtime();
+        checkeq(ENGINE_SUCCESS,
+                storeCasVb11(h, h1, cookie, OPERATION_APPEND, keys[0].c_str(),
+                             append_data.c_str(), append_data.length(), 0,
+                             &item, /*vb0*/0, 0, 0),
+                "Failed to append.");
+
+        const hrtime_t end = gethrtime();
+        append_timings.push_back(end - start);
+        h1->release(h, cookie, item);
+    }
+
     // Delete
     for (auto& key : keys) {
         const hrtime_t start = gethrtime();
@@ -240,10 +259,12 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     // Only timing front-end performance, not considering persistence.
     stop_persistence(h, h1);
 
-    std::vector<hrtime_t> add_timings, get_timings, replace_timings, delete_timings;
+    std::vector<hrtime_t> add_timings, get_timings,
+                          replace_timings, append_timings, delete_timings;
     add_timings.reserve(num_docs);
     get_timings.reserve(num_docs);
     replace_timings.reserve(num_docs);
+    append_timings.reserve(num_docs);
     delete_timings.reserve(num_docs);
 
     int printed = 0;
@@ -252,12 +273,14 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     fillLineWith('=', 88-printed);
 
     // run and measure on this thread.
-    perf_latency_core(h, h1, 0, num_docs, add_timings, get_timings, replace_timings, delete_timings);
+    perf_latency_core(h, h1, 0, num_docs, add_timings, get_timings,
+                      replace_timings, append_timings, delete_timings);
 
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     all_timings.push_back(std::make_pair("Add", &add_timings));
     all_timings.push_back(std::make_pair("Get", &get_timings));
     all_timings.push_back(std::make_pair("Replace", &replace_timings));
+    all_timings.push_back(std::make_pair("Append", &append_timings));
     all_timings.push_back(std::make_pair("Delete", &delete_timings));
     print_values(all_timings, "µs");
     return SUCCESS;
@@ -284,13 +307,24 @@ static enum test_result perf_latency_expiry_pager(ENGINE_HANDLE *h,
     return perf_latency(h, h1, "With constant Expiry pager", 100000);
 }
 
-struct ThreadArguments {
+class ThreadArguments {
+public:
     void reserve(int n) {
         add_timings.reserve(n);
         get_timings.reserve(n);
         replace_timings.reserve(n);
+        append_timings.reserve(n);
         delete_timings.reserve(n);
     }
+
+    void clear() {
+        add_timings.clear();
+        get_timings.clear();
+        replace_timings.clear();
+        append_timings.clear();
+        delete_timings.clear();
+    }
+
     ENGINE_HANDLE* h;
     ENGINE_HANDLE_V1* h1;
     int key_prefix;
@@ -298,6 +332,7 @@ struct ThreadArguments {
     std::vector<hrtime_t> add_timings;
     std::vector<hrtime_t> get_timings;
     std::vector<hrtime_t> replace_timings;
+    std::vector<hrtime_t> append_timings;
     std::vector<hrtime_t> delete_timings;
 };
 
@@ -312,6 +347,7 @@ extern "C" {
                           threadArgs->add_timings,
                           threadArgs->get_timings,
                           threadArgs->replace_timings,
+                          threadArgs->append_timings,
                           threadArgs->delete_timings);
     }
 }
@@ -389,7 +425,8 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
 
     // For the results, bring all the bucket timings into a single array
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
-    std::vector<hrtime_t> add_timings, get_timings, replace_timings, delete_timings;
+    std::vector<hrtime_t> add_timings, get_timings, replace_timings,
+                          append_timings, delete_timings;
     for (int ii = 0; ii < n_threads; ii++) {
         add_timings.insert(add_timings.end(),
                            thread_args[ii].add_timings.begin(),
@@ -400,18 +437,19 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
         replace_timings.insert(replace_timings.end(),
                                thread_args[ii].replace_timings.begin(),
                                thread_args[ii].replace_timings.end());
+        append_timings.insert(append_timings.end(),
+                              thread_args[ii].append_timings.begin(),
+                              thread_args[ii].append_timings.end());
         delete_timings.insert(delete_timings.end(),
                               thread_args[ii].delete_timings.begin(),
                               thread_args[ii].delete_timings.end());
         // done with these arrays now
-        thread_args[ii].add_timings.clear();
-        thread_args[ii].get_timings.clear();
-        thread_args[ii].replace_timings.clear();
-        thread_args[ii].delete_timings.clear();
+        thread_args[ii].clear();
     }
     all_timings.push_back(std::make_pair("Add", &add_timings));
     all_timings.push_back(std::make_pair("Get", &get_timings));
     all_timings.push_back(std::make_pair("Replace", &replace_timings));
+    all_timings.push_back(std::make_pair("Append", &append_timings));
     all_timings.push_back(std::make_pair("Delete", &delete_timings));
     print_values(all_timings, "µs");
 
