@@ -86,7 +86,7 @@ bool McbpConnection::registerEvent() {
     struct timeval tv;
     struct timeval* tp = nullptr;
 
-    if (isAdmin() || isDCP() || isTAP()) {
+    if (settings.connection_idle_time == 0 || isAdmin() || isDCP() || isTAP()) {
         tp = nullptr;
         ev_timeout_enabled = false;
     } else {
