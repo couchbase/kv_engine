@@ -2188,11 +2188,17 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
 
 
 void CouchKVStore::closeDatabaseHandle(Db *db) {
-    couchstore_error_t ret = couchstore_close_db(db);
+    couchstore_error_t ret = couchstore_close_file(db);
     if (ret != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
-            "couchstore_close_db failed, error=%s [%s]",
-            couchstore_strerror(ret), couchkvstore_strerrno(NULL, ret).c_str());
+            "couchstore_close_file failed, error=%s [%s]",
+            couchstore_strerror(ret), couchkvstore_strerrno(db, ret).c_str());
+    }
+    ret = couchstore_free_db(db);
+    if (ret != COUCHSTORE_SUCCESS) {
+        LOG(EXTENSION_LOG_WARNING,
+            "couchstore_free_db failed, error=%s [%s]",
+            couchstore_strerror(ret), couchkvstore_strerrno(nullptr, ret).c_str());
     }
     st.numClose++;
 }

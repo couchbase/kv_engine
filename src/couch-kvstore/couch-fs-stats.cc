@@ -34,8 +34,8 @@ public:
     couchstore_error_t open(couchstore_error_info_t* errinfo,
                             couch_file_handle* handle, const char* path,
                             int oflag) override;
-    void close(couchstore_error_info_t* errinfo,
-               couch_file_handle handle) override;
+    couchstore_error_t close(couchstore_error_info_t* errinfo,
+                             couch_file_handle handle) override;
     ssize_t pread(couchstore_error_info_t* errinfo,
                   couch_file_handle handle, void* buf, size_t nbytes,
                   cs_off_t offset) override;
@@ -50,8 +50,7 @@ public:
                               couch_file_handle handle, cs_off_t offset,
                               cs_off_t len,
                               couchstore_file_advice_t advice) override;
-    void destructor(couchstore_error_info_t* errinfo,
-                    couch_file_handle handle) override;
+    void destructor(couch_file_handle handle) override;
 
 protected:
     CouchstoreStats& stats;
@@ -83,10 +82,10 @@ couchstore_error_t StatsOps::open(couchstore_error_info_t* errinfo,
     return sf->orig_ops->open(errinfo, &sf->orig_handle, path, flags);
 }
 
-void StatsOps::close(couchstore_error_info_t* errinfo,
-                     couch_file_handle h) {
+couchstore_error_t StatsOps::close(couchstore_error_info_t* errinfo,
+                                   couch_file_handle h) {
     StatFile* sf = reinterpret_cast<StatFile*>(h);
-    sf->orig_ops->close(errinfo, sf->orig_handle);
+    return sf->orig_ops->close(errinfo, sf->orig_handle);
 }
 
 ssize_t StatsOps::pread(couchstore_error_info_t* errinfo,
@@ -147,10 +146,9 @@ couchstore_error_t StatsOps::advise(couchstore_error_info_t* errinfo,
     return sf->orig_ops->advise(errinfo, sf->orig_handle, offs, len, adv);
 }
 
-void StatsOps::destructor(couchstore_error_info_t* errinfo,
-                         couch_file_handle h) {
+void StatsOps::destructor(couch_file_handle h) {
     StatFile* sf = reinterpret_cast<StatFile*>(h);
-    sf->orig_ops->destructor(errinfo, sf->orig_handle);
+    sf->orig_ops->destructor(sf->orig_handle);
     delete sf;
 }
 
