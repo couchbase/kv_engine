@@ -508,7 +508,7 @@ bool ExecutorPool::_stopTaskGroup(EventuallyPersistentEngine *e,
     std::map<size_t, TaskQpair>::iterator itr;
 
     LockHolder lh(tMutex);
-    LOG(EXTENSION_LOG_DEBUG, "Stopping %d type tasks in bucket %s", taskType,
+    LOG(EXTENSION_LOG_WARNING, "Stopping %d type tasks in bucket %s", taskType,
             e->getName());
     do {
         ExTask task;
@@ -518,7 +518,7 @@ bool ExecutorPool::_stopTaskGroup(EventuallyPersistentEngine *e,
             TaskQueue *q = itr->second.second;
             if (task->getEngine() == e &&
                 (taskType == NO_TASK_TYPE || q->queueType == taskType)) {
-                LOG(EXTENSION_LOG_DEBUG, "Stopping Task id %d %s ",
+                LOG(EXTENSION_LOG_WARNING, "Stopping Task id %d %s ",
                         task->getId(), task->getDescription().c_str());
                 // If force flag is set during shutdown, cancel all tasks
                 // without considering the blockShutdown status of the task.
