@@ -112,7 +112,6 @@ void Couchbase::User::generateSecrets(const Mechanism& mech) {
     }
 
     std::vector<uint8_t> salt;
-    std::vector<uint8_t> digest;
     std::string passwd;
 
     switch (mech) {
@@ -120,25 +119,24 @@ void Couchbase::User::generateSecrets(const Mechanism& mech) {
         salt.resize(Crypto::SHA512_DIGEST_SIZE);
         generateSalt(salt, passwd);
         generateSalt(salt, sha512Salt);
-        digest = Crypto::PBKDF2_HMAC(Crypto::Algorithm::SHA512,
-                                     passwd, salt, iterationCount);
-        std::copy(digest.begin(), digest.end(), saltedSha256Password.begin());
+        saltedSha256Password = Crypto::PBKDF2_HMAC(Crypto::Algorithm::SHA512,
+                                                   passwd, salt,
+                                                   iterationCount);
         break;
     case Mechanism::SCRAM_SHA256:
         salt.resize(Crypto::SHA256_DIGEST_SIZE);
         generateSalt(salt, passwd);
         generateSalt(salt, sha256Salt);
-        digest = Crypto::PBKDF2_HMAC(Crypto::Algorithm::SHA256,
-                                     passwd, salt, iterationCount);
-        std::copy(digest.begin(), digest.end(), saltedSha256Password.begin());
+        saltedSha256Password = Crypto::PBKDF2_HMAC(Crypto::Algorithm::SHA256,
+                                                   passwd, salt,
+                                                   iterationCount);
         break;
     case Mechanism::SCRAM_SHA1:
         salt.resize(Crypto::SHA1_DIGEST_SIZE);
         generateSalt(salt, passwd);
         generateSalt(salt, sha1Salt);
-        digest = Crypto::PBKDF2_HMAC(Crypto::Algorithm::SHA1,
-                                     passwd, salt, iterationCount);
-        std::copy(digest.begin(), digest.end(), saltedSha256Password.begin());
+        saltedSha1Password = Crypto::PBKDF2_HMAC(Crypto::Algorithm::SHA1,
+                                                 passwd, salt, iterationCount);
         break;
     default:
         throw std::logic_error("Couchbase::User::generateSecrets invalid mech");
