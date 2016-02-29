@@ -143,7 +143,7 @@ static ENGINE_ERROR_CODE mock_cookie_release(const void *cookie) {
 
     const int new_rc = --c->references;
     if (new_rc == 0) {
-        free(c);
+        delete c;
     }
     cb_mutex_exit(&(ref_mutex));
     return ENGINE_SUCCESS;
@@ -433,7 +433,7 @@ void destroy_mock_cookie(const void *cookie) {
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
     disconnect_mock_connection(c);
     if (c->references == 0) {
-        free((void*)cookie);
+        delete c;
     }
     cb_mutex_exit(&(ref_mutex));
 }
