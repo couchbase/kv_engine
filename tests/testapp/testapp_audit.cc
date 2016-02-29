@@ -115,7 +115,7 @@ public:
     }
 
     std::vector<unique_cJSON_ptr> readAuditData();
-    bool searchAuditLogForID(int id);
+    bool searchAuditLogForID(int id, const std::string& username="");
 
     static unique_cJSON_ptr memcached_cfg;
     static std::string auditConfigFileName;
@@ -144,11 +144,20 @@ std::vector<unique_cJSON_ptr> AuditTest::readAuditData() {
     return rval;
 }
 
-bool AuditTest::searchAuditLogForID(int id) {
+bool AuditTest::searchAuditLogForID(int id, const std::string& username) {
     auto auditEntries = readAuditData();
     for (auto& entry : auditEntries) {
         cJSON* idEntry = cJSON_GetObjectItem(entry.get(), "id");
         if (idEntry && idEntry->valueint == id) {
+            if (!username.empty()) {
+                auto* ue = cJSON_GetObjectItem(entry.get(), "real_userid");
+                if (ue == nullptr) {
+                    return false;
+                }
+                auto* user = cJSON_GetObjectItem(ue, "user");
+                return (user != nullptr && username == user->valuestring);
+            }
+
             return true;
         }
     }
@@ -226,7 +235,7 @@ TEST_F(AuditTest, AuditFailedAuth) {
                                   PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
     sendShutdown(PROTOCOL_BINARY_RESPONSE_SUCCESS);
     waitForShutdown();
-    ASSERT_TRUE(searchAuditLogForID(20481));
+    ASSERT_TRUE(searchAuditLogForID(20481, "nouser"));
 }
 
 /**

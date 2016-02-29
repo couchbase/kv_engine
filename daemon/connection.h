@@ -138,11 +138,9 @@ public:
         static const char unknown[] = "unknown";
         const void* unm = unknown;
 
-        if (authenticated) {
-            if (cbsasl_getprop(sasl_conn.get(),
-                               CBSASL_USERNAME, &unm) != CBSASL_OK) {
-                unm = unknown;
-            }
+        if (cbsasl_getprop(sasl_conn.get(),
+                           CBSASL_USERNAME, &unm) != CBSASL_OK) {
+            unm = unknown;
         }
 
         username.assign(reinterpret_cast<const char*>(unm));

@@ -91,6 +91,8 @@ void SaslAuthTask::notifyExecutionComplete() {
 
         /* associate the connection with the appropriate bucket */
         associate_bucket(&connection, connection.getUsername());
+    } else {
+        connection.setAuthenticated(false);
     }
 
     // notifyExecutionComplete is called from the executor while holding
