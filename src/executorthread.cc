@@ -59,11 +59,11 @@ void ExecutorThread::stop(bool wait) {
     state = EXECUTOR_SHUTDOWN;
 
     if (!wait) {
-        LOG(EXTENSION_LOG_INFO, "%s: Stopping", name.c_str());
+        LOG(EXTENSION_LOG_WARNING, "%s: Stopping", name.c_str());
         return;
     }
     cb_join_thread(thread);
-    LOG(EXTENSION_LOG_INFO, "%s: Stopped", name.c_str());
+    LOG(EXTENSION_LOG_WARNING, "%s: Stopped", name.c_str());
 }
 
 void ExecutorThread::run() {

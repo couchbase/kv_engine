@@ -528,6 +528,8 @@ bool EventuallyPersistentStore::startFlusher() {
 void EventuallyPersistentStore::stopFlusher() {
     for (uint16_t i = 0; i < vbMap.shards.size(); i++) {
         Flusher *flusher = vbMap.shards[i]->getFlusher();
+        LOG(EXTENSION_LOG_WARNING, "Attempting to stop the flusher for "
+            "shard:%" PRIu16, i);
         bool rv = flusher->stop(stats.forceShutdown);
         if (rv && !stats.forceShutdown) {
             flusher->wait();
@@ -592,7 +594,7 @@ void EventuallyPersistentStore::stopBgFetcher() {
                 "Shutting down engine while there are still pending data "
                 "read for shard %d from database storage", i);
         }
-        LOG(EXTENSION_LOG_INFO, "Stopping bg fetcher for underlying storage");
+        LOG(EXTENSION_LOG_WARNING, "Stopping bg fetcher for shard:%" PRIu16, i);
         bgfetcher->stop();
     }
 }
