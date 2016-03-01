@@ -270,7 +270,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         static_cast<ActiveStream*>(streams[vbucket].get())->setActive();
     }
 
-    notifyStreamReady(vbucket, false/*unused for DCP*/);
+    ready.pushUnique(vbucket);
 
     if (add_vb_conn_map) {
         connection_t conn(this);
@@ -679,14 +679,17 @@ DcpResponse* DcpProducer::getNextItem() {
             }
 
             DcpResponse* op = NULL;
+            stream_t stream;
             {
                 ReaderLockHolder rlh(streamsMutex);
                 std::map<uint16_t, stream_t>::iterator it = streams.find(vbucket);
                 if (it == streams.end()) {
                     continue;
                 }
-                op = it->second->next();
+                stream.reset(it->second);
             }
+
+            op = stream->next();
 
             if (!op) {
                 // stream is empty, try another vbucket.
