@@ -143,6 +143,11 @@ struct settings {
      */
     const char *sasl_mechanisms;
 
+    /**
+     * Should we deduplicate the cluster maps from the Not My VBucket messages
+     */
+    std::atomic_bool dedupe_nmvb_maps;
+
     /* flags for each of the above config options, indicating if they were
      * specified in a parsed config file.
      */
@@ -172,6 +177,7 @@ struct settings {
         bool stdin_listen;
         bool exit_on_connection_close;
         bool sasl_mechanisms;
+        bool dedupe_nmvb_maps;
     } has;
     /*************************************************************************
      * These settings are not exposed to the user, and are either derived from

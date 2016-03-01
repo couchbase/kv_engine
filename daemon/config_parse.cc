@@ -738,6 +738,18 @@ static bool get_datatype(cJSON *o, struct settings *settings,
     }
 }
 
+static bool get_dedupe_nmvb_maps(cJSON* o, struct settings* settings,
+                                 char** error_msg) {
+    bool value;
+    if (get_bool_value(o, o->string, &value, error_msg)) {
+        settings->dedupe_nmvb_maps.store(value);
+        settings->has.dedupe_nmvb_maps = true;
+        return true;
+    } else {
+        return false;
+    }
+}
+
 static bool get_stdin_listen(cJSON *o, struct settings *settings,
                                  char **error_msg) {
     if (get_bool_value(o, o->string, &settings->stdin_listen, error_msg)) {
@@ -1249,6 +1261,11 @@ static bool dyna_validate_breakpad(const struct settings *new_settings,
     return true;
 }
 
+static bool dyna_validate_always_true(const struct settings *, cJSON*) {
+    /* Its dynamic :-) */
+    return true;
+}
+
 /* dynamic reconfiguration handlers ******************************************/
 
 static void dyna_reconfig_iface_maxconns(const struct interface *new_if,
@@ -1468,6 +1485,13 @@ static void dyna_reconfig_ssl_cipher_list(const struct settings *new_settings) {
     }
 }
 
+static void dyna_reconfig_dedupe_nmvb_maps(const struct settings* new_settings) {
+    if (new_settings->has.dedupe_nmvb_maps) {
+        settings.dedupe_nmvb_maps.store(new_settings->dedupe_nmvb_maps.load());
+        settings.has.dedupe_nmvb_maps = true;
+    }
+}
+
 /* list of handlers for each setting */
 
 struct {
@@ -1507,6 +1531,8 @@ struct {
     { "stdin_listen", get_stdin_listen, dyna_reconfig_stdin_listen, NULL},
     { "exit_on_connection_close", get_exit_on_connection_close, dyna_reconfig_exit_on_connection_close, NULL},
     { "sasl_mechanisms", get_sasl_mechanisms, dyna_reconfig_sasl_mechanisms, NULL},
+    { "dedupe_nmvb_maps", get_dedupe_nmvb_maps, dyna_validate_always_true,
+        dyna_reconfig_dedupe_nmvb_maps},
     { NULL, NULL, NULL, NULL }
 };
 

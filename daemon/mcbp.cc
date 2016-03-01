@@ -61,15 +61,17 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void* cookie,
     char* buf;
     McbpConnection* c = (McbpConnection*)cookie;
     protocol_binary_response_header header;
-    int revno = get_clustermap_revno(reinterpret_cast<const char*>(map),
-                                     mapsize);
     size_t needed = sizeof(protocol_binary_response_header);
 
-    if (revno == c->getClustermapRevno()) {
-        /* The client already have this map... */
-        mapsize = 0;
-    } else if (revno != -1) {
-        c->setClustermapRevno(revno);
+    if (settings.dedupe_nmvb_maps) {
+        int revno = get_clustermap_revno(reinterpret_cast<const char*>(map),
+                                         mapsize);
+        if (revno == c->getClustermapRevno()) {
+            /* The client already have this map... */
+            mapsize = 0;
+        } else if (revno != -1) {
+            c->setClustermapRevno(revno);
+        }
     }
 
     needed += mapsize;

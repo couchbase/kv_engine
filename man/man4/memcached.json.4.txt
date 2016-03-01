@@ -286,6 +286,12 @@ the *sasl_mechanisms* attribute is a string value containing the SASL
 mechanisms that should be available for clients. It is not a dynamic
 value and require restart in order to change.
 
+=== dedupe_nmvb_maps
+
+The *dedupe_nmvb_maps* attribute is a boolean value to enable deduplication
+of the cluster maps in the "Not My VBucket" response messages sent to
+the clients. By default this value is set to false.
+
 == EXAMPLES
 
 A Sample memcached.json:
@@ -362,9 +368,10 @@ A Sample memcached.json:
         "datatype_support" : true
         "max_packet_size" : 25,
         "bio_drain_buffer_sz" : 8192,
-        "sasl_mechanisms" : "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1"
+        "sasl_mechanisms" : "SCRAM-SHA512 SCRAM-SHA256 SCRAM-SHA1",
+        "dedupe_nmvb_maps" : true
     }
 
 == COPYRIGHT
 
-Copyright 2015 Couchbase, Inc.
+Copyright 2016 Couchbase, Inc.

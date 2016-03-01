@@ -385,12 +385,13 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     return root;
 }
 
-int write_config_to_file(const char* config, const char *fname) {
-    FILE *fp;
-    if ((fp = fopen(fname, "w")) == NULL) {
+int write_config_to_file(const std::string& config, const std::string& fname) {
+    FILE *fp = fopen(fname.c_str(), "w");
+
+    if (fp == nullptr) {
         return -1;
     } else {
-        fprintf(fp, "%s", config);
+        fprintf(fp, "%s", config.c_str());
         fclose(fp);
     }
 
@@ -3819,6 +3820,25 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
     return buffer.response.message.header.response.status;
 }
 
+void TestappTest::reconfigure() {
+    write_config_to_file(to_string(memcached_cfg, true), config_file);
+
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                     nullptr, 0, nullptr, 0);
+
+    safe_send(frame.payload.data(), frame.payload.size(), false);
+    union {
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+    safe_recv_packet(&buffer, sizeof(buffer));
+    mcbp_validate_response_header(&buffer.response,
+                                  PROTOCOL_BINARY_CMD_CONFIG_RELOAD,
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+}
+
+
 TEST_P(McdTestappTest, SASL_Success) {
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS,
               sasl_auth("_admin", "password"));
@@ -4212,11 +4232,84 @@ TEST_P(McdTestappTest, test_MB_16198) {
                                   PROTOCOL_BINARY_RESPONSE_EINVAL);
 }
 
+static void getClustermapRevno(const std::string& map, int& revno) {
+    unique_cJSON_ptr ptr(cJSON_Parse(map.c_str()));
+    ASSERT_NE(nullptr, ptr.get());
+
+    auto* rev = cJSON_GetObjectItem(ptr.get(), "rev");
+    ASSERT_NE(nullptr, rev);
+    revno = rev->valueint;
+}
+
+/**
+ * Test that we don't dedupe NVMB requests by default
+ */
+TEST_P(McdTestappTest, test_MB_17506_no_dedupe) {
+    auto *value = cJSON_GetObjectItem(memcached_cfg.get(), "dedupe_nmvb_maps");
+    if (value != nullptr && value->type != cJSON_False){
+        cJSON_ReplaceItemInObject(memcached_cfg.get(), "dedupe_nmvb_maps",
+                                  cJSON_CreateTrue());
+        reconfigure();
+    }
+
+    ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode::Next_N,
+                                 2);
+    union {
+        protocol_binary_request_tap_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+    // the next two ops should return not my vbucket...
+    std::string key = "key";
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_GET,
+                     key.data(), key.length(), nullptr, 0);
+
+    safe_send(frame.payload.data(), frame.payload.size(), false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_GET,
+                                  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+
+    EXPECT_NE(0, buffer.response.message.header.response.bodylen);
+    int first;
+
+    getClustermapRevno(std::string((char*)buffer.response.bytes +
+                                       sizeof(buffer.response.message.header),
+                                   buffer.response.message.header.response.bodylen),
+                       first);
+
+    // Resend the command, and we should get the clustermap
+    safe_send(frame.payload.data(), frame.payload.size(), false);
+    safe_recv_packet(&buffer, sizeof(buffer));
+    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_GET,
+                                  PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET);
+
+    EXPECT_NE(0, buffer.response.message.header.response.bodylen);
+
+    int second;
+    getClustermapRevno(std::string((char*)buffer.response.bytes +
+                                   sizeof(buffer.response.message.header),
+                                   buffer.response.message.header.response.bodylen),
+                       second);
+
+    EXPECT_EQ(first, second);
+}
 
 /**
  * Test that we dedupe NVMB requests
  */
-TEST_P(McdTestappTest, test_MB_17506) {
+TEST_P(McdTestappTest, test_MB_17506_dedupe) {
+    auto *value = cJSON_GetObjectItem(memcached_cfg.get(), "dedupe_nmvb_maps");
+    if (value == nullptr) {
+        cJSON_AddTrueToObject(memcached_cfg.get(), "dedupe_nmvb_maps");
+        reconfigure();
+    } else if (value->type != cJSON_True){
+        cJSON_ReplaceItemInObject(memcached_cfg.get(), "dedupe_nmvb_maps",
+                                  cJSON_CreateTrue());
+        reconfigure();
+    }
+
     ewouldblock_engine_configure(ENGINE_NOT_MY_VBUCKET, EWBEngineMode::Next_N,
                                  2);
     union {
@@ -4277,6 +4370,7 @@ TEST_P(McdTestappTest, test_MB_17506) {
 
     EXPECT_EQ(0, buffer.response.message.header.response.bodylen);
 }
+
 
 
 INSTANTIATE_TEST_CASE_P(PlainOrSSL,

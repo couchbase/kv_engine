@@ -114,6 +114,8 @@ protected:
     /* Disable the ewouldblock_engine. */
     static void ewouldblock_engine_disable();
 
+    static void reconfigure();
+
     // JSON configuration (as JSON object) memcached was configured with.
     static unique_cJSON_ptr memcached_cfg;
     static std::string portnumber_file;
@@ -214,7 +216,8 @@ void safe_send(const void* buf, size_t len, bool hickup);
  */
 bool safe_recv_packet(void *buf, size_t size);
 
-int write_config_to_file(const char* config, const char *fname);
+int write_config_to_file(const std::string& config, const std::string& fname);
+
 
 std::string get_working_current_directory();
 

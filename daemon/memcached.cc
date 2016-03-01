@@ -458,6 +458,7 @@ static void settings_init(void) {
     // (we need entry 0 in the list to represent "no bucket")
     settings.max_buckets = COUCHBASE_MAX_NUM_BUCKETS + 1;
     settings.admin = strdup("_admin");
+    settings.dedupe_nmvb_maps.store(false);
 
     char *tmp = getenv("MEMCACHED_TOP_KEYS");
     settings.topkeys_size = 20;
