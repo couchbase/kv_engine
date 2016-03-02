@@ -533,7 +533,7 @@ IF (NOT WIN32)
                   tests/logger_test_common.cc
                   tests/logger_emfile_test.cc)
    TARGET_LINK_LIBRARIES(memcached_logger_emfile_test mcd_util file_logger dirutils)
-   ADD_TEST(memcached-logger-emfile-test memcached_logger_emfile_test)
+#   ADD_TEST(memcached-logger-emfile-test memcached_logger_emfile_test)
 ENDIF (NOT WIN32)
 
 IF (${CMAKE_MAJOR_VERSION} LESS 3)
