@@ -82,8 +82,43 @@ protected:
     static cJSON* generate_config(uint16_t ssl_port);
 
     static void start_memcached_server(cJSON* config);
-    static void start_server(in_port_t *port_out, in_port_t *ssl_port_out,
-                             bool daemon, int timeout);
+
+    /**
+     * Function to start the server and let it listen on a random port.
+     * Set <code>server_pid</code> to the pid of the process
+     */
+    static void start_external_server();
+
+    /**
+     * Function to start the server as a thread in the current process
+     * and let it listen on a random port.
+     *
+     * Note that this is only supposed to be used for debugging as it don't
+     * properly shut down the server as part of the TearDown process
+     * so that you might experience problems if you try to run multiple
+     * test batches with the same process..
+     *
+     * Set <code>server_pid</code> to the pid of the process
+     */
+    static void spawn_embedded_server();
+
+    /**
+     * Parse the portnumber file created from the memcached server
+     *
+     * @param port_out where to store the TCP port number the server is
+     *                 listening on (deprecated, use connectionMap instead)
+     * @param ssl_port_out where to store the TCP port number the server is
+     *                     listening for SSL connections (deprecated, use
+     *                     connectionMap instead)
+     * @param timeout Number of seconds to wait for server to start before
+     *                giving up.
+     */
+    static void parse_portnumber_file(in_port_t& port_out,
+                                      in_port_t& ssl_port_out,
+                                      int timeout);
+
+    static void verify_server_running();
+
 
     /**
      * Waits for server to shutdown.  It assumes that the server is
@@ -123,6 +158,7 @@ protected:
 
     static ConnectionMap connectionMap;
     static uint64_t token;
+    static cb_thread_t memcached_server_thread;
 };
 
 // Test the various memcached binary protocol commands against a

@@ -30,6 +30,7 @@ ADD_DEPENDENCIES(memcached_testapp blackhole_logger default_engine
                  ewouldblock_engine memcached nobucket testapp_extension)
 
 TARGET_LINK_LIBRARIES(memcached_testapp
+                      memcached_daemon
                       mcd_util
                       mcutils
                       mc_client_connection

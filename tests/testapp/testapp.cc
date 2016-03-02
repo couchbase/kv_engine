@@ -71,6 +71,9 @@ static BIO *ssl_bio_w = NULL;
 std::set<protocol_binary_hello_features> enabled_hello_features;
 
 bool memcached_verbose = false;
+// State variable if we're running the memcached server in a
+// thread in the same process or not
+static bool embedded_memcached_server;
 
 /* static storage for the different environment variables set by
  * putenv().
@@ -427,23 +430,128 @@ unique_cJSON_ptr loadJsonFile(const std::string &file) {
     return ret;
 }
 
-/**
- * Function to start the server and let it listen on a random port.
- * Set <code>server_pid</code> to the pid of the process
- *
- * @param port_out where to store the TCP port number the server is
- *                 listening on (deprecated, use connectionMap instead)
- * @param ssl_port_out where to store the TCP port number the server is
- *                     listening for SSL connections (deprecated, use
- *                     connectionMap instead)
- * @param daemon set to true if you want to run the memcached server
- *               as a daemon process
- * @param timeout Number of seconds to wait for server to start before
- *                giving up.
- */
-void TestappTest::start_server(in_port_t* port_out,
-                               in_port_t* ssl_port_out,
-                               bool daemon, int timeout) {
+void TestappTest::verify_server_running() {
+    if (embedded_memcached_server) {
+        // we don't monitor this thread...
+        return ;
+    }
+
+#ifdef WIN32
+    DWORD status;
+    ASSERT_TRUE(GetExitCodeProcess(server_pid, &status));
+    ASSERT_EQ(STILL_ACTIVE, status);
+#else
+    int status;
+    pid_t ret = waitpid(server_pid, &status, WNOHANG);
+
+    EXPECT_NE(static_cast<pid_t>(-1), ret)
+                << "waitpid() failed with: " << strerror(errno);
+    EXPECT_NE(server_pid, ret)
+                << "waitpid status     : " << status << std::endl
+                << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
+                << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl
+                << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
+                << "WTERMSIG(status)   : " << WTERMSIG(status) << std::endl
+                << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
+    ASSERT_EQ(0, ret) << "The server isn't running..";
+#endif
+}
+
+void TestappTest::parse_portnumber_file(in_port_t& port_out,
+                                        in_port_t& ssl_port_out,
+                                        int timeout) {
+    FILE* fp;
+    const time_t deadline = time(NULL) + timeout;
+    // Wait up to timeout seconds for the port file to be created.
+    do {
+        usleep(50);
+        fp = fopen(portnumber_file.c_str(), "r");
+        if (fp != nullptr) {
+            break;
+        }
+
+        verify_server_running();
+    } while (time(NULL) < deadline);
+
+    ASSERT_NE(nullptr, fp) << "Timed out after " << timeout
+                           << "s waiting for memcached port file '"
+                           << portnumber_file << "' to be created.";
+    fclose(fp);
+
+    port_out = (in_port_t)-1;
+    ssl_port_out = (in_port_t)-1;
+
+    unique_cJSON_ptr portnumbers;
+    ASSERT_NO_THROW(portnumbers = loadJsonFile(portnumber_file));
+    ASSERT_NE(nullptr, portnumbers);
+    ASSERT_NO_THROW(connectionMap.initialize(portnumbers.get()));
+
+    cJSON* array = cJSON_GetObjectItem(portnumbers.get(), "ports");
+    ASSERT_NE(nullptr, array) << "ports not found in portnumber file";
+
+    auto numEntries = cJSON_GetArraySize(array);
+    for (int ii = 0; ii < numEntries; ++ii) {
+        auto obj = cJSON_GetArrayItem(array, ii);
+
+        auto protocol = cJSON_GetObjectItem(obj, "protocol");
+        if (strcmp(protocol->valuestring, "memcached") != 0) {
+            // the new test use the connectionmap
+            continue;
+        }
+
+        auto family = cJSON_GetObjectItem(obj, "family");
+        if (strcmp(family->valuestring, "AF_INET") != 0) {
+            // For now we don't test IPv6
+            continue;
+        }
+        auto ssl = cJSON_GetObjectItem(obj, "ssl");
+        ASSERT_NE(nullptr, ssl);
+        auto port = cJSON_GetObjectItem(obj, "port");
+        ASSERT_NE(nullptr, port);
+
+        in_port_t* out_port;
+        if (ssl->type == cJSON_True) {
+            out_port = &ssl_port_out;
+        } else {
+            out_port = &port_out;
+        }
+        *out_port = static_cast<in_port_t>(port->valueint);
+    }
+
+    EXPECT_EQ(0, remove(portnumber_file.c_str()));
+}
+
+extern "C" int memcached_main(int argc, char** argv);
+
+extern "C" void memcached_server_thread_main(void *arg) {
+    char *argv[4];
+    int argc = 0;
+    argv[argc++] = const_cast<char*>("./memcached");
+    argv[argc++] = const_cast<char*>("-C");
+    argv[argc++] = reinterpret_cast<char*>(arg);
+
+    memcached_main(argc, argv);
+
+
+}
+
+void TestappTest::spawn_embedded_server() {
+    char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
+    snprintf(mcd_port_filename_env, sizeof(mcd_port_filename_env),
+             "MEMCACHED_PORT_FILENAME=memcached_ports.%lu.%lu",
+             (long)getpid(), (unsigned long)time(NULL));
+    remove(filename);
+    portnumber_file.assign(filename);
+    putenv(mcd_port_filename_env);
+
+    ASSERT_EQ(0, cb_create_thread(&memcached_server_thread,
+                                  memcached_server_thread_main,
+                                  const_cast<char*>(config_file.c_str()),
+                                  0));
+}
+
+
+void TestappTest::start_external_server() {
     char *filename= mcd_port_filename_env + strlen("MEMCACHED_PORT_FILENAME=");
     snprintf(mcd_parent_monitor_env, sizeof(mcd_parent_monitor_env),
              "MEMCACHED_PARENT_MONITOR=%lu", (unsigned long)getpid());
@@ -517,82 +625,6 @@ void TestappTest::start_server(in_port_t* port_out,
         cb_assert(execvp(argv[0], const_cast<char **>(argv)) != -1);
     }
 #endif // !WIN32
-
-    FILE* fp;
-    const time_t deadline = time(NULL) + timeout;
-    // Wait up to timeout seconds for the port file to be created.
-    do {
-        usleep(50);
-        fp = fopen(filename, "r");
-        if (fp != nullptr) {
-            break;
-        }
-
-#ifdef WIN32
-        DWORD status;
-        ASSERT_TRUE(GetExitCodeProcess(server_pid, &status));
-        ASSERT_EQ(STILL_ACTIVE, status);
-#else
-        int status;
-        pid_t ret = waitpid(server_pid, &status, WNOHANG);
-
-        EXPECT_NE(static_cast<pid_t>(-1), ret)
-            << "waitpid() failed with: " << strerror(errno);
-        EXPECT_NE(server_pid, ret)
-            << "waitpid status     : " << status << std::endl
-            << "WIFEXITED(status)  : " << WIFEXITED(status) << std::endl
-            << "WEXITSTATUS(status): " << WEXITSTATUS(status) << std::endl
-            << "WIFSIGNALED(status): " << WIFSIGNALED(status) << std::endl
-            << "WTERMSIG(status)   : " << WTERMSIG(status) << std::endl
-            << "WCOREDUMP(status)  : " << WCOREDUMP(status) << std::endl;
-        ASSERT_EQ(0, ret) << "The server isn't running..";
-#endif
-    } while (time(NULL) < deadline);
-
-    ASSERT_NE(nullptr, fp) << "Timed out after " << timeout
-                           << "s waiting for memcached port file '" << filename << "' to be created.";
-    fclose(fp);
-
-    *port_out = (in_port_t)-1;
-    *ssl_port_out = (in_port_t)-1;
-
-    unique_cJSON_ptr portnumbers;
-    ASSERT_NO_THROW(portnumbers = loadJsonFile(filename));
-    ASSERT_NE(nullptr, portnumbers);
-    ASSERT_NO_THROW(connectionMap.initialize(portnumbers.get()));
-
-    cJSON* array = cJSON_GetObjectItem(portnumbers.get(), "ports");
-    ASSERT_NE(nullptr, array) << "ports not found in portnumber file";
-
-    auto numEntries = cJSON_GetArraySize(array);
-    for (int ii = 0; ii < numEntries; ++ii) {
-        auto obj = cJSON_GetArrayItem(array, ii);
-
-        auto protocol = cJSON_GetObjectItem(obj, "protocol");
-        if (strcmp(protocol->valuestring, "memcached") != 0) {
-            // the new test use the connectionmap
-            continue;
-        }
-
-        auto family = cJSON_GetObjectItem(obj, "family");
-        if (strcmp(family->valuestring, "AF_INET") != 0) {
-            // For now we don't test IPv6
-            continue;
-        }
-        auto ssl = cJSON_GetObjectItem(obj, "ssl");
-        ASSERT_NE(nullptr, ssl);
-        auto port = cJSON_GetObjectItem(obj, "port");
-        ASSERT_NE(nullptr, port);
-
-        in_port_t* out_port;
-        if (ssl->type == cJSON_True) {
-            out_port = ssl_port_out;
-        } else {
-            out_port = port_out;
-        }
-        *out_port = static_cast<in_port_t>(port->valueint);
-    }
-    EXPECT_EQ(0, remove(filename));
 }
 
 static struct addrinfo *lookuphost(const char *hostname, in_port_t port)
@@ -753,7 +785,13 @@ void TestappTest::start_memcached_server(cJSON* config) {
     putenv(envvar);
 
     server_start_time = time(0);
-    start_server(&port, &ssl_port, false, 30);
+
+    if (embedded_memcached_server) {
+        spawn_embedded_server();
+    } else {
+        start_external_server();
+    }
+    parse_portnumber_file(port, ssl_port, 30);
 }
 
 
@@ -4433,6 +4471,7 @@ std::string TestappTest::portnumber_file;
 std::string TestappTest::config_file;
 ConnectionMap TestappTest::connectionMap;
 uint64_t TestappTest::token;
+cb_thread_t TestappTest::memcached_server_thread;
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
@@ -4465,16 +4504,21 @@ int main(int argc, char **argv) {
 #endif
 
     int cmd;
-    while ((cmd = getopt(argc, argv, "v")) != EOF) {
+    while ((cmd = getopt(argc, argv, "ve")) != EOF) {
         switch (cmd) {
         case 'v':
             memcached_verbose = true;
             break;
+        case 'e':
+            embedded_memcached_server = true;
+            break;
         default:
-            std::cerr << "Usage: " << argv[0] << " [-v]" << std::endl
+            std::cerr << "Usage: " << argv[0] << " [-v] [-i]" << std::endl
                       << std::endl
                       << "  -v Verbose - Print verbose memcached output "
-                      << "to stderr.\n" << std::endl;
+                      << "to stderr.\n" << std::endl
+                      << "  -e Embedded - Run the memcached daemon in the "
+                      << "same process (for debugging only..)" << std::endl;
             return 1;
         }
     }
