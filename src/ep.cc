@@ -33,6 +33,7 @@
 #include "bgfetcher.h"
 #include "checkpoint_remover.h"
 #include "conflict_resolution.h"
+#include "dcp/dcpconnmap.h"
 #include "defragmenter.h"
 #include "ep.h"
 #include "ep_engine.h"
@@ -47,6 +48,7 @@
 #include "warmup.h"
 #include "connmap.h"
 #include "replicationthrottle.h"
+#include "tapconnmap.h"
 
 class StatsValueChangeListener : public ValueChangedListener {
 public:

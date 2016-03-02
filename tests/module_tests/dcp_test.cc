@@ -16,6 +16,7 @@
  */
 
 #include "connmap.h"
+#include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "programs/engine_testapp/mock_server.h"

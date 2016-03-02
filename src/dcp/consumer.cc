@@ -20,6 +20,7 @@
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "replicationthrottle.h"
+#include "dcp/dcpconnmap.h"
 #include "dcp/stream.h"
 #include "dcp/response.h"
 

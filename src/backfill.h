@@ -31,6 +31,7 @@
 #include "stats.h"
 #include "tasks.h"
 #include "connmap.h"
+#include "tapconnmap.h"
 
 #define DEFAULT_BACKFILL_SNOOZE_TIME 1.0
 

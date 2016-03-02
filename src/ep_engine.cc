@@ -52,6 +52,7 @@
 #undef STATWRITER_NAMESPACE
 #include "replicationthrottle.h"
 #include "dcp/consumer.h"
+#include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "warmup.h"
 #include "string_utils.h"

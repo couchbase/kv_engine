@@ -18,10 +18,12 @@
 #include "config.h"
 
 #include "checkpoint_remover.h"
+#include "dcp/dcpconnmap.h"
 #include "ep.h"
 #include "ep_engine.h"
 #include "vbucket.h"
 #include "connmap.h"
+#include "tapconnmap.h"
 
 /**
  * Remove all the closed unreferenced checkpoints for each vbucket.

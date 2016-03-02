@@ -135,6 +135,7 @@ ADD_LIBRARY(ep SHARED
             src/dcp/backfill-manager.cc
             src/dcp/backfill.cc
             src/dcp/consumer.cc
+            src/dcp/dcpconnmap.cc
             src/dcp/flow-control.cc
             src/dcp/flow-control-manager.cc
             src/dcp/producer.cc
@@ -165,6 +166,7 @@ ADD_LIBRARY(ep SHARED
             src/string_utils.cc
             src/stored-value.cc
             src/tapconnection.cc
+            src/tapconnmap.cc
             src/tasks.cc
             src/taskqueue.cc
             src/vbucket.cc
@@ -193,6 +195,7 @@ ADD_EXECUTABLE(ep-engine_dcp_test
   src/dcp/backfill.cc
   src/dcp/backfill-manager.cc
   src/dcp/consumer.cc
+  src/dcp/dcpconnmap.cc
   src/dcp/flow-control.cc
   src/dcp/flow-control-manager.cc
   src/dcp/producer.cc
@@ -219,6 +222,7 @@ ADD_EXECUTABLE(ep-engine_dcp_test
   src/objectregistry.cc
   src/priority.cc
   src/tapconnection.cc
+  src/tapconnmap.cc
   src/replicationthrottle.cc
   src/stored-value.cc
   src/string_utils.cc

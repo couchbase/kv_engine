@@ -20,6 +20,7 @@
 #include "connmap.h"
 #include "dcp/backfill-manager.h"
 #include "dcp/backfill.h"
+#include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 
 static const size_t sleepTime = 1;

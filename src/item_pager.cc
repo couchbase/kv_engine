@@ -18,8 +18,10 @@
 #include "item_pager.h"
 
 #include "connmap.h"
+#include "dcp/dcpconnmap.h"
 #include "ep.h"
 #include "ep_engine.h"
+#include "tapconnmap.h"
 
 #include <cstdlib>
 #include <iostream>
