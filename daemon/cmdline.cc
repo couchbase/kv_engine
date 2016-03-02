@@ -114,6 +114,10 @@ static void apply_compat_arguments(void) {
 void parse_arguments(int argc, char **argv) {
     int c;
 
+    // Tell getopt to restart the parsing (if we used getopt before calling
+    // this method)
+    optind = 1;
+
     /* process arguments */
     while ((c = getopt(argc, argv, "I:b:C:R:D:Ln:f:P:ihkc:Mm:u:da:s:p:U:t:vrB:E:e:X:l:")) != -1) {
         switch (c) {
