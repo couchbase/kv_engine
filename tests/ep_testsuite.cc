@@ -14076,6 +14076,94 @@ static enum test_result test_mb16357(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+// Regression test for MB-17517 - ensure that if an item is locked when TAP
+// attempts to stream it, it doesn't get a CAS of -1.
+static enum test_result test_mb17517_tap_with_locked_key(ENGINE_HANDLE *h,
+                                                         ENGINE_HANDLE_V1 *h1) {
+    const uint16_t vbid = 0;
+    // Store an item and immediately lock it.
+    item *it = NULL;
+    std::string key("key");
+    checkeq(store(h, h1, NULL, OPERATION_SET, key.c_str(), "value",
+                  &it, 0, vbid, 3600, PROTOCOL_BINARY_RAW_BYTES),
+            ENGINE_SUCCESS,
+            "Failed to store an item.");
+    h1->release(h, NULL, it);
+
+    uint32_t lock_timeout = 10;
+    getl(h, h1, key.c_str(), vbid, lock_timeout);
+    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status,
+            "Expected to be able to getl on first try");
+
+    wait_for_flusher_to_settle(h, h1);
+
+    // Create the TAP connection and try to get the items.
+    const void *cookie = testHarness.create_cookie();
+    std::string name("test_mb17517_tap_with_locked_key");
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.length(),
+                                             TAP_CONNECT_FLAG_DUMP, NULL, 0);
+    check(iter != NULL, "Failed to create a tap iterator");
+
+    void *engine_specific;
+    uint16_t nengine_specific;
+    uint8_t ttl;
+    uint16_t flags;
+    uint32_t seqno;
+    uint16_t vbucket;
+    tap_event_t event;
+
+    uint16_t unlikely_vbucket_identifier = 17293;
+
+    do {
+        vbucket = unlikely_vbucket_identifier;
+        event = iter(h, cookie, &it, &engine_specific,
+                     &nengine_specific, &ttl, &flags,
+                     &seqno, &vbucket);
+
+        switch (event) {
+        case TAP_PAUSE:
+            testHarness.waitfor_cookie(cookie);
+            break;
+        case TAP_OPAQUE:
+        case TAP_NOOP:
+            break;
+        case TAP_MUTATION: {
+            testHarness.unlock_cookie(cookie);
+
+            item_info info;
+            info.nvalue = 1;
+            if (!h1->get_item_info(h, NULL, it, &info)) {
+                fprintf(stderr, "test_mb17517_tap_with_locked_key: "
+                        "get_item_info failed\n");
+                return FAIL;
+            }
+
+            // Check the CAS.
+            if (info.cas == ~0ull) {
+                fprintf(stderr, "test_mb17517_tap_with_locked_key: "
+                        "Got CAS of -1 in TAP_MUTATION\n");
+                return FAIL;
+            }
+
+            testHarness.lock_cookie(cookie);
+            break;
+        }
+        case TAP_DISCONNECT:
+            break;
+        default:
+            std::cerr << "Unexpected event:  " << event << std::endl;
+            return FAIL;
+        }
+
+    } while (event != TAP_DISCONNECT);
+
+    testHarness.unlock_cookie(cookie);
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result prepare(engine_test_t *test) {
 #ifdef __sun
         // Some of the tests doesn't work on Solaris.. Don't know why yet..
@@ -15123,6 +15211,10 @@ engine_test_t* get_tests(void) {
 
         TestCase("test MB-17517 CAS -1 TAP", test_mb17517_cas_minus_1_tap,
                  test_setup, teardown, NULL, prepare, cleanup),
+
+        TestCase("test_mb17517_tap_with_locked_key",
+                 test_mb17517_tap_with_locked_key, test_setup, teardown, NULL,
+                 prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };

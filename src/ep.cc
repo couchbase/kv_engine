@@ -1865,7 +1865,8 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
                                                 bool honorStates,
                                                 vbucket_state_t allowedState,
                                                 bool trackReference,
-                                                bool deleteTempItem) {
+                                                bool deleteTempItem,
+                                                bool hideLockedCAS) {
 
     vbucket_state_t disallowedState = (allowedState == vbucket_state_active) ?
         vbucket_state_replica : vbucket_state_active;
@@ -1914,8 +1915,11 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
                             true, v->getNRUValue());
         }
 
-        GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
-                    ENGINE_SUCCESS, v->getBySeqno(), false, v->getNRUValue());
+        // Should we hide (return -1) for the items' CAS?
+        const bool hide_cas = hideLockedCAS &&
+                              v->isLocked(ep_current_time());
+        GetValue rv(v->toItem(hide_cas, vbucket), ENGINE_SUCCESS,
+                    v->getBySeqno(), false, v->getNRUValue());
         return rv;
     } else {
         if (eviction_policy == VALUE_ONLY || diskFlushAll) {
