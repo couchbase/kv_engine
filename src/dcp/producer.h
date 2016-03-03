@@ -236,9 +236,10 @@ private:
     DcpResponse *rejectResp; // stash response for retry if E2BIG was hit
 
     bool notifyOnly;
-    bool enableExtMetaData;
-    bool enableValueCompression;
-    bool supportsCursorDropping;
+
+    Couchbase::RelaxedAtomic<bool> enableExtMetaData;
+    Couchbase::RelaxedAtomic<bool> enableValueCompression;
+    Couchbase::RelaxedAtomic<bool> supportsCursorDropping;
 
     Couchbase::RelaxedAtomic<rel_time_t> lastSendTime;
     BufferLog log;
