@@ -21,21 +21,12 @@
 
 // Disabled while we're refactoring to bufferevents
 
-#ifdef WIN32
-// There is a pending bug trying to figure out why SSL fails..
-INSTANTIATE_TEST_CASE_P(PlainOrSSL,
-                        GreenstackTest,
-                        ::testing::Values(Transport::Plain));
-#else
-
 INSTANTIATE_TEST_CASE_P(PlainOrSSL,
                         GreenstackTest,
                         ::testing::Values(Transport::Plain,
                                           Transport::PlainIpv6,
                                           Transport::SSL,
                                           Transport::SslIpv6));
-#endif
-
 #endif
 
 

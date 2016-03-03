@@ -27,6 +27,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <limits>
 
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the ConnectionMap class
@@ -113,18 +114,6 @@ void ConnectionMap::initialize(cJSON* ports) {
 
         auto portval = static_cast<in_port_t>(port->valueint);
         bool useSsl = ssl->type == cJSON_True ? true : false;
-
-#ifdef WIN32
-        if (useSsl) {
-            // Looks like OpenSSL isn't fully safe for windows when
-            // it comes to the BIO_set_fd (the socket is a 32 bit integer
-            // on unix, but a SOCKET on windows is a HANDLE and could
-            // overflow.. Just disable the ssl code for now as it isn't
-            // being used yet (will be used as part of the Greenstack
-            // tests)
-            continue;
-        }
-#endif
 
         MemcachedConnection* connection;
         if (strcmp(protocol->valuestring, "greenstack") == 0) {
@@ -217,6 +206,23 @@ SOCKET new_socket(in_port_t port, sa_family_t family) {
     for (struct addrinfo* next = ai; next; next = next->ai_next) {
         SOCKET sfd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
         if (sfd != INVALID_SOCKET) {
+
+#ifdef WIN32
+            // BIO_new_socket pass the socket as an int, but it is a SOCKET on
+            // Windows.. On windows a socket is an unsigned value, and may
+            // get an overflow inside openssl (I don't know the exact width of
+            // the SOCKET, and how openssl use the value internally). This
+            // class is mostly used from the test framework so let's throw
+            // an exception instead and treat it like a test failure (to be
+            // on the safe side). We'll be refactoring to SCHANNEL in the
+            // future anyway.
+            if (sfd > std::numeric_limits<int>::max()) {
+                closesocket(sfd);
+                throw std::runtime_error("Socket value too big "
+                                             "(may trigger behavior openssl)");
+            }
+#endif
+
             if (connect(sfd, ai->ai_addr, ai->ai_addrlen) != SOCKET_ERROR) {
                 freeaddrinfo(ai);
                 return sfd;
