@@ -189,7 +189,7 @@ void TestappTest::TearDownTestCase() {
 
 // per test setup function.
 void TestappTest::SetUp() {
-    ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
+    verify_server_running();
     current_phase = phase_plain;
     sock = connect_to_server_plain(port);
     ASSERT_NE(INVALID_SOCKET, sock);
@@ -221,7 +221,7 @@ void McdTestappTest::SetUpTestCase() {
 }
 // per test setup function.
 void McdTestappTest::SetUp() {
-    ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
+    verify_server_running();
     if (GetParam() == Transport::Plain) {
         current_phase = phase_plain;
         sock = connect_to_server_plain(port);
@@ -436,11 +436,14 @@ void TestappTest::verify_server_running() {
         return ;
     }
 
+    ASSERT_NE(reinterpret_cast<pid_t>(-1), server_pid);
+
 #ifdef WIN32
     DWORD status;
     ASSERT_TRUE(GetExitCodeProcess(server_pid, &status));
     ASSERT_EQ(STILL_ACTIVE, status);
 #else
+
     int status;
     pid_t ret = waitpid(server_pid, &status, WNOHANG);
 
