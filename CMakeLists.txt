@@ -270,6 +270,59 @@ ADD_EXECUTABLE(ep-engine_failover_table_test tests/module_tests/failover_table_t
                         ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_failover_table_test cJSON platform)
 
+ADD_EXECUTABLE(ep-engine_kvstore_test
+  tests/module_tests/kvstore_test.cc
+  src/access_scanner.cc
+  src/atomic.cc
+  src/backfill.cc
+  src/bgfetcher.cc
+  src/bloomfilter.cc
+  src/checkpoint.cc
+  src/checkpoint_remover.cc
+  src/conflict_resolution.cc
+  src/connmap.cc
+  src/dcp-backfill.cc
+  src/dcp-backfill-manager.cc
+  src/dcp-consumer.cc
+  src/dcp-producer.cc
+  src/dcp-response.cc
+  src/dcp-stream.cc
+  src/defragmenter.cc
+  src/defragmenter_visitor.cc
+  src/ep.cc
+  src/ep_engine.cc
+  src/ep_time.c
+  src/executorpool.cc
+  src/executorthread.cc
+  src/ext_meta_parser.cc
+  src/failover-table.cc
+  src/flusher.cc
+  src/htresizer.cc
+  src/item.cc
+  src/item_pager.cc
+  src/kvshard.cc
+  src/memory_tracker.cc
+  src/murmurhash3.cc
+  src/mutation_log.cc
+  src/mutex.cc
+  src/objectregistry.cc
+  src/priority.cc
+  src/tapconnection.cc
+  src/stored-value.cc
+  src/tapthrottle.cc
+  src/tasks.cc
+  src/taskqueue.cc
+  src/vbucket.cc
+  src/vbucketmap.cc
+  src/warmup.cc
+  ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
+  ${OBJECTREGISTRY_SOURCE}
+  ${KVSTORE_SOURCE}
+  ${COUCH_KVSTORE_SOURCE}
+  ${CONFIG_SOURCE})
+TARGET_LINK_LIBRARIES(ep-engine_kvstore_test
+                      cJSON JSON_checker couchstore dirutils platform)
+
 ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
 ADD_TEST(ep-engine_atomic_test ep-engine_atomic_test)
 ADD_TEST(ep-engine_checkpoint_test ep-engine_checkpoint_test)
@@ -283,6 +336,7 @@ ADD_TEST(ep-engine_mutex_test ep-engine_mutex_test)
 ADD_TEST(ep-engine_priority_test ep-engine_priority_test)
 ADD_TEST(ep-engine_ringbuffer_test ep-engine_ringbuffer_test)
 ADD_TEST(ep-engine_stream_test ep-engine_stream_test)
+ADD_TEST(ep-engine_kvstore_test ep-engine_kvstore_test)
 
 ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
