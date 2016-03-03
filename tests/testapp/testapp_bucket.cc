@@ -19,16 +19,6 @@
 
 #include <algorithm>
 
-#ifdef WIN32
-// There is a pending bug trying to figure out why SSL fails..
-INSTANTIATE_TEST_CASE_P(TransportProtocols,
-                        BucketTest,
-                        ::testing::Values(TransportProtocols::PlainMcbp,
-                                          TransportProtocols::PlainIpv6Mcbp
-                                         ));
-
-#else
-
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         BucketTest,
                         ::testing::Values(TransportProtocols::PlainMcbp,
@@ -36,8 +26,6 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                                           TransportProtocols::SslMcbp,
                                           TransportProtocols::SslIpv6Mcbp
                                          ));
-#endif
-
 
 TEST_P(BucketTest, TestNameTooLong) {
     auto& connection = getConnection();
