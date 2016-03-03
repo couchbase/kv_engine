@@ -800,6 +800,13 @@ bool DcpProducer::closeSlowStream(uint16_t vbid,
                      */
                     tempDroppedStreams[vbid] = as->getLastSentSeqno();
                     as->setDead(END_STREAM_SLOW);
+
+                    // Remove entry in streams map
+                    {
+                        WriterLockHolder wlh(streamsMutex);
+                        streams.erase(vbid);
+                    }
+
                     return true;
                 }
             }
