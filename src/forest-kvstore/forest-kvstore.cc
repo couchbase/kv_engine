@@ -106,6 +106,11 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
      */
     fileConfig.purging_interval = std::numeric_limits<uint32_t>::max();
 
+    /* Since DCP requires sequence based iteration, enable sequence tree
+     * indexes in forestdb
+     */
+    fileConfig.seqtree_opt = FDB_SEQTREE_USE;
+
     initForestDb();
 
     status = fdb_open(&dbFileHandle, dbFile.str().c_str(), &fileConfig);
