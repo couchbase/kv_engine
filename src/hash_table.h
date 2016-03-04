@@ -105,7 +105,7 @@ public:
     size_t memorySize() {
         return sizeof(HashTable)
             + (size * sizeof(StoredValue*))
-            + (n_locks * sizeof(Mutex));
+            + (n_locks * sizeof(std::mutex));
     }
 
     /**
@@ -584,16 +584,16 @@ public:
      */
     bool unlocked_ejectItem(StoredValue*& vptr, item_eviction_policy_t policy);
 
-    AtomicValue<uint64_t>     maxDeletedRevSeqno;
-    AtomicValue<size_t>       numTotalItems;
-    AtomicValue<size_t>       numNonResidentItems;
-    AtomicValue<size_t>       numEjects;
+    std::atomic<uint64_t>     maxDeletedRevSeqno;
+    std::atomic<size_t>       numTotalItems;
+    std::atomic<size_t>       numNonResidentItems;
+    std::atomic<size_t>       numEjects;
     //! Memory consumed by items in this hashtable.
-    AtomicValue<size_t>       memSize;
+    std::atomic<size_t>       memSize;
     //! Cache size.
-    AtomicValue<size_t>       cacheSize;
+    std::atomic<size_t>       cacheSize;
     //! Meta-data size.
-    AtomicValue<size_t>       metaDataMemory;
+    std::atomic<size_t>       metaDataMemory;
 
 private:
     friend class StoredValue;
@@ -601,16 +601,16 @@ private:
     inline bool isActive() const { return activeState; }
     inline void setActiveState(bool newv) { activeState = newv; }
 
-    AtomicValue<size_t> size;
+    std::atomic<size_t> size;
     size_t               n_locks;
     StoredValue        **values;
-    Mutex               *mutexes;
+    std::mutex               *mutexes;
     EPStats&             stats;
     StoredValueFactory   valFact;
-    AtomicValue<size_t>       visitors;
-    AtomicValue<size_t>       numItems;
-    AtomicValue<size_t>       numResizes;
-    AtomicValue<size_t>       numTempItems;
+    std::atomic<size_t>       visitors;
+    std::atomic<size_t>       numItems;
+    std::atomic<size_t>       numResizes;
+    std::atomic<size_t>       numTempItems;
     bool                 activeState;
 
     static size_t                 defaultNumBuckets;
@@ -763,12 +763,12 @@ public:
      * @param c the counter that should be incremented (and later
      * decremented).
      */
-    explicit VisitorTracker(AtomicValue<size_t> *c) : counter(c) {
+    explicit VisitorTracker(std::atomic<size_t> *c) : counter(c) {
         counter->fetch_add(1);
     }
     ~VisitorTracker() {
         counter->fetch_sub(1);
     }
 private:
-    AtomicValue<size_t> *counter;
+    std::atomic<size_t> *counter;
 };

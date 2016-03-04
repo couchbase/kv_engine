@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#include "atomic.h"
+#include <atomic>
 #include "utility.h"
 
 /**
@@ -142,13 +142,13 @@ private:
     size_t maxVbuckets;
     uint16_t shardId;
 
-    AtomicValue<bool> highPrioritySnapshot;
-    AtomicValue<bool> lowPrioritySnapshot;
+    std::atomic<bool> highPrioritySnapshot;
+    std::atomic<bool> lowPrioritySnapshot;
 
     KVStoreConfig kvConfig;
 
 public:
-    AtomicValue<size_t> highPriorityCount;
+    std::atomic<size_t> highPriorityCount;
 
     DISALLOW_COPY_AND_ASSIGN(KVShard);
 };

@@ -114,7 +114,7 @@ private:
     std::shared_ptr<VBucketVisitor>  visitor;
     const char                 *label;
     double                      sleepTime;
-    AtomicValue<uint16_t>       currentvb;
+    std::atomic<uint16_t>       currentvb;
 
     DISALLOW_COPY_AND_ASSIGN(VBCBAdaptor);
 };
@@ -1057,25 +1057,25 @@ protected:
 
     /* Array of mutexes for each vbucket
      * Used by flush operations: flushVB, deleteVB, compactVB, snapshotVB */
-    Mutex                          *vb_mutexes;
-    AtomicValue<bool>              *schedule_vbstate_persist;
+    std::mutex                          *vb_mutexes;
+    std::atomic<bool>              *schedule_vbstate_persist;
     std::vector<MutationLog*>       accessLog;
 
-    AtomicValue<size_t> bgFetchQueue;
+    std::atomic<size_t> bgFetchQueue;
 
-    AtomicValue<bool> diskFlushAll;
+    std::atomic<bool> diskFlushAll;
     struct FlushAllTaskCtx {
         FlushAllTaskCtx(): delayFlushAll(true), cookie(NULL) {}
-        AtomicValue<bool> delayFlushAll;
+        std::atomic<bool> delayFlushAll;
         const void* cookie;
     } flushAllTaskCtx;
 
-    Mutex vbsetMutex;
+    std::mutex vbsetMutex;
     uint32_t bgFetchDelay;
     double backfillMemoryThreshold;
     struct ExpiryPagerDelta {
         ExpiryPagerDelta() : sleeptime(0), task(0), enabled(true) {}
-        Mutex mutex;
+        std::mutex mutex;
         size_t sleeptime;
         size_t task;
         bool enabled;
@@ -1083,21 +1083,21 @@ protected:
     struct ALogTask {
         ALogTask() : sleeptime(0), task(0), lastTaskRuntime(gethrtime()),
                      enabled(true) {}
-        Mutex mutex;
+        std::mutex mutex;
         size_t sleeptime;
         size_t task;
         hrtime_t lastTaskRuntime;
         bool enabled;
     } accessScanner;
     struct ResidentRatio {
-        AtomicValue<size_t> activeRatio;
-        AtomicValue<size_t> replicaRatio;
+        std::atomic<size_t> activeRatio;
+        std::atomic<size_t> replicaRatio;
     } cachedResidentRatio;
     size_t statsSnapshotTaskId;
-    AtomicValue<size_t> lastTransTimePerItem;
+    std::atomic<size_t> lastTransTimePerItem;
     item_eviction_policy_t eviction_policy;
 
-    Mutex compactionLock;
+    std::mutex compactionLock;
     std::list<CompTaskEntry> compactionTasks;
 
     DISALLOW_COPY_AND_ASSIGN(EventuallyPersistentStore);

@@ -28,7 +28,7 @@
 #include "executorpool.h"
 #include "executorthread.h"
 
-Mutex ExecutorPool::initGuard;
+std::mutex ExecutorPool::initGuard;
 std::atomic<ExecutorPool*> ExecutorPool::instance;
 
 static const size_t EP_MIN_NUM_THREADS    = 10;
@@ -172,9 +172,9 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
     numThreads = (numThreads < EP_MIN_NUM_THREADS) ?
                         EP_MIN_NUM_THREADS : numThreads;
     maxGlobalThreads = maxThreads ? maxThreads : numThreads;
-    curWorkers  = new AtomicValue<uint16_t>[nTaskSets];
-    maxWorkers  = new AtomicValue<uint16_t>[nTaskSets];
-    numReadyTasks  = new AtomicValue<size_t>[nTaskSets];
+    curWorkers  = new std::atomic<uint16_t>[nTaskSets];
+    maxWorkers  = new std::atomic<uint16_t>[nTaskSets];
+    numReadyTasks  = new std::atomic<size_t>[nTaskSets];
     for (size_t i = 0; i < nTaskSets; i++) {
         curWorkers[i] = 0;
         numReadyTasks[i] = 0;

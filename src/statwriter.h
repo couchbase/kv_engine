@@ -21,7 +21,7 @@
 #include "config.h"
 
 
-#include "atomic.h"
+#include <atomic>
 #include <platform/histogram.h>
 #include "objectregistry.h"
 
@@ -54,7 +54,7 @@ inline void add_casted_stat(const char *k, const bool v,
 }
 
 template <typename T>
-void add_casted_stat(const char *k, const AtomicValue<T> &v,
+void add_casted_stat(const char *k, const std::atomic<T> &v,
                             ADD_STAT add_stat, const void *cookie) {
     add_casted_stat(k, v.load(), add_stat, cookie);
 }

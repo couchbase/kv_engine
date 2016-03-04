@@ -23,10 +23,15 @@
 
 #pragma once
 
-#include "atomic.h"
-
+#include <atomic>
+#include <mutex>
 #include <queue>
 #include <unordered_set>
+
+#include "locks.h"
+
+template <class S> class SingleThreadedRCPtr;
+template <class C> class RCPtr;
 
 // Implementation defined in dcp/consumer.h
 class DcpConsumer;
@@ -122,7 +127,7 @@ public:
     }
 
 private:
-    Mutex lock;
+    std::mutex lock;
 
     /* a queue of vbuckets that are ready for producing */
     std::queue<uint16_t> readyQueue;

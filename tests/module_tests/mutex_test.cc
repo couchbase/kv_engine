@@ -26,7 +26,7 @@
 #include <gtest/gtest.h>
 
 TEST(LockTimerTest, LockHolder) {
-    Mutex m;
+    std::mutex m;
     {
         LockTimer<LockHolder, 1, 1> lh(m, "LockHolder");
         std::this_thread::sleep_for(std::chrono::milliseconds(2));

@@ -393,8 +393,8 @@ EventuallyPersistentStore::EventuallyPersistentStore(
     ExecutorPool::get()->registerTaskable(ObjectRegistry::getCurrentEngine()->getTaskable());
 
     size_t num_vbs = config.getMaxVbuckets();
-    vb_mutexes = new Mutex[num_vbs];
-    schedule_vbstate_persist = new AtomicValue<bool>[num_vbs];
+    vb_mutexes = new std::mutex[num_vbs];
+    schedule_vbstate_persist = new std::atomic<bool>[num_vbs];
     for (size_t i = 0; i < num_vbs; ++i) {
         schedule_vbstate_persist[i] = false;
     }

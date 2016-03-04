@@ -378,11 +378,11 @@ private:
     fdb_config fileConfig;
     fdb_kvs_config kvsConfig;
     std::vector<ForestRequest *> pendingReqsQ;
-    static Mutex initLock;
+    static std::mutex initLock;
     static int numGlobalFiles;
-    AtomicValue<size_t> backfillCounter;
+    std::atomic<size_t> backfillCounter;
     std::map<size_t, fdb_kvs_handle *> backfills;
-    Mutex backfillLock; /* guard for the backfills map */
+    std::mutex backfillLock; /* guard for the backfills map */
 
 private:
     void close();

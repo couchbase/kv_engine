@@ -67,10 +67,10 @@ public:
 private:
 
     std::vector<KVShard*> shards;
-    AtomicValue<bool> *bucketDeletion;
-    AtomicValue<bool> *bucketCreation;
-    AtomicValue<uint64_t> *persistenceCheckpointIds;
-    AtomicValue<uint64_t> *persistenceSeqnos;
+    std::atomic<bool> *bucketDeletion;
+    std::atomic<bool> *bucketCreation;
+    std::atomic<uint64_t> *persistenceCheckpointIds;
+    std::atomic<uint64_t> *persistenceSeqnos;
     const id_type size;
 
     DISALLOW_COPY_AND_ASSIGN(VBucketMap);

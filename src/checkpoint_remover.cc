@@ -35,7 +35,7 @@ public:
      * Construct a CheckpointVisitor.
      */
     CheckpointVisitor(EventuallyPersistentStore *s, EPStats &st,
-                      AtomicValue<bool> &sfin)
+                      std::atomic<bool> &sfin)
         : store(s), stats(st), removed(0), taskStart(gethrtime()),
           wasHighMemoryUsage(s->isMemoryUsageTooHigh()), stateFinalizer(sfin) {}
 
@@ -86,7 +86,7 @@ private:
     size_t                     removed;
     hrtime_t                   taskStart;
     bool                       wasHighMemoryUsage;
-    AtomicValue<bool>         &stateFinalizer;
+    std::atomic<bool>         &stateFinalizer;
 };
 
 void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {

@@ -59,7 +59,7 @@ const uint8_t dcp_snapshot_marker_base_msg_bytes = 44;
 const uint8_t dcp_mutation_base_msg_bytes = 55;
 const uint8_t dcp_meta_size_none = 5;
 
-extern AtomicValue<protocol_binary_response_status> last_status;
+extern std::atomic<protocol_binary_response_status> last_status;
 extern std::string last_key;
 extern std::string last_body;
 extern bool dump_stats;
@@ -67,10 +67,10 @@ extern bool dump_stats;
 // TODO: make `vals` non-public
 extern std::map<std::string, std::string> vals;
 
-extern AtomicValue<uint64_t> last_cas;
-extern AtomicValue<uint8_t> last_datatype;
-extern AtomicValue<uint64_t> last_uuid;
-extern AtomicValue<uint64_t> last_seqno;
+extern std::atomic<uint64_t> last_cas;
+extern std::atomic<uint8_t> last_datatype;
+extern std::atomic<uint64_t> last_uuid;
+extern std::atomic<uint64_t> last_seqno;
 extern bool last_deleted_flag;
 extern uint8_t last_conflict_resolution_mode;
 extern ItemMetaData last_meta;

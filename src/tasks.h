@@ -21,7 +21,7 @@
 #include "config.h"
 
 #include <string>
-#include "atomic.h"
+#include <atomic>
 #include "priority.h"
 #include "kvstore.h"
 
@@ -131,12 +131,12 @@ public:
 protected:
     const Priority &priority;
     bool blockShutdown;
-    AtomicValue<task_state_t> state;
+    std::atomic<task_state_t> state;
     const size_t taskId;
     EventuallyPersistentEngine *engine;
     Taskable& taskable;
 
-    static AtomicValue<size_t> task_id_counter;
+    static std::atomic<size_t> task_id_counter;
     static size_t nextTaskId() { return task_id_counter.fetch_add(1); }
 
     hrtime_t getWaketime() {
@@ -152,7 +152,7 @@ protected:
     }
 
 private:
-    AtomicValue<hrtime_t> waketime;      // used for priority_queue
+    std::atomic<hrtime_t> waketime;      // used for priority_queue
 };
 
 typedef SingleThreadedRCPtr<GlobalTask> ExTask;

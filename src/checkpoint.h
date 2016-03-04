@@ -27,7 +27,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "atomic.h"
+#include <atomic>
 #include "item.h"
 #include "locks.h"
 #include "stats.h"
@@ -163,7 +163,7 @@ private:
     // The offset (in terms of items) this cursor is from the start of the
     // cursors' current checkpoint. Used to calculate how many items this
     // cursor has remaining.
-    AtomicValue<size_t>              offset;
+    std::atomic<size_t>              offset;
     bool                             fromBeginningOnChkCollapse;
     MustSendCheckpointEnd            sendCheckpointEndMetaItem;
 };
@@ -766,12 +766,12 @@ private:
 
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
-    Mutex                    queueLock;
+    std::mutex                    queueLock;
     const uint16_t           vbucketId;
 
     // Total number of items (including meta items) in /all/ checkpoints managed
     // by this object.
-    AtomicValue<size_t>      numItems;
+    std::atomic<size_t>      numItems;
     int64_t                  lastBySeqno;
     int64_t                  lastClosedChkBySeqno;
     std::list<Checkpoint*>   checkpointList;

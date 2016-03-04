@@ -24,10 +24,9 @@
 
 #include <map>
 
-#include "atomic.h"
+#include <atomic>
 #include <platform/histogram.h>
 #include "memory_tracker.h"
-#include "mutex.h"
 #include "utility.h"
 
 #ifndef DEFAULT_MAX_DATA_SIZE
@@ -196,45 +195,45 @@ public:
     }
 
     //! Number of keys warmed up during key-only loading.
-    AtomicValue<size_t> warmedUpKeys;
+    std::atomic<size_t> warmedUpKeys;
     //! Number of key-values warmed up during data loading.
-    AtomicValue<size_t> warmedUpValues;
+    std::atomic<size_t> warmedUpValues;
     //! Number of warmup failures due to duplicates
-    AtomicValue<size_t> warmDups;
+    std::atomic<size_t> warmDups;
     //! Number of OOM failures at warmup time.
-    AtomicValue<size_t> warmOOM;
+    std::atomic<size_t> warmOOM;
 
     //! Fill % of memory used during warmup we're going to enable traffic
-    AtomicValue<double> warmupMemUsedCap;
+    std::atomic<double> warmupMemUsedCap;
     //! Fill % of number of items read during warmup we're going to
     //  enable traffic
-    AtomicValue<double> warmupNumReadCap;
+    std::atomic<double> warmupNumReadCap;
 
     //! The replication throttle write queue cap
-    AtomicValue<ssize_t> replicationThrottleWriteQueueCap;
+    std::atomic<ssize_t> replicationThrottleWriteQueueCap;
 
     //! Amount of items waiting for persistence
-    AtomicValue<size_t> diskQueueSize;
+    std::atomic<size_t> diskQueueSize;
     //! Size of the in-process (output) queue.
-    AtomicValue<size_t> flusher_todo;
+    std::atomic<size_t> flusher_todo;
     //! Number of transaction commits.
-    AtomicValue<size_t> flusherCommits;
+    std::atomic<size_t> flusherCommits;
     //! Total time spent flushing.
-    AtomicValue<size_t> cumulativeFlushTime;
+    std::atomic<size_t> cumulativeFlushTime;
     //! Total time spent committing.
-    AtomicValue<size_t> cumulativeCommitTime;
+    std::atomic<size_t> cumulativeCommitTime;
     //! Objects that were rejected from persistence for being too fresh.
-    AtomicValue<size_t> tooYoung;
+    std::atomic<size_t> tooYoung;
     //! Objects that were forced into persistence for being too old.
-    AtomicValue<size_t> tooOld;
+    std::atomic<size_t> tooOld;
     //! Number of items persisted.
-    AtomicValue<size_t> totalPersisted;
+    std::atomic<size_t> totalPersisted;
     //! Cumulative number of items added to the queue.
-    AtomicValue<size_t> totalEnqueued;
+    std::atomic<size_t> totalEnqueued;
     //! Number of times an item flush failed.
-    AtomicValue<size_t> flushFailed;
+    std::atomic<size_t> flushFailed;
     //! Number of times an item is not flushed due to the item's expiry
-    AtomicValue<size_t> flushExpired;
+    std::atomic<size_t> flushExpired;
 
     // Expiration stats. Note: These stats are not synchronous -
     // e.g. expired_pager can be incremented /before/ curr_items is
@@ -243,118 +242,118 @@ public:
     // persisted to disk (and callback invoked).
 
     //! Number of times an object was expired on access.
-    AtomicValue<size_t> expired_access;
+    std::atomic<size_t> expired_access;
     //! Number of times an object was expired by compactor.
-    AtomicValue<size_t> expired_compactor;
+    std::atomic<size_t> expired_compactor;
     //! Number of times an object was expired by pager.
-    AtomicValue<size_t> expired_pager;
+    std::atomic<size_t> expired_pager;
 
     //! Number of times we failed to start a transaction
-    AtomicValue<size_t> beginFailed;
+    std::atomic<size_t> beginFailed;
     //! Number of times a commit failed.
-    AtomicValue<size_t> commitFailed;
+    std::atomic<size_t> commitFailed;
     //! How long an object is dirty before written.
-    AtomicValue<rel_time_t> dirtyAge;
+    std::atomic<rel_time_t> dirtyAge;
     //! Oldest enqueued object we've seen while persisting.
-    AtomicValue<rel_time_t> dirtyAgeHighWat;
+    std::atomic<rel_time_t> dirtyAgeHighWat;
     //! Amount of time spent in the commit phase.
-    AtomicValue<rel_time_t> commit_time;
+    std::atomic<rel_time_t> commit_time;
     //! Number of times we deleted a vbucket.
-    AtomicValue<size_t> vbucketDeletions;
+    std::atomic<size_t> vbucketDeletions;
     //! Number of times we failed to delete a vbucket.
-    AtomicValue<size_t> vbucketDeletionFail;
+    std::atomic<size_t> vbucketDeletionFail;
 
     //! Beyond this point are config items
     //! Pager low water mark.
-    AtomicValue<size_t> mem_low_wat;
-    AtomicValue<double> mem_low_wat_percent;
+    std::atomic<size_t> mem_low_wat;
+    std::atomic<double> mem_low_wat_percent;
     //! Pager high water mark
-    AtomicValue<size_t> mem_high_wat;
-    AtomicValue<double> mem_high_wat_percent;
+    std::atomic<size_t> mem_high_wat;
+    std::atomic<double> mem_high_wat_percent;
 
     //! Cursor dropping thresholds used by checkpoint remover
-    AtomicValue<size_t> cursorDroppingLThreshold;
-    AtomicValue<size_t> cursorDroppingUThreshold;
+    std::atomic<size_t> cursorDroppingLThreshold;
+    std::atomic<size_t> cursorDroppingUThreshold;
 
     //! Number of cursors dropped by checkpoint remover
-    AtomicValue<size_t> cursorsDropped;
+    std::atomic<size_t> cursorsDropped;
 
     //! Number of times we needed to kick in the pager
-    AtomicValue<size_t> pagerRuns;
+    std::atomic<size_t> pagerRuns;
     //! Number of times the expiry pager runs for purging expired items
-    AtomicValue<size_t> expiryPagerRuns;
+    std::atomic<size_t> expiryPagerRuns;
     //! Number of items removed from closed unreferenced checkpoints.
-    AtomicValue<size_t> itemsRemovedFromCheckpoints;
+    std::atomic<size_t> itemsRemovedFromCheckpoints;
     //! Number of times a value is ejected
-    AtomicValue<size_t> numValueEjects;
+    std::atomic<size_t> numValueEjects;
     //! Number of times a value could not be ejected
-    AtomicValue<size_t> numFailedEjects;
+    std::atomic<size_t> numFailedEjects;
     //! Number of times "Not my bucket" happened
-    AtomicValue<size_t> numNotMyVBuckets;
+    std::atomic<size_t> numNotMyVBuckets;
     //! Total size of stored objects.
-    AtomicValue<size_t> currentSize;
+    std::atomic<size_t> currentSize;
     //! Total number of blob objects
-    AtomicValue<size_t> numBlob;
+    std::atomic<size_t> numBlob;
     //! Total size of blob memory overhead
-    AtomicValue<size_t> blobOverhead;
+    std::atomic<size_t> blobOverhead;
     //! Total memory overhead to store values for resident keys.
-    AtomicValue<size_t> totalValueSize;
+    std::atomic<size_t> totalValueSize;
     //! The number of storedVal object
-    AtomicValue<size_t> numStoredVal;
+    std::atomic<size_t> numStoredVal;
     //! Total memory for stored values
-    AtomicValue<size_t> totalStoredValSize;
+    std::atomic<size_t> totalStoredValSize;
     //! Total size of StoredVal memory overhead
-    AtomicValue<size_t> storedValOverhead;
+    std::atomic<size_t> storedValOverhead;
     //! Amount of memory used to track items and what-not.
-    AtomicValue<size_t> memOverhead;
+    std::atomic<size_t> memOverhead;
     //! Total number of Item objects
-    AtomicValue<size_t> numItem;
+    std::atomic<size_t> numItem;
     //! The total amount of memory used by this bucket (From memory tracking)
-    AtomicValue<size_t> totalMemory;
+    std::atomic<size_t> totalMemory;
     //! True if the memory usage tracker is enabled.
-    AtomicValue<bool> memoryTrackerEnabled;
+    std::atomic<bool> memoryTrackerEnabled;
     //! Whether or not to force engine shutdown.
-    AtomicValue<bool> forceShutdown;
+    std::atomic<bool> forceShutdown;
 
     //! Number of times unrecoverable oom errors happened while processing operations.
-    AtomicValue<size_t> oom_errors;
+    std::atomic<size_t> oom_errors;
     //! Number of times temporary oom errors encountered while processing operations.
-    AtomicValue<size_t> tmp_oom_errors;
+    std::atomic<size_t> tmp_oom_errors;
 
     //! Number of ops blocked on all vbuckets in pending state
-    AtomicValue<size_t> pendingOps;
+    std::atomic<size_t> pendingOps;
     //! Total number of ops ever blocked on all vbuckets in pending state
-    AtomicValue<size_t> pendingOpsTotal;
+    std::atomic<size_t> pendingOpsTotal;
     //! High water value for ops blocked for any individual pending vbucket
-    AtomicValue<size_t> pendingOpsMax;
+    std::atomic<size_t> pendingOpsMax;
     //! High water value for time an op is blocked on a pending vbucket
-    AtomicValue<hrtime_t> pendingOpsMaxDuration;
+    std::atomic<hrtime_t> pendingOpsMaxDuration;
 
     //! Histogram of pending operation wait times.
     Histogram<hrtime_t> pendingOpsHisto;
 
     //! Number of pending vbucket compaction requests
-    AtomicValue<size_t> pendingCompactions;
+    std::atomic<size_t> pendingCompactions;
 
     //! Number of times background fetches occurred.
-    AtomicValue<size_t> bg_fetched;
+    std::atomic<size_t> bg_fetched;
     //! Number of times meta background fetches occurred.
-    AtomicValue<size_t> bg_meta_fetched;
+    std::atomic<size_t> bg_meta_fetched;
     //! Number of remaining bg fetch jobs.
-    AtomicValue<size_t> numRemainingBgJobs;
+    std::atomic<size_t> numRemainingBgJobs;
     //! The number of samples the bgWaitDelta and bgLoadDelta contains of
-    AtomicValue<size_t> bgNumOperations;
+    std::atomic<size_t> bgNumOperations;
     //! Max number of individual background fetch jobs that we've seen in the queue
     size_t maxRemainingBgJobs;
 
     /** The sum of the deltas (in usec) from an item was put in queue until
      *  the dispatcher started the work for this item
      */
-    AtomicValue<hrtime_t> bgWait;
+    std::atomic<hrtime_t> bgWait;
     //! The shortest wait time
-    AtomicValue<hrtime_t> bgMinWait;
+    std::atomic<hrtime_t> bgMinWait;
     //! The longest wait time
-    AtomicValue<hrtime_t> bgMaxWait;
+    std::atomic<hrtime_t> bgMaxWait;
 
     //! Histogram of background wait times.
     Histogram<hrtime_t> bgWaitHisto;
@@ -362,19 +361,19 @@ public:
     /** The sum of the deltas (in usec) from the dispatcher started to load
      *  item until was done
      */
-    AtomicValue<hrtime_t> bgLoad;
+    std::atomic<hrtime_t> bgLoad;
     //! The shortest load time
-    AtomicValue<hrtime_t> bgMinLoad;
+    std::atomic<hrtime_t> bgMinLoad;
     //! The longest load time
-    AtomicValue<hrtime_t> bgMaxLoad;
+    std::atomic<hrtime_t> bgMaxLoad;
 
     //! Histogram of background wait loads.
     Histogram<hrtime_t> bgLoadHisto;
 
     //! Max wall time of deleting a vbucket
-    AtomicValue<hrtime_t> vbucketDelMaxWalltime;
+    std::atomic<hrtime_t> vbucketDelMaxWalltime;
     //! Total wall time of deleting vbuckets
-    AtomicValue<hrtime_t> vbucketDelTotWalltime;
+    std::atomic<hrtime_t> vbucketDelTotWalltime;
 
     //! Histogram of setWithMeta latencies.
     Histogram<hrtime_t> setWithMetaHisto;
@@ -390,30 +389,30 @@ public:
 
     /* TAP related stats */
     //! The total number of tap events sent (not including noops)
-    AtomicValue<size_t> numTapFetched;
+    std::atomic<size_t> numTapFetched;
     //! Number of background fetched tap items
-    AtomicValue<size_t> numTapBGFetched;
+    std::atomic<size_t> numTapBGFetched;
     //! Number of times a tap background fetch task is requeued
-    AtomicValue<size_t> numTapBGFetchRequeued;
+    std::atomic<size_t> numTapBGFetchRequeued;
     //! Number of foreground fetched tap items
-    AtomicValue<size_t> numTapFGFetched;
+    std::atomic<size_t> numTapFGFetched;
     //! Number of tap deletes.
-    AtomicValue<size_t> numTapDeletes;
+    std::atomic<size_t> numTapDeletes;
     //! The number of samples the tapBgWaitDelta and tapBgLoadDelta contains of
-    AtomicValue<size_t> tapBgNumOperations;
+    std::atomic<size_t> tapBgNumOperations;
     //! The number of tap notify messages throttled by replicationThrottle.
-    AtomicValue<size_t> replicationThrottled;
+    std::atomic<size_t> replicationThrottled;
     //! Percentage of memory in use before we throttle replication input
-    AtomicValue<double> replicationThrottleThreshold;
+    std::atomic<double> replicationThrottleThreshold;
 
     /** The sum of the deltas (in usec) from a tap item was put in queue until
      *  the dispatcher started the work for this item
      */
-    AtomicValue<hrtime_t> tapBgWait;
+    std::atomic<hrtime_t> tapBgWait;
     //! The shortest tap bg wait time
-    AtomicValue<hrtime_t> tapBgMinWait;
+    std::atomic<hrtime_t> tapBgMinWait;
     //! The longest tap bg wait time
-    AtomicValue<hrtime_t> tapBgMaxWait;
+    std::atomic<hrtime_t> tapBgMaxWait;
 
     //! Histogram of tap background wait loads.
     Histogram<hrtime_t> tapBgWaitHisto;
@@ -421,68 +420,68 @@ public:
     /** The sum of the deltas (in usec) from the dispatcher started to load
      *  a tap item until was done
      */
-    AtomicValue<hrtime_t> tapBgLoad;
+    std::atomic<hrtime_t> tapBgLoad;
     //! The shortest tap load time
-    AtomicValue<hrtime_t> tapBgMinLoad;
+    std::atomic<hrtime_t> tapBgMinLoad;
     //! The longest tap load time
-    AtomicValue<hrtime_t> tapBgMaxLoad;
+    std::atomic<hrtime_t> tapBgMaxLoad;
 
     //! Histogram of tap background wait loads.
     Histogram<hrtime_t> tapBgLoadHisto;
 
     //! The number of basic store (add, set, arithmetic, touch, etc.) operations
-    AtomicValue<size_t> numOpsStore;
+    std::atomic<size_t> numOpsStore;
     //! The number of basic delete operations
-    AtomicValue<size_t> numOpsDelete;
+    std::atomic<size_t> numOpsDelete;
     //! The number of basic get operations
-    AtomicValue<size_t> numOpsGet;
+    std::atomic<size_t> numOpsGet;
 
     //! The number of get with meta operations
-    AtomicValue<size_t>  numOpsGetMeta;
+    std::atomic<size_t>  numOpsGetMeta;
     //! The number of set with meta operations
-    AtomicValue<size_t>  numOpsSetMeta;
+    std::atomic<size_t>  numOpsSetMeta;
     //! The number of delete with meta operations
-    AtomicValue<size_t>  numOpsDelMeta;
+    std::atomic<size_t>  numOpsDelMeta;
     //! The number of failed set meta ops due to conflict resoltion
-    AtomicValue<size_t> numOpsSetMetaResolutionFailed;
+    std::atomic<size_t> numOpsSetMetaResolutionFailed;
     //! The number of failed del meta ops due to conflict resoltion
-    AtomicValue<size_t> numOpsDelMetaResolutionFailed;
+    std::atomic<size_t> numOpsDelMetaResolutionFailed;
     //! The number of set returning meta operations
-    AtomicValue<size_t>  numOpsSetRetMeta;
+    std::atomic<size_t>  numOpsSetRetMeta;
     //! The number of delete returning meta operations
-    AtomicValue<size_t>  numOpsDelRetMeta;
+    std::atomic<size_t>  numOpsDelRetMeta;
     //! The number of background get meta ops due to set_with_meta operations
-    AtomicValue<size_t>  numOpsGetMetaOnSetWithMeta;
+    std::atomic<size_t>  numOpsGetMetaOnSetWithMeta;
 
     //! The number of tiems the mutation log compactor is exectued
-    AtomicValue<size_t> mlogCompactorRuns;
+    std::atomic<size_t> mlogCompactorRuns;
     //! The number of times the access scanner runs
-    AtomicValue<size_t> alogRuns;
+    std::atomic<size_t> alogRuns;
     //! The number of times the access scanner skips generating access log
-    AtomicValue<size_t> accessScannerSkips;
+    std::atomic<size_t> accessScannerSkips;
     //! The number of items that last access scanner task swept to log
-    AtomicValue<size_t> alogNumItems;
+    std::atomic<size_t> alogNumItems;
     //! The next access scanner task schedule time (GMT)
-    AtomicValue<hrtime_t> alogTime;
+    std::atomic<hrtime_t> alogTime;
     //! The number of seconds that the last access scanner task took
-    AtomicValue<rel_time_t> alogRuntime;
+    std::atomic<rel_time_t> alogRuntime;
 
     //! The next expiry pager task schedule time (GMT)
-    AtomicValue<hrtime_t> expPagerTime;
+    std::atomic<hrtime_t> expPagerTime;
 
-    AtomicValue<bool> isShutdown;
+    std::atomic<bool> isShutdown;
 
-    AtomicValue<size_t> rollbackCount;
+    std::atomic<size_t> rollbackCount;
 
     /** The number of items that have been visited (considered for
      * defragmentation) by the defragmenter task.
      */
-    AtomicValue<size_t> defragNumVisited;
+    std::atomic<size_t> defragNumVisited;
 
     /** The number of items that have been moved (defragmented) by the
      * defragmenter task.
      */
-    AtomicValue<size_t> defragNumMoved;
+    std::atomic<size_t> defragNumMoved;
 
     //! Histogram of queue processing dirty age.
     Histogram<hrtime_t> dirtyAgeHisto;
@@ -652,7 +651,7 @@ public:
 private:
 
     //! Max allowable memory size.
-    AtomicValue<size_t> maxDataSize;
+    std::atomic<size_t> maxDataSize;
 
     DISALLOW_COPY_AND_ASSIGN(EPStats);
 };

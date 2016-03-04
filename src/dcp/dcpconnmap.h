@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include <atomic>
 #include <climits>
 #include <list>
 #include <string>
@@ -140,9 +141,9 @@ private:
     /* Max percentage of memory we want backfills to occupy */
     static const uint8_t numBackfillsMemThreshold;
 
-    AtomicValue<float> minCompressionRatioForProducer;
+    std::atomic<float> minCompressionRatioForProducer;
 
     /* Total memory used by all DCP consumer buffers */
-    AtomicValue<size_t> aggrDcpConsumerBufferSize;
+    std::atomic<size_t> aggrDcpConsumerBufferSize;
 
 };

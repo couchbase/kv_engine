@@ -20,7 +20,7 @@
 #include "item.h"
 #include "cJSON.h"
 
-AtomicValue<uint64_t> Item::casCounter(1);
+std::atomic<uint64_t> Item::casCounter(1);
 const uint32_t Item::metaDataSize(2*sizeof(uint32_t) + 2*sizeof(uint64_t) + 2);
 
 /**

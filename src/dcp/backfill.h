@@ -93,7 +93,7 @@ private:
     uint64_t                    endSeqno;
     ScanContext*                scanCtx;
     backfill_state_t            state;
-    Mutex                       lock;
+    std::mutex                       lock;
 };
 
 #endif  // SRC_DCP_BACKFILL_H_

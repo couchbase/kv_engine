@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "locks.h"
+#include "syncobject.h"
 #include "utility.h"
 
 #ifndef TESTS_MODULE_TESTS_THREADTESTS_H_

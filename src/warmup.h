@@ -19,7 +19,7 @@
 
 #include "config.h"
 
-#include "atomic.h"
+#include <atomic>
 #include "ep.h"
 #include "ep_engine.h"
 #include "utility.h"
@@ -51,7 +51,7 @@ public:
     int getState(void) const { return state; }
 
 private:
-    AtomicValue<int> state;
+    std::atomic<int> state;
     const char *getStateDescription(int val) const;
     bool legalTransition(int to) const;
     friend std::ostream& operator<< (std::ostream& out,
@@ -193,25 +193,25 @@ private:
     EventuallyPersistentStore& store;
 
     // Unordered set to hold the current executing tasks
-    Mutex taskSetMutex;
+    std::mutex taskSetMutex;
     std::unordered_set<size_t> taskSet;
 
-    AtomicValue<hrtime_t> startTime;
-    AtomicValue<hrtime_t> metadata;
-    AtomicValue<hrtime_t> warmup;
+    std::atomic<hrtime_t> startTime;
+    std::atomic<hrtime_t> metadata;
+    std::atomic<hrtime_t> warmup;
 
     std::map<uint16_t, vbucket_state> *shardVbStates;
-    AtomicValue<size_t> threadtask_count;
+    std::atomic<size_t> threadtask_count;
     bool *shardKeyDumpStatus;
     std::vector<uint16_t> *shardVbIds;
 
-    AtomicValue<hrtime_t> estimateTime;
-    AtomicValue<size_t> estimatedItemCount;
+    std::atomic<hrtime_t> estimateTime;
+    std::atomic<size_t> estimatedItemCount;
     bool cleanShutdown;
     bool corruptAccessLog;
-    AtomicValue<bool> warmupComplete;
-    AtomicValue<bool> warmupOOMFailure;
-    AtomicValue<size_t> estimatedWarmupCount;
+    std::atomic<bool> warmupComplete;
+    std::atomic<bool> warmupOOMFailure;
+    std::atomic<size_t> estimatedWarmupCount;
 
     DISALLOW_COPY_AND_ASSIGN(Warmup);
 };

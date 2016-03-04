@@ -78,10 +78,10 @@ private:
     EventuallyPersistentStore *store;
     KVShard *shard;
     size_t taskId;
-    Mutex queueMutex;
+    std::mutex queueMutex;
     EPStats &stats;
 
-    AtomicValue<bool> pendingFetch;
+    std::atomic<bool> pendingFetch;
     std::set<VBucket::id_type> pendingVbs;
 };
 

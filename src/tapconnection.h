@@ -406,37 +406,37 @@ private:
     std::string name;
 
     //! The cookie representing this connection (provided by the memcached code)
-    AtomicValue<void*> cookie;
+    std::atomic<void*> cookie;
 
     //! Whether or not the connection is reserved in the memcached layer
-    AtomicValue<bool> reserved;
+    std::atomic<bool> reserved;
 
     //! Connection token created at connection instantiation time
     hrtime_t connToken;
 
     //! Connection creation time
-    AtomicValue<rel_time_t> created;
+    std::atomic<rel_time_t> created;
 
     //! The last time this connection's step function was called
-    AtomicValue<rel_time_t> lastWalkTime;
+    std::atomic<rel_time_t> lastWalkTime;
 
     //! Should we disconnect as soon as possible?
-    AtomicValue<bool> disconnect;
+    std::atomic<bool> disconnect;
 
     //! Is this tap conenction connected?
-    AtomicValue<bool> connected;
+    std::atomic<bool> connected;
 
     //! Number of times this connection was disconnected
-    AtomicValue<size_t> numDisconnects;
+    std::atomic<size_t> numDisconnects;
 
     //! when this tap conneciton expires.
     rel_time_t expiryTime;
 
     //! Whether or not this connection supports acking
-    AtomicValue<bool> supportAck;
+    std::atomic<bool> supportAck;
 
     //! A counter used to generate unique names
-    static AtomicValue<uint64_t> counter_;
+    static std::atomic<uint64_t> counter_;
 };
 
 enum proto_checkpoint_state {
@@ -638,21 +638,21 @@ public:
  */
 class Consumer : public ConnHandler {
 private:
-    AtomicValue<size_t> numDelete;
-    AtomicValue<size_t> numDeleteFailed;
-    AtomicValue<size_t> numFlush;
-    AtomicValue<size_t> numFlushFailed;
-    AtomicValue<size_t> numMutation;
-    AtomicValue<size_t> numMutationFailed;
-    AtomicValue<size_t> numOpaque;
-    AtomicValue<size_t> numOpaqueFailed;
-    AtomicValue<size_t> numVbucketSet;
-    AtomicValue<size_t> numVbucketSetFailed;
-    AtomicValue<size_t> numCheckpointStart;
-    AtomicValue<size_t> numCheckpointStartFailed;
-    AtomicValue<size_t> numCheckpointEnd;
-    AtomicValue<size_t> numCheckpointEndFailed;
-    AtomicValue<size_t> numUnknown;
+    std::atomic<size_t> numDelete;
+    std::atomic<size_t> numDeleteFailed;
+    std::atomic<size_t> numFlush;
+    std::atomic<size_t> numFlushFailed;
+    std::atomic<size_t> numMutation;
+    std::atomic<size_t> numMutationFailed;
+    std::atomic<size_t> numOpaque;
+    std::atomic<size_t> numOpaqueFailed;
+    std::atomic<size_t> numVbucketSet;
+    std::atomic<size_t> numVbucketSetFailed;
+    std::atomic<size_t> numCheckpointStart;
+    std::atomic<size_t> numCheckpointStartFailed;
+    std::atomic<size_t> numCheckpointEnd;
+    std::atomic<size_t> numCheckpointEndFailed;
+    std::atomic<size_t> numUnknown;
 
 public:
     Consumer(EventuallyPersistentEngine &theEngine, const void* cookie,
@@ -772,13 +772,13 @@ public:
 
 private:
     //! Is this tap connection in a suspended state
-    AtomicValue<bool> suspended;
+    std::atomic<bool> suspended;
     //! Connection is temporarily paused?
-    AtomicValue<bool> paused;
+    std::atomic<bool> paused;
     //! Flag indicating if the notification event is scheduled
-    AtomicValue<bool> notificationScheduled;
+    std::atomic<bool> notificationScheduled;
         //! Flag indicating if the pending memcached connection is notified
-    AtomicValue<bool> notifySent;
+    std::atomic<bool> notifySent;
 };
 
 class Producer : public ConnHandler, public Notifiable {
@@ -831,7 +831,7 @@ protected:
     friend class ConnMap;
 
     //! Lock held during queue operations.
-    Mutex queueLock;
+    std::mutex queueLock;
     //! Filter for the vbuckets we want.
     VBucketFilter vbucketFilter;
     //! Total backfill backlogs
@@ -1331,7 +1331,7 @@ protected:
     std::list<TapLogElement> ackLog_;
 
     //! Keeps track of items transmitted per VBucket
-    AtomicValue<size_t> *transmitted;
+    std::atomic<size_t> *transmitted;
 
     //! VBucket status messages immediately (before userdata)
     std::queue<VBucketEvent> vBucketHighPriority;
@@ -1350,7 +1350,7 @@ protected:
     //! Number of records fetched from this stream since the
     size_t recordsFetched;
     //! Number of records skipped due to changing the filter on the connection
-    AtomicValue<size_t> recordsSkipped;
+    std::atomic<size_t> recordsSkipped;
     //! Do we have a pending flush command?
     bool pendingFlush;
     //! Backfill age for the connection
@@ -1375,15 +1375,15 @@ protected:
     //! vbuckets that are being backfilled by the current backfill session
     std::set<uint16_t> backfillVBuckets;
 
-    AtomicValue<size_t> bgResultSize;
-    AtomicValue<size_t> bgJobIssued;
-    AtomicValue<size_t> bgJobCompleted;
-    AtomicValue<size_t> numTapNack;
-    AtomicValue<size_t> queueMemSize;
-    AtomicValue<size_t> queueFill;
-    AtomicValue<size_t> queueDrain;
-    AtomicValue<size_t> checkpointMsgCounter;
-    AtomicValue<size_t> opaqueMsgCounter;
+    std::atomic<size_t> bgResultSize;
+    std::atomic<size_t> bgJobIssued;
+    std::atomic<size_t> bgJobCompleted;
+    std::atomic<size_t> numTapNack;
+    std::atomic<size_t> queueMemSize;
+    std::atomic<size_t> queueFill;
+    std::atomic<size_t> queueDrain;
+    std::atomic<size_t> checkpointMsgCounter;
+    std::atomic<size_t> opaqueMsgCounter;
 
     //! Current tap sequence number (for ack's)
     uint32_t seqno;
@@ -1400,13 +1400,13 @@ protected:
     //! Textual representation of the flags..
     std::string flagsText;
 
-    AtomicValue<rel_time_t> lastMsgTime;
+    std::atomic<rel_time_t> lastMsgTime;
 
     bool isLastAckSucceed;
     bool isSeqNumRotated;
 
     //! Should we send a NOOP message now?
-    AtomicValue<bool> noop;
+    std::atomic<bool> noop;
     size_t numNoops;
 
     //! Does the Tap Consumer know about the byteorder bug for the flags

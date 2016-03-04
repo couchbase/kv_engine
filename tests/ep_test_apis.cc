@@ -46,17 +46,17 @@ std::string requested_stat_name;
 std::string actual_stat_value;
 
 bool dump_stats = false;
-AtomicValue<protocol_binary_response_status> last_status(
+std::atomic<protocol_binary_response_status> last_status(
     static_cast<protocol_binary_response_status>(0));
 std::string last_key;
 std::string last_body;
 bool last_deleted_flag(false);
 uint8_t last_conflict_resolution_mode(static_cast<uint8_t>(-1));
-AtomicValue<uint64_t> last_cas(0);
-AtomicValue<uint8_t> last_datatype(0x00);
+std::atomic<uint64_t> last_cas(0);
+std::atomic<uint8_t> last_datatype(0x00);
 ItemMetaData last_meta;
-AtomicValue<uint64_t> last_uuid(0);
-AtomicValue<uint64_t> last_seqno(0);
+std::atomic<uint64_t> last_uuid(0);
+std::atomic<uint64_t> last_seqno(0);
 
 /* HistogramBinStats is used to hold a histogram bin object a histogram stat.
    This is a class used to hold already computed stats. Hence we do not expect

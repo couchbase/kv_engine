@@ -31,7 +31,6 @@
 #include "compress.h"
 #include "ep_time.h"
 #include "locks.h"
-#include "mutex.h"
 #include "objectregistry.h"
 #include "stats.h"
 
@@ -701,7 +700,7 @@ private:
     uint8_t nru  : 2;
     uint8_t conflictResMode : 2;
 
-    static AtomicValue<uint64_t> casCounter;
+    static std::atomic<uint64_t> casCounter;
     static const uint32_t metaDataSize;
     DISALLOW_ASSIGN(Item);
 };

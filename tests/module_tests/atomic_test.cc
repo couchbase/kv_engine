@@ -45,7 +45,7 @@ public:
     int latest(void) { return i.load(); }
 
 private:
-    AtomicValue<int> i;
+    std::atomic<int> i;
 };
 
 static void testAtomicInt() {
@@ -64,7 +64,7 @@ static void testAtomicInt() {
 
 static void testAtomicUint64() {
     // Check that we can correctly load / store from values larger than 32bits.
-    AtomicValue<uint64_t> value;
+    std::atomic<uint64_t> value;
     uint64_t expected_val = 1ull << 33;
     value.store(expected_val);
     cb_assert(value == expected_val);
@@ -74,7 +74,7 @@ static void testAtomicUint64() {
 }
 
 static void testSetIfLess() {
-    AtomicValue<int> x;
+    std::atomic<int> x;
 
     x.store(842);
     atomic_setIfLess(x, 924);
@@ -84,7 +84,7 @@ static void testSetIfLess() {
 }
 
 static void testSetIfBigger() {
-    AtomicValue<int> x;
+    std::atomic<int> x;
 
     x.store(842);
     atomic_setIfBigger(x, 13);
@@ -94,13 +94,13 @@ static void testSetIfBigger() {
 }
 
 static void testAtomicDouble(void) {
-    AtomicValue<double> d;
+    std::atomic<double> d;
     d.store(991.5);
     cb_assert(d.load() == 991.5);
 }
 
 int testAtomicCompareExchangeStrong(void) {
-    AtomicValue<bool> x(true);
+    std::atomic<bool> x(true);
     bool expected = false;
 
     int returncode = 0;

@@ -63,7 +63,7 @@ private:
 
 #include <queue>
 
-#include "atomic.h"
+#include <atomic>
 #include "threadlocal.h"
 #include "utility.h"
 
@@ -165,8 +165,8 @@ private:
 
     ThreadLocalPtr<AtomicPtr<std::queue<T> > > threadQueue;
     AtomicPtr<std::queue<T> > queues[MAX_THREADS];
-    AtomicValue<size_t> counter;
-    AtomicValue<size_t> numItems;
+    std::atomic<size_t> counter;
+    std::atomic<size_t> numItems;
     DISALLOW_COPY_AND_ASSIGN(AtomicQueue);
 };
 #endif

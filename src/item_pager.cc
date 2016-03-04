@@ -59,7 +59,7 @@ public:
      * @param phase pointer to an item_pager_phase to be set
      */
     PagingVisitor(EventuallyPersistentStore &s, EPStats &st, double pcnt,
-                  std::shared_ptr<AtomicValue<bool>> &sfin, pager_type_t caller,
+                  std::shared_ptr<std::atomic<bool>> &sfin, pager_type_t caller,
                   bool pause, double bias,
                   std::atomic<item_pager_phase>* phase) :
         store(s), stats(st), percent(pcnt),
@@ -235,7 +235,7 @@ private:
     double activeBias;
     size_t ejected;
     time_t startTime;
-    std::shared_ptr<AtomicValue<bool>> stateFinalizer;
+    std::shared_ptr<std::atomic<bool>> stateFinalizer;
     pager_type_t owner;
     bool canPause;
     bool completePhase;
@@ -248,7 +248,7 @@ ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
     GlobalTask(e, Priority::ItemPagerPriority, 10, false),
     engine(e),
     stats(st),
-    available(new AtomicValue<bool>(true)),
+    available(new std::atomic<bool>(true)),
     phase(PAGING_UNREFERENCED),
     doEvict(false) { }
 
@@ -303,7 +303,7 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
     engine(e),
     stats(st),
     sleepTime(static_cast<double>(stime)),
-    available(new AtomicValue<bool>(true)) {
+    available(new std::atomic<bool>(true)) {
 
     double initialSleep = sleepTime;
     if (taskTime != -1) {

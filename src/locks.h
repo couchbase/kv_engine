@@ -21,11 +21,11 @@
 #include "config.h"
 
 #include <functional>
+#include <mutex>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 
-#include "mutex.h"
 #include "rwlock.h"
 #include "utility.h"
 
@@ -38,12 +38,12 @@
 class LockHolder {
 public:
 
-    typedef Mutex mutex_type;
+    typedef std::mutex mutex_type;
 
     /**
      * Acquire the lock in the given mutex.
      */
-    LockHolder(Mutex &m, bool tryLock = false) : mutex(m), locked(false) {
+    LockHolder(std::mutex &m, bool tryLock = false) : mutex(m), locked(false) {
         if (tryLock) {
             trylock();
         } else {
@@ -100,7 +100,7 @@ public:
     }
 
 private:
-    Mutex &mutex;
+    std::mutex &mutex;
     bool locked;
 
     void operator=(const LockHolder&);
@@ -120,7 +120,7 @@ public:
      * @param m beginning of an array of locks
      * @param n the number of locks to lock
      */
-    MultiLockHolder(Mutex *m, size_t n) : mutexes(m),
+    MultiLockHolder(std::mutex *m, size_t n) : mutexes(m),
                                           locked(new bool[n]),
                                           n_locks(n) {
         std::fill_n(locked, n_locks, false);
@@ -160,7 +160,7 @@ public:
     }
 
 private:
-    Mutex  *mutexes;
+    std::mutex  *mutexes;
     bool   *locked;
     size_t  n_locks;
 

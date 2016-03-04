@@ -26,7 +26,7 @@
 class ItemAccessVisitor : public VBucketVisitor {
 public:
     ItemAccessVisitor(EventuallyPersistentStore &_store, EPStats &_stats,
-                      uint16_t sh, AtomicValue<bool> &sfin, AccessScanner &aS) :
+                      uint16_t sh, std::atomic<bool> &sfin, AccessScanner &aS) :
         store(_store), stats(_stats), startTime(ep_real_time()),
         taskStart(gethrtime()), shardID(sh), stateFinalizer(sfin), as(aS)
     {
@@ -160,7 +160,7 @@ private:
     std::list<std::pair<uint64_t, std::string> > accessed;
 
     MutationLog *log;
-    AtomicValue<bool> &stateFinalizer;
+    std::atomic<bool> &stateFinalizer;
     AccessScanner &as;
 };
 

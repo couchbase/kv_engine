@@ -476,7 +476,7 @@ private:
     };
 
     // Access to the configuration variables is protected by the mutex
-    Mutex mutex;
+    std::mutex mutex;
     std::map<std::string, value_t> attributes;
 
     friend std::ostream& operator<< (std::ostream& out,

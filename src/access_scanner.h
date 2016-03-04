@@ -38,7 +38,7 @@ public:
 
     bool run();
     std::string getDescription();
-    AtomicValue<size_t> completedCount;
+    std::atomic<size_t> completedCount;
 
 private:
     void updateAlogTime(double sleepSecs);
@@ -48,7 +48,7 @@ private:
     EPStats &stats;
     double sleepTime;
     std::string alogPath;
-    AtomicValue<bool> available;
+    std::atomic<bool> available;
     uint8_t residentRatioThreshold;
 };
 

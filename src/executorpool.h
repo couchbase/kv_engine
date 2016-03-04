@@ -141,7 +141,7 @@ protected:
     size_t numTaskSets; // safe to read lock-less not altered after creation
     size_t maxGlobalThreads;
 
-    AtomicValue<size_t> totReadyTasks;
+    std::atomic<size_t> totReadyTasks;
     SyncObject mutex; // Thread management condition var + mutex
 
     //! A mapping of task ids to Task, TaskQ in the thread pool
@@ -161,16 +161,16 @@ protected:
 
     SyncObject tMutex; // to serialize taskLocator, threadQ, numBuckets access
 
-    AtomicValue<uint16_t> numSleepers; // total number of sleeping threads
-    AtomicValue<uint16_t> *curWorkers; // track # of active workers per TaskSet
-    AtomicValue<uint16_t> *maxWorkers; // and limit it to the value set here
-    AtomicValue<size_t> *numReadyTasks; // number of ready tasks per task set
+    std::atomic<uint16_t> numSleepers; // total number of sleeping threads
+    std::atomic<uint16_t> *curWorkers; // track # of active workers per TaskSet
+    std::atomic<uint16_t> *maxWorkers; // and limit it to the value set here
+    std::atomic<size_t> *numReadyTasks; // number of ready tasks per task set
 
     // Set of all known task owners
     std::set<void *> taskOwners;
 
     // Singleton creation
-    static Mutex initGuard;
+    static std::mutex initGuard;
     static std::atomic<ExecutorPool*> instance;
 };
 #endif  // SRC_EXECUTORPOOL_H_

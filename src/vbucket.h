@@ -487,7 +487,7 @@ public:
     HashTable         ht;
     CheckpointManager checkpointManager;
     struct {
-        Mutex mutex;
+        std::mutex mutex;
         std::queue<queued_item> items;
         bool isBackfillPhase;
     } backfill;
@@ -499,20 +499,20 @@ public:
     std::queue<queued_item> rejectQueue;
     FailoverTable *failovers;
 
-    AtomicValue<size_t>  opsCreate;
-    AtomicValue<size_t>  opsUpdate;
-    AtomicValue<size_t>  opsDelete;
-    AtomicValue<size_t>  opsReject;
+    std::atomic<size_t>  opsCreate;
+    std::atomic<size_t>  opsUpdate;
+    std::atomic<size_t>  opsDelete;
+    std::atomic<size_t>  opsReject;
 
-    AtomicValue<size_t>  dirtyQueueSize;
-    AtomicValue<size_t>  dirtyQueueMem;
-    AtomicValue<size_t>  dirtyQueueFill;
-    AtomicValue<size_t>  dirtyQueueDrain;
-    AtomicValue<uint64_t> dirtyQueueAge;
-    AtomicValue<size_t>  dirtyQueuePendingWrites;
-    AtomicValue<size_t>  metaDataDisk;
+    std::atomic<size_t>  dirtyQueueSize;
+    std::atomic<size_t>  dirtyQueueMem;
+    std::atomic<size_t>  dirtyQueueFill;
+    std::atomic<size_t>  dirtyQueueDrain;
+    std::atomic<uint64_t> dirtyQueueAge;
+    std::atomic<size_t>  dirtyQueuePendingWrites;
+    std::atomic<size_t>  metaDataDisk;
 
-    AtomicValue<size_t>  numExpiredItems;
+    std::atomic<size_t>  numExpiredItems;
 
 private:
     template <typename T>
@@ -529,38 +529,38 @@ private:
     void decrDirtyQueuePendingWrites(size_t decrementBy);
 
     id_type                         id;
-    AtomicValue<vbucket_state_t>    state;
+    std::atomic<vbucket_state_t>    state;
     RWLock                          stateLock;
     vbucket_state_t                 initialState;
-    Mutex                           pendingOpLock;
+    std::mutex                           pendingOpLock;
     std::vector<const void*>        pendingOps;
     hrtime_t                        pendingOpsStart;
     EPStats                        &stats;
     uint64_t                        purge_seqno;
 
-    AtomicValue<uint64_t>           max_cas;
-    AtomicValue<int64_t>            drift_counter;
-    AtomicValue<time_sync_t>        time_sync_config;
+    std::atomic<uint64_t>           max_cas;
+    std::atomic<int64_t>            drift_counter;
+    std::atomic<time_sync_t>        time_sync_config;
 
-    AtomicValue<bool>               takeover_backed_up;
+    std::atomic<bool>               takeover_backed_up;
 
-    Mutex pendingBGFetchesLock;
+    std::mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;
 
-    Mutex snapshotMutex;
+    std::mutex snapshotMutex;
     uint64_t persisted_snapshot_start;
     uint64_t persisted_snapshot_end;
 
-    Mutex hpChksMutex;
+    std::mutex hpChksMutex;
     std::list<HighPriorityVBEntry> hpChks;
-    AtomicValue<size_t> numHpChks; // size of list hpChks (to avoid MB-9434)
+    std::atomic<size_t> numHpChks; // size of list hpChks (to avoid MB-9434)
     KVShard *shard;
 
-    Mutex bfMutex;
+    std::mutex bfMutex;
     BloomFilter *bFilter;
     BloomFilter *tempFilter;    // Used during compaction.
 
-    AtomicValue<uint64_t> rollbackItemCount;
+    std::atomic<uint64_t> rollbackItemCount;
 
     static size_t chkFlushTimeout;
 

@@ -255,8 +255,8 @@ private:
     typedef AtomicUnorderedMap<uint16_t, Stream> StreamsMap;
     StreamsMap streams;
 
-    AtomicValue<size_t> itemsSent;
-    AtomicValue<size_t> totalBytesSent;
+    std::atomic<size_t> itemsSent;
+    std::atomic<size_t> totalBytesSent;
 
     ExTask checkpointCreatorTask;
     static const uint32_t defaultNoopInerval;

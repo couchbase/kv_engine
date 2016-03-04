@@ -24,6 +24,7 @@
 
 #include "memory_tracker.h"
 #include "objectregistry.h"
+#include "utility.h"
 
 bool MemoryTracker::tracking = false;
 std::atomic<MemoryTracker*> MemoryTracker::instance;
@@ -101,7 +102,6 @@ MemoryTracker::MemoryTracker() {
         LOG(EXTENSION_LOG_DEBUG, "Registered add hook");
         if (getHooksApi()->add_delete_hook(&DeleteHook)) {
             LOG(EXTENSION_LOG_DEBUG, "Registered delete hook");
-            std::cout.flush();
             tracking = true;
             updateStats();
             if (cb_create_named_thread(&statsThreadId,
@@ -112,7 +112,6 @@ MemoryTracker::MemoryTracker() {
             }
             return;
         }
-        std::cout.flush();
         getHooksApi()->remove_new_hook(&NewHook);
     }
     LOG(EXTENSION_LOG_WARNING, "Failed to register allocator hooks");

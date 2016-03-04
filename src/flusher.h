@@ -115,23 +115,23 @@ private:
     }
 
     EventuallyPersistentStore   *store;
-    AtomicValue<enum flusher_state> _state;
+    std::atomic<enum flusher_state> _state;
 
     // Used for serializaling attempts to start the flusher from
     // different threads.
-    Mutex                        taskMutex;
-    AtomicValue<size_t>      taskId;
+    std::mutex                        taskMutex;
+    std::atomic<size_t>      taskId;
 
     double                   minSleepTime;
     uint16_t                 initCommitInterval;
     uint16_t                 currCommitInterval;
     rel_time_t               flushStart;
-    AtomicValue<bool> forceShutdownReceived;
+    std::atomic<bool> forceShutdownReceived;
     std::queue<uint16_t> hpVbs;
     std::queue<uint16_t> lpVbs;
     bool doHighPriority;
     size_t numHighPriority;
-    AtomicValue<bool> pendingMutation;
+    std::atomic<bool> pendingMutation;
 
     KVShard *shard;
 

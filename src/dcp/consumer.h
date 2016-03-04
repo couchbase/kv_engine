@@ -171,12 +171,12 @@ private:
 
     uint64_t opaqueCounter;
     size_t processerTaskId;
-    AtomicValue<enum process_items_error_t> processerTaskState;
+    std::atomic<enum process_items_error_t> processerTaskState;
 
     DcpReadyQueue vbReady;
-    AtomicValue<bool> processerNotification;
+    std::atomic<bool> processerNotification;
 
-    Mutex readyMutex;
+    std::mutex readyMutex;
     std::list<uint16_t> ready;
 
     // Map of vbid -> passive stream. Map itself is atomic (thread-safe).
@@ -194,7 +194,7 @@ private:
     bool pendingEnableExtMetaData;
     bool pendingEnableValueCompression;
     bool pendingSupportCursorDropping;
-    AtomicValue<bool> taskAlreadyCancelled;
+    std::atomic<bool> taskAlreadyCancelled;
 
     FlowControl flowControl;
 

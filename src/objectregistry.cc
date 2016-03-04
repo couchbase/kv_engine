@@ -17,13 +17,15 @@
 
 #include "config.h"
 
+#include "objectregistry.h"
+
 #include "threadlocal.h"
 #include "ep_engine.h"
-#include "objectregistry.h"
 #include "stored-value.h"
 
+#if 1
 static ThreadLocal<EventuallyPersistentEngine*> *th;
-static ThreadLocal<AtomicValue<size_t>*> *initial_track;
+static ThreadLocal<std::atomic<size_t>*> *initial_track;
 
 extern "C" {
     static size_t defaultGetAllocSize(const void *) {
@@ -44,7 +46,7 @@ public:
    installer() {
       if (th == NULL) {
          th = new ThreadLocal<EventuallyPersistentEngine*>();
-         initial_track = new ThreadLocal<AtomicValue<size_t>*>();
+         initial_track = new ThreadLocal<std::atomic<size_t>*>();
       }
    }
 
@@ -174,7 +176,7 @@ EventuallyPersistentEngine *ObjectRegistry::onSwitchThread(
     return old_engine;
 }
 
-void ObjectRegistry::setStats(AtomicValue<size_t>* init_track) {
+void ObjectRegistry::setStats(std::atomic<size_t>* init_track) {
     initial_track->set(init_track);
 }
 
@@ -203,3 +205,4 @@ bool ObjectRegistry::memoryDeallocated(size_t mem) {
     stats.totalMemory.fetch_sub(mem);
     return true;
 }
+#endif

@@ -81,29 +81,29 @@ public:
     }
 
     // the number of docs committed
-    AtomicValue<size_t> docsCommitted;
+    std::atomic<size_t> docsCommitted;
     // the number of open() calls
-    AtomicValue<size_t> numOpen;
+    std::atomic<size_t> numOpen;
     // the number of close() calls
-    AtomicValue<size_t> numClose;
+    std::atomic<size_t> numClose;
     // the number of vbuckets loaded
-    AtomicValue<size_t> numLoadedVb;
+    std::atomic<size_t> numLoadedVb;
 
     //stats tracking failures
-    AtomicValue<size_t> numGetFailure;
-    AtomicValue<size_t> numSetFailure;
-    AtomicValue<size_t> numDelFailure;
-    AtomicValue<size_t> numOpenFailure;
-    AtomicValue<size_t> numVbSetFailure;
+    std::atomic<size_t> numGetFailure;
+    std::atomic<size_t> numSetFailure;
+    std::atomic<size_t> numDelFailure;
+    std::atomic<size_t> numOpenFailure;
+    std::atomic<size_t> numVbSetFailure;
 
     //! Number of read related io operations
-    AtomicValue<size_t> io_num_read;
+    std::atomic<size_t> io_num_read;
     //! Number of write related io operations
-    AtomicValue<size_t> io_num_write;
+    std::atomic<size_t> io_num_write;
     //! Number of bytes read
-    AtomicValue<size_t> io_read_bytes;
+    std::atomic<size_t> io_read_bytes;
     //! Number of bytes written (key + value + application rev metadata)
-    AtomicValue<size_t> io_write_bytes;
+    std::atomic<size_t> io_write_bytes;
 
     /* for flush and vb delete, no error handling in CouchKVStore, such
      * failure should be tracked in MC-engine  */
@@ -607,9 +607,9 @@ private:
     /* pending file deletions */
     AtomicQueue<std::string> pendingFileDeletions;
 
-    AtomicValue<size_t> backfillCounter;
+    std::atomic<size_t> backfillCounter;
     std::map<size_t, Db*> backfills;
-    Mutex backfillLock;
+    std::mutex backfillLock;
 
     Logger& logger;
 

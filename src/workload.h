@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#include "atomic.h"
+#include <atomic>
 
 #include <string>
 
@@ -82,7 +82,7 @@ private:
 
     int maxNumWorkers;
     int maxNumShards;
-    AtomicValue<workload_pattern_t> workloadPattern;
+    std::atomic<workload_pattern_t> workloadPattern;
 };
 
 #endif  // SRC_WORKLOAD_H_

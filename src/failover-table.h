@@ -20,6 +20,7 @@
 #include "config.h"
 
 #include <list>
+#include <mutex>
 #include <string>
 #include <stdint.h>
 #include <stddef.h>
@@ -29,8 +30,7 @@
 #include <platform/random.h>
 
 #include "cJSON.h"
-#include "mutex.h"
-#include "atomic.h"
+#include <atomic>
 #include "utility.h"
 
 typedef struct {
@@ -166,12 +166,12 @@ class FailoverTable {
                              uint64_t &snap_start_seqno,
                              uint64_t &snap_end_seqno);
 
-    Mutex lock;
+    std::mutex lock;
     table_t table;
     size_t max_entries;
     Couchbase::RandomGenerator provider;
     std::string cachedTableJSON;
-    AtomicValue<uint64_t> latest_uuid;
+    std::atomic<uint64_t> latest_uuid;
 
     DISALLOW_COPY_AND_ASSIGN(FailoverTable);
 };

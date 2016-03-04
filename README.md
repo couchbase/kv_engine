@@ -10,32 +10,32 @@ thread exist.
 
 ## Synchronisation Primitives
 
-There are three mutual-exclusion primitives available in ep-engine.
+There are two mutual-exclusion primitives available in ep-engine (in
+addition to those provided by the C++ standard library):
 
-1. `Mutex` exclusive lock - [mutex.h](./src/mutex.h)
-2. `RWLock` shared, reader/writer lock - [rwlock.h](./src/rwlock.h)
-3. `SpinLock` 1-byte exclusive lock - [atomix.h](./src/atomic.h)
+1. `RWLock` shared, reader/writer lock - [rwlock.h](./src/rwlock.h)
+2. `SpinLock` 1-byte exclusive lock - [atomix.h](./src/atomic.h)
 
-A conditional-variable is also available called `SyncObject`
-[syncobject.h](./src/syncobject.h). `SyncObject` glues a `Mutex` and
-conditional-variable together in one object.
+A condition-variable is also available called `SyncObject`
+[syncobject.h](./src/syncobject.h). `SyncObject` glues a `std::mutex` and
+`std::condition_variable` together in one object.
 
 These primitives are managed via RAII wrappers - [locks.h](./src/locks.h).
 
-1. `LockHolder` - for acquiring a `Mutex` or `SyncObject`.
-2. `MultiLockHolder` - for acquiring an array of `Mutex` or `SyncObject`.
+1. `LockHolder` - for acquiring a `std::mutex` or `SyncObject`.
+2. `MultiLockHolder` - for acquiring an array of `std::mutex` or `SyncObject`.
 3. `WriterLockHolder` - for acquiring write access to a `RWLock`.
 4. `ReaderLockHolder` - for acquiring read access to a `RWLock`.
 5. `SpinLockHolder` - for acquiring a `SpinLock`.
 
-## Mutex
+### Mutex
 The general style is to create a `LockHolder` when you need to acquire a
-`Mutex`, the constructor will acquire and when the `LockHolder` goes out of
-scope, the destructor will release the `Mutex`. For certain use-cases the
-caller can explicitly lock/unlock a `Mutex` via the `LockHolder` class.
+`std::mutex`, the constructor will acquire and when the `LockHolder` goes out of
+scope, the destructor will release the `std::mutex`. For certain use-cases the
+caller can explicitly lock/unlock a `std::mutex` via the `LockHolder` class.
 
 ```c++
-Mutex mutex;
+std::mutex mutex;
 void example1() {
     LockHolder lockHolder(&mutex);
     ...
@@ -58,7 +58,7 @@ released, and similarly to `LockHolder` the caller can choose to manually
 lock/unlock at any time (with all locks locked/unlocked via one call).
 
 ```c++
-Mutex mutexes[10];
+std::mutex mutexes[10];
 Object objects[10];
 void foo() {
     MultiLockHolder lockHolder(&mutexes, 10);
@@ -69,7 +69,7 @@ void foo() {
 }
 ```
 
-## RWLock
+### RWLock
 
 `RWLock` allows many readers to acquire it and exclusive access for a writer.
 `ReadLockHolder` acquires the lock for a reader and `WriteLockHolder` acquires
@@ -93,9 +93,9 @@ void foo2() {
 }
 ```
 
-## SyncObject
+### SyncObject
 
-`SyncObject` inherits from `Mutex` and is thus managed via a `LockHolder` or
+`SyncObject` inherits from `std::mutex` and is thus managed via a `LockHolder` or
 `MultiLockHolder`. The `SyncObject` provides the conditional-variable
 synchronisation primitive enabling threads to block and be woken.
 
@@ -123,12 +123,12 @@ void foo2() {
 }
 ```
 
-## SpinLock
+### SpinLock
 
 A `SpinLock` uses a single byte for the lock and our own code to spin until the
 lock is acquired. The intention for this lock is for low contention locks.
 
-The RAII pattern is just like for a Mutex.
+The RAII pattern is just like for a mutex.
 
 
 ```c++
@@ -140,7 +140,7 @@ void example1() {
 }
 ```
 
-## _UNLOCKED convention
+### _UNLOCKED convention
 
 ep-engine has a function naming convention that indicates the function should
 be called with a lock acquired.
@@ -159,6 +159,18 @@ void Object::run() {
     return;
 }
 ```
+
+## Atomic / thread-safe data structures
+
+In addition to the basic synchronization primitives described above,
+there are also the following higher-level data structures which
+support atomic / thread-safe access from multiple threads:
+
+1. `AtomicQueue`: thread-safe, approximate-FIFO queue, optimized for
+   multiple-writers, one reader - [atomicqueue.h](./src/atomicqueue.h)
+2. `AtomicUnorderedMap` : thread-safe unordered map -
+   [atomic_unordered_map.h](./src/atomic_unordered_map.h)
+
 ## Thread Local Storage (ObjectRegistry).
 
 Threads in ep-engine are servicing buckets and when a thread is dispatched to

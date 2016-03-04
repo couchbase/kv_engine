@@ -23,7 +23,6 @@
 #include "dcp/backfill.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
-#include "mutex.h"
 
 class EventuallyPersistentEngine;
 
@@ -51,7 +50,7 @@ private:
 
     void moveToActiveQueue();
 
-    Mutex lock;
+    std::mutex lock;
     std::list<DCPBackfill*> activeBackfills;
     std::list<std::pair<rel_time_t, DCPBackfill*> > snoozingBackfills;
     //! When the number of (activeBackfills + snoozingBackfills) crosses a

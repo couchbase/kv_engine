@@ -156,17 +156,17 @@ protected:
     uint64_t vb_uuid_;
     uint64_t snap_start_seqno_;
     uint64_t snap_end_seqno_;
-    AtomicValue<stream_state_t> state_;
+    std::atomic<stream_state_t> state_;
     stream_type_t type_;
 
-    AtomicValue<bool> itemsReady;
-    Mutex streamMutex;
+    std::atomic<bool> itemsReady;
+    std::mutex streamMutex;
     std::queue<DcpResponse*> readyQ;
 
     // Number of items in the readyQ that are not meta items. Used for
     // calculating getItemsRemaining(). Atomic so it can be safely read by
     // getItemsRemaining() without acquiring streamMutex.
-    AtomicValue<size_t> readyQ_non_meta_items;
+    std::atomic<size_t> readyQ_non_meta_items;
 
     const static uint64_t dcpMaxSeqno;
 
@@ -175,7 +175,7 @@ private:
      * in the readyQ.  It is an atomic because otherwise
        getReadyQueueMemory would need to acquire streamMutex.
      */
-    AtomicValue <uint64_t> readyQueueMemory;
+    std::atomic <uint64_t> readyQueueMemory;
 };
 
 
@@ -278,13 +278,13 @@ private:
     bool isCurrentSnapshotCompleted() const;
 
     //! The last sequence number queued from disk or memory
-    AtomicValue<uint64_t> lastReadSeqno;
+    std::atomic<uint64_t> lastReadSeqno;
 
     //! The last sequence number sent to the network layer
-    AtomicValue<uint64_t> lastSentSeqno;
+    std::atomic<uint64_t> lastSentSeqno;
 
     //! The last known seqno pointed to by the checkpoint cursor
-    AtomicValue<uint64_t> curChkSeqno;
+    std::atomic<uint64_t> curChkSeqno;
 
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;
@@ -294,33 +294,33 @@ private:
      * because otherwise the function incrBackfillRemaining
      * must acquire the streamMutex lock.
      */
-    AtomicValue <size_t> backfillRemaining;
+    std::atomic <size_t> backfillRemaining;
 
     //! Stats to track items read and sent from the backfill phase
     struct {
-        AtomicValue<size_t> memory;
-        AtomicValue<size_t> disk;
-        AtomicValue<size_t> sent;
+        std::atomic<size_t> memory;
+        std::atomic<size_t> disk;
+        std::atomic<size_t> sent;
     } backfillItems;
 
     //! The amount of items that have been sent during the memory phase
-    AtomicValue<size_t> itemsFromMemoryPhase;
+    std::atomic<size_t> itemsFromMemoryPhase;
 
     //! Whether ot not this is the first snapshot marker sent
     bool firstMarkerSent;
 
-    AtomicValue<int> waitForSnapshot;
+    std::atomic<int> waitForSnapshot;
 
     EventuallyPersistentEngine* engine;
     dcp_producer_t producer;
-    AtomicValue<bool> isBackfillTaskRunning;
+    std::atomic<bool> isBackfillTaskRunning;
 
     struct {
-        AtomicValue<uint32_t> bytes;
-        AtomicValue<uint32_t> items;
+        std::atomic<uint32_t> bytes;
+        std::atomic<uint32_t> items;
     } bufferedBackfill;
 
-    AtomicValue<rel_time_t> takeoverStart;
+    std::atomic<rel_time_t> takeoverStart;
     size_t takeoverSendMaxTime;
 
     /* Enum indicating whether the stream mutations should contain key only or
@@ -328,12 +328,12 @@ private:
     MutationPayload payloadType;
 
     //! Last snapshot end seqno sent to the DCP client
-    AtomicValue<uint64_t> lastSentSnapEndSeqno;
+    std::atomic<uint64_t> lastSentSnapEndSeqno;
 
     /* Flag used by checkpointCreatorTask that is set before all items are
        extracted for given checkpoint cursor, and is unset after all retrieved
        items are added to the readyQ */
-    AtomicValue<bool> chkptItemsExtractionInProgress;
+    std::atomic<bool> chkptItemsExtractionInProgress;
 
 };
 
@@ -382,7 +382,7 @@ private:
         }
     }
 
-    Mutex workQueueLock;
+    std::mutex workQueueLock;
 
     /**
      * Maintain a queue of unique stream_t
@@ -391,7 +391,7 @@ private:
     std::queue<stream_t> queue;
     std::set<uint16_t> queuedVbuckets;
 
-    AtomicValue<bool> notified;
+    std::atomic<bool> notified;
     size_t iterationsBeforeYield;
 };
 
@@ -468,11 +468,11 @@ private:
     EventuallyPersistentEngine* engine;
     dcp_consumer_t consumer;
 
-    AtomicValue<uint64_t> last_seqno;
+    std::atomic<uint64_t> last_seqno;
 
-    AtomicValue<uint64_t> cur_snapshot_start;
-    AtomicValue<uint64_t> cur_snapshot_end;
-    AtomicValue<snapshot_type_t> cur_snapshot_type;
+    std::atomic<uint64_t> cur_snapshot_start;
+    std::atomic<uint64_t> cur_snapshot_end;
+    std::atomic<snapshot_type_t> cur_snapshot_type;
     bool cur_snapshot_ack;
 
     struct Buffer {
@@ -481,7 +481,7 @@ private:
         size_t items;
         /* Lock ordering w.r.t to streamMutex:
            First acquire bufMutex and then streamMutex */
-        Mutex bufMutex;
+        std::mutex bufMutex;
         std::queue<DcpResponse*> messages;
     } buffer;
 };

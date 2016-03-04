@@ -20,7 +20,7 @@
 
 #include "config.h"
 
-#include "atomic.h"
+#include <atomic>
 #include "memcached/engine.h"
 
 #include <relaxed_atomic.h>
@@ -81,10 +81,10 @@ private:
     rel_time_t lastBufferAck;
 
     /* Total bytes acked by this connection. This is used to for stats */
-    AtomicValue<uint64_t> ackedBytes;
+    std::atomic<uint64_t> ackedBytes;
 
     /* Bytes processed from the flow control buffer */
-    AtomicValue<uint64_t> freedBytes;
+    std::atomic<uint64_t> freedBytes;
 };
 
 #endif  /* SRC_DCP_FLOW_CONTROL_H_ */

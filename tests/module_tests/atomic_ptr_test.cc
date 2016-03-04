@@ -52,10 +52,10 @@ public:
     }
 
 private:
-    static AtomicValue<int> numInstances;
+    static std::atomic<int> numInstances;
 };
 
-AtomicValue<int> Doodad::numInstances(0);
+std::atomic<int> Doodad::numInstances(0);
 
 class AtomicPtrTest : public Generator<bool> {
 public:

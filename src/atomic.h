@@ -22,14 +22,12 @@
 
 #include <atomic>
 
-#define AtomicValue std::atomic
-
 #include "callbacks.h"
 #include "locks.h"
 #include "utility.h"
 
 template <typename T>
-void atomic_setIfBigger(AtomicValue<T> &obj, const T &newValue) {
+void atomic_setIfBigger(std::atomic<T> &obj, const T &newValue) {
     T oldValue = obj.load();
     while (newValue > oldValue) {
         if (obj.compare_exchange_strong(oldValue, newValue)) {
@@ -40,7 +38,7 @@ void atomic_setIfBigger(AtomicValue<T> &obj, const T &newValue) {
 }
 
 template <typename T>
-void atomic_setIfLess(AtomicValue<T> &obj, const T &newValue) {
+void atomic_setIfLess(std::atomic<T> &obj, const T &newValue) {
     T oldValue = obj.load();
     while (newValue < oldValue) {
         if (obj.compare_exchange_strong(oldValue, newValue)) {
@@ -51,7 +49,7 @@ void atomic_setIfLess(AtomicValue<T> &obj, const T &newValue) {
 }
 
 template <typename T>
-T atomic_swapIfNot(AtomicValue<T> &obj, const T &badValue, const T &newValue) {
+T atomic_swapIfNot(std::atomic<T> &obj, const T &badValue, const T &newValue) {
     T oldValue;
     while (true) {
         oldValue = obj.load();
@@ -72,26 +70,26 @@ T atomic_swapIfNot(AtomicValue<T> &obj, const T &badValue, const T &newValue) {
  * This does *not* make the item that's pointed to atomic.
  */
 template <typename T>
-class AtomicPtr : public AtomicValue<T*> {
+class AtomicPtr : public std::atomic<T*> {
 public:
-    AtomicPtr(T *initial = NULL) : AtomicValue<T*>(initial) {}
+    AtomicPtr(T *initial = NULL) : std::atomic<T*>(initial) {}
 
     ~AtomicPtr() {}
 
     T *operator ->() {
-        return AtomicValue<T*>::load();
+        return std::atomic<T*>::load();
     }
 
     T &operator *() {
-        return *AtomicValue<T*>::load();
+        return *std::atomic<T*>::load();
     }
 
     operator bool() const {
-        return AtomicValue<T*>::load() != NULL;
+        return std::atomic<T*>::load() != NULL;
     }
 
     bool operator !() const {
-        return AtomicValue<T*>::load() == NULL;
+        return std::atomic<T*>::load() == NULL;
     }
 };
 
@@ -168,7 +166,7 @@ private:
         return --_rc_refcount;
     }
 
-    mutable AtomicValue<int> _rc_refcount;
+    mutable std::atomic<int> _rc_refcount;
 };
 
 /**

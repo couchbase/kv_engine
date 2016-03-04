@@ -57,7 +57,7 @@ HashTable::HashTable(EPStats &st, size_t s, size_t l)
     size = HashTable::getNumBuckets(s);
     n_locks = HashTable::getNumLocks(l);
     values = static_cast<StoredValue**>(calloc(size, sizeof(StoredValue*)));
-    mutexes = new Mutex[n_locks];
+    mutexes = new std::mutex[n_locks];
     activeState = true;
 }
 

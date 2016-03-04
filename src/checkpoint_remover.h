@@ -58,7 +58,7 @@ private:
     EventuallyPersistentEngine *engine;
     EPStats                   &stats;
     size_t                     sleepTime;
-    AtomicValue<bool>          available;
+    std::atomic<bool>          available;
 };
 
 #endif  // SRC_CHECKPOINT_REMOVER_H_

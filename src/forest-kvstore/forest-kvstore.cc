@@ -27,7 +27,7 @@
 
 using namespace CouchbaseDirectoryUtilities;
 
-Mutex ForestKVStore::initLock;
+std::mutex ForestKVStore::initLock;
 int ForestKVStore::numGlobalFiles = 0;
 
 void ForestKVStore::initForestDb() {

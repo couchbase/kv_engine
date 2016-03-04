@@ -58,7 +58,7 @@
 #include "warmup.h"
 #include "string_utils.h"
 
-static AtomicValue<ALLOCATOR_HOOKS_API*> hooksApi;
+static std::atomic<ALLOCATOR_HOOKS_API*> hooksApi;
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -1799,7 +1799,7 @@ extern "C" {
         MemoryTracker::getInstance();
         ObjectRegistry::initialize(api->alloc_hooks->get_allocation_size);
 
-        AtomicValue<size_t>* inital_tracking = new AtomicValue<size_t>();
+        std::atomic<size_t>* inital_tracking = new std::atomic<size_t>();
 
         ObjectRegistry::setStats(inital_tracking);
         EventuallyPersistentEngine *engine;

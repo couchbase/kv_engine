@@ -154,13 +154,13 @@ protected:
     // Synchronises notifying and releasing connections.
     // Guards modifications to connection_t objects in {map_} / {all}.
     // See also: {connLock}
-    Mutex                                    releaseLock;
+    std::mutex                                    releaseLock;
 
     // Synchonises access to the {map_} and {all} members, i.e. adding
     // removing connections.
     // Actual modification of the underlying
     // ConnHandler objects is guarded by {releaseLock}.
-    Mutex                                    connsLock;
+    std::mutex                                    connsLock;
 
     std::map<const void*, connection_t>      map_;
     std::list<connection_t>                  all;
@@ -205,6 +205,6 @@ private:
 
     conn_notifier_type notifier_type;
     ConnMap &connMap;
-    AtomicValue<size_t> task;
-    AtomicValue<bool> pendingNotification;
+    std::atomic<size_t> task;
+    std::atomic<bool> pendingNotification;
 };

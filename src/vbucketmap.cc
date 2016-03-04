@@ -25,11 +25,11 @@
 
 VBucketMap::VBucketMap(Configuration &config,
                        EventuallyPersistentStore &store) :
-    bucketDeletion(new AtomicValue<bool>[config.getMaxVbuckets()]),
-    bucketCreation(new AtomicValue<bool>[config.getMaxVbuckets()]),
+    bucketDeletion(new std::atomic<bool>[config.getMaxVbuckets()]),
+    bucketCreation(new std::atomic<bool>[config.getMaxVbuckets()]),
     persistenceCheckpointIds(new
-                             AtomicValue<uint64_t>[config.getMaxVbuckets()]),
-    persistenceSeqnos(new AtomicValue<uint64_t>[config.getMaxVbuckets()]),
+                             std::atomic<uint64_t>[config.getMaxVbuckets()]),
+    persistenceSeqnos(new std::atomic<uint64_t>[config.getMaxVbuckets()]),
     size(config.getMaxVbuckets())
 {
     WorkLoadPolicy &workload = store.getEPEngine().getWorkLoadPolicy();

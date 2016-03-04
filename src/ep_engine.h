@@ -780,7 +780,7 @@ public:
 
     struct clusterConfig {
         std::string config;
-        Mutex lock;
+        std::mutex lock;
     } clusterConfig;
 
     ENGINE_ERROR_CODE getRandomKey(const void *cookie,
@@ -1004,7 +1004,7 @@ protected:
     ReplicationThrottle *replicationThrottle;
     std::map<const void*, Item*> lookups;
     std::unordered_map<const void*, ENGINE_ERROR_CODE> allKeysLookups;
-    Mutex lookupMutex;
+    std::mutex lookupMutex;
     GET_SERVER_API getServerApiFunc;
     union {
         engine_info info;
@@ -1023,12 +1023,12 @@ protected:
     size_t maxFailoverEntries;
     EPStats stats;
     Configuration configuration;
-    AtomicValue<bool> trafficEnabled;
+    std::atomic<bool> trafficEnabled;
 
     bool flushAllEnabled;
     // a unique system generated token initialized at each time
     // ep_engine starts up.
-    AtomicValue<time_t> startupTime;
+    std::atomic<time_t> startupTime;
     EpEngineTaskable taskable;
 };
 

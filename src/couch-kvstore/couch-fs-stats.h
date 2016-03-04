@@ -19,8 +19,8 @@
 #define SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_ 1
 
 #include "config.h"
-#include "atomic.h"
 
+#include <atomic>
 #include <memory>
 
 #include <libcouchstore/couch_db.h>
@@ -49,9 +49,9 @@ public:
     Histogram<hrtime_t> syncTimeHisto;
 
     // total bytes read from disk.
-    AtomicValue<size_t> totalBytesRead;
+    std::atomic<size_t> totalBytesRead;
     // Total bytes written to disk.
-    AtomicValue<size_t> totalBytesWritten;
+    std::atomic<size_t> totalBytesWritten;
 
     void reset() {
         readTimeHisto.reset();

@@ -41,7 +41,7 @@
 #include "ep_testsuite_common.h"
 #include "locks.h"
 #include <libcouchstore/couch_db.h>
-#include "mutex.h"
+
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <JSON_checker.h>

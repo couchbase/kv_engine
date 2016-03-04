@@ -19,6 +19,7 @@
 
 #include "config.h"
 
+#include <atomic>
 #include <deque>
 #include <list>
 #include <map>
@@ -27,8 +28,6 @@
 #include <utility>
 #include <vector>
 
-#include "atomic.h"
-#include "mutex.h"
 #include "objectregistry.h"
 #include "tasks.h"
 #include "task_type.h"
@@ -133,19 +132,19 @@ protected:
     ExecutorPool *manager;
     int startIndex;
     const std::string name;
-    AtomicValue<executor_state_t> state;
+    std::atomic<executor_state_t> state;
 
-    AtomicValue<hrtime_t> now;  // record of current time
-    AtomicValue<hrtime_t> waketime; // set to the earliest
+    std::atomic<hrtime_t> now;  // record of current time
+    std::atomic<hrtime_t> waketime; // set to the earliest
 
     Couchbase::RelaxedAtomic<hrtime_t> taskStart;
 
-    Mutex currentTaskMutex; // Protects currentTask
+    std::mutex currentTaskMutex; // Protects currentTask
     ExTask currentTask;
 
     task_type_t curTaskType;
 
-    Mutex logMutex;
+    std::mutex logMutex;
     RingBuffer<TaskLogEntry> tasklog;
     RingBuffer<TaskLogEntry> slowjobs;
 };

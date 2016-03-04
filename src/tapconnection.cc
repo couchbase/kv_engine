@@ -29,7 +29,7 @@
 #include "vbucket.h"
 
 
-AtomicValue<uint64_t> ConnHandler::counter_(1);
+std::atomic<uint64_t> ConnHandler::counter_(1);
 
 const short int TapEngineSpecific::sizeRevSeqno(8);
 const short int TapEngineSpecific::sizeExtra(1);
@@ -372,7 +372,7 @@ TapProducer::TapProducer(EventuallyPersistentEngine &e,
     specificData = new uint8_t[TapEngineSpecific::sizeTotal];
 
     size_t maxVbuckets = e.getConfiguration().getMaxVbuckets();
-    transmitted = new AtomicValue<size_t>[maxVbuckets];
+    transmitted = new std::atomic<size_t>[maxVbuckets];
     for (uint16_t i = 0; i < maxVbuckets; ++i) {
         transmitted[i].store(0);
     }
