@@ -5051,6 +5051,62 @@ static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_dcp_consumer_processer_behavior(ENGINE_HANDLE *h,
+                                                             ENGINE_HANDLE_V1 *h1) {
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open consumer connection
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque =
+        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+
+    int i = 1;
+    while (get_int_stat(h, h1, "mem_used") <
+                                1.25 * get_int_stat(h, h1, "ep_max_size")) {
+        if (i % 20) {
+            checkeq(ENGINE_SUCCESS,
+                    h1->dcp.snapshot_marker(h, cookie, stream_opaque,
+                                            0, i, i + 20, 0x01),
+                    "Failed to send snapshot marker");
+        }
+        std::stringstream ss;
+        ss << "key" << i;
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
+                "Failed to send dcp mutation");
+        ++i;
+    }
+
+    // Expect buffered items and the processer's task state to be
+    // CANNOT_PROCESS, because of numerous backoffs.
+    check(get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", "dcp") > 0,
+          "Expected buffered items for the stream");
+    check(get_int_stat(h, h1, "eq_dcpq:unittest:total_backoffs", "dcp") > 0,
+          "Expected numerous backoffs");
+    checkne(std::string("ALL_PROCESSED"),
+            get_str_stat(h, h1, "eq_dcpq:unittest:processer_task_state", "dcp"),
+            "Expected Processer's task state not to be ALL_PROCESSED!");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
 
 // Test manifest //////////////////////////////////////////////////////////////
 
@@ -5265,6 +5321,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp on vbucket state change",
                  test_dcp_on_vbucket_state_change,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test dcp consumer's processer task behavior",
+                 test_dcp_consumer_processer_behavior,
+                 test_setup, teardown, "max_size=1048576",
+                 prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

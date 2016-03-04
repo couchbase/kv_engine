@@ -57,7 +57,8 @@ bool Processer::run() {
     }
 
     double sleepFor = 0;
-    switch (consumer->processBufferedItems()) {
+    enum process_items_error_t state = consumer->processBufferedItems();
+    switch (state) {
     case all_processed:
         sleepFor = INT_MAX;
         break;
@@ -71,14 +72,18 @@ bool Processer::run() {
 
     if (consumer->notifiedProcesser(false)) {
         snooze(0);
+        state = more_to_process;
     } else {
         snooze(sleepFor);
         // Check if the processer was notified again,
         // in which case the task should wake immediately.
         if (consumer->notifiedProcesser(false)) {
             snooze(0);
+            state = more_to_process;
         }
     }
+
+    consumer->setProcesserTaskState(state);
 
     return true;
 }
@@ -96,7 +101,8 @@ Processer::~Processer() {
 
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
-    : Consumer(engine, cookie, name), opaqueCounter(0), processerTaskId(0),
+    : Consumer(engine, cookie, name), opaqueCounter(0),
+      processerTaskId(0), processerTaskState(all_processed),
       lastNoopTime(ep_current_time()), backoffs(0),
       taskAlreadyCancelled(false), flowControl(engine, this)
 {
@@ -739,6 +745,7 @@ void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
     }
 
     addStat("total_backoffs", backoffs, add_stat, c);
+    addStat("processer_task_state", getProcesserTaskStatusStr(), add_stat, c);
     flowControl.addStats(add_stat, c);
 }
 
@@ -768,6 +775,7 @@ process_items_error_t DcpConsumer::processBufferedItems() {
         do {
             if (!engine_.getReplicationThrottle().shouldProcess()) {
                 backoffs++;
+                vbReady.pushUnique(vbucket);
                 return cannot_process;
             }
 
@@ -816,6 +824,23 @@ void DcpConsumer::notifyVbucketReady(uint16_t vbucket) {
 bool DcpConsumer::notifiedProcesser(bool to) {
     bool inverse = !to;
     return processerNotification.compare_exchange_strong(inverse, to);
+}
+
+void DcpConsumer::setProcesserTaskState(enum process_items_error_t to) {
+    processerTaskState = to;
+}
+
+std::string DcpConsumer::getProcesserTaskStatusStr() {
+    switch (processerTaskState.load()) {
+        case all_processed:
+            return "ALL_PROCESSED";
+        case more_to_process:
+            return "MORE_TO_PROCESS";
+        case cannot_process:
+            return "CANNOT_PROCESS";
+    }
+
+    return "UNKNOWN";
 }
 
 DcpResponse* DcpConsumer::getNextItem() {
