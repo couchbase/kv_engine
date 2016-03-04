@@ -631,7 +631,7 @@
             "type": "size_t"
         },
         "dcp_producer_snapshot_marker_yield_limit": {
-            "default": "256",
+            "default": "10",
             "descr": "The number of snapshots before ActiveStreamCheckpointProcessorTask::run yields.",
             "type": "size_t"
         },

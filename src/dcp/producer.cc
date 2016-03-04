@@ -305,7 +305,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         streams[vbucket] = s;
     }
 
-    notifyStreamReady(vbucket, false/*unused for DCP*/);
+    ready.pushUnique(vbucket);
 
     if (add_vb_conn_map) {
         connection_t conn(this);
@@ -800,6 +800,13 @@ bool DcpProducer::closeSlowStream(uint16_t vbid,
                      */
                     tempDroppedStreams[vbid] = as->getLastSentSeqno();
                     as->setDead(END_STREAM_SLOW);
+
+                    // Remove entry in streams map
+                    {
+                        WriterLockHolder wlh(streamsMutex);
+                        streams.erase(vbid);
+                    }
+
                     return true;
                 }
             }
@@ -846,14 +853,17 @@ DcpResponse* DcpProducer::getNextItem() {
             }
 
             DcpResponse* op = NULL;
+            stream_t stream;
             {
                 ReaderLockHolder rlh(streamsMutex);
                 std::map<uint16_t, stream_t>::iterator it = streams.find(vbucket);
                 if (it == streams.end()) {
                     continue;
                 }
-                op = it->second->next();
+                stream.reset(it->second);
             }
+
+            op = stream->next();
 
             if (!op) {
                 // stream is empty, try another vbucket.
