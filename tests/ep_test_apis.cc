@@ -1012,6 +1012,16 @@ float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statnam
     return std::stof(s);
 }
 
+uint32_t get_ul_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
+                      const char *statkey) {
+    std::lock_guard<std::mutex> lh(vals_mutex);
+    vals.clear();
+    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
+                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    std::string s = vals.at(statname);
+    return std::stoul(s);
+}
+
 uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                       const char *statkey) {
     std::lock_guard<std::mutex> lh(vals_mutex);

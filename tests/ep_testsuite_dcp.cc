@@ -311,6 +311,22 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                     stats_takeover.str().c_str());
         }
 
+        if (ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+            /* Wait for backfill to start */
+            std::string stats_backfill_read_bytes("eq_dcpq:" + name +
+                                                 ":backfill_buffer_bytes_read");
+            wait_for_stat_to_be_gte(h, h1, stats_backfill_read_bytes.c_str(), 0,
+                                    "dcp");
+            /* Verify that we have no dcp cursors in the checkpoint. (There will
+               just be one persistence cursor) */
+            std::string stats_num_conn_cursors("vb_" +
+                                               std::to_string(ctx.vbucket) +
+                                               ":num_conn_cursors");
+            checkeq(1, get_int_stat(h, h1, stats_num_conn_cursors.c_str(),
+                                    "checkpoint"),
+                    "DCP cursors not expected to be registered");
+        }
+
         // Init stats used in test
         VBStats stats;
         stats.extra_takeover_ops = ctx.extra_takeover_ops;
