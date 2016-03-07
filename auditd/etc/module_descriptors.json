@@ -26,6 +26,12 @@
                                "file" : "memcached/etc/memcached_descriptor.json",
                                "header":"memcached/memcached_audit_events.h"
                               }
+               },
+               {
+                "fts" : {
+                               "startid" :24576,
+                               "file" : "goproj/src/github.com/couchbase/cbft/etc/audit_descriptor.json"
+                              }
                }
              ]
 }

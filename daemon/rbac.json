@@ -195,7 +195,10 @@
         {
             "login": "@query",
             "profiles": [ "SASL", "DCP", "TAP", "Normal Client Access", "Audit", "Multibucket" ]
-
+        },
+        {
+            "login": "@fts",
+            "profiles": [ "SASL", "DCP", "Normal Client Access", "Audit", "Multibucket" ]
         },
         {
             "login": "@index",
