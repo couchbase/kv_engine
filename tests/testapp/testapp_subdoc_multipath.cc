@@ -520,8 +520,9 @@ TEST_P(McdTestappTest, SubdocMultiMutation_MaxResultSpecValue) {
     mutation.key = "array";
     std::vector<SubdocMultiMutationResult> expected_results;
     for (uint8_t ii = 0; ii < PROTOCOL_BINARY_SUBDOC_MULTI_MAX_PATHS; ii++) {
+        std::string value("[" + std::to_string(ii) + "]");
         mutation.specs.push_back({PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
-            SUBDOC_FLAG_NONE, "[" + std::to_string(ii) + "]",
+            SUBDOC_FLAG_NONE, value,
             std::to_string(ii + 1)});
 
         expected_results.push_back({ii, PROTOCOL_BINARY_RESPONSE_SUCCESS,
