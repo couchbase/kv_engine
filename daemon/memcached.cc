@@ -577,7 +577,7 @@ ENGINE_ERROR_CODE refresh_cbsasl(Connection *c)
     int err;
 
     err = cb_create_named_thread(&tid, cbsasl_refresh_main, c, 1,
-                                 "mc:refresh sasl");
+                                 "mc:refresh_sasl");
     if (err != 0) {
         LOG_WARNING(c, "Failed to create cbsasl db update thread: %s",
                     strerror(err));
@@ -2244,7 +2244,7 @@ static void setup_parent_monitor(void) {
     if (env != NULL) {
         cb_thread_t t;
         if (cb_create_named_thread(&t, parent_monitor_thread, env, 1,
-                                   "mc:parent mon") != 0) {
+                                   "mc:parent_mon") != 0) {
             FATAL_ERROR(EXIT_FAILURE,
                         "Failed to open parent process: %s",
                         cb_strerror(GetLastError()).c_str());

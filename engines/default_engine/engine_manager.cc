@@ -141,8 +141,8 @@ ScrubberTask::ScrubberTask(EngineManager* manager)
   : shuttingdown(false),
     engineManager(manager) {
     if (cb_create_named_thread(&scrubberThread, &scrubber_task_main, this, 0,
-                               "mc:item scrub") != 0) {
-        throw std::runtime_error("Error creating 'mc:item scrub' thread");
+                               "mc:item_scrub") != 0) {
+        throw std::runtime_error("Error creating 'mc:item_scrub' thread");
     }
 }
 

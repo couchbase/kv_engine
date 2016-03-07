@@ -138,7 +138,7 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
 
     ch.exit_function = server->core->shutdown;
     if (cb_create_named_thread(&t, check_stdin_thread, ch.pointer, 1,
-                               "mc:check stdin") != 0) {
+                               "mc:check_stdin") != 0) {
         perror("couldn't create stdin checking thread.");
         server->extension->unregister_extension(EXTENSION_DAEMON, &descriptor);
         return EXTENSION_FATAL;
