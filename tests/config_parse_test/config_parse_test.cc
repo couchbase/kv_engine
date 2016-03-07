@@ -134,6 +134,15 @@ void set_ssl_cipher_list(const char *list) {
     /* do nothing */
 }
 
+void set_ssl_protocol_mask(const std::string& mask) {
+    // Do nothing
+}
+
+long decode_ssl_protocol(const std::string& protocol) {
+    // Do nothing
+    return 0L;
+}
+
 /* settings, as used by config_parse.c */
 struct settings settings;
 Connection *listen_conn = NULL;

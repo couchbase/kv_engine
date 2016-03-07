@@ -1,4 +1,6 @@
 ADD_EXECUTABLE(memcached_testapp
+               ${Memcached_SOURCE_DIR}/daemon/ssl_utils.cc
+               ${Memcached_SOURCE_DIR}/daemon/ssl_utils.h
                ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
                testapp.cc
                testapp.h
@@ -19,6 +21,7 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_sasl.cc
                testapp_sasl.h
                testapp_shutdown.cc
+               testapp_ssl_utils.cc
                testapp_stats.cc
                testapp_stats.h
                testapp_subdoc.cc

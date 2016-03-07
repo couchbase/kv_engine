@@ -98,6 +98,15 @@ to to be enabled. Some values may be:
     MEDIUM        In addition to the high encryption ciphers, also
                   allow 128 bit encryption
 
+=== ssl_minimum_protocol
+
+Specify the minimum protocol allowed for ssl. The default disables
+SSLv2 and SSLv3 and allows for TLSv1, TLSv1.1 and TLSv1.2. The
+string is case insensitive, and the following values may be used:
+
+    TLSv1              Allow TLSv1, TLSv1.1 and TLSv1.2
+    TLSv1.1/TLSv1_1    Allow TLSv1.1 and TLSv1.2
+    TLSv1.2/TLSv1_2    Allow TLSv1.2
 
 === threads
 

@@ -19,6 +19,7 @@
 #include "runtime.h"
 #include "memcached.h"
 #include "settings.h"
+#include "ssl_utils.h"
 
 #include <atomic>
 #include <string>
@@ -58,4 +59,29 @@ void set_ssl_ctx_cipher_list(SSL_CTX *ctx) {
                         ssl_cipher_list.c_str());
         }
     }
+}
+
+static std::atomic_long ssl_protocol_mask;
+
+void set_ssl_protocol_mask(const std::string& mask) {
+    try {
+        ssl_protocol_mask.store(decode_ssl_protocol(mask),
+                                std::memory_order_release);
+        if (!mask.empty()) {
+            LOG_NOTICE(nullptr, "Setting SSL minimum protocol to: %s",
+                       mask.c_str());
+        }
+    } catch (std::invalid_argument& e) {
+        LOG_WARNING(nullptr, "Invalid SSL protocol specified: %s",
+                    mask.c_str());
+
+    } catch (...) {
+        LOG_WARNING(nullptr,
+                    "An error occured while decoding the SSL protocol: %s",
+                    mask.c_str());
+    }
+}
+
+void set_ssl_ctx_protocol_mask(SSL_CTX* ctx) {
+    SSL_CTX_set_options(ctx, ssl_protocol_mask.load(std::memory_order_acquire));
 }

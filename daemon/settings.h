@@ -122,6 +122,11 @@ struct settings {
     const char *ssl_cipher_list; /* The SSL cipher list to use */
 
     /**
+     * The minimum ssl protocol to use (by default this is TLS1)
+     */
+    const char* ssl_minimum_protocol;
+
+    /**
      * The number of topkeys to track
      */
     int topkeys_size;
@@ -173,6 +178,7 @@ struct settings {
         bool max_packet_size;
         bool require_init;
         bool ssl_cipher_list;
+        bool ssl_minimum_protocol;
         bool topkeys_size;
         bool stdin_listen;
         bool exit_on_connection_close;

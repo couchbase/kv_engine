@@ -23,6 +23,7 @@
 #pragma once
 
 #include <memcached/openssl.h>
+#include <string>
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,6 +34,9 @@ extern "C" {
 
     void set_ssl_cipher_list(const char *new_list);
     void set_ssl_ctx_cipher_list(SSL_CTX *ctx);
+
+    void set_ssl_protocol_mask(const std::string& mask);
+    void set_ssl_ctx_protocol_mask(SSL_CTX* ctx);
 
 #ifdef __cplusplus
 }

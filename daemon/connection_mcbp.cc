@@ -625,9 +625,7 @@ SslContext::~SslContext() {
 
 bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     ctx = SSL_CTX_new(SSLv23_server_method());
-
-    /* MB-12359 - Disable SSLv2 & SSLv3 due to POODLE */
-    SSL_CTX_set_options(ctx, SSL_OP_NO_SSLv2 | SSL_OP_NO_SSLv3);
+    set_ssl_ctx_protocol_mask(ctx);
 
     /* @todo don't read files, but use in-memory-copies */
     if (!SSL_CTX_use_certificate_chain_file(ctx, cert.c_str()) ||

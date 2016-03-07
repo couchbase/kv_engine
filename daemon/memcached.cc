@@ -468,6 +468,8 @@ static void settings_init(void) {
             settings.topkeys_size = count;
         }
     }
+
+    set_ssl_protocol_mask("");
 }
 
 static void settings_init_relocable_files(void)
