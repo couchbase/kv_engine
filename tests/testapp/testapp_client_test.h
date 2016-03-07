@@ -32,7 +32,7 @@ enum class TransportProtocols {
 };
 
 std::ostream& operator << (std::ostream& os, const TransportProtocols& t);
-const char* to_string(const TransportProtocols& transport);
+std::string to_string(const TransportProtocols& transport);
 
 class TestappClientTest
     : public TestappTest,

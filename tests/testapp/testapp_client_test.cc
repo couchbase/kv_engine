@@ -24,7 +24,16 @@ std::ostream& operator<<(std::ostream& os, const TransportProtocols& t) {
     return os;
 }
 
-const char* to_string(const TransportProtocols& transport) {
+std::string to_string(const TransportProtocols& transport) {
+#ifdef JETBRAINS_CLION_IDE
+    // CLion don't properly parse the output when the
+    // output gets written as the string instead of the
+    // number. This makes it harder to debug the tests
+    // so let's just disable it while we're waiting
+    // for them to supply a fix.
+    // See https://youtrack.jetbrains.com/issue/CPP-6039
+    return std::to_string(static_cast<int>(transport));
+#else
     switch (transport) {
     case TransportProtocols::McbpPlain:
         return "Mcbp";
@@ -44,6 +53,7 @@ const char* to_string(const TransportProtocols& transport) {
         return "GreenstackIpv6Ssl";
     }
     throw std::logic_error("Unknown transport");
+#endif
 }
 
 MemcachedConnection& TestappClientTest::prepare(MemcachedConnection& connection) {
