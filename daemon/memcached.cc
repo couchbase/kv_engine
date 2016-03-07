@@ -1628,6 +1628,7 @@ static EXTENSION_LOG_LEVEL get_log_level(void)
 static void set_log_level(EXTENSION_LOG_LEVEL severity)
 {
     switch (severity) {
+    case EXTENSION_LOG_FATAL:
     case EXTENSION_LOG_WARNING:
     case EXTENSION_LOG_NOTICE:
         settings.verbose = 0;

@@ -71,6 +71,6 @@
 
 #define FATAL_ERROR(EXIT_STATUS, ...) \
     do { \
-        LOGGER(EXTENSION_LOG_WARNING, NULL, __VA_ARGS__); \
+        LOGGER(EXTENSION_LOG_FATAL, NULL, __VA_ARGS__); \
         exit(EXIT_STATUS); \
     } while (0)

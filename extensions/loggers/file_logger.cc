@@ -188,6 +188,8 @@ static void add_log_entry(time_t now, const char *msg, int prefixlen, size_t siz
 
 static const char *severity2string(EXTENSION_LOG_LEVEL sev) {
     switch (sev) {
+    case EXTENSION_LOG_FATAL:
+        return "FATAL";
     case EXTENSION_LOG_WARNING:
         return "WARNING";
     case EXTENSION_LOG_NOTICE:
@@ -332,6 +334,9 @@ static void logger_log_wrapper(EXTENSION_LOG_LEVEL severity,
     }
 
     switch (severity) {
+    case EXTENSION_LOG_FATAL:
+        syslog_severity = SYSLOG_CRITICAL;
+        break;
     case EXTENSION_LOG_WARNING:
         syslog_severity = SYSLOG_WARNING;
         break;
