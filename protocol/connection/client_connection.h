@@ -219,6 +219,16 @@ public:
                               const std::string& mech) = 0;
 
     /**
+     * Assume a role on this connection
+     *
+     * By assuming a role you might get access to new commands
+     * and more buckets
+     *
+     * @param role the name of the role to assume
+     */
+    virtual void assumeRole(const std::string& role) = 0;
+
+    /**
      * Create a bucket
      *
      * @param name the name of the bucket
