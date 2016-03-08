@@ -25,12 +25,6 @@ class SaslTest : public TestappClientTest {
 
 public:
     SaslTest() {
-        const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
-        name.assign(info->test_case_name());
-        name.append("_");
-        name.append(info->name());
-        std::replace(name.begin(), name.end(), '/', '_');
-
         mechanisms.push_back("PLAIN");
         mechanisms.push_back("CRAM-MD5");
 #ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
@@ -49,6 +43,5 @@ public:
 protected:
     void testMixStartingFrom(const std::string& mech);
 
-    std::string name;
     std::vector<std::string> mechanisms;
 };

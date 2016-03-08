@@ -10,7 +10,6 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_client_test.cc
                testapp_client_test.h
                testapp_getset.cc
-               testapp_getset.h
                testapp_greenstack.cc
                testapp_greenstack.h
                testapp_rbac.cc
