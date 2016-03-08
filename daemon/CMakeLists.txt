@@ -47,7 +47,7 @@ ADD_LIBRARY(memcached_daemon STATIC
                ${BREAKPAD_SRCS}
                ${Memcached_BINARY_DIR}/default_rbac.cc
                ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
-               ${MEMORY_TRACKING_SRCS}
+               $<TARGET_OBJECTS:memory_tracking>
                breakpad.h
                buckets.cc
                buckets.h

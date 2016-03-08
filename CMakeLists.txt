@@ -146,6 +146,8 @@ IF (APPLE)
          ${Memcached_SOURCE_DIR}/daemon/darwin_zone.h)
 ENDIF (APPLE)
 
+ADD_LIBRARY(memory_tracking OBJECT ${MEMORY_TRACKING_SRCS})
+
 IF (WIN32)
     INCLUDE_DIRECTORIES(AFTER ${Platform_SOURCE_DIR}/include/win32)
 ENDIF (WIN32)
