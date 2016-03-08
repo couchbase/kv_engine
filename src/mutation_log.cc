@@ -34,7 +34,6 @@ const char *mutation_log_type_names[] = {
     "new", "del", "del_all", "commit1", "commit2", NULL
 };
 
-
 #ifdef WIN32
 ssize_t pread(file_handle_t fd, void *buf, size_t nbyte, uint64_t offset)
 {
@@ -92,22 +91,6 @@ static inline void doFsync(file_handle_t fd) {
     }
 }
 
-static inline std::string getErrorString(void) {
-    std::string ret;
-    char* win_msg = NULL;
-    DWORD err = GetLastError();
-    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-        FORMAT_MESSAGE_FROM_SYSTEM |
-        FORMAT_MESSAGE_IGNORE_INSERTS,
-        NULL, err,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        (LPTSTR)&win_msg,
-        0, NULL);
-    ret.assign(win_msg);
-    LocalFree(win_msg);
-    return ret;
-}
-
 static int64_t SeekFile(file_handle_t fd, const std::string &fname,
                         uint64_t offset, bool end)
 {
@@ -123,7 +106,7 @@ static int64_t SeekFile(file_handle_t fd, const std::string &fname,
     if (li.LowPart == INVALID_SET_FILE_POINTER && GetLastError() != NO_ERROR) {
         std::stringstream ss;
         ss << "FATAL: SetFilePointer failed " << fname << ": " <<
-              getErrorString();
+              cb_strerror();
         LOG(EXTENSION_LOG_WARNING, ss.str().c_str());
         li.QuadPart = -1;
     }
@@ -153,7 +136,7 @@ file_handle_t OpenFile(const std::string &fname, std::string &error,
     }
 
     if (fd == INVALID_FILE_VALUE) {
-        error.assign(getErrorString());
+        error.assign(cb_strerror());
     }
 
     return fd;
@@ -253,16 +236,22 @@ int64_t getFileSize(file_handle_t fd) {
 #endif
 
 
-static void writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
+static bool writeFully(file_handle_t fd, const uint8_t *buf, size_t nbytes) {
     while (nbytes > 0) {
         try {
             ssize_t written = doWrite(fd, buf, nbytes);
             nbytes -= written;
             buf += written;
         } catch (std::system_error& e) {
-            throw MutationLog::WriteException(e.what());
+            LOG(EXTENSION_LOG_WARNING,
+                "writeFully: Failed to write to mutation log with error: %s",
+                cb_strerror().c_str());
+
+            return false;
         }
     }
+
+    return true;
 }
 
 uint64_t MutationLogEntry::rowid() const {
@@ -352,6 +341,7 @@ void MutationLog::commit1() {
                                                            0, ML_COMMIT1, 0,
                                                            "");
         writeEntry(mle);
+
         if ((getSyncConfig() & FLUSH_COMMIT_1) != 0) {
             flush();
         }
@@ -367,6 +357,7 @@ void MutationLog::commit2() {
                                                            0, ML_COMMIT2, 0,
                                                            "");
         writeEntry(mle);
+
         if ((getSyncConfig() & FLUSH_COMMIT_2) != 0) {
             flush();
         }
@@ -391,7 +382,9 @@ bool MutationLog::writeInitialBlock() {
     }
     headerBlock.set(blockSize);
 
-    writeFully(file, (uint8_t*)&headerBlock, sizeof(headerBlock));
+    if (!writeFully(file, (uint8_t*)&headerBlock, sizeof(headerBlock))) {
+        return false;
+    }
 
     int64_t seek_result = SeekFile(file, getLogFile(),
                             std::max(
@@ -403,8 +396,11 @@ bool MutationLog::writeInitialBlock() {
             getLogFile().c_str(), strerror(errno));
         return false;
     }
+
     uint8_t zero(0);
-    writeFully(file, &zero, sizeof(zero));
+    if (!writeFully(file, &zero, sizeof(zero))) {
+        return false;
+    }
     return true;
 }
 
@@ -636,9 +632,14 @@ bool MutationLog::replaceWith(MutationLog &mlog) {
                                "a disabled log");
     }
 
-    mlog.flush();
+    if (!mlog.flush()) {
+        return false;
+    }
     mlog.close();
-    flush();
+
+    if (!flush()) {
+        return false;
+    }
     close();
 
     for (int i(0); i < MUTATION_LOG_TYPES; ++i) {
@@ -663,7 +664,7 @@ bool MutationLog::replaceWith(MutationLog &mlog) {
     return true;
 }
 
-void MutationLog::flush() {
+bool MutationLog::flush() {
     if (isEnabled() && blockPos > HEADER_RESERVED) {
         if (!isOpen()) {
             throw std::logic_error("MutationLog::flush: "
@@ -685,12 +686,20 @@ void MutationLog::flush() {
         uint16_t crc16(htons(crc32 & 0xffff));
         memcpy(blockBuffer.get(), &crc16, sizeof(crc16));
 
-        writeFully(file, blockBuffer.get(), blockSize);
-        logSize.fetch_add(blockSize);
-
-        blockPos = HEADER_RESERVED;
-        entries = 0;
+        if (writeFully(file, blockBuffer.get(), blockSize)) {
+            logSize.fetch_add(blockSize);
+            blockPos = HEADER_RESERVED;
+            entries = 0;
+        } else {
+            /* write to the mutation log failed. Disable the log */
+            disabled = true;
+            LOG(EXTENSION_LOG_WARNING,
+                "Disabling access log due to write failures");
+            return false;
+        }
     }
+
+    return true;
 }
 
 void MutationLog::writeEntry(MutationLogEntry *mle) {

@@ -78,27 +78,6 @@ static std::string getStrError(Db *db) {
     return errorStr;
 }
 
-static std::string getSystemStrerror(void) {
-    std::stringstream ss;
-#ifdef WIN32
-    char* win_msg = NULL;
-    DWORD err = GetLastError();
-    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
-                   FORMAT_MESSAGE_FROM_SYSTEM |
-                   FORMAT_MESSAGE_IGNORE_INSERTS,
-                   NULL, err,
-                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                   (LPTSTR) &win_msg,
-                   0, NULL);
-    ss << "errno = " << err << ": '" << win_msg << "'";
-    LocalFree(win_msg);
-#else
-    ss << "errno = " << errno << ": '" << strerror(errno) << "'";
-#endif
-
-    return ss.str();
-}
-
 static uint8_t determine_datatype(const unsigned char* value,
                                   size_t length) {
     if (checkUTF8JSON(value, length)) {
@@ -846,7 +825,7 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx,
         LOG(EXTENSION_LOG_WARNING,
             "Failed to rename '%s' to '%s': %s",
             compact_file.c_str(), new_file.c_str(),
-            getSystemStrerror().c_str());
+            cb_strerror().c_str());
 
         removeCompactFile(compact_file);
         return false;
@@ -861,8 +840,8 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx,
                 "fileRev = %" PRIu64, new_file.c_str(), new_rev);
         if (remove(new_file.c_str()) != 0) {
             LOG(EXTENSION_LOG_WARNING,
-                "Failed to remove '%s': %s",
-                new_file.c_str(), getSystemStrerror().c_str());
+                "Warning: Failed to remove '%s': %s",
+                new_file.c_str(), cb_strerror().c_str());
         }
         return false;
     }
@@ -1349,7 +1328,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
             dbFileName.c_str(), options,
             ((newRevNum > fileRev) ? newRevNum : fileRev),
             couchstore_strerror(errorCode),
-            getSystemStrerror().c_str());
+            cb_strerror().c_str());
     } else {
         if (newRevNum > fileRev) {
             // new revision number found, update it
@@ -1378,7 +1357,7 @@ couchstore_error_t CouchKVStore::openDB_retry(std::string &dbfile,
         LOG(EXTENSION_LOG_INFO, "INFO: couchstore_open_db failed, name=%s "
             "options=%" PRIX64 " error=%s [%s], try it again!",
             dbfile.c_str(), options, couchstore_strerror(errCode),
-            getSystemStrerror().c_str());
+            cb_strerror().c_str());
         *newFileRev = checkNewRevNum(dbfile);
         ++retry;
         if (retry == MAX_OPEN_DB_RETRY - 1 && options == 0 &&
@@ -1433,7 +1412,7 @@ void CouchKVStore::populateFileNameMap(std::vector<std::string> &filenames,
                     } else {
                         LOG(EXTENSION_LOG_WARNING,
                             "Warning: Failed to remove the stale file '%s': %s",
-                            old_file.str().c_str(), getSystemStrerror().c_str());
+                            old_file.str().c_str(), cb_strerror().c_str());
                     }
                 } else {
                     LOG(EXTENSION_LOG_WARNING,
@@ -2516,8 +2495,8 @@ void CouchKVStore::removeCompactFile(const std::string &filename) {
         }
         else {
             LOG(EXTENSION_LOG_WARNING,
-                "Failed to remove compact file '%s': %s",
-                filename.c_str(), getSystemStrerror().c_str());
+                "Warning: Failed to remove compact file '%s': %s",
+                filename.c_str(), cb_strerror().c_str());
 
             if (errno != ENOENT) {
                 pendingFileDeletions.push(const_cast<std::string &>(filename));
