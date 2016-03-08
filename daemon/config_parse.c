@@ -20,6 +20,7 @@
 #include "config_parse.h"
 #include "connections.h"
 #include "runtime.h"
+#include "ssl_utils.h"
 
 static void do_asprintf(char **strp, const char *fmt, ...)
 {
@@ -316,6 +317,24 @@ static bool get_ssl_cipher_list(cJSON *o, struct settings *settings, char **erro
     }
 
     settings->has.ssl_cipher_list = true;
+    return true;
+}
+
+static bool get_ssl_minimum_protocol(cJSON* o, struct settings* settings,
+                                     char** error_msg) {
+    const char *ptr = NULL;
+    if (!get_string_value(o, o->string, &ptr, error_msg)) {
+        return false;
+    }
+
+    if (strlen(ptr) == 0) {
+        settings->ssl_minimum_protocol = NULL;
+        free((void*)ptr);
+    } else {
+        settings->ssl_minimum_protocol = ptr;
+    }
+
+    settings->has.ssl_minimum_protocol = true;
     return true;
 }
 
@@ -880,6 +899,20 @@ static bool dyna_validate_ssl_cipher_list(const struct settings *new_settings,
     return true;
 }
 
+static bool dyna_validate_ssl_minimum_protocol(const struct settings* ns,
+                                               cJSON* errors) {
+    if (!ns->has.ssl_minimum_protocol) {
+        return true;
+    }
+
+    if (decode_ssl_protocol(ns->ssl_minimum_protocol) == -1L) {
+        cJSON_AddItemToArray(errors,
+                             cJSON_CreateString("Invalid value specified for ssl_minimum_protocol"));
+        return false;
+    }
+    return true;
+}
+
 static bool dyna_validate_threads(const struct settings *new_settings,
                                   cJSON* errors) {
     if (!new_settings->has.threads) {
@@ -1332,6 +1365,15 @@ static void dyna_reconfig_ssl_cipher_list(const struct settings *new_settings) {
     }
 }
 
+static void dyna_reconfig_ssl_minimum_protocol(const struct settings *ns) {
+    if (ns->has.ssl_minimum_protocol) {
+        set_ssl_protocol_mask(ns->ssl_minimum_protocol);
+        free((void*)settings.ssl_minimum_protocol);
+        settings.ssl_minimum_protocol = ns->ssl_minimum_protocol;
+        settings.has.ssl_minimum_protocol = true;
+    }
+}
+
 static void dyna_reconfig_dedupe_nmvb_maps(const struct settings* new_settings) {
     if (new_settings->has.dedupe_nmvb_maps) {
         settings.dedupe_nmvb_maps = new_settings->dedupe_nmvb_maps;
@@ -1370,6 +1412,10 @@ struct {
     { "root", get_root, dyna_validate_root, NULL},
     { "ssl_cipher_list", get_ssl_cipher_list, dyna_validate_ssl_cipher_list,
       dyna_reconfig_ssl_cipher_list },
+    { "ssl_minimum_protocol",
+      get_ssl_minimum_protocol,
+      dyna_validate_ssl_minimum_protocol,
+      dyna_reconfig_ssl_minimum_protocol },
     { "breakpad", parse_breakpad, dyna_validate_breakpad, dyna_reconfig_breakpad },
     { "dedupe_nmvb_maps", get_dedupe_nmvb_maps, dyna_validate_always_true,
       dyna_reconfig_dedupe_nmvb_maps},
@@ -1550,5 +1596,6 @@ void free_settings(struct settings* s) {
     free((char*)s->root);
     free((char*)s->breakpad.minidump_dir);
     free((char*)s->ssl_cipher_list);
+    free((char*)s->ssl_minimum_protocol);
     free((char*)s->audit_file);
 }

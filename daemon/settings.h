@@ -98,6 +98,11 @@ struct settings {
     const char *ssl_cipher_list; /* The SSL cipher list to use */
 
     /**
+     * The minimum ssl protocol to use (by default this is TLS1)
+     */
+    const char* ssl_minimum_protocol;
+
+    /**
      * Should we deduplicate the cluster maps from the Not My VBucket messages
      */
     bool dedupe_nmvb_maps;
@@ -125,6 +130,7 @@ struct settings {
         bool root;
         bool breakpad;
         bool ssl_cipher_list;
+        bool ssl_minimum_protocol;
         bool dedupe_nmvb_maps;
     } has;
     /*************************************************************************

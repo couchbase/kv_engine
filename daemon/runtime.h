@@ -31,6 +31,32 @@ extern "C" {
     void set_ssl_cipher_list(const char *new_list);
     void set_ssl_ctx_cipher_list(SSL_CTX *ctx);
 
+    /**
+     * Set the SSL protocol mask used to filter out
+     * which SSL protocols we accept (TLSv1, TLSv1.1, TLSv1.2 etc)
+     *
+     * (The primary reason for this code to exist is to be a bridge
+     * between C and C++ (the mask is stored in a std::atomic to allow
+     * it to be accessed from multiple threads)
+     *
+     * @param mask (or could also be called minimum) is the minimum
+     *             SSL protocol we're supporting. Specifying TLSv1.2
+     *             would set the new mask to mask out SSLv2, SSLv3,
+     *             TLSv1 and TLSv1.1
+     */
+    void set_ssl_protocol_mask(const char* mask);
+
+    /**
+     * Set the current ssl protocol mask to the newly created SSL
+     * context. (The primary reason for this code to exist is to
+     * be a bridge between C and C++ (the mask is stored in a
+     * std::atomic to allow it to be accessed from multiple threads)
+     *
+     * @param ctx the SSL context to update with the SSL protocol
+     *            mask.
+     */
+    void set_ssl_ctx_protocol_mask(SSL_CTX* ctx);
+
 #ifdef __cplusplus
 }
 #endif

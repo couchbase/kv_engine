@@ -299,6 +299,7 @@ static void settings_init(void) {
     settings.breakpad.content = CONTENT_DEFAULT;
 
     settings.dedupe_nmvb_maps = false;
+    set_ssl_protocol_mask("");
 }
 
 static void settings_init_relocable_files(void)

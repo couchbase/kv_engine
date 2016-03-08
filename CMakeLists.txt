@@ -259,6 +259,8 @@ ADD_EXECUTABLE(memcached
                daemon/privileges.c
 	       daemon/runtime.cc
 	       daemon/runtime.h
+               daemon/ssl_utils.cc
+               daemon/ssl_utils.h
                daemon/stats.c
                daemon/thread.c
                daemon/timings.cc

@@ -18,6 +18,7 @@
 #include "config.h"
 #include "runtime.h"
 #include "settings.h"
+#include "ssl_utils.h"
 
 #include <atomic>
 #include <string>
@@ -51,4 +52,24 @@ void set_ssl_ctx_cipher_list(SSL_CTX *ctx) {
                                             ssl_cipher_list.c_str());
         }
     }
+}
+
+static std::atomic_long ssl_protocol_mask;
+
+void set_ssl_protocol_mask(const char* mask) {
+    long decoded = decode_ssl_protocol(mask);
+
+    if (decoded != -1L) {
+        ssl_protocol_mask.store(decoded,
+                                std::memory_order_release);
+        if (mask != NULL && strlen(mask) > 0) {
+            settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
+                                            "Setting SSL minimum protocol to: %s",
+                                            mask);
+        }
+    }
+}
+
+void set_ssl_ctx_protocol_mask(SSL_CTX *ctx) {
+    SSL_CTX_set_options(ctx, ssl_protocol_mask.load(std::memory_order_acquire));
 }

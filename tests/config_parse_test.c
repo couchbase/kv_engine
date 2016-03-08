@@ -122,6 +122,15 @@ void set_ssl_cipher_list(const char *list) {
     /* do nothing */
 }
 
+void set_ssl_protocol_mask(const char* mask) {
+    // Do nothing
+}
+
+long decode_ssl_protocol(const char* protocol) {
+    // Do nothing
+    return 0L;
+}
+
 /* settings, as used by config_parse.c */
 struct settings settings;
 struct conn *listen_conn = NULL;
