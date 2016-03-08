@@ -319,7 +319,7 @@ public:
 
     void commit2();
 
-    void flush();
+    bool flush();
 
     void sync();
 

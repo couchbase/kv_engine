@@ -299,5 +299,29 @@ bool sorted(ForwardIterator first, ForwardIterator last, Compare compare) {
     return is_sorted;
 }
 
+/**
+ * Returns the last system call error as a string
+ */
+inline std::string getStringErrno(void) {
+    std::stringstream ss;
+#ifdef WIN32
+    char* win_msg = NULL;
+    DWORD err = GetLastError();
+    FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER |
+                   FORMAT_MESSAGE_FROM_SYSTEM |
+                   FORMAT_MESSAGE_IGNORE_INSERTS,
+                   NULL, err,
+                   MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                   (LPTSTR) &win_msg,
+                   0, NULL);
+    ss << "errno = " << err << ": '" << win_msg << "'";
+    LocalFree(win_msg);
+#else
+    ss << "errno = " << errno << ": '" << strerror(errno) << "'";
+#endif
+
+    return ss.str();
+}
+
 #define GIGANTOR ((size_t)1<<(sizeof(size_t)*8-1))
 #endif  // SRC_COMMON_H_
