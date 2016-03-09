@@ -1981,26 +1981,51 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
-    int i = 0;  // Item count
     int maxSize = get_int_stat(h, h1, "ep_max_size", "memory");
     stop_persistence(h, h1);
-    while(1) {
+    size_t num_items = 0;
+    for (int i = 0; ; i++) {
         // Load items into server until 90% of the mem quota
         // is used.
-        int memUsed = get_int_stat(h, h1, "mem_used", "memory");
-        if ((float)memUsed <= ((float)(maxSize) * 0.90)) {
-            item *itm = NULL;
-            std::stringstream ss;
-            ss << "key" << i;
-            ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
-                    ss.str().c_str(), "somevalue", &itm);
-            if (ret == ENGINE_SUCCESS) {
-                i++;
+        // getting stats is expensive, only check every 100 ierations.
+        if ((i % 100) == 0) {
+            float memUsed = float(get_int_stat(h, h1, "mem_used", "memory"));
+            if (memUsed > ((float)(maxSize) * 0.90)) {
+                break;
             }
-            h1->release(h, NULL, itm);
-        } else {
+        }
+        item *itm = NULL;
+        std::stringstream ss;
+        ss << "key" << i;
+        ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
+                                      ss.str().c_str(), "somevalue", &itm);
+        h1->release(h, NULL, itm);
+
+        switch (ret) {
+        case ENGINE_SUCCESS:
+            num_items++;
+            break;
+
+        case ENGINE_TMPFAIL:
+            // TMPFAIL means we getting below 100%; retry.
+            break;
+
+        default:
+            check(false, ("Unexpected response from store(): " +
+                          std::to_string(ret)).c_str());
             break;
         }
+    }
+
+    // Sanity check - ensure we have enough vBucket quota (max_size)
+    // such that we have 1000 items - enough to give us 0.1%
+    // granuarity in any residency calculations. */
+    if (num_items < 1000) {
+        std::cerr << "Error: test_dcp_cursor_dropping: "
+            "expected at least 1000 items after filling vbucket, "
+            "but only have " << num_items << ". "
+            "Check max_size setting for test." << std::endl;
+        return FAIL;
     }
 
     const void *cookie = testHarness.create_cookie();
@@ -2011,7 +2036,7 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
-    ctx.exp_mutations = i;
+    ctx.exp_mutations = num_items;
     ctx.exp_markers = 1;
     ctx.skip_estimate_check = true;
 
@@ -5247,8 +5272,11 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("test dcp cursor dropping",
                  test_dcp_cursor_dropping, test_setup, teardown,
+                 /* max_size set so that it's big enough that we can
+                    create at least 1000 items when our residency
+                    ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
-                 "chk_remover_stime=1;max_size=26214400", prepare, cleanup),
+                 "chk_remover_stime=1;max_size=2000000", prepare, cleanup),
         TestCase("test dcp value compression",
                  test_dcp_value_compression, test_setup, teardown,
                  "dcp_value_compression_enabled=true",
