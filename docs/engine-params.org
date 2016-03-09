@@ -133,3 +133,6 @@ memcached like this:
 |                                |        | resolution to use                          |
 | item_eviction_policy           | string | Item eviction policy used by the item      |
 |                                |        | pager (value_only or full_eviction)        |
+| time_synchronization           | string | Time synchronization setting for the bucket|
+|                                |        | (disabled, enabled_without_drift,          |
+|                                |        |  enabled_with_drift)                       |

@@ -5359,6 +5359,9 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key1, "somevalue", &i),
             "Failed set.");
+
+    wait_for_flusher_to_settle(h, h1);
+
     Item *it1 = reinterpret_cast<Item*>(i);
     // check the stat
     size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
@@ -5368,30 +5371,11 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata1(it1->getCas(), it1->getRevSeqno(),
                            it1->getFlags(), it1->getExptime());
-    verifyLastMetaData(metadata1, static_cast<uint8_t>(revision_seqno));
+    verifyLastMetaData(metadata1, static_cast<uint8_t>(last_write_wins));
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
     h1->release(h, NULL, i);
-
-    // Enable time synchronization
-    set_drift_counter_state(h, h1, 1000, 0x01);
-
-    const char *key2 = "test_getm_two";
-    checkeq(ENGINE_SUCCESS,
-            store(h, h1, NULL, OPERATION_SET, key2, "somevalue", &i),
-            "Failed set.");
-    Item *it2 = reinterpret_cast<Item*>(i);
-    check(get_meta(h, h1, key2, true), "Expected to get meta");
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
-    ItemMetaData metadata2(it2->getCas(), it2->getRevSeqno(),
-                           it2->getFlags(), it2->getExptime());
-    verifyLastMetaData(metadata2, static_cast<uint8_t>(last_write_wins));
-    temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 2, "Expect one getMeta op");
-    h1->release(h, NULL, i);
-
-    wait_for_flusher_to_settle(h, h1);
 
     // restart
     testHarness.reload_engine(&h, &h1,
@@ -5400,9 +5384,9 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
                               true, true);
     wait_for_warmup_complete(h, h1);
 
-    check(get_meta(h, h1, key2, true), "Expected to get meta");
+    check(get_meta(h, h1, key1, true), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    verifyLastMetaData(metadata2, static_cast<uint8_t>(last_write_wins));
+    verifyLastMetaData(metadata1, static_cast<uint8_t>(last_write_wins));
 
     return SUCCESS;
 }
@@ -6637,9 +6621,6 @@ static enum test_result test_set_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     itemMeta.exptime = 0;
     itemMeta.flags = 0xdeadbeef;
 
-    //Set initial drift and enable time synchronization
-    set_drift_counter_state(h, h1, 0, 0x01);
-
     checkeq(0, get_int_stat(h, h1, "ep_num_ops_set_meta"),
           "Expect zero setMeta ops");
 
@@ -6753,8 +6734,6 @@ static enum test_result test_del_meta_lww_conflict_resolution(ENGINE_HANDLE *h,
     item *i = NULL;
     item_info info;
 
-    set_drift_counter_state(h, h1, 0, 0x01);
-
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "somevalue", &i),
             "Failed set.");
@@ -6821,7 +6800,10 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     int64_t adjusted_time1, adjusted_time2;
     protocol_binary_request_header *request;
 
-   for (int j = 0; j < 10; ++j) {
+    std::string time_sync = get_str_stat(h, h1, "vb_0:time_sync", "vbucket-details");
+    checkeq(std::string("enabled"), time_sync, "Time sync should've been disabled");
+
+    for (int j = 0; j < 10; ++j) {
         item *i = NULL;
         std::string key("key-" + std::to_string(j));
         checkeq(ENGINE_SUCCESS,
@@ -6835,22 +6817,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     uint64_t high_seqno = get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
 
-    std::string time_sync = get_str_stat(h, h1, "vb_0:time_sync", "vbucket-details");
-    checkeq(std::string("disabled"), time_sync,
-            "Time sync should've been disabled");
-
-    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
-                           NULL, 0, NULL, 0);
-    h1->unknown_command(h, NULL, request, add_response);
-    free(request);
-    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, last_status.load(),
-            "Expected Not Supported, as Time sync hasn't been enabled yet");
-
-    set_drift_counter_state(h, h1, 1000, 0x01);
-
-    time_sync = get_str_stat(h, h1, "vb_0:time_sync", "vbucket-details");
-    checkeq(std::string("enabled"), time_sync,
-            "Time sync should've been enabled");
+    set_drift_counter_state(h, h1, 1000);
 
     uint64_t recvVbuuid;
     int64_t recvSeqno;
@@ -6878,7 +6845,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     memcpy(&adjusted_time1, last_body.data(), last_body.size());
     adjusted_time1 = ntohll(adjusted_time1);
 
-    set_drift_counter_state(h, h1, 1000000, 0x01);
+    set_drift_counter_state(h, h1, 1000000);
 
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
@@ -6952,6 +6919,74 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     // adjusted_time1 * 2
     check(adjusted_time2 >= adjusted_time1 * 2,
             "Adjusted_time2: not what is expected");
+
+    //Check if set drift counter state returns EINVAL when trying to set
+    //to initial drift value
+    int64_t initialDriftCount = -140737488355328;
+    uint8_t timeSync = 0x00;
+
+    int64_t driftCount = htonll(initialDriftCount);
+    uint8_t extlen = sizeof(driftCount) + sizeof(timeSync);
+    char *ext = new char[extlen];
+    memcpy(ext, (char *)&driftCount, sizeof(driftCount));
+    memcpy(ext + sizeof(driftCount), (char *)&timeSync, sizeof(timeSync));
+
+    request = createPacket(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
+                           0, 0, ext, extlen);
+    h1->unknown_command(h, NULL, request, add_response);
+    checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
+            "Expected invalid response");
+    free(request);
+    delete[] ext;
+
+    return SUCCESS;
+}
+
+static enum test_result test_adjusted_time_negative_tests(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1) {
+    protocol_binary_request_header *request;
+
+    /* GET_ADJUSTED_TIME with a non-existent vbucket: vbid 1 */
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 1, 0, NULL, 0,
+                           NULL, 0, NULL, 0);
+    h1->unknown_command(h, NULL, request, add_response);
+    free(request);
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+            "Expected not my vbucket");
+
+    /* GET_ADJUSTED_TIME when time_synchronization is "disabled" */
+    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
+                           NULL, 0, NULL, 0);
+    h1->unknown_command(h, NULL, request, add_response);
+    free(request);
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, last_status.load(),
+            "Expected not supported response");
+
+    int64_t initialDriftCount = 1000;
+    uint8_t timeSync = 0x00;
+
+    int64_t driftCount = htonll(initialDriftCount);
+    uint8_t extlen = sizeof(driftCount) + sizeof(timeSync);
+    char *ext = new char[extlen];
+    memcpy(ext, (char *)&driftCount, sizeof(driftCount));
+    memcpy(ext + sizeof(driftCount), (char *)&timeSync, sizeof(timeSync));
+
+    /* SET_DRIFT_COUNTER_STATE with non-existent vbucket: vbid 1 */
+    request = createPacket(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
+                           1, 0, ext, extlen);
+    h1->unknown_command(h, NULL, request, add_response);
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
+            "Expected not my vbucket");
+    free(request);
+
+    /* SET_DRIFT_COUNTER_STATE when time_synchronization is "disabled" */
+    request = createPacket(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
+                           0, 0, ext, extlen);
+    h1->unknown_command(h, NULL, request, add_response);
+    checkeq(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, last_status.load(),
+            "Expected not supported");
+    free(request);
+    delete[] ext;
 
     return SUCCESS;
 }
@@ -8917,8 +8952,8 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
 
     memset(&info, 0, sizeof(info));
 
-    //enabled time sync
-    set_drift_counter_state(h, h1, 100000, true);
+    //Set a really large drift value
+    set_drift_counter_state(h, h1, 100000);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD, key, "data1", &i, 0, 0),
             "Failed to store an item");
@@ -8931,7 +8966,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
 
     //set a lesser drift and ensure that the CAS is monotonically
     //increasing
-    set_drift_counter_state(h, h1, 100, true);
+    set_drift_counter_state(h, h1, 100);
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key, "data2", &i, 0, 0),
@@ -8945,7 +8980,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
 
     //ensure that the adjusted time will be negative
     int64_t drift_counter = (-1) * (gethrtime() * 2);
-    set_drift_counter_state(h, h1, drift_counter, true);
+    set_drift_counter_state(h, h1, drift_counter);
 
     protocol_binary_request_header *request;
     int64_t adjusted_time;
@@ -8973,8 +9008,8 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
-    //disable time sync
-    set_drift_counter_state(h, h1, 0, false);
+    //Set the drift value to 0
+    set_drift_counter_state(h, h1, 0);
 
     getl(h, h1, key, 0, 10);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
@@ -9535,7 +9570,8 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("get meta", test_get_meta, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("get meta with extras", test_get_meta_with_extras,
-                 test_setup, teardown, NULL, prepare, cleanup),
+                 test_setup, teardown,
+                 "time_synchronization=enabled_without_drift", prepare, cleanup),
         TestCase("get meta deleted", test_get_meta_deleted,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("get meta nonexistent", test_get_meta_nonexistent,
@@ -9594,19 +9630,22 @@ BaseTestCase testsuite_testcases[] = {
                  test_set_meta_conflict_resolution, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("test del meta lww conflict resolution",
-                 test_del_meta_lww_conflict_resolution, test_setup, teardown, NULL,
-                 prepare, cleanup),
+                 test_del_meta_lww_conflict_resolution, test_setup, teardown,
+                 "time_synchronization=enabled_without_drift",prepare, cleanup),
         TestCase("test set meta lww conflict resolution",
-                 test_set_meta_lww_conflict_resolution, test_setup, teardown, NULL,
-                 prepare, cleanup),
+                 test_set_meta_lww_conflict_resolution, test_setup, teardown,
+                 "time_synchronization=enabled_without_drift",prepare, cleanup),
         TestCase("temp item deletion", test_temp_item_deletion,
                  test_setup, teardown,
                  "exp_pager_stime=1", prepare, cleanup),
         TestCase("test estimate vb move", test_est_vb_move,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test getAdjustedTime, setDriftCounter apis",
-                 test_adjusted_time_apis, test_setup, teardown, NULL,
-                 prepare, cleanup),
+                 test_adjusted_time_apis, test_setup, teardown,
+                 "time_synchronization=enabled_with_drift", prepare, cleanup),
+        TestCase("test getAdjustedTime, setDriftCounter apis negative tests",
+                 test_adjusted_time_negative_tests, test_setup, teardown,
+                 NULL, prepare, cleanup),
 
         // Data traffic control tests
         TestCase("control data traffic", test_control_data_traffic,
@@ -9700,7 +9739,7 @@ BaseTestCase testsuite_testcases[] = {
 #endif
 
         TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
-                 NULL, prepare, cleanup),
+                 "time_synchronization=enabled_with_drift", prepare, cleanup),
         TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
                  teardown, NULL, prepare, cleanup),
 

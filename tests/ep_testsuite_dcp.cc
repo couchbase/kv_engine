@@ -311,6 +311,22 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                     stats_takeover.str().c_str());
         }
 
+        if (ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+            /* Wait for backfill to start */
+            std::string stats_backfill_read_bytes("eq_dcpq:" + name +
+                                                 ":backfill_buffer_bytes_read");
+            wait_for_stat_to_be_gte(h, h1, stats_backfill_read_bytes.c_str(), 0,
+                                    "dcp");
+            /* Verify that we have no dcp cursors in the checkpoint. (There will
+               just be one persistence cursor) */
+            std::string stats_num_conn_cursors("vb_" +
+                                               std::to_string(ctx.vbucket) +
+                                               ":num_conn_cursors");
+            checkeq(1, get_int_stat(h, h1, stats_num_conn_cursors.c_str(),
+                                    "checkpoint"),
+                    "DCP cursors not expected to be registered");
+        }
+
         // Init stats used in test
         VBStats stats;
         stats.extra_takeover_ops = ctx.extra_takeover_ops;
@@ -1466,7 +1482,7 @@ static enum test_result test_dcp_producer_stream_req_partial_with_time_sync(
                                                              ENGINE_HANDLE *h,
                                                              ENGINE_HANDLE_V1 *h1) {
 
-    set_drift_counter_state(h, h1, 1000, 0x01);
+    set_drift_counter_state(h, h1, /* initial drift */1000);
 
     int num_items = 200;
     for (int j = 0; j < num_items; ++j) {
@@ -3821,7 +3837,7 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
-    set_drift_counter_state(h, h1, 1000, 0x01);
+    set_drift_counter_state(h, h1, /* initial_drift */1000);
 
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
@@ -3974,7 +3990,8 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
                                                         ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
 
-    set_drift_counter_state(h, h1, 1000, 0x01);
+    //Set drift value
+    set_drift_counter_state(h, h1, /* initial drift */1000);
 
     // Store an item
     item *i = NULL;
@@ -5051,6 +5068,62 @@ static enum test_result test_dcp_on_vbucket_state_change(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_dcp_consumer_processer_behavior(ENGINE_HANDLE *h,
+                                                             ENGINE_HANDLE_V1 *h1) {
+
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+    wait_for_flusher_to_settle(h, h1);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    const char *name = "unittest";
+    uint16_t nname = strlen(name);
+
+    // Open consumer connection
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque =
+        get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
+
+    int i = 1;
+    while (get_int_stat(h, h1, "mem_used") <
+                                1.25 * get_int_stat(h, h1, "ep_max_size")) {
+        if (i % 20) {
+            checkeq(ENGINE_SUCCESS,
+                    h1->dcp.snapshot_marker(h, cookie, stream_opaque,
+                                            0, i, i + 20, 0x01),
+                    "Failed to send snapshot marker");
+        }
+        std::stringstream ss;
+        ss << "key" << i;
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.mutation(h, cookie, stream_opaque, ss.str().c_str(),
+                                 ss.str().length(), "value", 5, i * 3, 0, 0, 0, i,
+                                 0, 0, 0, "", 0, INITIAL_NRU_VALUE),
+                "Failed to send dcp mutation");
+        ++i;
+    }
+
+    // Expect buffered items and the processer's task state to be
+    // CANNOT_PROCESS, because of numerous backoffs.
+    check(get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", "dcp") > 0,
+          "Expected buffered items for the stream");
+    check(get_int_stat(h, h1, "eq_dcpq:unittest:total_backoffs", "dcp") > 0,
+          "Expected numerous backoffs");
+    checkne(std::string("ALL_PROCESSED"),
+            get_str_stat(h, h1, "eq_dcpq:unittest:processer_task_state", "dcp"),
+            "Expected Processer's task state not to be ALL_PROCESSED!");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
 
 // Test manifest //////////////////////////////////////////////////////////////
 
@@ -5107,8 +5180,8 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request with time sync (partial)",
                  test_dcp_producer_stream_req_partial_with_time_sync,
-                 test_setup, teardown,
-                 "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
+                 test_setup, teardown, "chk_remover_stime=1;chk_max_items=100;"
+                 "time_synchronization=enabled_with_drift", prepare, cleanup),
         TestCase("test producer stream request (full)",
                  test_dcp_producer_stream_req_full, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
@@ -5226,13 +5299,15 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("dcp consumer mutate", test_dcp_consumer_mutate, test_setup,
                  teardown, "dcp_enable_noop=false", prepare, cleanup),
         TestCase("dcp consumer mutate with time sync",
-                 test_dcp_consumer_mutate_with_time_sync, test_setup,
-                 teardown, "dcp_enable_noop=false", prepare, cleanup),
+                 test_dcp_consumer_mutate_with_time_sync, test_setup, teardown,
+                 "dcp_enable_noop=false;time_synchronization=enabled_with_drift",
+                 prepare, cleanup),
         TestCase("dcp consumer delete", test_dcp_consumer_delete, test_setup,
                  teardown, "dcp_enable_noop=false", prepare, cleanup),
         TestCase("dcp consumer delete with time sync",
-                 test_dcp_consumer_delete_with_time_sync, test_setup,
-                 teardown, "dcp_enable_noop=false", prepare, cleanup),
+                 test_dcp_consumer_delete_with_time_sync, test_setup, teardown,
+                 "dcp_enable_noop=false;time_synchronization=enabled_with_drift",
+                 prepare, cleanup),
         TestCase("dcp failover log", test_failover_log_dcp, test_setup,
                  teardown, NULL, prepare, cleanup),
         TestCase("dcp persistence seqno", test_dcp_persistence_seqno, test_setup,
@@ -5265,6 +5340,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test dcp on vbucket state change",
                  test_dcp_on_vbucket_state_change,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test dcp consumer's processer task behavior",
+                 test_dcp_consumer_processer_behavior,
+                 test_setup, teardown, "max_size=1048576",
+                 prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

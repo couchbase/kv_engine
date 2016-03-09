@@ -635,6 +635,18 @@
             "descr": "The number of snapshots before ActiveStreamCheckpointProcessorTask::run yields.",
             "type": "size_t"
         },
+        "time_synchronization": {
+            "default": "disabled",
+            "descr": "Time synchronization setting for XDCR Last Write Wins (LWW) conflict resolution",
+            "type": "std::string",
+            "validator": {
+                "enum": [
+                    "disabled",
+                    "enabled_without_drift",
+                    "enabled_with_drift"
+                ]
+            }
+        },
         "vb0": {
             "default": "false",
             "type": "bool"

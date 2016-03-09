@@ -297,7 +297,7 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
 
     if (!vb) {
         endStream(END_STREAM_STATE);
-    } else {
+    } else if (!(flags_ & DCP_ADD_STREAM_FLAG_DISKONLY)) {
         if (endSeqno > end_seqno_) {
             chkCursorSeqno = end_seqno_;
         }
@@ -854,61 +854,75 @@ void ActiveStream::endStream(end_stream_status_t reason) {
 }
 
 void ActiveStream::scheduleBackfill() {
-    if (!isBackfillTaskRunning) {
-        RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
-        if (!vbucket) {
-            return;
-        }
+    if (isBackfillTaskRunning) {
+        return;
+    }
 
+    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    if (!vbucket) {
+        return;
+    }
+
+    uint64_t backfillStart = lastReadSeqno.load() + 1;
+    uint64_t backfillEnd = 0;
+    bool tryBackfill = false;
+
+    if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
+        uint64_t vbHighSeqno = static_cast<uint64_t>(vbucket->getHighSeqno());
+        if (lastReadSeqno.load() > vbHighSeqno) {
+            throw std::logic_error("ActiveStream::scheduleBackfill: "
+                                   "lastReadSeqno (which is " +
+                                   std::to_string(lastReadSeqno.load()) +
+                                   ") is greater than vbHighSeqno (which is " +
+                                   std::to_string(vbHighSeqno) + ")");
+        }
+        backfillEnd = end_seqno_;
+        tryBackfill = true;
+    } else {
         CursorRegResult result =
             vbucket->checkpointManager.registerCursorBySeqno(
                                                 name_,
                                                 lastReadSeqno.load(),
                                                 MustSendCheckpointEnd::NO);
         curChkSeqno = result.first;
-        bool isFirstItem = result.second;
+        tryBackfill = result.second;
 
         if (lastReadSeqno.load() > curChkSeqno) {
             throw std::logic_error("ActiveStream::scheduleBackfill: "
-                    "lastReadSeqno (which is " + std::to_string(lastReadSeqno.load()) +
-                    ") is greater than curChkSeqno (which is " +
-                    std::to_string(curChkSeqno) + ")");
+                                   "lastReadSeqno (which is " +
+                                   std::to_string(lastReadSeqno.load()) +
+                                   ") is greater than curChkSeqno (which is " +
+                                   std::to_string(curChkSeqno) + ")");
         }
-        uint64_t backfillStart = lastReadSeqno.load() + 1;
 
         /* We need to find the minimum seqno that needs to be backfilled in
          * order to make sure that we don't miss anything when transitioning
          * to a memory snapshot. The backfill task will always make sure that
          * the backfill end seqno is contained in the backfill.
          */
-        uint64_t backfillEnd = 0;
-        if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) { // disk backfill only
-            backfillEnd = end_seqno_;
-        } else { // disk backfill + in-memory streaming
-            if (backfillStart < curChkSeqno) {
-                if (curChkSeqno > end_seqno_) {
-                    backfillEnd = end_seqno_;
-                } else {
-                    backfillEnd = curChkSeqno - 1;
-                }
-            }
-        }
-
-        bool tryBackfill = isFirstItem || flags_ & DCP_ADD_STREAM_FLAG_DISKONLY;
-
-        if (backfillStart <= backfillEnd && tryBackfill) {
-            producer->scheduleBackfillManager(this, backfillStart, backfillEnd);
-            isBackfillTaskRunning.store(true);
-        } else {
-            if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
-                endStream(END_STREAM_OK);
-            } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-                transitionState(STREAM_TAKEOVER_SEND);
+        if (backfillStart < curChkSeqno) {
+            if (curChkSeqno > end_seqno_) {
+                /* Backfill only is enough */
+                backfillEnd = end_seqno_;
             } else {
-                transitionState(STREAM_IN_MEMORY);
+                /* Backfill + in-memory streaming */
+                backfillEnd = curChkSeqno - 1;
             }
-            itemsReady.store(true);
         }
+    }
+
+    if (backfillStart <= backfillEnd && tryBackfill) {
+        producer->scheduleBackfillManager(this, backfillStart, backfillEnd);
+        isBackfillTaskRunning.store(true);
+    } else {
+        if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
+            endStream(END_STREAM_OK);
+        } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+            transitionState(STREAM_TAKEOVER_SEND);
+        } else {
+            transitionState(STREAM_IN_MEMORY);
+        }
+        itemsReady.store(true);
     }
 }
 
@@ -1048,7 +1062,7 @@ ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId,
     ExtendedMetaData *emd = NULL;
     if (producer->isExtMetaDataEnabled()) {
         RCPtr<VBucket> vb = engine->getVBucket(vBucketId);
-        if (vb && vb->isTimeSyncEnabled()) {
+        if (vb && vb->getTimeSyncConfig() == time_sync_t::ENABLED_WITH_DRIFT) {
             int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
             emd = new ExtendedMetaData(adjustedTime, conflictResMode);
         } else {

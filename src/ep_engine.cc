@@ -6133,7 +6133,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAdjustedTime(
     }
     // Will return the vbucket's adjusted time, only if
     // time synchronization for the vbucket is enabled
-    if (vb->isTimeSyncEnabled()) {
+    if (vb->getTimeSyncConfig() == time_sync_t::ENABLED_WITH_DRIFT) {
         int64_t adjusted_time = gethrtime() + vb->getDriftCounter();
         adjusted_time = htonll(adjusted_time);
         return sendResponse(response, NULL, 0, NULL, 0,
@@ -6158,16 +6158,27 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setDriftCounterState(
     if (!vb) {
         return sendNotMyVBucketResponse(response, cookie, 0);
     }
-    int64_t initialDriftCount = ntohll(request->message.body.initial_drift);
-    uint8_t timeSync = request->message.body.time_sync;
 
-    std::stringstream result;
+    if (vb->getTimeSyncConfig() != time_sync_t::ENABLED_WITH_DRIFT) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0,
+                            cookie);
+    }
 
-    set_drift_state_resp_t resp = vb->setDriftCounterState(initialDriftCount,
-                                                           timeSync);
+    int64_t driftCount = ntohll(request->message.body.initial_drift);
+    if (driftCount == INITIAL_DRIFT) {
+        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                            PROTOCOL_BINARY_RAW_BYTES,
+                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
+                            cookie);
+    }
+
+    set_drift_state_resp_t resp = vb->setDriftCounterState(driftCount);
     uint64_t uuid = htonll(resp.last_vb_uuid);
     int64_t seqno = htonll(resp.last_seqno);
 
+    std::stringstream result;
     result.write((char*) &uuid, sizeof(uuid));
     result.write((char*) &seqno, sizeof(seqno));
 

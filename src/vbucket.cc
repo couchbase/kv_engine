@@ -594,7 +594,7 @@ uint64_t VBucket::nextHLCCas() {
     int64_t adjusted_time = gethrtime();
     uint64_t final_adjusted_time = 0;
 
-    if (time_sync_enabled) {
+    if (time_sync_config == time_sync_t::ENABLED_WITH_DRIFT) {
         adjusted_time += drift_counter;
     }
 
@@ -650,7 +650,7 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
         addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
         addStat("max_cas", getMaxCas(), add_stat, c);
         addStat("drift_counter", getDriftCounter(), add_stat, c);
-        addStat("time_sync", time_sync_enabled ? "enabled" : "disabled",
+        addStat("time_sync", isTimeSyncEnabled() ? "enabled" : "disabled",
                 add_stat, c);
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
     }

@@ -1356,6 +1356,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             newvb->createFilter(config.getBfilterKeyCount(),
                                 config.getBfilterFpProb());
         }
+        const std::string& timeSyncConfig = config.getTimeSynchronization();
+        newvb->setTimeSyncConfig(VBucket::convertStrToTimeSyncConfig(timeSyncConfig));
 
         // The first checkpoint for active vbucket should start with id 2.
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
@@ -3558,8 +3560,17 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            bool setConflictMode) {
     if (vb) {
         if (setConflictMode && (v->getConflictResMode() != last_write_wins) &&
-            vb->isTimeSyncEnabled()) {
-            v->setConflictResMode(last_write_wins);
+                vb->isTimeSyncEnabled()) {
+            time_sync_t timeSyncConfig = vb->getTimeSyncConfig();
+
+            /* Enable conflict resolution mode to last write wins in
+             * case the setting is (i) enabled_without_drift and for
+             * (ii) enabled_with_drift and a valid drift value is set
+             */
+            if (timeSyncConfig == time_sync_t::ENABLED_WITHOUT_DRIFT ||
+                    vb->getDriftCounter() != INITIAL_DRIFT) {
+                v->setConflictResMode(last_write_wins);
+            }
         }
 
         queued_item qi(v->toItem(false, vb->getId()));
