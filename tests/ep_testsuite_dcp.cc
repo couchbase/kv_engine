@@ -5093,8 +5093,17 @@ static enum test_result test_dcp_consumer_processer_behavior(ENGINE_HANDLE *h,
         get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_opaque", "dcp");
 
     int i = 1;
-    while (get_int_stat(h, h1, "mem_used") <
-                                1.25 * get_int_stat(h, h1, "ep_max_size")) {
+    while (true) {
+        // Stats lookup is costly; only perform check every 100
+        // iterations (we only need to be greater than 1.25 *
+        // ep_max_size, not exactly at that point).
+        if ((i % 100) == 0) {
+            if (get_int_stat(h, h1, "mem_used") >=
+                1.25 * get_int_stat(h, h1, "ep_max_size")) {
+                break;
+            }
+        }
+
         if (i % 20) {
             checkeq(ENGINE_SUCCESS,
                     h1->dcp.snapshot_marker(h, cookie, stream_opaque,
