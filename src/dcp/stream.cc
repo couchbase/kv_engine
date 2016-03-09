@@ -775,6 +775,18 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
 
     LockHolder lh(streamMutex);
 
+    if (state_ == STREAM_DEAD) {
+        // If stream was closed forcefully by the time the checkpoint items
+        // retriever task completed, none of the acquired mutations should
+        // be added on the stream's readyQ.
+        std::deque<MutationResponse *>::iterator itr = items.begin();
+        for (; itr != items.end(); ++itr) {
+            delete *itr;
+        }
+        items.clear();
+        return;
+    }
+
     if (isCurrentSnapshotCompleted()) {
         uint32_t flags = MARKER_FLAG_MEMORY;
         uint64_t snapStart = items.front()->getBySeqno();
@@ -837,10 +849,10 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             bufferedBackfill.bytes = 0;
             bufferedBackfill.items = 0;
         }
+        transitionState(STREAM_DEAD);
         if (reason != END_STREAM_DISCONNECTED) {
             pushToReadyQ(new StreamEndResponse(opaque_, reason, vb_));
         }
-        transitionState(STREAM_DEAD);
         producer->getLogger().log(EXTENSION_LOG_NOTICE,
             "(vb %d) Stream closing, "
             "%" PRIu64 " items sent from backfill phase, "
