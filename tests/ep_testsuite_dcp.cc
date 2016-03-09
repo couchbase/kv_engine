@@ -2171,7 +2171,7 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
     while (true) {
         /* Gathering stats on every store is expensive, just check every 100
          iterations */
-        if ((num_items % 10) == 0) {
+        if ((num_items % 100) == 0) {
             if (get_int_stat(h, h1, "vb_active_perc_mem_resident") <
                 rr_thresh) {
                 break;
@@ -2182,11 +2182,34 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
         std::string key("key" + std::to_string(num_items));
         ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET, key.c_str(),
                                       value.c_str(), &itm);
-        if (ret == ENGINE_SUCCESS) {
+        h1->release(h, NULL, itm);
+
+        switch (ret) {
+        case ENGINE_SUCCESS:
             num_items++;
             est_bytes += key.length();
+            break;
+
+        case ENGINE_TMPFAIL:
+            // TMPFAIL means we getting below 100%; retry.
+            break;
+
+        default:
+            check(false, ("Unexpected response from store(): " +
+                          std::to_string(ret)).c_str());
+            break;
         }
-        h1->release(h, NULL, itm);
+    }
+
+    // Sanity check - ensure we have enough vBucket quota (max_size)
+    // such that we have 1000 items - enough to give us 0.1%
+    // granuarity in any residency calculations. */
+    if (num_items < 1000) {
+        std::cerr << "Error: test_dcp_producer_stream_backfill_no_value: "
+            "expected at least 1000 items after filling vbucket, "
+            "but only have " << num_items << ". "
+            "Check max_size setting for test." << std::endl;
+        return FAIL;
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -2195,8 +2218,9 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
     cb_assert(num_non_resident >= (((float)(100 - rr_thresh)/100) * num_items));
 
 
+    // Increase max_size from ~2M to ~20MB
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
-              "52428800");
+              "20000000");
     cb_assert(get_int_stat(h, h1, "vb_active_perc_mem_resident") < rr_thresh);
 
     const void *cookie = testHarness.create_cookie();
@@ -5231,7 +5255,10 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("test producer stream request backfill no value",
                  test_dcp_producer_stream_backfill_no_value, test_setup,
-                 teardown, "chk_remover_stime=1;max_size=6291456", prepare,
+                 /* max_size set so that it's big enough that we can
+                    create at least 1000 items when our residency
+                    ratio gets to 80%. See test body for more details. */
+                 teardown, "chk_remover_stime=1;max_size=2000000", prepare,
                  cleanup),
         TestCase("test producer stream request mem no value",
                  test_dcp_producer_stream_mem_no_value, test_setup, teardown,
