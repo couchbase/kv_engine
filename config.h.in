@@ -9,6 +9,15 @@
 #cmakedefine HAVE_CSTDATOMIC ${HAVE_CSTDATOMIC}
 #cmakedefine HAVE_MEMALIGN ${HAVE_MEMALIGN}
 #cmakedefine HAVE_LIBNUMA ${HAVE_LIBNUMA}
+#cmakedefine HAVE_SSL_OP_NO_TLSv1_1 1
+
+#ifndef HAVE_SSL_OP_NO_TLSv1_1
+/*
+ * Some of our platforms use an old version of OpenSSL without
+ * support for anything newer than TLSv1
+ */
+#define SSL_OP_NO_TLSv1_1 0L
+#endif
 
 #if (!defined(_EVENT_NUMERIC_VERSION) || _EVENT_NUMERIC_VERSION < 0x02000000) && !defined(WIN32)
 typedef int evutil_socket_t;
