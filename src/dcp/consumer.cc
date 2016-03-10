@@ -219,6 +219,8 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     uint32_t bytesCleared = stream->setDead(END_STREAM_CLOSED);
     flowControl.incrFreedBytes(bytesCleared);
     streams[vbucket].reset();
+    notifyConsumerIfNecessary(true/*schedule*/);
+
     return ENGINE_SUCCESS;
 }
 
@@ -259,6 +261,8 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
     }
 
     flowControl.incrFreedBytes(StreamEndResponse::baseMsgBytes);
+    notifyConsumerIfNecessary(true/*schedule*/);
+
     return err;
 }
 
@@ -323,6 +327,7 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
     uint32_t bytes =
         MutationResponse::mutationBaseMsgBytes + nkey + nmeta + nvalue;
     flowControl.incrFreedBytes(bytes);
+    notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
@@ -384,6 +389,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
 
     uint32_t bytes = MutationResponse::deletionBaseMsgBytes + nkey + nmeta;
     flowControl.incrFreedBytes(bytes);
+    notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
@@ -437,6 +443,7 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
     }
 
     flowControl.incrFreedBytes(SnapshotMarker::baseMsgBytes);
+    notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
@@ -484,6 +491,7 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
     }
 
     flowControl.incrFreedBytes(SetVBucketState::baseMsgBytes);
+    notifyConsumerIfNecessary(true/*schedule*/);
 
     return err;
 }
@@ -785,17 +793,11 @@ process_items_error_t DcpConsumer::processBufferedItems() {
             bytes_processed = 0;
             process_ret = stream->processBufferedMessages(bytes_processed);
             flowControl.incrFreedBytes(bytes_processed);
-        } while (bytes_processed > 0 && process_ret != cannot_process);
 
-        if (flowControl.isBufferSufficientlyDrained()) {
-            /**
-             * Notify memcached to get flow control buffer ack out.
-             * We cannot wait till the ConnManager daemon task notifies
-             * the memcached as it would cause delay in buffer ack being
-             * sent out to the producer.
-             */
-            engine_.getDcpConnMap().notifyPausedConnection(this, false);
-        }
+            // Notifying memcached on clearing items for flow control
+            notifyConsumerIfNecessary(false/*schedule*/);
+
+        } while (bytes_processed > 0 && process_ret != cannot_process);
 
         if (process_ret == all_processed) {
             return more_to_process;
@@ -957,6 +959,7 @@ void DcpConsumer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
         uint32_t bytesCleared = stream->setDead(END_STREAM_STATE);
         flowControl.incrFreedBytes(bytesCleared);
         streams[vbucket].reset();
+        notifyConsumerIfNecessary(true/*schedule*/);
     }
 }
 
@@ -1095,4 +1098,16 @@ bool DcpConsumer::isStreamPresent(uint16_t vbucket)
         return true;
     }
     return false;
+}
+
+void DcpConsumer::notifyConsumerIfNecessary(bool schedule) {
+    if (flowControl.isBufferSufficientlyDrained()) {
+        /**
+         * Notify memcached to get flow control buffer ack out.
+         * We cannot wait till the ConnManager daemon task notifies
+         * the memcached as it would cause delay in buffer ack being
+         * sent out to the producer.
+         */
+        engine_.getDcpConnMap().notifyPausedConnection(this, schedule);
+    }
 }

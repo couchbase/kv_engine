@@ -119,6 +119,16 @@ public:
 
     std::string getProcesserTaskStatusStr();
 
+    /**
+     * Check if the enough bytes have been removed from the
+     * flow control buffer, for the consumer to send an ACK
+     * back to the producer.
+     *
+     * @param schedule true if the notification is to be
+     *                 scheduled
+     */
+    void notifyConsumerIfNecessary(bool schedule);
+
 private:
 
     DcpResponse* getNextItem();
