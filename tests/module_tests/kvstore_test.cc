@@ -228,6 +228,37 @@ TEST(CouchKVStoreTest, StatsTest) {
     EXPECT_GE(io_total_write_bytes, io_write_bytes);
 }
 
+// Regression test for MB-17517 - ensure that if a couchstore file has a max
+// CAS of -1, it is detected and reset to zero when file is loaded.
+TEST(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
+    std::string data_dir("/tmp/kvstore-test");
+    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+
+    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    KVStore* kvstore = KVStoreFactory::create(config);
+    ASSERT_NE(nullptr, kvstore);
+
+    // Activate vBucket.
+    std::string failoverLog("[]");
+    vbucket_state state(vbucket_state_active, /*ckid*/0, /*maxDelSeqNum*/0,
+                        /*highSeqno*/0, /*purgeSeqno*/0, /*lastSnapStart*/0,
+                        /*lastSnapEnd*/0, /*maxCas*/-1, /*driftCounter*/0,
+                        failoverLog);
+    EXPECT_TRUE(kvstore->snapshotVBucket(/*vbid*/0, state, NULL));
+    EXPECT_EQ(~0ull, kvstore->listPersistedVbuckets()[0]->maxCas);
+
+    // Close the file, then re-open.
+    delete kvstore;
+    kvstore = KVStoreFactory::create(config);
+    EXPECT_NE(nullptr, kvstore);
+
+    // Check that our max CAS was repaired on startup.
+    EXPECT_EQ(0u, kvstore->listPersistedVbuckets()[0]->maxCas);
+
+    // Cleanup
+    delete kvstore;
+}
+
 
 // Test cases which run on both Couchstore and ForestDB
 INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,

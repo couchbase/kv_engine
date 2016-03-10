@@ -2038,6 +2038,17 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
 
             if (maxCasValue.compare("") != 0) {
                 parseUint64(maxCasValue.c_str(), &maxCas);
+
+                // MB-17517: If the maxCas on disk was invalid then don't use it -
+                // instead rebuild from the items we load from disk (i.e. as per
+                // an upgrade from an earlier version).
+                if (maxCas == static_cast<uint64_t>(-1)) {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Invalid max_cas (0x%" PRIx64 ") read from '%s' for "
+                        "vbucket %" PRIu16 ". Resetting max_cas to zero.",
+                        maxCas, id.buf, vbId);
+                    maxCas = 0;
+                }
             }
 
             if (driftCount.compare("") != 0) {
