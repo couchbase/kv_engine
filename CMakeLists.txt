@@ -514,81 +514,42 @@ INSTALL(TARGETS ep
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib)
 
-# =============================== ENGINE_TESTS =============================== #
-SET(_ep_testsuite_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite.so)
 
-# Engine tests: value-only eviction mode
-ADD_TEST(NAME ep-engine_engine_tests
-         COMMAND ${_ep_testsuite_cmdline} -v -e "dbname=./value_eviction_test")
-SET_TESTS_PROPERTIES(ep-engine_engine_tests PROPERTIES TIMEOUT 1800)
+# Defines a testsuite which runs in full and value eviction variants.
+FUNCTION(ADD_TESTSUITE value_evict_name full_evict_name testsuite_so timeout)
+  SET(_cmdline
+      ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${testsuite_so})
+  ADD_TEST(NAME ${value_evict_name}
+         COMMAND ${_cmdline} -v -e "dbname=./${value_evict_name}")
+  ADD_TEST(NAME ${full_evict_name}
+         COMMAND ${_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./${full_evict_name}")
+  SET_TESTS_PROPERTIES(${value_evict_name} PROPERTIES TIMEOUT ${timeout})
+  SET_TESTS_PROPERTIES(${full_evict_name} PROPERTIES TIMEOUT ${timeout})
+ENDFUNCTION()
 
-# Engine tests: full eviction mode
-ADD_TEST(NAME ep-engine_full_eviction_tests
-         COMMAND ${_ep_testsuite_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_test")
-SET_TESTS_PROPERTIES(ep-engine_full_eviction_tests PROPERTIES TIMEOUT 1800)
+ADD_TESTSUITE(ep-engine_engine_tests ep-engine_full_eviction_tests
+              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite.so
+              1800)
 
-# ============================================================================ #
+ADD_TESTSUITE(ep-engine_basic_tests ep-engine_full_eviction_basic
+              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_basic.so
+              600)
 
-# =============================== BASIC_TESTS ================================ #
-SET(_ep_testsuite_basic_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_basic.so)
+ADD_TESTSUITE(ep-engine_dcp_tests ep-engine_full_eviction_dcp
+              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_dcp.so
+              1200)
 
-# Basic engine tests: value-only eviction mode
-ADD_TEST(NAME ep-engine_basic_tests
-         COMMAND ${_ep_testsuite_basic_cmdline} -v -e "dbname=./value_eviction_basic")
-SET_TESTS_PROPERTIES(ep-engine_basic_tests PROPERTIES TIMEOUT 600)
+ADD_TESTSUITE(ep-engine_value_eviction_tap ep-engine_full_eviction_tap
+              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_tap.so
+              120)
 
-ADD_TEST(NAME ep-engine_full_eviction_basic
-         COMMAND ${_ep_testsuite_basic_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_basic")
-SET_TESTS_PROPERTIES(ep-engine_full_eviction_basic PROPERTIES TIMEOUT 600)
+ADD_TESTSUITE(ep-engine_value_eviction_checkpoint ep-engine_full_eviction_checkpoint
+              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_checkpoint.so
+              120)
 
-# ============================================================================ #
-
-# ================================ DCP_TESTS ================================= #
-SET(_ep_testsuite_dcp_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_dcp.so)
-
-# DCP engine tests: value-only eviction mode
-ADD_TEST(NAME ep-engine_dcp_tests
-         COMMAND ${_ep_testsuite_dcp_cmdline} -v -e "dbname=./value_eviction_dcp")
-SET_TESTS_PROPERTIES(ep-engine_dcp_tests PROPERTIES TIMEOUT 1200)
-
-# DCP engine tests: value-only eviction mode
-ADD_TEST(NAME ep-engine_full_eviction_dcp
-         COMMAND ${_ep_testsuite_dcp_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_dcp")
-SET_TESTS_PROPERTIES(ep-engine_full_eviction_dcp PROPERTIES TIMEOUT 1200)
-
-
-# TAP Tests
-SET(_ep_testsuite_tap_cmdline
-    ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_tap.so)
-ADD_TEST(NAME ep-engine_value_eviction_tap
-         COMMAND ${_ep_testsuite_tap_cmdline} -v -e "dbname=./value_eviction_tap")
-ADD_TEST(NAME ep-engine_full_eviction_tap
-         COMMAND ${_ep_testsuite_tap_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_tap")
-SET_TESTS_PROPERTIES(ep-engine_value_eviction_tap PROPERTIES TIMEOUT 120)
-SET_TESTS_PROPERTIES(ep-engine_full_eviction_tap PROPERTIES TIMEOUT 120)
-
-# Checkpoint Tests
-SET(_ep_testsuite_checkpoint_cmdline
-    ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_checkpoint.so)
-ADD_TEST(NAME ep-engine_value_eviction_checkpoint
-         COMMAND ${_ep_testsuite_checkpoint_cmdline} -v -e "dbname=./value_eviction_checkpoint")
-ADD_TEST(NAME ep-engine_full_eviction_checkpoint
-         COMMAND ${_ep_testsuite_checkpoint_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_checkpoint")
-SET_TESTS_PROPERTIES(ep-engine_value_eviction_checkpoint PROPERTIES TIMEOUT 120)
-SET_TESTS_PROPERTIES(ep-engine_full_eviction_checkpoint PROPERTIES TIMEOUT 120)
-
-# XDCR Tests
-SET(_ep_testsuite_xdcr_cmdline
-    ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_xdcr.so)
-ADD_TEST(NAME ep-engine_value_eviction_xdcr
-         COMMAND ${_ep_testsuite_xdcr_cmdline} -v -e "dbname=./value_eviction_xdcr")
-ADD_TEST(NAME ep-engine_full_eviction_xdcr
-         COMMAND ${_ep_testsuite_xdcr_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_xdcr")
-SET_TESTS_PROPERTIES(ep-engine_value_eviction_xdcr PROPERTIES TIMEOUT 30)
-SET_TESTS_PROPERTIES(ep-engine_full_eviction_xdcr PROPERTIES TIMEOUT 30)
-
-
-# ============================================================================ #
+ADD_TESTSUITE(ep-engine_value_eviction_xdcr ep-engine_full_eviction_xdcr
+              ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_xdcr.so
+              30)
 
 # ================================ PERF_TESTS ================================ #
 SET(_ep_perfsuite_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_perfsuite.so -v)
