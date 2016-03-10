@@ -1640,44 +1640,6 @@ static void set_log_level(EXTENSION_LOG_LEVEL severity)
     }
 }
 
-static void get_config_append_stats(const char *key, const uint16_t klen,
-                                    const char *val, const uint32_t vlen,
-                                    const void *cookie)
-{
-    char *pos;
-    size_t nbytes;
-
-    if (klen == 0  || vlen == 0) {
-        return ;
-    }
-
-    pos = (char*)cookie;
-    nbytes = strlen(pos);
-
-    if ((nbytes + klen + vlen + 3) > 1024) {
-        /* Not enough size in the buffer.. */
-        return;
-    }
-
-    memcpy(pos + nbytes, key, klen);
-    nbytes += klen;
-    pos[nbytes] = '=';
-    ++nbytes;
-    memcpy(pos + nbytes, val, vlen);
-    nbytes += vlen;
-    memcpy(pos + nbytes, ";", 2);
-}
-
-static bool get_config(struct config_item items[]) {
-    char config[1024];
-    int rval;
-
-    config[0] = '\0';
-    process_stat_settings(get_config_append_stats, config);
-    rval = parse_config(config, items, NULL);
-    return rval >= 0;
-}
-
 /**
  * Callback the engines may call to get the public server interface
  * @return pointer to a structure containing the interface. The client should
@@ -1697,13 +1659,11 @@ static SERVER_HANDLE_V1 *get_server_api(void)
 
     if (!init) {
         init = 1;
-        core_api.server_version = get_server_version;
         core_api.realtime = mc_time_convert_to_real_time;
         core_api.abstime = mc_time_convert_to_abs_time;
         core_api.get_current_time = mc_time_get_current_time;
         core_api.parse_config = parse_config;
         core_api.shutdown = shutdown_server;
-        core_api.get_config = get_config;
 
         server_cookie_api.store_engine_specific = store_engine_specific;
         server_cookie_api.get_engine_specific = get_engine_specific;
@@ -1715,7 +1675,6 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.notify_io_complete = notify_io_complete;
         server_cookie_api.reserve = reserve_cookie;
         server_cookie_api.release = release_cookie;
-        server_cookie_api.is_admin = cookie_is_admin;
         server_cookie_api.set_priority = cookie_set_priority;
         server_cookie_api.get_bucket_id = get_bucket_id;
 

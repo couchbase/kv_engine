@@ -154,10 +154,6 @@ static void mock_set_priority(const void* cookie, CONN_PRIORITY priority) {
     (void) priority;
 }
 
-static const char *mock_get_server_version(void) {
-    return "mock server";
-}
-
 /* time-sensitive callers can call it by hand with this, outside the
    normal ever-1-second timer */
 static rel_time_t mock_get_current_time(void) {
@@ -357,7 +353,6 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
    static int init;
    if (!init) {
       init = 1;
-      core_api.server_version = mock_get_server_version;
       core_api.realtime = mock_realtime;
       core_api.get_current_time = mock_get_current_time;
       core_api.abstime = mock_abstime;

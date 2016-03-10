@@ -27,13 +27,6 @@ extern "C" {
         time_t (*abstime)(const rel_time_t exptime);
 
         /**
-         * Get the server's version number.
-         *
-         * @return the server's version number
-         */
-        const char* (*server_version)(void);
-
-        /**
          * parser config options
          */
         int (*parse_config)(const char *str, struct config_item items[], FILE *error);
@@ -42,13 +35,6 @@ extern "C" {
          * Request the server to start a shutdown sequence.
          */
         void (*shutdown)(void);
-
-        /**
-         * Get the current configuration from the core..
-         * See "stats settings" for a list of legal keywords
-         */
-        bool (*get_config)(struct config_item items[]);
-
     } SERVER_CORE_API;
 
     typedef struct {
@@ -158,11 +144,6 @@ extern "C" {
          * the memory)
          */
         ENGINE_ERROR_CODE (*release)(const void *cookie);
-
-        /**
-         * See if this connection have admin access or not
-         */
-        bool (*is_admin)(const void *cookie);
 
         /**
          * Set the priority for this connection
