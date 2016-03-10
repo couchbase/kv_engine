@@ -309,9 +309,6 @@ void del_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                   const size_t keylen, const uint32_t vb,
                   const uint64_t cas = 0, const void *cookie = NULL);
 
-// DCP Operations
-void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie);
-
 void set_degraded_mode(ENGINE_HANDLE *h,
                        ENGINE_HANDLE_V1 *h1,
                        const void* cookie,
