@@ -43,6 +43,29 @@
 
 #include "mock/mock_dcp.h"
 
+#undef THREAD_SANITIZER
+#if __clang__
+#  if defined(__has_feature) && __has_feature(thread_sanitizer)
+#define THREAD_SANITIZER
+#  endif
+#endif
+
+// Default number of iterations for tests. Individual tests may
+// override this, but is generally desirable for them to scale the
+// default iteration count instead of blindly overriding it.
+const size_t ITERATIONS =
+#if defined(THREAD_SANITIZER)
+    // Reduced iteration count for ThreadSanitizer, as it runs ~20x
+    // slower than without TSan.  Note: We don't actually track
+    // performance when run under TSan, however the workloads of this
+    // testsuite are still useful to run under TSan to expose any data
+    // race issues.
+    100000 / 20;
+#else
+    // Set to a value a typical ~2015 laptop can run Baseline in 3s.
+    100000;
+#endif
+
 template<typename T>
 struct Stats {
     std::string name;
@@ -223,9 +246,9 @@ static void perf_latency_core(ENGINE_HANDLE *h,
 
     // Append
     // To be "evil" to append, we don't append once to each key, but instead
-    // append to one key until we've exceeded 1MiB.
+    // append to one key the 10x given iteration count bytes.
     std::string append_data('y', 50);
-    for (int ii = 0; ii < (1024*1024); ii += append_data.size()) {
+    for (size_t ii = 0; ii < ITERATIONS * 10; ii += append_data.size()) {
         item* item = NULL;
         const hrtime_t start = gethrtime();
         checkeq(ENGINE_SUCCESS,
@@ -290,21 +313,22 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
  */
 static enum test_result perf_latency_baseline(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    return perf_latency(h, h1, "Baseline", 100000);
+
+    return perf_latency(h, h1, "Baseline", ITERATIONS);
 }
 
 /* Benchmark the baseline latency with the defragmenter enabled.
  */
 static enum test_result perf_latency_defragmenter(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
-    return perf_latency(h, h1, "With constant defragmention", 100000);
+    return perf_latency(h, h1, "With constant defragmention", ITERATIONS);
 }
 
 /* Benchmark the baseline latency with the defragmenter enabled.
  */
 static enum test_result perf_latency_expiry_pager(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
-    return perf_latency(h, h1, "With constant Expiry pager", 100000);
+    return perf_latency(h, h1, "With constant Expiry pager", ITERATIONS);
 }
 
 class ThreadArguments {
@@ -628,7 +652,7 @@ static void perf_load_client(ENGINE_HANDLE *h,
     for (int i = 0; i < count; ++i) {
         keys.push_back("key" + std::to_string(i));
     }
-    vals = genVectorOfValues(typeOfData, count, 100000);
+    vals = genVectorOfValues(typeOfData, count, ITERATIONS);
 
     for (int i = 0; i < count; ++i) {
         checkeq(storeCasVb11(h, h1, NULL, OPERATION_SET, keys[i].c_str(),
@@ -916,21 +940,21 @@ static enum test_result perf_dcp_latency_with_padded_json(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     return perf_dcp_latency_and_bandwidth(h, h1,
                             "DCP In-memory (JSON-PADDED) [As_is vs. Compress]",
-                            Doc_format::JSON_PADDED, 10000);
+                            Doc_format::JSON_PADDED, ITERATIONS / 10);
 }
 
 static enum test_result perf_dcp_latency_with_random_json(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     return perf_dcp_latency_and_bandwidth(h, h1,
                             "DCP In-memory (JSON-RAND) [As_is vs. Compress]",
-                            Doc_format::JSON_RANDOM, 5000);
+                            Doc_format::JSON_RANDOM, ITERATIONS / 20);
 }
 
 static enum test_result perf_dcp_latency_with_random_binary(ENGINE_HANDLE *h,
                                                             ENGINE_HANDLE_V1 *h1) {
     return perf_dcp_latency_and_bandwidth(h, h1,
                             "DCP In-memory (BINARY-RAND) [As_is vs. Compress]",
-                            Doc_format::BINARY_RANDOM, 5000);
+                            Doc_format::BINARY_RANDOM, ITERATIONS / 20);
 }
 
 static enum test_result perf_multi_thread_latency(engine_test_t* test) {
@@ -945,7 +969,7 @@ static enum test_result perf_latency_dcp_impact(ENGINE_HANDLE *h,
     // Spin up a DCP replication background thread, then start the normal
     // latency test.
     cb_thread_t dcp_thread;
-    const size_t num_docs = 100000;
+    const size_t num_docs = ITERATIONS;
     // Perform 3 DCP-visible operations - add, replace, delete:
     const size_t num_dcp_ops = num_docs * 3;
 
@@ -967,7 +991,7 @@ static enum test_result perf_latency_tap_impact(ENGINE_HANDLE *h,
     // Spin up a TAP replication background thread, then start the normal
     // latency test.
     cb_thread_t tap_thread;
-    const size_t num_docs = 100000;
+    const size_t num_docs = ITERATIONS;
     // Perform 3 TAP-visible operations - add, replace, delete:
     const size_t num_ops = num_docs * 3;
 
