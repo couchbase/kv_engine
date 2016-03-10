@@ -421,6 +421,14 @@ ADD_LIBRARY(ep_testsuite_tap SHARED
 SET_TARGET_PROPERTIES(ep_testsuite_tap PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite_tap JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 
+ADD_LIBRARY(ep_testsuite_checkpoint SHARED
+   tests/ep_testsuite_common.cc
+   tests/ep_testsuite_checkpoint.cc
+   tests/ep_test_apis.cc
+   src/ext_meta_parser.cc)
+SET_TARGET_PROPERTIES(ep_testsuite_checkpoint PROPERTIES PREFIX "")
+TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+
 ADD_LIBRARY(ep_perfsuite SHARED
    tests/ep_perfsuite.cc
    src/ext_meta_parser.cc
@@ -541,7 +549,7 @@ ADD_TEST(NAME ep-engine_full_eviction_dcp
 SET_TESTS_PROPERTIES(ep-engine_full_eviction_dcp PROPERTIES TIMEOUT 1200)
 
 
-# TAP Testa
+# TAP Tests
 SET(_ep_testsuite_tap_cmdline
     ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_tap.so)
 ADD_TEST(NAME ep-engine_value_eviction_tap
@@ -550,6 +558,16 @@ ADD_TEST(NAME ep-engine_full_eviction_tap
          COMMAND ${_ep_testsuite_tap_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_tap")
 SET_TESTS_PROPERTIES(ep-engine_value_eviction_tap PROPERTIES TIMEOUT 120)
 SET_TESTS_PROPERTIES(ep-engine_full_eviction_tap PROPERTIES TIMEOUT 120)
+
+# Checkpoint Tests
+SET(_ep_testsuite_checkpoint_cmdline
+    ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_checkpoint.so)
+ADD_TEST(NAME ep-engine_value_eviction_checkpoint
+         COMMAND ${_ep_testsuite_checkpoint_cmdline} -v -e "dbname=./value_eviction_checkpoint")
+ADD_TEST(NAME ep-engine_full_eviction_checkpoint
+         COMMAND ${_ep_testsuite_checkpoint_cmdline} -v -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_checkpoint")
+SET_TESTS_PROPERTIES(ep-engine_value_eviction_checkpoint PROPERTIES TIMEOUT 120)
+SET_TESTS_PROPERTIES(ep-engine_full_eviction_checkpoint PROPERTIES TIMEOUT 120)
 
 # ============================================================================ #
 
