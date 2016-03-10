@@ -89,6 +89,8 @@ private:
 
     const char* to_string(Cmd cmd);
 
+    uint64_t (*get_connection_id)(const void* cookie);
+
 public:
     EWB_Engine(GET_SERVER_API gsa_);
 
@@ -106,13 +108,17 @@ public:
      */
     bool should_inject_error(Cmd cmd, const void* cookie,
                              ENGINE_ERROR_CODE& err) {
+
+        uint64_t id = get_connection_id(cookie);
+
         std::lock_guard<std::mutex> guard(cookie_map_mutex);
-        auto& state = cookie_map[cookie];
-        if (state == nullptr) {
+
+        auto iter = connection_map.find(id);
+        if (iter == connection_map.end()) {
             return false;
         }
 
-        const bool inject = state->should_inject_error(cmd, err);
+        const bool inject = iter->second.second->should_inject_error(cmd, err);
 
         if (inject) {
             auto logger = gsa()->log->get_logger();
@@ -126,7 +132,7 @@ public:
                 // ready - so add this op to the pending IO queue.
                 {
                     std::lock_guard<std::mutex> guard(mutex);
-                    pending_io_ops.push(cookie);
+                    pending_io_ops.push(iter->second.first);
                 }
                 condvar.notify_one();
             }
@@ -389,10 +395,12 @@ public:
                                 "%s for cookie %d", new_mode->to_string().c_str(),
                                 cookie);
 
+                    uint64_t id = ewb->get_connection_id(cookie);
+
                     {
                         std::lock_guard<std::mutex> guard(ewb->cookie_map_mutex);
-                        ewb->cookie_map.erase(cookie);
-                        ewb->cookie_map[cookie] = new_mode;
+                        ewb->connection_map.erase(id);
+                        ewb->connection_map.emplace(id, std::make_pair(cookie, new_mode));
                     }
 
                     response(nullptr, 0, nullptr, 0, nullptr, 0,
@@ -626,7 +634,7 @@ private:
     };
 
     // Map of connections (aka cookies) to their current mode.
-    std::map<const void*, std::shared_ptr<FaultInjectMode> > cookie_map;
+    std::map<uint64_t, std::pair<const void*, std::shared_ptr<FaultInjectMode> > > connection_map;
     // Mutex for above map.
     std::mutex cookie_map_mutex;
 };
@@ -681,6 +689,8 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     info.eng_info.features[info.eng_info.num_features++].feature = ENGINE_FEATURE_DATATYPE;
 
     clustermap_revno = 1;
+
+    get_connection_id = gsa()->cookie->get_connection_id;
 
     // Spin up a background thread to perform IO notifications.
     if (cb_create_named_thread(&notification_thread, &process_pending_queue,

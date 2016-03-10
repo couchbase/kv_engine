@@ -157,6 +157,14 @@ extern "C" {
          * @return the bucket identifier for a cookie
          */
         bucket_id_t (*get_bucket_id)(const void *cookie);
+
+        /**
+         * Get connection id
+         *
+         * @param cookie the cookie sent to the engine for an operation
+         * @return a unique identifier for a connection
+         */
+        uint64_t (*get_connection_id)(const void* cookie);
     } SERVER_COOKIE_API;
 
 #ifdef WIN32

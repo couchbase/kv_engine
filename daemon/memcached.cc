@@ -561,6 +561,10 @@ bucket_id_t get_bucket_id(const void *cookie) {
     return bucket_id_t(((Connection*)(cookie))->getBucketIndex());
 }
 
+uint64_t get_connection_id(const void *cookie) {
+    return uint64_t(cookie);
+}
+
 static void cbsasl_refresh_main(void *c)
 {
     int rv = cbsasl_server_refresh();
@@ -1677,6 +1681,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.release = release_cookie;
         server_cookie_api.set_priority = cookie_set_priority;
         server_cookie_api.get_bucket_id = get_bucket_id;
+        server_cookie_api.get_connection_id = get_connection_id;
 
         server_stat_api.evicting = count_eviction;
 
