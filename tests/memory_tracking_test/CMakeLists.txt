@@ -1,5 +1,6 @@
 IF (NOT MEMORY_ALLOCATOR STREQUAL "system")
-  ADD_EXECUTABLE(memcached_memory_tracking_test ${MEMORY_TRACKING_SRCS}
+  ADD_EXECUTABLE(memcached_memory_tracking_test
+    $<TARGET_OBJECTS:memory_tracking>
     ${Memcached_SOURCE_DIR}/utilities/extension_loggers.c
     memory_tracking_test.cc)
   TARGET_LINK_LIBRARIES(memcached_memory_tracking_test platform ${MALLOC_LIBRARIES})
