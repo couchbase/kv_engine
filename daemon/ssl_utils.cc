@@ -21,6 +21,7 @@
 #include <cctype>
 #include <openssl/ssl.h>
 #include <stdexcept>
+#include <string>
 #include "ssl_utils.h"
 
 long decode_ssl_protocol(const char* protocol) {
