@@ -599,7 +599,8 @@ void threads_initiate_bucket_deletion(void)
 }
 
 void notify_thread(LIBEVENT_THREAD *thread) {
-    if (send(thread->notify[1], "", 1, 0) != 1) {
+    if (send(thread->notify[1], "", 1, 0) != 1 &&
+            !is_blocking(GetLastNetworkError())) {
         log_socket_error(EXTENSION_LOG_WARNING, NULL,
                          "Failed to notify thread: %s");
     }
