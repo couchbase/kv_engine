@@ -162,7 +162,8 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     if (name.find("replication") < name.length()) {
         supportsCursorDropping = false;
     } else {
-        supportsCursorDropping = true;
+        /* MB-18256: Disabling cursor droppping temporarily */
+        supportsCursorDropping = false;
     }
 
     backfillMgr = new BackfillManager(&engine_);
