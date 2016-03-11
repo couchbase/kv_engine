@@ -2127,8 +2127,11 @@ GetValue EventuallyPersistentStore::getInternal(const std::string &key,
                             true, v->getNRUValue());
         }
 
-        GetValue rv(v->toItem(v->isLocked(ep_current_time()), vbucket),
-                    ENGINE_SUCCESS, v->getBySeqno(), false, v->getNRUValue());
+        // Should we hide (return -1) for the items' CAS?
+        const bool hide_cas = (options & HIDE_LOCKED_CAS) &&
+                              v->isLocked(ep_current_time());
+        GetValue rv(v->toItem(hide_cas, vbucket), ENGINE_SUCCESS,
+                    v->getBySeqno(), false, v->getNRUValue());
         return rv;
     } else {
         if (eviction_policy == VALUE_ONLY || diskFlushAll) {
