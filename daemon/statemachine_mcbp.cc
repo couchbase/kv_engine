@@ -119,7 +119,7 @@ const char* McbpStateMachine::getTaskName(TaskFunction task) const {
 static void reset_cmd_handler(McbpConnection *c) {
     c->setCmd(-1);
     if(c->getItem() != nullptr) {
-        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, c->getItem());
+        bucket_release_item(c, c->getItem());
         c->setItem(nullptr);
     }
 
@@ -434,7 +434,7 @@ bool conn_pending_close(McbpConnection *c) {
      * tell the tap connection that we're disconnecting it now,
      * but give it a grace period
      */
-    perform_callbacks(ON_DISCONNECT, NULL, c);
+    perform_callbacks(ON_DISCONNECT, NULL, c->getCookie());
 
     if (c->getRefcount() > 1) {
         return false;
@@ -462,7 +462,7 @@ bool conn_immediate_close(McbpConnection *c) {
         }
     }
 
-    perform_callbacks(ON_DISCONNECT, NULL, c);
+    perform_callbacks(ON_DISCONNECT, NULL, c->getCookie());
     disassociate_bucket(c);
     conn_close(c);
 

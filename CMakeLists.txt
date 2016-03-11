@@ -39,6 +39,19 @@ CHECK_C_SOURCE_COMPILES("
          }" HAVE_PKCS5_PBKDF2_HMAC)
 CMAKE_POP_CHECK_STATE()
 
+CMAKE_PUSH_CHECK_STATE(RESET)
+CHECK_CXX_SOURCE_COMPILES("
+   int main() {
+       const char* func = __func__;
+       return 1;
+   }" HAVE_FUNC)
+
+CHECK_CXX_SOURCE_COMPILES("
+   int main() {
+       const char* func = __FUNCTION__;
+       return 1;
+   }" HAVE_FUNCTION)
+CMAKE_POP_CHECK_STATE()
 
 IF (EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
     EXECUTE_PROCESS(COMMAND git log -1 --pretty=format:%H

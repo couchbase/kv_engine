@@ -296,55 +296,64 @@ ENGINE_ERROR_CODE refresh_ssl_certs(Connection *c);
 
 /* Wrap the engine interface ! */
 
-static inline ENGINE_ERROR_CODE bucket_unknown_command(Connection* c,
+static inline ENGINE_ERROR_CODE bucket_unknown_command(McbpConnection* c,
                                                        protocol_binary_request_header* request,
                                                        ADD_RESPONSE response) {
-    return c->getBucketEngine()->unknown_command(c->getBucketEngineAsV0(), c,
+    return c->getBucketEngine()->unknown_command(c->getBucketEngineAsV0(),
+                                                 c->getCookie(),
                                                  request, response);
 }
 
-static inline void bucket_item_set_cas(Connection* c, item* it, uint64_t cas) {
-    c->getBucketEngine()->item_set_cas(c->getBucketEngineAsV0(), c, it, cas);
+static inline void bucket_item_set_cas(McbpConnection* c, item* it, uint64_t cas) {
+    c->getBucketEngine()->item_set_cas(c->getBucketEngineAsV0(), c->getCookie(),
+                                       it, cas);
 }
 
-static inline void bucket_reset_stats(Connection* c) {
-    c->getBucketEngine()->reset_stats(c->getBucketEngineAsV0(), c);
+static inline void bucket_reset_stats(McbpConnection* c) {
+    c->getBucketEngine()->reset_stats(c->getBucketEngineAsV0(), c->getCookie());
 }
 
-static inline ENGINE_ERROR_CODE bucket_get_engine_vb_map(Connection* c,
+static inline ENGINE_ERROR_CODE bucket_get_engine_vb_map(McbpConnection* c,
                                                          engine_get_vb_map_cb callback) {
     return c->getBucketEngine()->get_engine_vb_map(c->getBucketEngineAsV0(),
-                                                   c, callback);
+                                                   c->getCookie(), callback);
 }
 
-static inline bool bucket_get_item_info(Connection* c, const item* item_,
+static inline bool bucket_get_item_info(McbpConnection* c, const item* item_,
                                         item_info* item_info_) {
     return c->getBucketEngine()->get_item_info(c->getBucketEngineAsV0(),
-                                               c, item_, item_info_);
+                                               c->getCookie(), item_,
+                                               item_info_);
 }
 
-static inline bool bucket_set_item_info(Connection* c, item* item_,
+static inline bool bucket_set_item_info(McbpConnection* c, item* item_,
                                         const item_info* item_info_) {
     return c->getBucketEngine()->set_item_info(c->getBucketEngineAsV0(),
-                                               c, item_, item_info_);
+                                               c->getCookie(), item_,
+                                               item_info_);
 }
 
-static inline ENGINE_ERROR_CODE bucket_store(Connection* c,
+static inline ENGINE_ERROR_CODE bucket_store(McbpConnection* c,
                                              item* item_,
                                              uint64_t* cas,
                                              ENGINE_STORE_OPERATION operation,
                                              uint16_t vbucket) {
-    return c->getBucketEngine()->store(c->getBucketEngineAsV0(), c, item_,
-                                       cas, operation, vbucket);
+    return c->getBucketEngine()->store(c->getBucketEngineAsV0(), c->getCookie(),
+                                       item_, cas, operation, vbucket);
 }
 
-static inline ENGINE_ERROR_CODE bucket_get(Connection* c,
+static inline ENGINE_ERROR_CODE bucket_get(McbpConnection* c,
                                            item** item_,
                                            const void* key,
                                            const int nkey,
                                            uint16_t vbucket) {
-    return c->getBucketEngine()->get(c->getBucketEngineAsV0(), c, item_,
-                                     key, nkey, vbucket);
+    return c->getBucketEngine()->get(c->getBucketEngineAsV0(), c->getCookie(),
+                                     item_, key, nkey, vbucket);
+}
+
+static inline void bucket_release_item(McbpConnection* c, item* it) {
+    c->getBucketEngine()->release(c->getBucketEngineAsV0(),
+                                  c->getCookie(), it);
 }
 
 /**

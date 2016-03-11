@@ -237,7 +237,7 @@ static void populate_log_level(void*) {
 /* Perform all callbacks of a given type for the given connection. */
 void perform_callbacks(ENGINE_EVENT_TYPE type,
                        const void *data,
-                       const void *cookie)
+                       const void *void_cookie)
 {
     cb_thread_t tid;
 
@@ -247,31 +247,35 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
          * as the cookie.
          */
     case ON_DISCONNECT: {
-        const Connection * connection = reinterpret_cast<const Connection *>(cookie);
-        if (connection == nullptr) {
-            throw std::invalid_argument("perform_callbacks: cookie is NULL");
+        const auto * cookie = reinterpret_cast<const Cookie *>(void_cookie);
+        if (cookie == nullptr) {
+            throw std::invalid_argument("perform_callbacks: cookie is nullptr");
         }
-        const auto bucket_idx = connection->getBucketIndex();
+        cookie->validate();
+        if (cookie->connection == nullptr) {
+            throw std::invalid_argument("perform_callbacks: connection is NULL");
+        }
+        const auto bucket_idx = cookie->connection->getBucketIndex();
         if (bucket_idx == -1) {
             throw std::logic_error("perform_callbacks: connection (which is " +
-                        std::to_string(connection->getId()) + ") cannot be "
+                        std::to_string(cookie->connection->getId()) + ") cannot be "
                         "disconnected as it is not associated with a bucket");
         }
 
         for (auto& handler : all_buckets[bucket_idx].engine_event_handlers[type]) {
-            handler.cb(cookie, ON_DISCONNECT, data, handler.cb_data);
+            handler.cb(void_cookie, ON_DISCONNECT, data, handler.cb_data);
         }
         break;
     }
     case ON_LOG_LEVEL:
-        if (cookie != nullptr) {
+        if (void_cookie != nullptr) {
             throw std::invalid_argument("perform_callbacks: cookie "
                 "(which is " +
-                std::to_string(reinterpret_cast<uintptr_t>(cookie)) +
+                std::to_string(reinterpret_cast<uintptr_t>(void_cookie)) +
                 ") should be NULL for ON_LOG_LEVEL");
         }
         for (auto& handler : engine_event_handlers[type]) {
-            handler.cb(cookie, ON_LOG_LEVEL, data, handler.cb_data);
+            handler.cb(void_cookie, ON_LOG_LEVEL, data, handler.cb_data);
         }
 
         if (service_online) {
@@ -285,15 +289,15 @@ void perform_callbacks(ENGINE_EVENT_TYPE type,
 
     case ON_DELETE_BUCKET: {
         /** cookie is the bucket entry */
-        auto* bucket = reinterpret_cast<const Bucket*>(cookie);
+        auto* bucket = reinterpret_cast<const Bucket*>(void_cookie);
         for (auto& handler : bucket->engine_event_handlers[type]) {
-            handler.cb(cookie, ON_DELETE_BUCKET, data, handler.cb_data);
+            handler.cb(void_cookie, ON_DELETE_BUCKET, data, handler.cb_data);
         }
         break;
     }
 
     case ON_INIT_COMPLETE:
-        if ((data != nullptr) || (cookie != nullptr)) {
+        if ((data != nullptr) || (void_cookie != nullptr)) {
             throw std::invalid_argument("perform_callbacks: data and cookie"
                                             " should be nullptr");
         }
@@ -381,8 +385,16 @@ struct thread_stats *get_thread_stats(Connection *c) {
     return &independent_stats[c->getThread()->index];
 }
 
-void stats_reset(const void *cookie) {
-    auto *conn = (Connection *)cookie;
+void stats_reset(const void *void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+    if (cookie->connection == nullptr) {
+        throw std::logic_error("stats_reset: connection can't be null");
+    }
+    // Using dynamic cast to ensure a coredump when we implement this for
+    // Greenstack and fix it
+    auto* conn = dynamic_cast<McbpConnection*>(cookie->connection);
+
     {
         std::lock_guard<std::mutex> guard(stats_mutex);
         set_stats_reset_time();
@@ -553,16 +565,26 @@ void safe_close(SOCKET sfd) {
     }
 }
 
-bucket_id_t get_bucket_id(const void *cookie) {
+bucket_id_t get_bucket_id(const void *void_cookie) {
     /* @todo fix this. Currently we're using the index as the id,
      * but this should be changed to be a uniqe ID that won't be
      * reused.
      */
-    return bucket_id_t(((Connection*)(cookie))->getBucketIndex());
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+    if (cookie->connection == nullptr) {
+        throw std::logic_error("get_bucket_id: connection can't be null");
+    }
+    return bucket_id_t(cookie->connection->getBucketIndex());
 }
 
-uint64_t get_connection_id(const void *cookie) {
-    return uint64_t(cookie);
+uint64_t get_connection_id(const void *void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+    if (cookie->connection == nullptr) {
+        throw std::logic_error("get_connection_id: connection can't be null");
+    }
+    return uint64_t(cookie->connection);
 }
 
 static void cbsasl_refresh_main(void *c)
@@ -580,8 +602,12 @@ ENGINE_ERROR_CODE refresh_cbsasl(Connection *c)
     cb_thread_t tid;
     int err;
 
-    err = cb_create_named_thread(&tid, cbsasl_refresh_main, c, 1,
-                                 "mc:refresh_sasl");
+    // @todo refactor and move this code over to MCBP
+    auto* conn = dynamic_cast<McbpConnection*>(c);
+
+    err = cb_create_named_thread(&tid, cbsasl_refresh_main,
+                                 const_cast<void*>(conn->getCookie()),
+                                 1, "mc:refresh_sasl");
     if (err != 0) {
         LOG_WARNING(c, "Failed to create cbsasl db update thread: %s",
                     strerror(err));
@@ -1360,31 +1386,57 @@ const char* get_server_version(void) {
     }
 }
 
-static void store_engine_specific(const void *cookie,
+static void store_engine_specific(const void *void_cookie,
                                   void *engine_data) {
-    Connection *c = (Connection *)cookie;
-    c->setEngineStorage(engine_data);
+
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("store_engine_specific: cookie must represent connection");
+    }
+    cookie->connection->setEngineStorage(engine_data);
 }
 
-static void *get_engine_specific(const void *cookie) {
-    Connection *c = (Connection *)cookie;
-    return c->getEngineStorage();
+static void *get_engine_specific(const void *void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("get_engine_specific: cookie must represent connection");
+    }
+    return cookie->connection->getEngineStorage();
 }
 
-static bool is_datatype_supported(const void *cookie) {
-    Connection *c = (Connection *)cookie;
-    return c->isSupportsDatatype();
+static bool is_datatype_supported(const void *void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("is_datatype_supported: cookie must represent connection");
+    }
+    return cookie->connection->isSupportsDatatype();
 }
 
-static bool is_mutation_extras_supported(const void *cookie) {
-    Connection *c = (Connection *)cookie;
-    return c->isSupportsMutationExtras();
+static bool is_mutation_extras_supported(const void *void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("is_mutation_extras_supported: cookie must represent connection");
+    }
+    return cookie->connection->isSupportsMutationExtras();
 }
 
-static uint8_t get_opcode_if_ewouldblock_set(const void *cookie) {
+static uint8_t get_opcode_if_ewouldblock_set(const void *void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("get_opcode_if_ewouldblock_set: cookie must represent connection");
+    }
+
     uint8_t opcode = PROTOCOL_BINARY_CMD_INVALID;
-    Connection *c = (Connection *)cookie;
-    auto* mc = dynamic_cast<McbpConnection*>(c);
+    auto* mc = dynamic_cast<McbpConnection*>(cookie->connection);
     if (mc != nullptr && mc->isEwouldblock()) {
         opcode = mc->binary_header.request.opcode;
     }
@@ -1399,17 +1451,31 @@ static void decrement_session_ctr(void) {
     session_cas.decrement_session_counter();
 }
 
-static ENGINE_ERROR_CODE reserve_cookie(const void *cookie) {
-    Connection *c = (Connection *)cookie;
-    c->incrementRefcount();
+static ENGINE_ERROR_CODE reserve_cookie(const void *void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("reserve_cookie: cookie must represent connection");
+    }
+
+    cookie->connection->incrementRefcount();
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
-    if (cookie == nullptr) {
+static ENGINE_ERROR_CODE release_cookie(const void *void_cookie) {
+    if (void_cookie == nullptr) {
         throw std::invalid_argument("release_cookie: 'cookie' must be non-NULL");
     }
-    Connection *c = (Connection *)cookie;
+
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("release_cookie: cookie must represent connection");
+    }
+
+    Connection *c = cookie->connection;
     int notify;
     LIBEVENT_THREAD *thr;
 
@@ -1435,22 +1501,38 @@ static ENGINE_ERROR_CODE release_cookie(const void *cookie) {
     return ENGINE_SUCCESS;
 }
 
-bool cookie_is_admin(const void *cookie) {
+bool cookie_is_admin(const void *void_cookie) {
     if (settings.disable_admin) {
         return true;
     }
-    if (cookie == nullptr) {
+
+    if (void_cookie == nullptr) {
         throw std::invalid_argument("cookie_is_admin: 'cookie' must be non-NULL");
     }
-    return reinterpret_cast<const Connection *>(cookie)->isAdmin();
+
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("reserve_cookie: cookie must represent connection");
+    }
+
+    return cookie->connection->isAdmin();
 }
 
-static void cookie_set_priority(const void* cookie, CONN_PRIORITY priority) {
-    if (cookie == nullptr) {
+static void cookie_set_priority(const void* void_cookie, CONN_PRIORITY priority) {
+    if (void_cookie == nullptr) {
         throw std::invalid_argument("cookie_set_priority: 'cookie' must be non-NULL");
     }
 
-    auto* c = (Connection*)(cookie);
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("reserve_cookie: cookie must represent connection");
+    }
+
+    auto* c = cookie->connection;
     switch (priority) {
     case CONN_PRIORITY_HIGH:
         c->setPriority(Connection::Priority::High);

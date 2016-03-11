@@ -115,7 +115,13 @@ void close_all_connections(void)
             }
 
             if (c->getRefcount() > 1) {
-                perform_callbacks(ON_DISCONNECT, NULL, c);
+                // @todo fix this for Greenstack
+                auto* mcbp = dynamic_cast<McbpConnection*>(c);
+                if (mcbp == nullptr) {
+                    abort();
+                } else {
+                    perform_callbacks(ON_DISCONNECT, NULL, mcbp);
+                }
             }
         }
     }
@@ -317,7 +323,7 @@ struct listening_port *get_listening_port_instance(const in_port_t port) {
     return nullptr;
 }
 
-void connection_stats(ADD_STAT add_stats, Connection *cookie, const int64_t fd) {
+void connection_stats(ADD_STAT add_stats, const void* cookie, const int64_t fd) {
     std::lock_guard<std::mutex> lock(connections.mutex);
     for (auto *c : connections.conns) {
         if (c->getSocketDescriptor() == fd || fd == -1) {

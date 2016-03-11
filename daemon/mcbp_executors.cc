@@ -244,7 +244,7 @@ void add_stat(const void* cookie, ADD_STAT add_stat_callback,
 
 /* return server specific stats only */
 static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
-                                      Connection* c) {
+                                      McbpConnection* c) {
 #ifdef WIN32
     long pid = GetCurrentProcessId();
 #else
@@ -256,50 +256,52 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
     thread_stats.aggregate(all_buckets[c->getBucketIndex()].stats,
                            settings.num_threads);
 
+    auto* cookie = c->getCookie();
+
     try {
         std::lock_guard<std::mutex> guard(stats_mutex);
 
-        add_stat(c, add_stat_callback, "pid", pid);
-        add_stat(c, add_stat_callback, "uptime", now);
-        add_stat(c, add_stat_callback, "stat_reset",
+        add_stat(cookie, add_stat_callback, "pid", pid);
+        add_stat(cookie, add_stat_callback, "uptime", now);
+        add_stat(cookie, add_stat_callback, "stat_reset",
                  (const char*)reset_stats_time);
-        add_stat(c, add_stat_callback, "time",
+        add_stat(cookie, add_stat_callback, "time",
                  mc_time_convert_to_abs_time(now));
-        add_stat(c, add_stat_callback, "version", get_server_version());
-        add_stat(c, add_stat_callback, "memcached_version", MEMCACHED_VERSION);
-        add_stat(c, add_stat_callback, "libevent", event_get_version());
-        add_stat(c, add_stat_callback, "pointer_size", (8 * sizeof(void*)));
+        add_stat(cookie, add_stat_callback, "version", get_server_version());
+        add_stat(cookie, add_stat_callback, "memcached_version", MEMCACHED_VERSION);
+        add_stat(cookie, add_stat_callback, "libevent", event_get_version());
+        add_stat(cookie, add_stat_callback, "pointer_size", (8 * sizeof(void*)));
 
-        add_stat(c, add_stat_callback, "daemon_connections",
+        add_stat(cookie, add_stat_callback, "daemon_connections",
                  stats.daemon_conns);
-        add_stat(c, add_stat_callback, "curr_connections",
+        add_stat(cookie, add_stat_callback, "curr_connections",
                  stats.curr_conns.load(std::memory_order_relaxed));
         for (auto& instance : stats.listening_ports) {
             std::string key =
                 "max_conns_on_port_" + std::to_string(instance.port);
-            add_stat(c, add_stat_callback, key.c_str(), instance.maxconns);
+            add_stat(cookie, add_stat_callback, key.c_str(), instance.maxconns);
             key = "curr_conns_on_port_" + std::to_string(instance.port);
-            add_stat(c, add_stat_callback, key.c_str(), instance.curr_conns);
+            add_stat(cookie, add_stat_callback, key.c_str(), instance.curr_conns);
         }
-        add_stat(c, add_stat_callback, "total_connections", stats.total_conns);
-        add_stat(c, add_stat_callback, "connection_structures",
+        add_stat(cookie, add_stat_callback, "total_connections", stats.total_conns);
+        add_stat(cookie, add_stat_callback, "connection_structures",
                  stats.conn_structs);
-        add_stat(c, add_stat_callback, "cmd_get", thread_stats.cmd_get);
-        add_stat(c, add_stat_callback, "cmd_set", thread_stats.cmd_set);
-        add_stat(c, add_stat_callback, "cmd_flush", thread_stats.cmd_flush);
+        add_stat(cookie, add_stat_callback, "cmd_get", thread_stats.cmd_get);
+        add_stat(cookie, add_stat_callback, "cmd_set", thread_stats.cmd_set);
+        add_stat(cookie, add_stat_callback, "cmd_flush", thread_stats.cmd_flush);
 
-        add_stat(c, add_stat_callback, "cmd_subdoc_lookup",
+        add_stat(cookie, add_stat_callback, "cmd_subdoc_lookup",
                  thread_stats.cmd_subdoc_lookup);
-        add_stat(c, add_stat_callback, "cmd_subdoc_mutation",
+        add_stat(cookie, add_stat_callback, "cmd_subdoc_mutation",
                  thread_stats.cmd_subdoc_mutation);
 
-        add_stat(c, add_stat_callback, "bytes_subdoc_lookup_total",
+        add_stat(cookie, add_stat_callback, "bytes_subdoc_lookup_total",
                  thread_stats.bytes_subdoc_lookup_total);
-        add_stat(c, add_stat_callback, "bytes_subdoc_lookup_extracted",
+        add_stat(cookie, add_stat_callback, "bytes_subdoc_lookup_extracted",
                  thread_stats.bytes_subdoc_lookup_extracted);
-        add_stat(c, add_stat_callback, "bytes_subdoc_mutation_total",
+        add_stat(cookie, add_stat_callback, "bytes_subdoc_mutation_total",
                  thread_stats.bytes_subdoc_mutation_total);
-        add_stat(c, add_stat_callback, "bytes_subdoc_mutation_inserted",
+        add_stat(cookie, add_stat_callback, "bytes_subdoc_mutation_inserted",
                  thread_stats.bytes_subdoc_mutation_inserted);
 
         // index 0 contains the aggregated timings for all buckets
@@ -307,46 +309,46 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
         uint64_t total_mutations = timings.get_aggregated_mutation_stats();
         uint64_t total_retrivals = timings.get_aggregated_retrival_stats();
         uint64_t total_ops = total_retrivals + total_mutations;
-        add_stat(c, add_stat_callback, "cmd_total_sets", total_mutations);
-        add_stat(c, add_stat_callback, "cmd_total_gets", total_retrivals);
-        add_stat(c, add_stat_callback, "cmd_total_ops", total_ops);
-        add_stat(c, add_stat_callback, "auth_cmds", thread_stats.auth_cmds);
-        add_stat(c, add_stat_callback, "auth_errors", thread_stats.auth_errors);
-        add_stat(c, add_stat_callback, "get_hits", thread_stats.get_hits);
-        add_stat(c, add_stat_callback, "get_misses", thread_stats.get_misses);
-        add_stat(c, add_stat_callback, "delete_misses",
+        add_stat(cookie, add_stat_callback, "cmd_total_sets", total_mutations);
+        add_stat(cookie, add_stat_callback, "cmd_total_gets", total_retrivals);
+        add_stat(cookie, add_stat_callback, "cmd_total_ops", total_ops);
+        add_stat(cookie, add_stat_callback, "auth_cmds", thread_stats.auth_cmds);
+        add_stat(cookie, add_stat_callback, "auth_errors", thread_stats.auth_errors);
+        add_stat(cookie, add_stat_callback, "get_hits", thread_stats.get_hits);
+        add_stat(cookie, add_stat_callback, "get_misses", thread_stats.get_misses);
+        add_stat(cookie, add_stat_callback, "delete_misses",
                  thread_stats.delete_misses);
-        add_stat(c, add_stat_callback, "delete_hits", thread_stats.delete_hits);
-        add_stat(c, add_stat_callback, "incr_misses", thread_stats.incr_misses);
-        add_stat(c, add_stat_callback, "incr_hits", thread_stats.incr_hits);
-        add_stat(c, add_stat_callback, "decr_misses", thread_stats.decr_misses);
-        add_stat(c, add_stat_callback, "decr_hits", thread_stats.decr_hits);
-        add_stat(c, add_stat_callback, "cas_misses", thread_stats.cas_misses);
-        add_stat(c, add_stat_callback, "cas_hits", thread_stats.cas_hits);
-        add_stat(c, add_stat_callback, "cas_badval", thread_stats.cas_badval);
-        add_stat(c, add_stat_callback, "bytes_read", thread_stats.bytes_read);
-        add_stat(c, add_stat_callback, "bytes_written",
+        add_stat(cookie, add_stat_callback, "delete_hits", thread_stats.delete_hits);
+        add_stat(cookie, add_stat_callback, "incr_misses", thread_stats.incr_misses);
+        add_stat(cookie, add_stat_callback, "incr_hits", thread_stats.incr_hits);
+        add_stat(cookie, add_stat_callback, "decr_misses", thread_stats.decr_misses);
+        add_stat(cookie, add_stat_callback, "decr_hits", thread_stats.decr_hits);
+        add_stat(cookie, add_stat_callback, "cas_misses", thread_stats.cas_misses);
+        add_stat(cookie, add_stat_callback, "cas_hits", thread_stats.cas_hits);
+        add_stat(cookie, add_stat_callback, "cas_badval", thread_stats.cas_badval);
+        add_stat(cookie, add_stat_callback, "bytes_read", thread_stats.bytes_read);
+        add_stat(cookie, add_stat_callback, "bytes_written",
                  thread_stats.bytes_written);
-        add_stat(c, add_stat_callback, "accepting_conns",
+        add_stat(cookie, add_stat_callback, "accepting_conns",
                  is_listen_disabled() ? 0 : 1);
-        add_stat(c, add_stat_callback, "listen_disabled_num",
+        add_stat(cookie, add_stat_callback, "listen_disabled_num",
                  get_listen_disabled_num());
-        add_stat(c, add_stat_callback, "rejected_conns", stats.rejected_conns);
-        add_stat(c, add_stat_callback, "threads", settings.num_threads);
-        add_stat(c, add_stat_callback, "conn_yields", thread_stats.conn_yields);
-        add_stat(c, add_stat_callback, "rbufs_allocated",
+        add_stat(cookie, add_stat_callback, "rejected_conns", stats.rejected_conns);
+        add_stat(cookie, add_stat_callback, "threads", settings.num_threads);
+        add_stat(cookie, add_stat_callback, "conn_yields", thread_stats.conn_yields);
+        add_stat(cookie, add_stat_callback, "rbufs_allocated",
                  thread_stats.rbufs_allocated);
-        add_stat(c, add_stat_callback, "rbufs_loaned",
+        add_stat(cookie, add_stat_callback, "rbufs_loaned",
                  thread_stats.rbufs_loaned);
-        add_stat(c, add_stat_callback, "rbufs_existing",
+        add_stat(cookie, add_stat_callback, "rbufs_existing",
                  thread_stats.rbufs_existing);
-        add_stat(c, add_stat_callback, "wbufs_allocated",
+        add_stat(cookie, add_stat_callback, "wbufs_allocated",
                  thread_stats.wbufs_allocated);
-        add_stat(c, add_stat_callback, "wbufs_loaned",
+        add_stat(cookie, add_stat_callback, "wbufs_loaned",
                  thread_stats.wbufs_loaned);
-        add_stat(c, add_stat_callback, "iovused_high_watermark",
+        add_stat(cookie, add_stat_callback, "iovused_high_watermark",
                  thread_stats.iovused_high_watermark);
-        add_stat(c, add_stat_callback, "msgused_high_watermark",
+        add_stat(cookie, add_stat_callback, "msgused_high_watermark",
                  thread_stats.msgused_high_watermark);
     } catch (std::bad_alloc&) {
         return ENGINE_ENOMEM;
@@ -356,71 +358,72 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
      * Add tap stats (only if non-zero)
      */
     if (tap_stats.sent.connect) {
-        add_stat(c, add_stat_callback, "tap_connect_sent",
+        add_stat(cookie, add_stat_callback, "tap_connect_sent",
                  tap_stats.sent.connect);
     }
     if (tap_stats.sent.mutation) {
-        add_stat(c, add_stat_callback, "tap_mutation_sent",
+        add_stat(cookie, add_stat_callback, "tap_mutation_sent",
                  tap_stats.sent.mutation);
     }
     if (tap_stats.sent.checkpoint_start) {
-        add_stat(c, add_stat_callback, "tap_checkpoint_start_sent",
+        add_stat(cookie, add_stat_callback, "tap_checkpoint_start_sent",
                  tap_stats.sent.checkpoint_start);
     }
     if (tap_stats.sent.checkpoint_end) {
-        add_stat(c, add_stat_callback, "tap_checkpoint_end_sent",
+        add_stat(cookie, add_stat_callback, "tap_checkpoint_end_sent",
                  tap_stats.sent.checkpoint_end);
     }
     if (tap_stats.sent.del) {
-        add_stat(c, add_stat_callback, "tap_delete_sent", tap_stats.sent.del);
+        add_stat(cookie, add_stat_callback, "tap_delete_sent", tap_stats.sent.del);
     }
     if (tap_stats.sent.flush) {
-        add_stat(c, add_stat_callback, "tap_flush_sent", tap_stats.sent.flush);
+        add_stat(cookie, add_stat_callback, "tap_flush_sent", tap_stats.sent.flush);
     }
     if (tap_stats.sent.opaque) {
-        add_stat(c, add_stat_callback, "tap_opaque_sent",
+        add_stat(cookie, add_stat_callback, "tap_opaque_sent",
                  tap_stats.sent.opaque);
     }
     if (tap_stats.sent.vbucket_set) {
-        add_stat(c, add_stat_callback, "tap_vbucket_set_sent",
+        add_stat(cookie, add_stat_callback, "tap_vbucket_set_sent",
                  tap_stats.sent.vbucket_set);
     }
     if (tap_stats.received.connect) {
-        add_stat(c, add_stat_callback, "tap_connect_received",
+        add_stat(cookie, add_stat_callback, "tap_connect_received",
                  tap_stats.received.connect);
     }
     if (tap_stats.received.mutation) {
-        add_stat(c, add_stat_callback, "tap_mutation_received",
+        add_stat(cookie, add_stat_callback, "tap_mutation_received",
                  tap_stats.received.mutation);
     }
     if (tap_stats.received.checkpoint_start) {
-        add_stat(c, add_stat_callback, "tap_checkpoint_start_received",
+        add_stat(cookie, add_stat_callback, "tap_checkpoint_start_received",
                  tap_stats.received.checkpoint_start);
     }
     if (tap_stats.received.checkpoint_end) {
-        add_stat(c, add_stat_callback, "tap_checkpoint_end_received",
+        add_stat(cookie, add_stat_callback, "tap_checkpoint_end_received",
                  tap_stats.received.checkpoint_end);
     }
     if (tap_stats.received.del) {
-        add_stat(c, add_stat_callback, "tap_delete_received",
+        add_stat(cookie, add_stat_callback, "tap_delete_received",
                  tap_stats.received.del);
     }
     if (tap_stats.received.flush) {
-        add_stat(c, add_stat_callback, "tap_flush_received",
+        add_stat(cookie, add_stat_callback, "tap_flush_received",
                  tap_stats.received.flush);
     }
     if (tap_stats.received.opaque) {
-        add_stat(c, add_stat_callback, "tap_opaque_received",
+        add_stat(cookie, add_stat_callback, "tap_opaque_received",
                  tap_stats.received.opaque);
     }
     if (tap_stats.received.vbucket_set) {
-        add_stat(c, add_stat_callback, "tap_vbucket_set_received",
+        add_stat(cookie, add_stat_callback, "tap_vbucket_set_received",
                  tap_stats.received.vbucket_set);
     }
     return ENGINE_SUCCESS;
 }
 
-void process_stat_settings(ADD_STAT add_stat_callback, void* c) {
+static void process_stat_settings(ADD_STAT add_stat_callback,
+                                  McbpConnection* c) {
     if (c == nullptr) {
         throw std::invalid_argument("process_stat_settings: "
                                         "cookie must be non-NULL");
@@ -429,8 +432,8 @@ void process_stat_settings(ADD_STAT add_stat_callback, void* c) {
         throw std::invalid_argument("process_stat_settings: "
                                         "add_stat_callback must be non-NULL");
     }
-    McbpConnection *conn = reinterpret_cast<McbpConnection*>(c);
-    add_stat(c, add_stat_callback, "maxconns", settings.maxconns);
+    auto* cookie = c->getCookie();
+    add_stat(cookie, add_stat_callback, "maxconns", settings.maxconns);
 
     for (auto& ifce : stats.listening_ports) {
         char interface[1024];
@@ -444,80 +447,80 @@ void process_stat_settings(ADD_STAT add_stat_callback, void* c) {
         }
 
         snprintf(interface + offset, sizeof(interface) - offset, "-maxconn");
-        add_stat(c, add_stat_callback, interface, ifce.maxconns);
+        add_stat(cookie, add_stat_callback, interface, ifce.maxconns);
         snprintf(interface + offset, sizeof(interface) - offset, "-backlog");
-        add_stat(c, add_stat_callback, interface, ifce.backlog);
+        add_stat(cookie, add_stat_callback, interface, ifce.backlog);
         snprintf(interface + offset, sizeof(interface) - offset, "-ipv4");
-        add_stat(c, add_stat_callback, interface, ifce.ipv4);
+        add_stat(cookie, add_stat_callback, interface, ifce.ipv4);
         snprintf(interface + offset, sizeof(interface) - offset, "-ipv6");
-        add_stat(c, add_stat_callback, interface, ifce.ipv6);
+        add_stat(cookie, add_stat_callback, interface, ifce.ipv6);
 
         snprintf(interface + offset, sizeof(interface) - offset,
                  "-tcp_nodelay");
-        add_stat(c, add_stat_callback, interface, ifce.tcp_nodelay);
+        add_stat(cookie, add_stat_callback, interface, ifce.tcp_nodelay);
         snprintf(interface + offset, sizeof(interface) - offset, "-management");
-        add_stat(c, add_stat_callback, interface, ifce.management);
+        add_stat(cookie, add_stat_callback, interface, ifce.management);
 
         if (ifce.ssl.enabled) {
             snprintf(interface + offset, sizeof(interface) - offset,
                      "-ssl-pkey");
-            add_stat(c, add_stat_callback, interface, ifce.ssl.key);
+            add_stat(cookie, add_stat_callback, interface, ifce.ssl.key);
             snprintf(interface + offset, sizeof(interface) - offset,
                      "-ssl-cert");
-            add_stat(c, add_stat_callback, interface, ifce.ssl.cert);
+            add_stat(cookie, add_stat_callback, interface, ifce.ssl.cert);
         } else {
             snprintf(interface + offset, sizeof(interface) - offset,
                      "-ssl");
-            add_stat(c, add_stat_callback, interface, "false");
+            add_stat(cookie, add_stat_callback, interface, "false");
         }
     }
 
-    add_stat(c, add_stat_callback, "verbosity", settings.verbose.load());
-    add_stat(c, add_stat_callback, "num_threads", settings.num_threads);
-    add_stat(c, add_stat_callback, "reqs_per_event_high_priority",
+    add_stat(cookie, add_stat_callback, "verbosity", settings.verbose.load());
+    add_stat(cookie, add_stat_callback, "num_threads", settings.num_threads);
+    add_stat(cookie, add_stat_callback, "reqs_per_event_high_priority",
              settings.reqs_per_event_high_priority);
-    add_stat(c, add_stat_callback, "reqs_per_event_med_priority",
+    add_stat(cookie, add_stat_callback, "reqs_per_event_med_priority",
              settings.reqs_per_event_med_priority);
-    add_stat(c, add_stat_callback, "reqs_per_event_low_priority",
+    add_stat(cookie, add_stat_callback, "reqs_per_event_low_priority",
              settings.reqs_per_event_low_priority);
-    add_stat(c, add_stat_callback, "reqs_per_event_def_priority",
+    add_stat(cookie, add_stat_callback, "reqs_per_event_def_priority",
              settings.default_reqs_per_event);
-    add_stat(c, add_stat_callback, "auth_enabled_sasl", "yes");
-    add_stat(c, add_stat_callback, "auth_sasl_engine", "cbsasl");
+    add_stat(cookie, add_stat_callback, "auth_enabled_sasl", "yes");
+    add_stat(cookie, add_stat_callback, "auth_sasl_engine", "cbsasl");
 
     const char *sasl_mechs = nullptr;
-    if (cbsasl_listmech(conn->getSaslConn(), nullptr, "(", ",", ")",
+    if (cbsasl_listmech(c->getSaslConn(), nullptr, "(", ",", ")",
                         &sasl_mechs, nullptr, nullptr)  == CBSASL_OK) {
-        add_stat(c, add_stat_callback, "auth_sasl_mechanisms", sasl_mechs);
+        add_stat(cookie, add_stat_callback, "auth_sasl_mechanisms", sasl_mechs);
     }
 
-    add_stat(c, add_stat_callback, "auth_required_sasl", settings.require_sasl);
+    add_stat(cookie, add_stat_callback, "auth_required_sasl", settings.require_sasl);
     {
         EXTENSION_DAEMON_DESCRIPTOR* ptr;
         for (ptr = settings.extensions.daemons; ptr != NULL; ptr = ptr->next) {
-            add_stat(c, add_stat_callback, "extension", ptr->get_name());
+            add_stat(cookie, add_stat_callback, "extension", ptr->get_name());
         }
     }
 
-    add_stat(c, add_stat_callback, "logger",
+    add_stat(cookie, add_stat_callback, "logger",
              settings.extensions.logger->get_name());
     {
         EXTENSION_BINARY_PROTOCOL_DESCRIPTOR* ptr;
         for (ptr = settings.extensions.binary; ptr != NULL; ptr = ptr->next) {
-            add_stat(c, add_stat_callback, "binary_extension", ptr->get_name());
+            add_stat(cookie, add_stat_callback, "binary_extension", ptr->get_name());
         }
     }
 
     if (settings.config) {
-        add_stat(c, add_stat_callback, "config", settings.config);
+        add_stat(cookie, add_stat_callback, "config", settings.config);
     }
 
     if (settings.rbac_file) {
-        add_stat(c, add_stat_callback, "rbac", settings.rbac_file);
+        add_stat(cookie, add_stat_callback, "rbac", settings.rbac_file);
     }
 
     if (settings.audit_file) {
-        add_stat(c, add_stat_callback, "audit", settings.audit_file);
+        add_stat(cookie, add_stat_callback, "audit", settings.audit_file);
     }
 }
 
@@ -557,7 +560,7 @@ static void process_bin_get(McbpConnection* c) {
     case ENGINE_SUCCESS: STATS_HIT(c, get, key, nkey);
 
         if (!bucket_get_item_info(c, it, &info.info)) {
-            c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
+            bucket_release_item(c, it);
             LOG_WARNING(c, "%u: Failed to get item info", c->getId());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             break;
@@ -591,9 +594,9 @@ static void process_bin_get(McbpConnection* c) {
                                              (uint32_t)info.info.value[0].iov_len,
                                              datatype,
                                              PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                             info.info.cas, c)) {
+                                             info.info.cas, c->getCookie())) {
                 mcbp_write_and_free(c, &c->getDynamicBuffer());
-                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
+                bucket_release_item(c, it);
             } else {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             }
@@ -699,9 +702,16 @@ static void append_bin_stats(const char* key, const uint16_t klen,
 
 static void append_stats(const char* key, const uint16_t klen,
                          const char* val, const uint32_t vlen,
-                         const void* cookie) {
+                         const void* void_cookie) {
     size_t needed;
-    McbpConnection* c = (McbpConnection*)cookie;
+
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    if (cookie->connection == nullptr) {
+        throw std::logic_error("append_stats: connection can't be null");
+    }
+    // Using dynamic cast to ensure a coredump when we implement this for
+    // Greenstack and fix it
+    auto* c = dynamic_cast<McbpConnection*>(cookie->connection);
     needed = vlen + klen + sizeof(protocol_binary_response_header);
     if (!c->growDynamicBuffer(needed)) {
         return;
@@ -755,7 +765,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
             break;
         }
 
-        event = tap_iterator(c->getBucketEngineAsV0(), c, &it,
+        event = tap_iterator(c->getBucketEngineAsV0(), c->getCookie(), &it,
                              &engine, &nengine, &ttl,
                              &tap_flags, &seqno, &vbucket);
         memset(&msg, 0, sizeof(msg));
@@ -786,13 +796,13 @@ void ship_mcbp_tap_log(McbpConnection* c) {
         case TAP_CHECKPOINT_END:
         case TAP_MUTATION:
             if (!bucket_get_item_info(c, it, &info.info)) {
-                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
+                bucket_release_item(c, it);
                 LOG_WARNING(c, "%u: Failed to get item info", c->getId());
                 break;
             }
 
             if (!c->reserveItem(it)) {
-                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
+                bucket_release_item(c, it);
                 LOG_WARNING(c, "%u: Failed to grow item array", c->getId());
                 break;
             }
@@ -931,13 +941,13 @@ void ship_mcbp_tap_log(McbpConnection* c) {
         case TAP_DELETION:
             /* This is a delete */
             if (!bucket_get_item_info(c, it, &info.info)) {
-                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
+                bucket_release_item(c, it);
                 LOG_WARNING(c, "%u: Failed to get item info", c->getId());
                 break;
             }
 
             if (!c->reserveItem(it)) {
-                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
+                bucket_release_item(c, it);
                 LOG_WARNING(c, "%u: Failed to grow item array", c->getId());
                 break;
             }
@@ -1043,15 +1053,22 @@ void ship_mcbp_tap_log(McbpConnection* c) {
 static ENGINE_ERROR_CODE default_unknown_command(
     EXTENSION_BINARY_PROTOCOL_DESCRIPTOR*,
     ENGINE_HANDLE*,
-    const void* cookie,
+    const void* void_cookie,
     protocol_binary_request_header* request,
     ADD_RESPONSE response) {
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    if (cookie->connection == nullptr) {
+        throw std::logic_error("default_unknown_command: connection can't be null");
+    }
+    // Using dynamic cast to ensure a coredump when we implement this for
+    // Greenstack and fix it
+    auto* c = dynamic_cast<McbpConnection*>(cookie->connection);
 
     if (!c->isSupportsDatatype() &&
         request->request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
         if (response(NULL, 0, NULL, 0, NULL, 0, PROTOCOL_BINARY_RAW_BYTES,
-                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, cookie)) {
+                     PROTOCOL_BINARY_RESPONSE_EINVAL, 0, c->getCookie())) {
             return ENGINE_SUCCESS;
         } else {
             return ENGINE_DISCONNECT;
@@ -1098,7 +1115,7 @@ static void process_bin_unknown_packet(McbpConnection* c) {
         struct request_lookup* rq =
             request_handlers + c->binary_header.request.opcode;
         ret = rq->callback(rq->descriptor,
-                           c->getBucketEngineAsV0(), c, req,
+                           c->getBucketEngineAsV0(), c->getCookie(), req,
                            mcbp_response_handler);
     }
 
@@ -1171,7 +1188,7 @@ static void process_bin_tap_connect(McbpConnection* c) {
     }
 
     iterator = c->getBucketEngine()->get_tap_iterator(c->getBucketEngineAsV0(),
-                                                      c, key,
+                                                      c->getCookie(), key,
                                                       c->binary_header.request.keylen,
                                                       flags, data, ndata);
 
@@ -1258,7 +1275,8 @@ static void process_bin_tap_packet(tap_event_t event, McbpConnection* c) {
                 }
             }
 
-            ret = c->getBucketEngine()->tap_notify(c->getBucketEngineAsV0(), c,
+            ret = c->getBucketEngine()->tap_notify(c->getBucketEngineAsV0(),
+                                                   c->getCookie(),
                                                    engine_specific, nengine,
                                                    ttl - 1, tap_flags,
                                                    event, seqno,
@@ -1303,7 +1321,8 @@ static void process_bin_tap_ack(McbpConnection* c) {
     key = packet + sizeof(rsp->bytes);
 
     if (c->getBucketEngine()->tap_notify != NULL) {
-        ret = c->getBucketEngine()->tap_notify(c->getBucketEngineAsV0(), c,
+        ret = c->getBucketEngine()->tap_notify(c->getBucketEngineAsV0(),
+                                               c->getCookie(),
                                                NULL, 0,
                                                0, status,
                                                TAP_ACK, seqno, key,
@@ -1332,13 +1351,31 @@ static void process_bin_noop_response(McbpConnection* c) {
 /*******************************************************************************
  **                             DCP MESSAGE PRODUCERS                         **
  ******************************************************************************/
-static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* cookie,
+
+static McbpConnection* cookie2mcbp(const void* void_cookie,
+                                   const char* function) {
+    const auto * cookie = reinterpret_cast<const Cookie *>(void_cookie);
+    if (cookie == nullptr) {
+        throw std::invalid_argument(std::string(function) +
+                                        ": cookie is nullptr");
+    }
+    cookie->validate();
+    auto* c = dynamic_cast<McbpConnection*>(cookie->connection);
+    if (c == nullptr) {
+        throw std::invalid_argument(std::string(function) +
+                                        ": connection is nullptr");
+    }
+    return c;
+}
+
+static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* void_cookie,
                                                       uint32_t opaque,
                                                       uint16_t vbucket) {
-    protocol_binary_request_dcp_get_failover_log packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    auto* c = cookie2mcbp(void_cookie, __func__);
+
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG);
 
+    protocol_binary_request_dcp_get_failover_log packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1358,7 +1395,7 @@ static ENGINE_ERROR_CODE dcp_message_get_failover_log(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_stream_req(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_stream_req(const void* void_cookie,
                                                 uint32_t opaque,
                                                 uint16_t vbucket,
                                                 uint32_t flags,
@@ -1367,10 +1404,10 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(const void* cookie,
                                                 uint64_t vbucket_uuid,
                                                 uint64_t snap_start_seqno,
                                                 uint64_t snap_end_seqno) {
-    protocol_binary_request_dcp_stream_req packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
 
+    protocol_binary_request_dcp_stream_req packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1399,14 +1436,14 @@ static ENGINE_ERROR_CODE dcp_message_stream_req(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void* void_cookie,
                                                          uint32_t opaque,
                                                          uint32_t dialogopaque,
                                                          uint8_t status) {
-    protocol_binary_response_dcp_add_stream packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
-    c->setCmd(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
+    auto* c = cookie2mcbp(void_cookie, __func__);
 
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
+    protocol_binary_response_dcp_add_stream packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1429,13 +1466,13 @@ static ENGINE_ERROR_CODE dcp_message_add_stream_response(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_marker_response(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_marker_response(const void* void_cookie,
                                                      uint32_t opaque,
                                                      uint8_t status) {
-    protocol_binary_response_dcp_snapshot_marker packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
-    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
+    auto* c = cookie2mcbp(void_cookie, __func__);
 
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
+    protocol_binary_response_dcp_snapshot_marker packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1458,13 +1495,14 @@ static ENGINE_ERROR_CODE dcp_message_marker_response(const void* cookie,
 }
 
 static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
-    const void* cookie,
+    const void* void_cookie,
     uint32_t opaque,
     uint8_t status) {
-    protocol_binary_response_dcp_set_vbucket_state packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
-    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE);
 
+    auto* c = cookie2mcbp(void_cookie, __func__);
+
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE);
+    protocol_binary_response_dcp_set_vbucket_state packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1486,14 +1524,14 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state_response(
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_stream_end(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_stream_end(const void* void_cookie,
                                                 uint32_t opaque,
                                                 uint16_t vbucket,
                                                 uint32_t flags) {
-    protocol_binary_request_dcp_stream_end packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
-    c->setCmd(PROTOCOL_BINARY_CMD_DCP_STREAM_END);
+    auto* c = cookie2mcbp(void_cookie, __func__);
 
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_STREAM_END);
+    protocol_binary_request_dcp_stream_end packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1516,16 +1554,16 @@ static ENGINE_ERROR_CODE dcp_message_stream_end(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_marker(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_marker(const void* void_cookie,
                                             uint32_t opaque,
                                             uint16_t vbucket,
                                             uint64_t start_seqno,
                                             uint64_t end_seqno,
                                             uint32_t flags) {
-    protocol_binary_request_dcp_snapshot_marker packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
-    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
+    auto* c = cookie2mcbp(void_cookie, __func__);
 
+    c->setCmd(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER);
+    protocol_binary_request_dcp_snapshot_marker packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1550,7 +1588,7 @@ static ENGINE_ERROR_CODE dcp_message_marker(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_mutation(const void* void_cookie,
                                               uint32_t opaque,
                                               item* it,
                                               uint16_t vbucket,
@@ -1560,7 +1598,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
                                               const void* meta,
                                               uint16_t nmeta,
                                               uint8_t nru) {
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_MUTATION);
     item_info_holder info;
     protocol_binary_request_dcp_mutation packet;
@@ -1574,13 +1612,13 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     info.info.nvalue = IOV_MAX;
 
     if (!bucket_get_item_info(c, it, &info.info)) {
-        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
+        bucket_release_item(c, it);
         LOG_WARNING(c, "%u: Failed to get item info", c->getId());
         return ENGINE_FAILED;
     }
 
     if (!c->reserveItem(it)) {
-        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
+        bucket_release_item(c, it);
         LOG_WARNING(c, "%u: Failed to grow item array", c->getId());
         return ENGINE_FAILED;
     }
@@ -1621,7 +1659,7 @@ static ENGINE_ERROR_CODE dcp_message_mutation(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_deletion(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_deletion(const void* void_cookie,
                                               uint32_t opaque,
                                               const void* key,
                                               uint16_t nkey,
@@ -1631,7 +1669,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion(const void* cookie,
                                               uint64_t rev_seqno,
                                               const void* meta,
                                               uint16_t nmeta) {
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_DELETION);
     protocol_binary_request_dcp_deletion packet;
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nmeta >= c->write.size) {
@@ -1665,7 +1703,7 @@ static ENGINE_ERROR_CODE dcp_message_deletion(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_expiration(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_expiration(const void* void_cookie,
                                                 uint32_t opaque,
                                                 const void* key,
                                                 uint16_t nkey,
@@ -1675,7 +1713,7 @@ static ENGINE_ERROR_CODE dcp_message_expiration(const void* cookie,
                                                 uint64_t rev_seqno,
                                                 const void* meta,
                                                 uint16_t nmeta) {
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_EXPIRATION);
     protocol_binary_request_dcp_deletion packet;
 
@@ -1710,13 +1748,12 @@ static ENGINE_ERROR_CODE dcp_message_expiration(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_flush(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_flush(const void* void_cookie,
                                            uint32_t opaque,
                                            uint16_t vbucket) {
-    protocol_binary_request_dcp_flush packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_FLUSH);
-
+    protocol_binary_request_dcp_flush packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1736,14 +1773,13 @@ static ENGINE_ERROR_CODE dcp_message_flush(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* void_cookie,
                                                        uint32_t opaque,
                                                        uint16_t vbucket,
                                                        vbucket_state_t state) {
-    protocol_binary_request_dcp_set_vbucket_state packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE);
-
+    protocol_binary_request_dcp_set_vbucket_state packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1770,12 +1806,11 @@ static ENGINE_ERROR_CODE dcp_message_set_vbucket_state(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_noop(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_noop(const void* void_cookie,
                                           uint32_t opaque) {
-    protocol_binary_request_dcp_noop packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_NOOP);
-
+    protocol_binary_request_dcp_noop packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1794,14 +1829,13 @@ static ENGINE_ERROR_CODE dcp_message_noop(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* void_cookie,
                                                             uint32_t opaque,
                                                             uint16_t vbucket,
                                                             uint32_t buffer_bytes) {
-    protocol_binary_request_dcp_buffer_acknowledgement packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT);
-
+    protocol_binary_request_dcp_buffer_acknowledgement packet;
     if (c->write.bytes + sizeof(packet.bytes) >= c->write.size) {
         /* We don't have room in the buffer */
         return ENGINE_E2BIG;
@@ -1824,16 +1858,15 @@ static ENGINE_ERROR_CODE dcp_message_buffer_acknowledgement(const void* cookie,
     return ENGINE_SUCCESS;
 }
 
-static ENGINE_ERROR_CODE dcp_message_control(const void* cookie,
+static ENGINE_ERROR_CODE dcp_message_control(const void* void_cookie,
                                              uint32_t opaque,
                                              const void* key,
                                              uint16_t nkey,
                                              const void* value,
                                              uint32_t nvalue) {
-    protocol_binary_request_dcp_control packet;
-    auto* c = const_cast<McbpConnection*>(reinterpret_cast<const McbpConnection*>(cookie));
+    auto* c = cookie2mcbp(void_cookie, __func__);
     c->setCmd(PROTOCOL_BINARY_CMD_DCP_CONTROL);
-
+    protocol_binary_request_dcp_control packet;
     if (c->write.bytes + sizeof(packet.bytes) + nkey + nvalue >=
         c->write.size) {
         /* We don't have room in the buffer */
@@ -1901,7 +1934,7 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
     c->write.bytes = 0;
     c->write.curr = c->write.buf;
     c->setEwouldblock(false);
-    ret = c->getBucketEngine()->dcp.step(c->getBucketEngineAsV0(), c,
+    ret = c->getBucketEngine()->dcp.step(c->getBucketEngineAsV0(), c->getCookie(),
                                          &producers);
     if (ret == ENGINE_SUCCESS) {
         /* the engine don't have more data to send at this moment */
@@ -2016,7 +2049,7 @@ static void dcp_open_executor(McbpConnection* c, void* packet) {
         c->setSupportsDatatype(true);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.open(c->getBucketEngineAsV0(), c,
+            ret = c->getBucketEngine()->dcp.open(c->getBucketEngineAsV0(), c->getCookie(),
                                                  req->message.header.request.opaque,
                                                  ntohl(req->message.body.seqno),
                                                  ntohl(req->message.body.flags),
@@ -2058,7 +2091,7 @@ static void dcp_add_stream_executor(McbpConnection* c, void* packet) {
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->getBucketEngine()->dcp.add_stream(c->getBucketEngineAsV0(),
-                                                       c,
+                                                       c->getCookie(),
                                                        req->message.header.request.opaque,
                                                        ntohs(
                                                            req->message.header.request.vbucket),
@@ -2099,7 +2132,7 @@ static void dcp_close_stream_executor(McbpConnection* c, void* packet) {
             uint16_t vbucket = ntohs(req->message.header.request.vbucket);
             uint32_t opaque = ntohl(req->message.header.request.opaque);
             ret = c->getBucketEngine()->dcp.close_stream(
-                c->getBucketEngineAsV0(), c,
+                c->getBucketEngineAsV0(), c->getCookie(),
                 opaque, vbucket);
         }
 
@@ -2163,7 +2196,7 @@ static void dcp_get_failover_log_executor(McbpConnection* c, void* packet) {
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->getBucketEngine()->dcp.get_failover_log(
-                c->getBucketEngineAsV0(), c,
+                c->getBucketEngineAsV0(), c->getCookie(),
                 req->message.header.request.opaque,
                 ntohs(req->message.header.request.vbucket),
                 add_failover_log);
@@ -2221,7 +2254,7 @@ static void dcp_stream_req_executor(McbpConnection* c, void* packet) {
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->getBucketEngine()->dcp.stream_req(c->getBucketEngineAsV0(),
-                                                       c,
+                                                       c->getCookie(),
                                                        flags,
                                                        c->binary_header.request.opaque,
                                                        c->binary_header.request.vbucket,
@@ -2249,7 +2282,7 @@ static void dcp_stream_req_executor(McbpConnection* c, void* packet) {
             if (mcbp_response_handler(NULL, 0, NULL, 0, &rollback_seqno,
                                       sizeof(rollback_seqno), 0,
                                       PROTOCOL_BINARY_RESPONSE_ROLLBACK, 0,
-                                      c)) {
+                                      c->getCookie())) {
                 mcbp_write_and_free(c, &c->getDynamicBuffer());
             } else {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
@@ -2282,7 +2315,7 @@ static void dcp_stream_end_executor(McbpConnection* c, void* packet) {
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->getBucketEngine()->dcp.stream_end(c->getBucketEngineAsV0(),
-                                                       c,
+                                                       c->getCookie(),
                                                        req->message.header.request.opaque,
                                                        ntohs(
                                                            req->message.header.request.vbucket),
@@ -2327,7 +2360,7 @@ static void dcp_snapshot_marker_executor(McbpConnection* c, void* packet) {
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->getBucketEngine()->dcp.snapshot_marker(
-                c->getBucketEngineAsV0(), c,
+                c->getBucketEngineAsV0(), c->getCookie(),
                 opaque, vbucket,
                 start_seqno,
                 end_seqno, flags);
@@ -2379,7 +2412,7 @@ static void dcp_mutation_executor(McbpConnection* c, void* packet) {
                               - req->message.header.request.extlen - nmeta;
 
             ret = c->getBucketEngine()->dcp.mutation(c->getBucketEngineAsV0(),
-                                                     c,
+                                                     c->getCookie(),
                                                      req->message.header.request.opaque,
                                                      key, nkey, value, nvalue,
                                                      cas, vbucket,
@@ -2430,7 +2463,7 @@ static void dcp_deletion_executor(McbpConnection* c, void* packet) {
             uint16_t nmeta = ntohs(req->message.body.nmeta);
 
             ret = c->getBucketEngine()->dcp.deletion(c->getBucketEngineAsV0(),
-                                                     c,
+                                                     c->getCookie(),
                                                      req->message.header.request.opaque,
                                                      key, nkey, cas, vbucket,
                                                      by_seqno, rev_seqno,
@@ -2476,7 +2509,7 @@ static void dcp_expiration_executor(McbpConnection* c, void* packet) {
             uint16_t nmeta = ntohs(req->message.body.nmeta);
 
             ret = c->getBucketEngine()->dcp.expiration(c->getBucketEngineAsV0(),
-                                                       c,
+                                                       c->getCookie(),
                                                        req->message.header.request.opaque,
                                                        key, nkey, cas, vbucket,
                                                        by_seqno, rev_seqno,
@@ -2513,7 +2546,7 @@ static void dcp_flush_executor(McbpConnection* c, void* packet) {
         c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.flush(c->getBucketEngineAsV0(), c,
+            ret = c->getBucketEngine()->dcp.flush(c->getBucketEngineAsV0(), c->getCookie(),
                                                   req->message.header.request.opaque,
                                                   ntohs(
                                                       req->message.header.request.vbucket));
@@ -2551,7 +2584,7 @@ static void dcp_set_vbucket_state_executor(McbpConnection* c, void* packet) {
         if (ret == ENGINE_SUCCESS) {
             vbucket_state_t state = (vbucket_state_t)req->message.body.state;
             ret = c->getBucketEngine()->dcp.set_vbucket_state(
-                c->getBucketEngineAsV0(), c,
+                c->getBucketEngineAsV0(), c->getCookie(),
                 c->binary_header.request.opaque,
                 c->binary_header.request.vbucket,
                 state);
@@ -2587,7 +2620,7 @@ static void dcp_noop_executor(McbpConnection* c, void* packet) {
         c->setEwouldblock(false);
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->dcp.noop(c->getBucketEngineAsV0(), c,
+            ret = c->getBucketEngine()->dcp.noop(c->getBucketEngineAsV0(), c->getCookie(),
                                                  c->binary_header.request.opaque);
         }
 
@@ -2624,7 +2657,7 @@ static void dcp_buffer_acknowledgement_executor(McbpConnection* c, void* packet)
             uint32_t bbytes;
             memcpy(&bbytes, &req->message.body.buffer_bytes, 4);
             ret = c->getBucketEngine()->dcp.buffer_acknowledgement(
-                c->getBucketEngineAsV0(), c,
+                c->getBucketEngineAsV0(), c->getCookie(),
                 c->binary_header.request.opaque,
                 c->binary_header.request.vbucket,
                 ntohl(bbytes));
@@ -2663,7 +2696,7 @@ static void dcp_control_executor(McbpConnection* c, void* packet) {
             uint16_t nkey = ntohs(req->message.header.request.keylen);
             const uint8_t* value = key + nkey;
             uint32_t nvalue = ntohl(req->message.header.request.bodylen) - nkey;
-            ret = c->getBucketEngine()->dcp.control(c->getBucketEngineAsV0(), c,
+            ret = c->getBucketEngine()->dcp.control(c->getBucketEngineAsV0(), c->getCookie(),
                                                     c->binary_header.request.opaque,
                                                     key, nkey, value, nvalue);
         }
@@ -2720,7 +2753,7 @@ static void add_set_replace_executor(McbpConnection* c, void* packet,
 
         if (ret == ENGINE_SUCCESS) {
             rel_time_t expiration = ntohl(req->message.body.expiration);
-            ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(), c,
+            ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(), c->getCookie(),
                                                  &it, key, nkey, vlen,
                                                  req->message.body.flags,
                                                  expiration,
@@ -2744,7 +2777,7 @@ static void add_set_replace_executor(McbpConnection* c, void* packet,
 
         bucket_item_set_cas(c, it, ntohll(req->message.header.request.cas));
         if (!bucket_get_item_info(c, it, &info.info)) {
-            c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
+            bucket_release_item(c, it);
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
@@ -2767,8 +2800,7 @@ static void add_set_replace_executor(McbpConnection* c, void* packet,
                 }
             } catch (std::bad_alloc&) {
                 // @todo return error message back to client
-                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c,
-                                              c->getItem());
+                bucket_release_item(c, c->getItem());
                 c->setItem(nullptr);
                 c->setState(conn_closing);
                 return;
@@ -2791,8 +2823,7 @@ static void add_set_replace_executor(McbpConnection* c, void* packet,
         if (c->isSupportsMutationExtras()) {
             info.info.nvalue = 1;
             if (!bucket_get_item_info(c, c->getItem(), &info.info)) {
-                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c,
-                                              c->getItem());
+                bucket_release_item(c, c->getItem());
                 LOG_WARNING(c, "%u: Failed to get item info", c->getId());
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return;
@@ -2842,8 +2873,7 @@ static void add_set_replace_executor(McbpConnection* c, void* packet,
 
     if (!c->isEwouldblock()) {
         /* release the c->item reference */
-        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c,
-                                      c->getItem());
+        bucket_release_item(c, c->getItem());
         c->setItem(nullptr);
     }
 }
@@ -2898,7 +2928,7 @@ static void append_prepend_executor(McbpConnection* c,
         item* it;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(), c,
+            ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(), c->getCookie(),
                                                  &it, key, nkey,
                                                  vlen, 0, 0,
                                                  req->message.header.request.datatype);
@@ -2920,7 +2950,7 @@ static void append_prepend_executor(McbpConnection* c,
 
         bucket_item_set_cas(c, it, ntohll(req->message.header.request.cas));
         if (!bucket_get_item_info(c, it, &info.info)) {
-            c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, it);
+            bucket_release_item(c, it);
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
         }
@@ -2941,8 +2971,7 @@ static void append_prepend_executor(McbpConnection* c,
                     }
                 }
             } catch (std::bad_alloc&) {
-                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c,
-                                              c->getItem());
+                bucket_release_item(c, c->getItem());
                 c->setItem(nullptr);
                 c->setState(conn_closing);
                 return;
@@ -2966,8 +2995,7 @@ static void append_prepend_executor(McbpConnection* c,
         if (c->isSupportsMutationExtras()) {
             info.info.nvalue = 1;
             if (!bucket_get_item_info(c, c->getItem(), &info.info)) {
-                c->getBucketEngine()->release(c->getBucketEngineAsV0(), c,
-                                              c->getItem());
+                bucket_release_item(c, c->getItem());
                 LOG_WARNING(c, "%u: Failed to get item info", c->getId());
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
                 return;
@@ -2994,8 +3022,7 @@ static void append_prepend_executor(McbpConnection* c,
     if (!c->isEwouldblock()) {
         SLAB_INCR(c, cmd_set, key, nkey);
         /* release the c->item reference */
-        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c,
-                                      c->getItem());
+        bucket_release_item(c, c->getItem());
         c->setItem(nullptr);
     }
 }
@@ -3067,7 +3094,7 @@ static void process_bucket_details(McbpConnection* c) {
 
     char* stats_str = cJSON_PrintUnformatted(obj);
     append_stats("bucket details", 14, stats_str, uint32_t(strlen(stats_str)),
-                 c);
+                 c->getCookie());
     cJSON_Free(stats_str);
     cJSON_Delete(obj);
 }
@@ -3086,7 +3113,7 @@ static void process_bucket_details(McbpConnection* c) {
 static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
                                              McbpConnection& connection) {
     if (arg.empty()) {
-        stats_reset(&connection);
+        stats_reset(connection.getCookie());
         bucket_reset_stats(&connection);
         return ENGINE_SUCCESS;
     } else {
@@ -3122,7 +3149,8 @@ static ENGINE_ERROR_CODE stat_settings_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
                                              McbpConnection& connection) {
     if (arg.empty()) {
-        process_auditd_stats(&append_stats, &connection);
+        process_auditd_stats(&append_stats,
+                             const_cast<void*>(connection.getCookie()));
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -3183,7 +3211,7 @@ static ENGINE_ERROR_CODE stat_connections_executor(const std::string& arg,
         }
     }
 
-    connection_stats(&append_stats, &connection, fd);
+    connection_stats(&append_stats, connection.getCookie(), fd);
     return ENGINE_SUCCESS;
 }
 
@@ -3198,7 +3226,8 @@ static ENGINE_ERROR_CODE stat_topkeys_executor(const std::string& arg,
                                                McbpConnection& connection) {
     if (arg.empty()) {
         auto& bucket = all_buckets[connection.getBucketIndex()];
-        return bucket.topkeys->stats(&connection, mc_time_get_current_time(),
+        return bucket.topkeys->stats(connection.getCookie(),
+                                     mc_time_get_current_time(),
                                      append_stats);
     } else {
         return ENGINE_EINVAL;
@@ -3231,7 +3260,7 @@ static ENGINE_ERROR_CODE stat_topkeys_json_executor(const std::string& arg,
                 if (topkeys_str != nullptr) {
                     append_stats(key, (uint16_t)strlen(key),
                                  topkeys_str, (uint32_t)strlen(topkeys_str),
-                                 &connection);
+                                 connection.getCookie());
                     cJSON_Free(topkeys_str);
                 } else {
                     ret = ENGINE_ENOMEM;
@@ -3270,7 +3299,7 @@ static ENGINE_ERROR_CODE stat_subdoc_execute_executor(const std::string& arg,
             json_str = bucket.subjson_operation_times.to_string();
         }
         append_stats(nullptr, 0, json_str.c_str(), json_str.size(),
-                     &connection);
+                     connection.getCookie());
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
@@ -3324,7 +3353,7 @@ static void stat_executor(McbpConnection* c, void*) {
     if (ret == ENGINE_SUCCESS) {
         if (key.empty()) {
             /* request all statistics */
-            ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(), c,
+            ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(), c->getCookie(),
                                                   nullptr, 0, append_stats);
             if (ret == ENGINE_SUCCESS) {
                 ret = server_stats(&append_stats, c);
@@ -3346,7 +3375,7 @@ static void stat_executor(McbpConnection* c, void*) {
             if (iter == handlers.end()) {
                 // This may be specific to the underlying engine
                 ret = c->getBucketEngine()->get_stats(c->getBucketEngineAsV0(),
-                                                      c, key.c_str(),
+                                                      c->getCookie(), key.c_str(),
                                                       key.size(),
                                                       append_stats);
             } else {
@@ -3365,7 +3394,7 @@ static void stat_executor(McbpConnection* c, void*) {
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        append_stats(NULL, 0, NULL, 0, c);
+        append_stats(NULL, 0, NULL, 0, c->getCookie());
         mcbp_write_and_free(c, &c->getDynamicBuffer());
         break;
     case ENGINE_DISCONNECT:
@@ -3529,7 +3558,7 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
         mcbp_response_handler(NULL, 0, NULL, 0, out, 2 * jj,
                               PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              0, c);
+                              0, c->getCookie());
         mcbp_write_and_free(c, &c->getDynamicBuffer());
     }
 
@@ -3618,7 +3647,7 @@ static void flush_executor(McbpConnection* c, void*) {
 
     LOG_NOTICE(c, "%u: flush", c->getId());
 
-    ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c, 0);
+    ret = c->getBucketEngine()->flush(c->getBucketEngineAsV0(), c->getCookie(), 0);
     switch (ret) {
     case ENGINE_SUCCESS:
         audit_bucket_flush(c, all_buckets[c->getBucketIndex()].name);
@@ -3663,9 +3692,8 @@ static void delete_executor(McbpConnection* c, void*) {
 
     mutation_descr_t mut_info;
     if (ret == ENGINE_SUCCESS) {
-        ret = c->getBucketEngine()->remove(c->getBucketEngineAsV0(), c, key,
-                                           nkey,
-                                           &cas,
+        ret = c->getBucketEngine()->remove(c->getBucketEngineAsV0(),
+                                           c->getCookie(), key, nkey, &cas,
                                            c->binary_header.request.vbucket,
                                            &mut_info);
     }
@@ -3777,7 +3805,8 @@ static void arithmetic_executor(McbpConnection* c, void* packet) {
     item* item = NULL;
     if (ret == ENGINE_SUCCESS) {
         ret = c->getBucketEngine()->arithmetic(c->getBucketEngineAsV0(),
-                                               c, key, (int)nkey, incr,
+                                               c->getCookie(),
+                                               key, (int)nkey, incr,
                                                req->message.body.expiration !=
                                                0xffffffff,
                                                delta, initial, expiration,
@@ -3793,7 +3822,7 @@ static void arithmetic_executor(McbpConnection* c, void* packet) {
         item_info info;
         info.nvalue = 1;
         if (!bucket_get_item_info(c, item, &info)) {
-            c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, item);
+            bucket_release_item(c, item);
             LOG_WARNING(c, "%u: Failed to get item info", c->getId());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return;
@@ -3823,7 +3852,7 @@ static void arithmetic_executor(McbpConnection* c, void* packet) {
         }
 
         /* No further need for item; release it. */
-        c->getBucketEngine()->release(c->getBucketEngineAsV0(), c, item);
+        bucket_release_item(c, item);
 
         if (incr) {
             STATS_INCR(c, incr_hits, key, nkey);
@@ -3904,7 +3933,7 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
                               uint32_t(str.length()),
                               PROTOCOL_BINARY_RAW_BYTES,
                               PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                              0, c);
+                              0, c->getCookie());
         mcbp_write_and_free(c, &c->getDynamicBuffer());
     } else if (cookie_is_admin(c)) {
         bool found = false;
@@ -3924,7 +3953,7 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
                                   uint32_t(str.length()),
                                   PROTOCOL_BINARY_RAW_BYTES,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                                  0, c);
+                                  0, c->getCookie());
             mcbp_write_and_free(c, &c->getDynamicBuffer());
         } else {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
@@ -3945,7 +3974,7 @@ static void set_ctrl_token_executor(McbpConnection* c, void* packet) {
     mcbp_response_handler(NULL, 0, NULL, 0, NULL, 0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           engine_error_2_mcbp_protocol_error(ret),
-                          value, c);
+                          value, c->getCookie());
 
     mcbp_write_and_free(c, &c->getDynamicBuffer());
 }
@@ -3954,7 +3983,7 @@ static void get_ctrl_token_executor(McbpConnection* c, void*) {
     mcbp_response_handler(NULL, 0, NULL, 0, NULL, 0,
                           PROTOCOL_BINARY_RAW_BYTES,
                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
-                          session_cas.getCasValue(), c);
+                          session_cas.getCasValue(), c->getCookie());
     mcbp_write_and_free(c, &c->getDynamicBuffer());
 }
 
@@ -3987,7 +4016,8 @@ static void ioctl_get_executor(McbpConnection* c, void* packet) {
             mcbp_response_handler(NULL, 0, NULL, 0, res_buffer,
                                   uint32_t(length),
                                   PROTOCOL_BINARY_RAW_BYTES,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                                  c->getCookie())) {
             mcbp_write_and_free(c, &c->getDynamicBuffer());
         } else {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
@@ -4045,7 +4075,7 @@ static void config_validate_executor(McbpConnection* c, void* packet) {
             if (mcbp_response_handler(NULL, 0, NULL, 0, error_string,
                                       (uint32_t)strlen(error_string), 0,
                                       PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
-                                      c)) {
+                                      c->getCookie())) {
                 mcbp_write_and_free(c, &c->getDynamicBuffer());
             } else {
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
@@ -4072,7 +4102,7 @@ static void config_reload_executor(McbpConnection* c, void*) {
 
 static void audit_config_reload_executor(McbpConnection* c, void*) {
     if (settings.audit_file) {
-        if (configure_auditdaemon(settings.audit_file, c) ==
+        if (configure_auditdaemon(settings.audit_file, c->getCookie()) ==
             AUDIT_EWOULDBLOCK) {
             c->setEwouldblock(true);
             c->setState(conn_audit_configuring);
@@ -4151,8 +4181,9 @@ public:
     McbpCreateBucketTask(const std::string& name_,
                          const std::string& config_,
                          const BucketType& type_,
-                         Connection& connection_)
-        : thread(name_, config_, type_, connection_, this) { }
+                         McbpConnection& connection_)
+        : thread(name_, config_, type_, connection_, this),
+          mcbpconnection(connection_) { }
 
     // start the bucket deletion
     // May throw std::bad_alloc if we're failing to start the thread
@@ -4174,12 +4205,12 @@ public:
     // while waiting for the call) lets just unlock and lock again..
     virtual void notifyExecutionComplete() override {
         getMutex().unlock();
-        notify_io_complete(&thread.getConnection(), thread.getResult());
+        notify_io_complete(mcbpconnection.getCookie(), thread.getResult());
         getMutex().lock();
     }
 
-
     CreateBucketThread thread;
+    McbpConnection& mcbpconnection;
 };
 
 /**
@@ -4258,7 +4289,8 @@ static void list_bucket_executor(McbpConnection* c, void*) {
 
         if (mcbp_response_handler(NULL, 0, NULL, 0, blob.data(),
                                   uint32_t(blob.size()), 0,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, c)) {
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                                  c->getCookie())) {
             mcbp_write_and_free(c, &c->getDynamicBuffer());
         } else {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
@@ -4461,7 +4493,7 @@ static void process_bin_dcp_response(McbpConnection* c) {
         (c->read.curr - (c->binary_header.request.bodylen +
                          sizeof(c->binary_header)));
         ret = c->getBucketEngine()->dcp.response_handler
-            (c->getBucketEngineAsV0(), c, header);
+            (c->getBucketEngineAsV0(), c->getCookie(), header);
     }
 
     if (ret == ENGINE_DISCONNECT) {

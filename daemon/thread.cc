@@ -415,31 +415,46 @@ static void enlist_conn(Connection *c, Connection **list) {
     cb_assert(!has_cycle(*list));
 }
 
-void notify_io_complete(const void *cookie, ENGINE_ERROR_CODE status)
+void notify_io_complete(const void *void_cookie, ENGINE_ERROR_CODE status)
 {
-    auto *conn = (Connection *)cookie;
-    LIBEVENT_THREAD *thr;
-    int notify;
-
-    cb_assert(conn);
-    thr = conn->getThread();
-    cb_assert(thr);
-
-    LOG_DEBUG(NULL, "Got notify from %u, status %x", conn->getId(), status);
-
-    LOCK_THREAD(thr);
-    auto *c = dynamic_cast<McbpConnection*>(conn);
-    if (c == nullptr) {
-        throw std::runtime_error("Internal error: not implemented for !mbcp");
-    } else {
-        c->setAiostat(status);
+    if (void_cookie == nullptr) {
+        throw std::logic_error(
+            "notify_io_complete: can't be called without cookie");
     }
-    notify = add_conn_to_pending_io_list(conn);
-    UNLOCK_THREAD(thr);
 
-    /* kick the thread in the butt */
-    if (notify) {
-        notify_thread(thr);
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+
+    if (cookie->command == nullptr) {
+        Connection* connection = cookie->connection;
+        if (connection == nullptr) {
+            throw std::logic_error(
+                "notify_io_complete: can't be called with command and "
+                    "connection set to null");
+        }
+
+        LIBEVENT_THREAD* thr = connection->getThread();
+        if (thr == nullptr) {
+            throw std::runtime_error(
+                "notify_io_complete: connection should be bound to a thread");
+        }
+
+        int notify;
+
+        LOG_DEBUG(NULL, "Got notify from %u, status 0x%x",
+                  connection->getId(), status);
+
+        LOCK_THREAD(thr);
+        reinterpret_cast<McbpConnection*>(connection)->setAiostat(status);
+        notify = add_conn_to_pending_io_list(connection);
+        UNLOCK_THREAD(thr);
+
+        /* kick the thread in the butt */
+        if (notify) {
+            notify_thread(thr);
+        }
+    } else {
+        throw std::runtime_error("notify_io_complete: not implemented for Commands");
     }
 }
 

@@ -314,8 +314,7 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
                 // state, so start from the beginning again.
                 ret = ENGINE_SUCCESS;
                 if (c->getItem() != nullptr) {
-                    auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
-                    c->getBucketEngine()->release(handle, c, c->getItem());
+                    bucket_release_item(c, c->getItem());
                     c->setItem(nullptr);
                 }
 
@@ -390,8 +389,7 @@ get_document_for_searching(McbpConnection * c, const item* item,
     item_info_holder info;
     info.info.nvalue = IOV_MAX;
 
-    if (!c->getBucketEngine()->get_item_info(reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine()),
-                                         c, item, &info.info)) {
+    if (!bucket_get_item_info(c, item, &info.info)) {
         LOG_WARNING(c, "%u: Failed to get item info", c->getId());
         return PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
@@ -501,14 +499,12 @@ get_document_for_searching(McbpConnection * c, const item* item,
 // else false.
 static bool subdoc_fetch(McbpConnection* c, ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket, uint64_t cas) {
-    auto handle = reinterpret_cast<ENGINE_HANDLE*>(c->getBucketEngine());
 
     if (c->getItem() == NULL) {
         item* initial_item;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->get(handle, c, &initial_item,
-                                        key, (int)keylen, vbucket);
+            ret = bucket_get(c, &initial_item, key, (int)keylen, vbucket);
         }
 
         switch (ret) {
@@ -766,9 +762,11 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
         item *new_doc;
 
         if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->allocate(
-                    handle, c, &new_doc, key, keylen, context->out_doc_len, 0,
-                    expiration, PROTOCOL_BINARY_DATATYPE_JSON);
+            ret = c->getBucketEngine()->allocate(handle, c->getCookie(),
+                                                 &new_doc, key, keylen,
+                                                 context->out_doc_len, 0,
+                                                 expiration,
+                                                 PROTOCOL_BINARY_DATATYPE_JSON);
         }
 
         switch (ret) {
@@ -792,14 +790,12 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
 
         // To ensure we only replace the version of the document we
         // just appended to; set the CAS to the one retrieved from.
-        c->getBucketEngine()->item_set_cas(handle, c,
-                                       new_doc, context->in_cas);
+        bucket_item_set_cas(c, new_doc, context->in_cas);
 
         // Obtain the item info (and it's iovectors)
         item_info new_doc_info;
         new_doc_info.nvalue = IOV_MAX;
-        if (!c->getBucketEngine()->get_item_info(handle,
-                                             c, new_doc, &new_doc_info)) {
+        if (!bucket_get_item_info(c, new_doc, &new_doc_info)) {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
             return ENGINE_FAILED;
         }
@@ -814,9 +810,8 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
 
     // And finally, store the new document.
     uint64_t new_cas;
-    ret = c->getBucketEngine()->store(handle, c,
-                                  context->out_doc, &new_cas,
-                                  OPERATION_REPLACE, vbucket);
+    ret = bucket_store(c, context->out_doc, &new_cas, OPERATION_REPLACE,
+                       vbucket);
     switch (ret) {
     case ENGINE_SUCCESS:
         // Record the UUID / Seqno if MUTATION_SEQNO feature is enabled so
@@ -824,7 +819,7 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
         if (c->isSupportsMutationExtras()) {
             item_info info;
             info.nvalue = 1;
-            if (!c->getBucketEngine()->get_item_info(handle, c, context->out_doc, &info)) {
+            if (!bucket_get_item_info(c, context->out_doc, &info)) {
                 LOG_WARNING(c, "%u: Subdoc: Failed to get item info",
                             c->getId());
                 mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);

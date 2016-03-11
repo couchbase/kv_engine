@@ -9,6 +9,12 @@
 #cmakedefine HAVE_LIBNUMA ${HAVE_LIBNUMA}
 #cmakedefine HAVE_PKCS5_PBKDF2_HMAC 1
 #cmakedefine HAVE_PKCS5_PBKDF2_HMAC_SHA1 1
+#cmakedefine HAVE_FUNC 1
+#cmakedefine HAVE_FUNCTION 1
+
+#if !defined(HAVE_FUNC) && defined(HAVE_FUNCTION)
+#define __func__ __FUNCTION__
+#endif
 
 #define COUCHBASE_MAX_NUM_BUCKETS 100
 

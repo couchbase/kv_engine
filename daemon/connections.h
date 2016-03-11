@@ -116,7 +116,7 @@ struct listening_port *get_listening_port_instance(const in_port_t port);
  * if fd is -1.
  * Note: We hold the connections mutex for the duration of this function.
  */
-void connection_stats(ADD_STAT add_stats, Connection *c, const int64_t fd);
+void connection_stats(ADD_STAT add_stats, const void *c, const int64_t fd);
 
 /*
  * Use engine::release to drop any data we may have allocated with engine::allocate

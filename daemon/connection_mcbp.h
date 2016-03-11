@@ -36,6 +36,7 @@
 #include <vector>
 
 #include "connection.h"
+#include "cookie.h"
 
 /**
  * The SslContext class is a holder class for all of the ssl-related
@@ -684,6 +685,10 @@ public:
     /** Write buffer */
     struct net_buf write;
 
+    const void* getCookie() const {
+        return &cookie;
+    }
+
 protected:
     void runStateMachinery();
 
@@ -865,6 +870,8 @@ protected:
     size_t totalRecv;
     // Total number of bytes sent to the network
     size_t totalSend;
+
+    Cookie cookie;
 };
 
 /*

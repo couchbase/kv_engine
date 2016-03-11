@@ -55,11 +55,17 @@ static int get_clustermap_revno(const char *map, size_t mapsize) {
     return -1;
 }
 
-static ENGINE_ERROR_CODE get_vb_map_cb(const void* cookie,
+static ENGINE_ERROR_CODE get_vb_map_cb(const void* void_cookie,
                                        const void* map,
                                        size_t mapsize) {
     char* buf;
-    McbpConnection* c = (McbpConnection*)cookie;
+
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error("get_vb_map_cb: cookie must represent connection");
+    }
+
+    McbpConnection* c = reinterpret_cast<McbpConnection*>(cookie->connection);
     protocol_binary_response_header header;
     size_t needed = sizeof(protocol_binary_response_header);
 
@@ -273,11 +279,19 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
                            const void* ext, uint8_t extlen,
                            const void* body, uint32_t bodylen,
                            uint8_t datatype, uint16_t status,
-                           uint64_t cas, const void* cookie)
+                           uint64_t cas, const void* void_cookie)
 {
     protocol_binary_response_header header;
     char *buf;
-    McbpConnection* c = (McbpConnection*)cookie;
+
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+    if (cookie->connection == nullptr) {
+        throw std::runtime_error(
+            "mcbp_response_handler: cookie must represent connection");
+    }
+
+    McbpConnection* c = reinterpret_cast<McbpConnection*>(cookie->connection);
     /* Look at append_bin_stats */
     size_t needed;
     bool need_inflate = false;
@@ -370,7 +384,7 @@ void mcbp_collect_timings(const McbpConnection* c) {
     all_buckets[0].timings.collect(c->getCmd(), elapsed_ns);
 
     // timing for current bucket
-    bucket_id_t bucketid = get_bucket_id(c);
+    bucket_id_t bucketid = get_bucket_id(c->getCookie());
     /* bucketid will be zero initially before you run sasl auth
      * (unless there is a default bucket), or if someone tries
      * to delete the bucket you're associated with and your're idle.

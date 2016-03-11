@@ -105,7 +105,7 @@ void SaslAuthTask::notifyExecutionComplete() {
     // while waiting for the call) lets just unlock and lock again..
     getMutex().unlock();
     if (connection.getProtocol() == Protocol::Memcached) {
-        notify_io_complete(&connection, ENGINE_SUCCESS);
+        notify_io_complete(reinterpret_cast<McbpConnection&>(connection).getCookie(), ENGINE_SUCCESS);
     } else {
         throw std::runtime_error("Not implemented for Greenstack");
     }

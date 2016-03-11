@@ -54,8 +54,9 @@ public:
     virtual void notifyExecutionComplete() override {
         if (thread.getConnection() != nullptr) {
             getMutex().unlock();
-            notify_io_complete(thread.getConnection(),
-                               thread.getResult());
+            // @todo i need to fix this for greenstack
+            Cookie cookie(thread.getConnection());
+            notify_io_complete(&cookie, thread.getResult());
             getMutex().lock();
         }
     }
