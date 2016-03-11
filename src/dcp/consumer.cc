@@ -282,9 +282,9 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        Item *item = new Item(key, nkey, flags, exptime, value, nvalue,
-                              &datatype, EXT_META_LEN, cas, bySeqno,
-                              vbucket, revSeqno);
+        queued_item item(new Item(key, nkey, flags, exptime, value, nvalue,
+                                  &datatype, EXT_META_LEN, cas, bySeqno,
+                                  vbucket, revSeqno));
 
         ExtendedMetaData *emd = NULL;
         if (nmeta > 0) {
@@ -303,6 +303,7 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
         try {
             response = new MutationResponse(item, opaque, emd);
         } catch (const std::bad_alloc&) {
+            delete emd;
             return ENGINE_ENOMEM;
         }
 
@@ -343,8 +344,8 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     passive_stream_t stream = streams[vbucket];
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        Item* item = new Item(key, nkey, 0, 0, NULL, 0, NULL, 0, cas, bySeqno,
-                              vbucket, revSeqno);
+        queued_item item(new Item(key, nkey, 0, 0, NULL, 0, NULL, 0, cas, bySeqno,
+                                  vbucket, revSeqno));
         item->setDeleted();
 
         ExtendedMetaData *emd = NULL;
@@ -364,6 +365,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
         try {
             response = new MutationResponse(item, opaque, emd);
         } catch (const std::bad_alloc&) {
+            delete emd;
             return ENGINE_ENOMEM;
         }
 
