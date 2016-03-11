@@ -91,7 +91,10 @@ static SOCKET connect_to_server_ssl(in_port_t ssl_port);
 
 static void destroy_ssl_socket();
 
-const char* to_string(const Transport& transport) {
+std::string to_string(const Transport& transport) {
+#ifdef JETBRAINS_CLION_IDE
+    return std::to_string(int(transport));
+#else
     switch (transport) {
     case Transport::Plain:
         return "Plain";
@@ -103,6 +106,7 @@ const char* to_string(const Transport& transport) {
         return "SslIpv6";
     }
     throw std::logic_error("Unknown transport");
+#endif
 }
 
 std::ostream& operator << (std::ostream& os, const Transport& t)

@@ -48,7 +48,7 @@ enum class Transport {
 };
 
 std::ostream& operator << (std::ostream& os, const Transport& t);
-const char* to_string(const Transport& transport);
+std::string to_string(const Transport& transport);
 
 // Needed by subdocument tests in seperate .cc file.
 extern SOCKET sock;
