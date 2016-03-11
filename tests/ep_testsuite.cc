@@ -7707,6 +7707,7 @@ static enum test_result test_multiple_transactions(ENGINE_HANDLE *h,
 
 static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
                                          ENGINE_HANDLE_V1 *h1) {
+    wait_for_stat_change(h, h1, "ep_db_file_size", 0); // wait couch db creation
     check(estimateVBucketMove(h, h1, 0) == 0, "Empty VB estimate is wrong");
 
     const int num_keys = 5;
