@@ -135,6 +135,17 @@ class FailoverTable;
 class KVShard;
 
 /**
+ * Indicates the possible time synchronization settings
+ * for the vbucket
+ */
+
+enum class time_sync_t {
+    DISABLED,               //No time synchronization.
+    ENABLED_WITHOUT_DRIFT,  //Time synchronization but no usage of drift counter
+    ENABLED_WITH_DRIFT      //Time synchronization with usage of drift counter
+};
+
+/**
  * An individual vbucket.
  */
 class VBucket : public RCValue {
@@ -176,7 +187,7 @@ public:
         purge_seqno(purgeSeqno),
         max_cas(maxCas),
         drift_counter(driftCounter),
-        time_sync_enabled(false),
+        time_sync_config(time_sync_t::DISABLED),
         takeover_backed_up(false),
         persisted_snapshot_start(lastSnapStart),
         persisted_snapshot_end(lastSnapEnd),
@@ -231,7 +242,20 @@ public:
     }
 
     bool isTimeSyncEnabled() {
-        return time_sync_enabled.load();
+        if (time_sync_config == time_sync_t::ENABLED_WITHOUT_DRIFT ||
+            time_sync_config == time_sync_t::ENABLED_WITH_DRIFT) {
+            return true;
+        }
+
+        return false;
+    }
+
+    time_sync_t getTimeSyncConfig() {
+        return time_sync_config;
+    }
+
+    void setTimeSyncConfig(time_sync_t timeSyncConfig) {
+        time_sync_config.store(timeSyncConfig);
     }
 
     void setMaxCas(uint64_t cas) {
@@ -240,14 +264,11 @@ public:
 
     /**
      * To set drift counter's initial value
-     * and to toggle the timeSync between ON/OFF.
      *
      * Returns last_vbuuid and last_seqno of vbucket (atomically)
      */
-    set_drift_state_resp_t setDriftCounterState(int64_t initial_drift,
-                                                uint8_t time_sync) {
+    set_drift_state_resp_t setDriftCounterState(int64_t initial_drift) {
         drift_counter = initial_drift;
-        time_sync_enabled = time_sync;
 
         // Get vbucket uuid from the failover table, and then get
         // the vbucket high seqno, return these 2 values as long as
@@ -271,7 +292,7 @@ public:
     void setDriftCounter(int64_t adjustedTime) {
         // Update drift counter only if timeSync is enabled for
         // the vbucket.
-        if (time_sync_enabled) {
+        if (time_sync_config == time_sync_t::ENABLED_WITH_DRIFT) {
             int64_t wallTime = gethrtime();
             if ((wallTime + getDriftCounter()) < adjustedTime) {
                 drift_counter = (adjustedTime - wallTime);
@@ -412,6 +433,16 @@ public:
         }
     }
 
+    static time_sync_t convertStrToTimeSyncConfig(const std::string& timeSyncConfig) {
+        if (timeSyncConfig == "enabled_without_drift") {
+            return time_sync_t::ENABLED_WITHOUT_DRIFT;
+        } else if (timeSyncConfig == "enabled_with_drift") {
+            return time_sync_t::ENABLED_WITH_DRIFT;
+        }
+
+        return time_sync_t::DISABLED;
+    }
+
     void addHighPriorityVBEntry(uint64_t id, const void *cookie,
                                 bool isBySeqno);
     void notifyOnPersistence(EventuallyPersistentEngine &e,
@@ -536,9 +567,10 @@ private:
     hrtime_t                        pendingOpsStart;
     EPStats                        &stats;
     uint64_t                        purge_seqno;
+
     AtomicValue<uint64_t>           max_cas;
     AtomicValue<int64_t>            drift_counter;
-    AtomicValue<bool>               time_sync_enabled;
+    AtomicValue<time_sync_t>        time_sync_config;
 
     AtomicValue<bool>               takeover_backed_up;
 

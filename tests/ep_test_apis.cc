@@ -226,15 +226,16 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
 }
 
 void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             int64_t initialDriftCount, uint8_t timeSync) {
+                             int64_t initialDriftCount) {
 
     protocol_binary_request_header *request;
 
     int64_t driftCount = htonll(initialDriftCount);
+    uint8_t timeSync = 0x00;
     uint8_t extlen = sizeof(driftCount) + sizeof(timeSync);
     char *ext = new char[extlen];
-    memcpy(ext, (char*)&driftCount, sizeof(driftCount));
-    memcpy(ext + sizeof(driftCount), (char*)&timeSync, sizeof(timeSync));
+    memcpy(ext, (char *)&driftCount, sizeof(driftCount));
+    memcpy(ext + sizeof(driftCount), (char *)&timeSync, sizeof(timeSync));
 
     request = createPacket(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
                            0, 0, ext, extlen);
@@ -1010,6 +1011,16 @@ float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statnam
                         add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
     std::string s = vals.at(statname);
     return std::stof(s);
+}
+
+uint32_t get_ul_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
+                      const char *statkey) {
+    std::lock_guard<std::mutex> lh(vals_mutex);
+    vals.clear();
+    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
+                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
+    std::string s = vals.at(statname);
+    return std::stoul(s);
 }
 
 uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,

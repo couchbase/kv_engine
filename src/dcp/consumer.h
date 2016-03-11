@@ -115,6 +115,10 @@ public:
 
     bool notifiedProcesser(bool to);
 
+    void setProcesserTaskState(enum process_items_error_t to);
+
+    std::string getProcesserTaskStatusStr();
+
 private:
 
     DcpResponse* getNextItem();
@@ -146,6 +150,7 @@ private:
 
     uint64_t opaqueCounter;
     size_t processerTaskId;
+    AtomicValue<enum process_items_error_t> processerTaskState;
 
     DcpReadyQueue vbReady;
     AtomicValue<bool> processerNotification;

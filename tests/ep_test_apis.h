@@ -201,6 +201,8 @@ int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                  const char *statkey = NULL);
 float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                      const char *statkey = NULL);
+uint32_t get_ul_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                     const char *statname, const char *statkey = NULL);
 uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                       const char *statkey = NULL);
 std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -265,7 +267,7 @@ void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 // XDCR Operations
 void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             int64_t initialDrift, uint8_t timeSync);
+                             int64_t initialDrift);
 void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                    const size_t keylen, const char *val, const size_t vallen,
                    const uint32_t vb, ItemMetaData *itemMeta,
