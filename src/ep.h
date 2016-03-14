@@ -174,7 +174,9 @@ enum get_options_t {
     HONOR_STATES     = 0x0004,  //whether a retrieval should depend on the state
                                 //of the vbucket
     TRACK_REFERENCE  = 0x0008,  //whether NRU bit needs to be set for the item
-    DELETE_TEMP      = 0x0010   //whether temporary items need to be deleted
+    DELETE_TEMP      = 0x0010,  //whether temporary items need to be deleted
+    HIDE_LOCKED_CAS  = 0x0020   //whether locked items should have their CAS
+                                //hidden (return -1).
 };
 
 /**
@@ -266,7 +268,8 @@ public:
                                                         QUEUE_BG_FETCH |
                                                         HONOR_STATES |
                                                         TRACK_REFERENCE |
-                                                        DELETE_TEMP)) {
+                                                        DELETE_TEMP |
+                                                        HIDE_LOCKED_CAS)) {
         return getInternal(key, vbucket, cookie, vbucket_state_active,
                            options);
     }
@@ -289,7 +292,8 @@ public:
                                                         QUEUE_BG_FETCH |
                                                         HONOR_STATES |
                                                         TRACK_REFERENCE |
-                                                        DELETE_TEMP)) {
+                                                        DELETE_TEMP |
+                                                        HIDE_LOCKED_CAS)) {
         return getInternal(key, vbucket, cookie, vbucket_state_replica,
                            options);
     }
