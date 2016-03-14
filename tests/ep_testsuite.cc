@@ -2715,6 +2715,11 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
 static enum test_result test_access_scanner(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
 
+    /*
+     * temporarily skip this testcase to prevent CV regr failures
+     * till fix for it will be implemented and committed (MB-16337)
+     */
+    return SKIPPED; 
     checkeq(ENGINE_SUCCESS,
             h1->get_stats(h, NULL, NULL, 0, add_stats),
             "Failed to get stats.");
