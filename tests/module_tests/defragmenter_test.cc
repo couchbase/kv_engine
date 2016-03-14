@@ -17,6 +17,7 @@
 
 #include "defragmenter_visitor.h"
 
+#include <gtest/gtest.h>
 #include <iomanip>
 #include <locale>
 
@@ -100,16 +101,65 @@ static size_t benchmarkDefragment(VBucket& vbucket, size_t passes,
     return size_t(visited / duration_s);
 }
 
-void printResult(const std::string label, size_t value, const std::string units) {
-    std::cout.imbue(std::locale(""));
+class DefragmenterBenchmarkTest : public ::testing::Test {
+protected:
+    static void SetUpTestCase() {
+        /* Create the vbucket */
+        std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
+        vbucket.reset(new VBucket(0, vbucket_state_active, stats, config,
+                                  nullptr, 0, 0, 0, nullptr, cb));
+    }
 
-    std::cout << std::setw(20) << label << ": "
-              << std::right << std::setw(11) << value << " " << units << std::endl;
+    static void TearDownTestCase() {
+        vbucket.reset();
+    }
+
+    static EPStats stats;
+    static CheckpointConfig config;
+    static std::unique_ptr<VBucket> vbucket;
+};
+
+EPStats DefragmenterBenchmarkTest::stats;
+CheckpointConfig DefragmenterBenchmarkTest::config;
+std::unique_ptr<VBucket> DefragmenterBenchmarkTest::vbucket;
+
+
+TEST_F(DefragmenterBenchmarkTest, Populate) {
+    size_t populateRate = populateVbucket(*vbucket, 500000);
+    RecordProperty("items_per_sec", populateRate);
 }
+
+TEST_F(DefragmenterBenchmarkTest, Visit) {
+    const size_t one_minute = 60 * 1000;
+    size_t visit_rate = benchmarkDefragment(*vbucket, 1,
+                                            std::numeric_limits<uint8_t>::max(),
+                                            one_minute);
+    RecordProperty("items_per_sec", visit_rate);
+}
+
+TEST_F(DefragmenterBenchmarkTest, DefragAlways) {
+    const size_t one_minute = 60 * 1000;
+    size_t defrag_always_rate = benchmarkDefragment(*vbucket, 1, 0,
+                                                    one_minute);
+    RecordProperty("items_per_sec", defrag_always_rate);
+}
+
+TEST_F(DefragmenterBenchmarkTest, DefragAge10) {
+    const size_t one_minute = 60 * 1000;
+    size_t defrag_age10_rate = benchmarkDefragment(*vbucket, 1, 10,
+                                                   one_minute);
+    RecordProperty("items_per_sec", defrag_age10_rate);
+}
+
+TEST_F(DefragmenterBenchmarkTest, DefragAge10_20ms) {
+    size_t defrag_age10_20ms_rate = benchmarkDefragment(*vbucket, 1, 10, 20);
+    RecordProperty("items_per_sec", defrag_age10_20ms_rate);
+}
+
 
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=1";
 
-int main(void) {
+int main(int argc, char** argv) {
     /* Setup mock time functions */
     start_time = time(0);
     ep_abs_time = mock_abstime;
@@ -120,31 +170,6 @@ int main(void) {
     // Set number of hashtable locks equal to current JSON config default.
     HashTable::setDefaultNumLocks(47);
 
-    /* Create and populate a vbucket */
-    EPStats stats;
-    CheckpointConfig config;
-    std::shared_ptr<Callback<uint16_t> > cb(new DummyCB());
-    VBucket vbucket(0, vbucket_state_active, stats, config, NULL, 0, 0, 0, NULL,
-                    cb);
-
-    const size_t one_minute = 60 * 1000;
-
-    size_t populateRate = populateVbucket(vbucket, 500000);
-    printResult("populateRate", populateRate, "items/sec");
-
-    size_t visit_rate = benchmarkDefragment(vbucket, 1,
-                                            std::numeric_limits<uint8_t>::max(),
-                                            one_minute);
-    printResult("visitRate", visit_rate, "items/sec");
-
-    size_t defrag_always_rate = benchmarkDefragment(vbucket, 1, 0,
-                                                    one_minute);
-    printResult("defragAlwaysRate", defrag_always_rate, "items/sec");
-
-    size_t defrag_age10_rate = benchmarkDefragment(vbucket, 1, 10,
-                                                   one_minute);
-    printResult("defragAge10Rate", defrag_age10_rate, "items/sec");
-
-    size_t defrag_age10_20ms_rate = benchmarkDefragment(vbucket, 1, 10, 20);
-    printResult("defragAge10Rate_20ms", defrag_age10_20ms_rate, "items/sec");
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

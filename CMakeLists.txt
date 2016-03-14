@@ -372,7 +372,8 @@ ADD_EXECUTABLE(ep-engine_defragmenter_test
                src/testlogger.cc
                src/vbucket.cc
                ${OBJECTREGISTRY_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_defragmenter_test cJSON platform ${SNAPPY_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep-engine_defragmenter_test
+	              cJSON gtest platform ${SNAPPY_LIBRARIES})
 
 ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc

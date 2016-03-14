@@ -289,6 +289,40 @@ TEST_F(StreamTest, MB17653_ItemsRemaining) {
         << "Should have 0 items remaining after advancing cursor and draining readyQ";
 }
 
+TEST_F(StreamTest, test_mb18625) {
+
+    // Add an item.
+    store_item(*engine, vbid, "key", "value");
+
+    setup_dcp_stream();
+
+    // Should start with nextCheckpointItem() returning true.
+    MockActiveStream* mock_stream = static_cast<MockActiveStream*>(stream.get());
+    EXPECT_TRUE(mock_stream->public_nextCheckpointItem())
+        << "nextCheckpointItem() should initially be true.";
+
+    std::vector<queued_item> items;
+
+    // Get the set of outstanding items
+    mock_stream->public_getOutstandingItems(vb0, items);
+
+    // Set stream to DEAD to simulate a close stream request
+    mock_stream->setDead(END_STREAM_CLOSED);
+
+    // Process the set of items retrieved from checkpoint queues previously
+    mock_stream->public_processItems(items);
+
+    // Retrieve the next message in the stream's readyQ
+    DcpResponse *op = mock_stream->public_nextQueuedItem();
+    EXPECT_EQ(DCP_STREAM_END, op->getEvent())
+        << "Expected the STREAM_END message";
+    delete op;
+
+    // Expect no other message to be queued after stream end message
+    EXPECT_EQ(0, (mock_stream->public_readyQ()).size())
+        << "Expected no more messages in the readyQ";
+}
+
 class ConnectionTest : public DCPTest {};
 
 TEST_F(ConnectionTest, test_mb18135) {
