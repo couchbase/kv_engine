@@ -8752,7 +8752,7 @@ static enum test_result test_failover_log_behavior(ENGINE_HANDLE *h,
 /* The Defragmenter (and hence it's unit tests) depend on using jemalloc as the
  * memory allocator.
  */
-#if defined(HAVE_JEMALLOC)
+#if 0
 /* Waits for mapped memory value to drop below the specified value, or for
  * the maximum_sleep_time to be reached.
  * @returns True if the mapped memory value dropped, or false if the maximum
@@ -9729,7 +9729,9 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test failover log behavior", test_failover_log_behavior,
                  test_setup, teardown, NULL, prepare, cleanup),
 
-#if defined(HAVE_JEMALLOC)
+#if 0
+        // MB-19755: Test frequently fails. Disabling temporarily
+        // until it's updated to be more stable.
         TestCase("test defragmenter", test_defragmenter,
                  test_setup, teardown,
                  "defragmenter_interval=9999"
