@@ -80,25 +80,21 @@ static int count(HashTable &h, bool verify=true) {
     return c.count;
 }
 
-static void store(HashTable &h, std::string &k) {
+static void store(HashTable &h, const std::string &k) {
     Item i(k.data(), k.length(), 0, 0, k.c_str(), k.length());
     EXPECT_EQ(WAS_CLEAN, h.set(i));
 }
 
 static void storeMany(HashTable &h, std::vector<std::string> &keys) {
-    std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        std::string key = *it;
+    for (const auto& key : keys) {
         store(h, key);
     }
 }
 
 static void addMany(HashTable &h, std::vector<std::string> &keys,
                     add_type_t expect) {
-    std::vector<std::string>::iterator it;
     item_eviction_policy_t policy = VALUE_ONLY;
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        std::string k = *it;
+    for (const auto& k : keys) {
         Item i(k.data(), k.length(), 0, 0, k.c_str(), k.length());
         add_type_t v = h.add(i, policy);
         EXPECT_EQ(expect, v);
@@ -131,10 +127,7 @@ static std::vector<std::string> generateKeys(int num, int start=0) {
     std::vector<std::string> rv;
 
     for (int i = start; i < num; i++) {
-        char buf[64];
-        snprintf(buf, sizeof(buf), "key%d", i);
-        std::string key(buf);
-        rv.push_back(key);
+        rv.push_back(std::to_string(i));
     }
 
     return rv;
@@ -179,7 +172,7 @@ TEST_F(HashTableTest, ReverseDeletions) {
     size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
     ASSERT_EQ(0, count(h));
-    const int nkeys = 10000;
+    const int nkeys = 1000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
     storeMany(h, keys);
@@ -187,9 +180,7 @@ TEST_F(HashTableTest, ReverseDeletions) {
 
     std::reverse(keys.begin(), keys.end());
 
-    std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        std::string key = *it;
+    for (const auto& key : keys) {
         h.del(key);
     }
 
@@ -204,15 +195,13 @@ TEST_F(HashTableTest, ForwardDeletions) {
     ASSERT_EQ(5, h.getSize());
     ASSERT_EQ(1, h.getNumLocks());
     ASSERT_EQ(0, count(h));
-    const int nkeys = 10000;
+    const int nkeys = 1000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
     storeMany(h, keys);
     EXPECT_EQ(nkeys, count(h));
 
-    std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        std::string key = *it;
+    for (const auto& key : keys) {
         h.del(key);
     }
 
@@ -224,15 +213,13 @@ static void verifyFound(HashTable &h, const std::vector<std::string> &keys) {
     std::string missingKey = "aMissingKey";
     EXPECT_FALSE(h.find(missingKey));
 
-    std::vector<std::string>::const_iterator it;
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        std::string key = *it;
+    for (const auto& key : keys) {
         EXPECT_TRUE(h.find(key));
     }
 }
 
 static void testFind(HashTable &h) {
-    const int nkeys = 5000;
+    const int nkeys = 1000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
     storeMany(h, keys);
@@ -269,7 +256,7 @@ TEST_F(HashTableTest, AddExpiry) {
 TEST_F(HashTableTest, Resize) {
     HashTable h(global_stats, 5, 3);
 
-    std::vector<std::string> keys = generateKeys(5000);
+    std::vector<std::string> keys = generateKeys(1000);
     storeMany(h, keys);
 
     verifyFound(h, keys);
@@ -299,12 +286,11 @@ public:
     }
 
     bool operator()() {
-        std::vector<std::string>::iterator it;
-        for (it = keys.begin(); it != keys.end(); ++it) {
+        for (const auto& key : keys) {
             if (rand() % 111 == 0) {
                 resize();
             }
-            ht.del(*it);
+            ht.del(key);
         }
         return true;
     }
@@ -313,7 +299,7 @@ private:
 
     void resize() {
         ht.resize(size);
-        size = size == 10000 ? 30000 : 10000;
+        size = size == 1000 ? 3000 : 1000;
     }
 
     std::vector<std::string>  keys;
@@ -324,7 +310,7 @@ private:
 TEST_F(HashTableTest, ConcurrentAccessResize) {
     HashTable h(global_stats, 5, 3);
 
-    std::vector<std::string> keys = generateKeys(20000);
+    std::vector<std::string> keys = generateKeys(2000);
     h.resize(keys.size());
     storeMany(h, keys);
 
@@ -332,25 +318,27 @@ TEST_F(HashTableTest, ConcurrentAccessResize) {
 
     srand(918475);
     AccessGenerator gen(keys, h);
-    getCompletedThreads(16, &gen);
+    getCompletedThreads(4, &gen);
 }
 
 TEST_F(HashTableTest, AutoResize) {
     HashTable h(global_stats, 5, 3);
 
-    std::vector<std::string> keys = generateKeys(5000);
+    ASSERT_EQ(5, h.getSize());
+
+    std::vector<std::string> keys = generateKeys(1000);
     storeMany(h, keys);
 
     verifyFound(h, keys);
 
     h.resize();
-    EXPECT_EQ(6143, h.getSize());
+    EXPECT_EQ(769, h.getSize());
     verifyFound(h, keys);
 }
 
 TEST_F(HashTableTest, Add) {
     HashTable h(global_stats, 5, 1);
-    const int nkeys = 5000;
+    const int nkeys = 1000;
 
     std::vector<std::string> keys = generateKeys(nkeys);
     addMany(h, keys, ADD_SUCCESS);
@@ -358,19 +346,16 @@ TEST_F(HashTableTest, Add) {
     std::string missingKey = "aMissingKey";
     EXPECT_FALSE(h.find(missingKey));
 
-    std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        std::string key = *it;
+    for (const auto& key : keys) {
         EXPECT_TRUE(h.find(key));
     }
 
     addMany(h, keys, ADD_EXISTS);
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        std::string key = *it;
+    for (const auto& key : keys) {
         EXPECT_TRUE(h.find(key));
     }
 
-    // Verify we can readd after a soft deletion.
+    // Verify we can read after a soft deletion.
     EXPECT_EQ(WAS_DIRTY, h.softDelete(keys[0], 0));
     EXPECT_EQ(NOT_FOUND, h.softDelete(keys[0], 0));
     EXPECT_FALSE(h.find(keys[0]));
