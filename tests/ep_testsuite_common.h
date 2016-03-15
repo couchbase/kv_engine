@@ -179,4 +179,10 @@ void check_key_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                  const std::string& key);
 
+// Creates a TAP connection, returning the cookie associated with the
+// newly created connection.
+const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                          const char *name) CB_MUST_USE_RESULT;
+
+
 #endif /* TESTS_EP_TESTSUITE_COMMON_H_ */

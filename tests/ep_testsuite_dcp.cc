@@ -27,6 +27,17 @@
 #include "programs/engine_testapp/mock_server.h"
 
 // Helper functions ///////////////////////////////////////////////////////////
+
+void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
+    std::unique_ptr<dcp_message_producers> producers = get_dcp_producers(h, h1);
+    ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
+    check(err == ENGINE_SUCCESS || err == ENGINE_WANT_MORE,
+            "Expected success or engine_want_more");
+    if (err == ENGINE_SUCCESS) {
+        clear_dcp_data();
+    }
+}
+
 /* This is a flag that indicates the continuous dcp thread to come out of
    loop that keeps calling dcp->step().
    To be set only by the (parent) thread spawning the continuous_dcp_thread.

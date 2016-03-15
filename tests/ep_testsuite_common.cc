@@ -358,3 +358,15 @@ uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
     return info.cas;
 }
+
+const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                          const char *name) {
+    const void *cookie = testHarness.create_cookie();
+    testHarness.lock_cookie(cookie);
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name,
+                                             strlen(name),
+                                             TAP_CONNECT_FLAG_DUMP, NULL,
+                                             0);
+    check(iter != NULL, "Failed to create a tap iterator");
+    return cookie;
+}
