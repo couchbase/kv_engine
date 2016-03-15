@@ -196,7 +196,10 @@ void FailoverTable::pruneEntries(uint64_t seqno) {
 
 std::string FailoverTable::toJSON() {
     LockHolder lh(lock);
-    return cachedTableJSON;
+    // Here we are explictly forcing a copy of the object to
+    // work around std::string copy-on-write data-race issues
+    // seen on some versions of libstdc++ - see MB-18510
+    return std::string(cachedTableJSON.begin(), cachedTableJSON.end());
 }
 
 void FailoverTable::cacheTableJSON() {
