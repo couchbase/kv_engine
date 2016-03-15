@@ -135,7 +135,7 @@ public:
     hrtime_t getTime(void) { return warmup; }
 
     void setWarmupTime(void) {
-        warmup.store(gethrtime() - startTime);
+        warmup.store(gethrtime() + gethrtime_period() - startTime);
     }
 
     size_t doWarmup(MutationLog &lf, const std::map<uint16_t,

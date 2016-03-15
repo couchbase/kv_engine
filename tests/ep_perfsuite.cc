@@ -290,9 +290,8 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     append_timings.reserve(num_docs);
     delete_timings.reserve(num_docs);
 
-    int printed = 0;
-    printf("\n\n=== Latency [%s] - %" PRIu64 " items (µs) %n", title,
-           uint64_t(num_docs), &printed);
+    int printed = printf("\n\n=== Latency [%s] - %" PRIu64 " items (µs)",
+                         title, uint64_t(num_docs));
     fillLineWith('=', 88-printed);
 
     // run and measure on this thread.
@@ -392,12 +391,9 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
 
     std::vector<BucketHolder> buckets;
 
-    int printed = 0;
-    printf("\n\n=== Latency (%d-bucket(s) %d-thread(s)) - %u items (µs) %n",
-           n_buckets,
-           n_threads,
-           num_docs,
-           &printed);
+    printf("\n\n");
+    int printed = printf("=== Latency(%d - bucket(s) % d - thread(s)) - %u items(µs)",
+                         n_buckets, n_threads, num_docs);
 
     fillLineWith('=', 88-printed);
 
@@ -916,16 +912,15 @@ static enum test_result perf_dcp_latency_and_bandwidth(ENGINE_HANDLE *h,
         all_sizes.push_back(std::make_pair(dcp_ha.name, &iterations[i].received));
     }
 
-    int printed = 0;
-    printf("\n\n=== %s Latency - %zu items (µs) %n",
-           title.c_str(), item_count, &printed);
+    printf("\n\n");
+    int printed = printf("=== %s Latency - %zu items(µs)", title.c_str(),
+                         item_count);
     fillLineWith('=', 88-printed);
 
     print_values(all_timings, "µs");
 
-    printed = 0;
-    printf("=== %s KB Rcvd. - %zu items (KB) %n",
-           title.c_str(), item_count, &printed);
+    printed = printf("=== %s KB Rcvd. - %zu items (KB)", title.c_str(),
+                     item_count);
     fillLineWith('=', 86-printed);
 
     print_values(all_sizes, "KB");
