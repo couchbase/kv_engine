@@ -103,8 +103,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name), opaqueCounter(0),
       processerTaskId(0), processerTaskState(all_processed),
-      lastNoopTime(ep_current_time()), backoffs(0),
-      taskAlreadyCancelled(false), flowControl(engine, this)
+      processerNotification(false), lastNoopTime(ep_current_time()),
+      backoffs(0), taskAlreadyCancelled(false), flowControl(engine, this)
 {
     Configuration& config = engine.getConfiguration();
     streams = new passive_stream_t[config.getMaxVbuckets()];
