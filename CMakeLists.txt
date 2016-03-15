@@ -367,13 +367,17 @@ ADD_EXECUTABLE(ep-engine_defragmenter_test
                src/generated_configuration.cc
                src/failover-table.cc
                src/item.cc
+               src/memory_tracker.cc
                src/murmurhash3.cc
                src/stored-value.cc
                src/testlogger.cc
                src/vbucket.cc
-               ${OBJECTREGISTRY_SOURCE})
+               ${OBJECTREGISTRY_SOURCE}
+               ${Memcached_SOURCE_DIR}/utilities/extension_loggers.c
+               $<TARGET_OBJECTS:memory_tracking>)
 TARGET_LINK_LIBRARIES(ep-engine_defragmenter_test
-	              cJSON gtest platform ${SNAPPY_LIBRARIES})
+                      cJSON gtest platform ${MALLOC_LIBRARIES}
+                      ${SNAPPY_LIBRARIES})
 
 ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
