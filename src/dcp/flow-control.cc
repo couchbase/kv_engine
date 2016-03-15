@@ -132,4 +132,5 @@ void FlowControl::addStats(ADD_STAT add_stat, const void *c)
 {
     consumerConn->addStat("total_acked_bytes", ackedBytes, add_stat, c);
     consumerConn->addStat("max_buffer_bytes", bufferSize, add_stat, c);
+    consumerConn->addStat("unacked_bytes", freedBytes, add_stat, c);
 }

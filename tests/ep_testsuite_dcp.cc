@@ -2535,10 +2535,12 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         cb_assert(dcp_last_opaque != opaque);
     }
 
+#if 0 /* MB-18256: Disabling cursor droppping temporarily */
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op = PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("supports_cursor_dropping") == 0);
     cb_assert(dcp_last_opaque != opaque);
+#endif
 
     checkeq(ENGINE_SUCCESS,
             h1->dcp.add_stream(h, cookie, opaque, vbucket, flags),
@@ -2950,16 +2952,20 @@ static enum test_result test_dcp_add_stream(ENGINE_HANDLE *h,
     const void *cookie = testHarness.create_cookie();
     uint32_t opaque = 0xFFFF0000;
     uint32_t flags = 0;
-    const char *name = "unittest";
-    uint16_t nname = strlen(name);
+    std::string name("unittest");
 
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
     // Open consumer connection
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)(name.c_str()),
+                         name.length()),
             "Failed dcp Consumer open connection.");
+
+    std::string flow_ctl_stat_buf("eq_dcpq:" + name + ":unacked_bytes");
+    checkeq(0, get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            "Consumer flow ctl unacked bytes not starting from 0");
 
     add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
                             PROTOCOL_BINARY_RESPONSE_SUCCESS);
@@ -3806,7 +3812,8 @@ static enum test_result test_dcp_consumer_end_stream(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
+                                                 ENGINE_HANDLE_V1 *h1) {
     check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
           "Failed to set vbucket state.");
 
@@ -3814,20 +3821,27 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
     uint32_t opaque = 0xFFFF0000;
     uint32_t seqno = 0;
     uint32_t flags = 0;
-    const char *name = "unittest";
-    uint16_t nname = strlen(name);
+    std::string name("unittest");
 
     // Open an DCP connection
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)name, nname),
+            h1->dcp.open(h, cookie, opaque, seqno, flags, (void*)(name.c_str()),
+                         name.length()),
             "Failed dcp producer open connection.");
 
     std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
     checkeq(0, type.compare("consumer"), "Consumer not found");
 
+    int exp_unacked_bytes = 0;
+    std::string flow_ctl_stat_buf("eq_dcpq:" + name + ":unacked_bytes");
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            "Consumer flow ctl unacked bytes not starting from 0");
+
     opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
+    std::string key("key");
     uint32_t dataLen = 100;
     char *data = static_cast<char *>(malloc(dataLen));
     memset(data, 'x', dataLen);
@@ -3844,26 +3858,48 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE
             h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 10, 1),
             "Failed to send snapshot marker");
 
+    /* Add snapshot marker bytes to unacked bytes. Since we are shipping out
+       acks by calling dcp.step(), the unacked bytes will increase */
+    exp_unacked_bytes += dcp_snapshot_marker_base_msg_bytes;
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            "Consumer flow ctl snapshot marker bytes not accounted correctly");
+
     // Ensure that we don't accept invalid opaque values
     checkeq(ENGINE_KEY_ENOENT,
-            h1->dcp.mutation(h, cookie, opaque + 1, "key", 3, data, dataLen, cas,
-                             vbucket, flags, datatype,
-                             bySeqno, revSeqno, exprtime,
-                             lockTime, NULL, 0, 0),
+            h1->dcp.mutation(h, cookie, opaque + 1, key.c_str(), key.length(),
+                             data, dataLen, cas, vbucket, flags, datatype,
+                             bySeqno, revSeqno, exprtime, lockTime, NULL, 0, 0),
           "Failed to detect invalid DCP opaque value");
+
+    /* Add mutation bytes to unacked bytes. Since we are shipping out
+       acks by calling dcp.step(), the unacked bytes will increase */
+    exp_unacked_bytes += (dcp_mutation_base_msg_bytes + key.length() + dataLen);
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            "Consumer flow ctl mutation bytes not accounted correctly");
 
     // Send snapshot marker
     checkeq(ENGINE_SUCCESS,
             h1->dcp.snapshot_marker(h, cookie, opaque, 0, 10, 15, 300),
             "Failed to send marker!");
 
+    exp_unacked_bytes += dcp_snapshot_marker_base_msg_bytes;
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            "Consumer flow ctl snapshot marker bytes not accounted correctly");
+
     // Consume an DCP mutation
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.mutation(h, cookie, opaque, "key", 3, data, dataLen, cas,
-                           vbucket, flags, datatype,
-                           bySeqno, revSeqno, exprtime,
-                           lockTime, NULL, 0, 0),
+            h1->dcp.mutation(h, cookie, opaque, key.c_str(), key.length(), data,
+                             dataLen, cas, vbucket, flags, datatype, bySeqno,
+                             revSeqno, exprtime, lockTime, NULL, 0, 0),
             "Failed dcp mutate.");
+
+    exp_unacked_bytes += (dcp_mutation_base_msg_bytes + key.length() + dataLen);
+    checkeq(exp_unacked_bytes,
+            get_int_stat(h, h1, flow_ctl_stat_buf.c_str(), "dcp"),
+            "Consumer flow ctl mutation bytes not accounted correctly");
 
     wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", 0,
                         "dcp");

@@ -649,14 +649,15 @@ another colon.  For example, if your client is named, =slave1=, the
 
 ***Consumer Connections
 
-| connected          | True if this client is connected                      |
-| created            | Creation time for the tap connection                  |
-| pending_disconnect | True if we're hanging up on this client               |
-| reserved           | True if the dcp stream is reserved                    |
-| supports_ack       | True if the connection use flow control               |
-| total_acked_bytes  | The amount of bytes that the consumer has acked       |
-| type               | The connection type (producer, consumer, or notifier) |
-| max_buffer_bytes   | Size of flow control buffer                           |
+| connected          | True if this client is connected                            |
+| created            | Creation time for the tap connection                        |
+| pending_disconnect | True if we're hanging up on this client                     |
+| reserved           | True if the dcp stream is reserved                          |
+| supports_ack       | True if the connection use flow control                     |
+| total_acked_bytes  | The amount of bytes that the consumer has acked             |
+| unacked_bytes      | The amount of bytes the consumer has processed but not acked|
+| type               | The connection type (producer, consumer, or notifier)       |
+| max_buffer_bytes   | Size of flow control buffer                                 |
 
 ****Per Stream Stats
 
