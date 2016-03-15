@@ -11,9 +11,18 @@
 #cmakedefine HAVE_PKCS5_PBKDF2_HMAC_SHA1 1
 #cmakedefine HAVE_FUNC 1
 #cmakedefine HAVE_FUNCTION 1
+#cmakedefine HAVE_SSL_OP_NO_TLSv1_1 1
 
 #if !defined(HAVE_FUNC) && defined(HAVE_FUNCTION)
 #define __func__ __FUNCTION__
+#endif
+
+#ifndef HAVE_SSL_OP_NO_TLSv1_1
+/*
+ * Some of our platforms use an old version of OpenSSL without
+ * support for anything newer than TLSv1
+ */
+#define SSL_OP_NO_TLSv1_1 0L
 #endif
 
 #define COUCHBASE_MAX_NUM_BUCKETS 100

@@ -37,6 +37,11 @@ CHECK_C_SOURCE_COMPILES("
          int main() {
              PKCS5_PBKDF2_HMAC(NULL, 0, NULL, 0, 0, NULL, 0, NULL);
          }" HAVE_PKCS5_PBKDF2_HMAC)
+CHECK_C_SOURCE_COMPILES("
+         #include <openssl/ssl.h>
+         int main() {
+             long mask = SSL_OP_NO_TLSv1_1;
+         }" HAVE_SSL_OP_NO_TLSv1_1)
 CMAKE_POP_CHECK_STATE()
 
 CMAKE_PUSH_CHECK_STATE(RESET)

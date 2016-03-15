@@ -111,6 +111,8 @@ ADD_LIBRARY(memcached_daemon STATIC
                session_cas.cc
                session_cas.h
                settings.h
+               ssl_utils.cc
+               ssl_utils.h
                statemachine_mcbp.cc
                statemachine_mcbp.h
                stats.h
