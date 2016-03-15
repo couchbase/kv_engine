@@ -21,56 +21,23 @@
 #include "couch-kvstore/couch-fs-stats.h"
 #include <platform/histogram.h>
 
-/**
- * FileOpsInterface implementation which records various statistics
- * about OS-level file operations performed by Couchstore.
- */
-class StatsOps : public FileOpsInterface {
-public:
-    StatsOps(CouchstoreStats& _stats)
-        : stats(_stats) {}
-
-    couch_file_handle constructor(couchstore_error_info_t* errinfo) override ;
-    couchstore_error_t open(couchstore_error_info_t* errinfo,
-                            couch_file_handle* handle, const char* path,
-                            int oflag) override;
-    couchstore_error_t close(couchstore_error_info_t* errinfo,
-                             couch_file_handle handle) override;
-    ssize_t pread(couchstore_error_info_t* errinfo,
-                  couch_file_handle handle, void* buf, size_t nbytes,
-                  cs_off_t offset) override;
-    ssize_t pwrite(couchstore_error_info_t* errinfo,
-                   couch_file_handle handle, const void* buf,
-                   size_t nbytes, cs_off_t offset) override;
-    cs_off_t goto_eof(couchstore_error_info_t* errinfo,
-                      couch_file_handle handle) override;
-    couchstore_error_t sync(couchstore_error_info_t* errinfo,
-                            couch_file_handle handle) override;
-    couchstore_error_t advise(couchstore_error_info_t* errinfo,
-                              couch_file_handle handle, cs_off_t offset,
-                              cs_off_t len,
-                              couchstore_file_advice_t advice) override;
-    void destructor(couch_file_handle handle) override;
-
-protected:
-    CouchstoreStats& stats;
-};
-
 std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(CouchstoreStats& stats) {
     return std::unique_ptr<FileOpsInterface>(new StatsOps(stats));
 }
 
-struct StatFile {
-    FileOpsInterface* orig_ops;
-    couch_file_handle orig_handle;
-    cs_off_t last_offs;
-};
+StatsOps::StatFile::StatFile(FileOpsInterface* _orig_ops,
+                             couch_file_handle _orig_handle,
+                             cs_off_t _last_offs)
+    : orig_ops(_orig_ops),
+      orig_handle(_orig_handle),
+      last_offs(_last_offs) {
+}
 
 couch_file_handle StatsOps::constructor(couchstore_error_info_t *errinfo) {
-    StatFile* sf = new StatFile;
-    sf->orig_ops = couchstore_get_default_file_ops();
-    sf->orig_handle = sf->orig_ops->constructor(errinfo);
-    sf->last_offs = 0;
+    FileOpsInterface* orig_ops = couchstore_get_default_file_ops();
+    StatFile* sf = new StatFile(orig_ops,
+                                orig_ops->constructor(errinfo),
+                                0);
     return reinterpret_cast<couch_file_handle>(sf);
 }
 

@@ -67,4 +67,49 @@ public:
 
 std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(CouchstoreStats& stats);
 
+/**
+ * FileOpsInterface implementation which records various statistics
+ * about OS-level file operations performed by Couchstore.
+ */
+class StatsOps : public FileOpsInterface {
+public:
+    StatsOps(CouchstoreStats& _stats)
+        : stats(_stats) {}
+
+    couch_file_handle constructor(couchstore_error_info_t* errinfo) override ;
+    couchstore_error_t open(couchstore_error_info_t* errinfo,
+                            couch_file_handle* handle, const char* path,
+                            int oflag) override;
+    couchstore_error_t close(couchstore_error_info_t* errinfo,
+                             couch_file_handle handle) override;
+    ssize_t pread(couchstore_error_info_t* errinfo,
+                  couch_file_handle handle, void* buf, size_t nbytes,
+                  cs_off_t offset) override;
+    ssize_t pwrite(couchstore_error_info_t* errinfo,
+                   couch_file_handle handle, const void* buf,
+                   size_t nbytes, cs_off_t offset) override;
+    cs_off_t goto_eof(couchstore_error_info_t* errinfo,
+                      couch_file_handle handle) override;
+    couchstore_error_t sync(couchstore_error_info_t* errinfo,
+                            couch_file_handle handle) override;
+    couchstore_error_t advise(couchstore_error_info_t* errinfo,
+                              couch_file_handle handle, cs_off_t offset,
+                              cs_off_t len,
+                              couchstore_file_advice_t advice) override;
+    void destructor(couch_file_handle handle) override;
+
+protected:
+    CouchstoreStats& stats;
+    struct StatFile {
+        StatFile(FileOpsInterface* _orig_ops,
+                 couch_file_handle _orig_handle,
+                 cs_off_t _last_offs);
+
+        FileOpsInterface* orig_ops;
+        couch_file_handle orig_handle;
+        cs_off_t last_offs;
+    };
+
+};
+
 #endif  // SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_

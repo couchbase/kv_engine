@@ -284,6 +284,16 @@ ADD_EXECUTABLE(ep-engine_configuration_test
         src/testlogger.cc)
 TARGET_LINK_LIBRARIES(ep-engine_configuration_test gtest gtest_main platform)
 
+ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
+        src/couch-kvstore/couch-fs-stats.cc
+        tests/module_tests/couch-fs-stats_test.cc
+        $<TARGET_OBJECTS:couchstore_wrapped_fileops_test_framework>)
+TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
+        PRIVATE
+        ${Couchstore_SOURCE_DIR}
+        ${Couchstore_SOURCE_DIR}/src)
+TARGET_LINK_LIBRARIES(ep-engine_couch-fs-stats_test gtest gtest_main gmock platform)
+
 ADD_EXECUTABLE(ep-engine_hash_table_test
   tests/module_tests/hash_table_test.cc
   src/atomic.cc
@@ -337,6 +347,7 @@ ADD_TEST(ep-engine_checkpoint_test ep-engine_checkpoint_test)
 ADD_TEST(ep-engine_chunk_creation_test ep-engine_chunk_creation_test)
 ADD_TEST(ep-engine_compress_test ep-engine_compress_test)
 ADD_TEST(ep-engine_configuration_test ep-engine_configuration_test)
+ADD_TEST(ep-engine_couch-fs-stats_test ep-engine_couch-fs-stats_test)
 ADD_TEST(ep-engine_failover_table_test ep-engine_failover_table_test)
 ADD_TEST(ep-engine_hash_table_test ep-engine_hash_table_test)
 ADD_TEST(ep-engine_hrtime_test ep-engine_hrtime_test)
