@@ -9,6 +9,7 @@
 #include <regex>
 #include <string>
 #include <vector>
+#include <functional>
 
 #include "utilities/engine_loader.h"
 #include "utilities/terminate_handler.h"
@@ -75,6 +76,14 @@ static struct mock_engine* get_handle(ENGINE_HANDLE* handle) {
     return (struct mock_engine*)handle;
 }
 
+static ENGINE_HANDLE_V1* get_engine_v1_from_handle(ENGINE_HANDLE* handle) {
+    return reinterpret_cast<ENGINE_HANDLE_V1*>(get_handle(handle)->the_engine);
+}
+
+static ENGINE_HANDLE* get_engine_from_handle(ENGINE_HANDLE* handle) {
+    return reinterpret_cast<ENGINE_HANDLE*>(get_handle(handle)->the_engine);
+}
+
 static tap_event_t mock_tap_iterator(ENGINE_HANDLE* handle,
                                      const void *cookie, item **itm,
                                      void **es, uint16_t *nes, uint8_t *ttl,
@@ -108,6 +117,52 @@ static struct mock_connstruct* to_mock_connstruct(const void* cookie) {
         (reinterpret_cast<const struct mock_connstruct*>(cookie));
 }
 
+/**
+ * Helper function to return a mock_connstruct, either a new one or
+ * an existng one.
+ **/
+struct mock_connstruct* get_or_create_mock_connstruct(const void* cookie) {
+    struct mock_connstruct *c = to_mock_connstruct(cookie);
+    if (c == NULL) {
+        c = to_mock_connstruct(create_mock_cookie());
+    }
+    return c;
+}
+
+/**
+ * Helper function to destroy a mock_connstruct if get_or_create_mock_connstruct
+ * created one.
+ **/
+void check_and_destroy_mock_connstruct(struct mock_connstruct* c, const void* cookie){
+    if (c != cookie) {
+        destroy_mock_cookie(c);
+    }
+}
+
+/**
+ * EWOULDBLOCK wrapper.
+ * Will recall "engine_function" with EWOULDBLOCK retry logic.
+ **/
+static ENGINE_ERROR_CODE call_engine_and_handle_EWOULDBLOCK(
+                         ENGINE_HANDLE* handle,
+                         struct mock_connstruct* c,
+                         std::function<ENGINE_ERROR_CODE()> engine_function) {
+    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    c->nblocks = 0;
+    cb_mutex_enter(&c->mutex);
+    while (ret == ENGINE_SUCCESS &&
+           (ret = engine_function()) == ENGINE_EWOULDBLOCK &&
+           c->handle_ewouldblock)
+    {
+        ++c->nblocks;
+        cb_cond_wait(&c->cond, &c->mutex);
+        ret = c->status;
+    }
+    cb_mutex_exit(&c->mutex);
+
+    return ret;
+}
+
 static ENGINE_ERROR_CODE mock_allocate(ENGINE_HANDLE* handle,
                                        const void* cookie,
                                        item **item,
@@ -117,32 +172,15 @@ static ENGINE_ERROR_CODE mock_allocate(ENGINE_HANDLE* handle,
                                        const int flags,
                                        const rel_time_t exptime,
                                        uint8_t datatype) {
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->allocate,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               item, key, nkey, nbytes, flags, exptime, datatype);
 
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->allocate((ENGINE_HANDLE*)me->the_engine, c,
-                                           item, key, nkey,
-                                           nbytes, flags,
-                                           exptime, datatype)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-    {
-        ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
-        ret = c->status;
-    }
-    cb_mutex_exit(&c->mutex);
-
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
+    check_and_destroy_mock_connstruct(c, cookie);
 
     return ret;
 }
@@ -155,30 +193,15 @@ static ENGINE_ERROR_CODE mock_remove(ENGINE_HANDLE* handle,
                                      uint16_t vbucket,
                                      mutation_descr_t* mut_info)
 {
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->remove,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               key, nkey, cas, vbucket, mut_info);
 
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->remove((ENGINE_HANDLE*)me->the_engine, c, key,
-                                         nkey, cas, vbucket, mut_info)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-    {
-        ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
-        ret = c->status;
-    }
-    cb_mutex_exit(&c->mutex);
-
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
+    check_and_destroy_mock_connstruct(c, cookie);
 
     return ret;
 }
@@ -196,30 +219,15 @@ static ENGINE_ERROR_CODE mock_get(ENGINE_HANDLE* handle,
                                   const void* key,
                                   const int nkey,
                                   uint16_t vbucket) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               item, key, nkey, vbucket);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->get((ENGINE_HANDLE*)me->the_engine, c, item,
-                                      key, nkey, vbucket)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-    {
-        ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
-        ret = c->status;
-    }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
@@ -229,30 +237,15 @@ static ENGINE_ERROR_CODE mock_get_stats(ENGINE_HANDLE* handle,
                                         int nkey,
                                         ADD_STAT add_stat)
 {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->get_stats,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               stat_key, nkey, add_stat);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->get_stats((ENGINE_HANDLE*)me->the_engine, c, stat_key,
-                                            nkey, add_stat)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-    {
-        ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
-        ret = c->status;
-    }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
@@ -262,30 +255,15 @@ static ENGINE_ERROR_CODE mock_store(ENGINE_HANDLE* handle,
                                     uint64_t *cas,
                                     ENGINE_STORE_OPERATION operation,
                                     uint16_t vbucket) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->store,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               item, cas, operation, vbucket);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->store((ENGINE_HANDLE*)me->the_engine, c, item, cas,
-                                        operation, vbucket)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-    {
-        ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
-        ret = c->status;
-    }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
@@ -302,61 +280,31 @@ static ENGINE_ERROR_CODE mock_arithmetic(ENGINE_HANDLE* handle,
                                          uint8_t datatype,
                                          uint64_t *result,
                                          uint16_t vbucket) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->arithmetic,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               key, nkey, increment, create,
+                               delta, initial, exptime, result_item,
+                               datatype, result, vbucket);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->arithmetic((ENGINE_HANDLE*)me->the_engine, c, key,
-                                             nkey, increment, create,
-                                             delta, initial, exptime,
-                                             result_item, datatype,
-                                             result, vbucket)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-    {
-        ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
-        ret = c->status;
-    }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
 static ENGINE_ERROR_CODE mock_flush(ENGINE_HANDLE* handle,
                                     const void* cookie, time_t when) {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->flush,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               when);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->flush((ENGINE_HANDLE*)me->the_engine, c, when)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-    {
-        ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
-        ret = c->status;
-    }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
@@ -370,30 +318,15 @@ static ENGINE_ERROR_CODE mock_unknown_command(ENGINE_HANDLE* handle,
                                               protocol_binary_request_header *request,
                                               ADD_RESPONSE response)
 {
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->unknown_command,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               request, response);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->unknown_command((ENGINE_HANDLE*)me->the_engine, c,
-                                                  request, response)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-    {
-        ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
-        ret = c->status;
-    }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
@@ -431,33 +364,18 @@ static ENGINE_ERROR_CODE mock_tap_notify(ENGINE_HANDLE* handle,
                                         size_t ndata,
                                         uint16_t vbucket) {
 
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->tap_notify,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               engine_specific, nengine, ttl, tap_flags,
+                               tap_event, tap_seqno, key, nkey, flags,
+                               exptime, cas, datatype,
+                               data, ndata, vbucket);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->tap_notify((ENGINE_HANDLE*)me->the_engine, c,
-                                             engine_specific, nengine, ttl, tap_flags,
-                                             tap_event, tap_seqno, key, nkey, flags,
-                                             exptime, cas, datatype,
-                                             data, ndata, vbucket)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-    {
-        ++c->nblocks;
-        cb_cond_wait(&c->cond, &c->mutex);
-        ret = c->status;
-    }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
@@ -498,32 +416,15 @@ static ENGINE_ERROR_CODE mock_dcp_add_stream(ENGINE_HANDLE* handle,
                                              uint16_t vbucket,
                                              uint32_t flags) {
 
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.add_stream,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               opaque, vbucket, flags);
 
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->dcp.add_stream((ENGINE_HANDLE*)me->the_engine, c,
-                                                 opaque, vbucket, flags))
-                                                == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-        {
-            ++c->nblocks;
-            cb_cond_wait(&c->cond, &c->mutex);
-            ret = c->status;
-        }
-    cb_mutex_exit(&c->mutex);
-
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
@@ -608,32 +509,18 @@ static ENGINE_ERROR_CODE mock_dcp_mutation(ENGINE_HANDLE* handle,
                                            uint16_t nmeta,
                                            uint8_t nru) {
 
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.mutation,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               opaque, key, nkey, value,
+                               nvalue, cas, vbucket, flags,
+                               datatype, bySeqno, revSeqno, expiration,
+                               lockTime, meta, nmeta, nru);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->dcp.mutation((ENGINE_HANDLE*)me->the_engine, c, opaque, key,
-                                               nkey, value, nvalue, cas, vbucket, flags,
-                                               datatype, bySeqno, revSeqno, expiration,
-                                               lockTime, meta, nmeta, nru)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-        {
-            ++c->nblocks;
-            cb_cond_wait(&c->cond, &c->mutex);
-            ret = c->status;
-        }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
@@ -649,31 +536,16 @@ static ENGINE_ERROR_CODE mock_dcp_deletion(ENGINE_HANDLE* handle,
                                            const void *meta,
                                            uint16_t nmeta) {
 
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.deletion,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               opaque, key, nkey, cas, vbucket, bySeqno,
+                               revSeqno, meta, nmeta);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->dcp.deletion((ENGINE_HANDLE*)me->the_engine, c,
-                                               opaque, key, nkey, cas, vbucket, bySeqno,
-                                               revSeqno, meta, nmeta)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-        {
-            ++c->nblocks;
-            cb_cond_wait(&c->cond, &c->mutex);
-            ret = c->status;
-        }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
@@ -689,31 +561,16 @@ static ENGINE_ERROR_CODE mock_dcp_expiration(ENGINE_HANDLE* handle,
                                              const void *meta,
                                              uint16_t nmeta) {
 
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.expiration,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               opaque, key, nkey, cas, vbucket, bySeqno,
+                               revSeqno, meta, nmeta);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->dcp.expiration((ENGINE_HANDLE*)me->the_engine, c,
-                                                 opaque, key, nkey, cas, vbucket, bySeqno,
-                                                 revSeqno, meta, nmeta)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-        {
-            ++c->nblocks;
-            cb_cond_wait(&c->cond, &c->mutex);
-            ret = c->status;
-        }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
@@ -722,30 +579,15 @@ static ENGINE_ERROR_CODE mock_dcp_flush(ENGINE_HANDLE* handle,
                                         uint32_t opaque,
                                         uint16_t vbucket) {
 
-    struct mock_engine *me = get_handle(handle);
-    struct mock_connstruct *c = to_mock_connstruct(cookie);
-    ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-    if (c == NULL) {
-        c = to_mock_connstruct(create_mock_cookie());
-    }
+    struct mock_connstruct *c = get_or_create_mock_connstruct(cookie);
+    auto engine_fn = std::bind(get_engine_v1_from_handle(handle)->dcp.flush,
+                               get_engine_from_handle(handle),
+                               static_cast<const void*>(c),
+                               opaque, vbucket);
 
-    c->nblocks = 0;
-    cb_mutex_enter(&c->mutex);
-    while (ret == ENGINE_SUCCESS &&
-           (ret = me->the_engine->dcp.flush((ENGINE_HANDLE*)me->the_engine, c, opaque,
-                                            vbucket)) == ENGINE_EWOULDBLOCK &&
-           c->handle_ewouldblock)
-        {
-            ++c->nblocks;
-            cb_cond_wait(&c->cond, &c->mutex);
-            ret = c->status;
-        }
-    cb_mutex_exit(&c->mutex);
+    ENGINE_ERROR_CODE ret = call_engine_and_handle_EWOULDBLOCK(handle, c, engine_fn);
 
-    if (c != cookie) {
-        destroy_mock_cookie(c);
-    }
-
+    check_and_destroy_mock_connstruct(c, cookie);
     return ret;
 }
 
