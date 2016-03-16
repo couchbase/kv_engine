@@ -1687,9 +1687,12 @@ static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
             "Invalid last_persisted_seqno");
 
     uint64_t vb_uuid = get_ull_stat(h, h1, "vb_1:0:id", "failovers");
-    checkeq(vb_uuid, get_ull_stat(h, h1, "vb_1:uuid", "vbucket-seqno 1"),
+
+    auto seqno_stats = get_all_stats(h, h1, "vbucket-seqno 1");
+    checkeq(vb_uuid, uint64_t(std::stoull(seqno_stats.at("vb_1:uuid"))),
             "Invalid uuid");
-    checkeq(static_cast<size_t>(7), vals.size(), "Expected seven stats");
+
+    checkeq(size_t(7), seqno_stats.size(), "Expected seven stats");
 
     // Check invalid vbucket
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -1940,15 +1943,20 @@ static enum test_result test_bg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     testHarness.time_travel(43);
     check_key_value(h, h1, "a", "b\r\n", 3, 0);
 
-    checkeq(1, get_int_stat(h, h1, "ep_bg_num_samples"),
-            "Expected one sample");
+    auto stats = get_all_stats(h, h1);
+    checkeq(1, std::stoi(stats.at("ep_bg_num_samples")),
+               "Expected one sample");
 
-    check(vals.find("ep_bg_min_wait") != vals.end(), "Found no ep_bg_min_wait.");
-    check(vals.find("ep_bg_max_wait") != vals.end(), "Found no ep_bg_max_wait.");
-    check(vals.find("ep_bg_wait_avg") != vals.end(), "Found no ep_bg_wait_avg.");
-    check(vals.find("ep_bg_min_load") != vals.end(), "Found no ep_bg_min_load.");
-    check(vals.find("ep_bg_max_load") != vals.end(), "Found no ep_bg_max_load.");
-    check(vals.find("ep_bg_load_avg") != vals.end(), "Found no ep_bg_load_avg.");
+    const char* bg_keys[] = { "ep_bg_min_wait",
+                              "ep_bg_max_wait",
+                              "ep_bg_wait_avg",
+                              "ep_bg_min_load",
+                              "ep_bg_max_load",
+                              "ep_bg_load_avg"};
+    for (const auto* key : bg_keys) {
+        check(stats.find(key) != stats.end(),
+              (std::string("Found no ") + key).c_str());
+    }
 
     evict_key(h, h1, "a", 0, "Ejected.");
     check_key_value(h, h1, "a", "b\r\n", 3, 0);
@@ -2174,20 +2182,17 @@ static enum test_result test_warmup_conf(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
                               true, false);
     wait_for_warmup_complete(h, h1);
 
-    checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
-            "Failed to get stats.");
-    std::string eviction_policy = vals.find("ep_item_eviction_policy")->second;
+    const std::string eviction_policy = get_str_stat(h, h1, "ep_item_eviction_policy");
     if (eviction_policy == "value_only") {
-        check(vals.find("ep_warmup_key_count")->second == "100",
-              "Expected 100 keys loaded after warmup");
+        checkeq(100, get_int_stat(h, h1, "ep_warmup_key_count", "warmup"),
+                "Expected 100 keys loaded after warmup");
     } else { // Full eviction mode
-        check(vals.find("ep_warmup_key_count")->second == "0",
-              "Expected 0 keys loaded after warmup");
+        checkeq(0, get_int_stat(h, h1, "ep_warmup_key_count", "warmup"),
+                "Expected 0 keys loaded after warmup");
     }
 
-    check(vals.find("ep_warmup_value_count")->second == "0",
-          "Expected 0 values loaded after warmup");
+    checkeq(0, get_int_stat(h, h1, "ep_warmup_value_count", "warmup"),
+            "Expected 0 values loaded after warmup");
 
     return SUCCESS;
 }
@@ -2843,34 +2848,41 @@ static enum test_result test_warmup_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
                               true, false);
 
     wait_for_warmup_complete(h, h1);
-    check(vals.find("ep_warmup_thread") != vals.end(), "Found no ep_warmup_thread");
-    check(vals.find("ep_warmup_value_count") != vals.end(), "Found no ep_warmup_value_count");
-    check(vals.find("ep_warmup_key_count") != vals.end(), "Found no ep_warmup_key_count");
-    check(vals.find("ep_warmup_dups") != vals.end(), "Found no ep_warmup_dups");
-    check(vals.find("ep_warmup_oom") != vals.end(), "Found no ep_warmup_oom");
-    check(vals.find("ep_warmup_time") != vals.end(), "Found no ep_warmup_time");
-    std::string warmup_time = vals["ep_warmup_time"];
-    cb_assert(atoi(warmup_time.c_str()) > 0);
 
-    vals.clear();
-    checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, "prev-vbucket", 12, add_stats),
-            "Failed to get the previous state of vbuckets");
-    check(vals.find("vb_0") != vals.end(), "Found no previous state for VB0");
-    check(vals.find("vb_1") != vals.end(), "Found no previous state for VB1");
-    std::string vb0_prev_state = vals["vb_0"];
-    std::string vb1_prev_state = vals["vb_1"];
-    cb_assert(strcmp(vb0_prev_state.c_str(), "active") == 0);
-    cb_assert(strcmp(vb1_prev_state.c_str(), "replica") == 0);
-    vals.clear();
+    const auto warmup_stats = get_all_stats(h, h1, "warmup");
 
-    checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, "vbucket-details", 15, add_stats),
-            "Failed to get the detailed stats of vbuckets");
-    check(vals.find("vb_0:num_items")->second == "5000",
-          "Expected 5000 items in VB 0");
-    check(vals.find("vb_1:num_items")->second == "0",
-          "Expected zero items in VB 1");
+    // Check all expected warmup stats exists.
+    const char* warmup_keys[] = { "ep_warmup_thread",
+                                  "ep_warmup_value_count",
+                                  "ep_warmup_key_count",
+                                  "ep_warmup_dups",
+                                  "ep_warmup_oom",
+                                  "ep_warmup_time"};
+    for (const auto* key : warmup_keys) {
+        check(warmup_stats.find(key) != warmup_stats.end(),
+              (std::string("Found no ") + key).c_str());
+    }
+
+    std::string warmup_time = warmup_stats.at("ep_warmup_time");
+    cb_assert(std::stoi(warmup_time) > 0);
+
+    const auto prev_vb_stats = get_all_stats(h, h1, "prev-vbucket");
+
+    check(prev_vb_stats.find("vb_0") != prev_vb_stats.end(),
+          "Found no previous state for VB0");
+    check(prev_vb_stats.find("vb_1") != prev_vb_stats.end(),
+          "Found no previous state for VB1");
+
+    checkeq(std::string("active"), prev_vb_stats.at("vb_0"),
+            "Unexpected stats for vb 0");
+    checkeq(std::string("replica"), prev_vb_stats.at("vb_1"),
+            "Unexpected stats for vb 1");
+
+    const auto vb_details_stats = get_all_stats(h, h1, "vbucket-details");
+    checkeq(5000, std::stoi(vb_details_stats.at("vb_0:num_items")),
+            "Unexpected item count for vb 0");
+    checkeq(0, std::stoi(vb_details_stats.at("vb_1:num_items")),
+            "Unexpected item count for vb 1");
 
     return SUCCESS;
 }
@@ -2905,11 +2917,8 @@ static enum test_result test_warmup_with_threshold(ENGINE_HANDLE *h,
             get_int_stat(h, h1, "ep_warmup_min_item_threshold", "warmup"),
             "Unable to set warmup_min_item_threshold to 1%");
 
-    checkeq(ENGINE_SUCCESS,
-            h1->get_stats(h, NULL, NULL, 0, add_stats),
-            "Failed to get stats.");
+    const std::string policy = get_str_stat(h, h1, "ep_item_eviction_policy");
 
-    std::string policy = vals.find("ep_item_eviction_policy")->second;
     if (policy == "full_eviction") {
         checkeq(get_int_stat(h, h1, "ep_warmup_key_count", "warmup"),
                 get_int_stat(h, h1, "ep_warmup_value_count", "warmup"),
@@ -2920,8 +2929,8 @@ static enum test_result test_warmup_with_threshold(ENGINE_HANDLE *h,
     }
     check(get_int_stat(h, h1, "ep_warmup_value_count", "warmup") <= 110,
             "Warmed up value count found to be greater than 1%");
-    std::string warmup_time = vals["ep_warmup_time"];
-    cb_assert(atoi(warmup_time.c_str()) > 0);
+
+    cb_assert(get_int_stat(h, h1, "ep_warmup_time", "warmup") > 0);
 
     return SUCCESS;
 }

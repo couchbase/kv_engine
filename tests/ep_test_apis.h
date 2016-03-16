@@ -63,7 +63,10 @@ extern AtomicValue<protocol_binary_response_status> last_status;
 extern std::string last_key;
 extern std::string last_body;
 extern bool dump_stats;
+
+// TODO: make `vals` non-public
 extern std::map<std::string, std::string> vals;
+
 extern AtomicValue<uint64_t> last_cas;
 extern AtomicValue<uint8_t> last_datatype;
 extern AtomicValue<uint64_t> last_uuid;
@@ -209,6 +212,16 @@ std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                          const char *statname, const char *statkey = NULL);
 bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                    const char *statname, const char *statkey = NULL);
+
+
+typedef std::map<std::string, std::string> statistic_map;
+
+/* Returns a map of all statistics for the given statistic set.
+ * @param statset The set of statistics to fetch. May be nullptr, in which case
+ *                the default set will be returned.
+ */
+statistic_map get_all_stats(ENGINE_HANDLE *h,ENGINE_HANDLE_V1 *h1,
+                            const char *statset = nullptr);
 
 // Returns the value of the given stat, or the default value if the stat isn't
 // present.

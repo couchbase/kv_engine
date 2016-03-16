@@ -34,8 +34,14 @@
 // a context into it) we instead have a single, global `vals` map. This mutex
 // is used to serialise modifications to it to allow multiple threads to request
 // stats.
+// There is also an optimized add_stats callback (add_individual_stat) which
+// checks for one stat (and hence doesn't have to keep a map of all of them).
+// the vals_mutex is also used for serializing acccess to it's data
+// (requested_stat_name and actual_stat_value).
 std::mutex vals_mutex;
-std::map<std::string, std::string> vals;
+statistic_map vals;
+std::string requested_stat_name;
+std::string actual_stat_value;
 
 bool dump_stats = false;
 AtomicValue<protocol_binary_response_status> last_status(
@@ -159,6 +165,20 @@ void add_stats(const char *key, const uint16_t klen, const char *val,
     }
 
     vals[k] = v;
+}
+
+/* Callback passed to engine interface `get_stats`, used by get_int_stat and
+ * friends to lookup a specific stat. If `key` matches the requested key name,
+ * then record its value in actual_stat_value.
+ */
+void add_individual_stat(const char *key, const uint16_t klen, const char *val,
+               const uint32_t vlen, const void *cookie) {
+
+    if (actual_stat_value.empty() &&
+        requested_stat_name.compare(0, requested_stat_name.size(),
+                                    key, klen) == 0) {
+        actual_stat_value = std::string(val, vlen);
+    }
 }
 
 void encodeExt(char *buffer, uint32_t val) {
@@ -993,81 +1013,108 @@ void sendDcpAck(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
           "Expected success");
 }
 
+class engine_error : public std::exception {
+public:
+    engine_error(ENGINE_ERROR_CODE code_)
+        : code(code_) {}
+
+    virtual const char* what() const NOEXCEPT {
+        return "engine_error";
+    }
+
+    ENGINE_ERROR_CODE code;
+};
+
+/* The following set of functions get a given stat as the specified type
+ * (int, float, unsigned long, string, bool, etc).
+ * If the engine->get_stats() call fails, throws a engine_error exception.
+ * If the given statname doesn't exist under the given statname, throws a
+ * std::out_of_range exception.
+ */
 int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                  const char *statkey) {
-    std::lock_guard<std::mutex> lh(vals_mutex);
-    vals.clear();
-    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
-                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-    std::string s = vals.at(statname);
-    return std::stoi(s);
+    return std::stoi(get_str_stat(h, h1, statname, statkey));
 }
 
 float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                      const char *statkey) {
-    std::lock_guard<std::mutex> lh(vals_mutex);
-    vals.clear();
-    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
-                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-    std::string s = vals.at(statname);
-    return std::stof(s);
+    return std::stof(get_str_stat(h, h1, statname, statkey));
 }
 
 uint32_t get_ul_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                       const char *statkey) {
-    std::lock_guard<std::mutex> lh(vals_mutex);
-    vals.clear();
-    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
-                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-    std::string s = vals.at(statname);
-    return std::stoul(s);
+    return std::stoul(get_str_stat(h, h1, statname, statkey));
 }
 
 uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                       const char *statkey) {
-    std::lock_guard<std::mutex> lh(vals_mutex);
-    vals.clear();
-    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
-                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-    std::string s = vals.at(statname);
-    return std::stoull(s);
+    return std::stoull(get_str_stat(h, h1, statname, statkey));
 }
 
 std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                          const char *statname, const char *statkey) {
     std::lock_guard<std::mutex> lh(vals_mutex);
-    vals.clear();
-    check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
-                        add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-    std::string s = vals.at(statname);
-    return s;
-}
 
+    requested_stat_name = statname;
+    actual_stat_value.clear();
+
+    ENGINE_ERROR_CODE err = h1->get_stats(h, NULL, statkey,
+                                          statkey == NULL ? 0 : strlen(statkey),
+                                          add_individual_stat);
+
+    if (err != ENGINE_SUCCESS) {
+        throw engine_error(err);
+    }
+
+    if (actual_stat_value.empty()) {
+        throw std::out_of_range(std::string("Failed to find requested statname '") +
+                                statname + "'");
+    }
+
+    return actual_stat_value;
+}
 
 bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
                    const char *statkey) {
-    std::lock_guard<std::mutex> lh(vals_mutex);
-      vals.clear();
-      check(h1->get_stats(h, NULL, statkey, statkey == NULL ? 0 : strlen(statkey),
-                          add_stats) == ENGINE_SUCCESS, "Failed to get stats.");
-      const std::string& s = vals.at(statname);
-      if (s == "true") {
-          return true;
-      } else if (s == "false") {
-          return false;
-      } else {
-          throw std::invalid_argument("Unable to convert string '" + s + "' to type bool");
-      }
+    const auto s = get_str_stat(h, h1, statname, statkey);
+
+    if (s == "true") {
+        return true;
+    } else if (s == "false") {
+        return false;
+    } else {
+        throw std::invalid_argument("Unable to convert string '" + s + "' to type bool");
+    }
 }
 
+/* Fetches the value for a given statname in the given statkey set.
+ * @return te value of statname, or default_value if that statname was not
+ * found.
+ */
 int get_int_stat_or_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             int default_value, const char *statname,
                             const char *statkey) {
     try {
         return get_int_stat(h, h1, statname, statkey);
-    } catch (std::out_of_range e) {
+    } catch (std::out_of_range&) {
         return default_value;
     }
+}
+
+statistic_map get_all_stats(ENGINE_HANDLE *h,ENGINE_HANDLE_V1 *h1,
+                            const char *statset) {
+    std::lock_guard<std::mutex> lh(vals_mutex);
+
+    vals.clear();
+    ENGINE_ERROR_CODE err = h1->get_stats(h, NULL, statset,
+                                          statset == NULL ? 0 : strlen(statset),
+                                          add_stats);
+
+    if (err != ENGINE_SUCCESS) {
+        throw engine_error(err);
+    }
+
+    return vals;
 }
 
 void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
@@ -1221,14 +1268,13 @@ void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     useconds_t sleepTime = 128;
     do {
-        {
-            std::lock_guard<std::mutex> lh(vals_mutex);
-            vals.clear();
-            if (h1->get_stats(h, NULL, "warmup", 6, add_stats) != ENGINE_SUCCESS) {
+        try {
+            if (get_str_stat(h, h1, "ep_warmup_thread", "warmup") == "complete") {
                 return true;
             }
-        }
-        if (vals["ep_warmup_thread"] == "complete") {
+        } catch (engine_error&) {
+            // If the stat call failed then the warmup stats group no longer
+            // exists and hence warmup is complete.
             return true;
         }
         decayingSleep(&sleepTime);

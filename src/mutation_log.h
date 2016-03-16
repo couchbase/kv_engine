@@ -37,7 +37,9 @@
 
 #include "atomic.h"
 #include <platform/histogram.h>
+#include <platform/strerror.h>
 #include "utility.h"
+#include "common.h"
 
 #define ML_BUFLEN (128 * 1024 * 1024)
 
@@ -339,7 +341,7 @@ public:
 
     void commit2();
 
-    void flush();
+    bool flush();
 
     void sync();
 
