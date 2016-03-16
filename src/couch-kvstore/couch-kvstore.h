@@ -444,7 +444,7 @@ public:
     void addTimingStats(const std::string &prefix, ADD_STAT add_stat,
                         const void *c) override;
 
-    virtual bool getStat(const char* name, size_t& value);
+    bool getStat(const char* name, size_t& value) override;
 
     /**
      * Resets couchstore stats
