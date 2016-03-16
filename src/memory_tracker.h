@@ -20,7 +20,9 @@
 
 #include "config.h"
 
+#include <condition_variable>
 #include <map>
+#include <mutex>
 #include <string>
 
 #include <memcached/allocator_hooks.h>
@@ -55,12 +57,20 @@ public:
 private:
     MemoryTracker();
 
+    // Function for the stats updater main loop.
+    static void statsThreadMainLoop(void* arg);
+
     // Wheter or not we have the ability to accurately track memory allocations
     static bool tracking;
     // Singleton memory tracker
     static MemoryTracker *instance;
     cb_thread_t statsThreadId;
     allocator_stats stats;
+
+    // Mutex guarding the shutdown condvar.
+    std::mutex mutex;
+    // Condition variable used to signal shutdown to the stats thread.
+    std::condition_variable shutdown_cv;
 };
 
 #endif  // SRC_MEMORY_TRACKER_H_

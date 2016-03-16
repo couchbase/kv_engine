@@ -28,12 +28,20 @@
 bool MemoryTracker::tracking = false;
 MemoryTracker *MemoryTracker::instance = NULL;
 
-extern "C" {
-    static void updateStatsThread(void* arg) {
-        MemoryTracker* tracker = static_cast<MemoryTracker*>(arg);
-        while (tracker->trackingMemoryAllocations()) {
+void MemoryTracker::statsThreadMainLoop(void* arg) {
+    MemoryTracker* tracker = static_cast<MemoryTracker*>(arg);
+    while (true) {
+        // Wait for either the shutdown condvar to be notified, or for
+        // 250ms. If we hit the timeout then time to update the stats.
+        std::unique_lock<std::mutex> lock(tracker->mutex);
+        if (tracker->shutdown_cv.wait_for(
+                lock,
+                std::chrono::milliseconds(250),
+                [tracker]{return !tracker->trackingMemoryAllocations();})) {
+            // No longer tracking - exit.
+            return;
+        } else {
             tracker->updateStats();
-            usleep(250000);
         }
     }
 }
@@ -85,8 +93,9 @@ MemoryTracker::MemoryTracker() {
             std::cout.flush();
             tracking = true;
             updateStats();
-            if (cb_create_named_thread(&statsThreadId, updateStatsThread,
-                                           this, 0, "mc:mem_stats") != 0) {
+            if (cb_create_named_thread(&statsThreadId,
+                                       statsThreadMainLoop,
+                                           this, 0, "mc:mem stats") != 0) {
                 throw std::runtime_error(
                                       "Error creating thread to update stats");
             }
@@ -103,6 +112,7 @@ MemoryTracker::~MemoryTracker() {
     getHooksApi()->remove_delete_hook(&DeleteHook);
     if (tracking) {
         tracking = false;
+        shutdown_cv.notify_all();
         cb_join_thread(statsThreadId);
     }
     free(stats.ext_stats);
