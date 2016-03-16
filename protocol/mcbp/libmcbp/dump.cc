@@ -16,6 +16,7 @@
  */
 #include "config.h"
 
+#include <cstring>
 #include <stdexcept>
 #include <string>
 #include <libmcbp/mcbp.h>

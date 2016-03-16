@@ -135,23 +135,6 @@ ADD_LIBRARY(memcached_daemon STATIC
 
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 
-IF (ENABLE_DTRACE)
-   ADD_DEPENDENCIES(memcached_daemon generate_memcached_dtrace_h)
-   IF (DTRACE_NEED_INSTUMENT)
-      ADD_CUSTOM_COMMAND(TARGET memcached_daemon PRE_LINK
-                         COMMAND
-                         ${DTRACE} -o memcached_dtrace.o
-                                   -G
-                                   -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
-                                   *.o
-                         WORKING_DIRECTORY ${Memcached_BINARY_DIR}/daemon/CMakeFiles/memcached_daemon.dir)
-      SET_TARGET_PROPERTIES(memcached PROPERTIES LINK_FLAGS
-                            "${Memcached_BINARY_DIR}/daemon/CMakeFiles/memcached_daemon.dir/memcached_dtrace.o")
-
-
-   ENDIF (DTRACE_NEED_INSTUMENT)
-ENDIF (ENABLE_DTRACE)
-
 TARGET_LINK_LIBRARIES(memcached_daemon
                       auditd
                       mcd_util
@@ -171,6 +154,23 @@ TARGET_LINK_LIBRARIES(memcached_daemon
 
 ADD_EXECUTABLE(memcached main.cc)
 TARGET_LINK_LIBRARIES(memcached memcached_daemon)
+
+IF (ENABLE_DTRACE)
+   ADD_DEPENDENCIES(memcached_daemon generate_memcached_dtrace_h)
+   IF (DTRACE_NEED_INSTRUMENT)
+      ADD_CUSTOM_COMMAND(TARGET memcached_daemon PRE_LINK
+                         COMMAND
+                         ${DTRACE} -o memcached_dtrace.o
+                                   -G
+                                   -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
+                                   *.o
+                         WORKING_DIRECTORY ${Memcached_BINARY_DIR}/daemon/CMakeFiles/memcached_daemon.dir)
+      SET_TARGET_PROPERTIES(memcached PROPERTIES LINK_FLAGS
+                            "${Memcached_BINARY_DIR}/daemon/CMakeFiles/memcached_daemon.dir/memcached_dtrace.o")
+
+
+   ENDIF (DTRACE_NEED_INSTRUMENT)
+ENDIF (ENABLE_DTRACE)
 
 APPEND_MALLOC_LINKER_FLAGS(memcached)
 

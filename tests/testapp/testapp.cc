@@ -4438,7 +4438,7 @@ int main(int argc, char **argv) {
         // created from the unit tests (of testapp or memcached) don't
         // overwrite each other
         std::string coreadm =
-            "coreadm -p core.%%f.%%p %lu" + std::to_string(getpid());
+            "coreadm -p core.%%f.%%p " + std::to_string(getpid());
         system(coreadm.c_str());
     }
 #endif

@@ -12,9 +12,9 @@ IF (ENABLE_DTRACE)
                                    -G
                                    -s ${Memcached_SOURCE_DIR}/memcached_dtrace.d
                                    *.o
-                         WORKING_DIRECTORY ${Memcached_BINARY_DIR}/CMakeFiles/default_engine.dir/engines/default_engine)
+                         WORKING_DIRECTORY ${Memcached_BINARY_DIR}/engines/default_engine/CMakeFiles/default_engine.dir)
       SET_TARGET_PROPERTIES(default_engine PROPERTIES LINK_FLAGS
-        "${Memcached_BINARY_DIR}/CMakeFiles/default_engine.dir/engines/default_engine/de_dtrace.o")
+        "${Memcached_BINARY_DIR}/engines/default_engine/CMakeFiles/default_engine.dir/de_dtrace.o")
   ENDIF (DTRACE_NEED_INSTRUMENT)
 ENDIF (ENABLE_DTRACE)
 
