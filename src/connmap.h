@@ -123,9 +123,9 @@ public:
     void removeVBConnByVBId(connection_t &conn, int16_t vbid);
 
     /**
-     * Notify a given paused Producer.
+     * Notify a given paused connection.
      *
-     * @param tc Producer to be notified
+     * @param tc connection to be notified
      * @param schedule true if a notification event is pushed into a queue.
      *        Otherwise, directly notify the paused connection.
      */
