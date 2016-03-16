@@ -541,7 +541,7 @@ ADD_TESTSUITE(ep-engine_dcp_tests ep-engine_full_eviction_dcp
 
 ADD_TESTSUITE(ep-engine_value_eviction_tap ep-engine_full_eviction_tap
               ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_tap.so
-              120)
+              180)
 
 ADD_TESTSUITE(ep-engine_value_eviction_checkpoint ep-engine_full_eviction_checkpoint
               ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_checkpoint.so
@@ -549,7 +549,7 @@ ADD_TESTSUITE(ep-engine_value_eviction_checkpoint ep-engine_full_eviction_checkp
 
 ADD_TESTSUITE(ep-engine_value_eviction_xdcr ep-engine_full_eviction_xdcr
               ${CMAKE_CURRENT_BINARY_DIR}/ep_testsuite_xdcr.so
-              30)
+              120)
 
 # ================================ PERF_TESTS ================================ #
 SET(_ep_perfsuite_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_perfsuite.so -v)
