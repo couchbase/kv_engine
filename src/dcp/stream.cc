@@ -579,9 +579,9 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
     const VBucketMap &vbMap = engine->getEpStore()->getVBuckets();
 
     /* Get stats from KV Store only when the vbucket database
-     * file has already been created.
+     * file has already been created or not being deleted.
      */
-    if (!vbMap.isBucketCreation(vb_)) {
+    if (!vbMap.isBucketCreation(vb_) && !vbMap.isBucketDeletion(vb_)) {
         del_items = engine->getEpStore()->getRWUnderlying(vb_)->
                                                     getNumPersistedDeletes(vb_);
     }

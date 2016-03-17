@@ -1245,6 +1245,22 @@ static enum test_result test_vbucket_create(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return verify_vbucket_state(h, h1, 1, vbucket_state_active) ? SUCCESS : FAIL;
 }
 
+static enum test_result test_takeover_stats_race_with_vb_create(ENGINE_HANDLE *h,
+                                                                ENGINE_HANDLE_V1 *h1) {
+    check(set_vbucket_state(h, h1, 1, vbucket_state_active),
+          "Failed to set vbucket state information");
+
+    int del_items = get_int_stat(h, h1, "on_disk_deletes", "dcp-vbtakeover 1");
+
+    checkeq(0, del_items, "Invalid number of on-disk deletes");
+
+    del_items = get_int_stat(h, h1, "on_disk_deletes", "tap-vbtakeover 1");
+
+    checkeq(0, del_items, "Invalid number of on-disk deletes");
+
+    return SUCCESS;
+}
+
 static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
                                              ENGINE_HANDLE_V1 *h1) {
     const char *key = "Carss";
@@ -6068,6 +6084,9 @@ BaseTestCase testsuite_testcases[] = {
                  NULL, prepare, cleanup),
         TestCase("test sync vbucket destroy restart",
                  test_sync_vbucket_destroy_restart, test_setup, teardown, NULL,
+                 prepare, cleanup),
+        TestCase("test takeover stats race with vbucket create",
+                 test_takeover_stats_race_with_vb_create, test_setup, teardown, NULL,
                  prepare, cleanup),
 
         // stats uuid
