@@ -118,23 +118,21 @@ static enum test_result test_tap_rcvr_mutate(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 }
 
 static enum test_result test_tap_rcvr_checkpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    char data;
     char eng_specific[64];
     memset(eng_specific, 0, sizeof(eng_specific));
     check(set_vbucket_state(h, h1, 1, vbucket_state_replica), "Failed to set vbucket state.");
-    for (int i = 1; i < 10; ++i) {
-        data = '0' + i;
+    for (uint64_t checkpoint_id = 0; checkpoint_id < 10; checkpoint_id++) {
         checkeq(ENGINE_SUCCESS,
                 h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                                1, 0, TAP_CHECKPOINT_START, 1, "", 0, 828, 0, 1,
                                PROTOCOL_BINARY_RAW_BYTES,
-                               &data, 1, 1),
+                               &checkpoint_id, sizeof(checkpoint_id), 1),
                 "Failed tap notify.");
         checkeq(ENGINE_SUCCESS,
                 h1->tap_notify(h, NULL, eng_specific, sizeof(eng_specific),
                                1, 0, TAP_CHECKPOINT_END, 1, "", 0, 828, 0, 1,
                                PROTOCOL_BINARY_RAW_BYTES,
-                               &data, 1, 1),
+                               &checkpoint_id, sizeof(checkpoint_id), 1),
                 "Failed tap notify.");
     }
     return SUCCESS;
@@ -1285,7 +1283,10 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
         int64_t byseq = -1;
         if (event == TAP_CHECKPOINT_START ||
             event == TAP_DELETION || event == TAP_MUTATION) {
-            uint8_t *es = ((uint8_t*)engine_specific) + 8;
+            check(nengine_specific >= 8,
+                  (std::string("Unexpected engine_specific size (") +
+                   std::to_string(nengine_specific)).c_str());
+            uint8_t *es = ((uint8_t*)engine_specific);
             memcpy(&byseq, (void*)es, 8);
             byseq = ntohll(byseq);
         }
