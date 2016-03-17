@@ -531,7 +531,8 @@ uint32_t evictions;
 static void eviction_stats_handler(const char *key, const uint16_t klen,
                                    const char *val, const uint32_t vlen,
                                    const void *cookie) {
-    if (memcmp(key, "evictions", klen) == 0) {
+
+    if (strncmp(key, "evictions", klen) == 0) {
         char buffer[1024];
         memcpy(buffer, val, vlen);
         buffer[vlen] = '\0';

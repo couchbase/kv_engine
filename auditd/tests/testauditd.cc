@@ -180,7 +180,7 @@ static std::string createEvent(void) {
     cJSON *real_userid = cJSON_CreateObject();
     cJSON_AddStringToObject(real_userid, "source", "internal");
     cJSON_AddStringToObject(real_userid, "user", "couchbase");
-    cJSON_AddItemReferenceToObject(payload, "real_userid", real_userid);
+    cJSON_AddItemToObject(payload, "real_userid", real_userid);
     char *content = cJSON_Print(payload);
     std::string ret(content);
     cJSON_Free(content);
