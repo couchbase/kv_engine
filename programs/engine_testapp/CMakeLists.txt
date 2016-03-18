@@ -1,6 +1,7 @@
 ADD_EXECUTABLE(engine_testapp engine_testapp.cc
                               mock_server.cc
                               mock_server.h
+                              ${Memcached_SOURCE_DIR}/utilities/terminate_handler.cc
                               $<TARGET_OBJECTS:memory_tracking>)
 TARGET_LINK_LIBRARIES(engine_testapp mcd_util platform
                       ${MALLOC_LIBRARIES} ${COUCHBASE_NETWORK_LIBS})

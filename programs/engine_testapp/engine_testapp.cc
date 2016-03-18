@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "utilities/engine_loader.h"
+#include "utilities/terminate_handler.h"
 #include "mock_server.h"
 
 #include <daemon/alloc_hooks.h>
@@ -1326,6 +1327,8 @@ int main(int argc, char **argv) {
     setbuf(stderr, NULL);
 
     setup_alarm_handler();
+
+    install_backtrace_terminate_handler();
 
     /* process arguments */
     while ((c = getopt(argc, argv,
