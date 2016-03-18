@@ -30,6 +30,7 @@
 #include "ioctl.h"
 #include "mc_time.h"
 #include "utilities/protocol2text.h"
+#include "utilities/terminate_handler.h"
 #include "breakpad.h"
 #include "runtime.h"
 #include "mcaudit.h"
@@ -46,7 +47,6 @@
 #include "greenstack.h"
 #include "mcbpdestroybuckettask.h"
 
-#include <platform/backtrace.h>
 #include <platform/strerror.h>
 
 #include <signal.h>
@@ -2358,40 +2358,6 @@ static void load_extensions(void) {
     }
 }
 
-static std::terminate_handler default_terminate_handler;
-
-// Replacement terminate_handler which prints a backtrace of the current stack
-// before chaining to the default handler.
-static void backtrace_terminate_handler() {
-    char buffer[1024];
-
-    if (print_backtrace_to_buffer("    ", buffer, sizeof(buffer))) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "*** Fatal error encountered during "
-                                            "exception handling ***\n"
-                                            "Call stack:\n%s",
-                                        buffer);
-    } else {
-        fprintf(stderr, "*** Fatal error encountered during exception handling ***\n");
-        fprintf(stderr, "Call stack:\n");
-        print_backtrace_to_file(stderr);
-        fflush(stderr);
-
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "*** Fatal error encountered during "
-                                            "exception handling ***\n"
-                                            "Call stack exceeds 1k");
-    }
-
-    // Chain to the default handler if available (as it may be able to print
-    // other useful information on why we were told to terminate).
-    if (default_terminate_handler != nullptr) {
-        default_terminate_handler();
-    }
-
-    std::abort();
-}
-
 /**
  * The log function used from SASL
  *
@@ -2492,8 +2458,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     }
 #endif
 
-    // Interpose our own C++ terminate handler to print backtrace upon failures
-    default_terminate_handler = std::set_terminate(backtrace_terminate_handler);
+    install_backtrace_terminate_handler(settings.extensions.logger);
 
     initialize_openssl();
 
