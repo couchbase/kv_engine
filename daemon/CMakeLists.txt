@@ -68,6 +68,7 @@ ADD_LIBRARY(memcached_daemon STATIC
                connection_mcbp.h
                connections.cc
                connections.h
+               cookie.h
                debug_helpers.cc
                debug_helpers.h
                dynamic_buffer.cc
@@ -95,6 +96,7 @@ ADD_LIBRARY(memcached_daemon STATIC
                mcbp_topkeys.h
                mcbp_validators.cc
                mcbp_validators.h
+               mcbpdestroybuckettask.h
                memcached.cc
                memcached_openssl.cc
                memcached_openssl.h
@@ -103,6 +105,7 @@ ADD_LIBRARY(memcached_daemon STATIC
                privileges.h
                rbac.cc
                rbac.h
+               rbac.json
                rbac_impl.h
                runtime.cc
                runtime.h
