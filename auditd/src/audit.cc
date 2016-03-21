@@ -32,8 +32,8 @@
 #include "audit.h"
 #include "event.h"
 #include "configureevent.h"
-#include "eventdata.h"
 #include "auditd_audit_events.h"
+#include "eventdescriptor.h"
 
 EXTENSION_LOGGER_DESCRIPTOR* Audit::logger = NULL;
 std::string Audit::hostname;
@@ -240,72 +240,24 @@ bool Audit::create_audit_event(uint32_t event_id, cJSON *payload) {
 
 
 bool Audit::initialize_event_data_structures(cJSON *event_ptr) {
-    if (event_ptr == NULL) {
+    if (event_ptr == nullptr) {
         log_error(AuditErrorCode::JSON_MISSING_DATA_ERROR);
         return false;
     }
-    uint32_t eventid;
-    bool set_eventid = false;
-    EventData* eventdata;
-    cJSON* values_ptr = event_ptr->child;
-    if (values_ptr == NULL) {
-        log_error(AuditErrorCode::JSON_MISSING_DATA_ERROR);
-        return false;
-    }
+
     try {
-        eventdata = new EventData;
+        auto *entry = new EventDescriptor(event_ptr);
+        if (config.is_event_disabled(entry->getId())) {
+            entry->setEnabled(false);
+        }
+        events.insert(std::pair<uint32_t, EventDescriptor*>(entry->getId(), entry));
     } catch (std::bad_alloc& ba) {
         log_error(AuditErrorCode::MEMORY_ALLOCATION_ERROR, ba.what());
         return false;
+    } catch (std::logic_error& le) {
+        log_error(AuditErrorCode::JSON_KEY_ERROR, le.what());
     }
-    while (values_ptr != NULL) {
-        switch (values_ptr->type) {
-            case cJSON_Number:
-                if ((strcmp(values_ptr->string, "id") != 0) ||
-                    (values_ptr->valueint == 0)) {
-                        log_error(AuditErrorCode::JSON_KEY_ERROR,
-                                  values_ptr->string);
-                        return false;
-                } else {
-                    eventid = values_ptr->valueint;
-                    set_eventid = true;
-                }
-                break;
-            case cJSON_String:
-                if (strcmp(values_ptr->string, "name") == 0) {
-                    eventdata->name = std::string(values_ptr->valuestring);
-                } else if (strcmp(values_ptr->string, "description") == 0) {
-                    eventdata->description = std::string(values_ptr->valuestring);
-                } else {
-                    log_error(AuditErrorCode::JSON_KEY_ERROR, event_ptr->string);
-                    return false;
-                }
-                break;
-            case cJSON_True:
-            case cJSON_False:
-                if ((strcmp(values_ptr->string, "sync") != 0) &&
-                    (strcmp(values_ptr->string, "enabled") != 0)) {
-                    log_error(AuditErrorCode::JSON_KEY_ERROR,values_ptr->string);
-                    return false;
-                }
-                break;
-            case cJSON_Object:
-            case cJSON_Array:
-                break;
-            default:
-                log_error(AuditErrorCode::JSON_UNKNOWN_FIELD_ERROR);
-                return false;
-        }
-        values_ptr = values_ptr->next;
-    }
-    if (set_eventid) {
-        eventdata->sync = config.is_event_sync(eventid);
-        eventdata->enabled = !config.is_event_disabled(eventid);
-        events.insert(std::pair<uint32_t, EventData*>(eventid, eventdata));
-    } else {
-        Audit::log_error(AuditErrorCode::JSON_ID_ERROR);
-        return false;
-    }
+
     return true;
 }
 
@@ -432,10 +384,12 @@ bool Audit::configure(void) {
     auditfile.reconfigure(config);
 
     // iterate through the events map and update the sync and enabled flags
-    typedef std::map<uint32_t, EventData*>::iterator it_type;
+    typedef std::map<uint32_t, EventDescriptor*>::iterator it_type;
     for(it_type iterator = events.begin(); iterator != events.end(); iterator++) {
-        iterator->second->sync = config.is_event_sync(iterator->first);
-        iterator->second->enabled = !config.is_event_disabled(iterator->first);
+        iterator->second->setSync(config.is_event_sync(iterator->first));
+        if (config.is_event_disabled(iterator->first)) {
+            iterator->second->setEnabled(false);
+        }
     }
     // create event to say done reconfiguration
     if (is_enabled_before_reconfig || config.is_auditd_enabled()) {
@@ -446,7 +400,7 @@ bool Audit::configure(void) {
             Audit::log_error(AuditErrorCode::UNKNOWN_EVENT_ERROR,
                              convert.str().c_str());
         } else {
-            if (evt->second->enabled) {
+            if (evt->second->isEnabled()) {
                 cJSON *payload = cJSON_CreateObject();
                 if (payload == nullptr) {
                     return false;
@@ -456,9 +410,9 @@ bool Audit::configure(void) {
                     cJSON_AddNumberToObject(payload, "id",
                                             AUDITD_AUDIT_CONFIGURED_AUDIT_DAEMON);
                     cJSON_AddStringToObject(payload, "name",
-                                            evt->second->name.c_str());
+                                            evt->second->getName().c_str());
                     cJSON_AddStringToObject(payload, "description",
-                                            evt->second->description.c_str());
+                                            evt->second->getDescription().c_str());
 
                     if (!(auditfile.ensure_open() && auditfile.write_event_to_disk(payload))) {
                         dropped_events++;
@@ -530,7 +484,7 @@ bool Audit::add_reconfigure_event(const void *cookie) {
 
 
 void Audit::clear_events_map(void) {
-    typedef std::map<uint32_t, EventData*>::iterator it_type;
+    typedef std::map<uint32_t, EventDescriptor*>::iterator it_type;
     for(it_type iterator = events.begin(); iterator != events.end(); iterator++) {
         delete iterator->second;
     }

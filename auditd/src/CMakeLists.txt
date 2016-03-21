@@ -5,7 +5,8 @@ ADD_LIBRARY(auditd SHARED
             auditfile.cc auditfile.h
             configureevent.cc configureevent.h
             event.cc event.h
-            eventdata.h)
+            eventdescriptor.cc
+            eventdescriptor.h)
 SET_TARGET_PROPERTIES(auditd PROPERTIES SOVERSION 0.1.0)
 TARGET_LINK_LIBRARIES(auditd mcd_time cJSON JSON_checker platform dirutils)
 ADD_DEPENDENCIES(auditd generate_audit_descriptors)
