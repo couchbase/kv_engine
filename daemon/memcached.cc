@@ -2111,6 +2111,79 @@ static void cleanup_buckets(void) {
     }
 }
 
+void delete_all_buckets() {
+    /*
+     * Delete all of the buckets one by one by using the executor.
+     * We could in theory schedule all of them in parallel, but they
+     * probably have some dirty items they need to write to disk so
+     * instead of having all of the buckets step on the underlying IO
+     * in parallel we'll do them sequentially.
+     */
+
+    /**
+     * Create a specialized task I may use that just holds the
+     * DeleteBucketThread object.
+     */
+    class DestroyBucketTask : public Task {
+    public:
+        DestroyBucketTask(const std::string& name_)
+            : thread(name_, false, nullptr, this)
+        {
+            // empty
+        }
+
+        // start the bucket deletion
+        // May throw std::bad_alloc if we're failing to start the thread
+        void start() {
+            thread.start();
+        }
+
+        virtual bool execute() override {
+            return true;
+        }
+
+        DestroyBucketThread thread;
+    };
+
+    LOG_NOTICE(nullptr, "Stop all buckets");
+    bool done;
+    do {
+        done = true;
+        std::shared_ptr<Task> task;
+        std::string name;
+
+        cb_mutex_enter(&buckets_lock);
+        /*
+         * Start at one (not zero) because zero is reserved for "no bucket".
+         * The "no bucket" has a state of BucketState::Ready but no name.
+         */
+        for (int ii = 1; ii < settings.max_buckets && done; ++ii) {
+            cb_mutex_enter(&all_buckets[ii].mutex);
+            if (all_buckets[ii].state == BucketState::Ready) {
+                name.assign(all_buckets[ii].name);
+                LOG_NOTICE(nullptr,
+                           "Scheduling delete for bucket %s",
+                           name.c_str());
+                task = std::make_shared<DestroyBucketTask>(name);
+                std::lock_guard<std::mutex> guard(task->getMutex());
+                reinterpret_cast<McbpDestroyBucketTask*>(task.get())->start();
+                executorPool->schedule(task, false);
+                done = false;
+            }
+            cb_mutex_exit(&all_buckets[ii].mutex);
+        }
+        cb_mutex_exit(&buckets_lock);
+
+        if (task.get() != nullptr) {
+            auto* dbt = reinterpret_cast<DestroyBucketTask*>(task.get());
+            LOG_NOTICE(nullptr,
+                       "Waiting for delete of %s to complete", name.c_str());
+            dbt->thread.waitForState(Couchbase::ThreadState::Zombie);
+            LOG_NOTICE(nullptr,
+                       "Bucket %s deleted", name.c_str());
+        }
+    } while (!done);
+}
 
 /**
  * Load a shared object and initialize all the extensions in there.
@@ -2587,26 +2660,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     }
 
     LOG_NOTICE(NULL, "Initiating graceful shutdown.");
-
-    cb_mutex_enter(&buckets_lock);
-    /*
-     * Start at one (not zero) because zero is reserved for "no bucket".
-     * The "no bucket" has a state of BucketState::Ready but no name.
-     */
-    for (int ii = 1; ii < settings.max_buckets; ++ii) {
-        cb_mutex_enter(&all_buckets[ii].mutex);
-        if (all_buckets[ii].state == BucketState::Ready) {
-            LOG_NOTICE(nullptr, "Scheduling McbpDestroyBucketTask for bucket %s",
-                       all_buckets[ii].name);
-            std::shared_ptr<Task> task = std::make_shared<McbpDestroyBucketTask>(
-                                             all_buckets[ii].name, false, nullptr);
-            std::lock_guard<std::mutex> guard(task->getMutex());
-            reinterpret_cast<McbpDestroyBucketTask*>(task.get())->start();
-            executorPool->schedule(task, false);
-        }
-        cb_mutex_exit(&all_buckets[ii].mutex);
-    }
-    cb_mutex_exit(&buckets_lock);
+    delete_all_buckets();
 
     LOG_NOTICE(NULL, "Shutting down audit daemon");
     /* Close down the audit daemon cleanly */
