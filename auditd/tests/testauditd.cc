@@ -44,7 +44,7 @@ public:
             : filename(fname),
               descriptor_path(descr),
               rotationSize(200),
-              rotationInterval(10),
+              rotationInterval(900),
               logPath("test"),
               enabled(true)
     {
@@ -266,8 +266,8 @@ int main(int argc, char **argv) {
     assertNumberOfFiles(testdir, 1);
     testdir.assign("auditd-time-rotation-test-" + std::to_string(cb_getpid()));
     toremove.push_back(testdir);
-    // rotate every 10 sec
-    configuration.setRotationInterval(10);
+    // rotate every 900 sec
+    configuration.setRotationInterval(900);
     configuration.setLogPath(testdir);
 
     // I need to wait for processing the configure event to happen,
@@ -277,7 +277,7 @@ int main(int argc, char **argv) {
 
     for (int ii = 0; ii < 10; ++ii) {
         expectedEventProcessed = auditEventProcessed + 1;
-        audit_test_timetravel(100);
+        audit_test_timetravel(1000);
         std::string event = createEvent();
         put_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
                         event.data(), event.size());
@@ -298,7 +298,7 @@ int main(int argc, char **argv) {
 
     for (int ii = 0; ii < 10; ++ii) {
         expectedEventProcessed = auditEventProcessed + 1;
-        audit_test_timetravel(100);
+        audit_test_timetravel(1000);
         std::string event = createEvent();
         put_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
                 event.data(), event.size());

@@ -105,8 +105,9 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
         Audit::log_error(AuditErrorCode::AUDIT_EXTENSION_DATA_ERROR, NULL);
         return AUDIT_FAILED;
     }
-    AuditConfig::min_file_rotation_time = extension_data->min_file_rotation_time;
-    AuditConfig::max_file_rotation_time = extension_data->max_file_rotation_time;
+
+    audit.config.set_min_file_rotation_time(extension_data->min_file_rotation_time);
+    audit.config.set_max_file_rotation_time(extension_data->max_file_rotation_time);
 
     if (cb_create_named_thread(&audit.consumer_tid, consume_events, NULL, 0,
                                "mc:auditd") != 0) {
