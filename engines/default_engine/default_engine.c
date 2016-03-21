@@ -115,17 +115,65 @@ static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
 static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
                           item* item, const item_info *itm_info);
 
+/**
+ * Given that default_engine is implemented in C and not C++ we don't have
+ * a constructor for the struct to initialize the members to some sane
+ * default values. Currently they're all being allocated through the
+ * engine manager which keeps a local map of all engines being created.
+ *
+ * Once an object is in that map it may in theory be referenced, so we
+ * need to ensure that the members is initialized before hitting that map.
+ *
+ * @todo refactor default_engine to C++ to avoid this extra hack :)
+ */
+void default_engine_constructor(struct default_engine* engine, bucket_id_t id)
+{
+    memset(engine, 0, sizeof(*engine));
+
+    cb_mutex_initialize(&engine->slabs.lock);
+    cb_mutex_initialize(&engine->items.lock);
+    cb_mutex_initialize(&engine->stats.lock);
+    cb_mutex_initialize(&engine->scrubber.lock);
+
+    engine->bucket_id = id;
+    engine->engine.interface.interface = 1;
+    engine->engine.get_info = default_get_info;
+    engine->engine.initialize = default_initialize;
+    engine->engine.destroy = default_destroy;
+    engine->engine.allocate = default_item_allocate;
+    engine->engine.remove = default_item_delete;
+    engine->engine.release = default_item_release;
+    engine->engine.get = default_get;
+    engine->engine.get_stats = default_get_stats;
+    engine->engine.reset_stats = default_reset_stats;
+    engine->engine.store = default_store;
+    engine->engine.arithmetic = default_arithmetic;
+    engine->engine.flush = default_flush;
+    engine->engine.unknown_command = default_unknown_command;
+    engine->engine.item_set_cas = item_set_cas;
+    engine->engine.get_item_info = get_item_info;
+    engine->engine.set_item_info = set_item_info;
+    engine->config.use_cas = true;
+    engine->config.verbose = 0;
+    engine->config.oldest_live = 0;
+    engine->config.evict_to_free = true;
+    engine->config.maxbytes = 64 * 1024 * 1024;
+    engine->config.preallocate = false;
+    engine->config.factor = 1.25;
+    engine->config.chunk_size = 48;
+    engine->config.item_size_max= 1024 * 1024;
+    engine->info.engine.description = "Default engine v0.1";
+    engine->info.engine.num_features = 1;
+    engine->info.engine.features[0].feature = ENGINE_FEATURE_LRU;
+    engine->info.engine.features[engine->info.engine.num_features++].feature
+        = ENGINE_FEATURE_DATATYPE;
+}
+
 ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API get_server_api,
                                   ENGINE_HANDLE **handle) {
    SERVER_HANDLE_V1 *api = get_server_api();
    struct default_engine *engine;
-
-   /*
-      Node local bucket-ID which persists for as long as the process.
-      TODO: memcache will manage this and pass the value via create_instance and get_bucket_id
-   */
-   static bucket_id_t bucket_id = 0;
 
    if (interface != 1 || api == NULL) {
       return ENGINE_ENOTSUP;
@@ -135,56 +183,9 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
       return ENGINE_ENOMEM;
    }
 
-   cb_mutex_initialize(&engine->slabs.lock);
-   cb_mutex_initialize(&engine->items.lock);
-   cb_mutex_initialize(&engine->stats.lock);
-   cb_mutex_initialize(&engine->scrubber.lock);
-
-   /* allocate a bucket_id so we can utilise the global hashtable safely */
-   if (bucket_id + 1 == 0) {
-      /* we have used all bucket ids! */
-      return ENGINE_FAILED;
-   }
-
-   // Clear the content of the engine interface so that I can test for null-
-   // values and not implement functions
-   memset(&engine->engine, 0, sizeof(engine->engine));
-
-   engine->bucket_id = bucket_id++;
-   engine->engine.interface.interface = 1;
-   engine->engine.get_info = default_get_info;
-   engine->engine.initialize = default_initialize;
-   engine->engine.destroy = default_destroy;
-   engine->engine.allocate = default_item_allocate;
-   engine->engine.remove = default_item_delete;
-   engine->engine.release = default_item_release;
-   engine->engine.get = default_get;
-   engine->engine.get_stats = default_get_stats;
-   engine->engine.reset_stats = default_reset_stats;
-   engine->engine.store = default_store;
-   engine->engine.arithmetic = default_arithmetic;
-   engine->engine.flush = default_flush;
-   engine->engine.unknown_command = default_unknown_command;
-   engine->engine.item_set_cas = item_set_cas;
-   engine->engine.get_item_info = get_item_info;
-   engine->engine.set_item_info = set_item_info;
    engine->server = *api;
    engine->get_server_api = get_server_api;
    engine->initialized = true;
-   engine->config.use_cas = true;
-   engine->config.verbose = 0;
-   engine->config.oldest_live = 0;
-   engine->config.evict_to_free = true;
-   engine->config.maxbytes = 64 * 1024 * 1024;
-   engine->config.preallocate = false;
-   engine->config.factor = 1.25;
-   engine->config.chunk_size = 48;
-   engine->config.item_size_max= 1024 * 1024;
-   engine->info.engine.description = "Default engine v0.1";
-   engine->info.engine.num_features = 1;
-   engine->info.engine.features[0].feature = ENGINE_FEATURE_LRU;
-   engine->info.engine.features[engine->info.engine.num_features++].feature
-                                                = ENGINE_FEATURE_DATATYPE;
    *handle = (ENGINE_HANDLE*)&engine->engine;
    return ENGINE_SUCCESS;
 }

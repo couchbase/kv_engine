@@ -136,6 +136,7 @@ uint8_t item_get_clsid(const hash_item* item);
 extern "C" {
 #endif
 
+void default_engine_constructor(struct default_engine* engine, bucket_id_t id);
 void destroy_engine_instance(struct default_engine* engine);
 
 #ifdef __cplusplus
