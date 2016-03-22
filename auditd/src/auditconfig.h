@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 #include <cJSON.h>
+#include <cJSON_utils.h>
 
 class AuditConfig {
 public:
@@ -90,6 +91,12 @@ public:
     size_t get_max_rotate_file_size() const {
         return max_rotate_file_size;
     }
+
+    /**
+     * Create a JSON representation of the audit configuration. This is
+     * the same JSON representation that the constructor would accept.
+     */
+    unique_cJSON_ptr to_json() const;
 
 protected:
     void sanitize_path(std::string &path);

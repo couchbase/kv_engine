@@ -272,3 +272,33 @@ void AuditConfig::set_sync(cJSON *array) {
 void AuditConfig::set_disabled(cJSON *array) {
     add_array(disabled, array, "disabled");
 }
+
+unique_cJSON_ptr AuditConfig::to_json() const {
+    unique_cJSON_ptr ret(cJSON_CreateObject());
+    cJSON* root = ret.get();
+    if (root == nullptr) {
+        throw std::bad_alloc();
+    }
+
+    cJSON_AddNumberToObject(root, "version", 1);
+    cJSON_AddBoolToObject(root, "auditd_enabled", is_auditd_enabled());
+    cJSON_AddNumberToObject(root, "rotate_size", get_rotate_size());
+    cJSON_AddNumberToObject(root, "rotate_interval", get_rotate_interval());
+    cJSON_AddBoolToObject(root, "buffered", is_buffered());
+    cJSON_AddStringToObject(root, "log_path", get_log_directory().c_str());
+    cJSON_AddStringToObject(root, "descriptors_path", get_descriptors_path().c_str());
+
+    cJSON* array = cJSON_CreateArray();
+    for (const auto& v : sync) {
+        cJSON_AddItemToArray(array, cJSON_CreateNumber(v));
+    }
+    cJSON_AddItemToObject(root, "sync", array);
+
+    array = cJSON_CreateArray();
+    for (const auto& v : disabled) {
+        cJSON_AddItemToArray(array, cJSON_CreateNumber(v));
+    }
+    cJSON_AddItemToObject(root, "disabled", array);
+
+    return ret;
+}

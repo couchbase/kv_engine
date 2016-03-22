@@ -20,11 +20,15 @@ ADD_TEST(NAME memcached-auditconfig-test
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND memcached_auditconfig_test)
 
-ADD_EXECUTABLE(memcached_auditd_tests testauditd.cc)
-TARGET_LINK_LIBRARIES(memcached_auditd_tests auditd mcd_util mcd_time cJSON dirutils)
+ADD_EXECUTABLE(memcached_auditd_tests
+               ${Memcached_SOURCE_DIR}/auditd/src/auditconfig.h
+               ${Memcached_SOURCE_DIR}/auditd/src/auditconfig.cc
+               testauditd.cc)
+TARGET_LINK_LIBRARIES(memcached_auditd_tests
+                      auditd mcd_util mcd_time cJSON dirutils gtest)
 ADD_DEPENDENCIES(memcached_auditd_tests generate_audit_descriptors)
 ADD_TEST(NAME memcached-auditd-test
-         COMMAND memcached_auditd_tests ${Memcached_BINARY_DIR}/auditd)
+         COMMAND memcached_auditd_tests -e ${Memcached_BINARY_DIR}/auditd)
 
 ADD_EXECUTABLE(memcached_audit_evdescr_test eventdescriptor_test.cc
                ${Memcached_SOURCE_DIR}/auditd/src/eventdescriptor.cc
