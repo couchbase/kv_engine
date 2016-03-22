@@ -49,7 +49,7 @@ bool Event::process(Audit& audit) {
         cJSON_Delete(json_payload);
         return false;
     }
-    if (!evt->second->enabled) {
+    if (!evt->second->isEnabled()) {
         // the event is not enabled so ignore event
         cJSON_Delete(json_payload);
         return true;
@@ -60,8 +60,8 @@ bool Event::process(Audit& audit) {
         return false;
     }
     cJSON_AddNumberToObject(json_payload, "id", id);
-    cJSON_AddStringToObject(json_payload, "name", evt->second->name.c_str());
-    cJSON_AddStringToObject(json_payload, "description", evt->second->description.c_str());
+    cJSON_AddStringToObject(json_payload, "name", evt->second->getName().c_str());
+    cJSON_AddStringToObject(json_payload, "description", evt->second->getDescription().c_str());
 
     bool success = audit.auditfile.write_event_to_disk(json_payload);
 

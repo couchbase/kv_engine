@@ -207,6 +207,13 @@ struct default_engine* EngineManager::createEngine() {
 
     if (newEngine) {
         std::lock_guard<std::mutex> lck(lock);
+        static bucket_id_t bucket_id;
+        if (bucket_id + 1 == 0) {
+            // We've used all of the available id's
+            delete newEngine;
+            return nullptr;
+        }
+        default_engine_constructor(newEngine, bucket_id++);
         engines.insert(newEngine);
     }
 

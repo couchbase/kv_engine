@@ -29,12 +29,6 @@
 #include "audit.h"
 #include "auditconfig.h"
 
-uint32_t AuditConfig::min_file_rotation_time = 900; // 15 minutes
-uint32_t AuditConfig::max_file_rotation_time = 604800; // 1 week
-
-// The maximum file size before rotation is 500MB
-size_t AuditConfig::max_rotate_file_size = 500*1024*1024;
-
 /**
  * Get a named object from located under "root". It should be of the
  * given type (or -1 for a boolean value)

@@ -153,8 +153,10 @@ TEST_F(AuditConfigTest, TestNoRotateInterval) {
 }
 
 TEST_F(AuditConfigTest, TestRotateIntervalSetGet) {
-    for (size_t ii = AuditConfig::min_file_rotation_time;
-         ii < AuditConfig::min_file_rotation_time+10;
+    AuditConfig defaultvalue;
+    const uint32_t min_file_rotation_time = defaultvalue.get_min_file_rotation_time();
+    for (size_t ii = min_file_rotation_time;
+         ii < min_file_rotation_time + 10;
          ++ii) {
         config.set_rotate_interval(uint32_t(ii));
         EXPECT_EQ(ii, config.get_rotate_interval());
@@ -168,8 +170,12 @@ TEST_F(AuditConfigTest, TestRotateIntervalIllegalDatatype) {
 }
 
 TEST_F(AuditConfigTest, TestRotateIntervalLegalValue) {
-    for (size_t ii = AuditConfig::min_file_rotation_time;
-         ii < AuditConfig::max_file_rotation_time;
+    AuditConfig defaultvalue;
+    const uint32_t min_file_rotation_time = defaultvalue.get_min_file_rotation_time();
+    const uint32_t max_file_rotation_time = defaultvalue.get_max_file_rotation_time();
+
+    for (size_t ii = min_file_rotation_time;
+         ii < max_file_rotation_time;
          ii += 1000) {
         cJSON_ReplaceItemInObject(json, "rotate_interval",
                                   cJSON_CreateNumber(double(ii)));
@@ -178,11 +184,15 @@ TEST_F(AuditConfigTest, TestRotateIntervalLegalValue) {
 }
 
 TEST_F(AuditConfigTest, TestRotateIntervalIllegalValue) {
+    AuditConfig defaultvalue;
+    const uint32_t min_file_rotation_time = defaultvalue.get_min_file_rotation_time();
+    const uint32_t max_file_rotation_time = defaultvalue.get_max_file_rotation_time();
+
     cJSON_ReplaceItemInObject(json, "rotate_interval",
-                              cJSON_CreateNumber(AuditConfig::min_file_rotation_time-1));
+                              cJSON_CreateNumber(min_file_rotation_time - 1));
     EXPECT_THROW(config.initialize_config(json), std::string);
     cJSON_ReplaceItemInObject(json, "rotate_interval",
-                              cJSON_CreateNumber(AuditConfig::max_file_rotation_time+1));
+                              cJSON_CreateNumber(max_file_rotation_time + 1));
     EXPECT_THROW(config.initialize_config(json), std::string);
 }
 

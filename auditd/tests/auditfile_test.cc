@@ -106,7 +106,8 @@ TEST_F(AuditFileTest, TestFileCreation) {
  * to use the next file
  */
 TEST_F(AuditFileTest, TestTimeRotate) {
-    config.set_rotate_interval(AuditConfig::min_file_rotation_time);
+    AuditConfig defaultvalue;
+    config.set_rotate_interval(defaultvalue.get_min_file_rotation_time());
     config.set_rotate_size(1024*1024);
 
     AuditFile auditfile;
@@ -117,7 +118,7 @@ TEST_F(AuditFileTest, TestTimeRotate) {
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
         auditfile.write_event_to_disk(event);
-        audit_test_timetravel(AuditConfig::min_file_rotation_time + 1);
+        audit_test_timetravel(defaultvalue.get_min_file_rotation_time() + 1);
     }
 
     auditfile.close();
@@ -131,7 +132,8 @@ TEST_F(AuditFileTest, TestTimeRotate) {
  * of the file gets bigger.
  */
 TEST_F(AuditFileTest, TestSizeRotate) {
-    config.set_rotate_interval(AuditConfig::max_file_rotation_time);
+    AuditConfig defaultvalue;
+    config.set_rotate_interval(defaultvalue.get_max_file_rotation_time());
     config.set_rotate_size(100);
 
     AuditFile auditfile;
@@ -155,13 +157,14 @@ TEST_F(AuditFileTest, TestSizeRotate) {
  * opened, and not from the instance was configured
  */
 TEST_F(AuditFileTest, TestRollover) {
-    config.set_rotate_interval(AuditConfig::min_file_rotation_time);
+    AuditConfig defaultvalue;
+    config.set_rotate_interval(defaultvalue.get_min_file_rotation_time());
     config.set_rotate_size(100);
     AuditFile auditfile;
     auditfile.reconfigure(config);
 
     uint32_t secs = auditfile.get_seconds_to_rotation();
-    EXPECT_EQ(AuditConfig::min_file_rotation_time, secs);
+    EXPECT_EQ(defaultvalue.get_min_file_rotation_time(), secs);
 
     audit_test_timetravel(10);
     EXPECT_EQ(secs, auditfile.get_seconds_to_rotation())
@@ -170,13 +173,13 @@ TEST_F(AuditFileTest, TestRollover) {
     auditfile.ensure_open();
 
     secs = auditfile.get_seconds_to_rotation();
-    EXPECT_TRUE(secs == AuditConfig::min_file_rotation_time ||
-                secs == (AuditConfig::min_file_rotation_time - 1));
+    EXPECT_TRUE(secs == defaultvalue.get_min_file_rotation_time() ||
+                secs == (defaultvalue.get_min_file_rotation_time() - 1));
 
     audit_test_timetravel(10);
     secs = auditfile.get_seconds_to_rotation();
-    EXPECT_TRUE(secs == AuditConfig::min_file_rotation_time - 10 ||
-                secs == (AuditConfig::min_file_rotation_time - 11));
+    EXPECT_TRUE(secs == defaultvalue.get_min_file_rotation_time() - 10 ||
+                secs == (defaultvalue.get_min_file_rotation_time() - 11));
 }
 
 TEST_F(AuditFileTest, TestSuccessfulCrashRecovery) {

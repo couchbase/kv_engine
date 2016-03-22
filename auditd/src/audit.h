@@ -28,15 +28,15 @@
 #include "memcached/types.h"
 #include "auditconfig.h"
 #include "auditfile.h"
-#include "eventdata.h"
 #include "auditd.h"
+#include "eventdescriptor.h"
 
 class Event;
 
 class Audit {
 public:
     AuditConfig config;
-    std::map<uint32_t,EventData*> events;
+    std::map<uint32_t,EventDescriptor*> events;
 
     // We maintain two Event queues. At any one time one will be used to accept
     // new events, and the other will be processed. The two queues are swapped

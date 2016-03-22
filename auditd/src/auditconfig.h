@@ -24,15 +24,15 @@
 
 class AuditConfig {
 public:
-    static uint32_t min_file_rotation_time;
-    static uint32_t max_file_rotation_time;
-    static size_t max_rotate_file_size;
 
     AuditConfig(void) :
         auditd_enabled(false),
         rotate_interval(900),
         rotate_size(20 * 1024 * 1024),
-        buffered(true)
+        buffered(true),
+        min_file_rotation_time(900), // 15 minutes
+        max_file_rotation_time(604800), // 1 week
+        max_rotate_file_size(500 * 1024 * 1024)
     {
         // Empty
     }
@@ -70,6 +70,27 @@ public:
     bool is_event_sync(uint32_t id);
     bool is_event_disabled(uint32_t id);
 
+
+    void set_min_file_rotation_time(uint32_t min_file_rotation_time) {
+        AuditConfig::min_file_rotation_time = min_file_rotation_time;
+    }
+
+    uint32_t get_min_file_rotation_time() const {
+        return min_file_rotation_time;
+    }
+
+    void set_max_file_rotation_time(uint32_t max_file_rotation_time) {
+        AuditConfig::max_file_rotation_time = max_file_rotation_time;
+    }
+
+    uint32_t get_max_file_rotation_time() const {
+        return max_file_rotation_time;
+    }
+
+    size_t get_max_rotate_file_size() const {
+        return max_rotate_file_size;
+    }
+
 protected:
     void sanitize_path(std::string &path);
     void set_rotate_size(cJSON *obj);
@@ -90,6 +111,10 @@ protected:
     std::string descriptors_path;
     std::vector<uint32_t> sync;
     std::vector<uint32_t> disabled;
+
+    uint32_t min_file_rotation_time;
+    uint32_t max_file_rotation_time;
+    size_t max_rotate_file_size;
 };
 
 #endif
