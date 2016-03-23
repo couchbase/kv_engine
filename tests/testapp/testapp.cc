@@ -1928,6 +1928,7 @@ TEST_P(McdTestappTest, Scrub) {
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
+#ifdef USE_EXTENDED_ERROR_CODES
 TEST_P(McdTestappTest, Roles) {
     union {
         protocol_binary_request_no_extras request;
@@ -1994,6 +1995,7 @@ TEST_P(McdTestappTest, Roles) {
     /* And noop should work again! */
     test_noop();
 }
+#endif
 
 std::atomic<bool> hickup_thread_running;
 

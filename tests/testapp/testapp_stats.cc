@@ -140,6 +140,8 @@ TEST_P(StatsTest, TestSettings) {
     // Skip audit.. it is "optional" and we don't pass it to the config
 }
 
+#ifdef USE_EXTENDED_ERROR_CODES
+
 TEST_P(StatsTest, TestAuditNoAccess) {
     MemcachedConnection& conn = getConnection();
 
@@ -150,6 +152,7 @@ TEST_P(StatsTest, TestAuditNoAccess) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 }
+#endif
 
 TEST_P(StatsTest, TestAudit) {
     MemcachedConnection& conn = getConnection();
@@ -172,6 +175,7 @@ TEST_P(StatsTest, TestAudit) {
     conn.reconnect();
 }
 
+#ifdef USE_EXTENDED_ERROR_CODES
 TEST_P(StatsTest, TestBucketDetailsNoAccess) {
     MemcachedConnection& conn = getConnection();
 
@@ -183,6 +187,7 @@ TEST_P(StatsTest, TestBucketDetailsNoAccess) {
         EXPECT_TRUE(error.isAccessDenied());
     }
 }
+#endif
 
 TEST_P(StatsTest, TestBucketDetails) {
     MemcachedConnection& conn = getConnection();

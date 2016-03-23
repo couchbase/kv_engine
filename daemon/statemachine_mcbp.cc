@@ -679,7 +679,11 @@ bool conn_sasl_auth(McbpConnection* c) {
         if (!is_server_initialized()) {
             LOG_WARNING(c, "%u: SASL AUTH failure during initialization",
                         c->getId());
+#ifdef USE_EXTENDED_ERROR_CODES
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
+#else
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
+#endif
             c->setWriteAndGo(conn_closing);
             return true;
         }

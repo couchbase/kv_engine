@@ -69,10 +69,13 @@ protected:
     }
 };
 
+#ifdef USE_EXTENDED_ERROR_CODES
 TEST_F(ShutdownTest, ShutdownNotAllowed) {
     assumeRole("statistics");
     sendShutdown(PROTOCOL_BINARY_RESPONSE_EACCESS);
 }
+#endif
+
 
 TEST_F(ShutdownTest, ShutdownAllowed) {
     sendShutdown(PROTOCOL_BINARY_RESPONSE_SUCCESS);

@@ -1233,9 +1233,11 @@ bool McbpConnection::includeErrorStringInResponseBody(
         // error codes:
         switch (err) {
         case PROTOCOL_BINARY_RESPONSE_SUCCESS:
+#ifdef USE_EXTENDED_ERROR_CODES
         case PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED:
         case PROTOCOL_BINARY_RESPONSE_AUTH_STALE:
         case PROTOCOL_BINARY_RESPONSE_NO_BUCKET:
+#endif
             return false;
 
         default:

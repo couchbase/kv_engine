@@ -18,6 +18,8 @@
 #include <cerrno>
 #include "testapp.h"
 
+#ifdef USE_EXTENDED_ERROR_CODES
+
 class RequireInitTest : public TestappTest {
 public:
     RequireInitTest()
@@ -216,3 +218,5 @@ TEST_F(RequireInitTest, InitializeSuccess) {
     // noop should work :D
     noop(true);
 }
+
+#endif

@@ -238,6 +238,8 @@ TEST_F(AuditTest, AuditFailedAuth) {
     ASSERT_TRUE(searchAuditLogForID(20481, "nouser"));
 }
 
+#ifdef USE_EXTENDED_ERROR_CODES
+
 /**
  * Validate that a RBAC violation is logged.
  */
@@ -274,3 +276,4 @@ TEST_F(AuditTest, AuditRBACFailed) {
     waitForShutdown();
     ASSERT_TRUE(searchAuditLogForID(20484));
 }
+#endif

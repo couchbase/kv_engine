@@ -3896,7 +3896,11 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
             // We're not connected to a bucket, and we didn't
             // authenticate to a bucket.. Don't leak the
             // global stats...
+#ifdef USE_EXTENDED_ERROR_CODES
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+#else
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
+#endif
             return;
         }
         str = all_buckets[index].timings.generate(req->message.body.opcode);
@@ -3931,7 +3935,11 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
         }
     } else {
         // non-privileged connections can't specify bucket
+#ifdef USE_EXTENDED_ERROR_CODES
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+#else
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
+#endif
     }
 }
 
@@ -4115,7 +4123,13 @@ static void assume_role_executor(McbpConnection* c, void* packet) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
         return;
     case AuthResult::STALE:
+#ifdef USE_EXTENDED_ERROR_CODES
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
+#else
+        LOG_NOTICE(c, "%u: Authentication token stale. Closing connection",
+                   c->getId());
+        c->setState(conn_closing);
+#endif
         return;
     }
 
@@ -4555,7 +4569,11 @@ static void process_bin_packet(McbpConnection* c) {
                     c->getId(), c->getDescription().c_str(),
                     memcached_opcode_2_text(opcode));
         audit_command_access_failed(c);
+#ifdef USE_EXTENDED_ERROR_CODES
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
+#else
+        c->setState(conn_closing);
+#endif
         return;
     case AuthResult::OK: {
         protocol_binary_response_status result = validate_bin_header(c);
@@ -4582,7 +4600,13 @@ static void process_bin_packet(McbpConnection* c) {
         return;
     }
     case AuthResult::STALE:
+#ifdef USE_EXTENDED_ERROR_CODES
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
+#else
+        LOG_NOTICE(c, "%u: Authentication context stale. Closing connection",
+                   c->getId());
+        c->setState(conn_closing);
+#endif
         return;
     }
 
@@ -4618,8 +4642,12 @@ static void dispatch_bin_command(McbpConnection* c) {
     }
 
     if (!is_initialized(c, c->binary_header.request.opcode)) {
+#ifdef USE_EXTENDED_ERROR_CODES
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED);
         c->setWriteAndGo(conn_closing);
+#else
+        c->setState(conn_closing);
+#endif
         return;
     }
 

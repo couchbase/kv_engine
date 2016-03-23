@@ -149,7 +149,11 @@ public:
 
     bool isAccessDenied() const {
         if (protocol == Protocol::Memcached) {
+#ifdef USE_EXTENDED_ERROR_CODES
             return reason == PROTOCOL_BINARY_RESPONSE_EACCESS;
+#else
+            return false;
+#endif
         } else {
             return reason == uint16_t(Greenstack::Status::NoAccess);
         }

@@ -90,10 +90,12 @@ extern "C"
         PROTOCOL_BINARY_RESPONSE_DELTA_BADVAL = 0x06,
         /** The server is not responsible for the requested vbucket */
         PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET = 0x07,
+#ifdef USE_EXTENDED_ERROR_CODES
         /** Not connected to a bucket */
         PROTOCOL_BINARY_RESPONSE_NO_BUCKET = 0x08,
         /** The authentication context is stale. You should reauthenticate*/
         PROTOCOL_BINARY_RESPONSE_AUTH_STALE = 0x1f,
+#endif
         /** Authentication failure (invalid user/password combination,
          * OR an internal error in the authentication library. Could
          * be a misconfigured SASL configuration. See server logs for
@@ -108,12 +110,14 @@ extern "C"
          * (_currently_ only used by DCP for agreeing on selecting a
          * starting point) */
         PROTOCOL_BINARY_RESPONSE_ROLLBACK = 0x23,
+#ifdef USE_EXTENDED_ERROR_CODES
         /** No access (could be opcode, value, bucket etc) */
         PROTOCOL_BINARY_RESPONSE_EACCESS = 0x24,
         /** The Couchbase cluster is currently initializing this
          * node, and the Cluster manager has not yet granted all
          * users access to the cluster. */
         PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED = 0x25,
+#endif
         /** The server have no idea what this command is for */
         PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND = 0x81,
         /** Not enough memory */

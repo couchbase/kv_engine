@@ -209,10 +209,12 @@ static const std::map<protocol_binary_response_status, std::string> statusmap {
         "Non-numeric server-side value for incr or decr"},
     {PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET,
         "I'm not responsible for this vbucket"},
+#ifdef USE_EXTENDED_ERROR_CODES
     {PROTOCOL_BINARY_RESPONSE_NO_BUCKET,
         "Not connected to a bucket"},
     {PROTOCOL_BINARY_RESPONSE_AUTH_STALE,
         "Authentication stale. Please reauthenticate"},
+#endif
     {PROTOCOL_BINARY_RESPONSE_AUTH_ERROR,
         "Auth failure"},
     {PROTOCOL_BINARY_RESPONSE_AUTH_CONTINUE,
@@ -221,10 +223,12 @@ static const std::map<protocol_binary_response_status, std::string> statusmap {
         "Outside range"},
     {PROTOCOL_BINARY_RESPONSE_ROLLBACK,
         "Rollback"},
+#ifdef USE_EXTENDED_ERROR_CODES
     {PROTOCOL_BINARY_RESPONSE_EACCESS,
         "No access"},
     {PROTOCOL_BINARY_RESPONSE_NOT_INITIALIZED,
         "Node not initialized"},
+#endif
     {PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND,
         "Unknown command"},
     {PROTOCOL_BINARY_RESPONSE_ENOMEM,

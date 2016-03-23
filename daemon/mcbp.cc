@@ -232,8 +232,10 @@ protocol_binary_response_status engine_error_2_mcbp_protocol_error(
     protocol_binary_response_status ret;
 
     switch (e) {
+#ifdef USE_EXTENDED_ERROR_CODES
     case ENGINE_EACCESS:
         return PROTOCOL_BINARY_RESPONSE_EACCESS;
+#endif
     case ENGINE_SUCCESS:
         return PROTOCOL_BINARY_RESPONSE_SUCCESS;
     case ENGINE_KEY_ENOENT:
@@ -254,12 +256,14 @@ protocol_binary_response_status engine_error_2_mcbp_protocol_error(
         return PROTOCOL_BINARY_RESPONSE_E2BIG;
     case ENGINE_NOT_MY_VBUCKET:
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
+#ifdef USE_EXTENDED_ERROR_CODES
     case ENGINE_ERANGE:
         return PROTOCOL_BINARY_RESPONSE_ERANGE;
-    case ENGINE_ROLLBACK:
-        return PROTOCOL_BINARY_RESPONSE_ROLLBACK;
     case ENGINE_NO_BUCKET:
         return PROTOCOL_BINARY_RESPONSE_NO_BUCKET;
+#endif
+    case ENGINE_ROLLBACK:
+        return PROTOCOL_BINARY_RESPONSE_ROLLBACK;
     case ENGINE_EBUSY:
         return PROTOCOL_BINARY_RESPONSE_EBUSY;
     default:

@@ -315,7 +315,11 @@ static void request_cmd_timings(BIO *bio, const char *bucket, uint8_t opcode,
         case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
             std::cerr <<"Cannot find bucket: " << bucket << std::endl;
             break;
+#ifdef USE_EXTENDED_ERROR_CODES
         case PROTOCOL_BINARY_RESPONSE_EACCESS:
+#else
+        case PROTOCOL_BINARY_RESPONSE_AUTH_ERROR:
+#endif
             std::cerr << "Not authorized to access timings data" << std::endl;
             break;
         default:
@@ -378,7 +382,11 @@ static void request_stat_timings(BIO *bio, const char* key, int verbose) {
         case PROTOCOL_BINARY_RESPONSE_KEY_ENOENT:
             std::cerr <<"Cannot find statistic: " << key << std::endl;
             break;
+#ifdef USE_EXTENDED_ERROR_CODES
         case PROTOCOL_BINARY_RESPONSE_EACCESS:
+#else
+        case PROTOCOL_BINARY_RESPONSE_AUTH_ERROR:
+#endif
             std::cerr << "Not authorized to access timings data" << std::endl;
             break;
         default:
