@@ -2272,8 +2272,6 @@ DBFileInfo CouchKVStore::getDbFileInfo(uint16_t vbid) {
         DbInfo info;
         errCode = couchstore_db_info(db, &info);
         if (errCode == COUCHSTORE_SUCCESS) {
-            cachedDocCount[vbid] = info.doc_count;
-            vbinfo.itemCount = info.doc_count;
             vbinfo.fileSize = info.file_size;
             vbinfo.spaceUsed = info.space_used;
         } else {

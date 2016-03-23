@@ -1129,7 +1129,6 @@ DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
         throw std::runtime_error(err);
     }
 
-    dbInfo.itemCount = kvsInfo.doc_count;
     dbInfo.fileSize =  fileInfo.file_size/fileInfo.num_kv_stores;
     dbInfo.spaceUsed = fileInfo.space_used/fileInfo.num_kv_stores;
 

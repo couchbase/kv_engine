@@ -544,13 +544,13 @@ void Warmup::estimateDatabaseItemCount(uint16_t shardId)
     const std::vector<uint16_t> &vbs = shardVbIds[shardId];
     std::vector<uint16_t>::const_iterator it = vbs.begin();
     for (; it != vbs.end(); ++it) {
-        DBFileInfo info = store.getROUnderlyingByShard(shardId)->
-                                                        getDbFileInfo(*it);
+        size_t vbItemCount = store.getROUnderlyingByShard(shardId)->
+                                                        getItemCount(*it);
         RCPtr<VBucket> vb = store.getVBucket(*it);
         if (vb) {
-            vb->ht.numTotalItems = info.itemCount;
+            vb->ht.numTotalItems = vbItemCount;
         }
-        item_count += info.itemCount;
+        item_count += vbItemCount;
     }
 
     estimatedItemCount.fetch_add(item_count);

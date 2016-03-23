@@ -201,9 +201,8 @@ struct vbucket_state {
 
 struct DBFileInfo {
     DBFileInfo() :
-        itemCount(0), fileSize(0), spaceUsed(0) { }
+        fileSize(0), spaceUsed(0) { }
 
-    uint64_t itemCount;
     uint64_t fileSize;
     uint64_t spaceUsed;
 };
