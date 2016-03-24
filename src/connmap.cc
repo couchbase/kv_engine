@@ -935,13 +935,20 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
-    std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); ++iter) {
-        if ((*iter)->getName() == conn_name) {
-            (*iter)->setDisconnect(true);
-            all.erase(iter);
-            break;
+    for (const auto conn: all) {
+        if (conn->getName() == conn_name) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to create Dcp Consumer because connection of the "
+                "same name (%s) already exists", conn_name.c_str());
+            return nullptr;
         }
+    }
+
+    if (map_.count(cookie) != 0) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to create Dcp Consumer because connection "
+            "(%p) already exists", cookie);
+        return nullptr;
     }
 
     DcpConsumer *dcp = new DcpConsumer(engine, cookie, conn_name);
@@ -993,13 +1000,20 @@ DcpProducer *DcpConnMap::newProducer(const void* cookie,
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
-    std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); ++iter) {
-        if ((*iter)->getName() == conn_name) {
-            (*iter)->setDisconnect(true);
-            all.erase(iter);
-            break;
+    for (const auto conn: all) {
+        if (conn->getName() == conn_name) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to create Dcp Producer because connection of the "
+                "same name (%s) already exists", conn_name.c_str());
+            return nullptr;
         }
+    }
+
+    if (map_.count(cookie) != 0) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to create Dcp Producer because connection "
+            "(%p) already exists", cookie);
+        return nullptr;
     }
 
     DcpProducer *dcp = new DcpProducer(engine, cookie, conn_name, notifyOnly);
