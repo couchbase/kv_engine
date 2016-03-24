@@ -110,6 +110,18 @@ private:
     bool expectCompressed;
 };
 
+class BloomFilterCallback : public Callback<std::string&, bool&> {
+public:
+    BloomFilterCallback() {}
+    void callback(std::string& ra, bool& rb) override {}
+};
+
+class ExpiryCallback : public Callback<std::string&, uint64_t&> {
+public:
+    ExpiryCallback() {}
+    void callback(std::string& ra, uint64_t& rb) override {}
+};
+
 // Creates and initializes a KVStore with the given config
 static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config) {
     auto kvstore = std::unique_ptr<KVStore>(KVStoreFactory::create(config));
@@ -226,6 +238,60 @@ TEST(CouchKVStoreTest, StatsTest) {
     const size_t io_total_write_bytes = stoul(stats[":io_total_write_bytes"]);
     EXPECT_GT(io_total_write_bytes, 0);
     EXPECT_GE(io_total_write_bytes, io_write_bytes);
+}
+
+// Verify the compaction stats returned from operations are accurate.
+TEST(CouchKVStoreTest, CompactStatsTest) {
+    std::string data_dir("/tmp/kvstore-test");
+    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+
+    KVStoreConfig config(1, 4, data_dir, "couchdb", 0);
+    auto kvstore = setup_kv_store(config);
+
+    // Perform a transaction with a single mutation (set) in it.
+    kvstore->begin();
+    const std::string key{"key"};
+    const std::string value{"value"};
+    Item item(key.c_str(), key.size(), 0, 0, value.c_str(), value.size());
+    WriteCallback wc;
+    kvstore->set(item, wc);
+
+    StatsCallback sc;
+    EXPECT_TRUE(kvstore->commit(&sc));
+
+    std::shared_ptr<Callback<std::string&, bool&> >
+        filter(new BloomFilterCallback());
+    std::shared_ptr<Callback<std::string&, uint64_t&> >
+        expiry(new ExpiryCallback());
+
+    compaction_ctx cctx;
+    cctx.purge_before_seq = 0;
+    cctx.purge_before_ts = 0;
+    cctx.curr_time = 0;
+    cctx.drop_deletes = 0;
+    cctx.db_file_id = 0;
+    cctx.max_purged_seq = 0;
+    cctx.bloomFilterCallback = filter;
+    cctx.expiryCallback = expiry;
+
+
+    EXPECT_TRUE(kvstore->compactDB(&cctx, sc));
+    // Check statistics are correct.
+    std::map<std::string, std::string> stats;
+    kvstore->addStats("", add_stat_callback, &stats);
+    EXPECT_EQ("1", stats[":io_num_write"]);
+    const size_t io_write_bytes = stoul(stats[":io_write_bytes"]);
+
+    // Hard to determine exactly how many bytes should have been written, but
+    // expect non-zero, and at least twice as many as the actual documents for
+    // the total and once as many for compaction alone.
+    const size_t io_total_write_bytes = stoul(stats[":io_total_write_bytes"]);
+    const size_t io_compaction_write_bytes = stoul(stats[":io_compaction_write_bytes"]);
+    EXPECT_GT(io_total_write_bytes, 0);
+    EXPECT_GT(io_compaction_write_bytes, 0);
+    EXPECT_GT(io_total_write_bytes, io_compaction_write_bytes);
+    EXPECT_GE(io_total_write_bytes, io_write_bytes * 2);
+    EXPECT_GE(io_compaction_write_bytes, io_write_bytes);
 }
 
 // Regression test for MB-17517 - ensure that if a couchstore file has a max
