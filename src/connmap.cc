@@ -148,7 +148,9 @@ public:
     bool run(void) {
         connmap->manageConnections();
         snooze(MIN_SLEEP_TIME);
-        return !engine->getEpStats().isShutdown;
+        return !engine->getEpStats().isShutdown ||
+               !connmap->isAllEmpty() ||
+               !connmap->isDeadConnectionsEmpty();
     }
 
     std::string getDescription() {
@@ -1013,38 +1015,11 @@ void DcpConnMap::shutdownAllConnections() {
 
     connNotifier_->stop();
 
-
-    LockHolder lh(connsLock);
-    std::vector<connection_t> toRelease(all.begin(), all.end());
-
-    closeAllStreams_UNLOCKED();
-    cancelAllTasks_UNLOCKED();
-    all.clear();
-    map_.clear();
-
-    lh.unlock();
-
     {
-         LockHolder rlh(releaseLock);
-         for (auto &ii : toRelease) {
-             LOG(EXTENSION_LOG_NOTICE, "Clean up \"%s\"", ii->getName().c_str());
-             ii->releaseReference();
-         }
+        LockHolder lh(connsLock);
+        closeAllStreams_UNLOCKED();
+        cancelAllTasks_UNLOCKED();
     }
-    /*
-     * Dead connections are cleaned-up by manageConnections.
-     * manageconnections is invoked in the run() of ConnManager,
-     * which is a NONIO Task.  The task has a MIN_SLEEP_TIME of 2s,
-     * which means dead connections will only be clean-up at most
-     * every 2s.  Therefore if we delete a bucket it is possible
-     * that dead connections exist.  This causes the function
-     * responsible for destroying a bucket to wait indefinitely
-     * for the dead connections to be disconnected.
-     *
-     * Therefore before deleting a bucket we need to ensure that
-     * manageConnections is called.
-     */
-    manageConnections();
 }
 
 void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,

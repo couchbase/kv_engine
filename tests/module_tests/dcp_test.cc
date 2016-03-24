@@ -324,26 +324,23 @@ TEST_F(StreamTest, test_mb18625) {
 
 class ConnectionTest : public DCPTest {};
 
-TEST_F(ConnectionTest, test_mb18135) {
+TEST_F(ConnectionTest, test_deadConnections) {
     MockDcpConnMap *connMap = new MockDcpConnMap(*engine);
     connMap->initialize(DCP_CONN_NOTIFIER);
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
-    dcp_producer_t producer = connMap->newProducer(cookie, "test_mb18135_producer",
+    dcp_producer_t producer = connMap->newProducer(cookie, "test_producer",
                                     /*notifyOnly*/false);
 
     // Disconnect the producer connection
     connMap->disconnect(cookie);
     EXPECT_EQ(1, (int)connMap->getNumberOfDeadConnections())
         << "Unexpected number of dead connections";
-    connMap->shutdownAllConnections();
-    // REGRESSION CHECK: should be zero deadConnections
+    connMap->manageConnections();
+    // Should be zero deadConnections
     EXPECT_EQ(0, (int)connMap->getNumberOfDeadConnections())
         << "Dead connections still remain";
 
-    // We do not need to call delete cookie, as that is performed
-    // during the call to shutdownAllConnections.
-    producer.reset();
     delete connMap;
 }
 
