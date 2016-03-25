@@ -5666,7 +5666,7 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
         /* Get stats from KV Store only when the vbucket database
          * file has already been created.
          */
-        if (!vbMap.isBucketCreation(vbid)) {
+        if (!vbMap.isBucketCreation(vbid) && !vbMap.isBucketDeletion(vbid)) {
             del_items = epstore->getRWUnderlying(vbid)->
                                            getNumPersistedDeletes(vbid);
         }
@@ -5701,8 +5701,16 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     std::string tapName("eq_tapq:");
     tapName.append(key);
     size_t vb_items = vb->getNumItems(epstore->getItemEvictionPolicy());
-    size_t del_items = epstore->getRWUnderlying(vbid)->
+    const VBucketMap &vbMap = epstore->getVBuckets();
+    size_t del_items = 0;
+
+    /* Get stats from KV Store only when the vbucket database
+     * file has already been created.
+     */
+    if (!vbMap.isBucketCreation(vbid) && !vbMap.isBucketDeletion(vbid)) {
+        del_items = epstore->getRWUnderlying(vbid)->
                                            getNumPersistedDeletes(vbid);
+    }
 
     add_casted_stat("name", tapName, add_stat, cookie);
 
