@@ -244,6 +244,11 @@ bool AccessScanner::run() {
             if (deleteAccessLogFiles) {
                 std::string name(alogPath + "." + std::to_string(i));
                 std::string prev(name + ".old");
+
+                LOG(EXTENSION_LOG_NOTICE, "Deleting access log files '%s' and "
+                    "'%s' as resident ratio is over %" PRIu8,
+                    name.c_str(), prev.c_str(), residentRatioThreshold);
+
                 /* Remove .old shard access log file */
                 deleteAlogFile(prev);
                 /* Remove shard access log file */
