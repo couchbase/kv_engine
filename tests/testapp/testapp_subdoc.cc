@@ -1908,6 +1908,24 @@ TEST_P(McdTestappTest, SubdocArrayPushLast_NotMyVbucket)
     delete_object("array");
 }
 
+// Test that flags are preserved by subdoc mutation operations.
+TEST_P(McdTestappTest, SubdocFlags)
+{
+    const char array[] = "[0]";
+    const uint32_t flags = 0xcafebabe;
+    store_object_with_flags("array", array, flags);
+
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE, "array",
+                                "[0]", "1"),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+
+    validate_object("array", "[1]");
+    validate_flags("array", 0xcafebabe);
+
+    delete_object("array");
+}
+
+
 enum class SubdocCmdType {
     Lookup,
     Mutation

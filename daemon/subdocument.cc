@@ -376,6 +376,7 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
  * @param[out] document Upon success, the returned document.
  * @param      in_cas   Input CAS to use
  * @param[out] cas      Upon success, the returned document's CAS.
+ * @param[out] flags    Upon success, the returned document's flags.
  *
  * Returns true if a buffer could be prepared, updating {document} with the
  * address and size of the document and {cas} with the cas.
@@ -385,7 +386,7 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
 static protocol_binary_response_status
 get_document_for_searching(McbpConnection * c, const item* item,
                            const_sized_buffer& document, uint64_t in_cas,
-                           uint64_t& cas) {
+                           uint64_t& cas, uint32_t& flags) {
 
     item_info_holder info;
     info.info.nvalue = IOV_MAX;
@@ -409,6 +410,7 @@ get_document_for_searching(McbpConnection * c, const item* item,
 
     // Set CAS - same irrespective of datatype.
     cas = info.info.cas;
+    flags = info.info.flags;
 
     switch (info.info.datatype) {
     case PROTOCOL_BINARY_DATATYPE_JSON:
@@ -545,9 +547,11 @@ static bool subdoc_fetch(McbpConnection* c, ENGINE_ERROR_CODE ret, const char* k
         // Retrieve the item_info the engine, and if necessary
         // uncompress it so subjson can parse it.
         uint64_t doc_cas;
+        uint32_t doc_flags;
         const_sized_buffer doc;
         protocol_binary_response_status status;
-        status = get_document_for_searching(c, c->getItem(), doc, cas, doc_cas);
+        status = get_document_for_searching(c, c->getItem(), doc, cas,
+                                            doc_cas, doc_flags);
 
         if (status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             // Failed. Note c->item and c->commandContext will both be freed for
@@ -559,6 +563,7 @@ static bool subdoc_fetch(McbpConnection* c, ENGINE_ERROR_CODE ret, const char* k
         // Record the input document in the context.
         context->in_doc = doc;
         context->in_cas = doc_cas;
+        context->in_flags = doc_flags;
     }
 
     return true;
@@ -767,8 +772,9 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
 
         if (ret == ENGINE_SUCCESS) {
             ret = c->getBucketEngine()->allocate(
-                    handle, c, &new_doc, key, keylen, context->out_doc_len, 0,
-                    expiration, PROTOCOL_BINARY_DATATYPE_JSON);
+                    handle, c, &new_doc, key, keylen, context->out_doc_len,
+                    context->in_flags, expiration,
+                    PROTOCOL_BINARY_DATATYPE_JSON);
         }
 
         switch (ret) {

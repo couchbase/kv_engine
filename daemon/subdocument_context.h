@@ -84,6 +84,10 @@ struct SubdocCmdContext : public CommandContext {
     // new document which was derived from the same original input document.
     uint64_t in_cas;
 
+    // Flags of the input document. Required so we can set the same flags to
+    // to the new document, so flags are unchanged by subdoc.
+    uint32_t in_flags;
+
     // True if this operation has been successfully executed (via subjson)
     // and we have valid result.
     bool executed;
