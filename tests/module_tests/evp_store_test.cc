@@ -299,7 +299,10 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsNMVB) {
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         EPStoreEvictionTest,
-                        ::testing::Values("value_only", "full_eviction"));
+                        ::testing::Values("value_only", "full_eviction"),
+                        [] (const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
 
 
 const char EventuallyPersistentStoreTest::test_dbname[] = "ep_engine_ep_unit_tests_db";

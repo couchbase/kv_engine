@@ -348,7 +348,10 @@ TEST(CouchKVStoreTest, MB_18580_ENOENT) {
 // Test cases which run on both Couchstore and ForestDB
 INSTANTIATE_TEST_CASE_P(CouchstoreAndForestDB,
                         CouchAndForestTest,
-                        ::testing::Values("couchdb", "forestdb"));
+                        ::testing::Values("couchdb", "forestdb"),
+                        [] (const ::testing::TestParamInfo<std::string>& info) {
+                            return info.param;
+                        });
 
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 

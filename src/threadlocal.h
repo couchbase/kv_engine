@@ -20,10 +20,12 @@
 
 #ifdef WIN32
 #include "threadlocal_win32.h"
-#define ThreadLocal ThreadLocalWin32
+template<typename T>
+using ThreadLocal = ThreadLocalWin32<T>;
 #else
 #include "threadlocal_posix.h"
-#define ThreadLocal ThreadLocalPosix
+template<typename T>
+using ThreadLocal = ThreadLocalPosix<T>;
 #endif
 
 /**
