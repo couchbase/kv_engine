@@ -245,6 +245,9 @@ static void syslog_event_receiver(SyslogEvent *event) {
     EXTENSION_LOG_LEVEL severity = EXTENSION_LOG_WARNING;
 
     switch (syslog_severity) {
+    case SYSLOG_CRITICAL:
+        severity = EXTENSION_LOG_FATAL;
+        break;
     case SYSLOG_WARNING:
         severity = EXTENSION_LOG_WARNING;
         break;
