@@ -320,7 +320,7 @@ private:
         AtomicValue<uint32_t> items;
     } bufferedBackfill;
 
-    rel_time_t takeoverStart;
+    AtomicValue<rel_time_t> takeoverStart;
     size_t takeoverSendMaxTime;
 
     /* Enum indicating whether the stream mutations should contain key only or
