@@ -1851,112 +1851,28 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
     RememberingCallback<GetValue> gcb;
     if (isMeta) {
         gcb.val.setPartial();
-        ++stats.bg_meta_fetched;
-    } else {
-        ++stats.bg_fetched;
     }
     getROUnderlying(vbucket)->get(key, vbucket, gcb);
     gcb.waitForValue();
-    ENGINE_ERROR_CODE status = gcb.val.getStatus();
 
     // Lock to prevent a race condition between a fetch for restore and delete
     LockHolder lh(vbsetMutex);
 
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (vb) {
-        ReaderLockHolder rlh(vb->getStateLock());
-        int bucket_num(0);
-        LockHolder hlh = vb->ht.getLockedBucket(key, &bucket_num);
-        StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
-        if (isMeta) {
-            if ((v && v->unlocked_restoreMeta(gcb.val.getValue(),
-                                             gcb.val.getStatus(), vb->ht))
-                || ENGINE_KEY_ENOENT == status) {
-                /* If ENGINE_KEY_ENOENT is the status from storage and the temp
-                 key is removed from hash table by the time bgfetch returns
-                 (in case multiple bgfetch is scheduled for a key), we still
-                 need to return ENGINE_SUCCESS to the memcached worker thread,
-                 so that the worker thread can visit the ep-engine and figure
-                 out the correct flow */
-                status = ENGINE_SUCCESS;
-            }
-        } else {
-            bool restore = false;
-            if (v && v->isResident()) {
-                status = ENGINE_SUCCESS;
-            } else if (v && v->isDeleted()) {
-                status = ENGINE_KEY_ENOENT;
-            } else {
-                switch (eviction_policy) {
-                    case VALUE_ONLY:
-                        if (v && !v->isResident() && !v->isDeleted()) {
-                            restore = true;
-                        }
-                        break;
-                    case FULL_EVICTION:
-                        if (v) {
-                            if (v->isTempInitialItem() ||
-                                (!v->isResident() && !v->isDeleted())) {
-                                restore = true;
-                            }
-                        }
-                        break;
-                    default:
-                        throw std::logic_error("Unknown eviction policy");
-                }
-            }
-
-            if (restore) {
-                if (gcb.val.getStatus() == ENGINE_SUCCESS) {
-                    v->unlocked_restoreValue(gcb.val.getValue(), vb->ht);
-                    if (!v->isResident()) {
-                        throw std::logic_error("EPStore::completeBGFetch: "
-                                "storedvalue (which has key " + v->getKey() +
-                                ") should be resident after calling restoreValue()");
-                    }
-                    if (vb->getState() == vbucket_state_active &&
-                        v->getExptime() != gcb.val.getValue()->getExptime() &&
-                        v->getCas() == gcb.val.getValue()->getCas()) {
-                        // MB-9306: It is possible that by the time bgfetcher
-                        // returns, the item may have been updated and queued
-                        // Hence test the CAS value to be the same first.
-                        // exptime mutated, schedule it into new checkpoint
-                        queueDirty(vb, v, &hlh, NULL);
-                    }
-                } else if (gcb.val.getStatus() == ENGINE_KEY_ENOENT) {
-                    v->setNonExistent();
-                    if (eviction_policy == FULL_EVICTION) {
-                        // For the full eviction, we should notify
-                        // ENGINE_SUCCESS to the memcached worker thread, so
-                        // that the worker thread can visit the ep-engine and
-                        // figure out the correct error code.
-                        status = ENGINE_SUCCESS;
-                    }
-                } else {
-                    // underlying kvstore couldn't fetch requested data
-                    // log returned error and notify TMPFAIL to client
-                    LOG(EXTENSION_LOG_WARNING,
-                        "Failed background fetch for vb=%d "
-                        "seq=%" PRId64 " key=%s", vbucket, v->getBySeqno(),
-                        key.c_str());
-                    status = ENGINE_TMPFAIL;
-                }
-            }
-        }
+        VBucketBGFetchItem item{gcb.val, cookie, init, isMeta};
+        completeBGFetchForSingleItem(vb, key, start, item);
     } else {
         LOG(EXTENSION_LOG_INFO, "VBucket %d's file was deleted in the middle of"
             " a bg fetch for key %s\n", vbucket, key.c_str());
-        status = ENGINE_NOT_MY_VBUCKET;
+        engine.notifyIOComplete(cookie, ENGINE_NOT_MY_VBUCKET);
     }
 
     lh.unlock();
 
-    hrtime_t stop = gethrtime();
-    updateBGStats(init, start, stop);
     bgFetchQueue--;
 
     delete gcb.val.getValue();
-    engine.notifyIOComplete(cookie, status);
 }
 
 void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
@@ -1964,122 +1880,27 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                                  hrtime_t startTime)
 {
     RCPtr<VBucket> vb = getVBucket(vbId);
-    if (!vb) {
-        std::vector<bgfetched_item_t>::iterator itemItr = fetchedItems.begin();
-        for (; itemItr != fetchedItems.end(); ++itemItr) {
-            engine.notifyIOComplete((*itemItr).second->cookie,
+    if (vb) {
+        for (const auto& item : fetchedItems) {
+            auto& key = item.first;
+            auto* fetched_item = item.second;
+            completeBGFetchForSingleItem(vb, key, startTime, *fetched_item);
+        }
+        LOG(EXTENSION_LOG_DEBUG,
+            "EP Store completes %" PRIu64 " of batched background fetch "
+            "for vBucket = %d endTime = %" PRIu64,
+            uint64_t(fetchedItems.size()), vbId, gethrtime()/1000000);
+    } else {
+        for (const auto& item : fetchedItems) {
+            engine.notifyIOComplete(item.second->cookie,
                                     ENGINE_NOT_MY_VBUCKET);
         }
         LOG(EXTENSION_LOG_WARNING,
             "EP Store completes %d of batched background fetch for "
             "for vBucket = %d that is already deleted\n",
             (int)fetchedItems.size(), vbId);
-        return;
+
     }
-
-    std::vector<bgfetched_item_t>::iterator itemItr = fetchedItems.begin();
-    for (; itemItr != fetchedItems.end(); ++itemItr) {
-        VBucketBGFetchItem *bgitem = (*itemItr).second;
-        ENGINE_ERROR_CODE status = bgitem->value.getStatus();
-        Item *fetchedValue = bgitem->value.getValue();
-        const std::string &key = (*itemItr).first;
-        {   //locking scope
-            ReaderLockHolder rlh(vb->getStateLock());
-            int bucket = 0;
-            LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
-            StoredValue *v = fetchValidValue(vb, key, bucket, true);
-            if (bgitem->metaDataOnly) {
-                if ((v && v->unlocked_restoreMeta(fetchedValue, status, vb->ht))
-                    || ENGINE_KEY_ENOENT == status) {
-                    /* If ENGINE_KEY_ENOENT is the status from storage and the temp
-                     key is removed from hash table by the time bgfetch returns
-                     (in case multiple bgfetch is scheduled for a key), we still
-                     need to return ENGINE_SUCCESS to the memcached worker thread,
-                     so that the worker thread can visit the ep-engine and figure
-                     out the correct flow */
-                    status = ENGINE_SUCCESS;
-                }
-            } else {
-                bool restore = false;
-                if (v && v->isResident()) {
-                    status = ENGINE_SUCCESS;
-                } else if (v && v->isDeleted()) {
-                    status = ENGINE_KEY_ENOENT;
-                } else {
-                    switch (eviction_policy) {
-                        case VALUE_ONLY:
-                            if (v && !v->isResident() && !v->isDeleted()) {
-                                restore = true;
-                            }
-                            break;
-                        case FULL_EVICTION:
-                            if (v) {
-                                if (v->isTempInitialItem() ||
-                                    (!v->isResident() && !v->isDeleted())) {
-                                    restore = true;
-                                }
-                            }
-                            break;
-                        default:
-                            throw std::logic_error("Unknown eviction policy");
-                    }
-                }
-
-                if (restore) {
-                    if (status == ENGINE_SUCCESS) {
-                        v->unlocked_restoreValue(fetchedValue, vb->ht);
-                        if (!v->isResident()) {
-                            throw std::logic_error("EPStore::completeBGFetchMulti: "
-                                "storedvalue (which has key " + v->getKey() +
-                                ") should be resident after calling restoreValue()");
-                        }
-                        if (vb->getState() == vbucket_state_active &&
-                            v->getExptime() != fetchedValue->getExptime() &&
-                            v->getCas() == fetchedValue->getCas()) {
-                            // MB-9306: It is possible that by the time
-                            // bgfetcher returns, the item may have been
-                            // updated and queued
-                            // Hence test the CAS value to be the same first.
-                            // exptime mutated, schedule it into new checkpoint
-                            queueDirty(vb, v, &blh, NULL);
-                        }
-                    } else if (status == ENGINE_KEY_ENOENT) {
-                        v->setNonExistent();
-                        if (eviction_policy == FULL_EVICTION) {
-                            // For the full eviction, we should notify
-                            // ENGINE_SUCCESS to the memcached worker thread,
-                            // so that the worker thread can visit the
-                            // ep-engine and figure out the correct error
-                            // code.
-                            status = ENGINE_SUCCESS;
-                        }
-                    } else {
-                        // underlying kvstore couldn't fetch requested data
-                        // log returned error and notify TMPFAIL to client
-                        LOG(EXTENSION_LOG_WARNING,
-                            "Failed background fetch for vb=%d "
-                            "key=%s", vbId, key.c_str());
-                        status = ENGINE_TMPFAIL;
-                    }
-                }
-            }
-        } // locked scope ends
-
-        if (bgitem->metaDataOnly) {
-            ++stats.bg_meta_fetched;
-        } else {
-            ++stats.bg_fetched;
-        }
-
-        hrtime_t endTime = gethrtime();
-        updateBGStats(bgitem->initTime, startTime, endTime);
-        engine.notifyIOComplete(bgitem->cookie, status);
-    }
-
-    LOG(EXTENSION_LOG_DEBUG,
-        "EP Store completes %" PRIu64 " of batched background fetch "
-        "for vBucket = %d endTime = %" PRIu64,
-        uint64_t(fetchedItems.size()), vbId, gethrtime()/1000000);
 }
 
 void EventuallyPersistentStore::bgFetch(const std::string &key,
@@ -3759,6 +3580,105 @@ void EventuallyPersistentStore::stopWarmup(void)
             stats.isShutdown ? "yes" : "no");
         warmupTask->stop();
     }
+}
+
+void EventuallyPersistentStore::completeBGFetchForSingleItem(
+        RCPtr<VBucket> vb, const std::string& key,
+        const hrtime_t startTime, VBucketBGFetchItem& fetched_item)
+{
+    ENGINE_ERROR_CODE status = fetched_item.value.getStatus();
+    Item *fetchedValue = fetched_item.value.getValue();
+    {   //locking scope
+        ReaderLockHolder rlh(vb->getStateLock());
+        int bucket = 0;
+        LockHolder blh = vb->ht.getLockedBucket(key, &bucket);
+        StoredValue *v = fetchValidValue(vb, key, bucket, true);
+        if (fetched_item.metaDataOnly) {
+            if ((v && v->unlocked_restoreMeta(fetchedValue, status, vb->ht))
+                || ENGINE_KEY_ENOENT == status) {
+                /* If ENGINE_KEY_ENOENT is the status from storage and the temp
+                 key is removed from hash table by the time bgfetch returns
+                 (in case multiple bgfetch is scheduled for a key), we still
+                 need to return ENGINE_SUCCESS to the memcached worker thread,
+                 so that the worker thread can visit the ep-engine and figure
+                 out the correct flow */
+                status = ENGINE_SUCCESS;
+            }
+        } else {
+            bool restore = false;
+            if (v && v->isResident()) {
+                status = ENGINE_SUCCESS;
+            } else if (v && v->isDeleted()) {
+                status = ENGINE_KEY_ENOENT;
+            } else {
+                switch (eviction_policy) {
+                    case VALUE_ONLY:
+                        if (v && !v->isResident() && !v->isDeleted()) {
+                            restore = true;
+                        }
+                        break;
+                    case FULL_EVICTION:
+                        if (v) {
+                            if (v->isTempInitialItem() ||
+                                (!v->isResident() && !v->isDeleted())) {
+                                restore = true;
+                            }
+                        }
+                        break;
+                    default:
+                        throw std::logic_error("Unknown eviction policy");
+                }
+            }
+
+            if (restore) {
+                if (status == ENGINE_SUCCESS) {
+                    v->unlocked_restoreValue(fetchedValue, vb->ht);
+                    if (!v->isResident()) {
+                        throw std::logic_error("EPStore::completeBGFetchForSingleItem: "
+                            "storedvalue (which has key " + v->getKey() +
+                            ") should be resident after calling restoreValue()");
+                    }
+                    if (vb->getState() == vbucket_state_active &&
+                        v->getExptime() != fetchedValue->getExptime() &&
+                        v->getCas() == fetchedValue->getCas()) {
+                        // MB-9306: It is possible that by the time
+                        // bgfetcher returns, the item may have been
+                        // updated and queued
+                        // Hence test the CAS value to be the same first.
+                        // exptime mutated, schedule it into new checkpoint
+                        queueDirty(vb, v, &blh, NULL);
+                    }
+                } else if (status == ENGINE_KEY_ENOENT) {
+                    v->setNonExistent();
+                    if (eviction_policy == FULL_EVICTION) {
+                        // For the full eviction, we should notify
+                        // ENGINE_SUCCESS to the memcached worker thread,
+                        // so that the worker thread can visit the
+                        // ep-engine and figure out the correct error
+                        // code.
+                        status = ENGINE_SUCCESS;
+                    }
+                } else {
+                    // underlying kvstore couldn't fetch requested data
+                    // log returned error and notify TMPFAIL to client
+                    LOG(EXTENSION_LOG_WARNING,
+                        "Failed background fetch for vb=%d "
+                        "key=%s", vb->getId(), key.c_str());
+                    status = ENGINE_TMPFAIL;
+                }
+            }
+        }
+    } // locked scope ends
+
+    if (fetched_item.metaDataOnly) {
+        ++stats.bg_meta_fetched;
+    } else {
+        ++stats.bg_fetched;
+    }
+
+    hrtime_t endTime = gethrtime();
+    updateBGStats(fetched_item.initTime, startTime, endTime);
+    engine.notifyIOComplete(fetched_item.cookie, status);
 }
 
 bool EventuallyPersistentStore::isMemoryUsageTooHigh() {

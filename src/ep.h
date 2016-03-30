@@ -925,6 +925,20 @@ protected:
     void warmupCompleted();
     void stopWarmup(void);
 
+    /* Complete the background fetch for the specified item. Depending on the
+     * state of the item, restore it to the hashtable as appropriate, potentially
+     * queuing it as dirty.
+     *
+     * @param vb VBucket item belongs to
+     * @param key The key of the item
+     * @param startTime The time processing of the batch of items started.
+     * @param fetched_item The item which has been fetched.
+     */
+    void completeBGFetchForSingleItem(RCPtr<VBucket> vb,
+                                      const std::string& key,
+                                      const hrtime_t startTime,
+                                      VBucketBGFetchItem& fetched_item);
+
 private:
     /**
      * Compaction of a database file

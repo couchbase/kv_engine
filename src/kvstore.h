@@ -42,6 +42,13 @@ public:
     VBucketBGFetchItem(const void *c, bool meta_only) :
         cookie(c), initTime(gethrtime()), metaDataOnly(meta_only)
     { }
+    VBucketBGFetchItem(const GetValue& value_, const void* c,
+                       const hrtime_t& init_time, bool meta_only)
+        : value(value_),
+          cookie(c),
+          initTime(init_time),
+          metaDataOnly(meta_only) {}
+
     ~VBucketBGFetchItem() {}
 
     void delValue() {
