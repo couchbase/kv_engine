@@ -151,6 +151,7 @@ ADD_LIBRARY(ep SHARED
             src/ext_meta_parser.cc
             src/failover-table.cc
             src/flusher.cc
+            src/hash_table.cc
             src/htresizer.cc
             src/item.cc
             src/item_pager.cc
@@ -212,6 +213,7 @@ ADD_EXECUTABLE(ep-engine_dcp_test
   src/ext_meta_parser.cc
   src/failover-table.cc
   src/flusher.cc
+  src/hash_table.cc
   src/htresizer.cc
   src/item.cc
   src/item_pager.cc
@@ -259,6 +261,7 @@ ADD_EXECUTABLE(ep-engine_checkpoint_test
   src/checkpoint.cc
   src/compress.cc
   src/failover-table.cc
+  src/hash_table.cc
   src/item.cc
   src/murmurhash3.cc
   src/stored-value.cc
@@ -298,6 +301,7 @@ ADD_EXECUTABLE(ep-engine_hash_table_test
   tests/module_tests/hash_table_test.cc
   src/atomic.cc
   src/compress.cc
+  src/hash_table.cc
   src/item.cc
   src/stored-value.cc
   src/testlogger.cc
@@ -394,6 +398,7 @@ ADD_EXECUTABLE(ep-engine_defragmenter_test
                src/generated_configuration.cc
                src/failover-table.cc
                src/item.cc
+               src/hash_table.cc
                src/memory_tracker.cc
                src/murmurhash3.cc
                src/stored-value.cc

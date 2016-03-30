@@ -24,6 +24,7 @@
 #include "checkpoint.h"
 #include "failover-table.h"
 #include "kvstore.h"
+#include "hash_table.h"
 #include "stored-value.h"
 #include "utility.h"
 
