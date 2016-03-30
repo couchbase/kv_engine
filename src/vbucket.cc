@@ -117,6 +117,60 @@ const vbucket_state_t VBucket::PENDING =
 const vbucket_state_t VBucket::DEAD =
                     static_cast<vbucket_state_t>(htonl(vbucket_state_dead));
 
+VBucket::VBucket(id_type i,
+                 vbucket_state_t newState,
+                 EPStats &st,
+                 CheckpointConfig &chkConfig,
+                 KVShard *kvshard,
+                 int64_t lastSeqno,
+                 uint64_t lastSnapStart,
+                 uint64_t lastSnapEnd,
+                 FailoverTable *table,
+                 std::shared_ptr<Callback<id_type> > cb,
+                 vbucket_state_t initState,
+                 uint64_t chkId,
+                 uint64_t purgeSeqno,
+                 uint64_t maxCas,
+                 int64_t driftCounter)
+    : ht(st),
+      checkpointManager(st, i, chkConfig, lastSeqno, lastSnapStart,
+                        lastSnapEnd, cb, chkId),
+      failovers(table),
+      opsCreate(0),
+      opsUpdate(0),
+      opsDelete(0),
+      opsReject(0),
+      dirtyQueueSize(0),
+      dirtyQueueMem(0),
+      dirtyQueueFill(0),
+      dirtyQueueDrain(0),
+      dirtyQueueAge(0),
+      dirtyQueuePendingWrites(0),
+      metaDataDisk(0),
+      numExpiredItems(0),
+      id(i),
+      state(newState),
+      initialState(initState),
+      stats(st),
+      purge_seqno(purgeSeqno),
+      max_cas(maxCas),
+      drift_counter(driftCounter),
+      time_sync_config(time_sync_t::DISABLED),
+      takeover_backed_up(false),
+      persisted_snapshot_start(lastSnapStart),
+      persisted_snapshot_end(lastSnapEnd),
+      numHpChks(0),
+      shard(kvshard),
+      bFilter(NULL),
+      tempFilter(NULL),
+      rollbackItemCount(0)
+{
+    backfill.isBackfillPhase = false;
+    pendingOpsStart = 0;
+    stats.memOverhead.fetch_add(sizeof(VBucket)
+                                + ht.memorySize() + sizeof(CheckpointManager));
+}
+
 VBucket::~VBucket() {
     if (!pendingOps.empty() || !pendingBGFetches.empty()) {
         LOG(EXTENSION_LOG_WARNING,
