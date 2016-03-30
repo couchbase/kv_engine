@@ -201,7 +201,7 @@ cbsasl_error_t cbsasl_server_step(cbsasl_conn_t* conn,
                                   unsigned inputlen,
                                   const char** output,
                                   unsigned* outputlen) {
-    if (conn == NULL || conn->server.get() == nullptr) {
+    if (conn == nullptr || !conn->server || !conn->server->mech) {
         return CBSASL_BADPARAM;
     }
     return conn->server->mech->step(conn, input, inputlen, output, outputlen);
