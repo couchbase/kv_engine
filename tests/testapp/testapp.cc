@@ -2639,7 +2639,38 @@ void validate_object(const char *key, const std::string& expected_value) {
     EXPECT_EQ(expected_value, actual);
 }
 
+void validate_flags(const char *key, uint32_t expected_flags) {
+    union {
+        protocol_binary_request_no_extras request;
+        char bytes[1024];
+    } send;
+    size_t len = mcbp_raw_command(send.bytes, sizeof(send.bytes),
+                                  PROTOCOL_BINARY_CMD_GET,
+                                  key, strlen(key), NULL, 0);
+    safe_send(send.bytes, len, false);
+
+    std::vector<char> receive(4096);
+    safe_recv_packet(receive.data(), receive.size());
+
+    auto* response = reinterpret_cast<protocol_binary_response_no_extras*>(receive.data());
+    mcbp_validate_response_header(response, PROTOCOL_BINARY_CMD_GET,
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    const auto* get_response =
+            reinterpret_cast<protocol_binary_response_get*>(receive.data());
+    const uint32_t actual_flags = ntohl(get_response->message.body.flags);
+    EXPECT_EQ(expected_flags, actual_flags);
+}
+
 void store_object(const char *key, const char *value, bool validate) {
+    store_object_with_flags(key, value, 0);
+
+    if (validate) {
+        validate_object(key, value);
+    }
+}
+
+void store_object_with_flags(const char *key, const char *value,
+                             uint32_t flags) {
     std::vector<char> send;
     send.resize(sizeof(protocol_binary_request_set) + strlen(key) +
                 strlen(value));
@@ -2647,7 +2678,7 @@ void store_object(const char *key, const char *value, bool validate) {
     size_t len = mcbp_storage_command(send.data(), send.size(),
                                       PROTOCOL_BINARY_CMD_SET,
                                       key, strlen(key), value, strlen(value),
-                                      0, 0);
+                                      flags, 0);
 
     safe_send(send.data(), len, false);
 
@@ -2658,10 +2689,6 @@ void store_object(const char *key, const char *value, bool validate) {
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_SET,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    if (validate) {
-        validate_object(key, value);
-    }
 }
 
 void delete_object(const char* key) {

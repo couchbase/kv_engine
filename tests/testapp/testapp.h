@@ -225,6 +225,11 @@ fetch_value(const std::string& key);
  */
 void validate_object(const char *key, const std::string& expected_value);
 
+/* Attempts to get the given key and checks if it's flags matches
+ * {expected_flags}.
+ */
+void validate_flags(const char *key, uint32_t expected_flags);
+
 /* Attempts to store an object with the given key and value.
  * @param key Document key
  * @param value Document value. Supports up to maximum size server allows.
@@ -232,6 +237,8 @@ void validate_object(const char *key, const std::string& expected_value);
  *        and check it matches the specified value.
  */
 void store_object(const char *key, const char *value, bool validate = false);
+
+void store_object_with_flags(const char *key, const char *value, uint32_t flags);
 
 /* Attempts to delete the object with the given key */
 void delete_object(const char *key);
