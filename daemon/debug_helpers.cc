@@ -26,7 +26,7 @@ ssize_t buf_to_printable_buffer(char *dest, size_t destsz,
 {
     char *ptr = dest;
     // Constrain src if dest cannot hold it all.
-    srcsz = std::max(srcsz, destsz - 1);
+    srcsz = std::min(srcsz, destsz - 1);
 
     for (size_t ii = 0; ii < srcsz; ++ii, ++src, ++ptr) {
         if (std::isgraph(*src)) {
