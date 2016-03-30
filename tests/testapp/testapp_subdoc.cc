@@ -870,6 +870,16 @@ void test_subdoc_dict_add_simple(bool compress, protocol_binary_command cmd) {
     expect_subdoc_cmd(SubdocCmd(cmd, "array","foo", "\"bar\""),
                       PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
     delete_object("array");
+
+    // n). Check that attempts to add keys to a valid JSON fragment which is
+    // not in a container fail. (We cannot operate on non-dict or array JSON
+    // objects).
+    store_object("dict", "\"string\"", /*JSON*/true, compress);
+    for (const auto& kv : key_vals) {
+        expect_subdoc_cmd(SubdocCmd(cmd, "dict", kv.first, kv.second),
+                          PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON, "");
+    }
+    delete_object("dict");
 }
 
 TEST_P(McdTestappTest, SubdocDictAdd_SimpleRaw) {

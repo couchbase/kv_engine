@@ -602,6 +602,9 @@ subdoc_operate_one_path(Connection* c, SubdocCmdContext::OperationSpec& spec,
     case Subdoc::Error::PATH_EINVAL:
         return PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EINVAL;
 
+    case Subdoc::Error::DOC_NOTJSON:
+        return PROTOCOL_BINARY_RESPONSE_SUBDOC_DOC_NOTJSON;
+
     case Subdoc::Error::DOC_EEXISTS:
         return PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_EEXISTS;
 
