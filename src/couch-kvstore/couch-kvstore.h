@@ -30,6 +30,7 @@
 #include "couch-kvstore/couch-fs-stats.h"
 #include <platform/histogram.h>
 #include <platform/strerror.h>
+#include "logger.h"
 #include "item.h"
 #include "kvstore.h"
 #include "tasks.h"
@@ -594,6 +595,8 @@ private:
     AtomicValue<size_t> backfillCounter;
     std::map<size_t, Db*> backfills;
     Mutex backfillLock;
+
+    Logger& logger;
 };
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_

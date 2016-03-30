@@ -335,6 +335,7 @@ TARGET_LINK_LIBRARIES(ep-engine_failover_table_test cJSON platform)
 ADD_EXECUTABLE(ep-engine_kvstore_test
   tests/module_tests/kvstore_test.cc
   src/compress.cc
+  src/logger.cc
   src/testlogger.cc
   ${OBJECTREGISTRY_SOURCE} ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
   ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE})

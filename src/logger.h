@@ -40,7 +40,7 @@ public:
      * @param severity Severity of the log message
      * @param fmt printf-style format string and varargs
      */
-    void log(EXTENSION_LOG_LEVEL severity, const char* fmt, ...) const CB_FORMAT_PRINTF(3, 4);
+    virtual void log(EXTENSION_LOG_LEVEL severity, const char* fmt, ...) const CB_FORMAT_PRINTF(3, 4);
 
     /* va_list variant of the log() method.
      *
@@ -48,7 +48,7 @@ public:
      * @param fmt printf-style format string
      * @param va_list Variable arguments as used by fmt.
      */
-    void vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) const;
+    virtual void vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) const;
 
     // Informs the Logger class of the current logging API.
     static void setLoggerAPI(SERVER_LOG_API* api);
@@ -70,3 +70,7 @@ private:
     // Global log level; any message less than this will not be output.
     static std::atomic<EXTENSION_LOG_LEVEL> global_log_level;
 };
+
+// The global logger instance, used by LOG() when components don't specify
+// their own more specific logger. Also currently used by CouchKVStore.
+extern Logger global_logger;

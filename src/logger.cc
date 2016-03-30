@@ -98,3 +98,5 @@ void Logger::setGlobalLogLevel(EXTENSION_LOG_LEVEL level) {
 
 std::atomic<SERVER_LOG_API*> Logger::logger_api;
 std::atomic<EXTENSION_LOG_LEVEL> Logger::global_log_level;
+
+Logger global_logger;

@@ -59,10 +59,6 @@
 
 static AtomicValue<ALLOCATOR_HOOKS_API*> hooksApi;
 
-// The global logger instance, used by LOG() when components don't specify
-// their own more specific logger.
-static Logger global_logger;
-
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
 }

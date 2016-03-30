@@ -30,8 +30,9 @@
 #include <vector>
 #include <relaxed_atomic.h>
 
-#include "item.h"
 #include "configuration.h"
+#include "item.h"
+#include "logger.h"
 
 class KVStore;
 class PersistenceCallback;
@@ -387,12 +388,22 @@ public:
         return shardId;
     }
 
+    Logger& getLogger() {
+        return *logger;
+    }
+
+    /**
+     * Used to override the default logger object
+     */
+    KVStoreConfig setLogger(Logger& _logger);
+
 private:
     uint16_t maxVBuckets;
     uint16_t maxShards;
     std::string dbname;
     std::string backend;
     uint16_t shardId;
+    Logger* logger;
 };
 
 class IORequest {
