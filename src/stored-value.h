@@ -67,9 +67,6 @@ public:
     // returns time this object was dirtied.
     /**
      * Mark this item as clean.
-     *
-     * @param dataAge an output parameter that captures the time this
-     *                item was marked dirty
      */
     void markClean() {
         _isDirty = 0;

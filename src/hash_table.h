@@ -646,11 +646,13 @@ public:
     virtual ~HashTableVisitor() {}
 
     /**
-     * Visit an individual item within a hash table.
+     * Visit an individual item within a hash table. Note that the item is
+     * locked while visited (the appropriate hashTable lock is held).
      *
      * @param v a pointer to a value in the hash table
      */
     virtual void visit(StoredValue *v) = 0;
+
     /**
      * True if the visiting should continue.
      *
