@@ -374,9 +374,19 @@ class Configuration;
 
 class KVStoreConfig {
 public:
+    /**
+     * This constructor intialises the object from a central
+     * ep-engine Configuration instance.
+     */
     KVStoreConfig(Configuration& config, uint16_t shardId);
 
-    KVStoreConfig(uint16_t _maxVBuckets, uint16_t _maxShards,
+    /**
+     * This constructor sets the mandatory config options
+     *
+     * Optional config options are set using a separate method
+     */
+    KVStoreConfig(uint16_t _maxVBuckets,
+                  uint16_t _maxShards,
                   const std::string& _dbname,
                   const std::string& _backend,
                   uint16_t _shardId);
@@ -406,9 +416,26 @@ public:
     }
 
     /**
+     * Indicates whether or not underlying file operations will be
+     * buffered by the storage engine used.
+     *
+     * Only recognised by CouchKVStore
+     */
+    bool getBuffered() {
+        return buffered;
+    }
+
+    /**
      * Used to override the default logger object
      */
-    KVStoreConfig setLogger(Logger& _logger);
+    KVStoreConfig& setLogger(Logger& _logger);
+
+    /**
+     * Used to override the default buffering behaviour.
+     *
+     * Only recognised by CouchKVStore
+     */
+    KVStoreConfig& setBuffered(bool _buffered);
 
 private:
     uint16_t maxVBuckets;
@@ -417,6 +444,7 @@ private:
     std::string backend;
     uint16_t shardId;
     Logger* logger;
+    bool buffered;
 };
 
 class IORequest {

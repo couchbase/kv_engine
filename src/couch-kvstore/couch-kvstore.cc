@@ -243,13 +243,24 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     }
 }
 
-CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
-    KVStore(config, read_only), dbname(config.getDBName()),
-    intransaction(false), backfillCounter(0), logger(config.getLogger())
+CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only)
+    : CouchKVStore(config, *couchstore_get_default_file_ops(), read_only) {
+
+}
+
+CouchKVStore::CouchKVStore(KVStoreConfig &config, FileOpsInterface& ops,
+                           bool read_only)
+    : KVStore(config, read_only),
+      dbname(config.getDBName()),
+      intransaction(false),
+      backfillCounter(0),
+      logger(config.getLogger()),
+      base_ops(ops)
 {
     createDataDir(dbname);
-    statCollectingFileOps = getCouchstoreStatsOps(st.fsStats);
-    statCollectingFileOpsCompaction = getCouchstoreStatsOps(st.fsStatsCompaction);
+    statCollectingFileOps = getCouchstoreStatsOps(st.fsStats, base_ops);
+    statCollectingFileOpsCompaction = getCouchstoreStatsOps(
+        st.fsStatsCompaction, base_ops);
 
     // init db file map with default revision number, 1
     numDbFiles = configuration.getMaxVBuckets();
@@ -267,13 +278,19 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
     initialize();
 }
 
-CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom) :
-    KVStore(copyFrom), dbname(copyFrom.dbname),
-    dbFileRevMap(copyFrom.dbFileRevMap), numDbFiles(copyFrom.numDbFiles),
-    intransaction(false), logger(copyFrom.logger)
+CouchKVStore::CouchKVStore(const CouchKVStore &copyFrom)
+    : KVStore(copyFrom),
+      dbname(copyFrom.dbname),
+      dbFileRevMap(copyFrom.dbFileRevMap),
+      numDbFiles(copyFrom.numDbFiles),
+      intransaction(false),
+      logger(copyFrom.logger),
+      base_ops(copyFrom.base_ops)
 {
     createDataDir(dbname);
-    statCollectingFileOps = getCouchstoreStatsOps(st.fsStats);
+    statCollectingFileOps = getCouchstoreStatsOps(st.fsStats, base_ops);
+    statCollectingFileOpsCompaction = getCouchstoreStatsOps(
+        st.fsStatsCompaction, base_ops);
 }
 
 void CouchKVStore::initialize() {
@@ -827,9 +844,20 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
     dbfile       = getDBFileName(dbname, vbid, fileRev);
     compact_file = dbfile + ".compact";
 
+    couchstore_open_flags flags(COUCHSTORE_COMPACT_FLAG_UPGRADE_DB);
+
+    /**
+     * This flag disables IO buffering in couchstore which means
+     * file operations will trigger syscalls immediately. This has
+     * a detrimental impact on performance and is only intended
+     * for testing.
+     */
+    if(!configuration.getBuffered()) {
+        flags |= COUCHSTORE_OPEN_FLAG_UNBUFFERED;
+    }
+
     // Perform COMPACTION of vbucket.couch.rev into vbucket.couch.rev.compact
-    errCode = couchstore_compact_db_ex(compactdb, compact_file.c_str(),
-                                       COUCHSTORE_COMPACT_FLAG_UPGRADE_DB,
+    errCode = couchstore_compact_db_ex(compactdb, compact_file.c_str(), flags,
                                        hook, dhook, hook_ctx, def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING,
@@ -1373,6 +1401,16 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
     uint64_t newRevNum = fileRev;
     couchstore_error_t errorCode = COUCHSTORE_SUCCESS;
 
+    /**
+     * This flag disables IO buffering in couchstore which means
+     * file operations will trigger syscalls immediately. This has
+     * a detrimental impact on performance and is only intended
+     * for testing.
+     */
+    if(!configuration.getBuffered()) {
+        options |= COUCHSTORE_OPEN_FLAG_UNBUFFERED;
+    }
+
     if (reset) {
         errorCode = couchstore_open_db_ex(dbFileName.c_str(), options,
                                           ops, db);
@@ -1389,7 +1427,7 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
                        fileRev, couchstore_strerror(errorCode));
         }
     } else {
-        if (options == COUCHSTORE_OPEN_FLAG_CREATE) {
+        if (options & COUCHSTORE_OPEN_FLAG_CREATE) {
             // first try to open the requested file without the
             // create option in case it does already exist
             errorCode = couchstore_open_db_ex(dbFileName.c_str(), 0, ops, db);

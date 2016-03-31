@@ -21,7 +21,7 @@
 class TestStatsOps : public StatsOps {
 public:
     TestStatsOps(FileOpsInterface* ops)
-        : StatsOps(_stats),
+        : StatsOps(_stats, *ops),
           wrapped_ops(ops) {}
 
     couch_file_handle constructor(couchstore_error_info_t *errinfo) override {

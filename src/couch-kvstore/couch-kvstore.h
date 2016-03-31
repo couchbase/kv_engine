@@ -217,11 +217,20 @@ public:
     /**
      * Constructor
      *
-     * @param stats     Engine stats
      * @param config    Configuration information
      * @param read_only flag indicating if this kvstore instance is for read-only operations
      */
     CouchKVStore(KVStoreConfig &config, bool read_only = false);
+
+    /**
+     * Alternate constructor for injecting base FileOps
+     *
+     * @param config    Configuration information
+     * @param ops       Couchstore FileOps implementation to be used
+     * @param read_only flag indicating if this kvstore instance is for read-only operations
+     */
+    CouchKVStore(KVStoreConfig &config, FileOpsInterface& ops,
+                 bool read_only = false);
 
     /**
      * Copy constructor
@@ -603,6 +612,11 @@ private:
     Mutex backfillLock;
 
     Logger& logger;
+
+    /**
+     * Base fileops implementation to be wrapped by stat collecting fileops
+     */
+    FileOpsInterface& base_ops;
 };
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_KVSTORE_H_

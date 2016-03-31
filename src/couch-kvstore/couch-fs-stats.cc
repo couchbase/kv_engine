@@ -21,8 +21,9 @@
 #include "couch-kvstore/couch-fs-stats.h"
 #include <platform/histogram.h>
 
-std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(CouchstoreStats& stats) {
-    return std::unique_ptr<FileOpsInterface>(new StatsOps(stats));
+std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(
+    CouchstoreStats& stats, FileOpsInterface& base_ops) {
+    return std::unique_ptr<FileOpsInterface>(new StatsOps(stats, base_ops));
 }
 
 StatsOps::StatFile::StatFile(FileOpsInterface* _orig_ops,
@@ -34,7 +35,7 @@ StatsOps::StatFile::StatFile(FileOpsInterface* _orig_ops,
 }
 
 couch_file_handle StatsOps::constructor(couchstore_error_info_t *errinfo) {
-    FileOpsInterface* orig_ops = couchstore_get_default_file_ops();
+    FileOpsInterface* orig_ops = &wrapped_ops;
     StatFile* sf = new StatFile(orig_ops,
                                 orig_ops->constructor(errinfo),
                                 0);

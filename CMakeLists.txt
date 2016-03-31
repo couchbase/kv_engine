@@ -26,7 +26,8 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_BINARY_DIR})
 
 INCLUDE_DIRECTORIES(AFTER
-                    ${gtest_SOURCE_DIR}/include)
+                    ${gtest_SOURCE_DIR}/include
+                    ${gmock_SOURCE_DIR}/include)
 
 CHECK_INCLUDE_FILES("alloca.h" HAVE_ALLOCA_H)
 CHECK_INCLUDE_FILES("arpa/inet.h" HAVE_ARPA_INET_H)
@@ -349,9 +350,13 @@ ADD_EXECUTABLE(ep-engine_kvstore_test
   src/logger.cc
   src/testlogger.cc
   ${OBJECTREGISTRY_SOURCE} ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
-  ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE})
+  ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE}
+  $<TARGET_OBJECTS:couchstore_test_fileops>)
 TARGET_LINK_LIBRARIES(ep-engine_kvstore_test
-                      cJSON JSON_checker couchstore dirutils forestdb gtest platform)
+                      cJSON JSON_checker couchstore dirutils forestdb gmock gtest platform)
+TARGET_INCLUDE_DIRECTORIES(ep-engine_kvstore_test
+        PUBLIC
+        ${Couchstore_SOURCE_DIR})
 
 ADD_EXECUTABLE(ep-engine_atomic_unordered_map_test
   tests/module_tests/atomic_unordered_map_test.cc

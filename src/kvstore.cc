@@ -33,22 +33,36 @@
 using namespace CouchbaseDirectoryUtilities;
 
 KVStoreConfig::KVStoreConfig(Configuration& config, uint16_t shardid)
-    : maxVBuckets(config.getMaxVbuckets()), maxShards(config.getMaxNumShards()),
-      dbname(config.getDbname()), backend(config.getBackend()), shardId(shardid),
-      logger(&global_logger) {
+    : KVStoreConfig(config.getMaxVbuckets(),
+                    config.getMaxNumShards(),
+                    config.getDbname(),
+                    config.getBackend(),
+                    shardid) {
 
 }
-KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets, uint16_t _maxShards,
+
+KVStoreConfig::KVStoreConfig(uint16_t _maxVBuckets,
+                             uint16_t _maxShards,
                              const std::string& _dbname,
                              const std::string& _backend,
                              uint16_t _shardId)
-    : maxVBuckets(_maxVBuckets), maxShards(_maxShards), dbname(_dbname),
-      backend(_backend), shardId(_shardId), logger(&global_logger) {
+    : maxVBuckets(_maxVBuckets),
+      maxShards(_maxShards),
+      dbname(_dbname),
+      backend(_backend),
+      shardId(_shardId),
+      logger(&global_logger),
+      buffered(true) {
 
 }
 
-KVStoreConfig KVStoreConfig::setLogger(Logger& _logger) {
+KVStoreConfig& KVStoreConfig::setLogger(Logger& _logger) {
     logger = &_logger;
+    return *this;
+}
+
+KVStoreConfig& KVStoreConfig::setBuffered(bool _buffered) {
+    buffered = _buffered;
     return *this;
 }
 
