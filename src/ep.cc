@@ -611,7 +611,6 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
         ReaderLockHolder rlh(vb->getStateLock());
         if (vb->getState() == vbucket_state_active) {
             int bucket_num(0);
-            incExpirationStat(vb, source);
             LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
             StoredValue *v = vb->ht.unlocked_find(key, bucket_num, true, false);
             if (v) {
@@ -649,6 +648,7 @@ EventuallyPersistentStore::deleteExpiredItem(uint16_t vbid, std::string &key,
                     }
                 }
             }
+            incExpirationStat(vb, source);
         }
     }
 }
