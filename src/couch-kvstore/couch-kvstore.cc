@@ -497,7 +497,6 @@ void CouchKVStore::getWithHeader(void *dbHandle, const std::string &key,
 }
 
 void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
-    std::string dbFile;
     int numItems = itms.size();
     uint64_t fileRev = dbFileRevMap[vb];
 
@@ -507,8 +506,8 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to open database for data fetch, "
-            "vBucketId = %d file = %s numDocs = %d\n",
-            vb, dbFile.c_str(), numItems);
+            "vBucketId = %" PRIu16 ", numDocs = %d\n",
+            vb, numItems);
         st.numGetFailure.fetch_add(numItems);
         vb_bgfetch_queue_t::iterator itr = itms.begin();
         for (; itr != itms.end(); ++itr) {
@@ -537,9 +536,9 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
         st.numGetFailure.fetch_add(numItems);
         for (itr = itms.begin(); itr != itms.end(); ++itr) {
             LOG(EXTENSION_LOG_WARNING, "Warning: failed to read database by"
-                " vBucketId = %d key = %s file = %s error = %s [%s]\n",
+                " vBucketId = %" PRIu16 " key = %s error = %s [%s]\n",
                 vb, (*itr).first.c_str(),
-                dbFile.c_str(), couchstore_strerror(errCode),
+                couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode).c_str());
             std::list<VBucketBGFetchItem *> &fetches = (*itr).second;
             std::list<VBucketBGFetchItem *>::iterator fitr = fetches.begin();
