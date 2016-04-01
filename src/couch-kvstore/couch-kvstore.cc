@@ -249,6 +249,7 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, bool read_only) :
 {
     createDataDir(dbname);
     statCollectingFileOps = getCouchstoreStatsOps(st.fsStats);
+    statCollectingFileOpsCompaction = getCouchstoreStatsOps(st.fsStatsCompaction);
 
     // init db file map with default revision number, 1
     numDbFiles = configuration.getMaxVBuckets();
@@ -796,7 +797,7 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
 
     couchstore_compact_hook       hook = time_purge_hook;
     couchstore_docinfo_hook      dhook = edit_docinfo_hook;
-    FileOpsInterface         *def_iops = couchstore_get_default_file_ops();
+    FileOpsInterface         *def_iops = statCollectingFileOpsCompaction.get();
     Db                      *compactdb = NULL;
     Db                       *targetDb = NULL;
     couchstore_error_t         errCode = COUCHSTORE_SUCCESS;
@@ -812,7 +813,8 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
 
     // Open the source VBucket database file ...
     errCode = openDB(vbid, fileRev, &compactdb,
-                     (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, NULL);
+                     (uint64_t)COUCHSTORE_OPEN_FLAG_RDONLY, nullptr, false,
+                     def_iops);
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
                 "Failed to open database, vbucketId = %d "
@@ -1064,10 +1066,18 @@ void CouchKVStore::addStats(const std::string &prefix,
     addStat(prefix_str, "io_read_bytes", st.io_read_bytes, add_stat, c);
     addStat(prefix_str, "io_write_bytes", st.io_write_bytes, add_stat, c);
 
-    addStat(prefix_str, "io_total_read_bytes", st.fsStats.totalBytesRead,
-            add_stat, c);
-    addStat(prefix_str, "io_total_write_bytes", st.fsStats.totalBytesWritten,
-            add_stat, c);
+    const size_t read = st.fsStats.totalBytesRead.load() +
+                        st.fsStatsCompaction.totalBytesRead.load();
+    addStat(prefix_str, "io_total_read_bytes", read, add_stat, c);
+
+    const size_t written = st.fsStats.totalBytesWritten.load() +
+                           st.fsStatsCompaction.totalBytesWritten.load();
+    addStat(prefix_str, "io_total_write_bytes", written, add_stat, c);
+
+    addStat(prefix_str, "io_compaction_read_bytes",
+            st.fsStatsCompaction.totalBytesRead, add_stat, c);
+    addStat(prefix_str, "io_compaction_write_bytes",
+            st.fsStatsCompaction.totalBytesWritten, add_stat, c);
 }
 
 void CouchKVStore::addTimingStats(const std::string &prefix,
@@ -1096,10 +1106,18 @@ void CouchKVStore::addTimingStats(const std::string &prefix,
 
 bool CouchKVStore::getStat(const char* name, size_t& value)  {
     if (strcmp("io_total_read_bytes", name) == 0) {
-        value = st.fsStats.totalBytesRead;
+        value = st.fsStats.totalBytesRead.load() +
+                st.fsStatsCompaction.totalBytesRead.load();
         return true;
     } else if (strcmp("io_total_write_bytes", name) == 0) {
-        value = st.fsStats.totalBytesWritten;
+        value = st.fsStats.totalBytesWritten.load() +
+                st.fsStatsCompaction.totalBytesWritten.load();
+        return true;
+    } else if (strcmp("io_compaction_read_bytes", name) == 0) {
+        value = st.fsStatsCompaction.totalBytesRead;
+        return true;
+    } else if (strcmp("io_compaction_write_bytes", name) == 0) {
+        value = st.fsStatsCompaction.totalBytesWritten;
         return true;
     }
 
@@ -1310,9 +1328,13 @@ couchstore_error_t CouchKVStore::openDB(uint16_t vbucketId,
                                         Db **db,
                                         uint64_t options,
                                         uint64_t *newFileRev,
-                                        bool reset) {
+                                        bool reset,
+                                        FileOpsInterface* ops) {
     std::string dbFileName = getDBFileName(dbname, vbucketId, fileRev);
-    FileOpsInterface* ops = statCollectingFileOps.get();
+
+    if(ops == nullptr) {
+        ops = statCollectingFileOps.get();
+    }
 
     uint64_t newRevNum = fileRev;
     couchstore_error_t errorCode = COUCHSTORE_SUCCESS;

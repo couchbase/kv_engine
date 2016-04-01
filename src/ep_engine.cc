@@ -3583,6 +3583,12 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     if (epstore->getKVStoreStat("io_total_write_bytes", value)) {
         add_casted_stat("ep_io_total_write_bytes",  value, add_stat, cookie);
     }
+    if (epstore->getKVStoreStat("io_compaction_read_bytes", value)) {
+        add_casted_stat("ep_io_compaction_read_bytes",  value, add_stat, cookie);
+    }
+    if (epstore->getKVStoreStat("io_compaction_write_bytes", value)) {
+        add_casted_stat("ep_io_compaction_write_bytes",  value, add_stat, cookie);
+    }
 
     return ENGINE_SUCCESS;
 }

@@ -1102,21 +1102,23 @@ The following stats are available for all database engine:
 
 The following stats are available for the CouchStore database engine:
 
-| backend_type         | Type of backend database engine                                                  |
-| commit               | Time spent in CouchStore commit operation                                        |
-| compaction           | Time spent in compacting vbucket database file                                   |
-| numLoadedVb          | Number of Vbuckets loaded into memory                                            |
-| lastCommDocs         | Number of docs in the last commit                                                |
-| failure_set          | Number of failed set operation                                                   |
-| failure_get          | Number of failed get operation                                                   |
-| failure_vbset        | Number of failed vbucket set operation                                           |
-| save_documents       | Time spent in CouchStore save documents operation                                |
-| io_num_read          | Number of io read operations                                                     |
-| io_num_write         | Number of io write operations                                                    |
-| io_read_bytes        | Number of bytes read (key + values + rev_meta)                                   |
-| io_write_bytes       | Number of bytes written (key + values + rev_meta                                 |
-| io_total_read_bytes  | Number of bytes read (total, including Couchstore B-Tree and other overheads)    |
-| io_total_write_bytes | Number of bytes written (total, including Couchstore B-Tree and other overheads) |
+| backend_type              | Type of backend database engine                                                           |
+| commit                    | Time spent in CouchStore commit operation                                                 |
+| compaction                | Time spent in compacting vbucket database file                                            |
+| numLoadedVb               | Number of Vbuckets loaded into memory                                                     |
+| lastCommDocs              | Number of docs in the last commit                                                         |
+| failure_set               | Number of failed set operation                                                            |
+| failure_get               | Number of failed get operation                                                            |
+| failure_vbset             | Number of failed vbucket set operation                                                    |
+| save_documents            | Time spent in CouchStore save documents operation                                         |
+| io_num_read               | Number of io read operations                                                              |
+| io_num_write              | Number of io write operations                                                             |
+| io_read_bytes             | Number of bytes read (key + values + rev_meta)                                            |
+| io_write_bytes            | Number of bytes written (key + values + rev_meta                                          |
+| io_total_read_bytes       | Number of bytes read (total, including Couchstore B-Tree and other overheads)             |
+| io_total_write_bytes      | Number of bytes written (total, including Couchstore B-Tree and other overheads)          |
+| io_compaction_read_bytes  | Number of bytes read (compaction only, includes Couchstore B-Tree and other overheads)    |
+| io_compaction_write_bytes | Number of bytes written (compaction only, includes Couchstore B-Tree and other overheads) |
 
 ** KV Store Timing Stats
 

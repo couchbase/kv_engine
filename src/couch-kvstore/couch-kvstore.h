@@ -130,6 +130,8 @@ public:
 
     // Stats from the underlying OS file operations done by couchstore.
     CouchstoreStats fsStats;
+    // Underlying stats for OS file operations during compaction.
+    CouchstoreStats fsStatsCompaction;
 };
 
 class EventuallyPersistentEngine;
@@ -519,7 +521,7 @@ private:
     void updateDbFileMap(uint16_t vbucketId, uint64_t newFileRev);
     couchstore_error_t openDB(uint16_t vbucketId, uint64_t fileRev, Db **db,
                               uint64_t options, uint64_t *newFileRev = NULL,
-                              bool reset=false);
+                              bool reset=false, FileOpsInterface* ops = nullptr);
     couchstore_error_t openDB_retry(std::string &dbfile, uint64_t options,
                                     FileOpsInterface *ops,
                                     Db **db, uint64_t *newFileRev);
@@ -564,7 +566,23 @@ private:
 
     /* all stats */
     CouchKVStoreStats   st;
+
+    /**
+     * FileOpsInterface implementation for couchstore which tracks
+     * all bytes read/written by couchstore *except* compaction.
+     *
+     * Backed by this->st.fsStats
+     */
     std::unique_ptr<FileOpsInterface> statCollectingFileOps;
+
+    /**
+     * FileOpsInterface implementation for couchstore which tracks
+     * all bytes read/written by couchstore just for compaction
+     *
+     * Backed by this->st.fsStatsCompaction
+     */
+    std::unique_ptr<FileOpsInterface> statCollectingFileOpsCompaction;
+
     /* deleted docs in each file, indexed by vBucket. RelaxedAtomic
        to allow stats access witout lock */
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
