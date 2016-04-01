@@ -259,7 +259,6 @@ ADD_EXECUTABLE(ep-engine_checkpoint_test
   src/stored-value.cc
   src/testlogger.cc
   src/vbucket.cc
-  tests/module_tests/test_memory_tracker.cc
   ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_checkpoint_test gtest ${SNAPPY_LIBRARIES} cJSON platform)
 
@@ -287,12 +286,20 @@ ADD_EXECUTABLE(ep-engine_hash_table_test
   src/item.cc
   src/stored-value.cc
   src/testlogger.cc
-  tests/module_tests/test_memory_tracker.cc
   ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_hash_table_test gtest ${SNAPPY_LIBRARIES} platform)
 
 ADD_EXECUTABLE(ep-engine_hrtime_test tests/module_tests/hrtime_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_hrtime_test platform)
+
+ADD_EXECUTABLE(ep-engine_memory_tracker_test
+  tests/module_tests/memory_tracker_test.cc
+  tests/module_tests/mock_hooks_api.cc
+  src/memory_tracker.cc
+  src/testlogger.cc
+  ${OBJECTREGISTRY_SOURCE}
+  ${CMAKE_CURRENT_BINARY_DIR}/src/generated_configuration.h)
+TARGET_LINK_LIBRARIES(ep-engine_memory_tracker_test gtest gtest_main platform)
 
 ADD_EXECUTABLE(ep-engine_misc_test tests/module_tests/misc_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_misc_test platform)
@@ -314,7 +321,6 @@ TARGET_LINK_LIBRARIES(ep-engine_string_utils_test gtest gtest_main platform)
 
 ADD_EXECUTABLE(ep-engine_failover_table_test tests/module_tests/failover_table_test.cc
                         src/failover-table.cc src/testlogger.cc
-                        tests/module_tests/test_memory_tracker.cc
                         ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_failover_table_test cJSON platform)
 
@@ -343,6 +349,7 @@ ADD_TEST(ep-engine_ringbuffer_test ep-engine_ringbuffer_test)
 ADD_TEST(ep-engine_kvstore_test ep-engine_kvstore_test)
 ADD_TEST(ep-engine_dcp_test ep-engine_dcp_test)
 ADD_TEST(ep-engine_defragmenter_test ep-engine_defragmenter_test)
+ADD_TEST(ep-engine_memory_tracker_test ep-engine_memory_tracker_test)
 
 ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")

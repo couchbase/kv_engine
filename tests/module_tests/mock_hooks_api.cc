@@ -1,6 +1,6 @@
 /* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
- *     Copyright 2012 Couchbase, Inc
+ *     Copyright 2016 Couchbase, Inc
  *
  *   Licensed under the Apache License, Version 2.0 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -17,11 +17,13 @@
 
 #include "config.h"
 
-#include "memory_tracker.h"
+#include <memcached/allocator_hooks.h>
 
-/**
- * THIS FILE SHOULD NEVER ACTUALLY BE RUN. IT IS JUST USED TO GET SOME OF OUR
- * TESTS TO COMPILE.
+/*
+ * A mock implementation of the getHooksApi() function (and associated
+ * functions).
+ *
+ * All hook functions will do nothing.
  */
 
 extern "C" {
@@ -65,44 +67,3 @@ ALLOCATOR_HOOKS_API* getHooksApi(void) {
     hooksApi.get_allocation_size = mock_get_allocation_size;
     return &hooksApi;
 }
-
-bool MemoryTracker::tracking = false;
-MemoryTracker *MemoryTracker::instance = 0;
-
-MemoryTracker *MemoryTracker::getInstance() {
-    if (!instance) {
-        instance = new MemoryTracker();
-    }
-    return instance;
-}
-
-MemoryTracker::MemoryTracker() {
-    // Do nothing
-}
-
-MemoryTracker::~MemoryTracker() {
-    // Do nothing
-}
-
-void MemoryTracker::getAllocatorStats(std::map<std::string, size_t> &allocator_stats) {
-    (void) allocator_stats;
-    // Do nothing
-}
-
-bool MemoryTracker::trackingMemoryAllocations() {
-    // This should ALWAYS return false
-    return tracking;
-}
-
-size_t MemoryTracker::getFragmentation() {
-    return 0;
-}
-
-size_t MemoryTracker::getTotalBytesAllocated() {
-    return 0;
-}
-
-size_t MemoryTracker::getTotalHeapBytes() {
-    return 0;
-}
-

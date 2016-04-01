@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include <atomic>
 #include <condition_variable>
 #include <map>
 #include <mutex>
@@ -37,7 +38,7 @@ class MemoryTracker {
 public:
     ~MemoryTracker();
 
-    static MemoryTracker *getInstance();
+    static MemoryTracker* getInstance();
     static void destroyInstance();
 
     void getAllocatorStats(std::map<std::string, size_t> &alloc_stats);
@@ -62,8 +63,10 @@ private:
 
     // Wheter or not we have the ability to accurately track memory allocations
     static bool tracking;
-    // Singleton memory tracker
-    static MemoryTracker *instance;
+    // Singleton memory tracker and mutex guarding it's creation.
+    static std::atomic<MemoryTracker*> instance;
+    static std::mutex instance_mutex;
+
     cb_thread_t statsThreadId;
     allocator_stats stats;
 
