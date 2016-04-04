@@ -1183,7 +1183,9 @@ void McbpConnection::maybeLogSlowCommand(
         limit = std::chrono::milliseconds(1800 * 1000);
         break;
     case PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE:
-        // I've heard that this may be slow as well...
+        // This can also be slow (given it requires waiting for disk). Set
+        // to 30s for now.
+        limit = std::chrono::seconds(30);
         break;
     }
 

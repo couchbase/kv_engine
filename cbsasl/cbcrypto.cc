@@ -140,7 +140,7 @@ static std::vector<uint8_t> digest_sha256(const std::vector<uint8_t>& data) {
 
 static std::vector<uint8_t> digest_sha512(const std::vector<uint8_t>& data) {
     std::vector<uint8_t> ret(Couchbase::Crypto::SHA512_DIGEST_SIZE);
-    CC_SHA256(data.data(), data.size(), ret.data());
+    CC_SHA512(data.data(), data.size(), ret.data());
     return ret;
 }
 

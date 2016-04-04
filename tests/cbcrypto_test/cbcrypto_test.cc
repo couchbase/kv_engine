@@ -429,3 +429,44 @@ TEST(PBKDF2_HMAC, UnknownAlgorithm) {
                                      1),
                  std::invalid_argument);
 }
+
+TEST(Digest, MD5) {
+    std::vector<uint8_t> data(50);
+    memset(data.data(), 0xdd, data.size());
+    auto digest = Crypto::digest(Crypto::Algorithm::MD5, data);
+    EXPECT_EQ("s69JQLO3oOdEjL+7arBMyA==",
+              Base64::encode(std::string((const char*)digest.data(),
+                                         digest.size())));
+}
+
+TEST(Digest, SHA1) {
+    std::vector<uint8_t> data(50);
+    memset(data.data(), 0xdd, data.size());
+    auto digest = Crypto::digest(Crypto::Algorithm::SHA1, data);
+    EXPECT_EQ("a/eYGUZs797W4yYH3kxoypn+dnQ=",
+              Base64::encode(std::string((const char*)digest.data(),
+                                         digest.size())));
+}
+
+TEST(Digest, SHA256) {
+    if (Crypto::isSupported(Crypto::Algorithm::SHA256)) {
+        std::vector<uint8_t> data(50);
+        memset(data.data(), 0xdd, data.size());
+        auto digest = Crypto::digest(Crypto::Algorithm::SHA256, data);
+        EXPECT_EQ("XPYYtbbTi9FsLlWO701LbVKChFR/1KCdoqu28JjsYZM=",
+                  Base64::encode(std::string((const char*)digest.data(),
+                                             digest.size())));
+    }
+}
+
+TEST(Digest, SHA512) {
+    if (Crypto::isSupported(Crypto::Algorithm::SHA512)) {
+        std::vector<uint8_t> data(50);
+        memset(data.data(), 0xdd, data.size());
+        auto digest = Crypto::digest(Crypto::Algorithm::SHA512, data);
+        EXPECT_EQ("ocK90Gck7GOlN3GIBrL76aaf6yUuLl3/HXcSB93FlouYyPN+Dgi+NKIg"
+                      "Lvr+LtJgKvVDrw2aQ4EXTgOFEvt4MA==",
+                  Base64::encode(std::string((const char*)digest.data(),
+                                             digest.size())));
+    }
+}
