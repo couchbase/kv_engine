@@ -50,13 +50,20 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
-    std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); ++iter) {
-        if ((*iter)->getName() == conn_name) {
-            (*iter)->setDisconnect(true);
-            all.erase(iter);
-            break;
+    for (const auto conn: all) {
+        if (conn->getName() == conn_name) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to create Dcp Consumer because connection of the "
+                "same name (%s) already exists", conn_name.c_str());
+            return nullptr;
         }
+    }
+
+    if (map_.count(cookie) != 0) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to create Dcp Consumer because connection "
+            "(%p) already exists", cookie);
+        return nullptr;
     }
 
     DcpConsumer *dcp = new DcpConsumer(engine, cookie, conn_name);
@@ -108,13 +115,20 @@ DcpProducer *DcpConnMap::newProducer(const void* cookie,
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
-    std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); ++iter) {
-        if ((*iter)->getName() == conn_name) {
-            (*iter)->setDisconnect(true);
-            all.erase(iter);
-            break;
+    for (const auto conn: all) {
+        if (conn->getName() == conn_name) {
+            LOG(EXTENSION_LOG_WARNING,
+                "Failed to create Dcp Producer because connection of the "
+                "same name (%s) already exists", conn_name.c_str());
+            return nullptr;
         }
+    }
+
+    if (map_.count(cookie) != 0) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Failed to create Dcp Producer because connection "
+            "(%p) already exists", cookie);
+        return nullptr;
     }
 
     DcpProducer *dcp = new DcpProducer(engine, cookie, conn_name, notifyOnly);
@@ -130,38 +144,11 @@ void DcpConnMap::shutdownAllConnections() {
 
     connNotifier_->stop();
 
-
-    LockHolder lh(connsLock);
-    std::vector<connection_t> toRelease(all.begin(), all.end());
-
-    closeAllStreams_UNLOCKED();
-    cancelAllTasks_UNLOCKED();
-    all.clear();
-    map_.clear();
-
-    lh.unlock();
-
     {
-         LockHolder rlh(releaseLock);
-         for (auto &ii : toRelease) {
-             LOG(EXTENSION_LOG_NOTICE, "Clean up \"%s\"", ii->getName().c_str());
-             ii->releaseReference();
-         }
+        LockHolder lh(connsLock);
+        closeAllStreams_UNLOCKED();
+        cancelAllTasks_UNLOCKED();
     }
-    /*
-     * Dead connections are cleaned-up by manageConnections.
-     * manageconnections is invoked in the run() of ConnManager,
-     * which is a NONIO Task.  The task has a MIN_SLEEP_TIME of 2s,
-     * which means dead connections will only be clean-up at most
-     * every 2s.  Therefore if we delete a bucket it is possible
-     * that dead connections exist.  This causes the function
-     * responsible for destroying a bucket to wait indefinitely
-     * for the dead connections to be disconnected.
-     *
-     * Therefore before deleting a bucket we need to ensure that
-     * manageConnections is called.
-     */
-    manageConnections();
 }
 
 void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,

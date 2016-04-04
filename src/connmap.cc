@@ -112,7 +112,9 @@ public:
     bool run(void) {
         connmap->manageConnections();
         snooze(MIN_SLEEP_TIME);
-        return !engine->getEpStats().isShutdown;
+        return !engine->getEpStats().isShutdown ||
+               !connmap->isAllEmpty() ||
+               !connmap->isDeadConnectionsEmpty();
     }
 
     std::string getDescription() {

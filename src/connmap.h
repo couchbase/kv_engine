@@ -111,6 +111,15 @@ public:
 
     virtual void shutdownAllConnections() = 0;
 
+    virtual bool isDeadConnectionsEmpty() {
+        return true;
+    }
+
+    bool isAllEmpty() {
+        LockHolder lh(connsLock);
+        return all.empty();
+    }
+
     void updateVBConnections(connection_t &conn,
                              const std::vector<uint16_t> &vbuckets);
 

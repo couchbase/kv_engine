@@ -26,7 +26,8 @@
 #include "objectregistry.h"
 
 bool MemoryTracker::tracking = false;
-MemoryTracker *MemoryTracker::instance = NULL;
+std::atomic<MemoryTracker*> MemoryTracker::instance;
+std::mutex MemoryTracker::instance_mutex;
 
 void MemoryTracker::statsThreadMainLoop(void* arg) {
     MemoryTracker* tracker = static_cast<MemoryTracker*>(arg);
@@ -46,17 +47,27 @@ void MemoryTracker::statsThreadMainLoop(void* arg) {
     }
 }
 
-MemoryTracker *MemoryTracker::getInstance() {
-    if (!instance) {
-        instance = new MemoryTracker();
+MemoryTracker* MemoryTracker::getInstance() {
+    MemoryTracker* tmp = instance.load();
+    if (tmp == nullptr) {
+        // Double-checked locking if instance is null - ensure two threads
+        // don't both create an instance.
+        std::lock_guard<std::mutex> lock(instance_mutex);
+        tmp = instance.load();
+        if (tmp == nullptr) {
+            tmp = new MemoryTracker();
+            instance.store(tmp);
+        }
     }
-    return instance;
+    return tmp;
 }
 
 void MemoryTracker::destroyInstance() {
-    if (instance) {
-        delete instance;
-        instance = NULL;
+    std::lock_guard<std::mutex> lock(instance_mutex);
+    MemoryTracker* tmp = instance.load();
+    if (tmp != nullptr) {
+        delete tmp;
+        instance = nullptr;
     }
 }
 

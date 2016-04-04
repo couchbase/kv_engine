@@ -972,9 +972,10 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     wait_for_warmup_complete(h, h1);
     check(get_bool_stat(h, h1, "ep_exp_pager_enabled"),
           "Expiry pager should be enabled on warmup");
-    pager_runs = get_int_stat(h, h1, "ep_num_expiry_pager_runs");
-    wait_for_stat_change(h, h1, "ep_num_expiry_pager_runs", pager_runs);
-    wait_for_flusher_to_settle(h, h1);
+
+    // Wait for the expiry pager to run and expire our item.
+    wait_for_stat_to_be_gte(h, h1, "ep_expired_pager", 1, nullptr, /*secs*/10);
+
     checkeq(0, get_int_stat(h, h1, "curr_items"),
             "The item should have been expired.");
 

@@ -325,27 +325,92 @@ TEST_F(StreamTest, test_mb18625) {
 
 class ConnectionTest : public DCPTest {};
 
-TEST_F(ConnectionTest, test_mb18135) {
+TEST_F(ConnectionTest, test_deadConnections) {
     MockDcpConnMap *connMap = new MockDcpConnMap(*engine);
     connMap->initialize(DCP_CONN_NOTIFIER);
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
-    dcp_producer_t producer = connMap->newProducer(cookie, "test_mb18135_producer",
+    dcp_producer_t producer = connMap->newProducer(cookie, "test_producer",
                                     /*notifyOnly*/false);
 
     // Disconnect the producer connection
     connMap->disconnect(cookie);
     EXPECT_EQ(1, (int)connMap->getNumberOfDeadConnections())
         << "Unexpected number of dead connections";
-    connMap->shutdownAllConnections();
-    // REGRESSION CHECK: should be zero deadConnections
+    connMap->manageConnections();
+    // Should be zero deadConnections
     EXPECT_EQ(0, (int)connMap->getNumberOfDeadConnections())
         << "Dead connections still remain";
 
-    // We do not need to call delete cookie, as that is performed
-    // during the call to shutdownAllConnections.
-    producer.reset();
     delete connMap;
+}
+
+TEST_F(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
+    struct mock_connstruct* cookie1 = (struct mock_connstruct*)create_mock_cookie();
+    struct mock_connstruct* cookie2 = (struct mock_connstruct*)create_mock_cookie();
+    // Create a new Dcp producer
+    dcp_producer_t producer = connMap.newProducer(cookie1, "test_producer",
+                                                   /*notifyOnly*/false);
+
+    // Create a duplicate Dcp producer
+    dcp_producer_t duplicateproducer = connMap.newProducer(cookie2, "test_producer",
+                                                    /*notifyOnly*/false);
+    EXPECT_EQ(0, (int)duplicateproducer) << "duplicateproducer is not null";
+
+    producer.reset();
+    delete cookie1;
+    delete cookie2;
+}
+
+TEST_F(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
+    struct mock_connstruct* cookie1 = (struct mock_connstruct*)create_mock_cookie();
+    struct mock_connstruct* cookie2 = (struct mock_connstruct*)create_mock_cookie();
+    // Create a new Dcp consumer
+    dcp_consumer_t consumer = connMap.newConsumer(cookie1, "test_consumer");
+
+    // Create a duplicate Dcp consumer
+    dcp_consumer_t duplicateconsumer = connMap.newConsumer(cookie2, "test_consumer");
+    EXPECT_EQ(0, (int)duplicateconsumer) << "duplicateconsumer is not null";
+
+    consumer.reset();
+    delete cookie1;
+    delete cookie2;
+}
+
+TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a new Dcp producer
+    dcp_producer_t producer = connMap.newProducer(cookie, "test_producer1",
+                                                   /*notifyOnly*/false);
+
+    // Create a duplicate Dcp producer
+    dcp_producer_t duplicateproducer = connMap.newProducer(cookie, "test_producer2",
+                                                            /*notifyOnly*/false);
+    EXPECT_EQ(0, (int)duplicateproducer) << "duplicateproducer is not null";
+
+    producer.reset();
+    delete cookie;
+}
+
+TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a new Dcp consumer
+    dcp_consumer_t consumer = connMap.newConsumer(cookie, "test_consumer1");
+
+    // Create a duplicate Dcp consumer
+    dcp_consumer_t duplicateconsumer = connMap.newConsumer(cookie, "test_consumer2");
+    EXPECT_EQ(0, (int)duplicateconsumer) << "duplicateconsumer is not null";
+
+    consumer.reset();
+    delete cookie;
 }
 
 /* static storage for environment variable set by putenv(). */
