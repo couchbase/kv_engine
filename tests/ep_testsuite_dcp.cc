@@ -2261,7 +2261,7 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
 
     // Sanity check - ensure we have enough vBucket quota (max_size)
     // such that we have 1000 items - enough to give us 0.1%
-    // granuarity in any residency calculations. */
+    // granularity in any residency calculations. */
     if (num_items < 1000) {
         std::cerr << "Error: test_dcp_producer_stream_backfill_no_value: "
             "expected at least 1000 items after filling vbucket, "
@@ -5355,7 +5355,7 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                     create at least 1000 items when our residency
                     ratio gets to 80%. See test body for more details. */
-                 teardown, "chk_remover_stime=1;max_size=2000000", prepare,
+                 teardown, "chk_remover_stime=1;max_size=2500000", prepare,
                  cleanup),
         TestCase("test producer stream request mem no value",
                  test_dcp_producer_stream_mem_no_value, test_setup, teardown,
