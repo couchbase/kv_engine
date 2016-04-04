@@ -183,6 +183,7 @@ public:
     }
 
     bool isAllEmpty() {
+        LockHolder lh(connsLock);
         return all.empty();
     }
 
@@ -484,6 +485,7 @@ public:
     void shutdownAllConnections();
 
     bool isDeadConnectionsEmpty() {
+        LockHolder lh(connsLock);
         return deadConnections.empty();
     }
 
