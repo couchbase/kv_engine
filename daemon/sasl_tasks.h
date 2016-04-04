@@ -17,11 +17,12 @@
 #pragma once
 
 #include "task.h"
-#include "connection_mcbp.h"
 #include <cbsasl/cbsasl.h>
 #include <string>
 
+
 class Connection;
+class Cookie;
 
 /**
  * The SaslAuthTask is the abstract base class used during SASL
@@ -33,7 +34,8 @@ public:
 
     SaslAuthTask(const SaslAuthTask&) = delete;
 
-    SaslAuthTask(Connection& connection_,
+    SaslAuthTask(Cookie& cookie_,
+                 Connection& connection_,
                  const std::string& mechanism_,
                  const std::string& challenge_);
 
@@ -53,7 +55,7 @@ public:
     }
 
 protected:
-
+    Cookie& cookie;
     Connection& connection;
     std::string mechanism;
     std::string challenge;
@@ -72,7 +74,8 @@ public:
 
     StartSaslAuthTask(const StartSaslAuthTask&) = delete;
 
-    StartSaslAuthTask(Connection& connection_,
+    StartSaslAuthTask(Cookie& cookie_,
+                      Connection& connection_,
                       const std::string& mechanism_,
                       const std::string& challenge_);
 
@@ -89,17 +92,10 @@ public:
 
     StepSaslAuthTask(const StepSaslAuthTask&) = delete;
 
-    StepSaslAuthTask(Connection& connection_,
+    StepSaslAuthTask(Cookie& cookie_,
+                     Connection& connection_,
                      const std::string& mechanism_,
                      const std::string& challenge_);
 
     virtual bool execute() override;
-};
-
-class SaslCommandContext : public CommandContext {
-public:
-    SaslCommandContext(std::shared_ptr<Task>& t)
-        : task(t) { }
-
-    std::shared_ptr<Task> task;
 };

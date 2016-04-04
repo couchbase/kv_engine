@@ -19,10 +19,12 @@
 #include "memcached.h"
 #include "mcaudit.h"
 
-StartSaslAuthTask::StartSaslAuthTask(Connection& connection_,
+
+StartSaslAuthTask::StartSaslAuthTask(Cookie& cookie_,
+                                     Connection& connection_,
                                      const std::string& mechanism_,
                                      const std::string& challenge_)
-    : SaslAuthTask(connection_, mechanism_, challenge_) {
+    : SaslAuthTask(cookie_, connection_, mechanism_, challenge_) {
     // No extra initialization needed
 }
 
@@ -36,10 +38,11 @@ bool StartSaslAuthTask::execute() {
     return true;
 }
 
-StepSaslAuthTask::StepSaslAuthTask(Connection& connection_,
+StepSaslAuthTask::StepSaslAuthTask(Cookie& cookie_,
+                                   Connection& connection_,
                                    const std::string& mechanism_,
                                    const std::string& challenge_)
-    : SaslAuthTask(connection_, mechanism_, challenge_) {
+    : SaslAuthTask(cookie_, connection_, mechanism_, challenge_) {
     // No extra initialization needed
 }
 
@@ -51,10 +54,12 @@ bool StepSaslAuthTask::execute() {
 }
 
 
-SaslAuthTask::SaslAuthTask(Connection& connection_,
+SaslAuthTask::SaslAuthTask(Cookie& cookie_,
+                           Connection& connection_,
                            const std::string& mechanism_,
                            const std::string& challenge_)
-    : connection(connection_),
+    : cookie(cookie_),
+      connection(connection_),
       mechanism(mechanism_),
       challenge(challenge_),
       error(CBSASL_FAIL),
@@ -95,19 +100,22 @@ void SaslAuthTask::notifyExecutionComplete() {
         connection.setAuthenticated(false);
     }
 
-    // notifyExecutionComplete is called from the executor while holding
-    // the mutex lock, but we're calling notify_io_complete which in turn
-    // tries to lock the threads lock. We held that lock when we scheduled
-    // the task, so thread sanitizer will complain about potential
-    // deadlock since we're now locking in the oposite order.
-    // Given that we know that the executor is _blocked_ waiting for
-    // this call to complete (and no one else should touch this object
-    // while waiting for the call) lets just unlock and lock again..
-    getMutex().unlock();
-    if (connection.getProtocol() == Protocol::Memcached) {
-        notify_io_complete(reinterpret_cast<McbpConnection&>(connection).getCookie(), ENGINE_SUCCESS);
+    if (cookie.command == nullptr) {
+        // notifyExecutionComplete is called from the executor while holding
+        // the mutex lock, but we're calling notify_io_complete which in turn
+        // tries to lock the threads lock. We held that lock when we scheduled
+        // the task, so thread sanitizer will complain about potential
+        // deadlock since we're now locking in the oposite order.
+        // Given that we know that the executor is _blocked_ waiting for
+        // this call to complete (and no one else should touch this object
+        // while waiting for the call) lets just unlock and lock again..
+        getMutex().unlock();
+        notify_io_complete(
+            reinterpret_cast<McbpConnection&>(connection).getCookie(),
+            ENGINE_SUCCESS);
+        getMutex().lock();
     } else {
-        throw std::runtime_error("Not implemented for Greenstack");
+        throw new std::runtime_error("Not implemented for greenstack");
+
     }
-    getMutex().lock();
 }

@@ -3623,9 +3623,9 @@ static void sasl_auth_executor(McbpConnection* c, void* packet) {
     std::shared_ptr<Task> task;
 
     if (c->getCmd() == PROTOCOL_BINARY_CMD_SASL_AUTH) {
-        task = std::make_shared<StartSaslAuthTask>(*c, mechanism, challenge);
+        task = std::make_shared<StartSaslAuthTask>(c->getCookieObject(), *c, mechanism, challenge);
     } else {
-        task = std::make_shared<StepSaslAuthTask>(*c, mechanism, challenge);
+        task = std::make_shared<StepSaslAuthTask>(c->getCookieObject(), *c, mechanism, challenge);
     }
     c->setCommandContext(new SaslCommandContext(task));
 

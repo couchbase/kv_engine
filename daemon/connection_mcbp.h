@@ -37,6 +37,7 @@
 
 #include "connection.h"
 #include "cookie.h"
+#include "task.h"
 
 /**
  * The SslContext class is a holder class for all of the ssl-related
@@ -195,6 +196,14 @@ protected:
 class CommandContext {
 public:
     virtual ~CommandContext() { };
+};
+
+class SaslCommandContext : public CommandContext {
+public:
+    SaslCommandContext(std::shared_ptr<Task>& t)
+    : task(t) { }
+
+    std::shared_ptr<Task> task;
 };
 
 class McbpConnection : public Connection {
@@ -687,6 +696,10 @@ public:
 
     const void* getCookie() const {
         return &cookie;
+    }
+
+    Cookie& getCookieObject() {
+        return cookie;
     }
 
 protected:
