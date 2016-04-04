@@ -351,14 +351,16 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     struct mock_connstruct* cookie2 = (struct mock_connstruct*)create_mock_cookie();
     // Create a new Dcp producer
     dcp_producer_t producer = connMap.newProducer(cookie1, "test_producer",
-                                                   /*notifyOnly*/false);
+                                                  /*notifyOnly*/false);
+    EXPECT_NE(0, (int)producer) << "producer is null";
 
     // Create a duplicate Dcp producer
     dcp_producer_t duplicateproducer = connMap.newProducer(cookie2, "test_producer",
-                                                    /*notifyOnly*/false);
-    EXPECT_EQ(0, (int)duplicateproducer) << "duplicateproducer is not null";
+                                                           /*notifyOnly*/false);
+    EXPECT_NE(0, (int)duplicateproducer) << "duplicateproducer is null";
 
     producer.reset();
+    duplicateproducer.reset();
     delete cookie1;
     delete cookie2;
 }
@@ -370,12 +372,14 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     struct mock_connstruct* cookie2 = (struct mock_connstruct*)create_mock_cookie();
     // Create a new Dcp consumer
     dcp_consumer_t consumer = connMap.newConsumer(cookie1, "test_consumer");
+    EXPECT_NE(0, (int)consumer) << "consumer is null";
 
     // Create a duplicate Dcp consumer
     dcp_consumer_t duplicateconsumer = connMap.newConsumer(cookie2, "test_consumer");
-    EXPECT_EQ(0, (int)duplicateconsumer) << "duplicateconsumer is not null";
+    EXPECT_NE(0, (int)duplicateconsumer) << "duplicateconsumer is null";
 
     consumer.reset();
+    duplicateconsumer.reset();
     delete cookie1;
     delete cookie2;
 }
