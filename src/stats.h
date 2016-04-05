@@ -235,12 +235,20 @@ public:
     AtomicValue<size_t> flushFailed;
     //! Number of times an item is not flushed due to the item's expiry
     AtomicValue<size_t> flushExpired;
+
+    // Expiration stats. Note: These stats are not synchronous -
+    // e.g. expired_pager can be incremented /before/ curr_items is
+    // decremented. This is because curr_items is sometimes only
+    // updated long after the expiration action, when delete is
+    // persisted to disk (and callback invoked).
+
     //! Number of times an object was expired on access.
     AtomicValue<size_t> expired_access;
     //! Number of times an object was expired by compactor.
     AtomicValue<size_t> expired_compactor;
     //! Number of times an object was expired by pager.
     AtomicValue<size_t> expired_pager;
+
     //! Number of times we failed to start a transaction
     AtomicValue<size_t> beginFailed;
     //! Number of times a commit failed.
