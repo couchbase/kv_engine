@@ -101,13 +101,12 @@ int main(int argc, char **argv) {
         exit(EXIT_FAILURE);
     }
 
-    char *data = new char[st.st_size + 1];
-    data[st.st_size] = 0;
+    std::vector<char> data(st.st_size + 1);
     ifstream input(json);
-    input.read(data, st.st_size);
+    input.read(data.data(), st.st_size);
     input.close();
 
-    cJSON *c = cJSON_Parse(data);
+    cJSON *c = cJSON_Parse(data.data());
     if (c == NULL) {
         cerr << "Failed to parse JSON.. probably syntax error" << endl;
         exit(EXIT_FAILURE);
