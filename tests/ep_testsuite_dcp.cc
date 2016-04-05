@@ -70,7 +70,9 @@ public:
           exp_conflict_res(0),
           skip_estimate_check(false),
           live_frontend_client(false),
-          skip_verification(false)
+          skip_verification(false),
+          exp_err(ENGINE_SUCCESS),
+          exp_rollback(0)
     {
         seqno = {0, static_cast<uint64_t>(~0)};
         snapshot = {0, static_cast<uint64_t>(~0)};
@@ -114,7 +116,11 @@ public:
        streaming.
      */
     bool skip_verification;
-
+    /* Expected error code on stream creation. We need this because rollback is
+       a valid operation and returns ENGINE_ROLLBACK (not ENGINE_SUCCESS) */
+    ENGINE_ERROR_CODE exp_err;
+    /* Expected rollback seqno */
+    uint64_t exp_rollback;
 };
 
 class TestDcpConsumer {
@@ -127,6 +133,7 @@ public:
     TestDcpConsumer(const std::string &_name, const void *_cookie)
         : name(_name),
           cookie(_cookie),
+          opaque(0),
           total_bytes(0),
           simulate_cursor_dropping(false),
           flow_control_buf_size(1024),
@@ -154,66 +161,18 @@ public:
 
     void run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 
+    /* This method just opens a DCP connection. Note it does not open a stream
+       and does not call the dcp step function to get all the items from the 
+       producer */
+    void openConnection(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+
+    /* This method opens a stream on an existing DCP connection.
+       This does not call the dcp step function to get all the items from the
+       producer */
+    void openStreams(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
+
 private:
-    /* Connection name */
-    const std::string name;
-    /* Connection cookie */
-    const void *cookie;
-    /* Vector containing information of streams */
-    std::vector<DcpStreamCtx> stream_ctxs;
-    /* Total bytes received */
-    uint64_t total_bytes;
-    /* Flag to simulate cursor dropping */
-    bool simulate_cursor_dropping;
-    /* Flow control buffer size */
-    uint64_t flow_control_buf_size;
-    /* Flag to disable acking */
-    bool disable_ack;
-};
-
-void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    /* Reset any stale dcp data */
-    clear_dcp_data();
-
-    check(stream_ctxs.size() >= 1, "No dcp_stream arguments provided!");
-
-    uint32_t opaque = 1;
-
-    /* Set up Producer at server */
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER,
-                         (void*)name.c_str(), name.length()),
-            "Failed dcp producer open connection.");
-
-    /* Set flow control buffer size */
-    std::string flow_control_buf_sz(std::to_string(flow_control_buf_size));
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
-                            flow_control_buf_sz.c_str(),
-                            flow_control_buf_sz.length()),
-            "Failed to establish connection buffer");
-    char stats_buffer[50] = {0};
-    if (flow_control_buf_size) {
-        snprintf(stats_buffer, sizeof(stats_buffer),
-                 "eq_dcpq:%s:max_buffer_bytes", name.c_str());
-        checkeq(static_cast<int>(flow_control_buf_size),
-                get_int_stat(h, h1, stats_buffer, "dcp"),
-                "Buffer Size did not get set correctly");
-    } else {
-        snprintf(stats_buffer, sizeof(stats_buffer),
-                 "eq_dcpq:%s:flow_control", name.c_str());
-        std::string status = get_str_stat(h, h1, stats_buffer, "dcp");
-        checkeq(0, status.compare("disabled"), "Flow control enabled!");
-    }
-
-    checkeq(ENGINE_SUCCESS,
-            h1->dcp.control(h, cookie, ++opaque, "enable_ext_metadata", 19,
-                            "true", 4),
-            "Failed to enable xdcr extras");
-
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
-
-    // Vbucket-level stream stats used in test
+    /* Vbucket-level stream stats used in test */
     struct VBStats {
         VBStats()
             : num_mutations(0),
@@ -243,111 +202,37 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         uint8_t exp_conflict_res;
     };
 
+    /* Connection name */
+    const std::string name;
+    /* Connection cookie */
+    const void *cookie;
+    /* Vector containing information of streams */
+    std::vector<DcpStreamCtx> stream_ctxs;
+    /* Opaque value in the connection */
+    uint32_t opaque;
+    /* Total bytes received */
+    uint64_t total_bytes;
+    /* Flag to simulate cursor dropping */
+    bool simulate_cursor_dropping;
+    /* Flow control buffer size */
+    uint64_t flow_control_buf_size;
+    /* Flag to disable acking */
+    bool disable_ack;
+    /* map of vbstats */
     std::map<uint16_t, VBStats> vb_stats;
 
-    for (auto& ctx : stream_ctxs) {
-        /* Different opaque for every stream created */
-        ++opaque;
+};
 
-        /* Initiate stream request */
-        uint64_t rollback = 0;
-        checkeq(ENGINE_SUCCESS,
-                h1->dcp.stream_req(h, cookie, ctx.flags, opaque, ctx.vbucket,
-                                   ctx.seqno.start, ctx.seqno.end, ctx.vb_uuid,
-                                   ctx.snapshot.start, ctx.snapshot.end,
-                                   &rollback, mock_dcp_add_failover_log),
-                "Failed to initiate stream request");
+void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    check(stream_ctxs.size() >= 1, "No dcp_stream arguments provided!");
 
-        if (ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
-            ctx.seqno.end  = std::numeric_limits<uint64_t>::max();
-        } else if (ctx.flags & DCP_ADD_STREAM_FLAG_LATEST ||
-                ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
-            std::string high_seqno("vb_" + std::to_string(ctx.vbucket) + ":high_seqno");
-            ctx.seqno.end = get_ull_stat(h, h1, high_seqno.c_str(), "vbucket-seqno");
-        }
+    /* Open the connection with the DCP producer */
+    openConnection(h, h1);
 
-        std::stringstream stats_flags;
-        stats_flags << "eq_dcpq:" << name.c_str() << ":stream_"
-                    << ctx.vbucket << "_flags";
-        checkeq(ctx.flags,
-                (uint32_t)get_int_stat(h, h1, stats_flags.str().c_str(), "dcp"),
-                "Flags didn't match");
+    /* Open streams in the above open connection */
+    openStreams(h, h1);
 
-        std::stringstream stats_opaque;
-        stats_opaque << "eq_dcpq:" << name.c_str() << ":stream_"
-                     << ctx.vbucket << "_opaque";
-        checkeq(opaque,
-                (uint32_t)get_int_stat(h, h1, stats_opaque.str().c_str(), "dcp"),
-                "Opaque didn't match");
-
-        std::stringstream stats_start_seqno;
-        stats_start_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
-                          << ctx.vbucket << "_start_seqno";
-        checkeq(ctx.seqno.start,
-                (uint64_t)get_ull_stat(h, h1, stats_start_seqno.str().c_str(), "dcp"),
-                "Start Seqno Didn't match");
-
-        std::stringstream stats_end_seqno;
-        stats_end_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
-                        << ctx.vbucket << "_end_seqno";
-        checkeq(ctx.seqno.end,
-                (uint64_t)get_ull_stat(h, h1, stats_end_seqno.str().c_str(), "dcp"),
-                "End Seqno didn't match");
-
-        std::stringstream stats_vb_uuid;
-        stats_vb_uuid << "eq_dcpq:" << name.c_str() << ":stream_"
-                      << ctx.vbucket << "_vb_uuid";
-        checkeq(ctx.vb_uuid,
-                (uint64_t)get_ull_stat(h, h1, stats_vb_uuid.str().c_str(), "dcp"),
-                "VBucket UUID didn't match");
-
-        std::stringstream stats_snap_seqno;
-        stats_snap_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
-                         << ctx.vbucket << "_snap_start_seqno";
-        checkeq(ctx.snapshot.start,
-                (uint64_t)get_ull_stat(h, h1, stats_snap_seqno.str().c_str(), "dcp"),
-                "snap start seqno didn't match");
-
-        if ((ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) &&
-                !ctx.skip_estimate_check) {
-            std::string high_seqno_str("vb_" + std::to_string(ctx.vbucket) +
-                                       ":high_seqno");
-            uint64_t vb_high_seqno = get_ull_stat(h, h1, high_seqno_str.c_str(),
-                                       "vbucket-seqno");
-            uint64_t est = vb_high_seqno - ctx.seqno.start;
-            std::stringstream stats_takeover;
-            stats_takeover << "dcp-vbtakeover " << ctx.vbucket
-                           << " " << name.c_str();
-            wait_for_stat_to_be_lte(h, h1, "estimate", static_cast<int>(est),
-                                    stats_takeover.str().c_str());
-        }
-
-        if (ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
-            /* Wait for backfill to start */
-            std::string stats_backfill_read_bytes("eq_dcpq:" + name +
-                                                 ":backfill_buffer_bytes_read");
-            wait_for_stat_to_be_gte(h, h1, stats_backfill_read_bytes.c_str(), 0,
-                                    "dcp");
-            /* Verify that we have no dcp cursors in the checkpoint. (There will
-               just be one persistence cursor) */
-            std::string stats_num_conn_cursors("vb_" +
-                                               std::to_string(ctx.vbucket) +
-                                               ":num_conn_cursors");
-            checkeq(1, get_int_stat(h, h1, stats_num_conn_cursors.c_str(),
-                                    "checkpoint"),
-                    "DCP cursors not expected to be registered");
-        }
-
-        // Init stats used in test
-        VBStats stats;
-        stats.extra_takeover_ops = ctx.extra_takeover_ops;
-        stats.exp_disk_snapshot = ctx.exp_disk_snapshot;
-        stats.time_sync_enabled = ctx.time_sync_enabled;
-        stats.exp_conflict_res = ctx.exp_conflict_res;
-
-        vb_stats[ctx.vbucket] = stats;
-
-    }
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     bool done = false;
     ExtendedMetaData *emd = NULL;
@@ -604,7 +489,7 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     /* Check if the producer has updated flow control stat correctly */
     if (flow_control_buf_size) {
-        memset(stats_buffer, 0, 50);
+        char stats_buffer[50] = {0};
         snprintf(stats_buffer, sizeof(stats_buffer), "eq_dcpq:%s:unacked_bytes",
                  name.c_str());
         checkeq((all_bytes - total_acked_bytes),
@@ -613,31 +498,158 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     }
 }
 
-static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                           uint32_t opaque, uint16_t vbucket, uint64_t start,
-                           uint64_t end, uint64_t uuid,
-                           uint64_t snap_start_seqno,
-                           uint64_t snap_end_seqno,
-                           uint64_t exp_rollback, ENGINE_ERROR_CODE err) {
-    const void *cookie = testHarness.create_cookie();
-    uint32_t flags = DCP_OPEN_PRODUCER;
-    const char *name = "unittest";
+void TestDcpConsumer::openConnection(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    /* Reset any stale dcp data */
+    clear_dcp_data();
 
-    // Open consumer connection
+    opaque = 1;
+
+    /* Set up Producer at server */
     checkeq(ENGINE_SUCCESS,
-            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)name, strlen(name)),
-            "Failed dcp Consumer open connection.");
+            h1->dcp.open(h, cookie, ++opaque, 0, DCP_OPEN_PRODUCER,
+                         (void*)name.c_str(), name.length()),
+            "Failed dcp producer open connection.");
 
-    uint64_t rollback = 0;
-    ENGINE_ERROR_CODE rv = h1->dcp.stream_req(h, cookie, 0, 1, 0, start, end,
-                                              uuid, snap_start_seqno,
-                                              snap_end_seqno,
-                                              &rollback, mock_dcp_add_failover_log);
-    checkeq(err, rv, "Unexpected error code");
-    if (err == ENGINE_ROLLBACK || err == ENGINE_KEY_ENOENT) {
-        checkeq(exp_rollback, rollback, "Rollback didn't match expected value");
+    /* Set flow control buffer size */
+    std::string flow_control_buf_sz(std::to_string(flow_control_buf_size));
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "connection_buffer_size", 22,
+                            flow_control_buf_sz.c_str(),
+                            flow_control_buf_sz.length()),
+            "Failed to establish connection buffer");
+    char stats_buffer[50] = {0};
+    if (flow_control_buf_size) {
+        snprintf(stats_buffer, sizeof(stats_buffer),
+                 "eq_dcpq:%s:max_buffer_bytes", name.c_str());
+        checkeq(static_cast<int>(flow_control_buf_size),
+                get_int_stat(h, h1, stats_buffer, "dcp"),
+                "Buffer Size did not get set correctly");
+    } else {
+        snprintf(stats_buffer, sizeof(stats_buffer),
+                 "eq_dcpq:%s:flow_control", name.c_str());
+        std::string status = get_str_stat(h, h1, stats_buffer, "dcp");
+        checkeq(status, std::string("disabled"), "Flow control enabled!");
     }
-    testHarness.destroy_cookie(cookie);
+
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.control(h, cookie, ++opaque, "enable_ext_metadata", 19,
+                            "true", 4),
+            "Failed to enable xdcr extras");
+}
+
+void TestDcpConsumer::openStreams(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
+{
+    for (auto& ctx : stream_ctxs) {
+        /* Different opaque for every stream created */
+        ++opaque;
+
+        /* Initiate stream request */
+        uint64_t rollback = 0;
+        ENGINE_ERROR_CODE rv = h1->dcp.stream_req(h, cookie, ctx.flags, opaque,
+                                                  ctx.vbucket, ctx.seqno.start,
+                                                  ctx.seqno.end, ctx.vb_uuid,
+                                                  ctx.snapshot.start,
+                                                  ctx.snapshot.end,
+                                                  &rollback,
+                                                  mock_dcp_add_failover_log);
+
+        checkeq(ctx.exp_err, rv, "Failed to initiate stream request");
+        if (rv == ENGINE_ROLLBACK || rv == ENGINE_KEY_ENOENT) {
+            checkeq(ctx.exp_rollback, rollback,
+                    "Rollback didn't match expected value");
+            return;
+        }
+
+        if (ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) {
+            ctx.seqno.end  = std::numeric_limits<uint64_t>::max();
+        } else if (ctx.flags & DCP_ADD_STREAM_FLAG_LATEST ||
+                   ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+            std::string high_seqno("vb_" + std::to_string(ctx.vbucket) + ":high_seqno");
+            ctx.seqno.end = get_ull_stat(h, h1, high_seqno.c_str(), "vbucket-seqno");
+        }
+
+        std::stringstream stats_flags;
+        stats_flags << "eq_dcpq:" << name.c_str() << ":stream_"
+        << ctx.vbucket << "_flags";
+        checkeq(ctx.flags,
+                (uint32_t)get_int_stat(h, h1, stats_flags.str().c_str(), "dcp"),
+                "Flags didn't match");
+
+        std::stringstream stats_opaque;
+        stats_opaque << "eq_dcpq:" << name.c_str() << ":stream_"
+        << ctx.vbucket << "_opaque";
+        checkeq(opaque,
+                (uint32_t)get_int_stat(h, h1, stats_opaque.str().c_str(), "dcp"),
+                "Opaque didn't match");
+
+        std::stringstream stats_start_seqno;
+        stats_start_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
+        << ctx.vbucket << "_start_seqno";
+        checkeq(ctx.seqno.start,
+                (uint64_t)get_ull_stat(h, h1, stats_start_seqno.str().c_str(), "dcp"),
+                "Start Seqno Didn't match");
+
+        std::stringstream stats_end_seqno;
+        stats_end_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
+        << ctx.vbucket << "_end_seqno";
+        checkeq(ctx.seqno.end,
+                (uint64_t)get_ull_stat(h, h1, stats_end_seqno.str().c_str(), "dcp"),
+                "End Seqno didn't match");
+
+        std::stringstream stats_vb_uuid;
+        stats_vb_uuid << "eq_dcpq:" << name.c_str() << ":stream_"
+        << ctx.vbucket << "_vb_uuid";
+        checkeq(ctx.vb_uuid,
+                (uint64_t)get_ull_stat(h, h1, stats_vb_uuid.str().c_str(), "dcp"),
+                "VBucket UUID didn't match");
+
+        std::stringstream stats_snap_seqno;
+        stats_snap_seqno << "eq_dcpq:" << name.c_str() << ":stream_"
+        << ctx.vbucket << "_snap_start_seqno";
+        checkeq(ctx.snapshot.start,
+                (uint64_t)get_ull_stat(h, h1, stats_snap_seqno.str().c_str(), "dcp"),
+                "snap start seqno didn't match");
+
+        if ((ctx.flags & DCP_ADD_STREAM_FLAG_TAKEOVER) &&
+            !ctx.skip_estimate_check) {
+            std::string high_seqno_str("vb_" + std::to_string(ctx.vbucket) +
+                                       ":high_seqno");
+            uint64_t vb_high_seqno = get_ull_stat(h, h1, high_seqno_str.c_str(),
+                                                  "vbucket-seqno");
+            uint64_t est = vb_high_seqno - ctx.seqno.start;
+            std::stringstream stats_takeover;
+            stats_takeover << "dcp-vbtakeover " << ctx.vbucket
+            << " " << name.c_str();
+            wait_for_stat_to_be_lte(h, h1, "estimate", static_cast<int>(est),
+                                    stats_takeover.str().c_str());
+        }
+
+        if (ctx.flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+            /* Wait for backfill to start */
+            std::string stats_backfill_read_bytes("eq_dcpq:" + name +
+                                                  ":backfill_buffer_bytes_read");
+            wait_for_stat_to_be_gte(h, h1, stats_backfill_read_bytes.c_str(), 0,
+                                    "dcp");
+            /* Verify that we have no dcp cursors in the checkpoint. (There will
+             just be one persistence cursor) */
+            std::string stats_num_conn_cursors("vb_" +
+                                               std::to_string(ctx.vbucket) +
+                                               ":num_conn_cursors");
+            checkeq(1, get_int_stat(h, h1, stats_num_conn_cursors.c_str(),
+                                    "checkpoint"),
+                    "DCP cursors not expected to be registered");
+        }
+
+        // Init stats used in test
+        VBStats stats;
+        stats.extra_takeover_ops = ctx.extra_takeover_ops;
+        stats.exp_disk_snapshot = ctx.exp_disk_snapshot;
+        stats.time_sync_enabled = ctx.time_sync_enabled;
+        stats.exp_conflict_res = ctx.exp_conflict_res;
+
+        vb_stats[ctx.vbucket] = stats;
+    }
 }
 
 static void notifier_request(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -4508,13 +4520,38 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
 
     /* DCP stream, expect a rollback to seq 0 */
-    dcp_stream_req(h, h1, 1, 0, 3, high_seqno, vb_uuid,
-                   3, high_seqno, 0, ENGINE_ROLLBACK);
+    DcpStreamCtx ctx1;
+    ctx1.vb_uuid = vb_uuid;
+    ctx1.seqno = {3, high_seqno};
+    ctx1.snapshot = {3, high_seqno};
+    ctx1.exp_err = ENGINE_ROLLBACK;
+    ctx1.exp_rollback = 0;
+
+    const void *cookie1 = testHarness.create_cookie();
+    TestDcpConsumer tdc1("unittest1", cookie1);
+    tdc1.addStreamCtx(ctx1);
+
+    tdc1.openConnection(h, h1);
+    tdc1.openStreams(h, h1);
+
+    testHarness.destroy_cookie(cookie1);
 
     /* Do not expect rollback when you already have all items in the snapshot
        (that is, start == snap_end_seqno)*/
-    dcp_stream_req(h, h1, 1, 0, high_seqno, high_seqno + 10, vb_uuid,
-                   0, high_seqno, 0, ENGINE_SUCCESS);
+    DcpStreamCtx ctx2;
+    ctx2.vb_uuid = vb_uuid;
+    ctx2.seqno = {high_seqno, high_seqno + 10};
+    ctx2.snapshot = {0, high_seqno};
+    ctx2.exp_err = ENGINE_SUCCESS;
+
+    const void *cookie2 = testHarness.create_cookie();
+    TestDcpConsumer tdc2("unittest2", cookie2);
+    tdc2.addStreamCtx(ctx2);
+
+    tdc2.openConnection(h, h1);
+    tdc2.openStreams(h, h1);
+
+    testHarness.destroy_cookie(cookie2);
 
     return SUCCESS;
 }
@@ -4902,10 +4939,22 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
 
     for (int i = 0; i < num_testcases; i++)
     {
-        dcp_stream_req(h, h1, 1, 0, params[i].start_seqno, end_seqno,
-                       params[i].vb_uuid, params[i].snap_start_seqno,
-                       params[i].snap_end_seqno, params[i].exp_rollback,
-                       params[i].exp_err_code);
+        DcpStreamCtx ctx;
+        ctx.vb_uuid = params[i].vb_uuid;
+        ctx.seqno = {params[i].start_seqno, end_seqno};
+        ctx.snapshot = {params[i].snap_start_seqno, params[i].snap_end_seqno};
+        ctx.exp_err = params[i].exp_err_code;
+        ctx.exp_rollback = params[i].exp_rollback;
+
+        const void *cookie = testHarness.create_cookie();
+        std::string conn_name("unittest" + std::to_string(i));
+        TestDcpConsumer tdc(conn_name.c_str(), cookie);
+        tdc.addStreamCtx(ctx);
+
+        tdc.openConnection(h, h1);
+        tdc.openStreams(h, h1);
+
+        testHarness.destroy_cookie(cookie);
     }
     return SUCCESS;
 }
