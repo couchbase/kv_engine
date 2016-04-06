@@ -378,7 +378,9 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     dcp_consumer_t duplicateconsumer = connMap.newConsumer(cookie2, "test_consumer");
     EXPECT_NE(0, (int)duplicateconsumer) << "duplicateconsumer is null";
 
+    consumer->cancelTask();
     consumer.reset();
+    duplicateconsumer->cancelTask();
     duplicateconsumer.reset();
     delete cookie1;
     delete cookie2;
@@ -412,6 +414,7 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
     dcp_consumer_t duplicateconsumer = connMap.newConsumer(cookie, "test_consumer2");
     EXPECT_EQ(0, (int)duplicateconsumer) << "duplicateconsumer is not null";
 
+    consumer->cancelTask();
     consumer.reset();
     delete cookie;
 }
