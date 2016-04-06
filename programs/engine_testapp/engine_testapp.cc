@@ -1057,6 +1057,10 @@ static void release_free_memory(void) {
     get_mock_server_api()->alloc_hooks->release_free_memory();
 }
 
+static void store_engine_specific(const void *cookie, void *engine_data) {
+    get_mock_server_api()->cookie->store_engine_specific(cookie, engine_data);
+}
+
 static int execute_test(engine_test_t test,
                         const char *engine,
                         const char *default_cfg)
@@ -1451,6 +1455,8 @@ int main(int argc, char **argv) {
     harness.create_bucket = create_bucket;
     harness.destroy_bucket = destroy_bucket;
     harness.reload_bucket = reload_bucket;
+    harness.store_engine_specific = store_engine_specific;
+    harness.get_number_of_mock_cookie_references = get_number_of_mock_cookie_references;
 
     /* Initialize logging. */
     if (log_to_stderr) {

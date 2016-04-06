@@ -41,8 +41,10 @@ struct test_harness {
 
     ENGINE_HANDLE_V1* (*create_bucket)(bool initialize, const char* cfg);
     void (*destroy_bucket)(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1, bool force);
-    void(*reload_bucket)(ENGINE_HANDLE **, ENGINE_HANDLE_V1 **,
-                         const char *, bool, bool);
+    void (*reload_bucket)(ENGINE_HANDLE **, ENGINE_HANDLE_V1 **,
+                          const char *, bool, bool);
+    void (*store_engine_specific)(const void *cookie,void *engine_data);
+    int (*get_number_of_mock_cookie_references)(const void *cookie);
 };
 
 /*
