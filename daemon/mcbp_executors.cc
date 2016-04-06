@@ -519,6 +519,15 @@ void process_stat_settings(ADD_STAT add_stat_callback, void* c) {
     if (settings.audit_file) {
         add_stat(c, add_stat_callback, "audit", settings.audit_file);
     }
+
+    add_stat(c, add_stat_callback, "connection_idle_time",
+             std::to_string(settings.connection_idle_time.load()).c_str());
+    add_stat(c, add_stat_callback, "datatype",
+            settings.datatype ? "true" : "false");
+    add_stat(c, add_stat_callback, "dedupe_nmvb_maps",
+            settings.dedupe_nmvb_maps.load() ? "true" : "false");
+    add_stat(c, add_stat_callback, "max_packet_size",
+             std::to_string(settings.max_packet_size).c_str());
 }
 
 
