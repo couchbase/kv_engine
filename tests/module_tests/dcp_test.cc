@@ -412,6 +412,43 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
     delete cookie;
 }
 
+// Callback for dcp_add_failover_log
+ENGINE_ERROR_CODE test_dcp_add_failover_log(vbucket_failover_t* entry,
+                                            size_t nentries,
+                                            const void *cookie) {
+    return ENGINE_SUCCESS;
+}
+
+TEST_F(ConnectionTest, test_stream_request_for_dead_vbucket) {
+    // Set vbucket state to dead
+    engine->setVBucketState(vbid, vbucket_state_dead, false);
+
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+
+    // Create a new Dcp producer
+    dcp_producer_t producer = connMap.newProducer(cookie, "test_producer",
+                                                   /*notifyOnly*/false);
+
+    uint64_t rollback_seqno;
+    ENGINE_ERROR_CODE err = producer->streamRequest(/*flags*/0,
+                                                    /*opaque*/0,
+                                                    /*vbucket*/vbid,
+                                                    /*start_seqno*/0,
+                                                    /*end_seqno*/-1,
+                                                    /*vb_uuid*/0xabcd,
+                                                    /*snap_start*/0,
+                                                    /*snap_end*/0,
+                                                    /*rollback seqno*/&rollback_seqno,
+                                                    test_dcp_add_failover_log);
+
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
+
+    producer.reset();
+    delete cookie;
+}
+
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 

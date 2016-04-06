@@ -1299,6 +1299,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
 
     if (vb) {
         vbucket_state_t oldstate = vb->getState();
+
+        vb->setState(to);
+
         if (oldstate != to && notify_dcp) {
             bool closeInboundStreams = false;
             if (to == vbucket_state_active && !transfer) {
@@ -1311,8 +1314,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             engine.getDcpConnMap().vbucketStateChanged(vbid, to,
                                                        closeInboundStreams);
         }
-
-        vb->setState(to);
 
         if (to == vbucket_state_active && oldstate == vbucket_state_replica) {
             /**
