@@ -976,6 +976,19 @@ static enum test_result test_expiration_on_warmup(ENGINE_HANDLE *h,
     // Wait for the expiry pager to run and expire our item.
     wait_for_stat_to_be_gte(h, h1, "ep_expired_pager", 1, nullptr, /*secs*/10);
 
+    // Note: previously we checked that curr_items was zero here (immediately
+    // after waiting for ep_expired_pager == 1), however we cannot assume that
+    // - items are actually expired asynchronously.
+    // See EPStore::deleteExpiredItem - for non-temporary, expired items we
+    // call unlocked_softDelete (soft-marking the item as deleted in the
+    // hashtable), and then call queueDirty to queue a deletion, and then
+    // increment the expired stat. Only when that delete is actually persisted
+    // and the deleted callback is invoked -
+    // PeristenceCallback::callback(int&) - is curr_items finally decremented.
+    // Therefore we need to wait for the flusher to settle (i.e. delete
+    // callback to be called) for the curr_items stat to be accurate.
+    wait_for_flusher_to_settle(h, h1);
+
     checkeq(0, get_int_stat(h, h1, "curr_items"),
             "The item should have been expired.");
 

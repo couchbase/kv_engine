@@ -171,6 +171,6 @@ private:
 
     // Singleton creation
     static Mutex initGuard;
-    static ExecutorPool *instance;
+    static std::atomic<ExecutorPool*> instance;
 };
 #endif  // SRC_EXECUTORPOOL_H_

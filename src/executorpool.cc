@@ -28,7 +28,7 @@
 #include "executorthread.h"
 
 Mutex ExecutorPool::initGuard;
-ExecutorPool *ExecutorPool::instance = NULL;
+std::atomic<ExecutorPool*> ExecutorPool::instance;
 
 static const size_t EP_MIN_NUM_THREADS    = 10;
 static const size_t EP_MIN_READER_THREADS = 4;
@@ -128,26 +128,34 @@ size_t ExecutorPool::getNumReaders(void) {
 }
 
 ExecutorPool *ExecutorPool::get(void) {
-    if (!instance) {
+    auto* tmp = instance.load();
+    if (tmp == nullptr) {
         LockHolder lh(initGuard);
-        if (!instance) {
+        tmp = instance.load();
+        if (tmp == nullptr) {
+            // Double-checked locking if instance is null - ensure two threads
+            // don't both create an instance.
+
             Configuration &config =
                 ObjectRegistry::getCurrentEngine()->getConfiguration();
             EventuallyPersistentEngine *epe =
                                    ObjectRegistry::onSwitchThread(NULL, true);
-            instance = new ExecutorPool(config.getMaxThreads(),
+            tmp = new ExecutorPool(config.getMaxThreads(),
                     NUM_TASK_GROUPS, config.getMaxNumReaders(),
                     config.getMaxNumWriters(), config.getMaxNumAuxio(),
                     config.getMaxNumNonio());
             ObjectRegistry::onSwitchThread(epe);
+            instance.store(tmp);
         }
     }
-    return instance;
+    return tmp;
 }
 
 void ExecutorPool::shutdown(void) {
-    if (instance) {
-        delete instance;
+    std::lock_guard<std::mutex> lock(initGuard);
+    auto* tmp = instance.load();
+    if (tmp != nullptr) {
+        delete tmp;
         instance = nullptr;
     }
 }
