@@ -303,6 +303,13 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
     }
 
     {
+        ReaderLockHolder rlh(vb->getStateLock());
+        if (vb->getState() == vbucket_state_dead) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+                    "this vbucket is in dead state", logHeader(), vbucket);
+            return ENGINE_NOT_MY_VBUCKET;
+        }
+
         WriterLockHolder wlh(streamsMutex);
         streams[vbucket] = s;
     }

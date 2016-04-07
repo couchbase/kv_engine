@@ -50,15 +50,6 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
-    for (const auto conn: all) {
-        if (conn->getName() == conn_name) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to create Dcp Consumer because connection of the "
-                "same name (%s) already exists", conn_name.c_str());
-            return nullptr;
-        }
-    }
-
     if (map_.count(cookie) != 0) {
         LOG(EXTENSION_LOG_WARNING,
             "Failed to create Dcp Consumer because connection "
@@ -114,15 +105,6 @@ DcpProducer *DcpConnMap::newProducer(const void* cookie,
 
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
-
-    for (const auto conn: all) {
-        if (conn->getName() == conn_name) {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to create Dcp Producer because connection of the "
-                "same name (%s) already exists", conn_name.c_str());
-            return nullptr;
-        }
-    }
 
     if (map_.count(cookie) != 0) {
         LOG(EXTENSION_LOG_WARNING,
