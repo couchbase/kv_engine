@@ -2173,10 +2173,10 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     if (qitr == cbCtx->fetches.end()) {
         // this could be a serious race condition in couchstore,
         // log a warning message and continue
-        LOG(EXTENSION_LOG_WARNING,
-            "Couchstore returned invalid docinfo, "
-            "no pending bgfetch has been issued for key = %s\n",
-            keyStr.c_str());
+        cbCtx->cks.logger.log(EXTENSION_LOG_WARNING,
+                              "Couchstore returned invalid docinfo, no pending "
+                              "bgfetch has been issued for key = %s\n",
+                              keyStr.c_str());
         return 0;
     }
 
@@ -2188,10 +2188,11 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
     couchstore_error_t errCode = cbCtx->cks.fetchDoc(db, docinfo, returnVal,
                                                      cbCtx->vbId, meta_only);
     if (errCode != COUCHSTORE_SUCCESS && !meta_only) {
-        LOG(EXTENSION_LOG_WARNING, "Failed to fetch data from database, "
-            "vBucket=%d key=%s error=%s [%s]", cbCtx->vbId,
-            keyStr.c_str(), couchstore_strerror(errCode),
-            couchkvstore_strerrno(db, errCode).c_str());
+        cbCtx->cks.logger.log(EXTENSION_LOG_WARNING,
+                              "Failed to fetch data from database, vBucket=%d "
+                              "key=%s error=%s [%s]", cbCtx->vbId,
+                              keyStr.c_str(), couchstore_strerror(errCode),
+                              couchkvstore_strerrno(db, errCode).c_str());
         st.numGetFailure++;
     }
 
@@ -2213,9 +2214,10 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
         }
     }
     if (!return_val_ownership_transferred) {
-        LOG(EXTENSION_LOG_WARNING, "CouchKVStore::getMultiCb called with zero"
-            "items in bgfetched_list, vBucket=%d key=%s",
-            cbCtx->vbId, keyStr.c_str());
+        cbCtx->cks.logger.log(EXTENSION_LOG_WARNING,
+                              "CouchKVStore::getMultiCb called with zero"
+                              "items in bgfetched_list, vBucket=%d key=%s",
+                              cbCtx->vbId, keyStr.c_str());
         delete returnVal.getValue();
     }
 
