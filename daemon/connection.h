@@ -20,6 +20,8 @@
 
 #include "rbac.h"
 
+#include "settings.h"
+
 #include <cJSON.h>
 #include <cbsasl/cbsasl.h>
 #include <string>

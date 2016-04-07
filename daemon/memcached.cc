@@ -95,6 +95,13 @@ const char* getBucketName(const Connection* c) {
     return all_buckets[c->getBucketIndex()].name;
 }
 
+protocol_binary_response_status Bucket::validateMcbpCommand(
+                                                const Connection* c,
+                                                protocol_binary_command command,
+                                                Cookie& cookie) {
+    return all_buckets[c->getBucketIndex()].validatorChains.invoke(command, cookie);
+}
+
 std::atomic<bool> memcached_shutdown;
 std::atomic<bool> service_online;
 // Should we enable to common ports (all of the ports which arn't tagged as

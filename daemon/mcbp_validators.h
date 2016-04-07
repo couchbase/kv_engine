@@ -22,13 +22,51 @@
 
 #include <array>
 #include <memcached/protocol_binary.h>
+#include "cookie.h"
+#include "function_chain.h"
 
-typedef protocol_binary_response_status (*mcbp_package_validate)(void *packet);
-
-/**
- * Get the memcached binary protocol validators
+/*
+ * The MCBP validator chains.
  *
- * @return the array of 0x100 entries for the package
- *         validators
+ * Class stores a chain per opcode allowing a sequence of command validators to be
+ * configured, stored and invoked.
+ *
  */
-std::array<mcbp_package_validate, 0x100>& get_mcbp_validators();
+class McbpValidatorChains {
+public:
+
+    /*
+     * Invoke the chain for the command
+     */
+    protocol_binary_response_status invoke(protocol_binary_command command,
+                                           const Cookie& cookie) {
+        return commandChains[command].invoke(cookie);
+    }
+
+    /*
+     * Silently ignores any attempt to push the same function onto the chain.
+     */
+    void push_unique(protocol_binary_command command,
+                     protocol_binary_response_status(*f)(const Cookie&)) {
+        commandChains[command].push_unique(makeFunction<protocol_binary_response_status,
+                                           PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                           const Cookie&>(f));
+    }
+
+    /*
+     * Initialize the memcached binary protocol validators
+     */
+    static void initializeMcbpValidatorChains(McbpValidatorChains& chain);
+
+    /*
+     * Enable the collections functionality which adds extra validators to any
+     * K/V command.
+     */
+    static void enableCollections(McbpValidatorChains& chain);
+
+private:
+
+    std::array<FunctionChain<protocol_binary_response_status,
+                             PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                             const Cookie&>, 0x100> commandChains;
+};

@@ -81,8 +81,6 @@ bool McbpConnection::registerEvent() {
         return false;
     }
 
-    cb_assert(socketDescriptor != INVALID_SOCKET);
-
     struct timeval tv;
     struct timeval* tp = nullptr;
 
@@ -1320,6 +1318,10 @@ void McbpConnection::setPriority(const Connection::Priority& priority) {
     }
     throw std::invalid_argument(
         "Unkown priority: " + std::to_string(int(priority)));
+}
+
+protocol_binary_response_status McbpConnection::validateCommand(protocol_binary_command command) {
+    return Bucket::validateMcbpCommand(this, command, cookie);
 }
 
 int PipeConnection::sendmsg(struct msghdr* m) {

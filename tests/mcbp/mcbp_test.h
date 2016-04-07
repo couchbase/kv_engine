@@ -34,9 +34,9 @@ class ValidatorTest : public ::testing::Test {
         virtual void SetUp() override;
 
     protected:
-        int validate(uint8_t opcode, void *request);
+        int validate(protocol_binary_command opcode, void *request);
 
-        mcbp_package_validate *validators;
+        McbpValidatorChains validatorChains;
     };
 
 } // namespace BinaryProtocolValidator

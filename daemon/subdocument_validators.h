@@ -25,6 +25,8 @@
 
 #include <memcached/protocol_binary.h>
 
+class Cookie;
+
 /* Maximum sub-document path length */
 const size_t SUBDOC_PATH_MAX_LENGTH = 1024;
 
@@ -37,16 +39,16 @@ const size_t SUBDOC_EXPIRY_EXTRAS_LEN = SUBDOC_BASIC_EXTRAS_LEN + sizeof(uint32_
 
 
 /* Subdocument validator functions. Returns 0 if valid, else -1. */
-protocol_binary_response_status subdoc_get_validator(void* packet);
-protocol_binary_response_status subdoc_exists_validator(void* packet);
-protocol_binary_response_status subdoc_dict_add_validator(void* packet);
-protocol_binary_response_status subdoc_dict_upsert_validator(void* packet);
-protocol_binary_response_status subdoc_delete_validator(void* packet);
-protocol_binary_response_status subdoc_replace_validator(void* packet);
-protocol_binary_response_status subdoc_array_push_last_validator(void* packet);
-protocol_binary_response_status subdoc_array_push_first_validator(void* packet);
-protocol_binary_response_status subdoc_array_insert_validator(void* packet);
-protocol_binary_response_status subdoc_array_add_unique_validator(void* packet);
-protocol_binary_response_status subdoc_counter_validator(void* packet);
-protocol_binary_response_status subdoc_multi_lookup_validator(void* packet);
-protocol_binary_response_status subdoc_multi_mutation_validator(void* packet);
+protocol_binary_response_status subdoc_get_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_exists_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_dict_add_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_dict_upsert_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_delete_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_replace_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_array_push_last_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_array_push_first_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_array_insert_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_array_add_unique_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_counter_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_multi_lookup_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_multi_mutation_validator(const Cookie& cookie);

@@ -20,8 +20,8 @@
 #include <string.h>
 #include "testapp.h"
 
-static const int idle_time = 1;
-static const int wait_time = 2;
+static const int idle_time = 2;
+static const int wait_time = 3;
 
 /**
  * The connection timeout tests tries to verify that the idle-timer

@@ -22,6 +22,10 @@
 #include <vector>
 #include <platform/thread.h>
 
+#include "connection.h"
+#include "cookie.h"
+#include "function_chain.h"
+#include "mcbp_validators.h"
 #include "timings.h"
 #include "topkeys.h"
 #include "task.h"
@@ -91,12 +95,26 @@ public:
         std::memset(name, 0, sizeof(name));
         cb_mutex_initialize(&mutex);
         cb_cond_initialize(&cond);
+
+        McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
     }
 
     ~Bucket() {
         cb_mutex_destroy(&mutex);
         cb_cond_destroy(&cond);
     }
+
+    void enableCollections() {
+        McbpValidatorChains::enableCollections(validatorChains);
+    }
+
+    /**
+     * Invoke the MCBP validator(s) for the given command
+     */
+    static protocol_binary_response_status validateMcbpCommand(
+                                                const Connection* c,
+                                                protocol_binary_command command,
+                                                Cookie& cookie);
 
     /**
      * Mutex protecting the state and refcount. (@todo move to std::mutex)
@@ -158,6 +176,11 @@ public:
      * Topkeys
      */
     TopKeys *topkeys;
+
+    /**
+     * The validator chains to use for this bucket when receiving MCBP commands.
+     */
+    McbpValidatorChains validatorChains;
 };
 
 class Connection;

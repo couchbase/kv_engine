@@ -60,7 +60,6 @@ struct tap_stats {
 } tap_stats;
 
 std::array<bool, 0x100>&  topkey_commands = get_mcbp_topkeys();
-std::array<mcbp_package_validate, 0x100>& validators = get_mcbp_validators();
 std::array<mcbp_package_execute, 0x100>& executors = get_mcbp_executors();
 
 static bool authenticated(McbpConnection* c) {
@@ -4587,9 +4586,7 @@ static void process_bin_packet(McbpConnection* c) {
     char* packet = (c->read.curr - (c->binary_header.request.bodylen +
                                     sizeof(c->binary_header)));
 
-    uint8_t opcode = c->binary_header.request.opcode;
-
-    auto validator = validators[opcode];
+    auto opcode = static_cast<protocol_binary_command>(c->binary_header.request.opcode);
     auto executor = executors[opcode];
 
     AuthResult res = c->checkAccess(opcode);
@@ -4604,8 +4601,8 @@ static void process_bin_packet(McbpConnection* c) {
         return;
     case AuthResult::OK: {
         protocol_binary_response_status result = validate_bin_header(c);
-        if (validator != NULL && result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            result = validator(packet);
+        if (result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+            result = c->validateCommand(opcode);
         }
 
         if (result != PROTOCOL_BINARY_RESPONSE_SUCCESS) {

@@ -688,7 +688,7 @@ public:
 
     virtual void runEventLoop(short which) override;
 
-/** Read buffer */
+    /** Read buffer */
     struct net_buf read;
 
     /** Write buffer */
@@ -701,6 +701,20 @@ public:
     Cookie& getCookieObject() {
         return cookie;
     }
+
+    /**
+     * Obtain a pointer to the packet for the Cookie's connection
+     */
+    static void* getPacket(const Cookie& cookie) {
+        auto c = static_cast<McbpConnection*>(cookie.connection);
+        return (c->read.curr -
+               (c->binary_header.request.bodylen + sizeof(c->binary_header)));
+    }
+
+    /**
+     *  Invoke the validator function(s) for the command
+     */
+    protocol_binary_response_status validateCommand(protocol_binary_command command);
 
 protected:
     void runStateMachinery();

@@ -46,7 +46,7 @@ class SubdocSingleTest : public ValidatorTest {
     }
 
 protected:
-    int validate(uint8_t opcode) {
+    int validate(protocol_binary_command opcode) {
         return ValidatorTest::validate(opcode, static_cast<void*>(&request));
     }
     protocol_binary_request_subdocument request;

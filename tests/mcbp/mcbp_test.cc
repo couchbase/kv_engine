@@ -15,9 +15,9 @@
  *   limitations under the License.
  */
 #include "config.h"
-
+#include <daemon/connection_mcbp.h>
+#include <event2/event.h>
 #include "mcbp_test.h"
-
 #include <memcached/protocol_binary.h>
 
 /**
@@ -27,13 +27,27 @@
  */
 namespace BinaryProtocolValidator {
     void ValidatorTest::SetUp() {
-        validators = get_mcbp_validators().data();
-        ASSERT_NE(nullptr, validators);
+        McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
     }
 
-    int ValidatorTest::validate(uint8_t opcode, void *request) {
-        auto func = validators[opcode];
-        return func(request);
+    int ValidatorTest::validate(protocol_binary_command opcode, void *packet) {
+        // Mockup a McbpConnection and Cookie for the validator chain
+        event_base* ev = event_base_new();
+        McbpConnection connection(-1, ev);
+        auto* req = reinterpret_cast<protocol_binary_request_header*>(packet);
+        connection.binary_header = *req;
+        connection.binary_header.request.keylen = ntohs(req->request.keylen);
+        connection.binary_header.request.bodylen = ntohl(req->request.bodylen);
+        connection.binary_header.request.vbucket = ntohs(req->request.vbucket);
+        connection.binary_header.request.cas = ntohll(req->request.cas);
+
+        // Mockup read.curr so that validators can find the packet
+        connection.read.curr = static_cast<char*>(packet) +
+            (connection.binary_header.request.bodylen +  sizeof(connection.binary_header));
+        Cookie cookie(&connection);
+        int rv = validatorChains.invoke(opcode, cookie);
+        event_base_free(ev);
+        return rv;
     }
 
     // Test the validators for GET, GETQ, GETK, GETKQ
@@ -49,7 +63,7 @@ namespace BinaryProtocolValidator {
         }
 
     protected:
-        int validate(uint8_t opcode) {
+        int validate(protocol_binary_command opcode) {
             return ValidatorTest::validate(opcode, static_cast<void*>(&request));
         }
         protocol_binary_request_get request;
@@ -113,7 +127,7 @@ namespace BinaryProtocolValidator {
         }
 
     protected:
-        int validate(uint8_t opcode) {
+        int validate(protocol_binary_command opcode) {
             return ValidatorTest::validate(opcode, static_cast<void*>(&request));
         }
         protocol_binary_request_add request;
@@ -162,7 +176,7 @@ namespace BinaryProtocolValidator {
         }
 
     protected:
-        int validate(uint8_t opcode) {
+        int validate(protocol_binary_command opcode) {
             return ValidatorTest::validate(opcode, static_cast<void*>(&request));
         }
         protocol_binary_request_set request;
@@ -223,7 +237,7 @@ namespace BinaryProtocolValidator {
         }
 
     protected:
-        int validate(uint8_t opcode) {
+        int validate(protocol_binary_command opcode) {
             return ValidatorTest::validate(opcode, static_cast<void*>(&request));
         }
         protocol_binary_request_append request;
@@ -284,7 +298,7 @@ namespace BinaryProtocolValidator {
         }
 
     protected:
-        int validate(uint8_t opcode) {
+        int validate(protocol_binary_command opcode) {
             return ValidatorTest::validate(opcode, static_cast<void*>(&request));
         }
         protocol_binary_request_delete request;
@@ -338,7 +352,7 @@ namespace BinaryProtocolValidator {
         }
 
     protected:
-        int validate(uint8_t opcode) {
+        int validate(protocol_binary_command opcode) {
             return ValidatorTest::validate(opcode, static_cast<void*>(&request));
         }
         protocol_binary_request_incr request;
@@ -403,7 +417,7 @@ namespace BinaryProtocolValidator {
         }
 
     protected:
-        int validate(uint8_t opcode) {
+        int validate(protocol_binary_command opcode) {
             return ValidatorTest::validate(opcode, static_cast<void*>(&request));
         }
         protocol_binary_request_quit request;
@@ -457,7 +471,7 @@ namespace BinaryProtocolValidator {
         }
 
     protected:
-        int validate(uint8_t opcode) {
+        int validate(protocol_binary_command opcode) {
             return ValidatorTest::validate(opcode, static_cast<void*>(&request));
         }
         protocol_binary_request_flush request;
@@ -821,7 +835,7 @@ namespace BinaryProtocolValidator {
         }
 
     protected:
-        int validate(uint8_t opcode) {
+        int validate(protocol_binary_command opcode) {
             return ValidatorTest::validate(opcode,
                                            static_cast<void*>(&request));
         }
