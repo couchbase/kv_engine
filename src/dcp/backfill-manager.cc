@@ -150,6 +150,9 @@ bool BackfillManager::bytesRead(uint32_t bytes) {
     if (scanBuffer.bytesRead + bytes <= scanBuffer.maxBytes ||
         scanBuffer.bytesRead == 0) {
         scanBuffer.bytesRead += bytes;
+    } else {
+        /* Subsequent items for this backfill will be read in next run */
+        return false;
     }
 
     if (buffer.bytesRead == 0 || buffer.bytesRead + bytes <= buffer.maxBytes) {

@@ -98,6 +98,14 @@ extern std::string dcp_last_value;
 extern std::string dcp_last_key;
 extern vbucket_state_t dcp_last_vbucket_state;
 
+/* This is an enum class to indicate what stats are required from the
+   HistogramStats. */
+enum class Histo_stat_info {
+    /* Total number of samples across all the bins in the histogram stat */
+    TOTAL_COUNT,
+    /* Number of bins in the histogram stat */
+    NUM_BINS
+};
 
 void decayingSleep(useconds_t *sleepTime);
 
@@ -213,6 +221,12 @@ std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                    const char *statname, const char *statkey = NULL);
 
+/* This is used to get stat info specified by 'histo_info' from histogram of
+ * "statname" which is got by running stats on "statkey"
+ */
+uint64_t get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                        const char *statname, const char *statkey,
+                        const Histo_stat_info histo_info);
 
 typedef std::map<std::string, std::string> statistic_map;
 

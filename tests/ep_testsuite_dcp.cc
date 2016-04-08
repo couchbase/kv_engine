@@ -1718,6 +1718,52 @@ static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_dcp_producer_backfill_limits(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1)
+{
+    const int num_items = 3;
+    for (int j = 0; j < num_items; ++j) {
+        std::string key("key" + std::to_string(j));
+        item *i = NULL;
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", &i),
+                "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+
+    const void *cookie = testHarness.create_cookie();
+
+    DcpStreamCtx ctx;
+    ctx.flags = DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, static_cast<uint64_t>(-1)};
+    ctx.exp_mutations = 3;
+    ctx.exp_markers = 1;
+
+    TestDcpConsumer tdc("unittest", cookie);
+    tdc.addStreamCtx(ctx);
+    tdc.run(h, h1);
+
+    /* Backfill task runs are expected as below:
+       once for backfill_state_init + once for backfill_state_completing +
+       once for backfill_state_done + once post all backfills are run finished.
+       Here since we have dcp_scan_byte_limit = 100, we expect the backfill task
+       to run additional 'num_items' during backfill_state_scanning state. */
+    uint64_t exp_backfill_task_runs = 4 + num_items;
+    checkeq(exp_backfill_task_runs,
+            get_histo_stat(h, h1, "backfill_tasks", "runtimes",
+                           Histo_stat_info::TOTAL_COUNT),
+            "backfill_tasks did not run expected number of times");
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
     int num_items = 300;
@@ -5412,6 +5458,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test producer stream request (disk only)",
                  test_dcp_producer_stream_req_diskonly, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
+        TestCase("test producer backfill limits",
+                 test_dcp_producer_backfill_limits, test_setup, teardown,
+                 "dcp_scan_item_limit=100;dcp_scan_byte_limit=100", prepare,
+                 cleanup),
         TestCase("test producer stream request (memory only)",
                  test_dcp_producer_stream_req_mem, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),

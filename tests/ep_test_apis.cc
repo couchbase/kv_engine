@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <iostream>
+#include <list>
 #include <mutex>
 #include <sstream>
 
@@ -55,6 +56,72 @@ AtomicValue<uint8_t> last_datatype(0x00);
 ItemMetaData last_meta;
 AtomicValue<uint64_t> last_uuid(0);
 AtomicValue<uint64_t> last_seqno(0);
+
+/* HistogramBinStats is used to hold a histogram bin object a histogram stat.
+   This is a class used to hold already computed stats. Hence we do not expect
+   any change once a bin object is created */
+template<typename T>
+class HistogramBinStats {
+public:
+    HistogramBinStats(const T& s, const T& e, uint64_t count)
+        : start_(s), end_(e), count_(count) { }
+
+    T start() const {
+        return start_;
+    }
+
+    T end() const {
+        return end_;
+    }
+
+    uint64_t count() const {
+        return count_;
+    }
+
+private:
+    T start_;
+    T end_;
+    uint64_t count_;
+};
+
+
+/* HistogramStats is used to hold necessary info from a histogram stat.
+   Since this class used to hold already computed stats, only write apis to add
+   new bins is implemented */
+template<typename T>
+class HistogramStats {
+public:
+    HistogramStats() : total_count(0) {}
+
+    /* Add a new bin */
+    void add_bin(const T& start, const T& end, uint64_t count) {
+        bins.push_back(HistogramBinStats<T>(start, end, count));
+        total_count += count;
+    }
+
+    /* Num of bins in the histogram */
+    size_t num_bins() const {
+        return bins.size();
+    }
+
+    uint64_t total() const {
+        return total_count;
+    }
+
+    /* Add a bin iterator when needed */
+private:
+    /* List of all the bins in the histogram stats */
+    std::list<HistogramBinStats<T>> bins;
+    /* Total number of samples across all histogram bins */
+    uint64_t total_count;
+};
+
+/* HistogramStats<T>* is supported C++14 onwards. Until then use a separate
+   ptr for each type */
+static HistogramStats<int>* histogram_stat_int_value;
+
+static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                  const char *statname, const char *statkey);
 
 extern "C" bool add_response_get_meta(const void *key, uint16_t keylen,
                                       const void *ext, uint8_t extlen,
@@ -180,6 +247,38 @@ void add_individual_stat(const char *key, const uint16_t klen, const char *val,
         actual_stat_value = std::string(val, vlen);
     }
 }
+
+void add_individual_histo_stat(const char *key, const uint16_t klen,
+                               const char *val, const uint32_t vlen,
+                               const void *cookie) {
+    /* Convert key to string */
+    std::string key_str(key, klen);
+    size_t pos1 = key_str.find(requested_stat_name);
+    if (pos1 != std::string::npos)
+    {
+        actual_stat_value.append(val, vlen);
+        /* Parse start and end from the key.
+           Key is in the format task_name_START,END (backfill_tasks_20,100) */
+        pos1 += requested_stat_name.length();
+        /* Find ',' to move to end of bin_start */
+        size_t pos2 = key_str.find(',', pos1);
+        if ((std::string::npos == pos2) || (pos1 >= pos2)) {
+            throw std::invalid_argument("Malformed histogram stat: " + key_str);
+        }
+        int start = std::stoi(std::string(key_str, pos1, pos2));
+
+        /* Move next to ',' for starting character of bin_end */
+        pos1 = pos2 + 1;
+        /* key_str ends with bin_end */
+        pos2 = key_str.length();
+        if (pos1 >= pos2) {
+            throw std::invalid_argument("Malformed histogram stat: " + key_str);
+        }
+        int end = std::stoi(std::string(key_str, pos1, pos2));
+        histogram_stat_int_value->add_bin(start, end, std::stoull(val));
+    }
+}
+
 
 void encodeExt(char *buffer, uint32_t val) {
     val = htonl(val);
@@ -1099,6 +1198,50 @@ int get_int_stat_or_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     } catch (std::out_of_range&) {
         return default_value;
     }
+}
+
+uint64_t get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                        const char *statname, const char *statkey,
+                        const Histo_stat_info histo_info)
+{
+    std::lock_guard<std::mutex> lh(vals_mutex);
+
+    histogram_stat_int_value = new HistogramStats<int>();
+    get_histo_stat(h, h1, statname, statkey);
+
+    /* Get the necessary info from the histogram */
+    uint64_t ret_val = 0;
+    switch (histo_info) {
+        case Histo_stat_info::TOTAL_COUNT:
+            ret_val = histogram_stat_int_value->total();
+            break;
+        case Histo_stat_info::NUM_BINS:
+            ret_val =
+                    static_cast<uint64_t>(histogram_stat_int_value->num_bins());
+            break;
+    }
+
+    delete histogram_stat_int_value;
+    return ret_val;
+}
+
+static void get_histo_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                  const char *statname, const char *statkey)
+{
+    requested_stat_name = statname;
+    /* Histo stats for tasks are append as task_name_START,END.
+       Hence append _ */
+    requested_stat_name.append("_");
+
+    ENGINE_ERROR_CODE err = h1->get_stats(h, NULL, statkey,
+                                          statkey == NULL ? 0 : strlen(statkey),
+                                          add_individual_histo_stat);
+
+    if (err != ENGINE_SUCCESS) {
+        throw engine_error(err);
+    }
+
+    return;
 }
 
 statistic_map get_all_stats(ENGINE_HANDLE *h,ENGINE_HANDLE_V1 *h1,
