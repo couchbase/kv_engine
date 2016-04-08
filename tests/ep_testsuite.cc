@@ -7543,7 +7543,7 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     protocol_binary_request_header *pkt1 =
         createPacket(CMD_GET_KEYS, 0, 0, ext, extlen,
                      "key_10", keylen, NULL, 0, 0x00);
-    delete ext;
+    delete[] ext;
 
     check(h1->unknown_command(h, NULL, pkt1, add_response) == ENGINE_SUCCESS,
             "Failed to get all_keys, sort: ascending");
@@ -11643,57 +11643,6 @@ struct mb16357_ctx {
 };
 
 extern "C" {
-    static void dcp_thread_func(void *args) {
-        struct mb16357_ctx *ctx = static_cast<mb16357_ctx *>(args);
-
-        const void *cookie = testHarness.create_cookie();
-        uint32_t opaque = 0xFFFF0000;
-        uint32_t flags = 0;
-        std::string name = "unittest";
-
-        while (get_int_stat(ctx->h, ctx->h1, "ep_pending_compactions") == 0);
-
-        // Switch to replica
-        check(set_vbucket_state(ctx->h, ctx->h1, 0, vbucket_state_replica),
-                "Failed to set vbucket state.");
-
-        // Open consumer connection
-        checkeq(ctx->h1->dcp.open(ctx->h, cookie, opaque, 0, flags,
-                                  (void*)name.c_str(), name.length()),
-                ENGINE_SUCCESS,
-                "Failed dcp Consumer open connection.");
-
-        add_stream_for_consumer(ctx->h, ctx->h1, cookie, opaque++, 0, 0,
-                PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-
-        uint32_t stream_opaque = get_int_stat(ctx->h, ctx->h1,
-                                              "eq_dcpq:unittest:stream_0_opaque",
-                                              "dcp");
-
-
-        for (int i = 1; i <= ctx->items; i++) {
-            std::stringstream ss;
-            ss << "kamakeey-" << i;
-
-            // send mutations in single mutation snapshots to race more with compaction
-            checkeq(ctx->h1->dcp.snapshot_marker(ctx->h, cookie,
-                                                 stream_opaque, 0/*vbid*/,
-                                                 ctx->items, ctx->items + i, 2),
-                    ENGINE_SUCCESS,
-                    "Failed to send snapshot marker");
-            checkeq(ctx->h1->dcp.mutation(ctx->h, cookie, stream_opaque,
-                                          ss.str().c_str(), ss.str().length(),
-                                          "value", 5, i * 3, 0, 0, 0,
-                                          i + ctx->items, i + ctx->items,
-                                          0, 0, "", 0, INITIAL_NRU_VALUE),
-                    ENGINE_SUCCESS,
-                    "Failed to send dcp mutation");
-        }
-
-        testHarness.destroy_cookie(cookie);
-    }
-
     static void compact_thread_func(void *args) {
         struct mb16357_ctx *ctx = static_cast<mb16357_ctx *>(args);
         compact_db(ctx->h, ctx->h1, 0, 99, ctx->items, 1);
@@ -11721,17 +11670,59 @@ static enum test_result test_mb16357(ENGINE_HANDLE *h,
     testHarness.time_travel(3617); // force expiry pushing time forward.
 
     struct mb16357_ctx ctx(h, h1, num_items);
-    cb_thread_t cp_thread, dcp_thread;
+    cb_thread_t cp_thread;
 
     cb_assert(cb_create_thread(&cp_thread,
                                compact_thread_func,
                                &ctx, 0) == 0);
-    cb_assert(cb_create_thread(&dcp_thread,
-                               dcp_thread_func,
-                               &ctx, 0) == 0);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    std::string name = "unittest";
+
+    while (get_int_stat(h, h1, "ep_pending_compactions") == 0);
+
+    // Switch to replica
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    // Open consumer connection
+    checkeq(h1->dcp.open(h, cookie, opaque, 0, flags,
+                         (void*)name.c_str(), name.length()),
+            ENGINE_SUCCESS,
+            "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque = get_int_stat(h, h1,
+                                          "eq_dcpq:unittest:stream_0_opaque",
+                                          "dcp");
+
+
+    for (int i = 1; i <= num_items; i++) {
+        std::stringstream ss;
+        ss << "kamakeey-" << i;
+
+        // send mutations in single mutation snapshots to race more with compaction
+        checkeq(h1->dcp.snapshot_marker(h, cookie,
+                                        stream_opaque, 0/*vbid*/,
+                                        num_items, num_items + i, 2),
+                ENGINE_SUCCESS,
+                "Failed to send snapshot marker");
+        checkeq(h1->dcp.mutation(h, cookie, stream_opaque,
+                                 ss.str().c_str(), ss.str().length(),
+                                 "value", 5, i * 3, 0, 0, 0,
+                                 i + num_items, i + num_items,
+                                 0, 0, "", 0, INITIAL_NRU_VALUE),
+                ENGINE_SUCCESS,
+                "Failed to send dcp mutation");
+    }
+
+    testHarness.destroy_cookie(cookie);
 
     cb_assert(cb_join_thread(cp_thread) == 0);
-    cb_assert(cb_join_thread(dcp_thread) == 0);
 
     return SUCCESS;
 }
