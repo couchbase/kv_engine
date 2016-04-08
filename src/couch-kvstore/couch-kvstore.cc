@@ -483,7 +483,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
             "Warning: failed to open database for data fetch, "
-            "vBucketId = %d numDocs = %d\n",
+            "vBucketId = %" PRIu16 ", numDocs = %d\n",
             vb, numItems);
         st.numGetFailure.fetch_add(numItems);
         vb_bgfetch_queue_t::iterator itr = itms.begin();
@@ -514,7 +514,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
         st.numGetFailure.fetch_add(numItems);
         for (itr = itms.begin(); itr != itms.end(); ++itr) {
             LOG(EXTENSION_LOG_WARNING, "Warning: failed to read database by"
-                " vBucketId = %d key = %s error = %s [%s]\n",
+                " vBucketId = %" PRIu16 " key = %s error = %s [%s]\n",
                 vb, (*itr).first.c_str(),
                 couchstore_strerror(errCode),
                 couchkvstore_strerrno(db, errCode).c_str());
