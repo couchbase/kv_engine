@@ -935,11 +935,23 @@ DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
-    if (map_.count(cookie) != 0) {
-        LOG(EXTENSION_LOG_WARNING,
+    const auto& iter = map_.find(cookie);
+    if (iter != map_.end()) {
+        iter->second->setDisconnect(true);
+        LOG(EXTENSION_LOG_NOTICE,
             "Failed to create Dcp Consumer because connection "
-            "(%p) already exists", cookie);
+            "(%p) already exists.", cookie);
         return nullptr;
+    }
+
+    /*
+     *  If we request a connection of the same name then
+     *  mark the existing connection as "want to disconnect".
+     */
+    for (const auto conn: all) {
+        if (conn->getName() == conn_name) {
+            conn->setDisconnect(true);
+        }
     }
 
     DcpConsumer *dcp = new DcpConsumer(engine, cookie, conn_name);
@@ -991,11 +1003,23 @@ DcpProducer *DcpConnMap::newProducer(const void* cookie,
     std::string conn_name("eq_dcpq:");
     conn_name.append(name);
 
-    if (map_.count(cookie) != 0) {
-        LOG(EXTENSION_LOG_WARNING,
+    const auto& iter = map_.find(cookie);
+    if (iter != map_.end()) {
+        iter->second->setDisconnect(true);
+        LOG(EXTENSION_LOG_NOTICE,
             "Failed to create Dcp Producer because connection "
-            "(%p) already exists", cookie);
+            "(%p) already exists.", cookie);
         return nullptr;
+    }
+
+    /*
+     *  If we request a connection of the same name then
+     *  mark the existing connection as "want to disconnect".
+     */
+    for (const auto conn: all) {
+        if (conn->getName() == conn_name) {
+            conn->setDisconnect(true);
+        }
     }
 
     DcpProducer *dcp = new DcpProducer(engine, cookie, conn_name, notifyOnly);
