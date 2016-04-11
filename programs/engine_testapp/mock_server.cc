@@ -479,3 +479,11 @@ void destroy_mock_event_callbacks(void) {
         mock_event_handlers[type].clear();
     }
 }
+
+int get_number_of_mock_cookie_references(const void *cookie) {
+    if (cookie == nullptr) {
+        return -1;
+    }
+    struct mock_connstruct *c = (struct mock_connstruct *)cookie;
+    return c->references;
+}

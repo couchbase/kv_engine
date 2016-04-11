@@ -70,6 +70,8 @@ MEMCACHED_PUBLIC_API void disconnect_all_mock_connections(void);
 
 MEMCACHED_PUBLIC_API void destroy_mock_event_callbacks(void);
 
+MEMCACHED_PUBLIC_API int get_number_of_mock_cookie_references(const void *cookie);
+
 #ifdef  __cplusplus
 }
 #endif
