@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include "atomic_unordered_map.h"
 #include "dcp/dcp-types.h"
 #include "tapconnection.h"
 
@@ -219,7 +220,6 @@ private:
     DcpResponse* getNextItem();
 
     size_t getItemsRemaining();
-    stream_t findStreamByVbid(uint16_t vbid);
 
     ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers);
 
@@ -248,11 +248,9 @@ private:
 
     DcpReadyQueue ready;
 
-    // Guards all accesses to streams map. If only reading elements in streams
-    // (i.e. not adding / removing elements) then can acquire ReadLock, even
-    // if a non-const method is called on stream_t.
-    RWLock streamsMutex;
-    std::map<uint16_t, stream_t> streams;
+    // Map of vbid -> stream. Map itself is atomic (thread-safe).
+    typedef AtomicUnorderedMap<uint16_t, Stream> StreamsMap;
+    StreamsMap streams;
 
     AtomicValue<size_t> itemsSent;
     AtomicValue<size_t> totalBytesSent;

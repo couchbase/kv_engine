@@ -348,6 +348,12 @@ ADD_EXECUTABLE(ep-engine_kvstore_test
 TARGET_LINK_LIBRARIES(ep-engine_kvstore_test
                       cJSON JSON_checker couchstore dirutils forestdb gtest platform)
 
+ADD_EXECUTABLE(ep-engine_atomic_unordered_map_test
+  tests/module_tests/atomic_unordered_map_test.cc
+  src/atomic.cc)
+TARGET_LINK_LIBRARIES(ep-engine_atomic_unordered_map_test
+  gtest gtest_main)
+
 ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
 ADD_TEST(ep-engine_atomic_test ep-engine_atomic_test)
 ADD_TEST(ep-engine_checkpoint_test ep-engine_checkpoint_test)
@@ -366,6 +372,7 @@ ADD_TEST(ep-engine_kvstore_test ep-engine_kvstore_test)
 ADD_TEST(ep-engine_dcp_test ep-engine_dcp_test)
 ADD_TEST(ep-engine_defragmenter_test ep-engine_defragmenter_test)
 ADD_TEST(ep-engine_memory_tracker_test ep-engine_memory_tracker_test)
+ADD_TEST(ep-engine_atomic_unordered_map_test ep-engine_atomic_unordered_map_test)
 
 ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")
