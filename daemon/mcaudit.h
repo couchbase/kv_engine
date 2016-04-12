@@ -60,3 +60,7 @@ void audit_command_access_failed(const McbpConnection* c);
  */
 void audit_invalid_packet(const McbpConnection* c);
 
+/**
+ * Initialize the audit subsystem
+ */
+void initialize_audit();

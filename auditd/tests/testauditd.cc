@@ -23,13 +23,14 @@
 #include <gtest/gtest.h>
 #include <iostream>
 #include <limits.h>
+#include <memcached/audit_interface.h>
+#include <memcached/isotime.h>
 #include <mutex>
 #include <platform/dirutils.h>
 #include <stddef.h>
 
 #include "memcached/extension.h"
 #include "memcached/extension_loggers.h"
-#include "memcached/audit_interface.h"
 #include "auditd_audit_events.h"
 #include "auditd/src/auditconfig.h"
 
@@ -67,31 +68,31 @@ static void waitForProcessingEvents(void) {
     });
 }
 
-static void config_auditd(const std::string& fname) {
-    // We don't have a real cookie, but configure_auditdaemon
-    // won't call notify_io_complete unless it's set to a
-    // non-null value.. just pass in anything
-    const void* cookie = (const void*)&ready;
-    switch (configure_auditdaemon(fname.c_str(), cookie)) {
-    case AUDIT_SUCCESS:
-        break;
-    case AUDIT_EWOULDBLOCK: {
-            // we have to wait
-            std::unique_lock<std::mutex> lk(mutex);
-            cond.wait(lk, [] {
-                return ready;
-            });
-        }
-        ready = false;
-        break;
-    default:
-        std::cerr << "initialize audit daemon: FAILED" << std::endl;
-        exit(EXIT_FAILURE);
-    };
-}
-
 class AuditDaemonTest : public ::testing::Test {
 protected:
+    void config_auditd(const std::string& fname) {
+        // We don't have a real cookie, but configure_auditdaemon
+        // won't call notify_io_complete unless it's set to a
+        // non-null value.. just pass in anything
+        const void* cookie = (const void*)&ready;
+        switch (configure_auditdaemon(auditHandle, fname.c_str(), cookie)) {
+        case AUDIT_SUCCESS:
+            break;
+        case AUDIT_EWOULDBLOCK: {
+                // we have to wait
+                std::unique_lock<std::mutex> lk(mutex);
+                cond.wait(lk, [] {
+                    return ready;
+                });
+            }
+            ready = false;
+            break;
+        default:
+            std::cerr << "initialize audit daemon: FAILED" << std::endl;
+            exit(EXIT_FAILURE);
+        };
+    }
+
     static void SetUpTestCase() {
         // create the test directory
         testdir = std::string("auditd-test-") + std::to_string(cb_getpid());
@@ -104,25 +105,24 @@ protected:
 
         // Start the audit daemon
         AUDIT_EXTENSION_DATA audit_extension_data;
-        audit_extension_data.version = 1;
-        audit_extension_data.min_file_rotation_time = 1;
-        audit_extension_data.max_file_rotation_time = 604800;  // 1 week = 60*60*24*7
+        memset(&audit_extension_data, 0, sizeof(audit_extension_data));
         audit_extension_data.log_extension = get_stderr_logger();
         audit_extension_data.notify_io_complete = notify_io_complete;
 
-        ASSERT_EQ(AUDIT_SUCCESS, start_auditdaemon(&audit_extension_data))
+        ASSERT_EQ(AUDIT_SUCCESS, start_auditdaemon(&audit_extension_data,
+                                                   &auditHandle))
                         << "start audit daemon: FAILED" << std::endl;
-
         audit_set_audit_processed_listener(audit_processed_listener);
     }
 
     static void TearDownTestCase() {
-        EXPECT_EQ(AUDIT_SUCCESS, shutdown_auditdaemon());
+        EXPECT_EQ(AUDIT_SUCCESS, shutdown_auditdaemon(auditHandle));
         CouchbaseDirectoryUtilities::rmrf(testdir);
         CouchbaseDirectoryUtilities::rmrf(cfgfile);
     }
 
     AuditConfig config;
+    static Audit* auditHandle;
 
     void SetUp() {
         config.set_descriptors_path(event_descriptor);
@@ -173,7 +173,7 @@ protected:
         unique_cJSON_ptr json(cJSON_CreateObject());
         cJSON* payload = json.get();
         cJSON_AddStringToObject(payload, "timestamp",
-                                audit_generate_timestamp().c_str());
+                                ISOTime::generatetimestamp().c_str());
         cJSON* real_userid = cJSON_CreateObject();
         cJSON_AddStringToObject(real_userid, "source", "internal");
         cJSON_AddStringToObject(real_userid, "user", "couchbase");
@@ -187,6 +187,8 @@ protected:
 
 std::string AuditDaemonTest::testdir;
 std::string AuditDaemonTest::cfgfile;
+Audit* AuditDaemonTest::auditHandle;
+
 
 TEST_F(AuditDaemonTest, StartupDisabledDontCreateFiles) {
     configure();
@@ -204,9 +206,9 @@ TEST_F(AuditDaemonTest, TimeRotationTest) {
 
     for (int ii = 0; ii < 10; ++ii) {
         expectedEventProcessed = auditEventProcessed + 1;
-        audit_test_timetravel(1000);
+        cb_timeofday_timetravel(1000);
         std::string event = createEvent();
-        put_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+        put_audit_event(auditHandle, AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
                         event.data(), event.size());
         waitForProcessingEvents();
     }
@@ -220,7 +222,7 @@ TEST_F(AuditDaemonTest, SizeRotationTest) {
     for (int ii = 0; ii < 10; ++ii) {
         expectedEventProcessed = auditEventProcessed + 1;
         std::string event = createEvent();
-        put_audit_event(AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
+        put_audit_event(auditHandle, AUDITD_AUDIT_SHUTTING_DOWN_AUDIT_DAEMON,
                         event.data(), event.size());
         waitForProcessingEvents();
     }

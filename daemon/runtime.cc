@@ -85,3 +85,13 @@ void set_ssl_protocol_mask(const std::string& mask) {
 void set_ssl_ctx_protocol_mask(SSL_CTX* ctx) {
     SSL_CTX_set_options(ctx, ssl_protocol_mask.load(std::memory_order_acquire));
 }
+
+static std::atomic<Audit*> auditHandle { nullptr };
+
+void set_audit_handle(Audit* handle) {
+    auditHandle.store(handle);
+}
+
+Audit* get_audit_handle(void) {
+    return auditHandle.load(std::memory_order_relaxed);
+}

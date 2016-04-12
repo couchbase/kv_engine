@@ -462,9 +462,9 @@ bool Audit::add_to_filleventqueue(const uint32_t event_id,
 }
 
 
-bool Audit::add_reconfigure_event(const void *cookie) {
+bool Audit::add_reconfigure_event(const char* configfile, const void *cookie) {
     bool res;
-    ConfigureEvent* new_event = new ConfigureEvent(cookie);
+    ConfigureEvent* new_event = new ConfigureEvent(configfile, cookie);
     cb_mutex_enter(&producer_consumer_lock);
     if (filleventqueue->size() < max_audit_queue) {
         filleventqueue->push(new_event);
@@ -548,8 +548,4 @@ bool Audit::clean_up(void) {
         clear_events_queues();
     }
     return true;
-}
-
-std::string audit_generate_timestamp(void) {
-    return ISOTime::generatetimestamp();
 }

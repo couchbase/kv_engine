@@ -82,7 +82,13 @@ public:
     bool add_to_filleventqueue(const uint32_t event_id,
                                const char *payload,
                                const size_t length);
-    bool add_reconfigure_event(const void *cookie);
+    bool add_to_filleventqueue(const uint32_t event_id,
+                               const std::string& payload) {
+        return add_to_filleventqueue(event_id, payload.data(),
+                                     payload.length());
+    }
+
+    bool add_reconfigure_event(const char *configfile, const void *cookie);
     bool create_audit_event(uint32_t event_id, cJSON *payload);
     bool terminate_consumer_thread(void);
     void clear_events_map(void);

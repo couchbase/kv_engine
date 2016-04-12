@@ -25,25 +25,6 @@
 #include <gtest/gtest.h>
 #include <platform/platform.h>
 
-// Implement test related functions used by AuditFile
-static std::atomic<time_t> auditd_test_timetravel_offset;
-
-time_t auditd_time(time_t *tloc) {
-    time_t now;
-    time(&now);
-    now += auditd_test_timetravel_offset.load(std::memory_order_acquire);
-
-    if (tloc != NULL) {
-        *tloc = now;
-    }
-
-    return now;
-}
-
-void audit_test_timetravel(time_t offset) {
-    auditd_test_timetravel_offset += offset;
-}
-
 using CouchbaseDirectoryUtilities::findFilesWithPrefix;
 
 class AuditFileTest : public ::testing::Test {
@@ -118,7 +99,7 @@ TEST_F(AuditFileTest, TestTimeRotate) {
     for (int ii = 0; ii < 10; ++ii) {
         auditfile.ensure_open();
         auditfile.write_event_to_disk(event);
-        audit_test_timetravel(defaultvalue.get_min_file_rotation_time() + 1);
+        cb_timeofday_timetravel(defaultvalue.get_min_file_rotation_time() + 1);
     }
 
     auditfile.close();
@@ -166,7 +147,7 @@ TEST_F(AuditFileTest, TestRollover) {
     uint32_t secs = auditfile.get_seconds_to_rotation();
     EXPECT_EQ(defaultvalue.get_min_file_rotation_time(), secs);
 
-    audit_test_timetravel(10);
+    cb_timeofday_timetravel(10);
     EXPECT_EQ(secs, auditfile.get_seconds_to_rotation())
         << "Secs to rotation should not change while file is closed";
 
@@ -176,7 +157,7 @@ TEST_F(AuditFileTest, TestRollover) {
     EXPECT_TRUE(secs == defaultvalue.get_min_file_rotation_time() ||
                 secs == (defaultvalue.get_min_file_rotation_time() - 1));
 
-    audit_test_timetravel(10);
+    cb_timeofday_timetravel(10);
     secs = auditfile.get_seconds_to_rotation();
     EXPECT_TRUE(secs == defaultvalue.get_min_file_rotation_time() - 10 ||
                 secs == (defaultvalue.get_min_file_rotation_time() - 11));

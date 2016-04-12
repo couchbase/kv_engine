@@ -24,9 +24,10 @@ class Audit;
 class ConfigureEvent : public Event {
 public:
     const void *cookie;
+    const std::string file;
 
-    ConfigureEvent(const void* c)
-        : cookie(c) {}
+    ConfigureEvent(const char* configfile, const void* c)
+        : cookie(c), file(configfile) {}
 
     virtual bool process(Audit& audit) override;
 

@@ -3158,7 +3158,8 @@ static ENGINE_ERROR_CODE stat_settings_executor(const std::string& arg,
 static ENGINE_ERROR_CODE stat_audit_executor(const std::string& arg,
                                              McbpConnection& connection) {
     if (arg.empty()) {
-        process_auditd_stats(&append_stats,
+        process_auditd_stats(get_audit_handle(),
+                             &append_stats,
                              const_cast<void*>(connection.getCookie()));
         return ENGINE_SUCCESS;
     } else {
@@ -4111,8 +4112,9 @@ static void config_reload_executor(McbpConnection* c, void*) {
 
 static void audit_config_reload_executor(McbpConnection* c, void*) {
     if (settings.audit_file) {
-        if (configure_auditdaemon(settings.audit_file, c->getCookie()) ==
-            AUDIT_EWOULDBLOCK) {
+        if (configure_auditdaemon(get_audit_handle(),
+                                  settings.audit_file,
+                                  c->getCookie()) == AUDIT_EWOULDBLOCK) {
             c->setEwouldblock(true);
             c->setState(conn_audit_configuring);
         } else {
@@ -4173,8 +4175,10 @@ static void audit_put_executor(McbpConnection* c, void* packet) {
     const size_t payload_length = ntohl(req->message.header.request.bodylen) -
                                   req->message.header.request.extlen;
 
-    if (put_audit_event(ntohl(req->message.body.id), payload, payload_length)
-        == AUDIT_SUCCESS) {
+    if (put_audit_event(get_audit_handle(),
+                        ntohl(req->message.body.id),
+                        payload,
+                        payload_length) == AUDIT_SUCCESS) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     } else {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);

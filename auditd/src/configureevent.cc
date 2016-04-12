@@ -20,6 +20,7 @@
 
 bool ConfigureEvent::process(Audit& audit) {
     // do the configuration
+    audit.configfile.assign(file);
     if (audit.configure()) {
         audit.notify_io_complete(cookie, ENGINE_SUCCESS);
         return true;

@@ -25,19 +25,19 @@
 #include <memcached/openssl.h>
 #include <string>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+bool is_server_initialized(void);
 
-    bool is_server_initialized(void);
-    void set_server_initialized(bool enable);
+void set_server_initialized(bool enable);
 
-    void set_ssl_cipher_list(const char *new_list);
-    void set_ssl_ctx_cipher_list(SSL_CTX *ctx);
+void set_ssl_cipher_list(const char* new_list);
 
-    void set_ssl_protocol_mask(const std::string& mask);
-    void set_ssl_ctx_protocol_mask(SSL_CTX* ctx);
+void set_ssl_ctx_cipher_list(SSL_CTX* ctx);
 
-#ifdef __cplusplus
-}
-#endif
+void set_ssl_protocol_mask(const std::string& mask);
+
+void set_ssl_ctx_protocol_mask(SSL_CTX* ctx);
+
+class Audit;
+
+void set_audit_handle(Audit*);
+Audit* get_audit_handle(void);

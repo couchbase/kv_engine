@@ -69,7 +69,7 @@ bool AuditFile::file_exists(const std::string& name) {
 
 bool AuditFile::time_to_rotate_log(void) const {
     cb_assert(open_time != 0);
-    time_t now = auditd_time(NULL);
+    time_t now = auditd_time();
     if (difftime(now, open_time) > rotate_interval) {
         return true;
     }
@@ -81,6 +81,14 @@ bool AuditFile::time_to_rotate_log(void) const {
     return false;
 }
 
+time_t AuditFile::auditd_time() {
+    struct timeval tv;
+
+    if (cb_get_timeofday(&tv) == -1) {
+        throw std::runtime_error("auditd_time: cb_get_timeofday failed");
+    }
+    return tv.tv_sec;
+}
 
 bool AuditFile::open(void) {
     cb_assert(file == NULL);
@@ -95,7 +103,7 @@ bool AuditFile::open(void) {
         return false;
     }
     current_size = 0;
-    open_time = auditd_time(NULL);
+    open_time = auditd_time();
     return true;
 }
 

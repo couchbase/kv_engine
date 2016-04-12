@@ -73,6 +73,7 @@
 
 // MB-14649: log crashing on windows..
 #include <math.h>
+#include <include/memcached/audit_interface.h>
 
 #if HAVE_LIBNUMA
 #include <numa.h>
@@ -2609,24 +2610,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     }
 #endif
 
-
-    /* Start the audit daemon */
-    AUDIT_EXTENSION_DATA audit_extension_data;
-    audit_extension_data.version = 1;
-    audit_extension_data.min_file_rotation_time = 900;  // 15 minutes = 60*15
-    audit_extension_data.max_file_rotation_time = 604800;  // 1 week = 60*60*24*7
-    audit_extension_data.log_extension = settings.extensions.logger;
-    audit_extension_data.notify_io_complete = notify_io_complete;
-    if (settings.audit_file && configure_auditdaemon(settings.audit_file, NULL)
-        != AUDIT_SUCCESS) {
-        FATAL_ERROR(EXIT_FAILURE,
-                    "FATAL: Failed to initialize audit "
-                    "daemon with configuation file: %s",
-                    settings.audit_file);
-    }
-    if (start_auditdaemon(&audit_extension_data) != AUDIT_SUCCESS) {
-        FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");
-    }
+    initialize_audit();
 
     /* Initialize RBAC data */
     if (load_rbac_from_file(settings.rbac_file) != 0) {
@@ -2713,7 +2697,7 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_NOTICE(NULL, "Shutting down audit daemon");
     /* Close down the audit daemon cleanly */
-    shutdown_auditdaemon();
+    shutdown_auditdaemon(get_audit_handle());
 
     LOG_NOTICE(NULL, "Shutting down client worker threads");
     threads_shutdown();

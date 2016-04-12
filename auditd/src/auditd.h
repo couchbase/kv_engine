@@ -52,6 +52,4 @@ enum class AuditErrorCode {
     INITIALIZATION_ERROR
 };
 
-extern time_t auditd_time(time_t *tloc);
-
 #endif

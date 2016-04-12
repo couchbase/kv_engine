@@ -128,7 +128,7 @@ public:
      */
     uint32_t get_seconds_to_rotation(void) {
         if (is_open()) {
-            time_t now = auditd_time(NULL);
+            time_t now = auditd_time();
             return rotate_interval - (uint32_t)difftime(now, open_time);
         } else {
             return rotate_interval;
@@ -141,6 +141,8 @@ private:
     void close_and_rotate_log(void);
     void set_log_directory(const std::string &new_directory);
     bool is_timestamp_format_correct(std::string& str);
+
+    static time_t auditd_time();
 
     FILE *file;
     std::string open_file_name;
