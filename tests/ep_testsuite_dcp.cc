@@ -1324,6 +1324,49 @@ static enum test_result test_dcp_producer_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     return SUCCESS;
 }
 
+static enum test_result test_dcp_producer_open_same_cookie(ENGINE_HANDLE *h,
+                                                           ENGINE_HANDLE_V1 *h1) {
+    const auto *cookie = testHarness.create_cookie();
+    const std::string name("unittest");
+    uint32_t opaque = 0;
+    const uint32_t seqno = 0;
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, DCP_OPEN_PRODUCER,
+                         (void*)name.c_str(), name.size()),
+            "Failed dcp producer open connection.");
+
+    const auto stat_type("eq_dcpq:" + name + ":type");
+    auto type = get_str_stat(h, h1, stat_type.c_str(), "dcp");
+    checkeq(0, type.compare("producer"), "Producer not found");
+    /*
+     * Number of references is 2 (as opposed to 1) because a
+     * mock_connstuct is initialised to having 1 reference
+     * to represent a client being connected to it.
+     */
+    checkeq(2, testHarness.get_number_of_mock_cookie_references(cookie),
+            "Number of cookie references is not two");
+    /*
+     * engine_data needs to be reset so that it passes the check that
+     * a connection does not already exist on the same socket.
+     */
+    testHarness.store_engine_specific(cookie, nullptr);
+
+    checkeq(ENGINE_DISCONNECT,
+            h1->dcp.open(h, cookie, opaque++, seqno, DCP_OPEN_PRODUCER,
+                         (void*)name.c_str(), name.size()),
+            "Failed to return ENGINE_DISCONNECT");
+
+    checkeq(2, testHarness.get_number_of_mock_cookie_references(cookie),
+            "Number of cookie references is not two");
+
+    testHarness.destroy_cookie(cookie);
+
+    checkeq(1, testHarness.get_number_of_mock_cookie_references(cookie),
+            "Number of cookie references is not one");
+
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const auto *cookie = testHarness.create_cookie();
     const std::string name("unittest");
@@ -1669,6 +1712,52 @@ static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
     TestDcpConsumer tdc("unittest", cookie);
     tdc.addStreamCtx(ctx);
     tdc.run(h, h1);
+
+    testHarness.destroy_cookie(cookie);
+
+    return SUCCESS;
+}
+
+static enum test_result test_dcp_producer_backfill_limits(ENGINE_HANDLE *h,
+                                                          ENGINE_HANDLE_V1 *h1)
+{
+    const int num_items = 3;
+    for (int j = 0; j < num_items; ++j) {
+        std::string key("key" + std::to_string(j));
+        item *i = NULL;
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", &i),
+                "Failed to store a value");
+        h1->release(h, NULL, i);
+    }
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
+
+    const void *cookie = testHarness.create_cookie();
+
+    DcpStreamCtx ctx;
+    ctx.flags = DCP_ADD_STREAM_FLAG_DISKONLY;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, static_cast<uint64_t>(-1)};
+    ctx.exp_mutations = 3;
+    ctx.exp_markers = 1;
+
+    TestDcpConsumer tdc("unittest", cookie);
+    tdc.addStreamCtx(ctx);
+    tdc.run(h, h1);
+
+    /* Backfill task runs are expected as below:
+       once for backfill_state_init + once for backfill_state_completing +
+       once for backfill_state_done + once post all backfills are run finished.
+       Here since we have dcp_scan_byte_limit = 100, we expect the backfill task
+       to run additional 'num_items' during backfill_state_scanning state. */
+    uint64_t exp_backfill_task_runs = 4 + num_items;
+    checkeq(exp_backfill_task_runs,
+            get_histo_stat(h, h1, "backfill_tasks", "runtimes",
+                           Histo_stat_info::TOTAL_COUNT),
+            "backfill_tasks did not run expected number of times");
 
     testHarness.destroy_cookie(cookie);
 
@@ -5336,6 +5425,8 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("test open producer", test_dcp_producer_open,
                  test_setup, teardown, nullptr, prepare, cleanup),
+        TestCase("test open producer same cookie", test_dcp_producer_open_same_cookie,
+                 test_setup, teardown, nullptr, prepare, cleanup),
         TestCase("test dcp noop", test_dcp_noop, test_setup, teardown, nullptr,
                  prepare, cleanup),
         TestCase("test dcp noop failure", test_dcp_noop_fail, test_setup,
@@ -5367,6 +5458,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test producer stream request (disk only)",
                  test_dcp_producer_stream_req_diskonly, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
+        TestCase("test producer backfill limits",
+                 test_dcp_producer_backfill_limits, test_setup, teardown,
+                 "dcp_scan_item_limit=100;dcp_scan_byte_limit=100", prepare,
+                 cleanup),
         TestCase("test producer stream request (memory only)",
                  test_dcp_producer_stream_req_mem, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
