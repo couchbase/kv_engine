@@ -856,14 +856,7 @@ extern "C" {
 
 static enum test_result test_dcp_vbtakeover_no_stream(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
-    for (auto j = 0; j < 10; ++j) {
-        item *i = nullptr;
-        const auto key = "key" + std::to_string(j);
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, nullptr, OPERATION_SET, key.c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, nullptr, i);
-    }
+    write_items(h, h1, 10);
     const auto est = get_int_stat(h, h1, "estimate", "dcp-vbtakeover 0");
     checkeq(10, est, "Invalid estimate for non-existent stream");
     checkeq(ENGINE_NOT_MY_VBUCKET,
@@ -918,14 +911,7 @@ static enum test_result test_dcp_notifier_open(ENGINE_HANDLE *h, ENGINE_HANDLE_V
 
 static enum test_result test_dcp_notifier(ENGINE_HANDLE *h,
                                           ENGINE_HANDLE_V1 *h1) {
-    for (auto j = 0; j < 10; ++j) {
-        item *i = nullptr;
-        const auto key = "key" + std::to_string(j);
-        checkeq(ENGINE_SUCCESS, store(h, h1, nullptr, OPERATION_SET,
-                                      key.c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, nullptr, i);
-    }
+    write_items(h, h1, 10);
     const auto *cookie = testHarness.create_cookie();
     const std::string name("unittest");
     const uint32_t seqno = 0;
@@ -1506,16 +1492,8 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
      * till fix for it will be implemented and committed (MB-18669)
      */
     return SKIPPED;
-    int num_items = 200;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
+    const int num_items = 200;
+    write_items(h, h1, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     stop_persistence(h, h1);
@@ -1560,16 +1538,8 @@ static enum test_result test_dcp_producer_stream_req_partial_with_time_sync(
 
     set_drift_counter_state(h, h1, /* initial drift */1000);
 
-    int num_items = 200;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
+    const int num_items = 200;
+    write_items(h, h1, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     stop_persistence(h, h1);
@@ -1607,18 +1577,11 @@ static enum test_result test_dcp_producer_stream_req_partial_with_time_sync(
 
 static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
-    int num_items = 300;
-    for (int j = 0; j < num_items; ++j) {
-        if (j % 100 == 0) {
-            wait_for_flusher_to_settle(h, h1);
-        }
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
+    const int num_items = 300, batch_items = 100;
+    for (int start_seqno = 0; start_seqno < num_items;
+         start_seqno += batch_items) {
+        wait_for_flusher_to_settle(h, h1);
+        write_items(h, h1, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -1644,20 +1607,15 @@ static enum test_result test_dcp_producer_stream_req_full(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_producer_stream_req_disk(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
-    int num_items = 400;
-    for (int j = 0; j < num_items; ++j) {
-        if (j == 200) {
+    const int num_items = 400, batch_items = 200;
+    for (int start_seqno = 0; start_seqno < num_items;
+         start_seqno += batch_items) {
+        if (200 == start_seqno) {
             wait_for_flusher_to_settle(h, h1);
             wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", 200);
             stop_persistence(h, h1);
         }
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
+        write_items(h, h1, batch_items, start_seqno);
     }
 
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -1682,18 +1640,11 @@ static enum test_result test_dcp_producer_stream_req_disk(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_producer_stream_req_diskonly(ENGINE_HANDLE *h,
                                                               ENGINE_HANDLE_V1 *h1) {
-    int num_items = 300;
-    for (int j = 0; j < num_items; ++j) {
-        if (j % 100 == 0) {
-            wait_for_flusher_to_settle(h, h1);
-        }
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
+    const int num_items = 300, batch_items = 100;
+    for (int start_seqno = 0; start_seqno < num_items;
+         start_seqno += batch_items) {
+        wait_for_flusher_to_settle(h, h1);
+        write_items(h, h1, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -1722,14 +1673,7 @@ static enum test_result test_dcp_producer_backfill_limits(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1)
 {
     const int num_items = 3;
-    for (int j = 0; j < num_items; ++j) {
-        std::string key("key" + std::to_string(j));
-        item *i = NULL;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
+    write_items(h, h1, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -1766,18 +1710,11 @@ static enum test_result test_dcp_producer_backfill_limits(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
-    int num_items = 300;
-    for (int j = 0; j < num_items; ++j) {
-        if (j % 100 == 0) {
-            wait_for_flusher_to_settle(h, h1);
-        }
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
+    const int num_items = 300, batch_items = 100;
+    for (int start_seqno = 0; start_seqno < num_items;
+         start_seqno += batch_items) {
+        wait_for_flusher_to_settle(h, h1);
+        write_items(h, h1, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -1862,18 +1799,11 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_producer_stream_latest(ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
-    int num_items = 300;
-    for (int j = 0; j < num_items; ++j) {
-        if (j % 100 == 0) {
-            wait_for_flusher_to_settle(h, h1);
-        }
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
+    const int num_items = 300, batch_items = 100;
+    for (int start_seqno = 0; start_seqno < num_items;
+         start_seqno += batch_items) {
+        wait_for_flusher_to_settle(h, h1);
+        write_items(h, h1, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -1905,14 +1835,7 @@ static enum test_result test_dcp_producer_keep_stream_open(ENGINE_HANDLE *h,
     const std::string conn_name("unittest");
     const int num_items = 2, vb = 0;
 
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::string key("key" + std::to_string(j));
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
+    write_items(h, h1, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -2059,18 +1982,11 @@ static test_result test_dcp_producer_stream_req_nmvb(ENGINE_HANDLE *h,
 }
 
 static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    int num_items = 300;
-    for (int j = 0; j < num_items; ++j) {
-        if (j % 100 == 0) {
-            wait_for_flusher_to_settle(h, h1);
-        }
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
+    const int num_items = 300, batch_items = 100;
+    for (int start_seqno = 0; start_seqno < num_items;
+         start_seqno += batch_items) {
+        wait_for_flusher_to_settle(h, h1);
+        write_items(h, h1, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -2115,41 +2031,8 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
-    int maxSize = get_int_stat(h, h1, "ep_max_size", "memory");
     stop_persistence(h, h1);
-    size_t num_items = 0;
-    for (int i = 0; ; i++) {
-        // Load items into server until 90% of the mem quota
-        // is used.
-        // getting stats is expensive, only check every 100 ierations.
-        if ((i % 100) == 0) {
-            float memUsed = float(get_int_stat(h, h1, "mem_used", "memory"));
-            if (memUsed > ((float)(maxSize) * 0.90)) {
-                break;
-            }
-        }
-        item *itm = NULL;
-        std::stringstream ss;
-        ss << "key" << i;
-        ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
-                                      ss.str().c_str(), "somevalue", &itm);
-        h1->release(h, NULL, itm);
-
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            num_items++;
-            break;
-
-        case ENGINE_TMPFAIL:
-            // TMPFAIL means we getting below 100%; retry.
-            break;
-
-        default:
-            check(false, ("Unexpected response from store(): " +
-                          std::to_string(ret)).c_str());
-            break;
-        }
-    }
+    size_t num_items = write_items_upto_mem_perc(h, h1, 90);
 
     // Sanity check - ensure we have enough vBucket quota (max_size)
     // such that we have 1000 items - enough to give us 0.1%
@@ -2436,20 +2319,15 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
 static enum test_result test_dcp_producer_stream_mem_no_value(
                                                         ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
-    uint64_t num_items = 300, total_bytes = 0, est_bytes = 0;
+    uint64_t total_bytes = 0, est_bytes = 0;
     const uint64_t start = 200, end = 300;
+    const int num_items = 300, batch_items = 100;
     const std::string value("data");
 
-    for (uint64_t j = 0; j < num_items; ++j) {
-        if (j % 100 == 0) {
-            wait_for_flusher_to_settle(h, h1);
-        }
-        item *i = NULL;
-        std::string key("key" + std::to_string(j));
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key.c_str(), value.c_str(), &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
+    for (int start_seqno = 0; start_seqno < num_items;
+         start_seqno += batch_items) {
+        wait_for_flusher_to_settle(h, h1);
+        write_items(h, h1, batch_items, start_seqno);
     }
 
     wait_for_flusher_to_settle(h, h1);
@@ -2508,16 +2386,8 @@ static enum test_result test_dcp_producer_stream_mem_no_value(
 }
 
 static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    int num_items = 10;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
+    const int num_items = 10;
+    write_items(h, h1, num_items);
 
     const void *cookie = testHarness.create_cookie();
 
@@ -2542,16 +2412,8 @@ static test_result test_dcp_takeover(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static test_result test_dcp_takeover_no_items(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    int num_items = 10;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
+    const int num_items = 10;
+    write_items(h, h1, num_items);
 
     const void *cookie = testHarness.create_cookie();
     const char *name = "unittest";
@@ -2931,22 +2793,16 @@ static enum test_result test_dcp_consumer_takeover(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_failover_scenario_one_with_dcp(ENGINE_HANDLE *h,
-                                                            ENGINE_HANDLE_V1 *h1) {
+static enum test_result test_failover_scenario_one_with_dcp(
+                                                        ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1) {
 
-    int num_items = 50;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-        if (j % 10 == 0) {
-            wait_for_flusher_to_settle(h, h1);
-            createCheckpoint(h, h1);
-        }
+    const int num_items = 50, batch_items = 10;
+    for (int start_seqno = 0; start_seqno < num_items;
+         start_seqno += batch_items) {
+        write_items(h, h1, batch_items, start_seqno);
+        wait_for_flusher_to_settle(h, h1);
+        createCheckpoint(h, h1);
     }
 
     createCheckpoint(h, h1);
@@ -3055,14 +2911,7 @@ static enum test_result test_failover_scenario_two_with_dcp(ENGINE_HANDLE *h,
                                         "checkpoint");
 
     // Front-end operations (sets)
-    for (int j = 1; j <= 2; ++j) {
-        item *i = NULL;
-        std::string key("key_" + std::to_string(j));
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
+    write_items(h, h1, 2, 1, "key_");
 
     // Wait for a new open checkpoint
     wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", openCheckpointId + 1,
@@ -3162,16 +3011,8 @@ static enum test_result test_consumer_backoff_stat(ENGINE_HANDLE *h,
 
 static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    int num_items = 10;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
+    const int num_items = 10;
+    write_items(h, h1, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
@@ -3211,17 +3052,9 @@ static enum test_result test_rollback_to_zero(ENGINE_HANDLE *h,
 static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
                                                   ENGINE_HANDLE_V1 *h1) {
     uint16_t vbid = 0;
-    int num_items = 40;
+    const int num_items = 40;
     stop_persistence(h, h1);
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, ss.str().c_str(), "data", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
+    write_items(h, h1, num_items);
 
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
@@ -3337,22 +3170,8 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
 static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
     const int num_items = 10;
-    std::vector<std::string> keys;
-    for (int i = 0; i < num_items; ++i) {
-        std::stringstream ss;
-        ss << "key" << i;
-        std::string key(ss.str());
-        keys.push_back(key);
-    }
-    std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        item *itm;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
-                      &itm, 0, 0),
-                "Failed to store a value");
-        h1->release(h, NULL, itm);
-    }
+    write_items(h, h1, num_items);
+
     wait_for_flusher_to_settle(h, h1);
     checkeq(num_items,
             get_int_stat(h, h1, "curr_items"),
@@ -3451,43 +3270,18 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
 
     stop_persistence(h, h1);
-    std::vector<std::string> keys;
-    for (int i = 0; i < 100; ++i) {
-        std::stringstream ss;
-        ss << "key_" << i;
-        std::string key(ss.str());
-        keys.push_back(key);
-    }
-    std::vector<std::string>::iterator it;
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        item *itm;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
-                      &itm, 0, 0),
-                "Failed to store a value");
-        h1->release(h, NULL, itm);
-    }
+
+    write_items(h, h1, 100, 0, "key_");
+
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
     checkeq(100, get_int_stat(h, h1, "curr_items"),
             "Item count should've been 100");
 
     stop_persistence(h, h1);
-    keys.clear();
-    for (int i = 90; i < 110; ++i) {
-        std::stringstream ss;
-        ss << "key_" << i;
-        std::string key(ss.str());
-        keys.push_back(key);
-    }
-    for (it = keys.begin(); it != keys.end(); ++it) {
-        item *itm;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, it->c_str(), it->c_str(),
-                      &itm, 0, 0),
-                "Failed to store a value");
-        h1->release(h, NULL, itm);
-    }
+
+    /* Write items from 90 to 109 */
+    write_items(h, h1, 20, 90, "key_");
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
     checkeq(110, get_int_stat(h, h1, "curr_items"),
@@ -3637,16 +3431,8 @@ static enum test_result test_dcp_producer_flow_control(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1) {
     /* Write 10 items */
     const int num_items = 10;
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream key;
-        key << "key" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
-                      "123456789", &i),
-                "Failed to store a value");
-        h1->release(h, NULL, i);
-    }
+    write_items(h, h1, 10, 0, "key", "123456789");
+
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong amount of items");
 
@@ -4915,14 +4701,7 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
         vbuuid[i] = get_ull_stat(h, h1, statkey.str().c_str(), "failovers");
 
         /* Set n items */
-
-        for (int count = 0; count < num_items; count++) {
-            std::stringstream key;
-            key << "KEY" << i << count;
-            check(ENGINE_SUCCESS ==
-                  store(h, h1, NULL, OPERATION_SET, key.str().c_str(),
-                        "somevalue", NULL, 0, i, 0), "Error storing.");
-        }
+        write_items(h, h1, num_items, 0, "KEY", "somevalue");
     }
     wait_for_flusher_to_settle(h, h1);
 
@@ -4964,12 +4743,7 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     uint64_t end_seqno = num_items + 1000;
     uint32_t high_seqno = 0;
 
-    for (int j = 0; j < num_items; ++j) {
-        std::string key("key" + std::to_string(j));
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET, key.c_str(), "data", NULL),
-                "Failed to store a value");
-    }
+    write_items(h, h1, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     wait_for_stat_to_be(h, h1, "curr_items", num_items);
@@ -5052,19 +4826,9 @@ static enum test_result test_mb16357(ENGINE_HANDLE *h,
                                      ENGINE_HANDLE_V1 *h1) {
 
     // Load up vb0 with n items, expire in 1 second
-    int num_items = 1000;
+    const int num_items = 1000;
 
-    for (int j = 0; j < num_items; ++j) {
-        item *i = NULL;
-        std::stringstream ss;
-        ss << "key-" << j;
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, NULL, OPERATION_SET,
-                      ss.str().c_str(), "data", &i, 0, 0, 1/*expire*/, 0),
-                "Failed to store a value"); //expire in 1 second
-
-        h1->release(h, NULL, i);
-    }
+    write_items(h, h1, num_items, 0, "key-");
 
     wait_for_flusher_to_settle(h, h1);
     testHarness.time_travel(3617); // force expiry pushing time forward.
