@@ -31,8 +31,6 @@ public:
     DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
                 const std::string &n, bool notifyOnly);
 
-    ~DcpProducer();
-
     ENGINE_ERROR_CODE streamRequest(uint32_t flags, uint32_t opaque,
                                     uint16_t vbucket, uint64_t start_seqno,
                                     uint64_t end_seqno, uint64_t vbucket_uuid,
@@ -189,9 +187,10 @@ public:
     void scheduleCheckpointProcessorTask(stream_t s);
 
     /*
-        Clears active stream checkpoint processor task's queue.
+        Clears active stream checkpoint processor task's queue,
+        and cancels the task.
     */
-    void clearCheckpointProcessorTaskQueues();
+    void cancelCheckpointProcessorTask();
 
 private:
 

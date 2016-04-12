@@ -1055,7 +1055,7 @@ void DcpConnMap::closeAllStreams_UNLOCKED() {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
         if (producer) {
             producer->closeAllStreams();
-            producer->clearCheckpointProcessorTaskQueues();
+            producer->cancelCheckpointProcessorTask();
         } else {
             static_cast<DcpConsumer*>(itr->second.get())->closeAllStreams();
         }
@@ -1089,7 +1089,7 @@ void DcpConnMap::disconnect_UNLOCKED(const void *cookie) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (conn.get());
         if (producer) {
             producer->closeAllStreams();
-            producer->clearCheckpointProcessorTaskQueues();
+            producer->cancelCheckpointProcessorTask();
         } else {
             static_cast<DcpConsumer*>(conn.get())->closeAllStreams();
         }
@@ -1182,4 +1182,10 @@ void DcpConnMap::notifyVBConnections(uint16_t vbid, uint64_t bySeqno)
         DcpProducer *conn = static_cast<DcpProducer*>((*it).get());
         conn->notifySeqnoAvailable(vbid, bySeqno);
     }
+}
+
+void DcpConnMap::addStats(ADD_STAT add_stat, const void *c) {
+    LockHolder lh(connsLock);
+    add_casted_stat("ep_dcp_dead_conn_count", deadConnections.size(),
+                    add_stat, c);
 }

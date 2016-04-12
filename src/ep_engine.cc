@@ -3962,6 +3962,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(const void *cookie,
     add_casted_stat("ep_dcp_queue_backfillremaining",
                     aggregator.conn_queueBackfillRemaining, add_stat, cookie);
 
+    dcpConnMap_->addStats(add_stat, cookie);
     return ENGINE_SUCCESS;
 }
 

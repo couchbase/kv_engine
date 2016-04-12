@@ -139,7 +139,7 @@ static void test_mb17766(const std::string& test_dbname) {
               mock_stream->public_nextCheckpointItem(),
               "nextCheckpointItem() after processing items should be false.");
 
-    producer->clearCheckpointProcessorTaskQueues();
+    producer->cancelCheckpointProcessorTask();
 }
 
 int main(int argc, char **argv) {

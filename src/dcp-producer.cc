@@ -151,10 +151,6 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     ExecutorPool::get()->schedule(checkpointCreatorTask, AUXIO_TASK_IDX);
 }
 
-DcpProducer::~DcpProducer() {
-    ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
-}
-
 ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                              uint32_t opaque,
                                              uint16_t vbucket,
@@ -819,7 +815,8 @@ void DcpProducer::scheduleCheckpointProcessorTask(stream_t s) {
         ->schedule(s);
 }
 
-void DcpProducer::clearCheckpointProcessorTaskQueues() {
+void DcpProducer::cancelCheckpointProcessorTask() {
     static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->clearQueues();
+    ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
 }

@@ -467,6 +467,8 @@ public:
     ENGINE_ERROR_CODE addPassiveStream(ConnHandler* conn, uint32_t opaque,
                                        uint16_t vbucket, uint32_t flags);
 
+    void addStats(ADD_STAT add_stat, const void *c);
+
 private:
 
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
