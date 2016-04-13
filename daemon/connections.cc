@@ -441,9 +441,14 @@ static Connection *allocate_connection(SOCKET sfd,
         return ret;
     } catch (std::bad_alloc) {
         LOG_WARNING(NULL, "Failed to allocate memory for connection");
-        delete ret;
-        return NULL;
+    } catch (std::exception& error) {
+        LOG_WARNING(NULL, "Failed to create connection: %s", error.what());
+    } catch (...) {
+        LOG_WARNING(NULL, "Failed to create connection");
     }
+
+    delete ret;
+    return NULL;
 }
 
 static ListenConnection* allocate_listen_connection(SOCKET sfd,
@@ -461,9 +466,14 @@ static ListenConnection* allocate_listen_connection(SOCKET sfd,
         return ret;
     } catch (std::bad_alloc) {
         LOG_WARNING(NULL, "Failed to allocate memory for listen connection");
-        delete ret;
-        return NULL;
+    } catch (std::exception& error) {
+        LOG_WARNING(NULL, "Failed to create connection: %s", error.what());
+    } catch (...) {
+        LOG_WARNING(NULL, "Failed to create connection");
     }
+
+    delete ret;
+    return NULL;
 }
 
 
@@ -473,7 +483,7 @@ static ListenConnection* allocate_listen_connection(SOCKET sfd,
  * Returns a pointer to the newly-allocated Connection else NULL if failed.
  */
 static Connection *allocate_pipe_connection(int fd, event_base *base) {
-    Connection *ret;
+    Connection *ret = nullptr;
 
     try {
         ret = new PipeConnection(static_cast<SOCKET>(fd), base);
@@ -483,10 +493,15 @@ static Connection *allocate_pipe_connection(int fd, event_base *base) {
         stats.conn_structs++;
         return ret;
     } catch (std::bad_alloc) {
-        settings.extensions.logger->log(EXTENSION_LOG_WARNING, NULL,
-                                        "Failed to allocate memory for PipeConnection");
-        return nullptr;
+        LOG_WARNING(nullptr, "Failed to allocate memory for PipeConnection");
+    } catch (std::exception& error) {
+        LOG_WARNING(nullptr, "Failed to create connection: %s", error.what());
+    } catch (...) {
+        LOG_WARNING(nullptr, "Failed to create connection");
     }
+
+    delete ret;
+    return nullptr;
 }
 
 /** Release a connection; removing it from the connection list management
