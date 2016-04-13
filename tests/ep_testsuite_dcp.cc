@@ -5144,8 +5144,7 @@ static enum test_result test_dcp_consumer_processer_behavior(ENGINE_HANDLE *h,
     // CANNOT_PROCESS, because of numerous backoffs.
     check(get_int_stat(h, h1, "eq_dcpq:unittest:stream_0_buffer_items", "dcp") > 0,
           "Expected buffered items for the stream");
-    check(get_int_stat(h, h1, "eq_dcpq:unittest:total_backoffs", "dcp") > 0,
-          "Expected numerous backoffs");
+    wait_for_stat_to_be_gte(h, h1, "eq_dcpq:unittest:total_backoffs", 1, "dcp");
     checkne(std::string("ALL_PROCESSED"),
             get_str_stat(h, h1, "eq_dcpq:unittest:processer_task_state", "dcp"),
             "Expected Processer's task state not to be ALL_PROCESSED!");
