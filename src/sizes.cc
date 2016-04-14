@@ -21,8 +21,10 @@
 #include <algorithm>
 #include <limits>
 
+#include "atomic_unordered_map.h"
 #include "checkpoint.h"
 #include "common.h"
+#include "dcp/stream.h"
 #include "ep.h"
 #include <platform/histogram.h>
 #include "item.h"
@@ -85,6 +87,8 @@ int main(int, char **) {
     display("HistogramBin<size_t>", sizeof(HistogramBin<size_t>));
     display("HistogramBin<hrtime_t>", sizeof(HistogramBin<hrtime_t>));
     display("HistogramBin<int>", sizeof(HistogramBin<int>));
+    display("AtomicUnorderedMap<uint32_t, Stream>",
+            sizeof(AtomicUnorderedMap<uint32_t, Stream>));
 
     std::cout << std::endl << "Histogram Ranges" << std::endl << std::endl;
 

@@ -108,7 +108,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
       backoffs(0), taskAlreadyCancelled(false), flowControl(engine, this)
 {
     Configuration& config = engine.getConfiguration();
-    streams = new passive_stream_t[config.getMaxVbuckets()];
     setSupportAck(false);
     setLogHeader("DCP (Consumer) " + getName() + " -");
     setReserved(true);
@@ -129,7 +128,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
 
 DcpConsumer::~DcpConsumer() {
     cancelTask();
-    delete[] streams;
 }
 
 
@@ -181,18 +179,20 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     uint64_t snap_end_seqno = info.range.end;
     uint64_t high_seqno = vb->getHighSeqno();
 
-    passive_stream_t stream = streams[vbucket];
+    auto stream = streams.find(vbucket);
     if (stream && stream->isActive()) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot add stream because one "
             "already exists", logHeader(), vbucket);
         return ENGINE_KEY_EEXISTS;
     }
 
-    streams[vbucket] = new PassiveStream(&engine_, this, getName(), flags,
-                                         new_opaque, vbucket, start_seqno,
-                                         end_seqno, vbucket_uuid,
-                                         snap_start_seqno, snap_end_seqno,
-                                         high_seqno);
+    streams.insert({vbucket,
+                    SingleThreadedRCPtr<PassiveStream>(
+                           new PassiveStream(&engine_, this, getName(), flags,
+                                             new_opaque, vbucket, start_seqno,
+                                             end_seqno, vbucket_uuid,
+                                             snap_start_seqno, snap_end_seqno,
+                                             high_seqno))});
     ready.push_back(vbucket);
     opaqueMap_[new_opaque] = std::make_pair(opaque, vbucket);
 
@@ -201,7 +201,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
 
 ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
     if (doDisconnect()) {
-        streams[vbucket].reset();
+        streams.erase(vbucket);
         return ENGINE_DISCONNECT;
     }
 
@@ -210,7 +210,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
         opaqueMap_.erase(oitr);
     }
 
-    passive_stream_t stream = streams[vbucket];
+    auto stream = streams.find(vbucket);
     if (!stream) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because no "
             "stream exists for this vbucket", logHeader(), vbucket);
@@ -219,7 +219,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
     uint32_t bytesCleared = stream->setDead(END_STREAM_CLOSED);
     flowControl.incrFreedBytes(bytesCleared);
-    streams[vbucket].reset();
+    streams.erase(vbucket);
     notifyConsumerIfNecessary(true/*schedule*/);
 
     return ENGINE_SUCCESS;
@@ -232,7 +232,7 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
     }
 
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    passive_stream_t stream = streams[vbucket];
+    auto stream = streams.find(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         LOG(EXTENSION_LOG_INFO, "%s (vb %d) End stream received with reason %d",
             logHeader(), vbucket, flags);
@@ -286,7 +286,7 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
     }
 
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    passive_stream_t stream = streams[vbucket];
+    auto stream = streams.find(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         queued_item item(new Item(key, nkey, flags, exptime, value, nvalue,
                                   &datatype, EXT_META_LEN, cas, bySeqno,
@@ -349,7 +349,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
     }
 
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    passive_stream_t stream = streams[vbucket];
+    auto stream = streams.find(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         queued_item item(new Item(key, nkey, 0, 0, NULL, 0, NULL, 0, cas, bySeqno,
                                   vbucket, revSeqno));
@@ -421,7 +421,7 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
     }
 
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    passive_stream_t stream = streams[vbucket];
+    auto stream = streams.find(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         SnapshotMarker* response;
         try {
@@ -470,7 +470,7 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
     }
 
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
-    passive_stream_t stream = streams[vbucket];
+    auto stream = streams.find(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
         SetVBucketState* response;
         try {
@@ -710,7 +710,7 @@ bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
     }
 
     RCPtr<VBucket> vb = engine_.getVBucket(vbid);
-    passive_stream_t stream = streams[vbid];
+    auto stream = streams.find(vbid);
     if (stream) {
         stream->reconnectStream(vb, opaque, vb->getHighSeqno());
     }
@@ -731,7 +731,7 @@ bool DcpConsumer::reconnectSlowStream(StreamEndResponse *resp) {
         uint16_t vbid = resp->getVbucket();
         RCPtr<VBucket> vb = engine_.getVBucket(vbid);
         if (vb) {
-            passive_stream_t stream = streams[vbid];
+            auto stream = streams.find(vbid);
             if (stream) {
                 LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Consumer is attempting "
                         "to reconnect stream, as it received END_STREAM for "
@@ -748,12 +748,18 @@ bool DcpConsumer::reconnectSlowStream(StreamEndResponse *resp) {
 void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
     ConnHandler::addStats(add_stat, c);
 
-    int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
-    for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
-        passive_stream_t stream = streams[vbucket];
-        if (stream) {
-            stream->addStats(add_stat, c);
+    // Make a copy of all valid streams (under lock), and then call addStats
+    // for each one. (Done in two stages to minmise how long we have the
+    // streams map locked for).
+    std::vector<PassiveStreamMap::smart_ptr_type> valid_streams;
+
+    streams.for_each(
+        [&valid_streams](const PassiveStreamMap::value_type& element) {
+            valid_streams.push_back(element.second);
         }
+    );
+    for (const auto& stream : valid_streams) {
+        stream->addStats(add_stat, c);
     }
 
     addStat("total_backoffs", backoffs, add_stat, c);
@@ -769,16 +775,8 @@ process_items_error_t DcpConsumer::processBufferedItems() {
     process_items_error_t process_ret = all_processed;
     uint16_t vbucket = 0;
     while (vbReady.popFront(vbucket)) {
-        passive_stream_t stream;
-        if (streams[vbucket]) {
-            // only assign a stream if there is one present to reduce
-            // the amount of cycles the RCPtr spinlock will use.
-            stream = streams[vbucket];
-        }
+        auto stream = streams.find(vbucket);
 
-        // Now that we think there's a stream, check again in-case it was
-        // removed after our first "cheap" if (streams[vb]) test and the actual
-        // copy construction onto stream.
         if (!stream) {
             continue;
         }
@@ -857,7 +855,7 @@ DcpResponse* DcpConsumer::getNextItem() {
         uint16_t vbucket = ready.front();
         ready.pop_front();
 
-        passive_stream_t stream = streams[vbucket];
+        auto stream = streams.find(vbucket);
         if (!stream) {
             continue;
         }
@@ -909,7 +907,7 @@ void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
         uint32_t add_opaque = oitr->second.first;
         uint16_t vbucket = oitr->second.second;
 
-        passive_stream_t stream = streams[vbucket];
+        auto stream = streams.find(vbucket);
         if (stream && stream->getOpaque() == opaque &&
             stream->getState() == STREAM_PENDING) {
             if (status == ENGINE_SUCCESS) {
@@ -936,30 +934,32 @@ void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
 }
 
 bool DcpConsumer::isValidOpaque(uint32_t opaque, uint16_t vbucket) {
-    passive_stream_t stream = streams[vbucket];
+    auto stream = streams.find(vbucket);
     return stream && stream->getOpaque() == opaque;
 }
 
 void DcpConsumer::closeAllStreams() {
-    int max_vbuckets = engine_.getConfiguration().getMaxVbuckets();
-    for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
-        passive_stream_t stream = streams[vbucket];
-        if (stream) {
-            stream->setDead(END_STREAM_DISCONNECTED);
-            streams[vbucket].reset();
-        }
-    }
+
+    // Need to synchronise the disconnect and clear, therefore use
+    // external locking here.
+    std::lock_guard<PassiveStreamMap> guard(streams);
+
+    streams.for_each(
+        [](PassiveStreamMap::value_type& iter) {
+            iter.second->setDead(END_STREAM_DISCONNECTED);
+        },
+        guard);
+    streams.clear(guard);
 }
 
 void DcpConsumer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
-    passive_stream_t stream = streams[vbucket];
+    auto stream = streams.erase(vbucket);
     if (stream) {
         LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") State changed to "
             "%s, closing passive stream!",
             logHeader(), vbucket, VBucket::toString(state));
         uint32_t bytesCleared = stream->setDead(END_STREAM_STATE);
         flowControl.incrFreedBytes(bytesCleared);
-        streams[vbucket].reset();
         notifyConsumerIfNecessary(true/*schedule*/);
     }
 }
@@ -1095,10 +1095,8 @@ const std::string& DcpConsumer::getControlMsgKey(void)
 
 bool DcpConsumer::isStreamPresent(uint16_t vbucket)
 {
-    if (streams[vbucket] && streams[vbucket]->isActive()) {
-        return true;
-    }
-    return false;
+    auto stream = streams.find(vbucket);
+    return stream && stream->isActive();
 }
 
 void DcpConsumer::notifyConsumerIfNecessary(bool schedule) {

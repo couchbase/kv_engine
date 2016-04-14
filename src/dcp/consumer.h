@@ -168,7 +168,10 @@ private:
     Mutex readyMutex;
     std::list<uint16_t> ready;
 
-    passive_stream_t* streams;
+    // Map of vbid -> passive stream. Map itself is atomic (thread-safe).
+    typedef AtomicUnorderedMap<uint16_t, PassiveStream> PassiveStreamMap;
+    PassiveStreamMap streams;
+
     opaque_map opaqueMap_;
 
     rel_time_t lastNoopTime;
