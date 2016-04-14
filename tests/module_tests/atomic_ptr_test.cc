@@ -21,12 +21,8 @@
 #include "locks.h"
 #include "threadtests.h"
 
-#ifdef _MSC_VER
-#define alarm(a)
-#endif
-
 #define NUM_THREADS 50
-#define NUM_TIMES 100000
+#define NUM_TIMES 10000
 
 class Doodad : public RCValue {
 public:
@@ -135,7 +131,6 @@ static void testOperators() {
 }
 
 int main() {
-    alarm(60);
     testOperators();
     testAtomicPtr();
 }
