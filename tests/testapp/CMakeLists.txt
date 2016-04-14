@@ -119,7 +119,7 @@ ADD_TEST(NAME memcached-basic-perf-tests
 
 # Test timeouts. Roughly calibrated to be 2x what the expected time is on the
 # slowest Jenkins platform/config.
-SET_TESTS_PROPERTIES(memcached-audit-unit-tests PROPERTIES TIMEOUT 60)
+SET_TESTS_PROPERTIES(memcached-audit-unit-tests PROPERTIES TIMEOUT 120)
 SET_TESTS_PROPERTIES(memcached-basic-perf-tests PROPERTIES TIMEOUT 400)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-bulk PROPERTIES TIMEOUT 60)
 SET_TESTS_PROPERTIES(memcached-basic-unit-tests-require-init PROPERTIES TIMEOUT 200)
