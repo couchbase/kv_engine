@@ -17,6 +17,7 @@
 
 #include "config.h"
 #include "ep_test_apis.h"
+#include "ep_testsuite_common.h"
 
 #include <memcached/util.h>
 #include <platform/platform.h>
@@ -1489,4 +1490,65 @@ bool abort_msg(const char *expr, const char *msg, const char *file, int line) {
     fprintf(stderr, "%s:%d Test failed: `%s' (%s)\n",
             file, line, msg, expr);
     abort();
+}
+
+/* Helper function to write unique "num_items" starting from keyXX
+   (XX is start_seqno) */
+void write_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int num_items,
+                 int start_seqno, const char *key_prefix, const char *value)
+{
+    for (int j = 0; j < num_items; ++j) {
+        item *i = nullptr;
+        std::string key(key_prefix + std::to_string(j + start_seqno));
+        checkeq(ENGINE_SUCCESS,
+                store(h, h1, nullptr, OPERATION_SET, key.c_str(),
+                      value, &i), "write_items: Failed to store a value");
+        h1->release(h, nullptr, i);
+    }
+}
+
+/* Helper function to write unique items starting from keyXX until memory usage
+   hits "mem_thresh_perc" (XX is start_seqno) */
+int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                              int mem_thresh_perc, int start_seqno,
+                              const char *key_prefix, const char *value)
+{
+    float maxSize = static_cast<float>(get_int_stat(h, h1, "ep_max_size",
+                                                    "memory"));
+    float mem_thresh = static_cast<float>(mem_thresh_perc) / (100.0);
+    int num_items = 0;
+    while (1) {
+        /* Load items into server until mem_thresh_perc of the mem quota
+         is used. Getting stats is expensive, only check every 100
+         iterations. */
+        if ((num_items % 100) == 0) {
+            float memUsed = float(get_int_stat(h, h1, "mem_used", "memory"));
+            if (memUsed > (maxSize * mem_thresh)) {
+                /* Persist all items written so far. */
+                break;
+            }
+        }
+        item *itm = nullptr;
+        std::string key("key" + std::to_string(num_items + start_seqno));
+        ENGINE_ERROR_CODE ret = store(h, h1, nullptr, OPERATION_SET,
+                                      key.c_str(), "somevalue", &itm);
+        h1->release(h, nullptr, itm);
+
+        switch (ret) {
+            case ENGINE_SUCCESS:
+                num_items++;
+                break;
+
+            case ENGINE_TMPFAIL:
+                // TMPFAIL means we getting below 100%; retry.
+                break;
+
+            default:
+                check(false,
+                      ("write_items_upto_mem_perc: Unexpected response from "
+                       "store(): " + std::to_string(ret)).c_str());
+                break;
+        }
+    }
+    return num_items;
 }

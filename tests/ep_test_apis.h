@@ -341,4 +341,16 @@ void set_degraded_mode(ENGINE_HANDLE *h,
                        const void* cookie,
                        bool enable);
 
+/* Helper function to write unique "num_items" starting from keyXX
+   (XX is start_seqno) */
+void write_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                 int num_items, int start_seqno = 0,
+                 const char *key_prefix = "key", const char *value = "data");
+
+/* Helper function to write unique items starting from keyXX until memory usage
+   hits "mem_thresh_perc" (XX is start_seqno) */
+int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                              int mem_thresh_perc, int start_seqno = 0,
+                              const char *key_prefix = "key",
+                              const char *value = "data");
 #endif  // TESTS_EP_TEST_APIS_H_
