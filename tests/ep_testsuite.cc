@@ -64,6 +64,13 @@
 #undef htonl
 #endif
 
+#undef THREAD_SANITIZER
+#if __clang__
+#   if defined(__has_feature) && __has_feature(thread_sanitizer)
+#define THREAD_SANITIZER
+#   endif
+#endif
+
 // ptr_fun don't like the extern "C" thing for unlock cookie.. cast it
 // away ;)
 typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
@@ -12782,9 +12789,11 @@ engine_test_t* get_tests(void) {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
                  teardown, NULL, prepare, cleanup),
+#if !defined(THREAD_SANITIZER)
         TestCase("test MB-16357", test_mb16357,
                  test_setup, teardown, "compaction_exp_mem_threshold=85",
                  prepare, cleanup),
+#endif
         TestCase("test MB-19153", test_mb19153,
                  test_setup, teardown, NULL, prepare, cleanup),
 
