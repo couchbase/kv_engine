@@ -70,17 +70,6 @@
 // away ;)
 typedef void (*UNLOCK_COOKIE_T)(const void *cookie);
 
-extern "C" bool abort_msg(const char *expr, const char *msg, int line);
-
-template <typename T>
-static void checkeqfn(T exp, T got, const char *msg, const char *file, const int linenum) {
-    if (exp != got) {
-        std::stringstream ss;
-        ss << "Expected `" << exp << "', got `" << got << "' - " << msg;
-        abort_msg(ss.str().c_str(), file, linenum);
-    }
-}
-
 template <typename T>
 static void checknefn(T exp, T got, const char *msg, const char *file, const int linenum) {
     if (exp == got) {
@@ -90,7 +79,6 @@ static void checknefn(T exp, T got, const char *msg, const char *file, const int
     }
 }
 
-#define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
 #define checkne(a, b, c) checknefn(a, b, c, __FILE__, __LINE__)
 
 extern "C" {
@@ -13933,22 +13921,53 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
 
     const int num_vbuckets = 10;
 
-    /* Create vbuckets */
-    for (int i = 0; i < num_vbuckets; i++) {
-        if (i < num_vbuckets/2) {
-            /* Active vbuckets */
-            check(set_vbucket_state(h, h1, i, vbucket_state_active),
-                  "Failed to set vbucket state.");
-            for (int j= 0; j < i; j++) {
-                std::string key("key" + std::to_string(i));
-                check(store(h, h1, NULL, OPERATION_SET, key.c_str(),
-                            "value", NULL, 0, i)
-                      == ENGINE_SUCCESS, "Failed to store an item.");
-            }
-        } else {
-            /* Replica vbuckets */
-            check(set_vbucket_state(h, h1, i, vbucket_state_replica),
-                  "Failed to set vbucket state.");
+    /* Replica vbucket 0; snapshot 0 to 10, but write just 1 item */
+    const int rep_vb_num = 0;
+    check(set_vbucket_state(h, h1, rep_vb_num, vbucket_state_replica),
+          "Failed to set vbucket state");
+    wait_for_flusher_to_settle(h, h1);
+
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    std::string name("unittest");
+    uint8_t cas = 0;
+    uint8_t datatype = 1;
+    uint64_t bySeqno = 10;
+    uint64_t revSeqno = 0;
+    uint32_t exprtime = 0;
+    uint32_t lockTime = 0;
+
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, 0, flags, (void*)(name.c_str()),
+                         name.size()),
+            "Failed to open DCP consumer connection!");
+    add_stream_for_consumer(h, h1, cookie, opaque++, rep_vb_num, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    std::string opaqueStr("eq_dcpq:" + name + ":stream_0_opaque");
+    uint32_t stream_opaque = get_int_stat(h, h1, opaqueStr.c_str(), "dcp");
+
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.snapshot_marker(h, cookie, stream_opaque, rep_vb_num, 0, 10,
+                                    1),
+            "Failed to send snapshot marker!");
+
+    check(h1->dcp.mutation(h, cookie, stream_opaque, "key", 3, "value", 5,
+                           cas, rep_vb_num, flags, datatype,
+                           bySeqno, revSeqno, exprtime,
+                           lockTime, NULL, 0, 0) == ENGINE_SUCCESS,
+          "Failed dcp mutate.");
+
+    /* Create active vbuckets */
+    for (int i = 1; i < num_vbuckets; i++) {
+        /* Active vbuckets */
+        check(set_vbucket_state(h, h1, i, vbucket_state_active),
+              "Failed to set vbucket state.");
+        for (int j= 0; j < i; j++) {
+            std::string key("key" + std::to_string(i));
+            check(store(h, h1, NULL, OPERATION_SET, key.c_str(),
+                        "value", NULL, 0, i)
+                  == ENGINE_SUCCESS, "Failed to store an item.");
         }
     }
 
@@ -13956,19 +13975,21 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
     get_all_vb_seqnos(h, h1, static_cast<vbucket_state_t>(0), cookie);
 
     /* Check if the response received is correct */
-    verify_all_vb_seqnos(h, h1, 0, num_vbuckets);
+    verify_all_vb_seqnos(h, h1, 0, num_vbuckets - 1);
 
     /* Create request to get vb seqno of active vbuckets */
     get_all_vb_seqnos(h, h1, vbucket_state_active, cookie);
 
     /* Check if the response received is correct */
-    verify_all_vb_seqnos(h, h1, 0, num_vbuckets/2);
+    verify_all_vb_seqnos(h, h1, 1, num_vbuckets - 1);
 
     /* Create request to get vb seqno of replica vbuckets */
     get_all_vb_seqnos(h, h1, vbucket_state_replica, cookie);
 
     /* Check if the response received is correct */
-    verify_all_vb_seqnos(h, h1, num_vbuckets/2, num_vbuckets);
+    verify_all_vb_seqnos(h, h1, 0, 0);
+
+    testHarness.destroy_cookie(cookie);
 
     return SUCCESS;
 }

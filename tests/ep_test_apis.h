@@ -30,6 +30,20 @@
 #include "ext_meta_parser.h"
 #include "item.h"
 
+extern "C" bool abort_msg(const char *expr, const char *msg, int line);
+
+template <typename T>
+static void checkeqfn(T exp, T got, const char *msg, const char *file,
+                      const int linenum) {
+    if (exp != got) {
+        std::stringstream ss;
+        ss << "Expected `" << exp << "', got `" << got << "' - " << msg;
+        abort_msg(ss.str().c_str(), file, linenum);
+    }
+}
+
+#define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
