@@ -29,6 +29,19 @@
 #include "ep-engine/command_ids.h"
 #include "item.h"
 
+extern "C" bool abort_msg(const char *expr, const char *msg, int line);
+
+template <typename T>
+static void checkeqfn(T exp, T got, const char *msg, const char *file, const int linenum) {
+    if (exp != got) {
+        std::stringstream ss;
+        ss << "Expected `" << exp << "', got `" << got << "' - " << msg;
+        abort_msg(ss.str().c_str(), file, linenum);
+    }
+}
+
+#define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -191,6 +204,11 @@ void wait_for_persisted_value(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                  int mem_threshold);
+
+bool get_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                       vbucket_state_t state, const void *cookie);
+void verify_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                          uint16_t vb_start, uint16_t vb_end);
 
 // Tap Operations
 void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,

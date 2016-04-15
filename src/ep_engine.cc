@@ -5754,7 +5754,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getAllVBucketSequenceNumbers(const
                 if (vb->getState() == vbucket_state_active) {
                     highSeqno = htonll(vb->getHighSeqno());
                 } else {
-                    highSeqno = htonll(vb->checkpointManager.getLastClosedChkBySeqno());
+                    uint64_t snapshot_start, snapshot_end;
+                    vb->getCurrentSnapshot(snapshot_start, snapshot_end);
+                    highSeqno = htonll(snapshot_end);
                 }
                 size_t offset = payload.size();
                 payload.resize(offset + sizeof(vbid) + sizeof(highSeqno));
