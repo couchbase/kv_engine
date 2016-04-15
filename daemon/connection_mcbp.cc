@@ -630,6 +630,8 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     /* @todo don't read files, but use in-memory-copies */
     if (!SSL_CTX_use_certificate_chain_file(ctx, cert.c_str()) ||
         !SSL_CTX_use_PrivateKey_file(ctx, pkey.c_str(), SSL_FILETYPE_PEM)) {
+        LOG_WARNING(nullptr, "Failed to use SSL cert %s and pkey %s",
+                    cert.c_str(), pkey.c_str());
         return false;
     }
 
