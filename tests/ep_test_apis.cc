@@ -761,27 +761,31 @@ bool get_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 
 void verify_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           int vb_start, int vb_end) {
-    const int per_vb_resp_size = 10;
-    const int high_seqno_offset = 2;
+    const int per_vb_resp_size = sizeof(uint16_t) + sizeof(uint64_t);
+    const int high_seqno_offset = sizeof(uint16_t);
 
     /* Check if the total response length is as expected. We expect 10 bytes
      (2 for vb_id + 8 for seqno) */
-    check((uint32_t)((vb_end - vb_start) * per_vb_resp_size) == last_body.size(),
-          "Failed to get all vb info.");
+    checkeq((vb_end - vb_start + 1) * per_vb_resp_size,
+            static_cast<int>(last_body.size()),
+            "Failed to get all vb info.");
     /* Check if the contents are correct */
-    for (int i = 0; i < (vb_end - vb_start); i++) {
+    for (int i = 0; i < (vb_end - vb_start + 1); i++) {
         /* Check for correct vb_id */
-        check((vb_start + i) == ntohs(*(reinterpret_cast<const uint16_t*>(last_body.data() +
-                                                       per_vb_resp_size*i))),
+        checkeq(static_cast<const uint16_t>(vb_start + i),
+                ntohs(*(reinterpret_cast<const uint16_t*>(last_body.data() +
+                                                          per_vb_resp_size*i))),
               "vb_id mismatch");
         /* Check for correct high_seqno */
         std::string vb_stat_seqno("vb_" + std::to_string(vb_start + i) +
                                   ":high_seqno");
         uint64_t high_seqno_vb =
         get_ull_stat(h, h1, vb_stat_seqno.c_str(), "vbucket-seqno");
-        check(high_seqno_vb == ntohll(*(reinterpret_cast<const uint64_t*>(last_body.data() +
-                                    per_vb_resp_size*i + high_seqno_offset))),
-              "high_seqno mismatch");
+        checkeq(high_seqno_vb,
+                ntohll(*(reinterpret_cast<const uint64_t*>(last_body.data() +
+                                                           per_vb_resp_size*i +
+                                                           high_seqno_offset))),
+                "high_seqno mismatch");
     }
 }
 

@@ -5585,55 +5585,6 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-
-static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
-                                               ENGINE_HANDLE_V1 *h1) {
-    const void *cookie = testHarness.create_cookie();
-
-    const int num_vbuckets = 10;
-
-    /* Create vbuckets */
-    for (int i = 0; i < num_vbuckets; i++) {
-        if (i < num_vbuckets/2) {
-            /* Active vbuckets */
-            check(set_vbucket_state(h, h1, i, vbucket_state_active),
-                  "Failed to set vbucket state.");
-            for (int j= 0; j < i; j++) {
-                std::string key("key" + std::to_string(i));
-                checkeq(ENGINE_SUCCESS,
-                        store(h, h1, NULL, OPERATION_SET, key.c_str(),
-                              "value", NULL, 0, i),
-                        "Failed to store an item.");
-            }
-        } else {
-            /* Replica vbuckets */
-            check(set_vbucket_state(h, h1, i, vbucket_state_replica),
-                  "Failed to set vbucket state.");
-        }
-    }
-
-    /* Create request to get vb seqno of all vbuckets */
-    get_all_vb_seqnos(h, h1, static_cast<vbucket_state_t>(0), cookie);
-
-    /* Check if the response received is correct */
-    verify_all_vb_seqnos(h, h1, 0, num_vbuckets);
-
-    /* Create request to get vb seqno of active vbuckets */
-    get_all_vb_seqnos(h, h1, vbucket_state_active, cookie);
-
-    /* Check if the response received is correct */
-    verify_all_vb_seqnos(h, h1, 0, num_vbuckets/2);
-
-    /* Create request to get vb seqno of replica vbuckets */
-    get_all_vb_seqnos(h, h1, vbucket_state_replica, cookie);
-
-    /* Check if the response received is correct */
-    verify_all_vb_seqnos(h, h1, num_vbuckets/2, num_vbuckets);
-
-    testHarness.destroy_cookie(cookie);
-    return SUCCESS;
-}
-
 /*
     Basic test demonstrating multi-bucket operations.
     Checks that writing the same key to many buckets works as it should.
@@ -6190,8 +6141,6 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
                  "time_synchronization=enabled_with_drift", prepare, cleanup),
-        TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
-                 teardown, NULL, prepare, cleanup),
 
         TestCaseV2("multi_bucket set/get ", test_multi_bucket_set_get, NULL,
                    teardown_v2, NULL, prepare, cleanup),
