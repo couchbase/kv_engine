@@ -154,8 +154,11 @@ protected:
     const static uint64_t dcpMaxSeqno;
 
 private:
-    /* This tracks the memory occupied by elements in the readyQ */
-    uint64_t readyQueueMemory;
+    /* readyQueueMemory tracks the memory occupied by elements
+     * in the readyQ.  It is an atomic because otherwise
+       getReadyQueueMemory would need to acquire streamMutex.
+     */
+    AtomicValue <uint64_t> readyQueueMemory;
 };
 
 typedef RCPtr<Stream> stream_t;
