@@ -325,23 +325,21 @@ TEST_F(StreamTest, test_mb18625) {
 class ConnectionTest : public DCPTest {};
 
 TEST_F(ConnectionTest, test_deadConnections) {
-    MockDcpConnMap *connMap = new MockDcpConnMap(*engine);
-    connMap->initialize(DCP_CONN_NOTIFIER);
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
-    dcp_producer_t producer = connMap->newProducer(cookie, "test_producer",
+    dcp_producer_t producer = connMap.newProducer(cookie, "test_producer",
                                     /*notifyOnly*/false);
 
     // Disconnect the producer connection
-    connMap->disconnect(cookie);
-    EXPECT_EQ(1, (int)connMap->getNumberOfDeadConnections())
+    connMap.disconnect(cookie);
+    EXPECT_EQ(1, (int)connMap.getNumberOfDeadConnections())
         << "Unexpected number of dead connections";
-    connMap->manageConnections();
+    connMap.manageConnections();
     // Should be zero deadConnections
-    EXPECT_EQ(0, (int)connMap->getNumberOfDeadConnections())
+    EXPECT_EQ(0, (int)connMap.getNumberOfDeadConnections())
         << "Dead connections still remain";
-
-    delete connMap;
 }
 
 TEST_F(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
@@ -360,10 +358,15 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     EXPECT_NE(0, (int)duplicateproducer) << "duplicateproducer is null";
 
-    producer.reset();
-    duplicateproducer.reset();
-    delete cookie1;
-    delete cookie2;
+    // Disconnect the producer connection
+    connMap.disconnect(cookie1);
+    // Disconnect the duplicateproducer connection
+    connMap.disconnect(cookie2);
+    // Cleanup the deadConnections
+    connMap.manageConnections();
+    // Should be zero deadConnections
+    EXPECT_EQ(0, (int)connMap.getNumberOfDeadConnections())
+        << "Dead connections still remain";
 }
 
 TEST_F(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
@@ -380,12 +383,15 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     EXPECT_TRUE(consumer->doDisconnect()) << "consumer doDisconnect == false";
     EXPECT_NE(0, (int)duplicateconsumer) << "duplicateconsumer is null";
 
-    consumer->cancelTask();
-    consumer.reset();
-    duplicateconsumer->cancelTask();
-    duplicateconsumer.reset();
-    delete cookie1;
-    delete cookie2;
+    // Disconnect the consumer connection
+    connMap.disconnect(cookie1);
+    // Disconnect the duplicateconsumer connection
+    connMap.disconnect(cookie2);
+    // Cleanup the deadConnections
+    connMap.manageConnections();
+    // Should be zero deadConnections
+    EXPECT_EQ(0, (int)connMap.getNumberOfDeadConnections())
+        << "Dead connections still remain";
 }
 
 TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
@@ -402,8 +408,13 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     EXPECT_EQ(0, (int)duplicateproducer) << "duplicateproducer is not null";
 
-    producer.reset();
-    delete cookie;
+    // Disconnect the producer connection
+    connMap.disconnect(cookie);
+    // Cleanup the deadConnections
+    connMap.manageConnections();
+    // Should be zero deadConnections
+    EXPECT_EQ(0, (int)connMap.getNumberOfDeadConnections())
+        << "Dead connections still remain";
 }
 
 TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
@@ -418,9 +429,13 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
     EXPECT_TRUE(consumer->doDisconnect()) << "consumer doDisconnect == false";
     EXPECT_EQ(0, (int)duplicateconsumer) << "duplicateconsumer is not null";
 
-    consumer->cancelTask();
-    consumer.reset();
-    delete cookie;
+    // Disconnect the consumer connection
+    connMap.disconnect(cookie);
+    // Cleanup the deadConnections
+    connMap.manageConnections();
+    // Should be zero deadConnections
+    EXPECT_EQ(0, (int)connMap.getNumberOfDeadConnections())
+        << "Dead connections still remain";
 }
 
 // Callback for dcp_add_failover_log
