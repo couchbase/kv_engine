@@ -174,7 +174,6 @@ public:
                  uint64_t snap_end_seqno);
 
     ~ActiveStream() {
-        LockHolder lh(streamMutex);
         transitionState(STREAM_DEAD);
         clear_UNLOCKED();
     }
