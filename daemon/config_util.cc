@@ -93,7 +93,7 @@ config_error_t config_load_file(const char *file, cJSON **json)
         return CONFIG_OPEN_FAILED;
     }
 
-    data = config_malloc(st.st_size + 1);
+    data = reinterpret_cast<char*>(config_malloc(st.st_size + 1));
     if (data == NULL) {
         fclose(fp);
         return CONFIG_MALLOC_FAILED;

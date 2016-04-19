@@ -1,5 +1,5 @@
 ADD_EXECUTABLE(config_parse_test config_parse_test.cc
-  ${Memcached_SOURCE_DIR}/daemon/config_util.c
+  ${Memcached_SOURCE_DIR}/daemon/config_util.cc
   ${Memcached_SOURCE_DIR}/daemon/config_util.h
   ${Memcached_SOURCE_DIR}/daemon/cmdline.h
   ${Memcached_SOURCE_DIR}/daemon/cmdline.cc
