@@ -1376,7 +1376,7 @@ couchstore_error_t CouchKVStore::openDB_retry(std::string &dbfile,
         if (errCode == COUCHSTORE_SUCCESS) {
             return errCode;
         }
-        LOG(EXTENSION_LOG_INFO, "INFO: couchstore_open_db failed, name=%s "
+        LOG(EXTENSION_LOG_NOTICE, "INFO: couchstore_open_db failed, name=%s "
             "options=%" PRIX64 " error=%s [%s], try it again!",
             dbfile.c_str(), options, couchstore_strerror(errCode),
             cb_strerror().c_str());
