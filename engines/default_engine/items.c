@@ -299,7 +299,6 @@ int do_item_link(struct default_engine *engine, hash_item *it) {
     const hash_key* key = item_get_key(it);
     MEMCACHED_ITEM_LINK(hash_key_get_client_key(key), hash_key_get_client_key_len(key), it->nbytes);
     cb_assert((it->iflag & (ITEM_LINKED|ITEM_SLABBED)) == 0);
-    cb_assert(it->nbytes < (1024 * 1024));  /* 1MB max size */
     it->iflag |= ITEM_LINKED;
     it->time = engine->server.core->get_current_time();
 

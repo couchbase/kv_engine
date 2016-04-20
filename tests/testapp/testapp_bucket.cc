@@ -190,3 +190,30 @@ TEST_P(BucketTest, TestBucketIsolationBuckets)
         EXPECT_NO_THROW(connection.deleteBucket(name));
     }
 }
+
+TEST_P(BucketTest, TestMemcachedBucketBigObjects)
+{
+    auto& connection = getConnection();
+
+    const size_t item_max_size = 2 * 1024 * 1024; // 2MB
+    std::string config = "item_size_max=" + std::to_string(item_max_size);
+
+    ASSERT_NO_THROW(connection.createBucket(name,
+                                            config,
+                                            Greenstack::BucketType::Memcached));
+    EXPECT_NO_THROW(connection.selectBucket(name));
+
+    Document doc;
+    doc.info.cas = Greenstack::CAS::Wildcard;
+    doc.info.compression = Greenstack::Compression::None;
+    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+    // Unfortunately the item_max_size is the full item including the
+    // internal headers (this would be the key and the hash_item struct).
+    doc.value.resize(item_max_size - name.length() - 100);
+
+    EXPECT_NO_THROW(connection.mutate(doc, 0, Greenstack::MutationType::Add));
+    EXPECT_NO_THROW(connection.get(name, 0));
+    EXPECT_NO_THROW(connection.deleteBucket(name));
+}
