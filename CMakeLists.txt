@@ -178,9 +178,15 @@ SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore forestdb
   dirutils platform ${LIBEVENT_LIBRARIES})
 
-ADD_EXECUTABLE(ep-engine_dcp_test
+# Single executable containing all class-level unit tests involving
+# EventuallyPersistentEngine driven by GoogleTest.
+# (We end up compiling most of the src/ files of ep-engine for these unit tests,
+# so simpler / quicker just to link them into a single executable).
+ADD_EXECUTABLE(ep-engine_ep_unit_tests
   tests/mock/mock_dcp.cc
+  tests/module_tests/ep_unit_tests_main.cc
   tests/module_tests/dcp_test.cc
+  tests/module_tests/evp_engine_test.cc
   src/access_scanner.cc
   src/atomic.cc
   src/backfill.cc
@@ -235,7 +241,7 @@ ADD_EXECUTABLE(ep-engine_dcp_test
   ${FOREST_KVSTORE_SOURCE}
   ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_dummy.cc
   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
-TARGET_LINK_LIBRARIES(ep-engine_dcp_test couchstore cJSON dirutils forestdb gtest JSON_checker mcd_util platform)
+TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils forestdb gtest JSON_checker mcd_util platform)
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
@@ -340,6 +346,7 @@ ADD_TEST(ep-engine_checkpoint_test ep-engine_checkpoint_test)
 ADD_TEST(ep-engine_chunk_creation_test ep-engine_chunk_creation_test)
 ADD_TEST(ep-engine_compress_test ep-engine_compress_test)
 ADD_TEST(ep-engine_configuration_test ep-engine_configuration_test)
+ADD_TEST(ep-engine_ep_unit_tests ep-engine_ep_unit_tests)
 ADD_TEST(ep-engine_failover_table_test ep-engine_failover_table_test)
 ADD_TEST(ep-engine_hash_table_test ep-engine_hash_table_test)
 ADD_TEST(ep-engine_hrtime_test ep-engine_hrtime_test)
@@ -348,7 +355,6 @@ ADD_TEST(ep-engine_mutex_test ep-engine_mutex_test)
 ADD_TEST(ep-engine_priority_test ep-engine_priority_test)
 ADD_TEST(ep-engine_ringbuffer_test ep-engine_ringbuffer_test)
 ADD_TEST(ep-engine_kvstore_test ep-engine_kvstore_test)
-ADD_TEST(ep-engine_dcp_test ep-engine_dcp_test)
 ADD_TEST(ep-engine_defragmenter_test ep-engine_defragmenter_test)
 ADD_TEST(ep-engine_memory_tracker_test ep-engine_memory_tracker_test)
 
