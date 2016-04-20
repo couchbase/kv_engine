@@ -39,10 +39,12 @@
 #endif
 
 #include <memcached/visibility.h>
+
+#include <array>
 #include <cstdint>
+#include <mutex>
 #include <string>
 #include <time.h>
-#include <array>
 
 #pragma once
 
@@ -73,4 +75,11 @@ public:
      */
     static int generatetimestamp(ISO8601String &destination,
                                  time_t now, uint32_t frac_of_second);
+
+private:
+    /*
+     * generatetimestamp makes use of mktime which is not thread-safe
+     * and therefore we must protect the mktime call with a mutex.
+     */
+    static std::mutex mutex;
 };

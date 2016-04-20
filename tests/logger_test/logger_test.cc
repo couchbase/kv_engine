@@ -44,7 +44,7 @@ protected:
          * watermark which would normally trigger an immediate flush).
          */
         ret = memcached_extensions_initialize("unit_test=true;"
-                  "loglevel=warning;cyclesize=1024;buffersize=8192;"
+                  "loglevel=warning;cyclesize=2048;buffersize=8192;"
                   "sleeptime=1;filename=logger_test", get_server_api);
         cb_assert(ret == EXTENSION_SUCCESS);
 
