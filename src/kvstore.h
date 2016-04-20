@@ -241,7 +241,8 @@ public:
                 ValueFilter _valFilter, uint64_t _documentCount)
     : callback(cb), lookup(cl), lastReadSeqno(0), startSeqno(start),
       maxSeqno(end), scanId(id), vbid(vb), docFilter(_docFilter),
-      valFilter(_valFilter), documentCount(_documentCount) {}
+      valFilter(_valFilter), documentCount(_documentCount),
+      logger(&global_logger) {}
 
     ~ScanContext() {}
 
@@ -256,6 +257,8 @@ public:
     const DocumentFilter docFilter;
     const ValueFilter valFilter;
     const uint64_t documentCount;
+
+    Logger* logger;
 };
 
 // First bool is true if an item exists in VB DB file.

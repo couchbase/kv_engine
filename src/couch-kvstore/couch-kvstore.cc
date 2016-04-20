@@ -1203,9 +1203,11 @@ ScanContext* CouchKVStore::initScanContext(std::shared_ptr<Callback<GetValue> > 
     LockHolder lh(backfillLock);
     backfills[backfillId] = db;
 
-    return new ScanContext(cb, cl, vbid, backfillId, startSeqno,
-                           info.last_sequence, options,
-                           valOptions, count);
+    ScanContext* sctx = new ScanContext(cb, cl, vbid, backfillId, startSeqno,
+                                        info.last_sequence, options,
+                                        valOptions, count);
+    sctx->logger = &logger;
+    return sctx;
 }
 
 scan_error_t CouchKVStore::scan(ScanContext* ctx) {
@@ -1718,11 +1720,11 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
                 }
             }
         } else {
-            LOG(EXTENSION_LOG_WARNING,
-                "Failed to retrieve key value from database "
-                "database, vBucket=%d key=%s error=%s [%s]\n",
-                vbucketId, key.buf, couchstore_strerror(errCode),
-                couchkvstore_strerrno(db, errCode).c_str());
+            sctx->logger->log(EXTENSION_LOG_WARNING,
+                              "Failed to retrieve key value from database "
+                              "database, vBucket=%d key=%s error=%s [%s]\n",
+                              vbucketId, key.buf, couchstore_strerror(errCode),
+                              couchkvstore_strerrno(db, errCode).c_str());
             return COUCHSTORE_SUCCESS;
         }
     }
