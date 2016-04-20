@@ -39,20 +39,19 @@ int ISOTime::generatetimestamp(ISO8601String &destination,
     localtime_r(&now, &local_time);
 #endif
     time_t utc;
+    time_t local;
+
     {
         std::lock_guard<std::mutex> lock(mutex);
         utc = mktime(&utc_time);
+        local = mktime(&local_time);
     }
+
     if (utc_time.tm_isdst != 0) {
         // UTC should not be adjusted to daylight savings
         utc -= 3600;
     }
 
-    time_t local;
-    {
-        std::lock_guard<std::mutex> lock(mutex);
-        local = mktime(&local_time);
-    }
     double total_seconds_diff = difftime(local, utc);
     double total_minutes_diff = total_seconds_diff / 60;
     int32_t hours = (int32_t)(total_minutes_diff / 60);
