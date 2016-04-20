@@ -2328,7 +2328,9 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
     errCode = couchstore_changes_count(db, 0, latestSeqno, &totSeqCount);
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "Failed to get changes count for "
-            "rollback vBucket = %d, rev = %" PRIu64, vbid, fileRev);
+            "rollback vBucket = %d, rev = %" PRIu64 ", error=%s [%s]",
+            vbid, fileRev,  couchstore_strerror(errCode),
+            cb_strerror().c_str());
         closeDatabaseHandle(db);
         return RollbackResult(false, 0, 0, 0);
     }
@@ -2350,8 +2352,9 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                     "Failed to rewind Db pointer "
                     "for couch file with vbid: %u, whose "
                     "lastSeqno: %" PRIu64 ", while trying to roll back "
-                    "to seqNo: %" PRIu64,
-                    vbid, latestSeqno, rollbackSeqno);
+                    "to seqNo: %" PRIu64 ", error=%s [%s]",
+                    vbid, latestSeqno, rollbackSeqno,
+                    couchstore_strerror(errCode), cb_strerror().c_str());
             //Reset the vbucket and send the entire snapshot,
             //as a previous header wasn't found.
             closeDatabaseHandle(db);
@@ -2374,7 +2377,8 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                                        &rollbackSeqCount);
     if (errCode != COUCHSTORE_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING, "Failed to get changes count for "
-            "rollback vBucket = %d, rev = %" PRIu64, vbid, fileRev);
+            "rollback vBucket = %d, rev = %" PRIu64 ", error=%s [%s]",
+            vbid, fileRev, couchstore_strerror(errCode), cb_strerror().c_str());
         closeDatabaseHandle(db);
         closeDatabaseHandle(newdb);
         return RollbackResult(false, 0, 0, 0);
