@@ -137,7 +137,8 @@ static bool allDigit(std::string &input) {
 static std::string couchkvstore_strerrno(Db *db, couchstore_error_t err) {
     return (err == COUCHSTORE_ERROR_OPEN_FILE ||
             err == COUCHSTORE_ERROR_READ ||
-            err == COUCHSTORE_ERROR_WRITE) ? getStrError(db) : "none";
+            err == COUCHSTORE_ERROR_WRITE ||
+            err == COUCHSTORE_ERROR_FILE_CLOSE) ? getStrError(db) : "none";
 }
 
 struct GetMultiCbCtx {
