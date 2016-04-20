@@ -28,6 +28,26 @@ class PauseResumeHashTableVisitor;
 
 /**
  * A container of StoredValue instances.
+ *
+ * The HashTable class is an unordered, associative array which maps keys
+ * (a binary std::string) to StoredValue.
+ *
+ * It supports a limited degreee of concurrent access - the underlying
+ * HashTable buckets are guarded by N ht_locks; where N is typically of the
+ * order of the number of CPUs. Essentially ht bucket B is guarded by
+ * mutex B mod N.
+ *
+ * StoredValue objects can have their value (Blob object) ejected, making the
+ * value non-resident. Such StoredValues are still in the HashTable, and their
+ * metadata (CAS, revSeqno, bySeqno, etc) is still accessible, but the value
+ * cannot be accessed until it is fetched from disk. This is value eviction.
+ *
+ * Additionally, we can eject the whole StoredValue from the HashTable.
+ * We no longer know if the item even exists from the HashTable, and need to go
+ * to disk to definitively know if it exists or not. Note that even though the
+ * HashTable has no direct knowledge of the item now, it /does/ track the total
+ * number of items which exist but are not resident (see numNonResidentItems).
+ * This is full eviction.
  */
 class HashTable {
 public:
