@@ -920,8 +920,6 @@ protected:
     void warmupCompleted();
     void stopWarmup(void);
 
-private:
-
     void scheduleVBDeletion(RCPtr<VBucket> &vb,
                             const void* cookie,
                             double delay = 0,
