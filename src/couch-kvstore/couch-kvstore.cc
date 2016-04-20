@@ -1983,10 +1983,16 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
     errCode = couchstore_open_local_document(db, (void *)id.buf,
                                              id.size, &ldoc);
     if (errCode != COUCHSTORE_SUCCESS) {
-        LOG(EXTENSION_LOG_DEBUG,
-            "CouchKVStore::readVBState: Failed to "
-            "retrieve stat info for vBucket: %d with error: %s",
-            vbId, couchstore_strerror(errCode));
+        if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+            LOG(EXTENSION_LOG_NOTICE,
+                "CouchKVStore::readVBState: '_local/vbstate' not found "
+                "for vBucket: %d", vbId);
+        } else {
+            LOG(EXTENSION_LOG_WARNING,
+                "CouchKVStore::readVBState: Failed to "
+                "retrieve stat info for vBucket: %d with error: %s",
+                vbId, couchstore_strerror(errCode));
+        }
     } else {
         const std::string statjson(ldoc->json.buf, ldoc->json.size);
         cJSON *jsonObj = cJSON_Parse(statjson.c_str());
