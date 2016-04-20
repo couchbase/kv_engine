@@ -54,6 +54,8 @@ public:
 
     virtual unique_cJSON_ptr stats(const std::string& subcommand) override;
 
+    virtual void reloadAuditConfiguration() override;
+
     virtual void sendFrame(const Frame& frame) override;
 
     virtual void recvFrame(Frame& frame) override;

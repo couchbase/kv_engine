@@ -11,6 +11,8 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_bucket.h
                testapp_client_test.cc
                testapp_client_test.h
+               testapp_environment.cc
+               testapp_environment.h
                testapp_getset.cc
                testapp_greenstack.cc
                testapp_greenstack.h

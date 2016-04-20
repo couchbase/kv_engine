@@ -37,6 +37,7 @@
 #include "engines/ewouldblock_engine/ewouldblock_engine.h"
 
 #include <protocol/connection/client_connection.h>
+#include "testapp_environment.h"
 
 enum test_return { TEST_SKIP, TEST_PASS, TEST_FAIL };
 
@@ -185,21 +186,6 @@ protected:
                             bool pipeline, int iterations, int message_size);
 
     void test_subdoc_dict_add_cas(bool compress, protocol_binary_command cmd);
-};
-
-class McdEnvironment : public ::testing::Environment {
-public:
-
-    virtual void SetUp();
-    virtual void TearDown();
-
-    const char* getRbacFilename() const {
-        return rbac_file_name.c_str();
-    }
-private:
-    std::string isasl_file_name;
-    std::string rbac_file_name;
-    static char isasl_env_var[256];
 };
 
 SOCKET connect_to_server_plain(in_port_t port);

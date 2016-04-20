@@ -698,3 +698,23 @@ void MemcachedBinprotConnection::assumeRole(const std::string& role) {
                               header.status);
     }
 }
+
+void MemcachedBinprotConnection::reloadAuditConfiguration() {
+    Frame frame;
+    mcbp_raw_command(frame,
+                     PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD,
+                     std::vector<uint8_t>(), "",
+                     std::vector<uint8_t>());
+
+    sendFrame(frame);
+    recvFrame(frame);
+
+    auto* bytes = frame.payload.data();
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
+    auto& header = rsp->message.header.response;
+    if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Failed to reload audit configuration",
+                              Protocol::Memcached,
+                              header.status);
+    }
+}

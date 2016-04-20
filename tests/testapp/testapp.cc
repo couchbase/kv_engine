@@ -43,7 +43,6 @@
 McdEnvironment* mcd_env = nullptr;
 
 #define CFG_FILE_PATTERN "memcached_testapp.json.XXXXXX"
-#define RBAC_FILE_PATTERN "testapp_rbac.json.XXXXXX"
 
 #define MAX_CONNECTIONS 1000
 #define BACKLOG 1024
@@ -279,24 +278,6 @@ static void log_network_error(const char* prefix) {
 #define CERTIFICATE_PATH(file) ("/tests/cert/"#file)
 #endif
 
-std::string get_working_current_directory() {
-    bool ok = false;
-    std::string result(4096, 0);
-#ifdef WIN32
-    ok = GetCurrentDirectory(result.size(), &result[0]) != 0;
-#else
-    ok = getcwd(&result[0], result.size()) != NULL;
-#endif
-    /* memcached may throw a warning, but let's push through */
-    if (!ok) {
-        fprintf(stderr, "Failed to determine current working directory");
-        result = ".";
-    }
-    // Trim off any trailing \0 characters.
-    result.resize(strlen(result.c_str()));
-    return result;
-}
-
 cJSON* TestappTest::generate_config(uint16_t ssl_port)
 {
     cJSON *root = cJSON_CreateObject();
@@ -304,8 +285,7 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
     cJSON *obj = nullptr;
     cJSON *obj_ssl = nullptr;
 
-    const std::string cwd = get_working_current_directory();
-    const std::string rbac_path = cwd + "/" + mcd_env->getRbacFilename();
+    const std::string& cwd = mcd_env->getCurrentWorkingDirectory();
     const std::string pem_path = cwd + CERTIFICATE_PATH(testapp.pem);
     const std::string cert_path = cwd + CERTIFICATE_PATH(testapp.cert);
 
@@ -387,7 +367,10 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
 
     cJSON_AddStringToObject(root, "admin", "");
     cJSON_AddTrueToObject(root, "datatype_support");
-    cJSON_AddStringToObject(root, "rbac_file", rbac_path.c_str());
+    cJSON_AddStringToObject(root, "rbac_file",
+                            mcd_env->getRbacFilename().c_str());
+    cJSON_AddStringToObject(root, "audit_file",
+                            mcd_env->getAuditFilename().c_str());
 
     return root;
 }
@@ -2502,7 +2485,7 @@ TEST_P(McdTestappTest, Config_Reload_SSL) {
     cJSON *iface = cJSON_GetArrayItem(iface_list, 1);
     cJSON *ssl = cJSON_GetObjectItem(iface, "ssl");
 
-    const std::string cwd = get_working_current_directory();
+    const std::string cwd = mcd_env->getCurrentWorkingDirectory();
     const std::string pem_path = cwd + CERTIFICATE_PATH(testapp2.pem);
     const std::string cert_path = cwd + CERTIFICATE_PATH(testapp2.cert);
 
@@ -4382,57 +4365,6 @@ INSTANTIATE_TEST_CASE_P(Transport,
                         ::testing::Values(Transport::Plain, Transport::SSL),
                         ::testing::PrintToStringParamName());
 
-void McdEnvironment::SetUp() {
-    // Create an rbac config file for use for all tests
-    cJSON *rbac = generate_rbac_config();
-    char *rbac_text = cJSON_Print(rbac);
-
-    char rbac_file_pattern [] = RBAC_FILE_PATTERN;
-    strncpy(rbac_file_pattern, RBAC_FILE_PATTERN, sizeof(rbac_file_pattern));
-    ASSERT_NE(cb_mktemp(rbac_file_pattern), nullptr);
-    rbac_file_name = rbac_file_pattern;
-
-    ASSERT_EQ(0, write_config_to_file(rbac_text, rbac_file_name.c_str()));
-
-    cJSON_Free(rbac_text);
-    cJSON_Delete(rbac);
-
-    // Create an isasl file for all tests.
-    isasl_file_name = "isasl." + std::to_string(getpid()) +
-                      "." + std::to_string(time(NULL)) + ".pw";
-
-    // write out user/passwords
-    std::ofstream isasl(isasl_file_name,
-                        std::ofstream::out | std::ofstream::trunc);
-    ASSERT_TRUE(isasl.is_open());
-    isasl << "_admin password " << std::endl;
-    for (int ii = 0; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
-        std::stringstream line;
-        line << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
-        line << " mybucket_" << std::setfill('0') << std::setw(3) << ii
-             << " " << std::endl;
-        isasl << line.rdbuf();
-    }
-    isasl << "bucket-1 1S|=,%#x1" << std::endl;
-    isasl << "bucket-2 secret" << std::endl;
-
-    // Add the file to the exec environment
-    snprintf(isasl_env_var, sizeof(isasl_env_var),
-             "ISASL_PWFILE=%s", isasl_file_name.c_str());
-    putenv(isasl_env_var);
-}
-
-void McdEnvironment::TearDown() {
-    // Cleanup RBAC config file.
-    EXPECT_NE(-1, remove(rbac_file_name.c_str()));
-
-    // Cleanup isasl file
-    EXPECT_NE(-1, remove(isasl_file_name.c_str()));
-
-    shutdown_openssl();
-}
-
-char McdEnvironment::isasl_env_var[256];
 unique_cJSON_ptr TestappTest::memcached_cfg;
 std::string TestappTest::portnumber_file;
 std::string TestappTest::config_file;

@@ -287,6 +287,11 @@ public:
     virtual unique_cJSON_ptr stats(const std::string& subcommand) = 0;
 
     /**
+     * Instruct the audit daemon to reload the configuration
+     */
+    virtual void reloadAuditConfiguration() = 0;
+
+    /**
      * Sent the given frame over this connection
      *
      * @param frame the frame to send to the server
