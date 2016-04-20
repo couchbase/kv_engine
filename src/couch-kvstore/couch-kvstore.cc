@@ -2464,8 +2464,9 @@ CouchKVStore::getAllKeys(uint16_t vbid, std::string &start_key, uint32_t count,
             return ENGINE_SUCCESS;
         } else {
             LOG(EXTENSION_LOG_WARNING, "couchstore_all_docs failed for "
-                    "database file of vbucket = %d rev = %" PRIu64 ", errCode = %u",
-                    vbid, rev, errCode);
+                "database file of vbucket = %d rev = %" PRIu64
+                ", error=%s [%s]", vbid, rev, couchstore_strerror(errCode),
+                cb_strerror().c_str());
         }
     } else {
         LOG(EXTENSION_LOG_WARNING, "Failed to open database file for "
