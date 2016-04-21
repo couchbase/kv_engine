@@ -19,6 +19,7 @@
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "../mock/mock_dcp.h"
 
 #include <platform/dirutils.h>
 
@@ -81,6 +82,43 @@ public:
         // We do not create a ConnManager task
         // The ConnNotifier is deleted in the DcpConnMap
         // destructor
+    }
+};
+
+/*
+ * Mock of the DcpProducer class.  Wraps the real DcpProducer, but exposes
+ * normally protected methods publically for test purposes.
+ */
+class MockDcpProducer: public DcpProducer {
+public:
+    MockDcpProducer(EventuallyPersistentEngine &theEngine, const void *cookie,
+                    const std::string &name, bool isNotifier)
+    : DcpProducer(theEngine, cookie, name, isNotifier)
+    {}
+
+    ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers)
+    {
+        return DcpProducer::maybeSendNoop(producers);
+    }
+
+    void setNoopSendTime(const rel_time_t timeValue) {
+        noopCtx.sendTime = timeValue;
+    }
+
+    rel_time_t getNoopSendTime() {
+        return noopCtx.sendTime;
+    }
+
+    Couchbase::RelaxedAtomic<bool> getNoopPendingRecv() {
+        return noopCtx.pendingRecv;
+    }
+
+    void setNoopEnabled(const bool booleanValue) {
+        noopCtx.enabled = booleanValue;
+    }
+
+    Couchbase::RelaxedAtomic<bool> getNoopEnabled() {
+        return noopCtx.enabled;
     }
 };
 
@@ -323,6 +361,112 @@ TEST_F(StreamTest, test_mb18625) {
 }
 
 class ConnectionTest : public DCPTest {};
+
+ENGINE_ERROR_CODE mock_noop_return_engine_e2big(const void* cookie,uint32_t opaque) {
+    return ENGINE_E2BIG;
+}
+
+TEST_F(ConnectionTest, test_maybesendnoop_buffer_full) {
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+
+    struct dcp_message_producers producers = {nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        mock_noop_return_engine_e2big, nullptr, nullptr};
+
+    producer.setNoopEnabled(true);
+    producer.setNoopSendTime(21);
+    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(&producers);
+    EXPECT_EQ(ENGINE_E2BIG, (int)ret)
+    << "maybeSendNoop not returning ENGINE_E2BIG";
+    EXPECT_FALSE(producer.getNoopPendingRecv())
+    << "Waiting for noop acknowledgement";
+    EXPECT_EQ(21, (int)producer.getNoopSendTime())
+    << "SendTime has been updated";
+    delete cookie;
+}
+
+TEST_F(ConnectionTest, test_maybesendnoop_send_noop) {
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    producer.setNoopEnabled(true);
+    producer.setNoopSendTime(21);
+    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    EXPECT_EQ(ENGINE_WANT_MORE, (int)ret)
+    << "maybeSendNoop not returning ENGINE_WANT_MORE";
+    EXPECT_TRUE(producer.getNoopPendingRecv())
+    << "Not waiting for noop acknowledgement";
+    EXPECT_NE(21, (int)producer.getNoopSendTime())
+    << "SendTime has not been updated";
+    delete cookie;
+}
+
+TEST_F(ConnectionTest, test_maybesendnoop_noop_already_pending) {
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    producer.setNoopEnabled(true);
+    producer.setNoopSendTime(21);
+    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    EXPECT_EQ(ENGINE_WANT_MORE, (int)ret)
+    << "maybeSendNoop not returning ENGINE_WANT_MORE";
+    EXPECT_TRUE(producer.getNoopPendingRecv())
+    << "Not awaiting noop acknowledgement";
+    EXPECT_NE(21, (int)producer.getNoopSendTime())
+    << "SendTime has not been updated";
+    producer.setNoopSendTime(21);
+    ENGINE_ERROR_CODE ret2 = producer.maybeSendNoop(producers.get());
+    EXPECT_EQ(ENGINE_DISCONNECT, (int)ret2)
+     << "maybeSendNoop not returning ENGINE_DISCONNECT";
+    EXPECT_TRUE(producer.getNoopPendingRecv())
+    << "Not waiting for noop acknowledgement";
+    EXPECT_EQ(21, (int)producer.getNoopSendTime())
+    << "SendTime has been updated";
+    delete cookie;
+}
+
+TEST_F(ConnectionTest, test_maybesendnoop_not_enabled) {
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    producer.setNoopEnabled(false);
+    producer.setNoopSendTime(21);
+    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    EXPECT_EQ(ENGINE_FAILED, (int)ret)
+    << "maybeSendNoop not returning ENGINE_FAILED";
+    EXPECT_FALSE(producer.getNoopPendingRecv())
+    << "Waiting for noop acknowledgement";
+    EXPECT_EQ(21, (int)producer.getNoopSendTime())
+    << "SendTime has been updated";
+    delete cookie;
+}
+
+TEST_F(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    producer.setNoopEnabled(true);
+    rel_time_t current_time = ep_current_time();
+    producer.setNoopSendTime(current_time);
+    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    EXPECT_EQ(ENGINE_FAILED, (int)ret)
+    << "maybeSendNoop not returning ENGINE_FAILED";
+    EXPECT_FALSE(producer.getNoopPendingRecv())
+    << "Waiting for noop acknowledgement";
+    EXPECT_EQ(current_time, producer.getNoopSendTime())
+    << "SendTime has been incremented";
+    delete cookie;
+}
 
 TEST_F(ConnectionTest, test_deadConnections) {
     MockDcpConnMap connMap(*engine);

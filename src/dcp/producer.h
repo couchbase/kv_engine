@@ -213,13 +213,7 @@ public:
     */
     void clearCheckpointProcessorTaskQueues();
 
-private:
-
-
-    DcpResponse* getNextItem();
-
-    size_t getItemsRemaining();
-    stream_t findStreamByVbid(uint16_t vbid);
+protected:
 
     ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers);
 
@@ -230,6 +224,14 @@ private:
         Couchbase::RelaxedAtomic<bool> pendingRecv;
         Couchbase::RelaxedAtomic<bool> enabled;
     } noopCtx;
+
+private:
+
+
+    DcpResponse* getNextItem();
+
+    size_t getItemsRemaining();
+    stream_t findStreamByVbid(uint16_t vbid);
 
     std::string priority;
 

@@ -179,6 +179,7 @@ TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore forestdb
   dirutils platform ${LIBEVENT_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_dcp_test
+  tests/mock/mock_dcp.cc
   tests/module_tests/dcp_test.cc
   src/access_scanner.cc
   src/atomic.cc
