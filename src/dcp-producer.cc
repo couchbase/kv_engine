@@ -718,10 +718,10 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(struct dcp_message_producers* produ
 
             if (ret == ENGINE_SUCCESS) {
                 ret = ENGINE_WANT_MORE;
+                noopCtx.pendingRecv = true;
+                noopCtx.sendTime = ep_current_time();
+                lastSendTime = ep_current_time();
             }
-            noopCtx.pendingRecv = true;
-            noopCtx.sendTime = ep_current_time();
-            lastSendTime = ep_current_time();
             return ret;
         }
     }
