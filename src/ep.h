@@ -739,7 +739,7 @@ public:
     /**
      * Persist a vbucket's state.
      */
-    bool persistVBState(const Priority &priority, uint16_t vbid);
+    bool persistVBState(uint16_t vbid);
 
     const VBucketMap &getVBuckets() {
         return vbMap;

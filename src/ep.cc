@@ -1322,8 +1322,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     }
 }
 
-bool EventuallyPersistentStore::persistVBState(const Priority &priority,
-                                               uint16_t vbid) {
+bool EventuallyPersistentStore::persistVBState(uint16_t vbid) {
     schedule_vbstate_persist[vbid] = false;
 
     RCPtr<VBucket> vb = getVBucket(vbid);

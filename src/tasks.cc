@@ -85,7 +85,7 @@ bool DaemonVBSnapshotTask::run() {
 }
 
 bool VBStatePersistTask::run() {
-    return engine->getEpStore()->persistVBState(priority, vbid);
+    return engine->getEpStore()->persistVBState(vbid);
 }
 
 bool VBDeleteTask::run() {
