@@ -2584,7 +2584,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(
                                             uint16_t vbucket,
                                             const void *cookie,
                                             struct key_stats &kstats,
-                                            bool bgfetch,
                                             bool wantsDeleted)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
@@ -2601,8 +2600,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(
             v->isTempNonExistentItem() || v->isTempDeletedItem()) {
             return ENGINE_KEY_ENOENT;
         }
-        if (eviction_policy == FULL_EVICTION &&
-            v->isTempInitialItem() && bgfetch) {
+        if (eviction_policy == FULL_EVICTION && v->isTempInitialItem()) {
             lh.unlock();
             bgFetch(key, vbucket, cookie, true);
             return ENGINE_EWOULDBLOCK;
@@ -2618,7 +2616,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getKeyStats(
         if (eviction_policy == VALUE_ONLY) {
             return ENGINE_KEY_ENOENT;
         } else {
-            if (bgfetch && vb->maybeKeyExistsInFilter(key)) {
+            if (vb->maybeKeyExistsInFilter(key)) {
                 return addTempItemForBgFetch(lh, bucket_num, key, vb,
                                              cookie, true);
             } else {

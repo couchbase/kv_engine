@@ -4166,7 +4166,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doKeyStats(const void *cookie,
         return rv;
     }
 
-    rv = epstore->getKeyStats(key, vbid, cookie, kstats, true, false);
+    rv = epstore->getKeyStats(key, vbid, cookie, kstats, false);
     if (rv == ENGINE_SUCCESS) {
         std::string valid("this_is_a_bug");
         if (validate) {
@@ -4679,7 +4679,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
                                                             sizeof(req->bytes);
     uint32_t data_len = ntohl(req->message.header.request.bodylen);
     std::stringstream result;
-    item_eviction_policy_t policy = epstore->getItemEvictionPolicy();
 
     while (offset < data_len) {
         uint16_t vb_id;
@@ -4723,7 +4722,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::observe(
         struct key_stats kstats;
         memset(&kstats, 0, sizeof(key_stats));
         ENGINE_ERROR_CODE rv = epstore->getKeyStats(key, vb_id, cookie, kstats,
-                         policy == VALUE_ONLY ? false : true, true);
+                                                    true);
         if (rv == ENGINE_SUCCESS) {
             if (kstats.logically_deleted) {
                 keystatus = OBS_STATE_LOGICAL_DEL;

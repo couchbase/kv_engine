@@ -662,9 +662,19 @@ public:
 
     Warmup* getWarmup(void) const;
 
+    /**
+     * Looks up the key stats for the given {vbucket, key}.
+     * @param key The key to lookup
+     * @param vbucket The vbucket the key belongs to.
+     * @param cookie The client's cookie
+     * @param[out] kstats On success the keystats for this item.
+     * @param wantsDeleted If true then return keystats even if the item is
+     *                     marked as deleted. If false then will return
+     *                     ENGINE_KEY_ENOENT for deleted items.
+     */
     ENGINE_ERROR_CODE getKeyStats(const std::string &key, uint16_t vbucket,
                                   const void* cookie, key_stats &kstats,
-                                  bool bgfetch, bool wantsDeleted=false);
+                                  bool wantsDeleted);
 
     std::string validateKey(const std::string &key,  uint16_t vbucket,
                             Item &diskItem);
