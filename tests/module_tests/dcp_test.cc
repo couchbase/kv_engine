@@ -109,7 +109,7 @@ public:
         return noopCtx.sendTime;
     }
 
-    Couchbase::RelaxedAtomic<bool> getNoopPendingRecv() {
+    bool getNoopPendingRecv() {
         return noopCtx.pendingRecv;
     }
 
@@ -117,7 +117,7 @@ public:
         noopCtx.enabled = booleanValue;
     }
 
-    Couchbase::RelaxedAtomic<bool> getNoopEnabled() {
+    bool getNoopEnabled() {
         return noopCtx.enabled;
     }
 };
