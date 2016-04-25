@@ -55,6 +55,23 @@ protected:
         free_user_ht();
         ASSERT_EQ(0, remove(cbpwfile));
     }
+
+    bool find_pw(const std::string& user, std::string& password) {
+        Couchbase::User u;
+        if (!find_user(user, u)) {
+            return false;
+        }
+
+        if (!u.isDummy()) {
+            try {
+                const auto& meta = u.getPassword(Mechanism::PLAIN);
+                password.assign(meta.getPassword());
+                return true;
+            } catch (...) { ;
+            }
+        }
+        return false;
+    }
 };
 
 TEST_F(PasswordFileTest, VerifyExpectedUsers) {

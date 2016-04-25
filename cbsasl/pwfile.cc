@@ -61,19 +61,6 @@ void free_user_ht(void) {
     pwmgr.swap(ndb);
 }
 
-bool find_pw(const std::string& user, std::string& password) {
-    Couchbase::User u = pwmgr.find(user);
-    if (!u.isDummy()) {
-        try {
-            const auto& meta = u.getPassword(Mechanism::PLAIN);
-            password.assign(meta.getPassword());
-            return true;
-        } catch (...) { ;
-        }
-    }
-    return false;
-}
-
 bool find_user(const std::string& username, Couchbase::User& user) {
     user = pwmgr.find(username);
     return !user.isDummy();
