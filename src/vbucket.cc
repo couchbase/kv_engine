@@ -183,23 +183,27 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
 
 void VBucket::setState(vbucket_state_t to, SERVER_HANDLE_V1 *sapi) {
     cb_assert(sapi);
-    WriterLockHolder wlh(stateLock);
-    vbucket_state_t oldstate(state);
 
-    if (to == vbucket_state_active &&
-        checkpointManager.getOpenCheckpointId() < 2) {
-        checkpointManager.setOpenCheckpointId(2);
+    vbucket_state_t oldstate;
+    {
+        WriterLockHolder wlh(stateLock);
+        oldstate = state;
+
+        if (to == vbucket_state_active &&
+            checkpointManager.getOpenCheckpointId() < 2) {
+            checkpointManager.setOpenCheckpointId(2);
+        }
+
+        LOG(EXTENSION_LOG_DEBUG, "transitioning vbucket %d from %s to %s",
+            id, VBucket::toString(oldstate), VBucket::toString(to));
+
+        state = to;
     }
 
     if (oldstate == vbucket_state_active) {
         uint64_t highSeqno = (uint64_t)checkpointManager.getHighSeqno();
         setCurrentSnapshot(highSeqno, highSeqno);
     }
-
-    LOG(EXTENSION_LOG_DEBUG, "transitioning vbucket %d from %s to %s",
-        id, VBucket::toString(oldstate), VBucket::toString(to));
-
-    state = to;
 }
 
 void VBucket::doStatsForQueueing(Item& qi, size_t itemBytes)
