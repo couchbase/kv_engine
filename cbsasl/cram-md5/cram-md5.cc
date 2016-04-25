@@ -83,9 +83,18 @@ cbsasl_error_t CramMd5ServerBackend::step(cbsasl_conn_t* conn,
     userlen = inputlen - (DIGEST_LENGTH * 2) - 1;
     conn->server->username.assign(input, userlen);
 
-    std::string password;
-    if (!find_pw(conn->server->username, password)) {
+    Couchbase::User user;
+    if (!find_user(conn->server->username, user)) {
         return CBSASL_NOUSER;
+    }
+
+    std::string password;
+    try {
+        const auto& meta = user.getPassword(Mechanism::PLAIN);
+        password.assign(meta.getPassword());
+    } catch (...) {
+        // There is no plain text password for the user
+        return CBSASL_PWERR;
     }
 
     unsigned int digest_len;
