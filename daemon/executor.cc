@@ -53,18 +53,31 @@ void Executor::run() {
         // Release the lock so that others may schedule new events
         lock.unlock();
 
-        {
-            // Lock the task so no one else can touch it and we won't
-            // have any races..
-            std::lock_guard<std::mutex> guard(task->getMutex());
-            if (task->execute()) {
-                task->notifyExecutionComplete();
-            } else {
-                // put it in the wait-queue.. We need the lock for the waitq
-                lock.lock();
-                waitq[task.get()] = task;
-                lock.unlock();
-            }
+        // Lock the task so no one else can touch it and we won't
+        // have any races..
+        task->getMutex().lock();
+        if (task->execute()) {
+            // Unlock the mutex, we're not going to use this anymore
+            // By not holding the mutex in notifyExecutionComplete
+            // we won't get any warnings from ThreadSanitizer by
+            // locking in oposite order (typically you hold the thread
+            // mutex when you create a task, and then aqcuire the task
+            // lock. This time we aqcuired the task mutex first and the
+            // notification method will try to grab the thread lock later
+            // on..
+            task->getMutex().unlock();
+
+            // tell the task that the executor consider it done with the
+            // task and will no longer operate on it.
+            task->notifyExecutionComplete();
+        } else {
+            // put it in the wait-queue.. We need the lock for the waitq
+            lock.lock();
+            waitq[task.get()] = task;
+            lock.unlock();
+            // Release the task lock so that the backend thread may start
+            // using it
+            task->getMutex().unlock();
         }
     }
 

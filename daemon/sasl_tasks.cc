@@ -101,21 +101,10 @@ void SaslAuthTask::notifyExecutionComplete() {
     }
 
     if (cookie.command == nullptr) {
-        // notifyExecutionComplete is called from the executor while holding
-        // the mutex lock, but we're calling notify_io_complete which in turn
-        // tries to lock the threads lock. We held that lock when we scheduled
-        // the task, so thread sanitizer will complain about potential
-        // deadlock since we're now locking in the oposite order.
-        // Given that we know that the executor is _blocked_ waiting for
-        // this call to complete (and no one else should touch this object
-        // while waiting for the call) lets just unlock and lock again..
-        getMutex().unlock();
         notify_io_complete(
             reinterpret_cast<McbpConnection&>(connection).getCookie(),
             ENGINE_SUCCESS);
-        getMutex().lock();
     } else {
         throw new std::runtime_error("Not implemented for greenstack");
-
     }
 }

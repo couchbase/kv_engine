@@ -14,10 +14,11 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#include <gtest/gtest.h>
-#include <memory>
+#include <atomic>
 #include <daemon/executorpool.h>
 #include <daemon/task.h>
+#include <gtest/gtest.h>
+#include <memory>
 #include <platform/backtrace.h>
 
 class ExecutorTest : public ::testing::Test {
@@ -42,8 +43,8 @@ public:
     BasicTestTask(int max_)
         : Task(),
           runcount(0),
-          max(max_),
-          executionComplete(false) {
+          max(max_) {
+        executionComplete.store(false);
     }
 
     virtual ~BasicTestTask() {
@@ -62,14 +63,14 @@ public:
 
 
     virtual void notifyExecutionComplete() override {
-        executionComplete = true;
+        executionComplete.store(true);
         cond.notify_one();
     }
 
     int runcount;
     int max;
     std::condition_variable cond;
-    bool executionComplete;
+    std::atomic_bool executionComplete;
 };
 
 TEST_F(ExecutorTest, SingleExecution) {

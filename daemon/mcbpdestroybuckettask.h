@@ -43,21 +43,11 @@ public:
         return true;
     }
 
-    // notifyExecutionComplete is called from the executor while holding
-    // the mutex lock, but we're calling notify_io_complete which in turn
-    // tries to lock the threads lock. We held that lock when we scheduled
-    // the task, so thread sanitizer will complain about potential
-    // deadlock since we're now locking in the opposite order.
-    // Given that we know that the executor is _blocked_ waiting for
-    // this call to complete (and no one else should touch this object
-    // while waiting for the call) lets just unlock and lock again..
     virtual void notifyExecutionComplete() override {
         if (thread.getConnection() != nullptr) {
-            getMutex().unlock();
             // @todo i need to fix this for greenstack
             Cookie cookie(thread.getConnection());
             notify_io_complete(&cookie, thread.getResult());
-            getMutex().lock();
         }
     }
 
