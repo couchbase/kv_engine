@@ -128,7 +128,7 @@ private:
     passive_stream_t* streams;
     opaque_map opaqueMap_;
 
-    rel_time_t lastNoopTime;
+    rel_time_t lastMessageTime;
     Couchbase::RelaxedAtomic<uint32_t> backoffs;
     uint32_t noopInterval;
     bool enableNoop;
