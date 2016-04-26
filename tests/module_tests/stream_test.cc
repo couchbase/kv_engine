@@ -68,6 +68,10 @@ static void test_mb17766(const std::string& test_dbname) {
               create_instance(1, get_mock_server_api, &handle),
               "Failed to created ep engine instance");
 
+    // Init mock server to initialize time_mutex used in
+    // mock_get_current_time & mock_time_travel apis.
+    init_mock_server(handle);
+
     EventuallyPersistentEngine* engine =
             reinterpret_cast<EventuallyPersistentEngine*>(handle);
     ObjectRegistry::onSwitchThread(engine);
