@@ -329,6 +329,7 @@ public:
     void queueBGFetchItem(const std::string &key, VBucketBGFetchItem *fetch,
                           BgFetcher *bgFetcher);
     size_t numPendingBGFetchItems(void) {
+        LockHolder lh(pendingBGFetchesLock);
         // do a dirty read of number of fetch items
         return pendingBGFetches.size();
     }
