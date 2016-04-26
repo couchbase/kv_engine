@@ -337,8 +337,7 @@ size_t VBucket::queueBGFetchItem(const std::string &key,
 vb_bgfetch_queue_t VBucket::getBGFetchItems() {
     vb_bgfetch_queue_t fetches;
     LockHolder lh(pendingBGFetchesLock);
-    fetches.insert(pendingBGFetches.begin(), pendingBGFetches.end());
-    pendingBGFetches.clear();
+    fetches.swap(pendingBGFetches);
     return fetches;
 }
 

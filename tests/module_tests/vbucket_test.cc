@@ -19,6 +19,7 @@
 
 #include <gtest/gtest.h>
 
+#include "bgfetcher.h"
 #include "item.h"
 #include "vbucket.h"
 
@@ -61,6 +62,27 @@ protected:
     EPStats global_stats;
     CheckpointConfig checkpoint_config;
 };
+
+// Measure performance of VBucket::getBGFetchItems - queue and then get
+// 10,000 items from the vbucket.
+TEST_F(VBucketTest, GetBGFetchItemsPerformance) {
+    BgFetcher fetcher(/*store*/nullptr, /*shard*/nullptr, global_stats);
+
+    for (unsigned int ii = 0; ii < 100000; ii++) {
+        auto* fetchItem = new VBucketBGFetchItem(/*cookie*/nullptr,
+                                                 /*isMeta*/false);
+        vbucket->queueBGFetchItem(std::to_string(ii), fetchItem, &fetcher);
+    }
+    auto items = vbucket->getBGFetchItems();
+
+    // Cleanup.
+    for (auto& it : items) {
+        for (auto* fetchItem : it.second.bgfetched_list) {
+            delete fetchItem;
+        }
+    }
+}
+
 
 class VBucketEvictionTest : public VBucketTest,
                             public ::testing::WithParamInterface<item_eviction_policy_t> {
