@@ -51,52 +51,48 @@ void BgFetcher::notifyBGEvent(void) {
     }
 }
 
-size_t BgFetcher::doFetch(VBucket::id_type vbId) {
+size_t BgFetcher::doFetch(VBucket::id_type vbId,
+                          vb_bgfetch_queue_t& itemsToFetch) {
     hrtime_t startTime(gethrtime());
     LOG(EXTENSION_LOG_DEBUG, "BgFetcher is fetching data, vBucket = %d "
         "numDocs = %" PRIu64 ", startTime = %" PRIu64,
-        vbId, uint64_t(items2fetch.size()), startTime/1000000);
+        vbId, uint64_t(itemsToFetch.size()), startTime/1000000);
 
-    shard->getROUnderlying()->getMulti(vbId, items2fetch);
+    shard->getROUnderlying()->getMulti(vbId, itemsToFetch);
 
-    size_t totalfetches = 0;
     std::vector<bgfetched_item_t> fetchedItems;
-    vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
-    for (; itr != items2fetch.end(); ++itr) {
-        vb_bgfetch_item_ctx_t &bg_item_ctx = (*itr).second;
-        std::list<VBucketBGFetchItem *> &requestedItems = bg_item_ctx.bgfetched_list;
-        std::list<VBucketBGFetchItem *>::iterator itm = requestedItems.begin();
-        for(; itm != requestedItems.end(); ++itm) {
-            const std::string &key = (*itr).first;
-            fetchedItems.push_back(std::make_pair(key, *itm));
-            ++totalfetches;
+    for (const auto& fetch : itemsToFetch) {
+        const std::string& key = fetch.first;
+        const vb_bgfetch_item_ctx_t& bg_item_ctx = fetch.second;
+
+        for (const auto& itm : bg_item_ctx.bgfetched_list) {
+            fetchedItems.push_back(std::make_pair(key, itm));
         }
     }
 
-    if (totalfetches > 0) {
+    if (fetchedItems.size() > 0) {
         store->completeBGFetchMulti(vbId, fetchedItems, startTime);
-        stats.getMultiHisto.add((gethrtime()-startTime)/1000, totalfetches);
+        stats.getMultiHisto.add((gethrtime() - startTime) / 1000,
+                                fetchedItems.size());
     }
 
     // failed requests will get requeued for retry within clearItems()
-    clearItems(vbId);
-    return totalfetches;
+    clearItems(vbId, itemsToFetch);
+    return fetchedItems.size();
 }
 
-void BgFetcher::clearItems(VBucket::id_type vbId) {
-    vb_bgfetch_queue_t::iterator itr = items2fetch.begin();
-
-    for(; itr != items2fetch.end(); ++itr) {
+void BgFetcher::clearItems(VBucket::id_type vbId,
+                           const vb_bgfetch_queue_t& itemsToFetch) {
+    for (const auto& fetch : itemsToFetch) {
         // every fetched item belonging to the same key shares
         // a single data buffer, just delete it from the first fetched item
-        vb_bgfetch_item_ctx_t& bg_item_ctx = (*itr).second;
-        std::list<VBucketBGFetchItem *> &doneItems = bg_item_ctx.bgfetched_list;
+        const vb_bgfetch_item_ctx_t& bg_item_ctx = fetch.second;
+        const auto& doneItems = bg_item_ctx.bgfetched_list;
         VBucketBGFetchItem *firstItem = doneItems.front();
         firstItem->delValue();
 
-        std::list<VBucketBGFetchItem *>::iterator dItr = doneItems.begin();
-        for (; dItr != doneItems.end(); ++dItr) {
-            delete *dItr;
+        for (const auto& done : doneItems) {
+            delete done;
         }
     }
 }
@@ -106,32 +102,31 @@ bool BgFetcher::run(GlobalTask *task) {
     bool inverse = true;
     pendingFetch.compare_exchange_strong(inverse, false);
 
-    std::vector<uint16_t> bg_vbs;
-    LockHolder lh(queueMutex);
-    std::set<uint16_t>::iterator it = pendingVbs.begin();
-    for (; it != pendingVbs.end(); ++it) {
-        bg_vbs.push_back(*it);
+    std::vector<uint16_t> bg_vbs(pendingVbs.size());
+    {
+        LockHolder lh(queueMutex);
+        bg_vbs.assign(pendingVbs.begin(), pendingVbs.end());
+        pendingVbs.clear();
     }
-    pendingVbs.clear();
-    lh.unlock();
 
-    std::vector<uint16_t>::iterator ita = bg_vbs.begin();
-    for (; ita != bg_vbs.end(); ++ita) {
-        uint16_t vbId = *ita;
+    for (const uint16_t vbId : bg_vbs) {
         if (store->getVBuckets().isBucketCreation(vbId)) {
             // Requeue the bg fetch task if a vbucket DB file is not
             // created yet.
-            lh.lock();
-            pendingVbs.insert(vbId);
-            lh.unlock();
+            {
+                LockHolder lh(queueMutex);
+                pendingVbs.insert(vbId);
+            }
             bool inverse = false;
             pendingFetch.compare_exchange_strong(inverse, true);
             continue;
         }
         RCPtr<VBucket> vb = shard->getBucket(vbId);
-        if (vb && vb->getBGFetchItems(items2fetch)) {
-            num_fetched_items += doFetch(vbId);
-            items2fetch.clear();
+        if (vb) {
+            auto items = vb->getBGFetchItems();
+            if (items.size() > 0) {
+                num_fetched_items += doFetch(vbId, items);
+            }
         }
     }
 
@@ -151,8 +146,8 @@ bool BgFetcher::run(GlobalTask *task) {
     return true;
 }
 
-bool BgFetcher::pendingJob() {
-    for (auto vbid : shard->getVBuckets()) {
+bool BgFetcher::pendingJob() const {
+    for (const auto vbid : shard->getVBuckets()) {
         RCPtr<VBucket> vb = shard->getBucket(vbid);
         if (vb && vb->hasPendingBGFetchItems()) {
             return true;

@@ -365,7 +365,11 @@ public:
         backfill.isBackfillPhase = backfillPhase;
     }
 
-    bool getBGFetchItems(vb_bgfetch_queue_t &fetches);
+    /*
+     * Returns the map of bgfetch items for this vbucket, clearing the
+     * pendingBGFetches.
+     */
+    vb_bgfetch_queue_t getBGFetchItems();
 
     /* queue a background fetch of the specified item.
      * Returns the number of pending background fetches after

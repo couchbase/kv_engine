@@ -334,11 +334,12 @@ size_t VBucket::queueBGFetchItem(const std::string &key,
     return pendingBGFetches.size();
 }
 
-bool VBucket::getBGFetchItems(vb_bgfetch_queue_t &fetches) {
+vb_bgfetch_queue_t VBucket::getBGFetchItems() {
+    vb_bgfetch_queue_t fetches;
     LockHolder lh(pendingBGFetchesLock);
     fetches.insert(pendingBGFetches.begin(), pendingBGFetches.end());
     pendingBGFetches.clear();
-    return fetches.size() > 0;
+    return fetches;
 }
 
 void VBucket::addHighPriorityVBEntry(uint64_t id, const void *cookie,

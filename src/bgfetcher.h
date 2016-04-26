@@ -63,7 +63,7 @@ public:
     void start(void);
     void stop(void);
     bool run(GlobalTask *task);
-    bool pendingJob(void);
+    bool pendingJob(void) const;
     void notifyBGEvent(void);
     void setTaskId(size_t newId) { taskId = newId; }
     void addPendingVB(VBucket::id_type vbId) {
@@ -72,12 +72,11 @@ public:
     }
 
 private:
-    size_t doFetch(VBucket::id_type vbId);
-    void clearItems(VBucket::id_type vbId);
+    size_t doFetch(VBucket::id_type vbId, vb_bgfetch_queue_t& items);
+    void clearItems(VBucket::id_type vbId, const vb_bgfetch_queue_t& items);
 
     EventuallyPersistentStore *store;
     KVShard *shard;
-    vb_bgfetch_queue_t items2fetch;
     size_t taskId;
     Mutex queueMutex;
     EPStats &stats;
