@@ -129,7 +129,10 @@ public:
     // Alias for the Smart pointer in use.
     using smart_ptr_type = SmartPtr;
 
-    size_type size() const { return map.size(); }
+    size_type size() const {
+        std::lock_guard<std::mutex> guard(this->mutex); // internally locked
+        return map.size();
+    }
 
     /* Lookup */
 
@@ -235,5 +238,5 @@ public:
 
 private:
     std::unordered_map<Key, SmartPtr, Hash, KeyEqual, Allocator> map;
-    std::mutex mutex;
+    mutable std::mutex mutex;
 };
