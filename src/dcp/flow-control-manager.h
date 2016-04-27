@@ -18,6 +18,9 @@
 #ifndef SRC_DCP_FLOW_CONTROL_MANAGER_H_
 #define SRC_DCP_FLOW_CONTROL_MANAGER_H_ 1
 
+#include <atomic>
+#include <mutex>
+
 #include "memcached/types.h"
 #include "dcp/consumer.h"
 
@@ -29,9 +32,7 @@
  * implies that no flow control policy is adopted. To add a new flow control
  * policy just derive a new class from this base class.
  *
- * This class and the derived classes are not thread safe. The clients should
- * use external locks if needed. Currently the functions are only invoked while
- * holding "connsLock" during DCP consumer connection creation and deletion
+ * This class and the derived classes are thread safe.
  */
 class DcpFlowControlManager {
 public:
@@ -93,7 +94,7 @@ public:
 
 private:
     /* Total memory used by all DCP consumer buffers */
-    size_t aggrDcpConsumerBufferSize;
+    std::atomic_size_t aggrDcpConsumerBufferSize;
 };
 
 /**
@@ -116,11 +117,16 @@ public:
     bool isEnabled(void) const;
 
 private:
-    /* Resize all flow control buffers in dcpConsumersMap */
-    void resizeBuffers(size_t bufferSize);
+    /**
+     * Resize all flow control buffers in dcpConsumersMap.
+     * It assumes the dcpConsumersMapMutex is already taken.
+     */
+    void resizeBuffers_UNLOCKED(size_t bufferSize);
+    /* Mutex to ensure dcpConsumersMap is thread safe */
+    std::mutex dcpConsumersMapMutex;
     /* All DCP Consumers with flow control buffer */
     std::map<const void*, DcpConsumer*> dcpConsumersMap;
     /* Fraction of memQuota for all dcp consumer connection buffers */
-    double dcpConnBufferSizeAggrFrac;
+    std::atomic<double> dcpConnBufferSizeAggrFrac;
 };
 #endif  /* SRC_DCP_FLOW_CONTROL_MANAGER_H_ */
