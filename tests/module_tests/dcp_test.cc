@@ -20,6 +20,7 @@
 #include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "programs/engine_testapp/mock_server.h"
+#include "../mock/mock_dcp.h"
 
 #include <platform/dirutils.h>
 
@@ -82,6 +83,43 @@ public:
         // We do not create a ConnManager task
         // The ConnNotifier is deleted in the DcpConnMap
         // destructor
+    }
+};
+
+/*
+ * Mock of the DcpProducer class.  Wraps the real DcpProducer, but exposes
+ * normally protected methods publically for test purposes.
+ */
+class MockDcpProducer: public DcpProducer {
+public:
+    MockDcpProducer(EventuallyPersistentEngine &theEngine, const void *cookie,
+                    const std::string &name, bool isNotifier)
+    : DcpProducer(theEngine, cookie, name, isNotifier)
+    {}
+
+    ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers)
+    {
+        return DcpProducer::maybeSendNoop(producers);
+    }
+
+    void setNoopSendTime(const rel_time_t timeValue) {
+        noopCtx.sendTime = timeValue;
+    }
+
+    rel_time_t getNoopSendTime() {
+        return noopCtx.sendTime;
+    }
+
+    bool getNoopPendingRecv() {
+        return noopCtx.pendingRecv;
+    }
+
+    void setNoopEnabled(const bool booleanValue) {
+        noopCtx.enabled = booleanValue;
+    }
+
+    bool getNoopEnabled() {
+        return noopCtx.enabled;
     }
 };
 
@@ -325,24 +363,128 @@ TEST_F(StreamTest, test_mb18625) {
 
 class ConnectionTest : public DCPTest {};
 
+ENGINE_ERROR_CODE mock_noop_return_engine_e2big(const void* cookie,uint32_t opaque) {
+    return ENGINE_E2BIG;
+}
+
+TEST_F(ConnectionTest, test_maybesendnoop_buffer_full) {
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+
+    struct dcp_message_producers producers = {nullptr, nullptr, nullptr, nullptr,
+        nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+        mock_noop_return_engine_e2big, nullptr, nullptr};
+
+    producer.setNoopEnabled(true);
+    producer.setNoopSendTime(21);
+    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(&producers);
+    EXPECT_EQ(ENGINE_E2BIG, (int)ret)
+    << "maybeSendNoop not returning ENGINE_E2BIG";
+    EXPECT_FALSE(producer.getNoopPendingRecv())
+    << "Waiting for noop acknowledgement";
+    EXPECT_EQ(21, (int)producer.getNoopSendTime())
+    << "SendTime has been updated";
+    delete cookie;
+}
+
+TEST_F(ConnectionTest, test_maybesendnoop_send_noop) {
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    producer.setNoopEnabled(true);
+    producer.setNoopSendTime(21);
+    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    EXPECT_EQ(ENGINE_WANT_MORE, (int)ret)
+    << "maybeSendNoop not returning ENGINE_WANT_MORE";
+    EXPECT_TRUE(producer.getNoopPendingRecv())
+    << "Not waiting for noop acknowledgement";
+    EXPECT_NE(21, (int)producer.getNoopSendTime())
+    << "SendTime has not been updated";
+    delete cookie;
+}
+
+TEST_F(ConnectionTest, test_maybesendnoop_noop_already_pending) {
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    producer.setNoopEnabled(true);
+    producer.setNoopSendTime(21);
+    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    EXPECT_EQ(ENGINE_WANT_MORE, (int)ret)
+    << "maybeSendNoop not returning ENGINE_WANT_MORE";
+    EXPECT_TRUE(producer.getNoopPendingRecv())
+    << "Not awaiting noop acknowledgement";
+    EXPECT_NE(21, (int)producer.getNoopSendTime())
+    << "SendTime has not been updated";
+    producer.setNoopSendTime(21);
+    ENGINE_ERROR_CODE ret2 = producer.maybeSendNoop(producers.get());
+    EXPECT_EQ(ENGINE_DISCONNECT, (int)ret2)
+     << "maybeSendNoop not returning ENGINE_DISCONNECT";
+    EXPECT_TRUE(producer.getNoopPendingRecv())
+    << "Not waiting for noop acknowledgement";
+    EXPECT_EQ(21, (int)producer.getNoopSendTime())
+    << "SendTime has been updated";
+    delete cookie;
+}
+
+TEST_F(ConnectionTest, test_maybesendnoop_not_enabled) {
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    producer.setNoopEnabled(false);
+    producer.setNoopSendTime(21);
+    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    EXPECT_EQ(ENGINE_FAILED, (int)ret)
+    << "maybeSendNoop not returning ENGINE_FAILED";
+    EXPECT_FALSE(producer.getNoopPendingRecv())
+    << "Waiting for noop acknowledgement";
+    EXPECT_EQ(21, (int)producer.getNoopSendTime())
+    << "SendTime has been updated";
+    delete cookie;
+}
+
+TEST_F(ConnectionTest, test_maybesendnoop_not_sufficient_time_passed) {
+    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
+    // Create a Mock Dcp producer
+    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    producer.setNoopEnabled(true);
+    rel_time_t current_time = ep_current_time();
+    producer.setNoopSendTime(current_time);
+    ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    EXPECT_EQ(ENGINE_FAILED, (int)ret)
+    << "maybeSendNoop not returning ENGINE_FAILED";
+    EXPECT_FALSE(producer.getNoopPendingRecv())
+    << "Waiting for noop acknowledgement";
+    EXPECT_EQ(current_time, producer.getNoopSendTime())
+    << "SendTime has been incremented";
+    delete cookie;
+}
+
 TEST_F(ConnectionTest, test_deadConnections) {
-    MockDcpConnMap *connMap = new MockDcpConnMap(*engine);
-    connMap->initialize(DCP_CONN_NOTIFIER);
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
     const void *cookie = create_mock_cookie();
     // Create a new Dcp producer
-    dcp_producer_t producer = connMap->newProducer(cookie, "test_producer",
+    dcp_producer_t producer = connMap.newProducer(cookie, "test_producer",
                                     /*notifyOnly*/false);
 
     // Disconnect the producer connection
-    connMap->disconnect(cookie);
-    EXPECT_EQ(1, (int)connMap->getNumberOfDeadConnections())
+    connMap.disconnect(cookie);
+    EXPECT_EQ(1, (int)connMap.getNumberOfDeadConnections())
         << "Unexpected number of dead connections";
-    connMap->manageConnections();
+    connMap.manageConnections();
     // Should be zero deadConnections
-    EXPECT_EQ(0, (int)connMap->getNumberOfDeadConnections())
+    EXPECT_EQ(0, (int)connMap.getNumberOfDeadConnections())
         << "Dead connections still remain";
-
-    delete connMap;
 }
 
 TEST_F(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
@@ -361,10 +503,15 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_name_producer_connections) {
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     EXPECT_NE(0, (int)duplicateproducer) << "duplicateproducer is null";
 
-    producer.reset();
-    duplicateproducer.reset();
-    delete cookie1;
-    delete cookie2;
+    // Disconnect the producer connection
+    connMap.disconnect(cookie1);
+    // Disconnect the duplicateproducer connection
+    connMap.disconnect(cookie2);
+    // Cleanup the deadConnections
+    connMap.manageConnections();
+    // Should be zero deadConnections
+    EXPECT_EQ(0, (int)connMap.getNumberOfDeadConnections())
+        << "Dead connections still remain";
 }
 
 TEST_F(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
@@ -381,12 +528,15 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_name_consumer_connections) {
     EXPECT_TRUE(consumer->doDisconnect()) << "consumer doDisconnect == false";
     EXPECT_NE(0, (int)duplicateconsumer) << "duplicateconsumer is null";
 
-    consumer->cancelTask();
-    consumer.reset();
-    duplicateconsumer->cancelTask();
-    duplicateconsumer.reset();
-    delete cookie1;
-    delete cookie2;
+    // Disconnect the consumer connection
+    connMap.disconnect(cookie1);
+    // Disconnect the duplicateconsumer connection
+    connMap.disconnect(cookie2);
+    // Cleanup the deadConnections
+    connMap.manageConnections();
+    // Should be zero deadConnections
+    EXPECT_EQ(0, (int)connMap.getNumberOfDeadConnections())
+        << "Dead connections still remain";
 }
 
 TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
@@ -403,8 +553,13 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_producer_connections) {
     EXPECT_TRUE(producer->doDisconnect()) << "producer doDisconnect == false";
     EXPECT_EQ(0, (int)duplicateproducer) << "duplicateproducer is not null";
 
-    producer.reset();
-    delete cookie;
+    // Disconnect the producer connection
+    connMap.disconnect(cookie);
+    // Cleanup the deadConnections
+    connMap.manageConnections();
+    // Should be zero deadConnections
+    EXPECT_EQ(0, (int)connMap.getNumberOfDeadConnections())
+        << "Dead connections still remain";
 }
 
 TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
@@ -419,9 +574,13 @@ TEST_F(ConnectionTest, test_mb17042_duplicate_cookie_consumer_connections) {
     EXPECT_TRUE(consumer->doDisconnect()) << "consumer doDisconnect == false";
     EXPECT_EQ(0, (int)duplicateconsumer) << "duplicateconsumer is not null";
 
-    consumer->cancelTask();
-    consumer.reset();
-    delete cookie;
+    // Disconnect the consumer connection
+    connMap.disconnect(cookie);
+    // Cleanup the deadConnections
+    connMap.manageConnections();
+    // Should be zero deadConnections
+    EXPECT_EQ(0, (int)connMap.getNumberOfDeadConnections())
+        << "Dead connections still remain";
 }
 
 // Callback for dcp_add_failover_log

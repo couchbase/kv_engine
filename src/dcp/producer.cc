@@ -942,28 +942,33 @@ void DcpProducer::notifyPaused(bool schedule) {
 }
 
 ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(struct dcp_message_producers* producers) {
-    if (noopCtx.enabled) {
-        size_t sinceTime = ep_current_time() - noopCtx.sendTime;
-        if (noopCtx.pendingRecv && sinceTime > noopCtx.noopInterval) {
-            LOG(EXTENSION_LOG_NOTICE, "%s Disconnected because the connection"
-                " appears to be dead", logHeader());
-            return ENGINE_DISCONNECT;
-        } else if (!noopCtx.pendingRecv && sinceTime > noopCtx.noopInterval) {
-            ENGINE_ERROR_CODE ret;
-            EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-            ret = producers->noop(getCookie(), ++noopCtx.opaque);
-            ObjectRegistry::onSwitchThread(epe);
-
-            if (ret == ENGINE_SUCCESS) {
-                ret = ENGINE_WANT_MORE;
-            }
-            noopCtx.pendingRecv = true;
-            noopCtx.sendTime = ep_current_time();
-            lastSendTime = ep_current_time();
-            return ret;
-        }
+    if (!noopCtx.enabled) {
+        // Returning ENGINE_FAILED means ignore and continue without sending a noop
+        return ENGINE_FAILED;
     }
-    return ENGINE_FAILED;
+    size_t sinceTime = ep_current_time() - noopCtx.sendTime;
+    if (sinceTime <= noopCtx.noopInterval) {
+        // The time interval has not passed so ignore and continue without sending
+        return ENGINE_FAILED;
+    }
+    // The time interval has passed.  First check to see if waiting for a noop reply
+    if (noopCtx.pendingRecv) {
+        LOG(EXTENSION_LOG_NOTICE, "%s Disconnected because the connection"
+            " appears to be dead", logHeader());
+        return ENGINE_DISCONNECT;
+    }
+    // Try to send a noop to the consumer
+    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    ENGINE_ERROR_CODE ret = producers->noop(getCookie(), ++noopCtx.opaque);
+    ObjectRegistry::onSwitchThread(epe);
+
+    if (ret == ENGINE_SUCCESS) {
+        ret = ENGINE_WANT_MORE;
+        noopCtx.pendingRecv = true;
+        noopCtx.sendTime = ep_current_time();
+        lastSendTime = noopCtx.sendTime;
+    }
+    return ret;
 }
 
 bool DcpProducer::isTimeForNoop() {

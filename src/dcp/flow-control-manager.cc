@@ -113,7 +113,7 @@ size_t DcpFlowControlManagerDynamic::newConsumerConn(DcpConsumer *consumerConn)
             "minimum, as aggr memory used for flow control buffers across"
             "all consumers is %zu and is above the threshold (%f) * (%zu)",
             consumerConn->logHeader(),
-            aggrDcpConsumerBufferSize,
+            aggrDcpConsumerBufferSize.load(std::memory_order_relaxed),
             dcpConnBufferSizeThreshold,
             engine_.getEpStats().getMaxDataSize());
     }
@@ -146,6 +146,8 @@ DcpFlowControlManagerAggressive::~DcpFlowControlManagerAggressive() {}
 size_t DcpFlowControlManagerAggressive::newConsumerConn(
                                                     DcpConsumer *consumerConn)
 {
+    std::lock_guard<std::mutex> lh(dcpConsumersMapMutex);
+
     if (consumerConn == nullptr) {
         throw std::invalid_argument(
                 "DcpFlowControlManagerAggressive::newConsumerConn: resp is NULL");
@@ -164,7 +166,7 @@ size_t DcpFlowControlManagerAggressive::newConsumerConn(
         consumerConn->logHeader(), bufferSize);
 
     /* resize all flow control buffers */
-    resizeBuffers(bufferSize);
+    resizeBuffers_UNLOCKED(bufferSize);
 
     /* Add this connection to the list of connections */
     dcpConsumersMap[consumerConn->getCookie()] = consumerConn;
@@ -175,6 +177,8 @@ size_t DcpFlowControlManagerAggressive::newConsumerConn(
 void DcpFlowControlManagerAggressive::handleDisconnect(
                                                     DcpConsumer *consumerConn)
 {
+    std::lock_guard<std::mutex> lh(dcpConsumersMapMutex);
+
     size_t bufferSize = 0;
     /* Remove this connection to the list of connections */
     auto iter = dcpConsumersMap.find(consumerConn->getCookie());
@@ -195,7 +199,7 @@ void DcpFlowControlManagerAggressive::handleDisconnect(
 
     /* Set buffer size of all existing connections to the new buf size */
     if (bufferSize != 0) {
-        resizeBuffers(bufferSize);
+        resizeBuffers_UNLOCKED(bufferSize);
     }
 }
 
@@ -204,7 +208,7 @@ bool DcpFlowControlManagerAggressive::isEnabled() const
     return true;
 }
 
-void DcpFlowControlManagerAggressive::resizeBuffers(size_t bufferSize)
+void DcpFlowControlManagerAggressive::resizeBuffers_UNLOCKED(size_t bufferSize)
 {
     /* Set buffer size of all existing connections to the new buf size */
     for (auto& iter : dcpConsumersMap) {
