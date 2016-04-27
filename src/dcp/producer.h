@@ -215,6 +215,10 @@ public:
     void clearCheckpointProcessorTaskQueues();
 
 protected:
+    /** Searches the streams map for a stream for vbucket ID. Returns the
+     *  found stream, or an empty pointer if none found.
+     */
+    SingleThreadedRCPtr<Stream> findStream(uint16_t vbid);
 
     ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers);
 
@@ -252,7 +256,7 @@ private:
     DcpReadyQueue ready;
 
     // Map of vbid -> stream. Map itself is atomic (thread-safe).
-    typedef AtomicUnorderedMap<uint16_t, Stream> StreamsMap;
+    typedef AtomicUnorderedMap<uint16_t, SingleThreadedRCPtr<Stream>> StreamsMap;
     StreamsMap streams;
 
     std::atomic<size_t> itemsSent;

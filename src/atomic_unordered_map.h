@@ -24,16 +24,18 @@
  *
  *
  * THREAD SAFETY
- * Items are returned via a smart pointer (templated, defaults to
- * SingleThreadedRCPtr) - this ensures that once the item is passed back to
- * the caller, it can safely be accessed even if another thread has
- * concurrently deleted it from the map.
+ * Items are returned by value (instead of via an iterator) - this ensures that
+ * once an item is passed back to the caller, it can safely be accessed even if
+ * another thread has concurrently deleted it from the map.
  *
- * Crucially, operations on actual contained elements are *not* automatically
- * thread safe. In other words, while you can safely call insert() from
- * multiple threads, you *cannot* safely mutate the object pointed to (by the
- * iterator which insert() returns) from multiple threads without additional
- * synchronization. For example, having an per-object mutex, or making it atomic.
+ * While this may seen limiting, the value type can be a (smart) pointer if
+ * desired, removing the need to copy the actual underlying object. However,
+ * if a pointer type is used then operations on the pointed-to objects are
+ * *not* automatically thread-safe. In other words, while you can safely call
+ * insert(<ptr>) from multiple threads, you *cannot* safely mutate the object
+ * pointed to (by the pointer which insert() returns) from multiple threads
+ * without additional synchronization. For example, having an per-object
+ * mutex, or making the object atomic.
  *
  *
  * FUNCTIONALITY
@@ -76,7 +78,7 @@
  *     ...
  *     { // Create new scope for external lock guard.
  *         std::lock_guard<M> guard(map);
- *         auto it = map.find(key_of_interest, guard);
+ *         bool it = map.find(key_of_interest, guard);
  *         if (it && *it == false) {
  *             map.erase(it, guard);
  *         }
@@ -104,30 +106,27 @@
 
 template<class Key,
          class T,
-         class SmartPtr = SingleThreadedRCPtr<T>,
          class Hash = std::hash<Key>,
          class KeyEqual = std::equal_to<Key>,
-         class Allocator = std::allocator< std::pair<const Key, SmartPtr> > >
+         class Allocator = std::allocator< std::pair<const Key, T> > >
 class AtomicUnorderedMap;
 
-template<class Key, class T, class SmartPtr, class Hash, class KeyEqual,
+template<class Key, class T, class Hash, class KeyEqual,
          class Allocator>
 class AtomicUnorderedMap {
 public:
 
-    using map_type = AtomicUnorderedMap<Key, T, SmartPtr, Hash, KeyEqual, Allocator>;
+    using map_type = AtomicUnorderedMap<Key, T, Hash, KeyEqual, Allocator>;
 
     // Alias to simplify all the other defs
-    using base_map_type = typename std::unordered_map<Key, SmartPtr, Hash,
+    using base_map_type = typename std::unordered_map<Key, T, Hash,
                                                       KeyEqual, Allocator>;
 
     // Map to the type aliases in the underlying map.
     using key_type = typename base_map_type::key_type;
+    using mapped_type = typename base_map_type::mapped_type;
     using value_type = typename base_map_type::value_type;
     using size_type = typename base_map_type::size_type;
-
-    // Alias for the Smart pointer in use.
-    using smart_ptr_type = SmartPtr;
 
     size_type size() const {
         std::lock_guard<std::mutex> guard(this->mutex); // internally locked
@@ -136,35 +135,38 @@ public:
 
     /* Lookup */
 
-    /** Searches for the given key in the map. Returns a SmartPtr to the
-     *  found element. If the element is not found, returns a null SmartPtr.
+    /** Searches for the given key in the map.
+     *  Returns a pair consisting of:
+     *  - the found element (or a default-constructed element if not found)
+     *  - and bool denoting if the given key was found.
      */
-    smart_ptr_type find(const Key& key, std::lock_guard<map_type>&) {
+    std::pair<T, bool> find(const Key& key, std::lock_guard<map_type>&) {
         // Externally locked)
         auto iter = map.find(key);
         if (iter != map.end()) {
-            return iter->second;
+            return {iter->second, true};
         } else {
-            return smart_ptr_type();
+            return std::make_pair(T(), false);
         }
     }
-    smart_ptr_type find(const Key& key) {
+    std::pair<T, bool> find(const Key& key) {
         std::lock_guard<map_type> guard(*this); // internally locked
         return find(key, guard);
     }
 
-    /** Searches for first element which matches the given predicate. Returns
-     *  a SmartPtr to the first element matching, or a null SmartPtr if no
-     *  elements match.
+    /** Searches for first element which matches the given predicate.
+     *  Returns a pair consisting of:
+     *  - the first found element (or a default-constructed element if not found)
+     *  - and bool denoting if a matching element was found.
      */
     template<class UnaryPredicate>
-    smart_ptr_type find_if(UnaryPredicate p) {
+    std::pair<T, bool>  find_if(UnaryPredicate p) {
         std::lock_guard<map_type> guard(*this); // internally locked
         auto iter = std::find_if(map.begin(), map.end(), p);
         if (iter != map.end()) {
-            return iter->second;
+            return {iter->second, true};
         } else {
-            return smart_ptr_type();
+            return std::make_pair(T(), false);
         }
     }
 
@@ -195,29 +197,36 @@ public:
 
     /**
      * Attempts to erase the given key from the map.
-     * @returns a SmartPtr to the element removed; or a null SmartPtr if the element
-     * wasn't found in the map.
+     *  Returns a pair consisting of:
+     *  - the erased element (or a default-constructed element if not found)
+     *  - and bool denoting if the given key was erased.
      */
-    smart_ptr_type erase(const key_type& key, std::lock_guard<map_type>&) {
+    std::pair<T, bool> erase(const key_type& key, std::lock_guard<map_type>&) {
         // Externally locked
         auto iter = map.find(key);
         if (iter != map.end()) {
-            smart_ptr_type result = iter->second;
+            T result = iter->second;
             map.erase(iter);
-            return result;
+            return {result, true};
         } else {
-            return smart_ptr_type();
+            return std::make_pair(T(), false);
         }
     }
-    smart_ptr_type erase(const key_type& key) {
+    std::pair<T, bool> erase(const key_type& key) {
         std::lock_guard<map_type> guard(*this); // internally locked
         return erase(key, guard);
     }
 
-    std::pair<smart_ptr_type, bool> insert(const value_type& value) {
+    /**
+     * Attempts to insert the given key into the map, if it does not already
+     * exist.
+     *  Returns true if the element was inserted, or false if an element
+     *  with the given key already exists.
+     */
+    bool insert(const value_type& value) {
         std::lock_guard<map_type> guard(*this); // internally locked
         auto result = map.insert(value);
-        return {result.first->second, result.second};
+        return result.second;
     }
 
     /*
@@ -237,6 +246,6 @@ public:
     }
 
 private:
-    std::unordered_map<Key, SmartPtr, Hash, KeyEqual, Allocator> map;
+    std::unordered_map<Key, T, Hash, KeyEqual, Allocator> map;
     mutable std::mutex mutex;
 };

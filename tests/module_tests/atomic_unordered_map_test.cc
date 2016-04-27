@@ -29,17 +29,21 @@ public:
     DummyValue(size_t value_)
         : value(value_) {}
 
+    bool operator==(const DummyValue& other) const {
+        return value == other.value;
+    }
+
     size_t value;
 };
 
 class AtomicUnorderedMapTest : public ::testing::Test {
 public:
-    typedef AtomicUnorderedMap<int, DummyValue> TestMap;
+    typedef AtomicUnorderedMap<int, SingleThreadedRCPtr<DummyValue>> TestMap;
 
     // Add N items to a map starting from the given offset.
     static void insert_into_map(TestMap& map, size_t n, size_t offset) {
         for (unsigned int ii = 0; ii < n; ii++) {
-            TestMap::smart_ptr_type val{new DummyValue(ii * 10)};
+            TestMap::mapped_type val{new DummyValue(ii * 10)};
             map.insert({offset + ii, val});
         }
     }
@@ -52,39 +56,46 @@ protected:
 
 TEST_F(AtomicUnorderedMapTest, Empty) {
     ASSERT_EQ(0u, map.size());
-    EXPECT_FALSE(map.find(0)) << "Should start with empty map";
+    EXPECT_FALSE(map.find(0).second) << "Should start with empty map";
 }
 
 TEST_F(AtomicUnorderedMapTest, InsertOne) {
-    TestMap::smart_ptr_type ptr{new DummyValue(10)};
+    TestMap::mapped_type ptr{new DummyValue(10)};
     map.insert({0, ptr});
 
     EXPECT_EQ(1, map.size());
-    EXPECT_EQ(ptr, map.find(0));
+    EXPECT_EQ(ptr, map.find(0).first);
 }
 
 TEST_F(AtomicUnorderedMapTest, ReplaceOne) {
 
-    TestMap::smart_ptr_type ptr{new DummyValue(10)};
-    TestMap::smart_ptr_type ptr2{new DummyValue(20)};
+    TestMap::mapped_type ptr{new DummyValue(10)};
+    TestMap::mapped_type ptr2{new DummyValue(20)};
 
-    map.insert({0, ptr});
-    map.insert({1, ptr2});
+    EXPECT_TRUE(map.insert({0, ptr}));
+    EXPECT_TRUE(map.insert({1, ptr2}));
     EXPECT_EQ(2, map.size()) << "Adding another item should succeed";
-    EXPECT_EQ(ptr2, map.find(1));
+    EXPECT_EQ(ptr2, map.find(1).first);
 
-    TestMap::smart_ptr_type ptr3{new DummyValue(30)};
-    map.insert({1, ptr3});
+    TestMap::mapped_type ptr3{new DummyValue(30)};
+    EXPECT_FALSE(map.insert({1, ptr3}))
+        << "Inserting a key which already exists should fail";
+    auto erased1 = map.erase(1);
+    EXPECT_TRUE(erased1.second) << "Erasing key 1 should succeed";
+    EXPECT_EQ(ptr2, erased1.first) << "Erasing key 1 should return value 1";
+
+    EXPECT_TRUE(map.insert({1, ptr3}))
+        << "Inserting a key which has been erased should succeed";
     EXPECT_EQ(2, map.size()) << "Replacing an item should keep size the same";
-    EXPECT_EQ(ptr3, map.find(1));
+    EXPECT_EQ(ptr3, map.find(1).first);
 
     auto erased = map.erase(0);
-    EXPECT_TRUE(erased) << "Failed to erase key 0";
-    EXPECT_EQ(ptr->value, erased->value);
+    EXPECT_TRUE(erased.second) << "Failed to erase key 0";
+    EXPECT_EQ(ptr, erased.first) << "Erasing key 0 should return value 0";
 
     map.clear();
     EXPECT_EQ(0, map.size()) << "Clearing map should remove all items";
-    EXPECT_FALSE(map.find(0)) << "Should end with empty map";
+    EXPECT_FALSE(map.find(0).second) << "Should end with empty map";
 }
 
 // Test that performing concurrent, disjoint insert (different keys) is thread-safe.

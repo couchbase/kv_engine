@@ -87,8 +87,8 @@ int main(int, char **) {
     display("HistogramBin<size_t>", sizeof(HistogramBin<size_t>));
     display("HistogramBin<hrtime_t>", sizeof(HistogramBin<hrtime_t>));
     display("HistogramBin<int>", sizeof(HistogramBin<int>));
-    display("AtomicUnorderedMap<uint32_t, Stream>",
-            sizeof(AtomicUnorderedMap<uint32_t, Stream>));
+    display("AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>",
+            sizeof(AtomicUnorderedMap<uint32_t, SingleThreadedRCPtr<Stream>>));
 
     std::cout << std::endl << "Histogram Ranges" << std::endl << std::endl;
 

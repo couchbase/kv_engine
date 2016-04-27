@@ -142,6 +142,10 @@ protected:
 
 private:
 
+    // Searches the streams map for a stream for vbucket ID. Returns the found
+    // stream, or an empty pointer if none found.
+    SingleThreadedRCPtr<PassiveStream> findStream(uint16_t vbid);
+
     DcpResponse* getNextItem();
 
     /**
@@ -180,7 +184,8 @@ private:
     std::list<uint16_t> ready;
 
     // Map of vbid -> passive stream. Map itself is atomic (thread-safe).
-    typedef AtomicUnorderedMap<uint16_t, PassiveStream> PassiveStreamMap;
+    typedef AtomicUnorderedMap<uint16_t,
+                               SingleThreadedRCPtr<PassiveStream>> PassiveStreamMap;
     PassiveStreamMap streams;
 
     opaque_map opaqueMap_;

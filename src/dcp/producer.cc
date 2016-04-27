@@ -236,8 +236,9 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         // Need to synchronise the search and conditional erase,
         // therefore use external locking here.
         std::lock_guard<StreamsMap> guard(streams);
-        auto vb = streams.find(vbucket, guard);
-        if (vb) {
+        auto it = streams.find(vbucket, guard);
+        if (it.second) {
+            auto& vb = it.first;
             if (vb->getState() != STREAM_DEAD) {
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed"
                     " because a stream already exists for this vbucket",
@@ -613,8 +614,8 @@ ENGINE_ERROR_CODE DcpProducer::handleResponse(
             }
         );
 
-        if (itr) {
-            ActiveStream *as = static_cast<ActiveStream*>(itr.get());
+        if (itr.second) {
+            ActiveStream *as = static_cast<ActiveStream*>(itr.first.get());
             if (opcode == PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE) {
                 as->setVBucketStateAckRecieved();
             } else if (opcode == PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER) {
@@ -647,24 +648,27 @@ ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
         return ENGINE_DISCONNECT;
     }
 
-    auto stream = streams.erase(vbucket);
+    auto it = streams.erase(vbucket);
 
     ENGINE_ERROR_CODE ret;
-    if (!stream) {
+    if (!it.second) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because no "
             "stream exists for this vbucket", logHeader(), vbucket);
         return ENGINE_KEY_ENOENT;
-    } else if (!stream->isActive()) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because "
-            "stream is already marked as dead", logHeader(), vbucket);
-        connection_t conn(this);
-        engine_.getDcpConnMap().removeVBConnByVBId(conn, vbucket);
-        ret = ENGINE_KEY_ENOENT;
     } else {
-        stream->setDead(END_STREAM_CLOSED);
-        connection_t conn(this);
-        engine_.getDcpConnMap().removeVBConnByVBId(conn, vbucket);
-        ret = ENGINE_SUCCESS;
+        auto& stream = it.first;
+        if (!stream->isActive()) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot close stream because "
+                "stream is already marked as dead", logHeader(), vbucket);
+            connection_t conn(this);
+            engine_.getDcpConnMap().removeVBConnByVBId(conn, vbucket);
+            ret = ENGINE_KEY_ENOENT;
+        } else {
+            stream->setDead(END_STREAM_CLOSED);
+            connection_t conn(this);
+            engine_.getDcpConnMap().removeVBConnByVBId(conn, vbucket);
+            ret = ENGINE_SUCCESS;
+        }
     }
 
     return ret;
@@ -715,7 +719,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     // Make a copy of all valid streams (under lock), and then call addStats
     // for each one. (Done in two stages to minmise how long we have the
     // streams map locked for).
-    std::vector<StreamsMap::smart_ptr_type> valid_streams;
+    std::vector<StreamsMap::mapped_type> valid_streams;
 
     streams.for_each(
         [&valid_streams](const StreamsMap::value_type& element) {
@@ -730,7 +734,7 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
 void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
                                    uint16_t vbid) {
 
-    stream_t stream = streams.find(vbid);
+    auto stream = findStream(vbid);
     if (stream && stream->getType() == STREAM_ACTIVE) {
         ActiveStream* as = static_cast<ActiveStream*>(stream.get());
         if (as) {
@@ -783,14 +787,14 @@ void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) {
 }
 
 void DcpProducer::notifySeqnoAvailable(uint16_t vbucket, uint64_t seqno) {
-    stream_t stream = streams.find(vbucket);
+    auto stream = findStream(vbucket);
     if (stream && stream->isActive()) {
         stream->notifySeqnoAvailable(seqno);
     }
 }
 
 void DcpProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
-    stream_t stream = streams.find(vbucket);
+    auto stream = findStream(vbucket);
     if (stream) {
         LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") State changed to "
             "%s, closing active stream!",
@@ -802,7 +806,7 @@ void DcpProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
 bool DcpProducer::closeSlowStream(uint16_t vbid,
                                   const std::string &name) {
     if (supportsCursorDropping) {
-        stream_t stream = streams.find(vbid);
+        auto stream = findStream(vbid);
         if (stream) {
             if (stream->getName().compare(name) == 0) {
                 ActiveStream* as = static_cast<ActiveStream*>(stream.get());
@@ -873,7 +877,7 @@ DcpResponse* DcpProducer::getNextItem() {
             DcpResponse* op = NULL;
             stream_t stream;
             {
-                stream = streams.find(vbucket);
+                stream = findStream(vbucket);
                 if (!stream) {
                     continue;
                 }
@@ -1047,4 +1051,13 @@ void DcpProducer::scheduleCheckpointProcessorTask(stream_t s) {
 void DcpProducer::clearCheckpointProcessorTaskQueues() {
     static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->clearQueues();
+}
+
+SingleThreadedRCPtr<Stream> DcpProducer::findStream(uint16_t vbid) {
+    auto it = streams.find(vbid);
+    if (it.second) {
+        return it.first;
+    } else {
+        return SingleThreadedRCPtr<Stream>();
+    }
 }
