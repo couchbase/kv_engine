@@ -22,3 +22,7 @@ eventually persistent engine -
 * [Memcached Binary Protocol](docs/BinaryProtocol.md)
     * [SASL](docs/sasl.md)
     * [TAP](docs/TAP.md)
+
+# Tools
+
+* [Analyze jemalloc memory statistics](scripts/jemalloc/jemalloc_analyse.md)
