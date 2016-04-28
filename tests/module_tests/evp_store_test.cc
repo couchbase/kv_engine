@@ -480,6 +480,104 @@ TEST_P(EPStoreEvictionTest, AddNMVB) {
     EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, store->add(item, cookie));
 }
 
+// SetWithMeta tests //////////////////////////////////////////////////////////
+
+// Test basic setWithMeta
+TEST_P(EPStoreEvictionTest, SetWithMeta) {
+    auto item = make_item(vbid, "key", "value");
+    item.setCas();
+    uint64_t seqno;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setWithMeta(item, 0, &seqno, cookie, /*force*/false,
+                                 /*allowExisting*/false));
+}
+
+// Test setWithMeta with a conflict with an existing item.
+TEST_P(EPStoreEvictionTest, SetWithMeta_Conflicted) {
+    auto item = make_item(vbid, "key", "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+
+    uint64_t seqno;
+    // Attempt to set with the same rev Seqno - should get EEXISTS.
+    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+              store->setWithMeta(item, item.getCas(), &seqno, cookie,
+                                 /*force*/false, /*allowExisting*/true));
+}
+
+// Test setWithMeta replacing existing item
+TEST_P(EPStoreEvictionTest, SetWithMeta_Replace) {
+    auto item = make_item(vbid, "key", "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+
+    // Increase revSeqno so conflict resolution doesn't fail.
+    item.setRevSeqno(item.getRevSeqno() + 1);
+    uint64_t seqno;
+    // Should get EEXISTS if we don't force (and use wrong CAS).
+    EXPECT_EQ(ENGINE_KEY_EEXISTS,
+              store->setWithMeta(item, item.getCas() + 1, &seqno, cookie,
+                                 /*force*/false, /*allowExisting*/true));
+
+    // Should succeed with correct CAS, and different RevSeqno.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setWithMeta(item, item.getCas(), &seqno, cookie,
+                                 /*force*/false, /*allowExisting*/true));
+}
+
+// Test setWithMeta replacing an existing, non-resident item
+TEST_P(EPStoreEvictionTest, SetWithMeta_ReplaceNonResident) {
+    // Store an item, then evict it.
+    auto item = make_item(vbid, "key", "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    flush_vbucket_to_disk(vbid);
+    evict_key(item.getVBucketId(), item.getKey());
+
+    // Increase revSeqno so conflict resolution doesn't fail.
+    item.setRevSeqno(item.getRevSeqno() + 1);
+
+    // Setup a lambda for how we want to call setWithMeta (saves repeating the
+    // same arguments for each instance below).
+    auto do_setWithMeta = [this, item]() mutable {
+        uint64_t seqno;
+        return store->setWithMeta(std::ref(item), item.getCas(), &seqno,
+                           cookie, /*force*/false, /*allowExisting*/true);
+    };
+
+    if (GetParam() == "value_only") {
+        // Should succeed as the metadata is still resident.
+        EXPECT_EQ(ENGINE_SUCCESS, do_setWithMeta());
+
+    } else if (GetParam() == "full_eviction") {
+        // Should get EWOULDBLOCK as need to go to disk to get metadata.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_setWithMeta());
+
+        // A second request should also get EWOULDBLOCK and add to the
+        // existing pending BGFetch
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_setWithMeta());
+
+        // Manually run the BGFetcher task; to fetch the two outstanding
+        // requests (for the same key).
+        MockGlobalTask mockTask(engine->getTaskable(),
+                                Priority::BgFetcherPriority);
+        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+        EXPECT_EQ(ENGINE_SUCCESS, do_setWithMeta())
+            << "Expected to setWithMeta on evicted item after notify_IO_complete";
+
+    } else {
+        FAIL() << "Unhandled GetParam() value:" << GetParam();
+    }
+}
+
+// Test forced setWithMeta
+TEST_P(EPStoreEvictionTest, SetWithMeta_Forced) {
+    auto item = make_item(vbid, "key", "value");
+    item.setCas();
+    uint64_t seqno;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->setWithMeta(item, 0, &seqno, cookie, /*force*/true,
+                                 /*allowExisting*/false));
+}
+
 
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
