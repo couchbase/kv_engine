@@ -373,6 +373,57 @@ TEST_P(EPStoreEvictionTest, ReplacePendingVB) {
     EXPECT_EQ(ENGINE_EWOULDBLOCK, store->replace(item, cookie));
 }
 
+// Set tests //////////////////////////////////////////////////////////////////
+
+// Test set against an ejected key.
+TEST_P(EPStoreEvictionTest, SetEExists) {
+
+    // Store an item, then eject it.
+    auto item = make_item(vbid, "key", "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    flush_vbucket_to_disk(vbid);
+    evict_key(item.getVBucketId(), item.getKey());
+
+    if (GetParam() == "value_only") {
+        // Should be able to set (with same cas as previously)
+        // as still have metadata resident.
+        ASSERT_NE(0, item.getCas());
+        EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie));
+
+    } else if (GetParam() == "full_eviction") {
+        // Should get EWOULDBLOCK as need to go to disk to get metadata.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item, cookie));
+
+        // A second request should also get EWOULDBLOCK and add to the
+        // existing pending BGFetch
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, store->set(item, cookie));
+
+        // Manually run the BGFetcher task; to fetch the two outstanding
+        // requests (for the same key).
+        MockGlobalTask mockTask(engine->getTaskable(),
+                                Priority::BgFetcherPriority);
+        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+        EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie))
+            << "Expected to set on evicted item after notify_IO_complete";
+
+    } else {
+        FAIL() << "Unhandled GetParam() value:" << GetParam();
+    }
+}
+
+// Test CAS set against a non-existent key
+TEST_P(EPStoreEvictionTest, SetCASNonExistent) {
+    // Create an item with a non-zero CAS.
+    auto item = make_item(vbid, "key", "value");
+    item.setCas();
+    ASSERT_NE(0, item.getCas());
+
+    // Should get ENOENT as we should immediately know (either from metadata
+    // being resident, or by bloomfilter) that key doesn't exist.
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item, cookie));
+}
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         EPStoreEvictionTest,
