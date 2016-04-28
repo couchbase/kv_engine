@@ -3314,15 +3314,14 @@ static enum test_result test_dcp_noop(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         if (err == ENGINE_DISCONNECT) {
             done = true;
         } else {
-            std::string stat;
             if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
                 done = true;
-                stat = get_str_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp");
-                check(stat.compare("true") == 0, "Didn't send noop");
+                checkeq(1, get_int_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp"),
+                        "Didn't send noop");
                 sendDcpAck(h, h1, cookie, PROTOCOL_BINARY_CMD_DCP_NOOP,
                            PROTOCOL_BINARY_RESPONSE_SUCCESS, dcp_last_opaque);
-                stat = get_str_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp");
-                check(stat.compare("false") == 0, "Didn't ack noop");
+                checkeq(0, get_int_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp"),
+                        "Didn't send noop");
             } else if (dcp_last_op != 0) {
                 abort();
             }
@@ -3365,10 +3364,9 @@ static enum test_result test_dcp_noop_fail(ENGINE_HANDLE *h,
             done = true;
             disconnected = true;
         } else {
-            std::string stat;
             if (dcp_last_op == PROTOCOL_BINARY_CMD_DCP_NOOP) {
-                stat = get_str_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp");
-                check(stat.compare("true") == 0, "Didn't send noop");
+                checkeq(1, get_int_stat(h, h1, "eq_dcpq:unittest:noop_wait", "dcp"),
+                        "Didn't send noop");
                 testHarness.time_travel(201);
             } else if (dcp_last_op != 0) {
                 abort();
