@@ -424,6 +424,63 @@ TEST_P(EPStoreEvictionTest, SetCASNonExistent) {
     EXPECT_EQ(ENGINE_KEY_ENOENT, store->set(item, cookie));
 }
 
+// Add tests //////////////////////////////////////////////////////////////////
+
+// Test successful add
+TEST_P(EPStoreEvictionTest, Add) {
+    auto item = make_item(vbid, "key", "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->add(item, nullptr));
+}
+
+// Test add against an ejected key.
+TEST_P(EPStoreEvictionTest, AddEExists) {
+
+    // Store an item, then eject it.
+    auto item = make_item(vbid, "key", "value");
+    EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
+    flush_vbucket_to_disk(vbid);
+    evict_key(item.getVBucketId(), item.getKey());
+
+    // Setup a lambda for how we want to call add (saves repeating the
+    // same arguments for each instance below).
+    auto do_add = [this]() {
+        auto item = make_item(vbid, "key", "value2");
+        return store->add(item, cookie);
+    };
+
+    if (GetParam() == "value_only") {
+        // Should immediately return NOT_STORED (as metadata is still resident).
+        EXPECT_EQ(ENGINE_NOT_STORED, do_add());
+
+    } else if (GetParam() == "full_eviction") {
+        // Should get EWOULDBLOCK as need to go to disk to get metadata.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_add());
+
+        // A second request should also get EWOULDBLOCK and add to the
+        // existing pending BGFetch
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_add());
+
+        // Manually run the BGFetcher task; to fetch the two outstanding
+        // requests (for the same key).
+        MockGlobalTask mockTask(engine->getTaskable(),
+                                Priority::BgFetcherPriority);
+        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+        EXPECT_EQ(ENGINE_NOT_STORED, do_add())
+            << "Expected to fail to add on evicted item after notify_IO_complete";
+
+    } else {
+        FAIL() << "Unhandled GetParam() value:" << GetParam();
+    }
+}
+
+// Check incorrect vbucket returns not-my-vbucket.
+TEST_P(EPStoreEvictionTest, AddNMVB) {
+    auto item = make_item(vbid + 1, "key", "value2");
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, store->add(item, cookie));
+}
+
+
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
                         EPStoreEvictionTest,
