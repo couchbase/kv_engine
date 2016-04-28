@@ -1175,7 +1175,10 @@ std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                 statname + "'");
     }
 
-    return actual_stat_value;
+    // Here we are explictly forcing a copy of the object to work
+    // around std::string copy-on-write data-race issues seen on some
+    // versions of libstdc++ - see MB-18510 / MB-19688.
+    return std::string(actual_stat_value.begin(), actual_stat_value.end());
 }
 
 bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
