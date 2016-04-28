@@ -1155,7 +1155,7 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
     uint32_t unackedBytes = clearBuffer();
     LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Setting stream to dead state,"
         " last_seqno is %llu, unackedBytes is %u, status is %s",
-        consumer->logHeader(), vb_, last_seqno, unackedBytes,
+        consumer->logHeader(), vb_, last_seqno.load(), unackedBytes,
         getEndStreamStatusStr(status));
     return unackedBytes;
 }
@@ -1189,7 +1189,7 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
         start_seqno, end_seqno_, snap_start_seqno_, snap_end_seqno_);
 
     LockHolder lh(streamMutex);
-    last_seqno = start_seqno;
+    last_seqno.store(start_seqno);
     pushToReadyQ(new StreamRequest(vb_, new_opaque, flags_, start_seqno,
                                   end_seqno_, vb_uuid_, snap_start_seqno_,
                                   snap_end_seqno_));
@@ -1216,16 +1216,16 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         {
             MutationResponse* m = static_cast<MutationResponse*>(resp);
             uint64_t bySeqno = m->getBySeqno();
-            if (bySeqno <= last_seqno) {
+            if (bySeqno <= last_seqno.load()) {
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous (out of "
                     "sequence) mutation received, with opaque: %ld, its "
                     "seqno (%llu) is not greater than last received seqno "
                     "(%llu); Dropping mutation!", consumer->logHeader(),
-                    vb_, opaque_, bySeqno, last_seqno);
+                    vb_, opaque_, bySeqno, last_seqno.load());
                 delete m;
                 return ENGINE_ERANGE;
             }
-            last_seqno = bySeqno;
+            last_seqno.store(bySeqno);
             break;
         }
         case DCP_SNAPSHOT_MARKER:
@@ -1233,12 +1233,12 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
             SnapshotMarker* s = static_cast<SnapshotMarker*>(resp);
             uint64_t snapStart = s->getStartSeqno();
             uint64_t snapEnd = s->getEndSeqno();
-            if (snapStart < last_seqno && snapEnd <= last_seqno) {
+            if (snapStart < last_seqno.load() && snapEnd <= last_seqno.load()) {
                 LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous snapshot "
                     "marker received, with opaque: %ld, its start (%llu), and"
                     "end (%llu) are less than last received seqno (%llu); "
                     "Dropping marker!", consumer->logHeader(), vb_, opaque_,
-                    snapStart, snapEnd, last_seqno);
+                    snapStart, snapEnd, last_seqno.load());
                 delete s;
                 return ENGINE_ERANGE;
             }
@@ -1333,11 +1333,11 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (mutation->getBySeqno() > cur_snapshot_end) {
+    if (mutation->getBySeqno() > cur_snapshot_end.load()) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous mutation [sequence "
             "number (%llu) greater than current snapshot end seqno (%llu)] "
             "being processed; Dropping the mutation!", consumer->logHeader(),
-            vb_, mutation->getBySeqno(), cur_snapshot_end);
+            vb_, mutation->getBySeqno(), cur_snapshot_end.load());
         return ENGINE_ERANGE;
     }
 
@@ -1345,7 +1345,8 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     if (saveSnapshot) {
         LockHolder lh = vb->getSnapshotLock();
         ret = commitMutation(mutation, vb->isBackfillPhase());
-        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
+        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start.load(),
+                                        cur_snapshot_end.load());
         saveSnapshot = false;
         lh.unlock();
     } else {
@@ -1385,11 +1386,11 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         return ENGINE_NOT_MY_VBUCKET;
     }
 
-    if (deletion->getBySeqno() > cur_snapshot_end) {
+    if (deletion->getBySeqno() > cur_snapshot_end.load()) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Erroneous deletion [sequence "
             "number (%llu) greater than current snapshot end seqno (%llu)] "
             "being processed; Dropping the deletion!", consumer->logHeader(),
-            vb_, deletion->getBySeqno(), cur_snapshot_end);
+            vb_, deletion->getBySeqno(), cur_snapshot_end.load());
         return ENGINE_ERANGE;
     }
 
@@ -1397,7 +1398,8 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
     if (saveSnapshot) {
         LockHolder lh = vb->getSnapshotLock();
         ret = commitDeletion(deletion, vb->isBackfillPhase());
-        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start, cur_snapshot_end);
+        vb->setCurrentSnapshot_UNLOCKED(cur_snapshot_start.load(),
+                                        cur_snapshot_end.load());
         saveSnapshot = false;
         lh.unlock();
     } else {
@@ -1435,9 +1437,9 @@ ENGINE_ERROR_CODE PassiveStream::commitDeletion(MutationResponse* deletion,
 void PassiveStream::processMarker(SnapshotMarker* marker) {
     RCPtr<VBucket> vb = engine->getVBucket(vb_);
 
-    cur_snapshot_start = marker->getStartSeqno();
-    cur_snapshot_end = marker->getEndSeqno();
-    cur_snapshot_type = (marker->getFlags() & MARKER_FLAG_DISK) ? disk : memory;
+    cur_snapshot_start.store(marker->getStartSeqno());
+    cur_snapshot_end.store(marker->getEndSeqno());
+    cur_snapshot_type.store((marker->getFlags() & MARKER_FLAG_DISK) ? disk : memory);
     saveSnapshot = true;
 
     if (vb) {
@@ -1474,8 +1476,8 @@ void PassiveStream::processSetVBucketState(SetVBucketState* state) {
 }
 
 void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
-    if (byseqno == cur_snapshot_end) {
-        if (cur_snapshot_type == disk && vb->isBackfillPhase()) {
+    if (byseqno == cur_snapshot_end.load()) {
+        if (cur_snapshot_type.load() == disk && vb->isBackfillPhase()) {
             vb->setBackfillPhase(false);
             uint64_t id = vb->checkpointManager.getOpenCheckpointId() + 1;
             vb->checkpointManager.checkAndAddNewCheckpoint(id, vb);
@@ -1499,7 +1501,7 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
             }
             cur_snapshot_ack = false;
         }
-        cur_snapshot_type = none;
+        cur_snapshot_type.store(none);
         vb->setCurrentSnapshot(byseqno, byseqno);
     }
 }
@@ -1523,18 +1525,18 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
     snprintf(buf, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
     add_casted_stat(buf, itemsReady.load() ? "true" : "false", add_stat, c);
     snprintf(buf, bsize, "%s:stream_%d_last_received_seqno", name_.c_str(), vb_);
-    add_casted_stat(buf, last_seqno, add_stat, c);
+    add_casted_stat(buf, last_seqno.load(), add_stat, c);
     snprintf(buf, bsize, "%s:stream_%d_ready_queue_memory", name_.c_str(), vb_);
     add_casted_stat(buf, getReadyQueueMemory(), add_stat, c);
 
     snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_type", name_.c_str(), vb_);
-    add_casted_stat(buf, snapshotTypeToString(cur_snapshot_type), add_stat, c);
+    add_casted_stat(buf, snapshotTypeToString(cur_snapshot_type.load()), add_stat, c);
 
-    if (cur_snapshot_type != none) {
+    if (cur_snapshot_type.load() != none) {
         snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_start", name_.c_str(), vb_);
-        add_casted_stat(buf, cur_snapshot_start, add_stat, c);
+        add_casted_stat(buf, cur_snapshot_start.load(), add_stat, c);
         snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_end", name_.c_str(), vb_);
-        add_casted_stat(buf, cur_snapshot_end, add_stat, c);
+        add_casted_stat(buf, cur_snapshot_end.load(), add_stat, c);
     }
 }
 

@@ -428,11 +428,11 @@ private:
 
     EventuallyPersistentEngine* engine;
     dcp_consumer_t consumer;
-    uint64_t last_seqno;
+    AtomicValue<uint64_t> last_seqno;
 
-    uint64_t cur_snapshot_start;
-    uint64_t cur_snapshot_end;
-    snapshot_type_t cur_snapshot_type;
+    AtomicValue<uint64_t> cur_snapshot_start;
+    AtomicValue<uint64_t> cur_snapshot_end;
+    AtomicValue<snapshot_type_t> cur_snapshot_type;
     bool cur_snapshot_ack;
     bool saveSnapshot;
 
