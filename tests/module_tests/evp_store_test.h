@@ -25,6 +25,7 @@
 
 #include "ep.h"
 #include "ep_engine.h"
+#include "item.h"
 
 #include <memcached/engine.h>
 
@@ -75,9 +76,28 @@ protected:
 
     void TearDown() override;
 
+    // Creates an item with the given vbucket id, key and value.
+    static Item make_item(uint16_t vbid, const std::string& key,
+                          const std::string& value);
+
     /* Stores an item into the given vbucket. */
     void store_item(uint16_t vbid, const std::string& key,
                     const std::string& value);
+
+    /* Flush the given vbucket to disk, so any outstanding dirty items are
+     * written (and are clean).
+     */
+    void flush_vbucket_to_disk(uint16_t vbid);
+
+    /* Delete the given item from the given vbucket, verifying it was
+     * successfully deleted.
+     */
+    void delete_item(uint16_t vbid, const std::string& key);
+
+    /* Evict the given key from memory according to the current eviction
+     * strategy. Verifies it was successfully evicted.
+     */
+    void evict_key(uint16_t vbid, const std::string& key);
 
     static const char test_dbname[];
 

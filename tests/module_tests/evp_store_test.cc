@@ -120,15 +120,55 @@ void EventuallyPersistentStoreTest::TearDown() {
     ExecutorPool::shutdown();
 }
 
-void EventuallyPersistentStoreTest::store_item(uint16_t vbid,
-                                               const std::string& key,
-                                               const std::string& value) {
+Item EventuallyPersistentStoreTest::make_item(uint16_t vbid,
+                                              const std::string& key,
+                                              const std::string& value) {
     Item item(key.c_str(), key.size(), /*flags*/0, /*exp*/0, value.c_str(),
               value.size());
     item.setVBucketId(vbid);
+    return item;
+}
+
+void EventuallyPersistentStoreTest::store_item(uint16_t vbid,
+                                               const std::string& key,
+                                               const std::string& value) {
+    auto item = make_item(vbid, key, value);
     EXPECT_EQ(ENGINE_SUCCESS, store->set(item, nullptr));
 }
 
+void EventuallyPersistentStoreTest::flush_vbucket_to_disk(uint16_t vbid) {
+    int result;
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(5);
+
+    // Need to retry as warmup may not have completed.
+    do {
+        result = store->flushVBucket(vbid);
+        if (result != RETRY_FLUSH_VBUCKET) {
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+    } while (std::chrono::steady_clock::now() < deadline);
+
+    ASSERT_EQ(1, result) << "Failed to flush the one item we have stored.";
+}
+
+void EventuallyPersistentStoreTest::delete_item(uint16_t vbid,
+                                                const std::string& key) {
+    uint64_t cas = 0;
+    mutation_descr_t mut_info;
+    EXPECT_EQ(ENGINE_SUCCESS,
+              store->deleteItem(key, &cas, vbid, cookie, /*force*/false,
+                                /*itemMeta*/nullptr, &mut_info));
+}
+
+void EventuallyPersistentStoreTest::evict_key(uint16_t vbid,
+                                              const std::string& key) {
+    const char* msg;
+    size_t msg_size{sizeof(msg)};
+    EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg, &msg_size));
+    EXPECT_EQ("Ejected.", msg);
+}
 
 class EPStoreEvictionTest : public EventuallyPersistentStoreTest,
                              public ::testing::WithParamInterface<std::string> {
@@ -169,23 +209,10 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
 
     // Store then eject an item. Note we cannot forcefully evict as we have
     // to ensure it's own disk so we can later bg fetch from there :)
-    store_item(0, "key", "value");
+    store_item(vbid, "key", "value");
 
-    // Trigger a flush to disk. We have to retry as the warmup may not be
-    // complete.
-    int result;
-    const auto deadline = std::chrono::steady_clock::now() +
-                          std::chrono::seconds(5);
-    do {
-        result = store->flushVBucket(vbid);
-        if (result != RETRY_FLUSH_VBUCKET) {
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::microseconds(100));
-    } while (std::chrono::steady_clock::now() < deadline);
-
-    ASSERT_EQ(1,
-              result) << "Failed to flush the one item we have stored.";
+    // Trigger a flush to disk.
+    flush_vbucket_to_disk(vbid);
 
     /**
      * Although a flushVBucket writes the item to the underlying store,
@@ -198,10 +225,7 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
 
     store->commit(vbid % numShards);
 
-    const char* msg;
-    size_t msg_size{sizeof(msg)};
-    EXPECT_EQ(ENGINE_SUCCESS, store->evictKey("key", 0, &msg, &msg_size));
-    EXPECT_EQ("Ejected.", std::string(msg));
+    evict_key(vbid, "key");
 
     // Setup a lambda for how we want to call getKeyStats (saves repeating the
     // same arguments for each instance below).
@@ -250,12 +274,7 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsDeleted) {
     key_stats kstats;
 
     store_item(0, "key", "value");
-    uint64_t cas = 0;
-    mutation_descr_t mut_info;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              epstore.deleteItem("key", &cas, /*vbucket*/0, cookie,
-                                 /*force*/false, /*itemMeta*/nullptr,
-                                 &mut_info));
+    delete_item(vbid, "key");
 
     // Should get ENOENT if we don't ask for deleted items.
     EXPECT_EQ(ENGINE_KEY_ENOENT,
@@ -281,6 +300,78 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsNMVB) {
                                   /*wantsDeleted*/false));
 }
 
+// Replace tests //////////////////////////////////////////////////////////////
+
+// Test replace against a non-existent key.
+TEST_P(EPStoreEvictionTest, ReplaceENOENT) {
+    // Should start with key not existing (and hence cannot replace).
+    auto item = make_item(vbid, "key", "value");
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(item, cookie));
+}
+
+// Test replace against an ejected key.
+TEST_P(EPStoreEvictionTest, ReplaceEExists) {
+
+    // Store then eject an item.
+    store_item(vbid, "key", "value");
+    flush_vbucket_to_disk(vbid);
+    evict_key(vbid, "key");
+
+    // Setup a lambda for how we want to call replace (saves repeating the
+    // same arguments for each instance below).
+    auto do_replace = [this]() {
+        auto item = make_item(vbid, "key", "value2");
+        return store->replace(item, cookie);
+    };
+
+    if (GetParam() == "value_only") {
+        // Should be able to replace as still have metadata resident.
+        EXPECT_EQ(ENGINE_SUCCESS, do_replace());
+
+    } else if (GetParam() == "full_eviction") {
+        // Should get EWOULDBLOCK as need to go to disk to get metadata.
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_replace());
+
+        // A second request should also get EWOULDBLOCK and add to the
+        // existing pending BGFetch
+        EXPECT_EQ(ENGINE_EWOULDBLOCK, do_replace());
+
+        // Manually run the BGFetcher task; to fetch the two outstanding
+        // requests (for the same key).
+        MockGlobalTask mockTask(engine->getTaskable(),
+                                Priority::BgFetcherPriority);
+        store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
+
+        EXPECT_EQ(ENGINE_SUCCESS, do_replace())
+            << "Expected to replace on evicted item after notify_IO_complete";
+
+    } else {
+        FAIL() << "Unhandled GetParam() value:" << GetParam();
+    }
+}
+
+// Create then delete an item, checking replace reports ENOENT.
+TEST_P(EPStoreEvictionTest, ReplaceDeleted) {
+    store_item(vbid, "key", "value");
+    delete_item(vbid, "key");
+
+    // Replace should fail.
+    auto item = make_item(vbid, "key", "value2");
+    EXPECT_EQ(ENGINE_KEY_ENOENT, store->replace(item, cookie));
+}
+
+// Check incorrect vbucket returns not-my-vbucket.
+TEST_P(EPStoreEvictionTest, ReplaceNMVB) {
+    auto item = make_item(vbid + 1, "key", "value2");
+    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, store->replace(item, cookie));
+}
+
+// Check pending vbucket returns EWOULDBLOCK.
+TEST_P(EPStoreEvictionTest, ReplacePendingVB) {
+    store->setVBucketState(vbid, vbucket_state_pending, false);
+    auto item = make_item(vbid, "key", "value2");
+    EXPECT_EQ(ENGINE_EWOULDBLOCK, store->replace(item, cookie));
+}
 
 // Test cases which run in both Full and Value eviction
 INSTANTIATE_TEST_CASE_P(FullAndValueEviction,
