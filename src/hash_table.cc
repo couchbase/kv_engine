@@ -427,7 +427,8 @@ add_type_t HashTable::add(const Item &val, item_eviction_policy_t policy,
     int bucket_num(0);
     LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
     StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
-    return unlocked_add(bucket_num, v, val, policy, isDirty, storeVal);
+    return unlocked_add(bucket_num, v, val, policy, isDirty, storeVal,
+                        /*maybeKeyExists*/true, /*isReplication*/false);
 }
 
 add_type_t HashTable::unlocked_add(int &bucket_num,

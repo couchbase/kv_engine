@@ -317,10 +317,10 @@ public:
                             StoredValue*& v,
                             const Item &val,
                             item_eviction_policy_t policy,
-                            bool isDirty = true,
-                            bool storeVal = true,
-                            bool maybeKeyExists = true,
-                            bool isReplication = false);
+                            bool isDirty,
+                            bool storeVal,
+                            bool maybeKeyExists,
+                            bool isReplication);
 
     /**
      * Add a temporary item to the hash table iff it doesn't already exist.

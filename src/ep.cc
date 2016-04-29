@@ -1030,7 +1030,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
     add_type_t atype = vb->ht.unlocked_add(bucket_num, v, itm,
                                            eviction_policy,
                                            true, true,
-                                           maybeKeyExists);
+                                           maybeKeyExists,
+                                           /*isReplication*/false);
+
 
     Item& it = const_cast<Item&>(itm);
     uint64_t seqno = 0;
