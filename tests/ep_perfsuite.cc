@@ -708,8 +708,10 @@ static void perf_dcp_client(struct Handle_args *ha) {
 
     do {
         if (bytes_read > 512) {
-            ha->h1->dcp.buffer_acknowledgement(ha->h, cookie, ++streamOpaque,
-                                               ha->vb, bytes_read);
+            checkeq(ENGINE_SUCCESS,
+                    ha->h1->dcp.buffer_acknowledgement(ha->h, cookie, ++streamOpaque,
+                                                       ha->vb, bytes_read),
+                    "Failed to acknowledge buffer");
             bytes_read = 0;
         }
         ENGINE_ERROR_CODE err = ha->h1->dcp.step(ha->h, cookie, producers.get());
@@ -748,7 +750,9 @@ static void perf_dcp_client(struct Handle_args *ha) {
                      */
                     break;
                 default:
-                    break;
+                    fprintf(stderr, "Unexpected DCP event type received: %d\n",
+                            dcp_last_op);
+                    abort();
             }
             dcp_last_op = 0;
         }
@@ -756,8 +760,8 @@ static void perf_dcp_client(struct Handle_args *ha) {
 
     // Account for de-duplications / cursors dropped because of
     // high memory usage
-    check(num_mutations <= static_cast<size_t>(ha->itemCount),
-          "Didn't receive expected number of mutations");
+    checkle(num_mutations, static_cast<size_t>(ha->itemCount),
+            "Didn't receive expected number of mutations");
     testHarness.destroy_cookie(cookie);
 }
 
