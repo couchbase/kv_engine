@@ -299,7 +299,7 @@ public:
      * @return an indication of what happened
      */
     add_type_t add(const Item &val, item_eviction_policy_t policy,
-                   bool isDirty = true, bool storeVal = true);
+                   bool isDirty = true);
 
     /**
      * Unlocked version of the add() method.
@@ -309,7 +309,6 @@ public:
      * @param val the item to store
      * @param policy item eviction policy
      * @param isDirty true if the item should be marked dirty on store
-     * @param storeVal true if the value should be stored (paged-in)
      * @param isReplication true if issued by consumer (for replication)
      * @return an indication of what happened
      */
@@ -318,7 +317,6 @@ public:
                             const Item &val,
                             item_eviction_policy_t policy,
                             bool isDirty,
-                            bool storeVal,
                             bool maybeKeyExists,
                             bool isReplication);
 

@@ -419,7 +419,7 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
 }
 
 add_type_t HashTable::add(const Item &val, item_eviction_policy_t policy,
-                          bool isDirty, bool storeVal) {
+                          bool isDirty) {
     if (!isActive()) {
         throw std::logic_error("HashTable::add: Cannot call on a "
                 "non-active object");
@@ -427,7 +427,7 @@ add_type_t HashTable::add(const Item &val, item_eviction_policy_t policy,
     int bucket_num(0);
     LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
     StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
-    return unlocked_add(bucket_num, v, val, policy, isDirty, storeVal,
+    return unlocked_add(bucket_num, v, val, policy, isDirty,
                         /*maybeKeyExists*/true, /*isReplication*/false);
 }
 
@@ -436,7 +436,6 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                                    const Item &val,
                                    item_eviction_policy_t policy,
                                    bool isDirty,
-                                   bool storeVal,
                                    bool maybeKeyExists,
                                    bool isReplication) {
     add_type_t rv = ADD_SUCCESS;
@@ -506,9 +505,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
             v->setRevSeqno(seqno);
             itm.setRevSeqno(seqno);
         }
-        if (!storeVal) {
-            unlocked_ejectItem(v, policy);
-        }
+
         if (v && v->isTempItem()) {
             v->setNRUValue(MAX_NRU_VALUE);
         }
@@ -538,8 +535,7 @@ add_type_t HashTable::unlocked_addTempItem(int &bucket_num,
     StoredValue* v = NULL;
     return unlocked_add(bucket_num, v, itm, policy,
                         false,  // isDirty
-                        true,   // storeVal
-                        true,
+                        true,   // maybeKeyExists
                         isReplication);
 }
 
