@@ -878,7 +878,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
     return ENGINE_EWOULDBLOCK;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
+ENGINE_ERROR_CODE EventuallyPersistentStore::set(Item &itm,
                                                  const void *cookie) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
@@ -935,7 +935,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
                                                 /*nru:default*/0xff,
                                                 maybeKeyExists);
 
-    Item& it = const_cast<Item&>(itm);
     uint64_t seqno = 0;
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
@@ -956,10 +955,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
         // Even if the item was dirty, push it into the vbucket's open
         // checkpoint.
     case WAS_CLEAN:
-        it.setCas(vb->nextHLCCas());
-        v->setCas(it.getCas());
+        itm.setCas(vb->nextHLCCas());
+        v->setCas(itm.getCas());
         queueDirty(vb, v, &lh, &seqno);
-        it.setBySeqno(seqno);
+        itm.setBySeqno(seqno);
         break;
     case NEED_BG_FETCH:
     {   // CAS operation with non-resident item + full eviction.
@@ -981,7 +980,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     return ret;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
+ENGINE_ERROR_CODE EventuallyPersistentStore::add(Item &itm,
                                                  const void *cookie)
 {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
@@ -1059,7 +1058,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::add(const Item &itm,
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
+ENGINE_ERROR_CODE EventuallyPersistentStore::replace(Item &itm,
                                                      const void *cookie) {
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -1098,7 +1097,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
                                         0xff);
         }
 
-        Item& it = const_cast<Item&>(itm);
         uint64_t seqno = 0;
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         switch (mtype) {
@@ -1117,16 +1115,16 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
                 // Even if the item was dirty, push it into the vbucket's open
                 // checkpoint.
             case WAS_CLEAN:
-                it.setCas(vb->nextHLCCas());
-                v->setCas(it.getCas());
+                itm.setCas(vb->nextHLCCas());
+                v->setCas(itm.getCas());
                 queueDirty(vb, v, &lh, &seqno);
-                it.setBySeqno(seqno);
+                itm.setBySeqno(seqno);
                 break;
             case NEED_BG_FETCH:
             {
                 // temp item is already created. Simply schedule a bg fetch job
                 lh.unlock();
-                bgFetch(it.getKey(), vb->getId(), cookie, true);
+                bgFetch(itm.getKey(), vb->getId(), cookie, true);
                 ret = ENGINE_EWOULDBLOCK;
                 break;
             }
@@ -1153,7 +1151,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(const Item &itm,
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
-                                                        const Item &itm,
+                                                        Item &itm,
                                                         uint8_t nru,
                                                         bool genBySeqno,
                                                         ExtendedMetaData *emd) {
@@ -2149,7 +2147,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
-                                                     const Item &itm,
+                                                     Item &itm,
                                                      uint64_t cas,
                                                      uint64_t *seqno,
                                                      const void *cookie,

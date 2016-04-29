@@ -240,7 +240,7 @@ Item* HashTable::getRandomKey(long rnd) {
     return ret;
 }
 
-mutation_type_t HashTable::set(const Item &val, uint64_t cas,
+mutation_type_t HashTable::set(Item &val, uint64_t cas,
                                bool allowExisting, bool hasMetaData,
                                item_eviction_policy_t policy,
                                uint8_t nru) {
@@ -250,7 +250,7 @@ mutation_type_t HashTable::set(const Item &val, uint64_t cas,
     return unlocked_set(v, val, cas, allowExisting, hasMetaData, policy, nru);
 }
 
-mutation_type_t HashTable::unlocked_set(StoredValue*& v, const Item &val,
+mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
                                         uint64_t cas, bool allowExisting,
                                         bool hasMetaData,
                                         item_eviction_policy_t policy,
@@ -261,7 +261,7 @@ mutation_type_t HashTable::unlocked_set(StoredValue*& v, const Item &val,
         throw std::logic_error("HashTable::unlocked_set: Cannot call on a "
                 "non-active object");
     }
-    Item &itm = const_cast<Item&>(val);
+
     if (!StoredValue::hasAvailableSpace(stats, itm, isReplication)) {
         return NOMEM;
     }
@@ -418,7 +418,7 @@ mutation_type_t HashTable::insert(Item &itm, item_eviction_policy_t policy,
     return NOT_FOUND;
 }
 
-add_type_t HashTable::add(const Item &val, item_eviction_policy_t policy,
+add_type_t HashTable::add(Item &val, item_eviction_policy_t policy,
                           bool isDirty) {
     if (!isActive()) {
         throw std::logic_error("HashTable::add: Cannot call on a "
@@ -433,7 +433,7 @@ add_type_t HashTable::add(const Item &val, item_eviction_policy_t policy,
 
 add_type_t HashTable::unlocked_add(int &bucket_num,
                                    StoredValue*& v,
-                                   const Item &val,
+                                   Item &itm,
                                    item_eviction_policy_t policy,
                                    bool isDirty,
                                    bool maybeKeyExists,
@@ -443,7 +443,6 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
        !v->isTempItem()) {
         rv = ADD_EXISTS;
     } else {
-        Item &itm = const_cast<Item&>(val);
         if (!StoredValue::hasAvailableSpace(stats, itm,
                                             isReplication)) {
             return ADD_NOMEM;
@@ -475,7 +474,7 @@ add_type_t HashTable::unlocked_add(int &bucket_num,
                 v->markClean();
             }
         } else {
-            if (val.getBySeqno() != StoredValue::state_temp_init) {
+            if (itm.getBySeqno() != StoredValue::state_temp_init) {
                 if (policy == FULL_EVICTION && maybeKeyExists) {
                     return ADD_TMP_AND_BG_FETCH;
                 }

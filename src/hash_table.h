@@ -242,7 +242,7 @@ public:
      * @param nru the nru bit for the item
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(const Item &val,
+    mutation_type_t set(Item &val,
                         item_eviction_policy_t policy = VALUE_ONLY,
                         uint8_t nru=0xff)
     {
@@ -262,12 +262,12 @@ public:
      * @param isReplication true if issued by consumer (for replication)
      * @return a result indicating the status of the store
      */
-    mutation_type_t set(const Item &val, uint64_t cas, bool allowExisting,
+    mutation_type_t set(Item &val, uint64_t cas, bool allowExisting,
                         bool hasMetaData = true,
                         item_eviction_policy_t policy = VALUE_ONLY,
                         uint8_t nru=0xff);
 
-    mutation_type_t unlocked_set(StoredValue*& v, const Item &val, uint64_t cas,
+    mutation_type_t unlocked_set(StoredValue*& v, Item &val, uint64_t cas,
                                  bool allowExisting, bool hasMetaData = true,
                                  item_eviction_policy_t policy = VALUE_ONLY,
                                  uint8_t nru=0xff, bool maybeKeyExists=true,
@@ -298,15 +298,16 @@ public:
      * @param storeVal true if the value should be stored (paged-in)
      * @return an indication of what happened
      */
-    add_type_t add(const Item &val, item_eviction_policy_t policy,
+    add_type_t add(Item &val, item_eviction_policy_t policy,
                    bool isDirty = true);
 
     /**
      * Unlocked version of the add() method.
      *
      * @param bucket_num the locked partition where the key belongs
-     * @param v the stored value to do this operaiton on
-     * @param val the item to store
+     * @param v the stored value to do this operation on
+     * @param val the item to store. On success it will have some fields
+     *            updated (e.g. sequence numbers).
      * @param policy item eviction policy
      * @param isDirty true if the item should be marked dirty on store
      * @param isReplication true if issued by consumer (for replication)
@@ -314,7 +315,7 @@ public:
      */
     add_type_t unlocked_add(int &bucket_num,
                             StoredValue*& v,
-                            const Item &val,
+                            Item &val,
                             item_eviction_policy_t policy,
                             bool isDirty,
                             bool maybeKeyExists,
