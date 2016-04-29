@@ -1282,6 +1282,33 @@ void CouchKVStore::destroyScanContext(ScanContext* ctx) {
     delete ctx;
 }
 
+DbInfo CouchKVStore::getDbInfo(uint16_t vbid) {
+    Db *db = nullptr;
+    const uint64_t rev = dbFileRevMap.at(vbid);
+    couchstore_error_t errCode = openDB(vbid, rev, &db,
+                                        COUCHSTORE_OPEN_FLAG_RDONLY);
+    if (errCode == COUCHSTORE_SUCCESS) {
+        DbInfo info;
+        errCode = couchstore_db_info(db, &info);
+        closeDatabaseHandle(db);
+        if (errCode == COUCHSTORE_SUCCESS) {
+            return info;
+        } else {
+            throw std::runtime_error("CouchKVStore::getDbInfo: failed "
+                    "to read database info for vBucket " + std::to_string(vbid) +
+                    " revision " + std::to_string(rev) +
+                    " - couchstore returned error: " +
+                    couchstore_strerror(errCode));
+        }
+    } else {
+        throw std::system_error(
+                ENOENT, std::system_category(), "CouchKVStore::getDbInfo: "
+                "failed to open database file for vBucket " +
+                std::to_string(vbid) + " revision " + std::to_string(rev) +
+                " - couchstore returned error: " + couchstore_strerror(errCode));
+    }
+}
+
 void CouchKVStore::close() {
     intransaction = false;
 }
@@ -2296,32 +2323,9 @@ size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
 }
 
 DBFileInfo CouchKVStore::getDbFileInfo(uint16_t vbid) {
-    Db *db = NULL;
-    uint64_t rev = dbFileRevMap[vbid];
 
-    DBFileInfo vbinfo;
-    couchstore_error_t errCode = openDB(vbid, rev, &db,
-                                        COUCHSTORE_OPEN_FLAG_RDONLY);
-    if (errCode == COUCHSTORE_SUCCESS) {
-        DbInfo info;
-        errCode = couchstore_db_info(db, &info);
-        if (errCode == COUCHSTORE_SUCCESS) {
-            vbinfo.fileSize = info.file_size;
-            vbinfo.spaceUsed = info.space_used;
-        } else {
-            throw std::runtime_error("CouchKVStore::getDbFileInfo: Failed "
-                    "to read database info for vBucket = " + std::to_string(vbid) +
-                    " rev = " + std::to_string(rev) +
-                    " with error:" + couchstore_strerror(errCode));
-        }
-        closeDatabaseHandle(db);
-    } else {
-        throw std::invalid_argument("CouchKVStore::getDbFileInfo: Failed "
-                "to open database file for vBucket = " + std::to_string(vbid) +
-                " rev = " + std::to_string(rev) +
-                " with error:" + couchstore_strerror(errCode));
-    }
-    return vbinfo;
+    DbInfo info = getDbInfo(vbid);
+    return DBFileInfo{info.file_size, info.space_used};
 }
 
 DBFileInfo CouchKVStore::getAggrDbFileInfo() {
@@ -2367,29 +2371,7 @@ size_t CouchKVStore::getItemCount(uint16_t vbid) {
     if (!isReadOnly()) {
         return cachedDocCount.at(vbid);
     }
-
-    Db *db = NULL;
-    DbInfo info;
-    uint64_t rev = dbFileRevMap.at(vbid);
-    couchstore_error_t errCode = openDB(vbid, rev, &db,
-                                        COUCHSTORE_OPEN_FLAG_RDONLY);
-    if (errCode == COUCHSTORE_SUCCESS) {
-        errCode = couchstore_db_info(db, &info);
-        if (errCode != COUCHSTORE_SUCCESS) {
-            throw std::runtime_error("CouchKVStore::getItemCount: Failed to "
-                "get item count for vbucket: " + std::to_string(vbid) +
-                " rev: " + std::to_string(rev) + "with error: " +
-                couchstore_strerror(errCode));
-        }
-        closeDatabaseHandle(db);
-    } else {
-        throw std::invalid_argument("CouchKVStore::getItemCount: Failed to "
-            "open database file for vBucket = " + std::to_string(vbid) +
-            " rev = " + std::to_string(rev) +
-            " with error:" + couchstore_strerror(errCode));
-    }
-
-    return info.doc_count;
+    return getDbInfo(vbid).doc_count;
 }
 
 RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,

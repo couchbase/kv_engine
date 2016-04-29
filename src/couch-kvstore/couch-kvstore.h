@@ -502,6 +502,12 @@ public:
 
     void destroyScanContext(ScanContext* ctx) override;
 
+protected:
+    /*
+     * Returns the DbInfo for the given vbucket database.
+     */
+    DbInfo getDbInfo(uint16_t vbid);
+
 private:
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          VBStatePersist options, bool reset=false);

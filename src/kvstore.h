@@ -211,6 +211,9 @@ struct DBFileInfo {
     DBFileInfo() :
         fileSize(0), spaceUsed(0) { }
 
+    DBFileInfo(uint64_t fileSize_, uint64_t spaceUsed_)
+        : fileSize(fileSize_), spaceUsed(spaceUsed_) {}
+
     uint64_t fileSize;
     uint64_t spaceUsed;
 };
