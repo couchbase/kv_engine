@@ -210,6 +210,7 @@ public:
         }
 
         conflictResMode = itm.getConflictResMode();
+        nru = itm.getNRUValue();
 
         markDirty();
 
@@ -527,7 +528,7 @@ private:
         deleted(false),
         newCacheItem(true),
         conflictResMode(itm.getConflictResMode()),
-        nru(INITIAL_NRU_VALUE),
+        nru(itm.getNRUValue()),
         keylen(itm.getNKey()) {
 
         if (setDirty) {

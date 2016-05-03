@@ -238,11 +238,10 @@ public:
     /**
      * Add an TAP backfill item into its corresponding vbucket
      * @param item the item to be added
-     * @param nru the nru bit for the item
      * @param genBySeqno whether or not to generate sequence number
      * @return the result of the operation
      */
-    ENGINE_ERROR_CODE addTAPBackfillItem(Item &item, uint8_t nru = 0xff,
+    ENGINE_ERROR_CODE addTAPBackfillItem(Item &item,
                                          bool genBySeqno = true,
                                          ExtendedMetaData *emd = NULL);
 
@@ -321,7 +320,6 @@ public:
      * @param force override vbucket states
      * @param allowExisting set to false if you want set to fail if the
      *                      item exists already
-     * @param nru the nru bit for the item
      * @param genBySeqno whether or not to generate sequence number
      * @param emd ExtendedMetaData class object that contains any ext meta
      * @param isReplication set to true if we are to use replication
@@ -335,7 +333,6 @@ public:
                                   const void *cookie,
                                   bool force,
                                   bool allowExisting,
-                                  uint8_t nru = 0xff,
                                   bool genBySeqno = true,
                                   ExtendedMetaData *emd = NULL,
                                   bool isReplication = false);

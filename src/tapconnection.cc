@@ -2182,14 +2182,14 @@ ENGINE_ERROR_CODE TapConsumer::mutation(uint32_t opaque, const void* key,
 
     Item *item = new Item(key, nkey, flags, exptime, value, nvalue,
                           &datatype, EXT_META_LEN, cas, -1,
-                          vbucket, revSeqno);
+                          vbucket, revSeqno, nru);
 
     EventuallyPersistentStore* epstore = engine_.getEpStore();
     if (isBackfillPhase(vbucket)) {
-        ret = epstore->addTAPBackfillItem(*item, nru, true);
+        ret = epstore->addTAPBackfillItem(*item, true);
     }
     else {
-        ret = epstore->setWithMeta(*item, 0, NULL, this, true, true, nru, true,
+        ret = epstore->setWithMeta(*item, 0, NULL, this, true, true, true,
                                    NULL, true);
     }
 

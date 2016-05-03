@@ -242,19 +242,17 @@ Item* HashTable::getRandomKey(long rnd) {
 
 mutation_type_t HashTable::set(Item &val, uint64_t cas,
                                bool allowExisting, bool hasMetaData,
-                               item_eviction_policy_t policy,
-                               uint8_t nru) {
+                               item_eviction_policy_t policy) {
     int bucket_num(0);
     LockHolder lh = getLockedBucket(val.getKey(), &bucket_num);
     StoredValue *v = unlocked_find(val.getKey(), bucket_num, true, false);
-    return unlocked_set(v, val, cas, allowExisting, hasMetaData, policy, nru);
+    return unlocked_set(v, val, cas, allowExisting, hasMetaData, policy);
 }
 
 mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
                                         uint64_t cas, bool allowExisting,
                                         bool hasMetaData,
                                         item_eviction_policy_t policy,
-                                        uint8_t nru,
                                         bool maybeKeyExists,
                                         bool isReplication) {
     if (!isActive()) {
@@ -324,9 +322,7 @@ mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
         }
 
         v->setValue(itm, *this, hasMetaData /*Preserve revSeqno*/);
-        if (nru <= MAX_NRU_VALUE) {
-            v->setNRUValue(nru);
-        }
+
     } else if (cas != 0) {
         rv = NOT_FOUND;
     } else {
@@ -335,9 +331,6 @@ mutation_type_t HashTable::unlocked_set(StoredValue*& v, Item& itm,
         values[bucket_num] = v;
         ++numItems;
         ++numTotalItems;
-        if (nru <= MAX_NRU_VALUE && !v->isTempItem()) {
-            v->setNRUValue(nru);
-        }
 
         if (!hasMetaData) {
             /**

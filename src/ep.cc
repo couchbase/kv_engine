@@ -932,7 +932,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(Item &itm,
 
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, itm.getCas(), true, false,
                                                 eviction_policy,
-                                                /*nru:default*/0xff,
                                                 maybeKeyExists);
 
     uint64_t seqno = 0;
@@ -1093,8 +1092,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(Item &itm,
         if (eviction_policy == FULL_EVICTION && v->isTempInitialItem()) {
             mtype = NEED_BG_FETCH;
         } else {
-            mtype = vb->ht.unlocked_set(v, itm, 0, true, false, eviction_policy,
-                                        0xff);
+            mtype = vb->ht.unlocked_set(v, itm, 0, true, false, eviction_policy);
         }
 
         uint64_t seqno = 0;
@@ -1152,7 +1150,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::replace(Item &itm,
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
                                                         Item &itm,
-                                                        uint8_t nru,
                                                         bool genBySeqno,
                                                         ExtendedMetaData *emd) {
 
@@ -1186,7 +1183,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
         v->unlock();
     }
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, 0, true, true,
-                                                eviction_policy, nru);
+                                                eviction_policy);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
     switch (mtype) {
@@ -2153,7 +2150,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
                                                      const void *cookie,
                                                      bool force,
                                                      bool allowExisting,
-                                                     uint8_t nru,
                                                      bool genBySeqno,
                                                      ExtendedMetaData *emd,
                                                      bool isReplication)
@@ -2234,7 +2230,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
     }
 
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, cas, allowExisting,
-                                                true, eviction_policy, nru,
+                                                true, eviction_policy,
                                                 maybeKeyExists, isReplication);
 
     ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
@@ -4070,8 +4066,8 @@ public:
                 mutation_type_t mtype = vb->ht.set(*it, it->getCas(),
                                                    true, true,
                                                    engine.getEpStore()->
-                                                        getItemEvictionPolicy(),
-                                                   INITIAL_NRU_VALUE);
+                                                        getItemEvictionPolicy());
+
                 if (mtype == NOMEM) {
                     setStatus(ENGINE_ENOMEM);
                 }

@@ -5365,7 +5365,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     ENGINE_ERROR_CODE ret = epstore->setWithMeta(*itm, ntohll(request->
                                                  message.header.request.cas),
                                                  &by_seqno, cookie, force,
-                                                 allowExisting, 0xff, true,
+                                                 allowExisting, true,
                                                  emd);
 
     delete emd;

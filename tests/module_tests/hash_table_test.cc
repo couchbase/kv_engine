@@ -585,6 +585,42 @@ TEST_F(HashTableTest, ItemAge) {
     EXPECT_EQ(1, v->getValue()->getAge());
 }
 
+// Check not specifying results in the INITIAL_NRU_VALUE.
+TEST_F(HashTableTest, NRUDefault) {
+    // Setup
+    HashTable ht(global_stats, 5, 1);
+    std::string key("key");
+
+    Item item(key.data(), key.length(), 0, 0, "value", strlen("value"));
+    EXPECT_EQ(WAS_CLEAN, ht.set(item));
+
+    // trackReferenced=false so we don't modify the NRU while validating it.
+    StoredValue* v(ht.find(key, /*trackReference*/false));
+    EXPECT_NE(nullptr, v);
+    EXPECT_EQ(INITIAL_NRU_VALUE, v->getNRUValue());
+
+    // Check that find() by default /does/ update NRU.
+    v = ht.find(key, /*trackReference*/true);
+    EXPECT_NE(nullptr, v);
+    EXPECT_EQ(INITIAL_NRU_VALUE - 1, v->getNRUValue());
+}
+
+// Check a specific NRU value (minimum)
+TEST_F(HashTableTest, NRUMinimum) {
+    // Setup
+    HashTable ht(global_stats, 5, 1);
+    std::string key("key");
+
+    Item item(key.data(), key.length(), 0, 0, "value", strlen("value"));
+    item.setNRUValue(MIN_NRU_VALUE);
+    EXPECT_EQ(WAS_CLEAN, ht.set(item));
+
+    // trackReferenced=false so we don't modify the NRU while validating it.
+    StoredValue* v(ht.find(key, /*trackReference*/false));
+    EXPECT_NE(nullptr, v);
+    EXPECT_EQ(MIN_NRU_VALUE, v->getNRUValue());
+}
+
 /* static storage for environment variable set by putenv().
  *
  * (This must be static as putenv() essentially 'takes ownership' of

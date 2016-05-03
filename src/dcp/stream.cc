@@ -1543,13 +1543,12 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
     ENGINE_ERROR_CODE ret;
     if (vb->isBackfillPhase()) {
         ret = engine->getEpStore()->addTAPBackfillItem(*mutation->getItem(),
-                                                    INITIAL_NRU_VALUE,
-                                                    false,
-                                                    mutation->getExtMetaData());
+                                                       false,
+                                                       mutation->getExtMetaData());
     } else {
         ret = engine->getEpStore()->setWithMeta(*mutation->getItem(), 0, NULL,
                                                 consumer->getCookie(), true,
-                                                true, INITIAL_NRU_VALUE, false,
+                                                true, false,
                                                 mutation->getExtMetaData(),
                                                 true);
     }

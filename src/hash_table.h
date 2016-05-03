@@ -239,14 +239,12 @@ public:
      *
      * @param val the Item to store
      * @param policy item eviction policy
-     * @param nru the nru bit for the item
      * @return a result indicating the status of the store
      */
     mutation_type_t set(Item &val,
-                        item_eviction_policy_t policy = VALUE_ONLY,
-                        uint8_t nru=0xff)
+                        item_eviction_policy_t policy = VALUE_ONLY)
     {
-        return set(val, val.getCas(), true, false, policy, nru);
+        return set(val, val.getCas(), true, false, policy);
     }
 
     /**
@@ -258,19 +256,17 @@ public:
      * @param allowExisting should we allow existing items or not
      * @param hasMetaData should we keep the same revision seqno or increment it
      * @param policy item eviction policy
-     * @param nru the nru bit for the item
      * @param isReplication true if issued by consumer (for replication)
      * @return a result indicating the status of the store
      */
     mutation_type_t set(Item &val, uint64_t cas, bool allowExisting,
                         bool hasMetaData = true,
-                        item_eviction_policy_t policy = VALUE_ONLY,
-                        uint8_t nru=0xff);
+                        item_eviction_policy_t policy = VALUE_ONLY);
 
     mutation_type_t unlocked_set(StoredValue*& v, Item &val, uint64_t cas,
                                  bool allowExisting, bool hasMetaData = true,
                                  item_eviction_policy_t policy = VALUE_ONLY,
-                                 uint8_t nru=0xff, bool maybeKeyExists=true,
+                                 bool maybeKeyExists=true,
                                  bool isReplication = false);
 
     /**
