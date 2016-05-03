@@ -215,13 +215,9 @@ public:
      * Set an item in the store.
      * @param item the item to set
      * @param cookie the cookie representing the client to store the item
-     * @param force override access to the vbucket even if the state of the
-     *              vbucket would deny mutations.
      * @return the result of the store operation
      */
-    ENGINE_ERROR_CODE set(const Item &item,
-                          const void *cookie,
-                          bool force = false);
+    ENGINE_ERROR_CODE set(const Item &item, const void *cookie);
 
     /**
      * Add an item in the store.

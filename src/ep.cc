@@ -879,8 +879,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
-                                                 const void *cookie,
-                                                 bool force) {
+                                                 const void *cookie) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -894,10 +893,10 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     if (vb->getState() == vbucket_state_dead) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_replica && !force) {
+    } else if (vb->getState() == vbucket_state_replica) {
         ++stats.numNotMyVBuckets;
         return ENGINE_NOT_MY_VBUCKET;
-    } else if (vb->getState() == vbucket_state_pending && !force) {
+    } else if (vb->getState() == vbucket_state_pending) {
         if (vb->addPendingOp(cookie)) {
             return ENGINE_EWOULDBLOCK;
         }
