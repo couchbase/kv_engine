@@ -217,13 +217,11 @@ public:
      * @param cookie the cookie representing the client to store the item
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
-     * @param nru the nru bit value for the item
      * @return the result of the store operation
      */
     ENGINE_ERROR_CODE set(const Item &item,
                           const void *cookie,
-                          bool force = false,
-                          uint8_t nru = 0xff);
+                          bool force = false);
 
     /**
      * Add an item in the store.

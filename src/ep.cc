@@ -880,8 +880,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTempItemForBgFetch(
 
 ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
                                                  const void *cookie,
-                                                 bool force,
-                                                 uint8_t nru) {
+                                                 bool force) {
 
     RCPtr<VBucket> vb = getVBucket(itm.getVBucketId());
     if (!vb) {
@@ -933,7 +932,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::set(const Item &itm,
     }
 
     mutation_type_t mtype = vb->ht.unlocked_set(v, itm, itm.getCas(), true, false,
-                                                eviction_policy, nru,
+                                                eviction_policy,
+                                                /*nru:default*/0xff,
                                                 maybeKeyExists);
 
     Item& it = const_cast<Item&>(itm);
