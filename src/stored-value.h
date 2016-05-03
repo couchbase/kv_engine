@@ -516,17 +516,19 @@ private:
 
     StoredValue(const Item &itm, StoredValue *n, EPStats &stats, HashTable &ht,
                 bool setDirty = true) :
-        value(itm.getValue()), next(n), bySeqno(itm.getBySeqno()),
-        flags(itm.getFlags()) {
-        cas = itm.getCas();
-        exptime = itm.getExptime();
-        deleted = false;
-        newCacheItem = true;
-        nru = INITIAL_NRU_VALUE;
-        lock_expiry = 0;
-        keylen = itm.getNKey();
-        revSeqno = itm.getRevSeqno();
-        conflictResMode = itm.getConflictResMode();
+        value(itm.getValue()),
+        next(n),
+        cas(itm.getCas()),
+        revSeqno(itm.getRevSeqno()),
+        bySeqno(itm.getBySeqno()),
+        lock_expiry(0),
+        exptime(itm.getExptime()),
+        flags(itm.getFlags()),
+        deleted(false),
+        newCacheItem(true),
+        conflictResMode(itm.getConflictResMode()),
+        nru(INITIAL_NRU_VALUE),
+        keylen(itm.getNKey()) {
 
         if (setDirty) {
             markDirty();
