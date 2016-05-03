@@ -1277,6 +1277,20 @@ void McbpConnection::runEventLoop(short which) {
                     "%d: exception occurred in runloop - closing connection: %s",
                     getId(), e.what());
         setState(conn_closing);
+        /*
+         * In addition to setting the state to conn_closing
+         * we need to move execution foward by executing
+         * conn_closing() and the subsequent functions
+         * i.e. conn_pending_close() or conn_immediate_close()
+         */
+        try {
+            runStateMachinery();
+        } catch (std::invalid_argument& e) {
+            LOG_WARNING(this,
+                    "%d: exception occurred in runloop whilst"
+                    "attempting to close connection: %s",
+                    getId(), e.what());
+        }
     }
 
     conn_return_buffers(this);
