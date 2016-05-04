@@ -1135,6 +1135,8 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
         }
     }
 
+    const hrtime_t start = gethrtime();
+
     KVStatsCallback kvcb(this);
     uint64_t chkId = vbMap.getPersistenceCheckpointId(vbid);
     std::string failovers = vb->failovers->toJSON();
@@ -1148,6 +1150,7 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
 
     KVStore *rwUnderlying = getRWUnderlying(vbid);
     if (rwUnderlying->snapshotVBucket(vbid, vb_state, &kvcb)) {
+        stats.persistVBStateHisto.add((gethrtime() - start) / 1000);
         if (vbMap.setBucketCreation(vbid, false)) {
             LOG(EXTENSION_LOG_INFO, "VBucket %d created", vbid);
         }
