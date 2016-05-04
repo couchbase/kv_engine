@@ -339,21 +339,22 @@ For introductory information on stats within Couchbase, start with the
 
 ** vBucket total stats
 
-| Stat                          | Description                                |
-|-------------------------------+--------------------------------------------|
-| ep_vb_total                   | Total vBuckets (count)                     |
-| curr_items_tot                | Total number of items                      |
-| curr_items                    | Number of active items in memory           |
-| curr_temp_items               | Number of temporary items in memory        |
-| vb_dead_num                   | Number of dead vBuckets                    |
-| ep_diskqueue_items            | Total items in disk queue                  |
-| ep_diskqueue_memory           | Total memory used in disk queue            |
-| ep_diskqueue_fill             | Total enqueued items on disk queue         |
-| ep_diskqueue_drain            | Total drained items on disk queue          |
-| ep_diskqueue_pending          | Total bytes of pending writes              |
-| ep_vb_snapshot_total          | Total VB state snapshots persisted in disk |
-| ep_meta_data_memory           | Total memory used by meta data             |
-| ep_meta_data_disk             | Total disk used by meta data               |
+| Stat                     | Description                                    |
+|--------------------------+------------------------------------------------|
+| ep_vb_total              | Total vBuckets (count)                         |
+| curr_items_tot           | Total number of items                          |
+| curr_items               | Number of active items in memory               |
+| curr_temp_items          | Number of temporary items in memory            |
+| vb_dead_num              | Number of dead vBuckets                        |
+| ep_diskqueue_items       | Total items in disk queue                      |
+| ep_diskqueue_memory      | Total memory used in disk queue                |
+| ep_diskqueue_fill        | Total enqueued items on disk queue             |
+| ep_diskqueue_drain       | Total drained items on disk queue              |
+| ep_diskqueue_pending     | Total bytes of pending writes                  |
+| ep_vb_snapshot_total     | Number of VB state snapshots persisted to disk |
+| ep_persist_vbstate_total | Total VB persist state to disk                 |
+| ep_meta_data_memory      | Total memory used by meta data                 |
+| ep_meta_data_disk        | Total disk used by meta data                   |
 
 *** Active vBucket class stats
 
