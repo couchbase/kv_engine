@@ -562,7 +562,8 @@ ADD_TESTSUITE(ep-engine_value_eviction_xdcr ep-engine_full_eviction_xdcr
 # ================================ PERF_TESTS ================================ #
 SET(_ep_perfsuite_cmdline ${CMAKE_BINARY_DIR}/memcached/engine_testapp -E ${CMAKE_CURRENT_BINARY_DIR}/ep.so -T ${CMAKE_CURRENT_BINARY_DIR}/ep_perfsuite.so -v)
 
-# Micro perf tests: value-only eviction mode
+# Micro perf tests: value-only eviction mode. Note that it makes no sense to run
+# these tests in full-eviction mode as we disable persistence - see MB-19504.
 ADD_CUSTOM_TARGET(test-perfsuite
                   COMMAND ${_ep_perfsuite_cmdline}
                   DEPENDS ${CMAKE_BINARY_DIR}/memcached/engine_testapp
@@ -572,15 +573,6 @@ ADD_CUSTOM_TARGET(test-perfsuite
 ADD_TEST(NAME ep-engine_perfsuite
          COMMAND ${_ep_perfsuite_cmdline} -e "dbname=./value_eviction_perf")
 
-# Micro perf tests: full eviction mode
-ADD_CUSTOM_TARGET(test-full-eviction-perfsuite
-                  COMMAND ${_ep_perfsuite_cmdline} -e "item_eviction_policy=full_eviction"
-                  DEPENDS ${CMAKE_BINARY_DIR}/memcached/engine_testapp
-                          ep
-                          ep_perfsuite
-                  VERBATIM)
-ADD_TEST(NAME ep-engine_full_eviction_perfsuite
-         COMMAND ${_ep_perfsuite_cmdline} -e "item_eviction_policy=full_eviction$<SEMICOLON>dbname=./full_eviction_perf")
 # ============================================================================ #
 
 ENABLE_CODE_COVERAGE_REPORT()
