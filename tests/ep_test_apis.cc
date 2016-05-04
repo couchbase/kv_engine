@@ -1430,8 +1430,19 @@ bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    useconds_t sleepTime = 128;
+    const useconds_t initial_sleepTime = 128;
+    useconds_t sleepTime = initial_sleepTime;
     while (get_int_stat(h, h1, "ep_queue_size") > 0) {
+        decayingSleep(&sleepTime);
+    }
+
+    // We also need to to wait for any outstanding flushes to disk to
+    // complete - specifically so when in full eviction mode we have
+    // waited for the item counts in each vBucket to be synced with
+    // the number of items on disk. See
+    // EventuallyPersistentStore::commit().
+    sleepTime = initial_sleepTime;
+    while (get_int_stat(h, h1, "ep_flusher_todo") > 0) {
         decayingSleep(&sleepTime);
     }
 }
