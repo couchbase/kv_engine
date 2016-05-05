@@ -1487,16 +1487,15 @@ static enum test_result test_dcp_consumer_noop(ENGINE_HANDLE *h,
 
 static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
                                                              ENGINE_HANDLE_V1 *h1) {
-    /*
-     * temporarily skip this testcase to prevent CV regr run failures
-     * till fix for it will be implemented and committed (MB-18669)
-     */
-    return SKIPPED;
     const int num_items = 200;
     write_items(h, h1, num_items);
 
     wait_for_flusher_to_settle(h, h1);
     stop_persistence(h, h1);
+
+    // Ensure all 200 items are removed from the checkpoint queues
+    // to avoid any de-duplication with the delete ops that follow
+    wait_for_stat_to_be(h, h1, "ep_items_rm_from_checkpoints", 200);
 
     for (int j = 0; j < (num_items / 2); ++j) {
         std::stringstream ss;
@@ -1514,6 +1513,8 @@ static enum test_result test_dcp_producer_stream_req_partial(ENGINE_HANDLE *h,
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
     ctx.seqno = {95, 209};
     ctx.snapshot = {95, 95};
+    // Note that more than the expected number of items (mutations +
+    // deletions) will be sent, because of current design.
     ctx.exp_mutations = 105;
     ctx.exp_deletions = 100;
     ctx.exp_markers = 2;
