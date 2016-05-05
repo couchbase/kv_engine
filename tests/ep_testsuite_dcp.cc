@@ -385,7 +385,8 @@ void TestDcpConsumer::run(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                                dcp_last_opaque);
                     break;
                 case 0:
-                    if (disable_ack && flow_control_buf_size) {
+                    if (disable_ack && flow_control_buf_size &&
+                        (bytes_read >= flow_control_buf_size)) {
                         /* If there is no acking and if flow control is enabled
                            we are done because producer should not send us any
                            more items. We need this to test that producer stops
