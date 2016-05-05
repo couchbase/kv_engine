@@ -3030,6 +3030,33 @@ static enum test_result test_warmup_accesslog(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 }
 #endif
 
+static enum test_result test_warmup_oom(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+
+    write_items(h, h1, 20000, 0, "superlongnameofkey1234567890123456789012345678902");
+
+    wait_for_flusher_to_settle(h, h1);
+
+    std::string config(testHarness.get_current_testcase()->cfg);
+    config = config + "max_size=2097152;item_eviction_policy=value_only";
+
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              config.c_str(),
+                              true, false);
+
+    wait_for_warmup_complete(h, h1);
+
+    protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
+    checkeq(ENGINE_SUCCESS,
+            h1->unknown_command(h, NULL, pkt, add_response),
+            "Failed to send data traffic command to the services");
+    checkeq(PROTOCOL_BINARY_RESPONSE_ENOMEM, last_status.load(),
+            "Data traffic command should have failed with enomem");
+    free(pkt);
+
+    return SUCCESS;
+}
+
 static enum test_result test_cbd_225(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item *i = NULL;
 
@@ -5807,6 +5834,9 @@ BaseTestCase testsuite_testcases[] = {
                  "max_size=6291456", prepare, cleanup),
         TestCase("test set_param message", test_set_param_message, test_setup,
                  teardown, "chk_remover_stime=1;max_size=6291456", prepare, cleanup),
+        TestCase("test warmup oom value eviction", test_warmup_oom, test_setup,
+                 teardown, "item_eviction_policy=full_eviction",
+                 prepare, cleanup),
 
         // Stats tests
         TestCase("item stats", test_item_stats, test_setup, teardown, NULL,

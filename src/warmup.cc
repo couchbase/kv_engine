@@ -269,7 +269,12 @@ void LoadStorageKVPairCallback::callback(GetValue &val) {
 
         switch (warmupState) {
             case WarmupState::KeyDump:
-                ++stats.warmedUpKeys;
+                if (stats.warmOOM) {
+                    epstore.getWarmup()->setOOMFailure();
+                    stopLoading = true;
+                } else {
+                    ++stats.warmedUpKeys;
+                }
                 break;
             case WarmupState::LoadingData:
             case WarmupState::LoadingAccessLog:
@@ -370,6 +375,7 @@ Warmup::Warmup(EventuallyPersistentStore& st)
       cleanShutdown(true),
       corruptAccessLog(false),
       warmupComplete(false),
+      warmupOOMFailure(false),
       estimatedWarmupCount(std::numeric_limits<size_t>::max())
 {
     const size_t num_shards = store.vbMap.getNumShards();

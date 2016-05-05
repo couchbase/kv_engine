@@ -148,6 +148,13 @@ public:
         return warmupComplete.compare_exchange_strong(inverse, true);
     }
 
+    bool setOOMFailure() {
+        bool inverse = false;
+        return warmupOOMFailure.compare_exchange_strong(inverse, true);
+    }
+
+    bool hasOOMFailure() { return warmupOOMFailure.load(); }
+
     void initialize();
     void createVBuckets(uint16_t shardId);
     void estimateDatabaseItemCount(uint16_t shardId);
@@ -203,6 +210,7 @@ private:
     bool cleanShutdown;
     bool corruptAccessLog;
     AtomicValue<bool> warmupComplete;
+    AtomicValue<bool> warmupOOMFailure;
     AtomicValue<size_t> estimatedWarmupCount;
 
     DISALLOW_COPY_AND_ASSIGN(Warmup);
