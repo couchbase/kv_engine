@@ -129,6 +129,17 @@ public:
      */
     void notifyConsumerIfNecessary(bool schedule);
 
+protected:
+    /**
+     * Records when the consumer last received a message from producer.
+     * It is used to detect dead connections. The connection is closed
+     * if a message, including a No-Op message, is not seen in a period
+     * equal to twice the "noop interval".
+     * It is protected so we can access from MockDcpConsumer, for
+     * for testing purposes.
+     */
+    rel_time_t lastMessageTime;
+
 private:
 
     DcpResponse* getNextItem();
@@ -174,7 +185,6 @@ private:
 
     opaque_map opaqueMap_;
 
-    rel_time_t lastNoopTime;
     Couchbase::RelaxedAtomic<uint32_t> backoffs;
     uint32_t noopInterval;
 

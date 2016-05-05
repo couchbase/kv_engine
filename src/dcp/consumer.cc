@@ -102,10 +102,15 @@ Processer::~Processer() {
 
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
-    : Consumer(engine, cookie, name), opaqueCounter(0),
-      processerTaskId(0), processerTaskState(all_processed),
-      processerNotification(false), lastNoopTime(ep_current_time()),
-      backoffs(0), taskAlreadyCancelled(false), flowControl(engine, this)
+    : Consumer(engine, cookie, name),
+      lastMessageTime(ep_current_time()),
+      opaqueCounter(0),
+      processerTaskId(0),
+      processerTaskState(all_processed),
+      processerNotification(false),
+      backoffs(0),
+      taskAlreadyCancelled(false),
+      flowControl(engine, this)
 {
     Configuration& config = engine.getConfiguration();
     setSupportAck(false);
@@ -145,6 +150,7 @@ void DcpConsumer::taskCancelled() {
 
 ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
+    lastMessageTime = ep_current_time();
     LockHolder lh(readyMutex);
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
@@ -200,6 +206,7 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
 }
 
 ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
+    lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         streams.erase(vbucket);
         return ENGINE_DISCONNECT;
@@ -227,6 +234,7 @@ ENGINE_ERROR_CODE DcpConsumer::closeStream(uint32_t opaque, uint16_t vbucket) {
 
 ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
                                          uint32_t flags) {
+    lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -275,6 +283,7 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
                                         uint64_t bySeqno, uint64_t revSeqno,
                                         uint32_t exptime, uint8_t nru,
                                         const void* meta, uint16_t nmeta) {
+    lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -338,6 +347,7 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
                                         uint16_t vbucket, uint64_t bySeqno,
                                         uint64_t revSeqno, const void* meta,
                                         uint16_t nmeta) {
+    lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -400,6 +410,7 @@ ENGINE_ERROR_CODE DcpConsumer::expiration(uint32_t opaque, const void* key,
                                           uint16_t vbucket, uint64_t bySeqno,
                                           uint64_t revSeqno, const void* meta,
                                           uint16_t nmeta) {
+    // lastMessageTime is set in deletion function
     return deletion(opaque, key, nkey, cas, vbucket, bySeqno, revSeqno, meta,
                     nmeta);
 }
@@ -409,6 +420,7 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
                                               uint64_t start_seqno,
                                               uint64_t end_seqno,
                                               uint32_t flags) {
+    lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -450,11 +462,12 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
 }
 
 ENGINE_ERROR_CODE DcpConsumer::noop(uint32_t opaque) {
-    lastNoopTime = ep_current_time();
+    lastMessageTime = ep_current_time();
     return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE DcpConsumer::flush(uint32_t opaque, uint16_t vbucket) {
+    lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -465,6 +478,7 @@ ENGINE_ERROR_CODE DcpConsumer::flush(uint32_t opaque, uint16_t vbucket) {
 ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
                                                uint16_t vbucket,
                                                vbucket_state_t state) {
+    lastMessageTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -993,9 +1007,10 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
         return ret;
     }
 
-    if ((ep_current_time() - lastNoopTime) > (noopInterval * 2)) {
-        LOG(EXTENSION_LOG_NOTICE, "%s Disconnecting because noop message has "
-            "not been received for %u seconds", logHeader(), (noopInterval * 2));
+    if ((ep_current_time() - lastMessageTime) > (noopInterval * 2)) {
+        LOG(EXTENSION_LOG_NOTICE, "%s Disconnecting because a message has "
+            "not been received for %u seconds. lastMessageTime was %u seconds ago.",
+            logHeader(), (noopInterval * 2), (ep_current_time() - lastMessageTime));
         return ENGINE_DISCONNECT;
     }
 
