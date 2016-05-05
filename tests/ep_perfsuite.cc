@@ -737,9 +737,16 @@ static void perf_dcp_client(struct Handle_args *ha) {
             bytes_read = 0;
         }
         ENGINE_ERROR_CODE err = ha->h1->dcp.step(ha->h, cookie, producers.get());
-        if (err == ENGINE_DISCONNECT) {
-            done = true;
-        } else {
+        switch (err) {
+        case ENGINE_SUCCESS:
+            // No data currently available - wait to be notified when
+            // more available.
+            testHarness.lock_cookie(cookie);
+            testHarness.waitfor_cookie(cookie);
+            testHarness.unlock_cookie(cookie);
+            break;
+
+        case ENGINE_WANT_MORE:
             switch (dcp_last_op) {
                 case PROTOCOL_BINARY_CMD_DCP_MUTATION:
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:
@@ -757,11 +764,9 @@ static void perf_dcp_client(struct Handle_args *ha) {
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    dcp_last_opaque);
                     }
+
                     break;
-                case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
-                    done = true;
-                    bytes_read += dcp_last_packet_size;
-                    break;
+
                 case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
                     if (dcp_last_flags & 8) {
                         pending_marker_ack = true;
@@ -781,6 +786,11 @@ static void perf_dcp_client(struct Handle_args *ha) {
                     abort();
             }
             dcp_last_op = 0;
+            break;
+
+        default:
+            fprintf(stderr, "Unhandled dcp->step() result: %d\n", err);
+            abort();
         }
     } while (!done);
 
