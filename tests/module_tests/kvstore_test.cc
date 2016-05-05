@@ -517,7 +517,7 @@ protected:
 /**
  * Injects error during CouchKVStore::openDB_retry/couchstore_open_db_ex
  */
-TEST_F(CouchKVStoreErrorInjectionTest, DISABLED_openDB_retry_open_db_ex) {
+TEST_F(CouchKVStoreErrorInjectionTest, openDB_retry_open_db_ex) {
     generate_items(1);
     CustomCallback<mutation_result> set_callback;
 
@@ -878,7 +878,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
 /**
  * Injects error during CouchKVStore::rollback/couchstore_changes_count/1
  */
-TEST_F(CouchKVStoreErrorInjectionTest, DISABLED_rollback_changes_count1) {
+TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count1) {
     generate_items(6);
     CustomCallback<mutation_result> set_callback;
 
@@ -908,7 +908,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, DISABLED_rollback_changes_count1) {
 /**
  * Injects error during CouchKVStore::rollback/couchstore_rewind_header
  */
-TEST_F(CouchKVStoreErrorInjectionTest, DISABLED_rollback_rewind_header) {
+TEST_F(CouchKVStoreErrorInjectionTest, rollback_rewind_header) {
     generate_items(6);
     CustomCallback<mutation_result> set_callback;
 
@@ -940,7 +940,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, DISABLED_rollback_rewind_header) {
 /**
  * Injects error during CouchKVStore::rollback/couchstore_changes_count/2
  */
-TEST_F(CouchKVStoreErrorInjectionTest, DISABLED_rollback_changes_count2) {
+TEST_F(CouchKVStoreErrorInjectionTest, rollback_changes_count2) {
     generate_items(6);
     CustomCallback<mutation_result> set_callback;
 
@@ -970,7 +970,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, DISABLED_rollback_changes_count2) {
 /**
  * Injects error during CouchKVStore::readVBState/couchstore_open_local_document
  */
-TEST_F(CouchKVStoreErrorInjectionTest, DISABLED_readVBState_open_local_document) {
+TEST_F(CouchKVStoreErrorInjectionTest, readVBState_open_local_document) {
     generate_items(6);
     CustomCallback<mutation_result> set_callback;
 
@@ -1000,7 +1000,7 @@ TEST_F(CouchKVStoreErrorInjectionTest, DISABLED_readVBState_open_local_document)
 /**
  * Injects error during CouchKVStore::getAllKeys/couchstore_all_docs
  */
-TEST_F(CouchKVStoreErrorInjectionTest, DISABLED_getAllKeys_all_docs) {
+TEST_F(CouchKVStoreErrorInjectionTest, getAllKeys_all_docs) {
     populate_items(1);
 
     auto adcb(std::make_shared<CustomCallback<uint16_t&, char*&>>());

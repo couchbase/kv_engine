@@ -1493,8 +1493,9 @@ couchstore_error_t CouchKVStore::openDB_retry(std::string &dbfile,
         if (errCode == COUCHSTORE_SUCCESS) {
             return errCode;
         }
-        logger.log(EXTENSION_LOG_INFO, "INFO: couchstore_open_db failed, name=%s "
-                   "options=%" PRIX64 " error=%s [%s], try it again!",
+        logger.log(EXTENSION_LOG_NOTICE,
+                   "INFO: couchstore_open_db failed, name=%s options=%" PRIX64
+                   " error=%s [%s], try it again!",
                    dbfile.c_str(), options, couchstore_strerror(errCode),
                    cb_strerror().c_str());
         *newFileRev = checkNewRevNum(dbfile);
@@ -2098,10 +2099,16 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
     errCode = couchstore_open_local_document(db, (void *)id.buf,
                                              id.size, &ldoc);
     if (errCode != COUCHSTORE_SUCCESS) {
-        logger.log(EXTENSION_LOG_DEBUG,
-                   "CouchKVStore::readVBState: Failed to "
-                   "retrieve stat info for vBucket: %d with error: %s",
-                   vbId, couchstore_strerror(errCode));
+        if (errCode == COUCHSTORE_ERROR_DOC_NOT_FOUND) {
+            logger.log(EXTENSION_LOG_NOTICE,
+                       "CouchKVStore::readVBState: '_local/vbstate' not found "
+                       "for vBucket: %d", vbId);
+        } else {
+            logger.log(EXTENSION_LOG_WARNING,
+                       "CouchKVStore::readVBState: Failed to "
+                       "retrieve stat info for vBucket: %d with error: %s",
+                       vbId, couchstore_strerror(errCode));
+        }
     } else {
         const std::string statjson(ldoc->json.buf, ldoc->json.size);
         cJSON *jsonObj = cJSON_Parse(statjson.c_str());
@@ -2449,7 +2456,9 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
     errCode = couchstore_changes_count(db, 0, latestSeqno, &totSeqCount);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING, "Failed to get changes count for "
-                   "rollback vBucket = %d, rev = %" PRIu64, vbid, fileRev);
+                   "rollback vBucket = %d, rev = %" PRIu64 ", error=%s [%s]",
+                   vbid, fileRev,  couchstore_strerror(errCode),
+                   cb_strerror().c_str());
         closeDatabaseHandle(db);
         return RollbackResult(false, 0, 0, 0);
     }
@@ -2471,8 +2480,9 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                        "Failed to rewind Db pointer "
                        "for couch file with vbid: %u, whose "
                        "lastSeqno: %" PRIu64 ", while trying to roll back "
-                       "to seqNo: %" PRIu64,
-                       vbid, latestSeqno, rollbackSeqno);
+                       "to seqNo: %" PRIu64 ", error=%s [%s]",
+                       vbid, latestSeqno, rollbackSeqno,
+                       couchstore_strerror(errCode), cb_strerror().c_str());
             //Reset the vbucket and send the entire snapshot,
             //as a previous header wasn't found.
             closeDatabaseHandle(db);
@@ -2495,7 +2505,9 @@ RollbackResult CouchKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
                                        &rollbackSeqCount);
     if (errCode != COUCHSTORE_SUCCESS) {
         logger.log(EXTENSION_LOG_WARNING, "Failed to get changes count for "
-                   "rollback vBucket = %d, rev = %" PRIu64, vbid, fileRev);
+                   "rollback vBucket = %d, rev = %" PRIu64 ", error=%s [%s]",
+                   vbid, fileRev, couchstore_strerror(errCode),
+                   cb_strerror().c_str());
         closeDatabaseHandle(db);
         closeDatabaseHandle(newdb);
         return RollbackResult(false, 0, 0, 0);
@@ -2575,8 +2587,9 @@ CouchKVStore::getAllKeys(uint16_t vbid, std::string &start_key, uint32_t count,
             return ENGINE_SUCCESS;
         } else {
             logger.log(EXTENSION_LOG_WARNING, "couchstore_all_docs failed for "
-                       "database file of vbucket = %d rev = %" PRIu64 ", "
-                       "errCode = %u", vbid, rev, errCode);
+                       "database file of vbucket = %d rev = %" PRIu64
+                       ", error=%s [%s]", vbid, rev,
+                       couchstore_strerror(errCode), cb_strerror().c_str());
         }
     } else {
         logger.log(EXTENSION_LOG_WARNING, "Failed to open database file for "
