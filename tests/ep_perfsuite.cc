@@ -66,6 +66,9 @@ const size_t ITERATIONS =
     100000;
 #endif
 
+// Key of the sentinal document, used to detect the end of a run.
+const char SENTINAL_KEY[] = "__sentinal__";
+
 template<typename T>
 struct Stats {
     std::string name;
@@ -171,6 +174,21 @@ void fillLineWith(const char c, int spaces) {
     }
 }
 
+/* Add a sentinal document (one with a the key SENTINAL_KEY).
+ * This can be used by TAP / DCP streams to reliably detect the end of
+ * a run (sequence numbers are only supported by DCP, and
+ * de-duplication complicates simply counting mutations).
+ */
+static void add_sentinal_doc(ENGINE_HANDLE *h,
+                             ENGINE_HANDLE_V1 *h1, uint16_t vbid) {
+    // Use ADD instead of SET as we only expect to mutate the sentinal
+    // doc once per run.
+    checkeq(ENGINE_SUCCESS,
+            storeCasVb11(h, h1, nullptr, OPERATION_ADD, SENTINAL_KEY,
+                         nullptr, 0, /*flags*/0, /*out*/nullptr, 0, vbid),
+            "Failed to add sentinal document.");
+}
+
 /*****************************************************************************
  ** Testcases
  *****************************************************************************/
@@ -247,8 +265,8 @@ static void perf_latency_core(ENGINE_HANDLE *h,
     // Append
     // To be "evil" to append, we don't append once to each key, but instead
     // append to one key the 10x given iteration count bytes.
-    std::string append_data('y', 50);
-    for (size_t ii = 0; ii < ITERATIONS * 10; ii += append_data.size()) {
+    std::string append_data(50, 'y');
+    for (int ii = 0; ii < num_docs * 10; ii += append_data.size()) {
         item* item = NULL;
         const hrtime_t start = gethrtime();
         checkeq(ENGINE_SUCCESS,
@@ -297,6 +315,8 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     // run and measure on this thread.
     perf_latency_core(h, h1, 0, num_docs, add_timings, get_timings,
                       replace_timings, append_timings, delete_timings);
+
+    add_sentinal_doc(h, h1, /*vbid*/0);
 
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     all_timings.push_back(std::make_pair("Add", &add_timings));
@@ -659,13 +679,15 @@ static void perf_load_client(ENGINE_HANDLE *h,
         insertTimes.push_back(gethrtime());
         h1->release(h, NULL, it);
     }
+
+    add_sentinal_doc(h, h1, vbid);
+
     wait_for_flusher_to_settle(h, h1);
 }
 
 static void perf_dcp_client(struct Handle_args *ha) {
     const void *cookie = testHarness.create_cookie();
 
-    uint64_t end = static_cast<uint64_t>(ha->itemCount);
     std::string uuid("vb_" + std::to_string(ha->vb) + ":0:id");
     uint64_t vb_uuid = get_ull_stat(ha->h, ha->h1, uuid.c_str(), "failovers");
     uint32_t streamOpaque = ha->opaque;
@@ -689,9 +711,11 @@ static void perf_dcp_client(struct Handle_args *ha) {
                 "Failed to enable value compression");
     }
 
+    // We create a stream from 0 to MAX(seqno), and then rely on encountering the
+    // sentinal document to know when to finish.
     uint64_t rollback = 0;
     checkeq(ha->h1->dcp.stream_req(ha->h, cookie, 0, streamOpaque,
-                                   ha->vb, 0, end,
+                                   ha->vb, 0, std::numeric_limits<uint64_t>::max(),
                                    vb_uuid, 0, 0, &rollback,
                                    mock_dcp_add_failover_log),
             ENGINE_SUCCESS,
@@ -704,12 +728,12 @@ static void perf_dcp_client(struct Handle_args *ha) {
     bool pending_marker_ack = false;
     uint64_t marker_end = 0;
 
-    size_t num_mutations = 0;
-
     do {
         if (bytes_read > 512) {
-            ha->h1->dcp.buffer_acknowledgement(ha->h, cookie, ++streamOpaque,
-                                               ha->vb, bytes_read);
+            checkeq(ENGINE_SUCCESS,
+                    ha->h1->dcp.buffer_acknowledgement(ha->h, cookie, ++streamOpaque,
+                                                       ha->vb, bytes_read),
+                    "Failed to acknowledge buffer");
             bytes_read = 0;
         }
         ENGINE_ERROR_CODE err = ha->h1->dcp.step(ha->h, cookie, producers.get());
@@ -719,7 +743,11 @@ static void perf_dcp_client(struct Handle_args *ha) {
             switch (dcp_last_op) {
                 case PROTOCOL_BINARY_CMD_DCP_MUTATION:
                 case PROTOCOL_BINARY_CMD_DCP_DELETION:
-                    num_mutations++;
+                    // Check for sentinal (before adding to timings).
+                    if (dcp_last_key == SENTINAL_KEY) {
+                        done = true;
+                        break;
+                    }
                     ha->timings.push_back(gethrtime());
                     ha->bytes_received.push_back(dcp_last_value.length());
                     bytes_read += dcp_last_packet_size;
@@ -748,23 +776,19 @@ static void perf_dcp_client(struct Handle_args *ha) {
                      */
                     break;
                 default:
-                    break;
+                    fprintf(stderr, "Unexpected DCP event type received: %d\n",
+                            dcp_last_op);
+                    abort();
             }
             dcp_last_op = 0;
         }
     } while (!done);
 
-    // Account for de-duplications / cursors dropped because of
-    // high memory usage
-    check(num_mutations <= static_cast<size_t>(ha->itemCount),
-          "Didn't receive expected number of mutations");
     testHarness.destroy_cookie(cookie);
 }
 
 static void perf_tap_client(struct Handle_args *ha) {
     const void *cookie = testHarness.create_cookie();
-
-    uint64_t end = static_cast<uint64_t>(ha->itemCount);
 
     testHarness.lock_cookie(cookie);
     std::string name("perf_tap_client");
@@ -777,7 +801,6 @@ static void perf_tap_client(struct Handle_args *ha) {
     check(iter != NULL, "Failed to create a tap iterator");
 
     bool done = false;
-    size_t num_mutations = 0;
 
     do {
         item* item;
@@ -792,11 +815,23 @@ static void perf_tap_client(struct Handle_args *ha) {
 
         switch (event) {
         case TAP_MUTATION:
-        case TAP_DELETION:
-            num_mutations++;
-            if (num_mutations == end) {
+            testHarness.unlock_cookie(cookie);
+
+            // Check for sentinal
+            item_info info;
+            info.nvalue = 1;
+            check(ha->h1->get_item_info(ha->h, NULL, item, &info),
+                  "Failed to get item info for TAP mutation");
+
+            if (strncmp(SENTINAL_KEY, reinterpret_cast<const char*>(info.key),
+                        info.nkey) == 0) {
                 done = true;
             }
+
+            testHarness.lock_cookie(cookie);
+            break;
+
+        case TAP_DELETION:
             break;
 
         case TAP_OPAQUE:
@@ -812,10 +847,6 @@ static void perf_tap_client(struct Handle_args *ha) {
         }
 
     } while (!done);
-
-    checkeq(num_mutations,
-            static_cast<size_t>(ha->itemCount),
-            "Didn't receive expected number of mutations");
 
     testHarness.unlock_cookie(cookie);
     testHarness.destroy_cookie(cookie);
