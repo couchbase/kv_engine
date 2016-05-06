@@ -962,26 +962,21 @@ static enum test_result perf_dcp_latency_and_bandwidth(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-// TODO/MB-19526: 'static' disabled here to remove compiler warning
-// that the function is unused - this is only the case because these
-// tests are currently disabled, however we want to keep the code to
-// minimise bit-rot as the expectation is they will be fixed and
-// re-enabled.
-/*static*/ enum test_result perf_dcp_latency_with_padded_json(ENGINE_HANDLE *h,
+static enum test_result perf_dcp_latency_with_padded_json(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     return perf_dcp_latency_and_bandwidth(h, h1,
                             "DCP In-memory (JSON-PADDED) [As_is vs. Compress]",
                             Doc_format::JSON_PADDED, ITERATIONS / 10);
 }
 
-/*static*/ enum test_result perf_dcp_latency_with_random_json(ENGINE_HANDLE *h,
+static enum test_result perf_dcp_latency_with_random_json(ENGINE_HANDLE *h,
                                                           ENGINE_HANDLE_V1 *h1) {
     return perf_dcp_latency_and_bandwidth(h, h1,
                             "DCP In-memory (JSON-RAND) [As_is vs. Compress]",
                             Doc_format::JSON_RANDOM, ITERATIONS / 20);
 }
 
-/*static*/ enum test_result perf_dcp_latency_with_random_binary(ENGINE_HANDLE *h,
+static enum test_result perf_dcp_latency_with_random_binary(ENGINE_HANDLE *h,
                                                             ENGINE_HANDLE_V1 *h1) {
     return perf_dcp_latency_and_bandwidth(h, h1,
                             "DCP In-memory (BINARY-RAND) [As_is vs. Compress]",
@@ -1071,9 +1066,6 @@ BaseTestCase testsuite_testcases[] = {
                    NULL, NULL,
                    "backend=couchdb;ht_size=393209",
                    prepare, cleanup),
-#if 0
-        // Disabled due to MB-19526 - tests fail to take DCP sequence numbers
-        // into account and hence are not accurate.
         TestCase("DCP latency (Padded JSON)", perf_dcp_latency_with_padded_json,
                  test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
@@ -1086,7 +1078,6 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
-#endif
         TestCaseV2("Multi thread latency", perf_multi_thread_latency,
                    NULL, NULL,
                    "backend=couchdb;ht_size=393209",
