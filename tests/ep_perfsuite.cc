@@ -180,10 +180,9 @@ void fillLineWith(const char c, int spaces) {
  * de-duplication complicates simply counting mutations).
  */
 static void add_sentinal_doc(ENGINE_HANDLE *h,
-                             ENGINE_HANDLE_V1 *h1) {
+                             ENGINE_HANDLE_V1 *h1, uint16_t vbid) {
     // Use ADD instead of SET as we only expect to mutate the sentinal
     // doc once per run.
-    const uint16_t vbid{0};
     checkeq(ENGINE_SUCCESS,
             storeCasVb11(h, h1, nullptr, OPERATION_ADD, SENTINAL_KEY,
                          nullptr, 0, /*flags*/0, /*out*/nullptr, 0, vbid),
@@ -317,7 +316,7 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     perf_latency_core(h, h1, 0, num_docs, add_timings, get_timings,
                       replace_timings, append_timings, delete_timings);
 
-    add_sentinal_doc(h, h1);
+    add_sentinal_doc(h, h1, /*vbid*/0);
 
     std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
     all_timings.push_back(std::make_pair("Add", &add_timings));
@@ -681,7 +680,7 @@ static void perf_load_client(ENGINE_HANDLE *h,
         h1->release(h, NULL, it);
     }
 
-    add_sentinal_doc(h, h1);
+    add_sentinal_doc(h, h1, vbid);
 
     wait_for_flusher_to_settle(h, h1);
 }
