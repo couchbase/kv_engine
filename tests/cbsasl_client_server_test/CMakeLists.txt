@@ -1,6 +1,5 @@
 ADD_EXECUTABLE(cbsasl_client_server_test cbsasl_test.cc
-               ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.cc
-               ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.h
+               ${Memcached_SOURCE_DIR}/include/cbsasl/cbcrypto.h
                ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h
                ${Memcached_SOURCE_DIR}/include/cbsasl/visibility.h)
 TARGET_LINK_LIBRARIES(cbsasl_client_server_test cbsasl gtest gtest_main)

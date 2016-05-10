@@ -15,7 +15,7 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "cbcrypto.h"
+#include <cbsasl/cbcrypto.h>
 
 #include <stdexcept>
 

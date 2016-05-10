@@ -33,10 +33,10 @@ public:
 
         mechanisms.push_back("PLAIN");
         mechanisms.push_back("CRAM-MD5");
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
+#if defined(HAVE_PKCS5_PBKDF2_HMAC_SHA1) || defined(__APPLE__)
         mechanisms.push_back("SCRAM-SHA1");
 #endif
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
+#if defined(HAVE_PKCS5_PBKDF2_HMAC) || defined(__APPLE__)
         mechanisms.push_back("SCRAM-SHA256");
         mechanisms.push_back("SCRAM-SHA512");
 #endif

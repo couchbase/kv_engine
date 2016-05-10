@@ -1,6 +1,6 @@
 ADD_EXECUTABLE(cbcrypto_test cbcrypto_test.cc
                ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.cc
-               ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.h)
+               ${Memcached_SOURCE_DIR}/include/cbsasl/cbcrypto.h)
 
 IF (NOT APPLE)
     LIST(APPEND CBCRYPTO_TEST_LIBS ${OPENSSL_LIBRARIES})

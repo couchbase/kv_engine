@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include <cbsasl/cbcrypto.h>
 #include "testapp_sasl.h"
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -40,24 +41,26 @@ TEST_P(SaslTest, SingleCRAM_MD5) {
     EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "CRAM-MD5"));
 }
 
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
 TEST_P(SaslTest, SingleSCRAM_SHA1) {
-    MemcachedConnection& conn = getConnection();
-    EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA1"));
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA1)) {
+        MemcachedConnection& conn = getConnection();
+        EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA1"));
+    }
 }
-#endif
 
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
 TEST_P(SaslTest, SingleSCRAM_SHA256) {
-    MemcachedConnection& conn = getConnection();
-    EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA256"));
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA256)) {
+        MemcachedConnection& conn = getConnection();
+        EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA256"));
+    }
 }
 
 TEST_P(SaslTest, SingleSCRAM_SHA512) {
-    MemcachedConnection& conn = getConnection();
-    EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA512"));
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA512)) {
+        MemcachedConnection& conn = getConnection();
+        EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "SCRAM-SHA512"));
+    }
 }
-#endif
 
 void SaslTest::testMixStartingFrom(const std::string& mechanism) {
     MemcachedConnection& conn = getConnection();
@@ -77,22 +80,23 @@ TEST_P(SaslTest, TestSaslMixFrom_CRAM_MD5) {
     testMixStartingFrom("CRAM-MD5");
 }
 
-#ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
 TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA1) {
-    testMixStartingFrom("SCRAM-SHA1");
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA1)) {
+        testMixStartingFrom("SCRAM-SHA1");
+    }
 }
-#endif
 
-#ifdef HAVE_PKCS5_PBKDF2_HMAC
 TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA256) {
-    testMixStartingFrom("SCRAM-SHA256");
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA256)) {
+        testMixStartingFrom("SCRAM-SHA256");
+    }
 }
 
 TEST_P(SaslTest, TestSaslMixFrom_SCRAM_SHA512) {
-    testMixStartingFrom("SCRAM-SHA512");
+    if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA512)) {
+        testMixStartingFrom("SCRAM-SHA512");
+    }
 }
-#endif
-
 
 void SaslTest::SetUp() {
     auto& connection = getConnection();
@@ -108,4 +112,3 @@ void SaslTest::TearDown() {
     ASSERT_NO_THROW(connection.deleteBucket(bucket1));
     ASSERT_NO_THROW(connection.deleteBucket(bucket2));
 }
-

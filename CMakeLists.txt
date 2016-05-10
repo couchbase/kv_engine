@@ -166,10 +166,10 @@ ENDIF (WIN32)
 # We're using all of the sources to build up the server from one of
 # the unit tests so let's just stash them in a variable
 LIST(APPEND CBSASL_SOURCES
+     ${Memcached_SOURCE_DIR}/include/cbsasl/cbcrypto.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/cbsasl.h
      ${Memcached_SOURCE_DIR}/include/cbsasl/visibility.h
      ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.cc
-     ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.h
      ${Memcached_SOURCE_DIR}/cbsasl/cbsasl_internal.h
      ${Memcached_SOURCE_DIR}/cbsasl/client.cc
      ${Memcached_SOURCE_DIR}/cbsasl/common.cc

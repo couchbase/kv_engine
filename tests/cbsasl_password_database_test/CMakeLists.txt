@@ -1,7 +1,7 @@
 ADD_EXECUTABLE(cbsasl_password_database_test
                password_database_test.cc
                ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.cc
-               ${Memcached_SOURCE_DIR}/cbsasl/cbcrypto.h
+               ${Memcached_SOURCE_DIR}/include/cbsasl/cbcrypto.h
                ${Memcached_SOURCE_DIR}/cbsasl/log.cc
                ${Memcached_SOURCE_DIR}/cbsasl/password_database.cc
                ${Memcached_SOURCE_DIR}/cbsasl/password_database.h
