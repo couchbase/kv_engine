@@ -94,7 +94,7 @@ protected:
 #ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
         mechanisms.append("SCRAM-SHA1 ");
 #endif
-        mechanisms.append("CRAM-MD5 PLAIN");
+        mechanisms.append("PLAIN");
     }
 
     static void TearDownTestCase() {
@@ -103,29 +103,6 @@ protected:
     }
 
 protected:
-    static void construct_cram_md5_credentials(char* buffer,
-                                               unsigned* bufferlen,
-                                               const char* user,
-                                               unsigned userlen,
-                                               const char* pass,
-                                               unsigned passlen,
-                                               const char* challenge,
-                                               unsigned challengelen) {
-        unsigned char digest[DIGEST_LENGTH];
-        memcpy(buffer, user, userlen);
-        buffer[userlen + 1] = ' ';
-
-        unsigned int digest_len;
-        if (HMAC(EVP_md5(), (unsigned char*)pass, passlen,
-                 (unsigned char*)challenge, challengelen,
-                 digest, &digest_len) == NULL || digest_len != DIGEST_LENGTH) {
-            FAIL() << "HMAC md5 failed";
-        }
-
-        cbsasl_hex_encode(buffer + userlen + 1, (char*)digest, DIGEST_LENGTH);
-        *bufferlen = 1 + (DIGEST_LENGTH * 2) + userlen;
-    }
-
     cbsasl_conn_t* conn;
 };
 
@@ -233,57 +210,10 @@ TEST_F(SaslServerTest, PlainNoNullAtAll) {
     free((void*)output);
 }
 
-TEST_F(SaslServerTest, CramMD5) {
-    const char* challenge = nullptr;
-    unsigned challengelen = 0;
-
-    ASSERT_EQ(CBSASL_CONTINUE,
-              cbsasl_server_start(conn, "CRAM-MD5", nullptr, 0, &challenge,
-                                  &challengelen));
-
-    const char* user = "mikewied";
-    const char* pass = "mikepw";
-    char creds[128];
-    unsigned credslen = 0;
-    construct_cram_md5_credentials(creds, &credslen, user,
-                                   (unsigned int)strlen(user), pass,
-                                   (unsigned int)strlen(pass),
-                                   (const char* )challenge, challengelen);
-    const char *output;
-    unsigned outputlen;
-
-    ASSERT_EQ(CBSASL_OK,
-              cbsasl_server_step(conn, creds, credslen, &output, &outputlen));
-    free((char*)output);
-}
-
-TEST_F(SaslServerTest, CramMD5WrongPassword) {
-    const char* challenge = nullptr;
-    unsigned challengelen = 0;
-    ASSERT_EQ(CBSASL_CONTINUE,
-              cbsasl_server_start(conn, "CRAM-MD5", nullptr, 0, &challenge,
-                                  &challengelen));
-
-    const char* user = "mikewied";
-    const char* pass = "padpw";
-    char creds[128];
-    unsigned credslen = 0;
-    const char* output = NULL;
-    unsigned outputlen = 0;
-    construct_cram_md5_credentials(creds, &credslen, user,
-                                   (unsigned int)strlen(user), pass,
-                                   (unsigned int)strlen(pass),
-                                   (const char* )challenge, challengelen);
-
-    ASSERT_EQ(CBSASL_PWERR,
-              cbsasl_server_step(conn, creds, credslen, &output, &outputlen));
-    free((char*)output);
-}
-
 class SaslLimitMechServerTest : public SaslServerTest {
 protected:
     void SetUp() {
-        mechanisms = "CRAM-MD5";
+        mechanisms = "PLAIN";
         SaslServerTest::SetUp();
     }
 };
@@ -296,5 +226,5 @@ TEST_F(SaslLimitMechServerTest, TestDisableMechList) {
                                          ")", &mechs, &len, &num);
     ASSERT_EQ(CBSASL_OK, err);
     std::string mechlist(mechs, len);
-    EXPECT_EQ(std::string("(CRAM-MD5)"), mechlist);
+    EXPECT_EQ(std::string("(PLAIN)"), mechlist);
 }

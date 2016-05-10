@@ -15,7 +15,6 @@
  *   limitations under the License.
  */
 #include "config.h"
-#include "cram-md5/cram-md5.h"
 #include "mechanismfactory.h"
 #include "plain/plain.h"
 #include "scram-sha/scram-sha.h"
@@ -155,24 +154,6 @@ public:
     }
 };
 
-class CramMd5MechInfo : public MechInfo {
-public:
-    CramMd5MechInfo()
-        : MechInfo(MECH_NAME_CRAM_MD5, true, Mechanism::CRAM_MD5) { }
-
-    virtual UniqueMechanismBackend createServerBackend() override {
-        return UniqueMechanismBackend(new CramMd5ServerBackend);
-    }
-
-    virtual UniqueMechanismBackend createClientBackend() override {
-        return UniqueMechanismBackend(new CramMd5ClientBackend);
-    }
-
-    virtual bool isMechanismSupported() override {
-        return true;
-    }
-};
-
 class PlainMechInfo : public MechInfo {
 public:
     PlainMechInfo()
@@ -194,14 +175,12 @@ public:
 static Scram512MechInfo scram512MechInfo;
 static Scram256MechInfo scram256MechInfo;
 static Scram1MechInfo scram1MechInfo;
-static CramMd5MechInfo cramMd5MechInfo;
 static PlainMechInfo plainMechInfo;
 
-static std::array<MechInfo*, 5> availableMechs = {
+static std::array<MechInfo*, 4> availableMechs = {
      &scram512MechInfo,
      &scram256MechInfo,
      &scram1MechInfo,
-     &cramMd5MechInfo,
      &plainMechInfo
 };
 
@@ -399,8 +378,6 @@ Mechanism MechanismFactory::toMechanism(const std::string mech) {
                    toupper);
     if (mech == MECH_NAME_PLAIN) {
         return Mechanism::PLAIN;
-    } else if (mech == MECH_NAME_CRAM_MD5) {
-        return Mechanism::CRAM_MD5;
     } else if (mech == MECH_NAME_SCRAM_SHA1) {
         return Mechanism::SCRAM_SHA1;
     } else if (mech == MECH_NAME_SCRAM_SHA256) {
@@ -416,8 +393,6 @@ std::string MechanismFactory::toString(const Mechanism& mech) {
     switch (mech) {
     case Mechanism::PLAIN:
         return MECH_NAME_PLAIN;
-    case Mechanism::CRAM_MD5:
-        return MECH_NAME_CRAM_MD5;
     case Mechanism::SCRAM_SHA1:
         return MECH_NAME_SCRAM_SHA1;
     case Mechanism::SCRAM_SHA256:

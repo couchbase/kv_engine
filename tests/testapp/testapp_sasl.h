@@ -26,7 +26,6 @@ class SaslTest : public TestappClientTest {
 public:
     SaslTest() {
         mechanisms.push_back("PLAIN");
-        mechanisms.push_back("CRAM-MD5");
 #ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
         mechanisms.push_back("SCRAM-SHA1");
 #endif

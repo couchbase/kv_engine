@@ -35,11 +35,6 @@ TEST_P(SaslTest, SinglePLAIN) {
     EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "PLAIN"));
 }
 
-TEST_P(SaslTest, SingleCRAM_MD5) {
-    MemcachedConnection& conn = getConnection();
-    EXPECT_NO_THROW(conn.authenticate(bucket1, password1, "CRAM-MD5"));
-}
-
 #ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1
 TEST_P(SaslTest, SingleSCRAM_SHA1) {
     MemcachedConnection& conn = getConnection();
@@ -71,10 +66,6 @@ void SaslTest::testMixStartingFrom(const std::string& mechanism) {
 
 TEST_P(SaslTest, TestSaslMixFrom_PLAIN) {
     testMixStartingFrom("PLAIN");
-}
-
-TEST_P(SaslTest, TestSaslMixFrom_CRAM_MD5) {
-    testMixStartingFrom("CRAM-MD5");
 }
 
 #ifdef HAVE_PKCS5_PBKDF2_HMAC_SHA1

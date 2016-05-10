@@ -23,7 +23,6 @@
 
 enum class Mechanism {
     PLAIN,
-    CRAM_MD5,
     SCRAM_SHA1,
     SCRAM_SHA256,
     SCRAM_SHA512,

@@ -180,8 +180,6 @@ LIST(APPEND CBSASL_SOURCES
      ${Memcached_SOURCE_DIR}/cbsasl/cbsasl_internal.h
      ${Memcached_SOURCE_DIR}/cbsasl/client.cc
      ${Memcached_SOURCE_DIR}/cbsasl/common.cc
-     ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.cc
-     ${Memcached_SOURCE_DIR}/cbsasl/cram-md5/cram-md5.h
      ${Memcached_SOURCE_DIR}/cbsasl/log.cc
      ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.cc
      ${Memcached_SOURCE_DIR}/cbsasl/mechanismfactory.h

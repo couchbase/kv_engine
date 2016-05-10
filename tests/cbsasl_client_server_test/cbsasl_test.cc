@@ -216,10 +216,6 @@ TEST_F(SaslClientServerTest, PLAIN) {
     test_auth("PLAIN");
 }
 
-TEST_F(SaslClientServerTest, CRAM_MD5) {
-    test_auth("CRAM-MD5");
-}
-
 TEST_F(SaslClientServerTest, SCRAM_SHA1) {
     if (Couchbase::Crypto::isSupported(Couchbase::Crypto::Algorithm::SHA1)) {
         test_auth("SCRAM-SHA1");

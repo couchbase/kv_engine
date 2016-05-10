@@ -148,7 +148,6 @@ void Couchbase::User::generateSecrets(const Mechanism& mech) {
         salt.resize(Crypto::SHA1_DIGEST_SIZE);
         break;
     case Mechanism::PLAIN:
-    case Mechanism::CRAM_MD5:
     case Mechanism::UNKNOWN:
         throw std::logic_error("Couchbase::User::generateSecrets invalid algorithm");
     }
@@ -185,7 +184,6 @@ void Couchbase::User::generateSecrets(const Mechanism& mech,
         algorithm = Crypto::Algorithm::SHA1;
         break;
     case Mechanism::PLAIN:
-    case Mechanism::CRAM_MD5:
     case Mechanism::UNKNOWN:
         throw std::logic_error("Couchbase::User::generateSecrets invalid algorithm");
     }
