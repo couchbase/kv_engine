@@ -1105,8 +1105,6 @@ size_t ForestKVStore::getNumPersistedDeletes(uint16_t vbid) {
 DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
     DBFileInfo dbInfo;
     fdb_file_info fileInfo;
-    fdb_kvs_info kvsInfo;
-    fdb_kvs_handle *kvsHandle = NULL;
     fdb_status status;
 
     status = fdb_get_file_info(dbFileHandle, &fileInfo);
@@ -1114,22 +1112,6 @@ DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
         std::string err("ForestKVStore::getDbFileInfo:Failed to retrieve "
             "file info with error:" + std::string(fdb_error_msg(status)) +
             " for vbucket id:" + std::to_string(static_cast<int>(vbId)));
-        throw std::runtime_error(err);
-    }
-
-    kvsHandle = getKvsHandle(vbId, handleType::READER);
-    if (!kvsHandle) {
-        std::string err("ForestKVStore::getDbFileInfo:Failed to get reader "
-            "KV store handle for vbucket:" +
-            std::to_string(static_cast<int>(vbId)));
-        throw std::invalid_argument(err);
-    }
-
-    status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
-    if (status != FDB_RESULT_SUCCESS) {
-        std::string err("ForestKVStore::getDbFileInfo:Failed to retrieve "
-            "KV store info with error:" + std::string(fdb_error_msg(status)) +
-            " vbucket id:" + std::to_string(static_cast<int>(vbId)));
         throw std::runtime_error(err);
     }
 
@@ -1580,7 +1562,31 @@ size_t ForestKVStore::getNumItems(fdb_kvs_handle* kvsHandle,
 }
 
 size_t ForestKVStore::getItemCount(uint16_t vbid) {
-        return cachedDocCount.at(vbid);
+    if (cachedDocCount.at(vbid) == static_cast<size_t>(-1)) {
+        fdb_kvs_handle *kvsHandle = NULL;
+        fdb_status status;
+        fdb_kvs_info kvsInfo;
+
+        kvsHandle = getKvsHandle(vbid, handleType::READER);
+        if (!kvsHandle) {
+            std::string err("ForestKVStore::getItemCount:Failed to get reader "
+                "KV store handle for vbucket:" +
+                std::to_string(static_cast<int>(vbid)));
+            throw std::invalid_argument(err);
+        }
+
+        status = fdb_get_kvs_info(kvsHandle, &kvsInfo);
+        if (status != FDB_RESULT_SUCCESS) {
+            std::string err("ForestKVStore::getItemCount::Failed to retrieve "
+                "KV store info with error:" + std::string(fdb_error_msg(status)) +
+                " vbucket id:" + std::to_string(static_cast<int>(vbid)));
+            throw std::runtime_error(err);
+        }
+
+        cachedDocCount[vbid] = kvsInfo.doc_count;
+    }
+
+    return cachedDocCount.at(vbid);
 }
 
 RollbackResult ForestKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
