@@ -18,9 +18,9 @@
 
 #include <array>
 #include <cJSON.h>
+#include <cbsasl/cbcrypto.h>
 #include <cstdint>
 #include <string>
-#include "cbcrypto.h"
 #include <vector>
 #include <map>
 #include <cJSON_utils.h>

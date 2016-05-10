@@ -16,6 +16,7 @@
  */
 #pragma once
 
+#include <cbsasl/visibility.h>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -29,6 +30,7 @@ namespace Couchbase {
             SHA512
         };
 
+        CBSASL_PUBLIC_API
         bool isSupported(const Algorithm algorithm);
 
         const int MD5_DIGEST_SIZE = 16;
@@ -43,6 +45,7 @@ namespace Couchbase {
          * @throws std::invalid_argument - unsupported algorithm
          *         std::runtime_error - Failures generating the HMAC
          */
+        CBSASL_PUBLIC_API
         std::vector<uint8_t> HMAC(const Algorithm algorithm,
                                   const std::vector<uint8_t>& key,
                                   const std::vector<uint8_t>& data);
@@ -54,6 +57,7 @@ namespace Couchbase {
          * @throws std::invalid_argument - unsupported algorithm
          *         std::runtime_error - Failures generating the HMAC
          */
+        CBSASL_PUBLIC_API
         std::vector<uint8_t> PBKDF2_HMAC(const Algorithm algorithm,
                                          const std::string& pass,
                                          const std::vector<uint8_t>& salt,
@@ -62,6 +66,7 @@ namespace Couchbase {
         /**
          * Generate a digest by using the requested algorithm
          */
+        CBSASL_PUBLIC_API
         std::vector<uint8_t> digest(const Algorithm algorithm,
                                     const std::vector<uint8_t>& data);
     }
