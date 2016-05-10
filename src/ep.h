@@ -537,10 +537,12 @@ public:
      * Physically deletes a VBucket from disk. This function should only
      * be called on a VBucket that has already been logically deleted.
      *
-     * @param vbid vbucket id
-     * @param cookie The connection that requested the deletion
+     * @param vbid              vbucket id
+     * @param cookie            The connection that requested the deletion
+     * @param clearVbCreateFlag clear the vbucket creation flag
      */
-    bool completeVBucketDeletion(uint16_t vbid, const void* cookie);
+    bool completeVBucketDeletion(uint16_t vbid, const void* cookie,
+                                 bool clearVbCreateFlag);
 
     /**
      * Deletes a vbucket
@@ -916,7 +918,8 @@ private:
 
     void scheduleVBDeletion(RCPtr<VBucket> &vb,
                             const void* cookie,
-                            double delay = 0);
+                            double delay = 0,
+                            bool clearVbCreateFlag = true);
 
     /* Queue an item for persistence and replication
      *
