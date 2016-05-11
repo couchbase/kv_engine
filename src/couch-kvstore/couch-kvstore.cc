@@ -2242,7 +2242,7 @@ size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
 }
 
 DBFileInfo CouchKVStore::getDbFileInfo(uint16_t vbid) {
-    Db *db = NULL;
+    Db *db = nullptr;
     uint64_t rev = dbFileRevMap[vbid];
 
     DBFileInfo vbinfo;
@@ -2252,6 +2252,7 @@ DBFileInfo CouchKVStore::getDbFileInfo(uint16_t vbid) {
     if (errCode == COUCHSTORE_SUCCESS) {
         DbInfo info;
         errCode = couchstore_db_info(db, &info);
+        closeDatabaseHandle(db);
         if (errCode == COUCHSTORE_SUCCESS) {
             cachedDocCount[vbid] = info.doc_count;
             vbinfo.itemCount = info.doc_count;
@@ -2263,12 +2264,20 @@ DBFileInfo CouchKVStore::getDbFileInfo(uint16_t vbid) {
                 " rev = " + std::to_string(rev) +
                 " with error:" + couchstore_strerror(errCode));
         }
-        closeDatabaseHandle(db);
     } else {
-        throw std::invalid_argument("CouchKVStore::getDbFileInfo: Failed "
-            "to open database file for vBucket = " + std::to_string(vbid) +
-            " rev = " + std::to_string(rev) +
-            " with error:" + couchstore_strerror(errCode));
+        // open failed - map couchstore error code to exception.
+        std::errc ec;
+        switch (errCode) {
+            case COUCHSTORE_ERROR_OPEN_FILE:
+                ec = std::errc::no_such_file_or_directory; break;
+            default:
+                ec = std::errc::io_error; break;
+        }
+        throw std::system_error(std::make_error_code(ec),
+                                "CouchKVStore::getDbInfo: failed to open database file for "
+                                "vBucket = " + std::to_string(vbid) +
+                                " rev = " + std::to_string(rev) +
+                                " with error:" + couchstore_strerror(errCode));
     }
     return vbinfo;
 }

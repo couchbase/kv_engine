@@ -114,8 +114,25 @@ bool BackfillDiskLoad::run() {
 
     if (connMap.checkConnectivity(name) &&
                                !engine->getEpStore()->isFlushAllScheduled()) {
-        DBFileInfo info = store->getDbFileInfo(vbucket);
-        size_t num_items = info.itemCount;
+        size_t num_items;
+        try {
+            DBFileInfo info = store->getDbFileInfo(vbucket);
+            num_items = info.itemCount;
+        } catch (std::system_error& e) {
+            if (e.code() == std::error_code(ENOENT, std::system_category())) {
+                // File creation hasn't completed yet; backoff and wait.
+                LOG(EXTENSION_LOG_NOTICE,
+                    "BackfillDiskLoad::run: Failed to get itemCount for "
+                    "vBucket %" PRIu16 " - database file does not yet exist. "
+                    "(%s) Snoozing for %f seconds", vbucket,
+                    e.what(), DEFAULT_BACKFILL_SNOOZE_TIME);
+                snooze(DEFAULT_BACKFILL_SNOOZE_TIME);
+                return true;
+            } else {
+                // Some other (unexpected) system_error exception - re-throw
+                throw e;
+            }
+        }
         size_t num_deleted = store->getNumPersistedDeletes(vbucket);
         connMap.incrBackfillRemaining(name, num_items + num_deleted);
 
