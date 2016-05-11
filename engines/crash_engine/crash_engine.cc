@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
 /*
  *     Copyright 2015 Couchbase, Inc
  *
@@ -28,6 +28,7 @@
 #include <memcached/util.h>
 #include <memcached/config_parser.h>
 
+extern "C" {
 MEMCACHED_PUBLIC_API
 ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API gsa,
@@ -35,24 +36,25 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
 
 MEMCACHED_PUBLIC_API
 void destroy_engine(void);
+} // extern "C"
 
-struct engine {
+struct CrashEngine {
     ENGINE_HANDLE_V1 engine;
     union {
-        engine_info engine_info;
+        engine_info eng_info;
         char buffer[sizeof(engine_info) +
                     (sizeof(feature_info) * LAST_REGISTERED_ENGINE_FEATURE)];
     } info;
 };
 
-static struct engine* get_handle(ENGINE_HANDLE* handle)
+static CrashEngine* get_handle(ENGINE_HANDLE* handle)
 {
-    return (struct engine*)handle;
+    return reinterpret_cast<CrashEngine*>(handle);
 }
 
 static const engine_info* get_info(ENGINE_HANDLE* handle)
 {
-    return &get_handle(handle)->info.engine_info;
+    return &get_handle(handle)->info.eng_info;
 }
 
 static ENGINE_ERROR_CODE initialize(ENGINE_HANDLE* handle,
@@ -62,7 +64,7 @@ static ENGINE_ERROR_CODE initialize(ENGINE_HANDLE* handle,
     (void)config_str;
 
     char* death = (char*)0xdeadcbdb;
-    return *death;
+    return ENGINE_ERROR_CODE(*death);
 }
 
 static void destroy(ENGINE_HANDLE* handle, const bool force)
@@ -163,14 +165,14 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                   GET_SERVER_API gsa,
                                   ENGINE_HANDLE **handle)
 {
-    struct engine *engine;
+    CrashEngine* engine;
     (void)gsa;
 
     if (interface != 1) {
         return ENGINE_ENOTSUP;
     }
 
-    if ((engine = calloc(1, sizeof(*engine))) == NULL) {
+    if ((engine = reinterpret_cast<CrashEngine*>(calloc(1, sizeof(*engine)))) == NULL) {
         return ENGINE_ENOMEM;
     }
 
@@ -189,9 +191,9 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
     engine->engine.item_set_cas = item_set_cas;
     engine->engine.get_item_info = get_item_info;
     engine->engine.set_item_info = set_item_info;
-    engine->info.engine_info.description = "Crash Engine";
-    engine->info.engine_info.num_features = 0;
-    *handle = (void*)&engine->engine;
+    engine->info.eng_info.description = "Crash Engine";
+    engine->info.eng_info.num_features = 0;
+    *handle = reinterpret_cast<ENGINE_HANDLE*>(&engine->engine);
     return ENGINE_SUCCESS;
 }
 
