@@ -16,33 +16,45 @@
 char *config_strerror(const char *file, config_error_t err)
 {
     char buffer[1024];
+    buffer[1023] = '\0';
     switch (err) {
     case CONFIG_SUCCESS:
         return strdup("success");
     case CONFIG_INVALID_ARGUMENTS:
         return strdup("Invalid arguments supplied to config_load_file");
     case CONFIG_NO_SUCH_FILE:
-        snprintf(buffer, sizeof(buffer), "Failed to look up \"%s\": %s",
-                 file, strerror(errno));
+        if (snprintf(buffer, sizeof(buffer) - 1, "Failed to look up \"%s\": %s",
+                     file, strerror(errno)) < 0) {
+            return strdup("Failed to look up file");
+        }
         return strdup(buffer);
     case CONFIG_OPEN_FAILED:
-        snprintf(buffer, sizeof(buffer), "Failed to open \"%s\": %s",
-                 file, strerror(errno));
+        if (snprintf(buffer, sizeof(buffer) - 1, "Failed to open \"%s\": %s",
+                     file, strerror(errno)) < 0) {
+            return strdup("Failed to open file");
+        }
         return strdup(buffer);
     case CONFIG_MALLOC_FAILED:
         return strdup("Failed to allocate memory");
     case CONFIG_IO_ERROR:
-        snprintf(buffer, sizeof(buffer), "Failed to read \"%s\": %s",
-                 file, strerror(errno));
+        if (snprintf(buffer, sizeof(buffer) - 1, "Failed to read \"%s\": %s",
+                     file, strerror(errno)) < 0) {
+            return strdup("Failed to read file");
+        }
         return strdup(buffer);
     case CONFIG_PARSE_ERROR:
-        snprintf(buffer, sizeof(buffer),
-                 "Failed to parse JSON in \"%s\"\nMost likely syntax "
-                "error in the file.", file);
+        if (snprintf(buffer, sizeof(buffer) - 1,
+                     "Failed to parse JSON in \"%s\"\nMost likely syntax "
+                         "error in the file.", file) < 0) {
+            return strdup("Failed to parse JSON");
+        }
         return strdup(buffer);
 
     default:
-        snprintf(buffer, sizeof(buffer), "Unknown error code %u", err);
+        if (snprintf(buffer, sizeof(buffer) - 1,
+                     "Unknown error code %u", err) < 0) {
+            return strdup("Unknown error");
+        }
         return strdup(buffer);
     }
 }

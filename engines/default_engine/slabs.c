@@ -298,8 +298,11 @@ static void do_slabs_free(struct default_engine *engine, void *ptr, const size_t
 void add_statistics(const void *cookie, ADD_STAT add_stats,
                     const char* prefix, int num, const char *key,
                     const char *fmt, ...) {
-    char name[80], val[80];
-    int klen = 0, vlen;
+    char name[80];
+    char val[80];
+    int klen = 0;
+    int vlen;
+    int nw;
     va_list ap;
 
     cb_assert(cookie);
@@ -310,15 +313,31 @@ void add_statistics(const void *cookie, ADD_STAT add_stats,
     vlen = vsnprintf(val, sizeof(val) - 1, fmt, ap);
     va_end(ap);
 
+    if (vlen < 0 || vlen >= sizeof(val)) {
+        return;
+    }
+
     if (prefix != NULL) {
         klen = snprintf(name, sizeof(name), "%s:", prefix);
+        if (klen < 0 || klen >= sizeof(name)) {
+            return;
+        }
     }
 
     if (num != -1) {
-        klen += snprintf(name + klen, sizeof(name) - klen, "%d:", num);
+        nw = snprintf(name + klen, sizeof(name) - klen, "%d:", num);
+        if (nw < 0 || nw >= (sizeof(name) - klen)) {
+            return;
+        }
+        klen += nw;
     }
 
-    klen += snprintf(name + klen, sizeof(name) - klen, "%s", key);
+    nw = snprintf(name + klen, sizeof(name) - klen, "%s", key);
+    if (nw < 0 || nw >= (sizeof(name) - klen)) {
+        return;
+    }
+
+    klen += nw;
 
     add_stats(name, klen, val, vlen, cookie);
 }

@@ -43,6 +43,11 @@ static int set_ascii(BIO *bio, const char *key, size_t size) {
     char line[1024];
     int len = snprintf(line, sizeof(line), "set %s 0 0 %lu\r\n",
                        key, (unsigned long)size);
+    if (len < 0 || len >= sizeof(line)) {
+        fprintf(stderr, "FAILURE: Failed to format ASCII command\n");
+        return EXIT_FAILURE;
+    }
+
     ensure_send(bio, &line, len);
     if (size > 0) {
         char* value = malloc(size);

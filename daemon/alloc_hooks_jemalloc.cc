@@ -144,6 +144,14 @@ static void write_cb(void* opaque, const char* msg) {
         return;
     }
     len = snprintf(st->buffer, st->remaining, "%s", msg);
+    if (len < 0) {
+        /*
+         * snprintf _FAILED_. Terminate the buffer where it used to be
+         * and ignore the rest
+         */
+        st->buffer[0] = '\0';
+        return;
+    }
     if (len > st->remaining) {
         /* insufficient space - have to crop output. Note we reserved enough
            space (see below) to be able to write an error if this occurs. */

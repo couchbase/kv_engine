@@ -46,7 +46,7 @@ ssize_t key_to_printable_buffer(char *dest, size_t destsz, uint32_t client,
 {
     ssize_t nw = snprintf(dest, destsz, "%c%u %s ", from_client ? '>' : '<',
                           (int)client, prefix);
-    if (nw == -1) {
+    if (nw < 0 || nw >= destsz) {
         return -1;
     }
     char* ptr = dest + nw;
@@ -63,26 +63,32 @@ ssize_t bytes_to_output_string(char *dest, size_t destsz,
                           client, prefix);
     ssize_t offset = nw;
 
-    if (nw == -1) {
+    if (nw < 0 || nw >= destsz) {
         return -1;
     }
 
     for (size_t ii = 0; ii < size; ++ii) {
         if (ii % 4 == 0) {
-            if ((nw = snprintf(dest + offset, destsz - offset, "\n%c%d  ",
-                               from_client ? '>' : '<', client)) == -1) {
+            nw = snprintf(dest + offset, destsz - offset, "\n%c%d  ",
+                          from_client ? '>' : '<', client);
+
+            if (nw < 0 || nw >= (destsz - offset)) {
                 return  -1;
             }
             offset += nw;
         }
-        if ((nw = snprintf(dest + offset, destsz - offset,
-                           " 0x%02x", (unsigned char)data[ii])) == -1) {
+
+        nw = snprintf(dest + offset, destsz - offset,
+                      " 0x%02x", (unsigned char)data[ii]);
+
+        if (nw < 0 || nw >= (destsz - offset)) {
             return -1;
         }
         offset += nw;
     }
 
-    if ((nw = snprintf(dest + offset, destsz - offset, "\n")) == -1) {
+    nw = snprintf(dest + offset, destsz - offset, "\n");
+    if (nw < 0 || nw >= (destsz - offset)) {
         return -1;
     }
 

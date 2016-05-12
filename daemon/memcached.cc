@@ -542,10 +542,9 @@ void safe_close(SOCKET sfd) {
         } while (rval == SOCKET_ERROR && is_interrupted(GetLastNetworkError()));
 
         if (rval == SOCKET_ERROR) {
-            char msg[80];
-            snprintf(msg, sizeof(msg), "Failed to close socket %d (%%s)!!", (int)sfd);
-            log_socket_error(EXTENSION_LOG_WARNING, NULL,
-                             msg);
+            std::string error = cb_strerror();
+            LOG_WARNING(nullptr, "Failed to close socket %d (%s)!!", (int)sfd,
+                       error.c_str());
         } else {
             stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
             if (is_listen_disabled()) {
@@ -1092,7 +1091,6 @@ static void add_listening_port(struct interface *interf, in_port_t port, sa_fami
 static int server_socket(struct interface *interf) {
     SOCKET sfd;
     struct addrinfo hints;
-    char port_buf[NI_MAXSERV];
     int success = 0;
     const char *host = NULL;
 
@@ -1109,7 +1107,7 @@ static int server_socket(struct interface *interf) {
         hints.ai_family = AF_INET6;
     }
 
-    snprintf(port_buf, sizeof(port_buf), "%u", (unsigned int)interf->port);
+    std::string port_buf = std::to_string(interf->port);
 
     if (interf->host) {
         if (strlen(interf->host) > 0 && strcmp(interf->host, "*") != 0) {
@@ -1118,7 +1116,7 @@ static int server_socket(struct interface *interf) {
     }
 
     struct addrinfo *ai;
-    int error = getaddrinfo(host, port_buf, &hints, &ai);
+    int error = getaddrinfo(host, port_buf.c_str(), &hints, &ai);
     if (error != 0) {
 #ifdef WIN32
         log_errcode_error(EXTENSION_LOG_WARNING, NULL,

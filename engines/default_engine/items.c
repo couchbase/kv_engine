@@ -467,9 +467,10 @@ static void do_item_stats_sizes(struct default_engine *engine,
                 int klen, vlen;
                 klen = snprintf(key, sizeof(key), "%d", i * 32);
                 vlen = snprintf(val, sizeof(val), "%u", histogram[i]);
-                cb_assert(klen < sizeof(key));
-                cb_assert(vlen < sizeof(val));
-                add_stats(key, klen, val, vlen, c);
+                if (klen > 0 && klen < sizeof(key) && vlen > 0 &&
+                    vlen < sizeof(val)) {
+                    add_stats(key, klen, val, vlen, c);
+                }
             }
         }
         free(histogram);
@@ -710,7 +711,9 @@ static ENGINE_ERROR_CODE do_add_delta(struct default_engine *engine,
     }
 
     *result = value;
-    if ((res = snprintf(buf, sizeof(buf), "%" PRIu64, value)) == -1) {
+
+    res = snprintf(buf, sizeof(buf), "%" PRIu64, value);
+    if (res < 0 || res >= sizeof(buf)) {
         return ENGINE_EINVAL;
     }
 
@@ -819,6 +822,9 @@ static ENGINE_ERROR_CODE do_arithmetic(struct default_engine *engine,
          char buffer[128];
          int len = snprintf(buffer, sizeof(buffer), "%"PRIu64,
                             (uint64_t)initial);
+         if (len < 0 || len >= sizeof(buffer)) {
+             return ENGINE_ENOMEM;
+         }
 
          item = do_item_alloc(engine, key, 0, exptime, len, cookie,
                               datatype);
