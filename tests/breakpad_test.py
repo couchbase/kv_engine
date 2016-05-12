@@ -26,15 +26,27 @@
 
 from __future__ import print_function
 import json
+import logging
 import os
 import re
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 import threading
 
+# Uncomment to enable debug logging
+#logging.basicConfig(level=logging.DEBUG)
+
+minidump_dir=None
+
+def cleanup_and_exit(status_code):
+    """Remove any temporary files etc and exit with the given status code."""
+    if minidump_dir:
+        shutil.rmtree(minidump_dir)
+    exit(status_code);
 
 def print_stderrdata(stderrdata):
     print("=== stderr begin ===")
@@ -95,18 +107,23 @@ class Subprocess(object):
         return (self.process.returncode, self.stderrdata)
 
 
-if len(sys.argv) == 2:
-    (memcached_exe, md2core_exe, gdb_exe) = (sys.argv[1], None, None)
-elif len(sys.argv) == 4:
-    (memcached_exe, md2core_exe, gdb_exe) = sys.argv[1:]
+if len(sys.argv) == 3:
+    (memcached_exe, crash_mode, md2core_exe, gdb_exe) = sys.argv[1:3] + [None, None]
+elif len(sys.argv) == 5:
+    (memcached_exe, crash_mode, md2core_exe, gdb_exe) = sys.argv[1:]
 else:
-    print(("Usage: {0} <path/to/memcached> [path/to/md2core] " +
+    print(("Usage: {0} <path/to/memcached> <segfault|exception> [path/to/md2core] " +
           "[path/to/gdb]").format(os.path.basename(sys.argv[0])),
           file=sys.stderr)
-    exit(1)
+    cleanup_and_exit(1)
 
 rbac = {"foo": "bar"}
 rbac_json = json.dumps(rbac)
+
+# Given there are multiple breakpad tests which can run in parallel, give
+# each one it's own minidump directory.
+minidump_dir = tempfile.mkdtemp(prefix='breakpad_test_tmp.')
+logging.debug("Using minidump_dir=" + minidump_dir)
 
 # 'verbosity' isn't functionally needed, but helpful to debug test issues.
 config = {"interfaces": [{"port": 0,
@@ -114,7 +131,7 @@ config = {"interfaces": [{"port": 0,
                           "backlog":  1024,
                           "host": "*"}],
           "breakpad": { "enabled": True,
-                        "minidump_dir" : "."
+                        "minidump_dir" : minidump_dir
                       },
           "verbosity" : 2}
 config_json = json.dumps(config)
@@ -127,11 +144,16 @@ config_file.write(config_json)
 config_file.close()
 
 os.environ['MEMCACHED_UNIT_TESTS'] = "true"
-os.environ['MEMCACHED_CRASH_TEST'] = "true"
+os.environ['MEMCACHED_CRASH_TEST'] = crash_mode
 
 args = [memcached_exe, "-C", os.path.abspath(config_file.name)]
 
 # Spawn memcached from a child thread.
+logging.debug('Spawning memcached as: "MEMCACHED_UNIT_TESTS=' +
+              os.environ['MEMCACHED_UNIT_TESTS'] +
+              ' MEMCACHED_CRASH_TEST=' +
+              os.environ['MEMCACHED_CRASH_TEST'] + ' ' +
+              (' '.join(args) + '"'))
 memcached = Subprocess(args)
 
 # Wait for memcached to initialise (and consequently crash due to loading
@@ -145,21 +167,29 @@ os.remove(config_file.name)
 if 'Breakpad caught crash' not in stderrdata:
     print("FAIL - No message written to stderr on crash.")
     print_stderrdata(stderrdata)
-    exit(3)
+    cleanup_and_exit(3)
+
+
+# Check the message also included a stack backtrace - we just check
+# for one known function.
+if 'recursive_crash_function' not in stderrdata:
+    print("FAIL - No stack backtrace written to stderr on crash.")
+    print_stderrdata(stderrdata)
+    cleanup_and_exit(3)
 
 # Check there is a minidump path in the output.
 m = re.search('Writing crash dump to ([\w\\\/\:\-.]+)', stderrdata)
 if not m:
     print("FAIL - Unable to find crash filename in stderr.")
     print_stderrdata(stderrdata)
-    exit(4)
+    cleanup_and_exit(4)
 
 # Check the minidump file exists on disk.
 minidump = m.group(1)
 if not os.path.exists(minidump):
     print("FAIL - Minidump file '{0}' does not exist.".format(minidump))
     print_stderrdata(stderrdata)
-    exit(5)
+    cleanup_and_exit(5)
 
 # On Windows we don't have md2core or gdb; so skip these tests.
 if md2core_exe and gdb_exe:
@@ -171,10 +201,7 @@ if md2core_exe and gdb_exe:
             print("FAIL - minidump-2-core failed with return code {0}".format(
                   e.returncode))
             os.remove(minidump)
-            exit(7)
-
-        # Done with the minidump
-        os.remove(minidump)
+            cleanup_and_exit(7)
 
         # Check for shared library information, and symbols successfully ead
         # (needed for any useful backtraces).
@@ -187,12 +214,12 @@ if md2core_exe and gdb_exe:
         if not m:
             print("FAIL - GDB unable to show information for " +
                   "crash_engine.so shared library.")
-            exit(9)
+            cleanup_and_exit(9)
 
         if not m.group(1).startswith('Yes'):
             print("FAIL - GDB unable to read symbols for crash_engine.so " +
                   "(tried path: '{0}').".format(m.group(2)))
-            exit(10)
+            cleanup_and_exit(10)
 
         # Check for sensible backtrace. This is again tricky as we could have
         # received the SIGABRT pretty much anywhere so we can't check for a
@@ -221,7 +248,11 @@ if md2core_exe and gdb_exe:
                 if not any(so_name.startswith(d) for d in ['/lib', '/usr/lib']):
                     print(("FAIL - GDB unable to identify the symbol of " +
                            "frame {0} - found '{1}'.").format(i, frame))
-                    exit(11)
+                    print("=== GDB begin ===")
+                    for line in lines:
+                        print(line)
+                    print("=== GDB end ===")
+                    cleanup_and_exit(11)
 
         # Check we can read stack memory. Another tricky one as again we have
         # no idea where we crashed. Just ensure that we get *something* back
@@ -231,22 +262,22 @@ if md2core_exe and gdb_exe:
         if not m:
             print("FAIL - GDB failed to output memory disassembly when " +
                   "attempting to examine stack.")
-            exit(12)
+            cleanup_and_exit(12)
         if not m.group(2):
             print("FAIL - GDB unable to examine stack memory " +
                   "(tried address {0}).".format(m.group(1)))
-            exit(13)
+            cleanup_and_exit(13)
 else:
     # Check the minidump file is non-zero in size.
     statinfo = os.stat(minidump)
     if statinfo.st_size == 0:
         print("FAIL - minidump file '{0}' is zero bytes in size.".format(
               minidump))
-        exit(14)
+        cleanup_and_exit(14)
 
     # Done with the minidump
     os.remove(minidump)
 
 # Got to the end - that's a pass
 print("Pass")
-exit(0)
+cleanup_and_exit(0)

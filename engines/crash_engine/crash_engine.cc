@@ -22,6 +22,7 @@
 #include "config.h"
 
 #include <stdlib.h>
+#include <stdexcept>
 
 #include <memcached/engine.h>
 #include <memcached/visibility.h>
@@ -57,14 +58,56 @@ static const engine_info* get_info(ENGINE_HANDLE* handle)
     return &get_handle(handle)->info.eng_info;
 }
 
+// How do I crash thee? Let me count the ways.
+enum class CrashMode {
+    SegFault,
+    UncaughtException
+};
+
+static char dummy;
+
+/* Recursive functions which will crash using the given method after
+ * 'depth' calls.
+ * Note: mutates a dummy global variable to prevent optimization
+ * removing the recursion.
+ */
+EXPORT_SYMBOL
+char recursive_crash_function(char depth, CrashMode mode) {
+    if (depth == 0) {
+        switch (mode) {
+        case CrashMode::SegFault: {
+            char* death = (char*)0xdeadcbdb;
+            return *death + dummy;
+        }
+        case CrashMode::UncaughtException:
+            throw std::runtime_error("crash_engine: This exception wasn't handled");
+        }
+    }
+    recursive_crash_function(depth - 1, mode);
+    return dummy++;
+}
+
+/* 'initializes' this engine - given this is the crash_engine that
+ * means crashing it.
+ */
 static ENGINE_ERROR_CODE initialize(ENGINE_HANDLE* handle,
                                     const char* config_str)
 {
     (void)handle;
     (void)config_str;
-
-    char* death = (char*)0xdeadcbdb;
-    return ENGINE_ERROR_CODE(*death);
+    std::string mode_string(getenv("MEMCACHED_CRASH_TEST"));
+    CrashMode mode;
+    if (mode_string == "segfault") {
+        mode = CrashMode::SegFault;
+    } else if (mode_string == "exception") {
+        mode = CrashMode::UncaughtException;
+    } else {
+        fprintf(stderr, "crash_engine::initialize: could not find a valid "
+                "CrashMode from MEMCACHED_CRASH_TEST env var ('%s')\n",
+                mode_string.c_str());
+        exit(1);
+    }
+    return ENGINE_ERROR_CODE(recursive_crash_function(25, mode));
 }
 
 static void destroy(ENGINE_HANDLE* handle, const bool force)
