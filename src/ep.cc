@@ -3567,6 +3567,10 @@ bool EventuallyPersistentStore::isWarmingUp() {
     return !warmupTask->isComplete();
 }
 
+bool EventuallyPersistentStore::isWarmupOOMFailure() {
+    return warmupTask->hasOOMFailure();
+}
+
 void EventuallyPersistentStore::stopWarmup(void)
 {
     // forcefully stop current warmup task

@@ -1330,11 +1330,19 @@ DbInfo CouchKVStore::getDbInfo(uint16_t vbid) {
                     couchstore_strerror(errCode));
         }
     } else {
-        throw std::system_error(
-                ENOENT, std::system_category(), "CouchKVStore::getDbInfo: "
-                "failed to open database file for vBucket " +
-                std::to_string(vbid) + " revision " + std::to_string(rev) +
-                " - couchstore returned error: " + couchstore_strerror(errCode));
+        // open failed - map couchstore error code to exception.
+        std::errc ec;
+        switch (errCode) {
+            case COUCHSTORE_ERROR_OPEN_FILE:
+                ec = std::errc::no_such_file_or_directory; break;
+            default:
+                ec = std::errc::io_error; break;
+        }
+        throw std::system_error(std::make_error_code(ec),
+                                "CouchKVStore::getDbInfo: failed to open database file for "
+                                "vBucket = " + std::to_string(vbid) +
+                                " rev = " + std::to_string(rev) +
+                                " with error:" + couchstore_strerror(errCode));
     }
 }
 

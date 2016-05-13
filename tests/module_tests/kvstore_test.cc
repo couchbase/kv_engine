@@ -367,6 +367,26 @@ TEST(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     delete kvstore;
 }
 
+// Regression test for MB-19430 - ensure that an attempt to get the
+// item count from a file which doesn't exist yet propagates the
+// error so the caller can detect (and retry as necessary).
+TEST(CouchKVStoreTest, MB_18580_ENOENT) {
+    std::string data_dir("/tmp/kvstore-test");
+    CouchbaseDirectoryUtilities::rmrf(data_dir.c_str());
+
+    KVStoreConfig config(1024, 4, data_dir, "couchdb", 0);
+    // Create a read-only kvstore (which disables item count caching), then
+    // attempt to get the count from a non-existent vbucket.
+    KVStore* kvstore = KVStoreFactory::create(config, /*readOnly*/true);
+    ASSERT_NE(nullptr, kvstore);
+
+    // Expect to get a system_error (ENOENT)
+    EXPECT_THROW(kvstore->getDbFileInfo(0), std::system_error);
+
+    // Cleanup
+    delete kvstore;
+}
+
 /**
  * The CouchKVStoreErrorInjectionTest cases utilise GoogleMock to inject
  * errors into couchstore as if they come from the filesystem in order
