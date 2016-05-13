@@ -251,10 +251,10 @@ void ConnMap::notifyAllPausedConnections() {
         Notifiable *tp = dynamic_cast<Notifiable*>(conn.get());
         if (tp) {
             if (tp->isPaused() && conn->isReserved()) {
+                tp->setNotificationScheduled(false);
                 engine.notifyIOComplete(conn->getCookie(), ENGINE_SUCCESS);
                 tp->setNotifySent(true);
             }
-            tp->setNotificationScheduled(false);
         }
         queue.pop();
     }
