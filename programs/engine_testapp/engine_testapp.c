@@ -815,6 +815,7 @@ static void usage(void) {
     printf("                             .dll) that contains the set of tests\n");
     printf("                             to be executed.\n");
     printf("\n");
+    printf("-a <attempts>                Maximum number of attempts for a test.\n");
     printf("-t <timeout>                 Maximum time to run a test.\n");
     printf("-e <engine_config>           Engine configuration string passed to\n");
     printf("                             the engine.\n");
@@ -866,6 +867,10 @@ static int report_test(const char *name, time_t duration, enum test_result r, bo
     case PENDING:
         color = 33;
         msg = "PENDING";
+        break;
+    case SUCCESS_AFTER_RETRY:
+        msg="OK AFTER RETRY";
+        color = 33;
         break;
     default:
         color = 31;
@@ -1144,6 +1149,12 @@ int main(int argc, char **argv) {
     int test_case_id = -1;
     char *cmdline;
 
+    /* If a testcase fails, retry up to 'attempts -1' times to allow it
+       to pass - this is here to allow us to deal with intermittant
+       test failures without having to manually retry the whole
+       job. */
+    int attempts = 1;
+
     /* Hack to remove the warning from C99 */
     union {
         GET_TESTS get_tests;
@@ -1173,6 +1184,14 @@ int main(int argc, char **argv) {
     logger_descriptor = get_null_logger();
     color_enabled = getenv("TESTAPP_ENABLE_COLOR") != NULL;
 
+    /* Allow 'attempts' to also be set via env variable - this allows
+       commit-validation scripts to enable retries for all
+       engine_testapp-driven tests trivually. */
+    const char* attempts_env;
+    if ((attempts_env = getenv("TESTAPP_ATTEMPTS")) != NULL) {
+        attempts = atoi(attempts_env);
+    }
+
     /* Use unbuffered stdio */
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
@@ -1181,6 +1200,7 @@ int main(int argc, char **argv) {
 
     /* process arguments */
     while ((c = getopt(argc, argv,
+                       "a:" /* attempt tests N times before declaring them failed */
                        "h"  /* usage */
                        "E:" /* Engine to load */
                        "e:" /* Engine options */
@@ -1197,6 +1217,9 @@ int main(int argc, char **argv) {
                        "X" /* Use stderr logger */
                        )) != -1) {
         switch (c) {
+        case 'a':
+            attempts = atoi(optarg);
+            break;
         case 's' : {
             int spin = 1;
             while (spin) {
@@ -1331,7 +1354,7 @@ int main(int argc, char **argv) {
         int i;
         bool need_newline = false;
         for (i = 0; testcases[i].name; i++) {
-            int error;
+            int error = 1;
             if (test_case != NULL && strcmp(test_case, testcases[i].name) != 0)
                 continue;
             if (!quiet) {
@@ -1354,7 +1377,7 @@ int main(int argc, char **argv) {
             {
                 int ii;
                 int offset = 0;
-                enum test_result ecode;
+                enum test_result ecode = FAIL;
                 time_t start;
                 time_t stop;
                 int rc;
@@ -1364,27 +1387,38 @@ int main(int argc, char **argv) {
 
                 sprintf(cmdline + offset, "-C %d", i);
 
-                start = time(NULL);
-                rc = system(cmdline);
-                stop = time(NULL);
-
+                int try;
+                for (try = 0;
+                     (try < attempts) && ((ecode != SUCCESS) &&
+                                          (ecode != SUCCESS_AFTER_RETRY));
+                     try++) {
+                    start = time(NULL);
+                    rc = system(cmdline);
+                    stop = time(NULL);
 #ifdef WIN32
-                ecode = (enum test_result)rc;
+                    ecode = (enum test_result)rc;
 #else
-                if (WIFEXITED(rc)) {
-                    ecode = (enum test_result)WEXITSTATUS(rc);
+                    if (WIFEXITED(rc)) {
+                        ecode = (enum test_result)WEXITSTATUS(rc);
 #ifdef WCOREDUMP
-                } else if (WIFSIGNALED(rc) && WCOREDUMP(rc)) {
-                    ecode = CORE;
+                    } else if (WIFSIGNALED(rc) && WCOREDUMP(rc)) {
+                        ecode = CORE;
 #endif
-                } else {
-                    ecode = DIED;
+                    } else {
+                        ecode = DIED;
+                    }
+#endif
+                    /* If we only got SUCCESS after one or more
+                       retries, change result to
+                       SUCCESS_AFTER_RETRY */
+                    if ((ecode == SUCCESS) && (try > 0)) {
+                        ecode = SUCCESS_AFTER_RETRY;
+                    }
+                    error = report_test(testcases[i].name,
+                                        stop - start,
+                                        ecode, quiet,
+                                        !verbose);
                 }
-#endif
-                error = report_test(testcases[i].name,
-                                    stop - start,
-                                    ecode, quiet,
-                                    !verbose);
             }
             clear_test_timeout();
 
