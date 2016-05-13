@@ -34,6 +34,7 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <platform/checked_snprintf.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -2493,8 +2494,15 @@ void CouchKVStore::unlinkCouchFile(uint16_t vbucket,
                 "read-only object.");
     }
     char fname[PATH_MAX];
-    snprintf(fname, sizeof(fname), "%s/%d.couch.%" PRIu64,
-             dbname.c_str(), vbucket, fRev);
+    try {
+        checked_snprintf(fname, sizeof(fname), "%s/%d.couch.%" PRIu64,
+                         dbname.c_str(), vbucket, fRev);
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "CouchKVStore::unlinkCouchFile: Failed to build filename: %s",
+            fname);
+        return;
+    }
 
     if (remove(fname) == -1) {
         LOG(EXTENSION_LOG_WARNING, "Failed to remove database file for "

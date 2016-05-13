@@ -17,6 +17,8 @@
 
 #include "config.h"
 
+#include <platform/checked_snprintf.h>
+
 #include "ep_engine.h"
 #include "failover-table.h"
 #include "kvstore.h"
@@ -125,24 +127,37 @@ const char * Stream::stateName(stream_state_t st) const {
 }
 
 void Stream::addStats(ADD_STAT add_stat, const void *c) {
-    const int bsize = 1024;
-    char buffer[bsize];
-    snprintf(buffer, bsize, "%s:stream_%d_flags", name_.c_str(), vb_);
-    add_casted_stat(buffer, flags_, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_opaque", name_.c_str(), vb_);
-    add_casted_stat(buffer, opaque_, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_start_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, start_seqno_, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_end_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, end_seqno_, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_vb_uuid", name_.c_str(), vb_);
-    add_casted_stat(buffer, vb_uuid_, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_snap_start_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, snap_start_seqno_, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_snap_end_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, snap_end_seqno_, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_state", name_.c_str(), vb_);
-    add_casted_stat(buffer, stateName(state_), add_stat, c);
+    try {
+        const int bsize = 1024;
+        char buffer[bsize];
+        checked_snprintf(buffer, bsize, "%s:stream_%d_flags", name_.c_str(),
+                         vb_);
+        add_casted_stat(buffer, flags_, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_opaque", name_.c_str(),
+                         vb_);
+        add_casted_stat(buffer, opaque_, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_start_seqno",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, start_seqno_, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_end_seqno", name_.c_str(),
+                         vb_);
+        add_casted_stat(buffer, end_seqno_, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_vb_uuid", name_.c_str(),
+                         vb_);
+        add_casted_stat(buffer, vb_uuid_, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_snap_start_seqno",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, snap_start_seqno_, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_snap_end_seqno",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, snap_end_seqno_, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_state", name_.c_str(),
+                         vb_);
+        add_casted_stat(buffer, stateName(state_), add_stat, c);
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "Stream::addStats: Failed to build stats: %s", error.what());
+    }
 }
 
 ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
@@ -517,34 +532,50 @@ bool ActiveStream::isCompressionEnabled() {
 void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     Stream::addStats(add_stat, c);
 
-    const int bsize = 1024;
-    char buffer[bsize];
-    snprintf(buffer, bsize, "%s:stream_%d_backfill_disk_items",
-             name_.c_str(), vb_);
-    add_casted_stat(buffer, backfillItems.disk, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_backfill_mem_items",
-             name_.c_str(), vb_);
-    add_casted_stat(buffer, backfillItems.memory, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_backfill_sent", name_.c_str(), vb_);
-    add_casted_stat(buffer, backfillItems.sent, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_memory_phase", name_.c_str(), vb_);
-    add_casted_stat(buffer, itemsFromMemoryPhase.load(), add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_last_sent_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, lastSentSeqno.load(), add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_last_read_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, lastReadSeqno.load(), add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_ready_queue_memory", name_.c_str(), vb_);
-    add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
-    add_casted_stat(buffer, itemsReady.load() ? "true" : "false", add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_bytes", name_.c_str(), vb_);
-    add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
-    snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_items", name_.c_str(), vb_);
-    add_casted_stat(buffer, bufferedBackfill.items, add_stat, c);
+    try {
+        const int bsize = 1024;
+        char buffer[bsize];
+        checked_snprintf(buffer, bsize, "%s:stream_%d_backfill_disk_items",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, backfillItems.disk, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_backfill_mem_items",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, backfillItems.memory, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_backfill_sent",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, backfillItems.sent, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_memory_phase",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, itemsFromMemoryPhase.load(), add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_last_sent_seqno",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, lastSentSeqno.load(), add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_last_read_seqno",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, lastReadSeqno.load(), add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_ready_queue_memory",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_items_ready",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, itemsReady.load() ? "true" : "false", add_stat,
+                        c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_bytes",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, bufferedBackfill.bytes, add_stat, c);
+        checked_snprintf(buffer, bsize, "%s:stream_%d_backfill_buffer_items",
+                         name_.c_str(), vb_);
+        add_casted_stat(buffer, bufferedBackfill.items, add_stat, c);
 
-    if ((state_ == STREAM_TAKEOVER_SEND) && takeoverStart != 0) {
-        snprintf(buffer, bsize, "%s:stream_%d_takeover_since", name_.c_str(), vb_);
-        add_casted_stat(buffer, ep_current_time() - takeoverStart, add_stat, c);
+        if ((state_ == STREAM_TAKEOVER_SEND) && takeoverStart != 0) {
+            checked_snprintf(buffer, bsize, "%s:stream_%d_takeover_since",
+                             name_.c_str(), vb_);
+            add_casted_stat(buffer, ep_current_time() - takeoverStart, add_stat,
+                            c);
+        }
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "ActiveStream::addStats: Failed to build stats: %s", error.what());
     }
 }
 
@@ -1697,27 +1728,41 @@ void PassiveStream::handleSnapshotEnd(RCPtr<VBucket>& vb, uint64_t byseqno) {
 void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
     Stream::addStats(add_stat, c);
 
-    const int bsize = 1024;
-    char buf[bsize];
-    snprintf(buf, bsize, "%s:stream_%d_buffer_items", name_.c_str(), vb_);
-    add_casted_stat(buf, buffer.items, add_stat, c);
-    snprintf(buf, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(), vb_);
-    add_casted_stat(buf, buffer.bytes, add_stat, c);
-    snprintf(buf, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
-    add_casted_stat(buf, itemsReady.load() ? "true" : "false", add_stat, c);
-    snprintf(buf, bsize, "%s:stream_%d_last_received_seqno", name_.c_str(), vb_);
-    add_casted_stat(buf, last_seqno.load(), add_stat, c);
-    snprintf(buf, bsize, "%s:stream_%d_ready_queue_memory", name_.c_str(), vb_);
-    add_casted_stat(buf, getReadyQueueMemory(), add_stat, c);
+    try {
+        const int bsize = 1024;
+        char buf[bsize];
+        checked_snprintf(buf, bsize, "%s:stream_%d_buffer_items", name_.c_str(),
+                         vb_);
+        add_casted_stat(buf, buffer.items, add_stat, c);
+        checked_snprintf(buf, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(),
+                         vb_);
+        add_casted_stat(buf, buffer.bytes, add_stat, c);
+        checked_snprintf(buf, bsize, "%s:stream_%d_items_ready", name_.c_str(),
+                         vb_);
+        add_casted_stat(buf, itemsReady.load() ? "true" : "false", add_stat, c);
+        checked_snprintf(buf, bsize, "%s:stream_%d_last_received_seqno",
+                         name_.c_str(), vb_);
+        add_casted_stat(buf, last_seqno.load(), add_stat, c);
+        checked_snprintf(buf, bsize, "%s:stream_%d_ready_queue_memory",
+                         name_.c_str(), vb_);
+        add_casted_stat(buf, getReadyQueueMemory(), add_stat, c);
 
-    snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_type", name_.c_str(), vb_);
-    add_casted_stat(buf, snapshotTypeToString(cur_snapshot_type.load()), add_stat, c);
+        checked_snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_type",
+                         name_.c_str(), vb_);
+        add_casted_stat(buf, snapshotTypeToString(cur_snapshot_type.load()),
+                        add_stat, c);
 
-    if (cur_snapshot_type.load() != none) {
-        snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_start", name_.c_str(), vb_);
-        add_casted_stat(buf, cur_snapshot_start.load(), add_stat, c);
-        snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_end", name_.c_str(), vb_);
-        add_casted_stat(buf, cur_snapshot_end.load(), add_stat, c);
+        if (cur_snapshot_type.load() != none) {
+            checked_snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_start",
+                             name_.c_str(), vb_);
+            add_casted_stat(buf, cur_snapshot_start.load(), add_stat, c);
+            checked_snprintf(buf, bsize, "%s:stream_%d_cur_snapshot_end",
+                             name_.c_str(), vb_);
+            add_casted_stat(buf, cur_snapshot_end.load(), add_stat, c);
+        }
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "PassiveStream::addStats: Failed to build stats: %s", error.what());
     }
 }
 

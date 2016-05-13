@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include <algorithm>
+#include <platform/checked_snprintf.h>
 #include <queue>
 #include <sstream>
 
@@ -666,42 +667,58 @@ void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,
     }
 
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    char statname[80] = {0};
-    if (isHiPrioQset) {
-        for (size_t i = 0; i < numTaskSets; i++) {
-            snprintf(statname, sizeof(statname), "ep_workload:%s:InQsize",
-                     hpTaskQ[i]->getName().c_str());
-            add_casted_stat(statname, hpTaskQ[i]->getFutureQueueSize(), add_stat,
-                            cookie);
-            snprintf(statname, sizeof(statname), "ep_workload:%s:OutQsize",
-                     hpTaskQ[i]->getName().c_str());
-            add_casted_stat(statname, hpTaskQ[i]->getReadyQueueSize(), add_stat,
-                            cookie);
-            size_t pendingQsize = hpTaskQ[i]->getPendingQueueSize();
-            if (pendingQsize > 0) {
-                snprintf(statname, sizeof(statname), "ep_workload:%s:PendingQ",
-                        hpTaskQ[i]->getName().c_str());
-                add_casted_stat(statname, pendingQsize, add_stat, cookie);
+    try {
+        char statname[80] = {0};
+        if (isHiPrioQset) {
+            for (size_t i = 0; i < numTaskSets; i++) {
+                checked_snprintf(statname, sizeof(statname),
+                                 "ep_workload:%s:InQsize",
+                                 hpTaskQ[i]->getName().c_str());
+                add_casted_stat(statname, hpTaskQ[i]->getFutureQueueSize(),
+                                add_stat,
+                                cookie);
+                checked_snprintf(statname, sizeof(statname),
+                                 "ep_workload:%s:OutQsize",
+                                 hpTaskQ[i]->getName().c_str());
+                add_casted_stat(statname, hpTaskQ[i]->getReadyQueueSize(),
+                                add_stat,
+                                cookie);
+                size_t pendingQsize = hpTaskQ[i]->getPendingQueueSize();
+                if (pendingQsize > 0) {
+                    checked_snprintf(statname, sizeof(statname),
+                                     "ep_workload:%s:PendingQ",
+                                     hpTaskQ[i]->getName().c_str());
+                    add_casted_stat(statname, pendingQsize, add_stat, cookie);
+                }
             }
         }
-    }
-    if (isLowPrioQset) {
-        for (size_t i = 0; i < numTaskSets; i++) {
-            snprintf(statname, sizeof(statname), "ep_workload:%s:InQsize",
-                     lpTaskQ[i]->getName().c_str());
-            add_casted_stat(statname, lpTaskQ[i]->getFutureQueueSize(), add_stat,
-                            cookie);
-            snprintf(statname, sizeof(statname), "ep_workload:%s:OutQsize",
-                     lpTaskQ[i]->getName().c_str());
-            add_casted_stat(statname, lpTaskQ[i]->getReadyQueueSize(), add_stat,
-                            cookie);
-            size_t pendingQsize = lpTaskQ[i]->getPendingQueueSize();
-            if (pendingQsize > 0) {
-                snprintf(statname, sizeof(statname), "ep_workload:%s:PendingQ",
-                        lpTaskQ[i]->getName().c_str());
-                add_casted_stat(statname, pendingQsize, add_stat, cookie);
+        if (isLowPrioQset) {
+            for (size_t i = 0; i < numTaskSets; i++) {
+                checked_snprintf(statname, sizeof(statname),
+                                 "ep_workload:%s:InQsize",
+                                 lpTaskQ[i]->getName().c_str());
+                add_casted_stat(statname, lpTaskQ[i]->getFutureQueueSize(),
+                                add_stat,
+                                cookie);
+                checked_snprintf(statname, sizeof(statname),
+                                 "ep_workload:%s:OutQsize",
+                                 lpTaskQ[i]->getName().c_str());
+                add_casted_stat(statname, lpTaskQ[i]->getReadyQueueSize(),
+                                add_stat,
+                                cookie);
+                size_t pendingQsize = lpTaskQ[i]->getPendingQueueSize();
+                if (pendingQsize > 0) {
+                    checked_snprintf(statname, sizeof(statname),
+                                     "ep_workload:%s:PendingQ",
+                                     lpTaskQ[i]->getName().c_str());
+                    add_casted_stat(statname, pendingQsize, add_stat, cookie);
+                }
             }
         }
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "ExecutorPool::doTaskQStat: Failed to build stats: %s",
+            error.what());
     }
     ObjectRegistry::onSwitchThread(epe);
 }
@@ -711,23 +728,31 @@ static void showJobLog(const char *logname, const char *prefix,
                        const void *cookie, ADD_STAT add_stat) {
     char statname[80] = {0};
     for (size_t i = 0;i < log.size(); ++i) {
-        snprintf(statname, sizeof(statname), "%s:%s:%d:task", prefix,
-                logname, static_cast<int>(i));
-        add_casted_stat(statname, log[i].getName().c_str(), add_stat,
-                        cookie);
-        snprintf(statname, sizeof(statname), "%s:%s:%d:type", prefix,
-                logname, static_cast<int>(i));
-        add_casted_stat(statname,
-                        TaskQueue::taskType2Str(log[i].getTaskType()).c_str(),
-                        add_stat, cookie);
-        snprintf(statname, sizeof(statname), "%s:%s:%d:starttime",
-                prefix, logname, static_cast<int>(i));
-        add_casted_stat(statname, log[i].getTimestamp(), add_stat,
-                cookie);
-        snprintf(statname, sizeof(statname), "%s:%s:%d:runtime",
-                prefix, logname, static_cast<int>(i));
-        add_casted_stat(statname, log[i].getDuration(), add_stat,
-                cookie);
+        try {
+            checked_snprintf(statname, sizeof(statname), "%s:%s:%d:task",
+                             prefix,
+                             logname, static_cast<int>(i));
+            add_casted_stat(statname, log[i].getName().c_str(), add_stat,
+                            cookie);
+            checked_snprintf(statname, sizeof(statname), "%s:%s:%d:type",
+                             prefix,
+                             logname, static_cast<int>(i));
+            add_casted_stat(statname,
+                            TaskQueue::taskType2Str(
+                                log[i].getTaskType()).c_str(),
+                            add_stat, cookie);
+            checked_snprintf(statname, sizeof(statname), "%s:%s:%d:starttime",
+                             prefix, logname, static_cast<int>(i));
+            add_casted_stat(statname, log[i].getTimestamp(), add_stat,
+                            cookie);
+            checked_snprintf(statname, sizeof(statname), "%s:%s:%d:runtime",
+                             prefix, logname, static_cast<int>(i));
+            add_casted_stat(statname, log[i].getDuration(), add_stat,
+                            cookie);
+        } catch (std::exception& error) {
+            LOG(EXTENSION_LOG_WARNING,
+                "showJobLog: Failed to build stats: %s", error.what());
+        }
     }
 }
 
@@ -735,26 +760,32 @@ static void addWorkerStats(const char *prefix, ExecutorThread *t,
                            const void *cookie, ADD_STAT add_stat) {
     char statname[80] = {0};
 
-    std::string bucketName = t->getTaskableName();
-    if(!bucketName.empty()) {
-        snprintf(statname, sizeof(statname), "%s:bucket", prefix);
-        add_casted_stat(statname, bucketName.c_str(), add_stat, cookie);
-    }
+    try {
+        std::string bucketName = t->getTaskableName();
+        if (!bucketName.empty()) {
+            checked_snprintf(statname, sizeof(statname), "%s:bucket", prefix);
+            add_casted_stat(statname, bucketName.c_str(), add_stat, cookie);
+        }
 
-    snprintf(statname, sizeof(statname), "%s:state", prefix);
-    add_casted_stat(statname, t->getStateName().c_str(), add_stat, cookie);
-    snprintf(statname, sizeof(statname), "%s:task", prefix);
-    add_casted_stat(statname, t->getTaskName().c_str(), add_stat, cookie);
+        checked_snprintf(statname, sizeof(statname), "%s:state", prefix);
+        add_casted_stat(statname, t->getStateName().c_str(), add_stat, cookie);
+        checked_snprintf(statname, sizeof(statname), "%s:task", prefix);
+        add_casted_stat(statname, t->getTaskName().c_str(), add_stat, cookie);
 
-    if (strcmp(t->getStateName().c_str(), "running") == 0) {
-        snprintf(statname, sizeof(statname), "%s:runtime", prefix);
-        add_casted_stat(statname,
-                (gethrtime() - t->getTaskStart()) / 1000, add_stat, cookie);
+        if (strcmp(t->getStateName().c_str(), "running") == 0) {
+            checked_snprintf(statname, sizeof(statname), "%s:runtime", prefix);
+            add_casted_stat(statname,
+                            (gethrtime() - t->getTaskStart()) / 1000, add_stat,
+                            cookie);
+        }
+        checked_snprintf(statname, sizeof(statname), "%s:waketime", prefix);
+        add_casted_stat(statname, t->getWaketime(), add_stat, cookie);
+        checked_snprintf(statname, sizeof(statname), "%s:cur_time", prefix);
+        add_casted_stat(statname, t->getCurTime(), add_stat, cookie);
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "addWorkerStats: Failed to build stats: %s", error.what());
     }
-    snprintf(statname, sizeof(statname), "%s:waketime", prefix);
-    add_casted_stat(statname, t->getWaketime(), add_stat, cookie);
-    snprintf(statname, sizeof(statname), "%s:cur_time", prefix);
-    add_casted_stat(statname, t->getCurTime(), add_stat, cookie);
 }
 
 void ExecutorPool::doWorkerStat(EventuallyPersistentEngine *engine,

@@ -675,6 +675,10 @@ bool ForestKVStore::save2forestdb(Callback<kvstats_ctx> *cb) {
                 memset(&statDoc, 0, sizeof(statDoc));
                 char kvsName[20];
                 statDoc.keylen = snprintf(kvsName, sizeof(kvsName),"partition%d", vbid);
+                if (statDoc.keylen < 0 || statDoc.keylen >= sizeof(kvsName)) {
+                    throw std::runtime_error("ForestKVStore::save2forestdb: "
+                                                 "Failed to build partition id");
+                }
                 statDoc.key = kvsName;
                 statDoc.meta = NULL;
                 statDoc.metalen = 0;

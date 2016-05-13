@@ -66,22 +66,33 @@ void Logger::vlog(EXTENSION_LOG_LEVEL severity, const char* fmt, va_list va) con
     }
 
     EventuallyPersistentEngine *engine = ObjectRegistry::onSwitchThread(NULL, true);
-
-    // Format the message into a buffer.
-    char buffer[2048];
-    int pos = 0;
-    if (prefix.size() > 0) {
-        pos = snprintf(buffer, sizeof(buffer), "%s ", prefix.c_str());
-    }
-    vsnprintf(buffer + pos, sizeof(buffer) - pos, fmt, va);
-
     // Log it.
     if (logger) {
-        if (engine) {
-            logger->log(severity, NULL, "(%s) %s", engine->getName().c_str(),
-                        buffer);
+
+        // Format the message into a buffer.
+        char buffer[2048];
+        int pos = 0;
+        if (prefix.size() > 0) {
+            pos = snprintf(buffer, sizeof(buffer), "%s ", prefix.c_str());
+
+            // Something failed formatting the prefix.. just drop it
+            if (pos < 0 || size_t(pos) > sizeof(buffer)) {
+                pos = 0;
+            }
+        }
+        int nw = vsnprintf(buffer + pos, sizeof(buffer) - pos, fmt, va);
+        if (nw > 0 && size_t(nw) < (sizeof(buffer) - pos)) {
+            if (engine) {
+                logger->log(severity, NULL, "(%s) %s",
+                            engine->getName().c_str(),
+                            buffer);
+            } else {
+                logger->log(severity, NULL, "(No Engine) %s", buffer);
+            }
         } else {
-            logger->log(severity, NULL, "(No Engine) %s", buffer);
+            logger->log(EXTENSION_LOG_WARNING, nullptr,
+                        "logger::vlog: Failed to format log message. nw == %d (should be <0,2048>)",
+                        nw);
         }
     }
 
