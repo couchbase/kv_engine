@@ -2784,6 +2784,9 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
 
     /* Get the resident ratio down to below 90% */
     int num_items = 0;
+    // Size chosen to create ~2000 items (i.e. 2x more than we sanity-check below)
+    // with the given max_size for this test.
+    const std::string value(2000, 'x');
     while (true) {
         // Gathering stats on every store is expensive, just check every 100 iterations
         if ((num_items % 100) == 0) {
@@ -2795,11 +2798,22 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
         item *itm = NULL;
         std::string key("key" + std::to_string(num_items));
         ENGINE_ERROR_CODE ret = store(h, h1, NULL, OPERATION_SET,
-                                      key.c_str(), "somevalue", &itm);
+                                      key.c_str(), value.c_str(), &itm);
         if (ret == ENGINE_SUCCESS) {
             num_items++;
         }
         h1->release(h, NULL, itm);
+    }
+
+    // Sanity check - ensure we have enough vBucket quota (max_size)
+    // such that we have 1000 items - enough to give us 0.1%
+    // granuarity in any residency calculations. */
+    if (num_items < 1000) {
+        std::cerr << "Error: test_access_scanner: "
+            "expected at least 1000 items after filling vbucket, "
+            "but only have " << num_items << ". "
+            "Check max_size setting for test." << std::endl;
+        return FAIL;
     }
 
     wait_for_flusher_to_settle(h, h1);
