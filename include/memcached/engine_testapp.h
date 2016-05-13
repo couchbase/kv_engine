@@ -15,7 +15,8 @@ enum test_result {
     DIED = 14,
     CORE = 15,
     PENDING = 19,
-    TIMEOUT = 23
+    TIMEOUT = 23,
+    SUCCESS_AFTER_RETRY = 24
 };
 
 typedef struct test engine_test_t;
