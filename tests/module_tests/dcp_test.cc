@@ -785,8 +785,7 @@ private:
 };
 
 
-// Test fails until patched (patch is onroute via downstream branch merge).
-TEST_F(NotifyTest, DISABLED_test_mb19503_connmap_notify) {
+TEST_F(NotifyTest, test_mb19503_connmap_notify) {
     ConnMapNotifyTest notifyTest(*engine);
 
     // Hook into notify_io_complete
