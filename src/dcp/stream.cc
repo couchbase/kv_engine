@@ -522,7 +522,19 @@ DcpResponse* ActiveStream::takeoverWaitPhase() {
 }
 
 DcpResponse* ActiveStream::deadPhase() {
-    return nextQueuedItem();
+    DcpResponse* resp = nextQueuedItem();
+    if (!resp) {
+        producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                                  "(vb %" PRIu16 ") Stream closed, "
+                                  "%" PRIu64 " items sent from backfill phase, "
+                                  "%" PRIu64 " items sent from memory phase, "
+                                  "%" PRIu64 " was last seqno sent",
+                                  vb_,
+                                  uint64_t(backfillItems.sent.load()),
+                                  uint64_t(itemsFromMemoryPhase.load()),
+                                  lastSentSeqno.load());
+    }
+    return resp;
 }
 
 bool ActiveStream::isCompressionEnabled() {
@@ -885,14 +897,14 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             pushToReadyQ(new StreamEndResponse(opaque_, reason, vb_));
         }
         producer->getLogger().log(EXTENSION_LOG_NOTICE,
-            "(vb %d) Stream closing, "
-            "%" PRIu64 " items sent from backfill phase, "
-            "%" PRIu64 " items sent from memory phase, "
-            "%" PRIu64 " was last seqno sent, reason: %s",
-            vb_,
-            uint64_t(backfillItems.sent.load()),
-            uint64_t(itemsFromMemoryPhase.load()), lastSentSeqno.load(),
-            getEndStreamStatusStr(reason));
+                                  "(vb %" PRIu16 ") Stream closing, "
+                                  "sent until seqno %" PRIu64 " "
+                                  "remaining items %" PRIu64 ", "
+                                  "reason: %s",
+                                  vb_,
+                                  lastSentSeqno.load(),
+                                  uint64_t(readyQ_non_meta_items.load()),
+                                  getEndStreamStatusStr(reason));
     }
 }
 
