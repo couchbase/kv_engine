@@ -1272,7 +1272,7 @@ void McbpConnection::runEventLoop(short which) {
     numEvents = max_reqs_per_event;
     try {
         runStateMachinery();
-    } catch (std::invalid_argument& e) {
+    } catch (std::exception& e) {
         LOG_WARNING(this,
                     "%d: exception occurred in runloop - closing connection: %s",
                     getId(), e.what());
@@ -1285,7 +1285,7 @@ void McbpConnection::runEventLoop(short which) {
          */
         try {
             runStateMachinery();
-        } catch (std::invalid_argument& e) {
+        } catch (std::exception& e) {
             LOG_WARNING(this,
                     "%d: exception occurred in runloop whilst"
                     "attempting to close connection: %s",
