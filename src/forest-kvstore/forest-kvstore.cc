@@ -1612,32 +1612,14 @@ RollbackResult ForestKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
 
    uint64_t totalCount = kvsInfo.doc_count;
 
-   fdb_snapshot_info_t *markers;
-   uint64_t num_markers;
-   status = fdb_get_all_snap_markers(dbFileHandle, &markers, &num_markers);
-   if (status != FDB_RESULT_SUCCESS) {
+   uint64_t currentSeqno = fdb_get_available_rollback_seq(kvsHandle,
+                                                          rollbackSeqno);
+   if (currentSeqno == 0) {
        LOG(EXTENSION_LOG_WARNING,
-           "Failed to retrieve snapshot markers from ForestDB file "
-           "with error: %s for vbucket id: %d and rollback sequence number: "
-           "%" PRIu64, fdb_error_msg(status), vbid, rollbackSeqno);
+           "Unable to find an available rollback sequence number "
+           "for vbucket id: %d with rollback request sequence number: "
+           "%" PRIu64, vbid, rollbackSeqno);
        return RollbackResult(false, 0, 0, 0);
-   }
-
-   int64_t kvIndex = 0;
-   // search the snap marker to find out the index of the KV store
-   for (; kvIndex < markers[0].num_kvs_markers; kvIndex++) {
-       if (strcmp(markers[0].kvs_markers[kvIndex].kv_store_name, kvsInfo.name) == 0) {
-           break;
-       }
-   }
-
-   uint64_t currentSeqno = 0;
-   //Now search each marker in that index to find the correct snapshot
-   for (uint64_t snapIndex = 0; snapIndex < num_markers; snapIndex++) {
-       currentSeqno = markers[snapIndex].kvs_markers[kvIndex].seqnum;
-       if (currentSeqno <= rollbackSeqno) {
-           break;
-       }
    }
 
    uint64_t lastSeqno = kvsInfo.last_seqnum;
