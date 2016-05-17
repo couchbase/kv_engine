@@ -328,7 +328,7 @@ private:
     MutationPayload payloadType;
 
     //! Last snapshot end seqno sent to the DCP client
-    uint64_t lastSentSnapEndSeqno;
+    AtomicValue<uint64_t> lastSentSnapEndSeqno;
 
     /* Flag used by checkpointCreatorTask that is set before all items are
        extracted for given checkpoint cursor, and is unset after all retrieved

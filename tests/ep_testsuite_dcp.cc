@@ -1883,6 +1883,121 @@ static enum test_result test_dcp_producer_keep_stream_open(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_dcp_producer_keep_stream_open_replica(
+                                                        ENGINE_HANDLE *h,
+                                                        ENGINE_HANDLE_V1 *h1)
+{
+    /* This test case validates if a replica vbucket correctly sends items
+       and snapshot end seqno when a stream requests for items till end of time
+       (end_seqno in req is 2^64 - 1).
+       The test has 2 parts.
+       (i) Set up replica vbucket such that it has items to be streamed from
+           backfill and memory.
+       (ii) Open a stream (in a DCP conn) and see if all the items are received
+            correctly */
+
+    /* Part (i):  Set up replica vbucket such that it has items to be streamed
+                  from backfill and memory. */
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t seqno = 0;
+    uint32_t flags = 0;
+    const int num_items = 10;
+    const std::string conn_name("unittest");
+    int vb = 0;
+
+    /* Open an DCP consumer connection */
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, opaque, seqno, flags,
+                         (void*)conn_name.c_str(), conn_name.length()),
+            "Failed dcp producer open connection.");
+
+    std::string type = get_str_stat(h, h1, "eq_dcpq:unittest:type", "dcp");
+    checkeq(0, type.compare("consumer"), "Consumer not found");
+
+    opaque = add_stream_for_consumer(h, h1, cookie, opaque, 0, 0,
+                                     PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    /* Send DCP mutations with in memory flag (0x01) */
+    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x01, 1, num_items, 0,
+                          num_items);
+
+    /* Send 10 more DCP mutations with checkpoint creation flag (0x04) */
+    uint64_t start = num_items;
+    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x04, start + 1,
+                          start + 10, start, start + 10);
+
+    wait_for_flusher_to_settle(h, h1);
+    stop_persistence(h, h1);
+    checkeq(2 * num_items, get_int_stat(h, h1, "vb_replica_curr_items"),
+            "wrong number of items in replica vbucket");
+
+    /* Add 10 more items to the replica node on a new checkpoint.
+       Send with flag (0x04) indicating checkpoint creation */
+    start = 2 * num_items;
+    dcp_stream_to_replica(h, h1, cookie, opaque, 0, 0x04, start + 1,
+                          start + 10, start, start + 10);
+
+    /* Expecting for Disk backfill + in memory snapshot merge.
+       Wait for a checkpoint to be removed */
+    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 2, "checkpoint");
+
+    /* Part (ii): Open a stream (in a DCP conn) and see if all the items are
+                  received correctly */
+    /* We want to stream items till end and keep the stream open. Then we want
+       to verify the stream is still open */
+    const void *cookie1 = testHarness.create_cookie();
+    const std::string conn_name1("unittest1");
+    stop_continuous_dcp_thread.store(false, std::memory_order_relaxed);
+    struct continuous_dcp_ctx cdc = {h, h1, cookie1, 0, conn_name1.c_str(), 0};
+    cb_thread_t dcp_thread;
+    cb_assert(cb_create_thread(&dcp_thread, continuous_dcp_thread, &cdc, 0)
+              == 0);
+
+    /* Wait for producer to be created */
+    wait_for_stat_to_be(h, h1, "ep_dcp_producer_count", 1, "dcp");
+
+    /* Wait for an active stream to be created */
+    const std::string stat_stream_count("eq_dcpq:" + conn_name1 +
+                                        ":num_streams");
+    wait_for_stat_to_be(h, h1, stat_stream_count.c_str(), 1, "dcp");
+
+    /* Wait for the dcp stream to send upto highest seqno we have */
+    std::string stat_stream_last_sent_seqno("eq_dcpq:" + conn_name1 + ":stream_"
+                                            + std::to_string(vb) +
+                                            "_last_sent_seqno");
+    wait_for_stat_to_be(h, h1, stat_stream_last_sent_seqno.c_str(),
+                        3 * num_items, "dcp");
+
+    /* Check if correct snap end seqno is sent */
+    std::string stat_stream_last_sent_snap_end_seqno("eq_dcpq:" + conn_name1 +
+                                                     ":stream_" +
+                                                     std::to_string(vb) +
+                                                     "_last_sent_snap_end_seqno");
+    wait_for_stat_to_be(h, h1, stat_stream_last_sent_snap_end_seqno.c_str(),
+                        3 * num_items, "dcp");
+
+    /* Check if the stream is still open after sending out latest items */
+    std::string stat_stream_state("eq_dcpq:" + conn_name1 + ":stream_" +
+                                  std::to_string(vb) + "_state");
+    std::string state = get_str_stat(h, h1, stat_stream_state.c_str(), "dcp");
+    checkeq(state.compare("in-memory"), 0, "Stream is not open");
+
+    /* Before closing the connection stop the thread that continuously polls
+       for dcp data */
+    stop_continuous_dcp_thread.store(true, std::memory_order_relaxed);
+    testHarness.notify_io_complete(cookie1, ENGINE_SUCCESS);
+    cb_assert(cb_join_thread(dcp_thread) == 0);
+
+    testHarness.destroy_cookie(cookie);
+    testHarness.destroy_cookie(cookie1);
+
+    return SUCCESS;
+}
+
 static enum test_result test_dcp_producer_stream_cursor_movement(
                                                         ENGINE_HANDLE *h,
                                                         ENGINE_HANDLE_V1 *h1) {
@@ -5318,6 +5433,10 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test producer keep stream open",
                  test_dcp_producer_keep_stream_open, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
+        TestCase("test producer keep stream open replica",
+                 test_dcp_producer_keep_stream_open_replica, test_setup,
+                 teardown, "chk_remover_stime=1;chk_max_items=100", prepare,
+                 cleanup),
         TestCase("test producer stream cursor movement",
                  test_dcp_producer_stream_cursor_movement, test_setup, teardown,
                  "chk_remover_stime=1;chk_max_items=10", prepare, cleanup),

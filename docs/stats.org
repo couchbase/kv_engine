@@ -706,29 +706,30 @@ another colon.  For example, if your client is named, =slave1=, the
 
 ****Per Stream Stats
 
-| backfill_disk_items | The amount of items read during backfill from disk    |
-| backfill_mem_items  | The amount of items read during backfill from memory  |
-| backfill_sent       | The amount of items sent to the consumer during the   |
-| end_seqno           | The seqno send mutations up to                        |
-| flags               | The flags supplied in the stream request              |
-| items_ready         | Whether the stream has items ready to send            |
-| last_sent_seqno     | The last seqno sent by this stream                    |
-| last_read_seqno     | The last seqno read by this stream from disk or memory|
-| ready_queue_memory  | Memory occupied by elements in the DCP readyQ         |
-| memory_phase        | The amount of items sent during the memory phase      |
-| opaque              | The unique stream identifier                          |
-| snap_end_seqno      | The last snapshot end seqno (Used if a consumer is    |
-|                     | resuming a stream)                                    |
-| snap_start_seqno    | The last snapshot start seqno (Used if a consumer is  |
-|                     | resuming a stream)                                    |
-| start_seqno         | The seqno to start sending mutations from             |
-| state               | The stream state (pending, backfilling, in-memory,    |
-|                     | takeover-send, takeover-wait, or dead)                |
-| vb_uuid             | The vb uuid used in the stream request                |
-| cur_snapshot_type   | The type of the current snapshot being received       |
-| cur_snapshot_start  | The start seqno of the current snapshot being         |
-|                     | received                                              |
-| cur_snapshot_end    | The end seqno of the current snapshot being received  |
+| backfill_disk_items      | The amount of items read during backfill from disk    |
+| backfill_mem_items       | The amount of items read during backfill from memory  |
+| backfill_sent            | The amount of items sent to the consumer during the   |
+| end_seqno                | The seqno send mutations up to                        |
+| flags                    | The flags supplied in the stream request              |
+| items_ready              | Whether the stream has items ready to send            |
+| last_sent_seqno          | The last seqno sent by this stream                    |
+| last_sent_snap_end_seqno | The last snapshot end seqno sent by active stream     |
+| last_read_seqno          | The last seqno read by this stream from disk or memory|
+| ready_queue_memory       | Memory occupied by elements in the DCP readyQ         |
+| memory_phase             | The amount of items sent during the memory phase      |
+| opaque                   | The unique stream identifier                          |
+| snap_end_seqno           | The last snapshot end seqno (Used if a consumer is    |
+|                          | resuming a stream)                                    |
+| snap_start_seqno         | The last snapshot start seqno (Used if a consumer is  |
+|                          | resuming a stream)                                    |
+| start_seqno              | The seqno to start sending mutations from             |
+| state                    | The stream state (pending, backfilling, in-memory,    |
+|                          | takeover-send, takeover-wait, or dead)                |
+| vb_uuid                  | The vb uuid used in the stream request                |
+| cur_snapshot_type        | The type of the current snapshot being received       |
+| cur_snapshot_start       | The start seqno of the current snapshot being         |
+|                          | received                                              |
+| cur_snapshot_end         | The end seqno of the current snapshot being received  |
 
 ** Dcp Aggregated Stats
 
