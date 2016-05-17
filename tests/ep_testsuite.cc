@@ -40,8 +40,8 @@
 
 #include "ep_testsuite_common.h"
 #include "locks.h"
+#include <libcouchstore/couch_db.h>
 #include "mutex.h"
-
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <JSON_checker.h>
@@ -5745,6 +5745,56 @@ static enum test_result test_mb17517_tap_with_locked_key(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static void force_vbstate_to_25x(std::string dbname, int vbucket) {
+    std::string filename = dbname +
+                           DIRECTORY_SEPARATOR_CHARACTER +
+                           std::to_string(vbucket) +
+                           ".couch.1";
+    Db* handle;
+    couchstore_error_t err = couchstore_open_db(filename.c_str(),
+                                                COUCHSTORE_OPEN_FLAG_CREATE,
+                                                &handle);
+
+    checkeq(COUCHSTORE_SUCCESS, err, "Failed to open new database");
+
+    // Create 2.5 _local/vbstate
+    std::string vbstate2_5_x ="{\"state\": \"active\","
+                              " \"checkpoint_id\": \"1\","
+                              " \"max_deleted_seqno\": \"0\"}";
+    LocalDoc vbstate;
+    vbstate.id.buf = (char *)"_local/vbstate";
+    vbstate.id.size = sizeof("_local/vbstate") - 1;
+    vbstate.json.buf = (char *)vbstate2_5_x.c_str();
+    vbstate.json.size = vbstate2_5_x.size();
+    vbstate.deleted = 0;
+
+    err = couchstore_save_local_document(handle, &vbstate);
+    checkeq(COUCHSTORE_SUCCESS, err, "Failed to write local document");
+    couchstore_commit(handle);
+    couchstore_close_db(handle);
+}
+
+// Regression test for MB-19635
+// Check that warming up from a 2.x couchfile doesn't end up with a UUID of 0
+// we warmup 2 vbuckets and ensure they get unique IDs.
+static enum test_result test_mb19635_upgrade_from_25x(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+    std::string dbname = get_dbname(testHarness.get_current_testcase()->cfg);
+
+    force_vbstate_to_25x(dbname, 0);
+    force_vbstate_to_25x(dbname, 1);
+
+    // Now shutdown engine force and restart to warmup from the 2.5.x data.
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+    uint64_t vb_uuid0 = get_ull_stat(h, h1, "vb_0:uuid", "vbucket-details");
+    uint64_t vb_uuid1 = get_ull_stat(h, h1, "vb_1:uuid", "vbucket-details");
+    checkne(vb_uuid0, vb_uuid1, "UUID is not unique");
+    return SUCCESS;
+}
 
 // Test manifest //////////////////////////////////////////////////////////////
 
@@ -6178,6 +6228,11 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test_mb17517_tap_with_locked_key",
                  test_mb17517_tap_with_locked_key, test_setup, teardown, NULL,
                  prepare, cleanup),
+
+         TestCase("test_mb19635_upgrade_from_25x",
+                 test_mb19635_upgrade_from_25x, test_setup, teardown, NULL,
+                 prepare, cleanup),
+
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };
