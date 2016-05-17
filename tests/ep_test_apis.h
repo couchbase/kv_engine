@@ -40,7 +40,17 @@ static void checkeqfn(T exp, T got, const char *msg, const char *file, const int
     }
 }
 
+template <typename T>
+static void checknefn(T exp, T got, const char *msg, const char *file, const int linenum) {
+    if (exp == got) {
+        std::stringstream ss;
+        ss << "Expected `" << exp << "' to not equal `" << got << "' - " << msg;
+        abort_msg(ss.str().c_str(), file, linenum);
+    }
+}
+
 #define checkeq(a, b, c) checkeqfn(a, b, c, __FILE__, __LINE__)
+#define checkne(a, b, c) checknefn(a, b, c, __FILE__, __LINE__)
 
 #ifdef __cplusplus
 extern "C" {
