@@ -372,7 +372,8 @@ ADD_LIBRARY(ep_testsuite SHARED
    tests/mock/mock_dcp.cc
    tests/ep_test_apis.cc ${OBJECTREGISTRY_SOURCE} ${CONFIG_SOURCE})
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
-TARGET_LINK_LIBRARIES(ep_testsuite JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+TARGET_LINK_LIBRARIES(ep_testsuite couchstore dirutils JSON_checker platform
+                      ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
 
 
 #ADD_CUSTOM_COMMAND(OUTPUT

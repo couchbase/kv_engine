@@ -1971,7 +1971,7 @@ void CouchKVStore::readVBState(Db *db, uint16_t vbId) {
     uint64_t checkpointId = 0;
     uint64_t maxDeletedSeqno = 0;
     int64_t highSeqno = 0;
-    std::string failovers("[{\"id\":0,\"seq\":0}]");
+    std::string failovers;
     uint64_t purgeSeqno = 0;
     uint64_t lastSnapStart = 0;
     uint64_t lastSnapEnd = 0;
