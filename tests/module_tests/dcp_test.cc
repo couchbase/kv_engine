@@ -76,6 +76,10 @@ public:
         return deadConnections.size();
     }
 
+    AtomicQueue<connection_t>& getPendingNotifications() {
+        return pendingNotifications;
+    }
+
     void initialize(conn_notifier_type ntype) {
         connNotifier_ = new ConnNotifier(ntype, *this);
         // We do not create a ConnNotifierCallback task
@@ -793,26 +797,79 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify) {
     scapi->notify_io_complete = ConnMapNotifyTest::dcp_test_notify_io_complete;
 
     // Should be 0 when we begin
-    ASSERT_EQ(notifyTest.getCallbacks(), 0);
+    ASSERT_EQ(0, notifyTest.getCallbacks());
+    ASSERT_TRUE(notifyTest.producer->isPaused());
+    ASSERT_EQ(0, notifyTest.connMap->getPendingNotifications().size());
 
     // 1. Call notifyPausedConnection with schedule = true
     //    this will queue the producer
     notifyTest.connMap->notifyPausedConnection(notifyTest.producer.get(),
                                                /*schedule*/true);
+    EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
 
     // 2. Call notifyAllPausedConnections this will invoke notifyIOComplete
     //    which we've hooked into. For step 3 go to dcp_test_notify_io_complete
     notifyTest.connMap->notifyAllPausedConnections();
 
-    // 2.1 One callback should of occurred.
-    EXPECT_EQ(notifyTest.getCallbacks(), 1);
+    // 2.1 One callback should of occurred, and we should still have one
+    //     notification pending (see dcp_test_notify_io_complete).
+    EXPECT_EQ(1, notifyTest.getCallbacks());
+    EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
 
     // 4. Call notifyAllPausedConnections again, is there a new connection?
     notifyTest.connMap->notifyAllPausedConnections();
 
     // 5. There should of been 2 callbacks
-    EXPECT_EQ(notifyTest.getCallbacks(), 2);
+    EXPECT_EQ(2, notifyTest.getCallbacks());
 }
+
+// Variation on test_mb19503_connmap_notify - check that notification is correct
+// when notifiable is not paused.
+TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
+    ConnMapNotifyTest notifyTest(*engine);
+
+    // Hook into notify_io_complete
+    SERVER_COOKIE_API* scapi = get_mock_server_api()->cookie;
+    scapi->notify_io_complete = ConnMapNotifyTest::dcp_test_notify_io_complete;
+
+    // Should be 0 when we begin
+    ASSERT_EQ(notifyTest.getCallbacks(), 0);
+    ASSERT_TRUE(notifyTest.producer->isPaused());
+    ASSERT_EQ(0, notifyTest.connMap->getPendingNotifications().size());
+
+    // 1. Call notifyPausedConnection with schedule = true
+    //    this will queue the producer
+    notifyTest.connMap->notifyPausedConnection(notifyTest.producer.get(),
+                                               /*schedule*/true);
+    EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
+
+    // 2. Mark connection as not paused.
+    notifyTest.producer->setPaused(false);
+
+    // 3. Call notifyAllPausedConnections - as the connection is not paused
+    // this should *not* invoke notifyIOComplete.
+    notifyTest.connMap->notifyAllPausedConnections();
+
+    // 3.1 Should have not had any callbacks.
+    EXPECT_EQ(0, notifyTest.getCallbacks());
+    // 3.2 Should have no pending notifications.
+    EXPECT_EQ(0, notifyTest.connMap->getPendingNotifications().size());
+
+    // 4. Now mark the connection as paused.
+    ASSERT_FALSE(notifyTest.producer->isPaused());
+    notifyTest.producer->setPaused(true);
+
+    // 4. Add another notification - should queue the producer again.
+    notifyTest.connMap->notifyPausedConnection(notifyTest.producer.get(),
+                                               /*schedule*/true);
+    EXPECT_EQ(1, notifyTest.connMap->getPendingNotifications().size());
+
+    // 5. Call notifyAllPausedConnections a second time - as connection is
+    //    paused this time we *should* get a callback.
+    notifyTest.connMap->notifyAllPausedConnections();
+    EXPECT_EQ(1, notifyTest.getCallbacks());
+}
+
 
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
