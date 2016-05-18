@@ -58,8 +58,8 @@ public:
      */
     PagingVisitor(EventuallyPersistentStore &s, EPStats &st, double pcnt,
                   std::shared_ptr<AtomicValue<bool>> &sfin, pager_type_t caller,
-                  bool pause = false, double bias = 1,
-                  item_pager_phase *phase = NULL) :
+                  bool pause, double bias,
+                  std::atomic<item_pager_phase>* phase) :
         store(s), stats(st), percent(pcnt),
         activeBias(bias), ejected(0),
         startTime(ep_real_time()), stateFinalizer(sfin), owner(caller),
@@ -239,7 +239,7 @@ private:
     bool completePhase;
     bool wasHighMemoryUsage;
     hrtime_t taskStart;
-    item_pager_phase *pager_phase;
+    std::atomic<item_pager_phase>* pager_phase;
 };
 
 ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :

@@ -75,7 +75,10 @@ private:
     EventuallyPersistentEngine     *engine;
     EPStats                        &stats;
     std::shared_ptr<AtomicValue<bool>>   available;
-    item_pager_phase                phase;
+
+    // Current pager phase. Atomic as may be accessed by multiple PagingVisitor
+    // objects running on different threads.
+    std::atomic<item_pager_phase> phase;
     bool                            doEvict;
 };
 
