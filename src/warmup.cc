@@ -1029,7 +1029,7 @@ void Warmup::populateShardVbStates()
         std::vector<vbucket_state *> allVbStates =
                      store.getROUnderlyingByShard(i)->listPersistedVbuckets();
         for (uint16_t vb = 0; vb < allVbStates.size(); vb++) {
-            if (!allVbStates[vb]) {
+            if (!allVbStates[vb] || allVbStates[vb]->state == vbucket_state_dead) {
                 continue;
             }
             std::map<uint16_t, vbucket_state> &shardVB =
