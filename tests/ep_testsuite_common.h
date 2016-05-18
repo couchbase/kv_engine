@@ -196,5 +196,6 @@ uint64_t get_CAS(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 const void* createTapConn(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                           const char *name) CB_MUST_USE_RESULT;
 
+std::string get_dbname(const char* test_cfg);
 
 #endif /* TESTS_EP_TESTSUITE_COMMON_H_ */
