@@ -30,6 +30,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <platform/checked_snprintf.h>
 #include <string>
 #include <vector>
 #include <mutex>
@@ -3668,10 +3669,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doVBucketStats(
             }
 
             if (isPrevStateRequested) {
-                char buf[16];
-                snprintf(buf, sizeof(buf), "vb_%d", vb->getId());
-                add_casted_stat(buf, VBucket::toString(vb->getInitialState()),
-                                add_stat, cookie);
+                try {
+                    char buf[16];
+                    checked_snprintf(buf, sizeof(buf), "vb_%d", vb->getId());
+                    add_casted_stat(buf,
+                                    VBucket::toString(vb->getInitialState()),
+                                    add_stat, cookie);
+                } catch (std::exception& error) {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "addVBStats: Failed building stats: %s", error.what());
+                }
             } else {
                 vb->addStats(detailsRequested, add_stat, cookie,
                              store->getItemEvictionPolicy());
@@ -3719,35 +3726,49 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doHashStats(const void *cookie,
         bool visitBucket(RCPtr<VBucket> &vb) {
             uint16_t vbid = vb->getId();
             char buf[32];
-            snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
-            add_casted_stat(buf, VBucket::toString(vb->getState()),
-                            add_stat, cookie);
+            try {
+                checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
+                add_casted_stat(buf, VBucket::toString(vb->getState()),
+                                add_stat, cookie);
+            } catch (std::exception& error) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "StatVBucketVisitor::visitBucket: Failed to build stat: %s",
+                    error.what());
+            }
 
             HashTableDepthStatVisitor depthVisitor;
             vb->ht.visitDepth(depthVisitor);
 
-            snprintf(buf, sizeof(buf), "vb_%d:size", vbid);
-            add_casted_stat(buf, vb->ht.getSize(), add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:locks", vbid);
-            add_casted_stat(buf, vb->ht.getNumLocks(), add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:min_depth", vbid);
-            add_casted_stat(buf, depthVisitor.min == -1 ? 0 : depthVisitor.min,
-                            add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:max_depth", vbid);
-            add_casted_stat(buf, depthVisitor.max, add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:histo", vbid);
-            add_casted_stat(buf, depthVisitor.depthHisto, add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:reported", vbid);
-            add_casted_stat(buf, vb->ht.getNumInMemoryItems(), add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:counted", vbid);
-            add_casted_stat(buf, depthVisitor.size, add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:resized", vbid);
-            add_casted_stat(buf, vb->ht.getNumResizes(), add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:mem_size", vbid);
-            add_casted_stat(buf, vb->ht.memSize, add_stat, cookie);
-            snprintf(buf, sizeof(buf), "vb_%d:mem_size_counted", vbid);
-            add_casted_stat(buf, depthVisitor.memUsed, add_stat, cookie);
-
+            try {
+                checked_snprintf(buf, sizeof(buf), "vb_%d:size", vbid);
+                add_casted_stat(buf, vb->ht.getSize(), add_stat, cookie);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:locks", vbid);
+                add_casted_stat(buf, vb->ht.getNumLocks(), add_stat, cookie);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:min_depth", vbid);
+                add_casted_stat(buf,
+                                depthVisitor.min == -1 ? 0 : depthVisitor.min,
+                                add_stat, cookie);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:max_depth", vbid);
+                add_casted_stat(buf, depthVisitor.max, add_stat, cookie);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:histo", vbid);
+                add_casted_stat(buf, depthVisitor.depthHisto, add_stat, cookie);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:reported", vbid);
+                add_casted_stat(buf, vb->ht.getNumInMemoryItems(), add_stat,
+                                cookie);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:counted", vbid);
+                add_casted_stat(buf, depthVisitor.size, add_stat, cookie);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:resized", vbid);
+                add_casted_stat(buf, vb->ht.getNumResizes(), add_stat, cookie);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:mem_size", vbid);
+                add_casted_stat(buf, vb->ht.memSize, add_stat, cookie);
+                checked_snprintf(buf, sizeof(buf), "vb_%d:mem_size_counted",
+                                 vbid);
+                add_casted_stat(buf, depthVisitor.memUsed, add_stat, cookie);
+            } catch (std::exception& error) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "StatVBucketVisitor::visitBucket: Failed to build stat: %s",
+                    error.what());
+            }
             return false;
         }
 
@@ -3780,13 +3801,20 @@ public:
 
         uint16_t vbid = vb->getId();
         char buf[256];
-        snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
-        add_casted_stat(buf, VBucket::toString(vb->getState()),
-                        add_stat, cookie);
-        vb->checkpointManager.addStats(add_stat, cookie);
-        snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id", vbid);
-        add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid),
-                        add_stat, cookie);
+        try {
+            checked_snprintf(buf, sizeof(buf), "vb_%d:state", vbid);
+            add_casted_stat(buf, VBucket::toString(vb->getState()),
+                            add_stat, cookie);
+            vb->checkpointManager.addStats(add_stat, cookie);
+            checked_snprintf(buf, sizeof(buf), "vb_%d:persisted_checkpoint_id",
+                             vbid);
+            add_casted_stat(buf, eps->getLastPersistedCheckpointId(vbid),
+                            add_stat, cookie);
+        } catch (std::exception& error) {
+            LOG(EXTENSION_LOG_WARNING,
+                "StatCheckpointVisitor::addCheckpointStat: error building stats: %s",
+                error.what());
+        }
     }
 
     EventuallyPersistentStore *epstore;
@@ -3952,55 +3980,63 @@ static void showConnAggStat(const std::string &prefix,
                             ADD_STAT add_stat,
                             conn_type_t conn_type) {
 
-    char statname[80] = {0};
-    const size_t sl(sizeof(statname));
-    snprintf(statname, sl, "%s:count", prefix.c_str());
-    add_casted_stat(statname, counter->totalConns, add_stat, cookie);
+    try {
+        char statname[80] = {0};
+        const size_t sl(sizeof(statname));
+        checked_snprintf(statname, sl, "%s:count", prefix.c_str());
+        add_casted_stat(statname, counter->totalConns, add_stat, cookie);
 
-    snprintf(statname, sl, "%s:total_backlog_size", prefix.c_str());
-    add_casted_stat(statname, counter->conn_totalBacklogSize,
-                    add_stat, cookie);
-
-    snprintf(statname, sl, "%s:backoff", prefix.c_str());
-    add_casted_stat(statname, counter->conn_queueBackoff,
-                    add_stat, cookie);
-
-    if (conn_type == TAP_CONN) {
-        snprintf(statname, sl, "%s:qlen", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queue, add_stat, cookie);
-
-        snprintf(statname, sl, "%s:fill", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queueFill,
+        checked_snprintf(statname, sl, "%s:total_backlog_size", prefix.c_str());
+        add_casted_stat(statname, counter->conn_totalBacklogSize,
                         add_stat, cookie);
 
-        snprintf(statname, sl, "%s:drain", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queueDrain,
+        checked_snprintf(statname, sl, "%s:backoff", prefix.c_str());
+        add_casted_stat(statname, counter->conn_queueBackoff,
                         add_stat, cookie);
 
-        snprintf(statname, sl, "%s:backfill_remaining", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queueBackfillRemaining,
-                        add_stat, cookie);
+        if (conn_type == TAP_CONN) {
+            checked_snprintf(statname, sl, "%s:qlen", prefix.c_str());
+            add_casted_stat(statname, counter->conn_queue, add_stat, cookie);
 
-        snprintf(statname, sl, "%s:itemondisk", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queueItemOnDisk,
-                        add_stat, cookie);
-    }
+            checked_snprintf(statname, sl, "%s:fill", prefix.c_str());
+            add_casted_stat(statname, counter->conn_queueFill,
+                            add_stat, cookie);
 
-    if (conn_type == DCP_CONN) {
-        snprintf(statname, sl, "%s:producer_count", prefix.c_str());
-        add_casted_stat(statname, counter->totalProducers, add_stat, cookie);
+            checked_snprintf(statname, sl, "%s:drain", prefix.c_str());
+            add_casted_stat(statname, counter->conn_queueDrain,
+                            add_stat, cookie);
 
-        snprintf(statname, sl, "%s:items_sent", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queueDrain,
-                        add_stat, cookie);
+            checked_snprintf(statname, sl, "%s:backfill_remaining",
+                             prefix.c_str());
+            add_casted_stat(statname, counter->conn_queueBackfillRemaining,
+                            add_stat, cookie);
 
-        snprintf(statname, sl, "%s:items_remaining", prefix.c_str());
-        add_casted_stat(statname, counter->conn_queueRemaining,
-                        add_stat, cookie);
+            checked_snprintf(statname, sl, "%s:itemondisk", prefix.c_str());
+            add_casted_stat(statname, counter->conn_queueItemOnDisk,
+                            add_stat, cookie);
+        }
 
-        snprintf(statname, sl, "%s:total_bytes", prefix.c_str());
-        add_casted_stat(statname, counter->conn_totalBytes,
-                        add_stat, cookie);
+        if (conn_type == DCP_CONN) {
+            checked_snprintf(statname, sl, "%s:producer_count", prefix.c_str());
+            add_casted_stat(statname, counter->totalProducers, add_stat,
+                            cookie);
+
+            checked_snprintf(statname, sl, "%s:items_sent", prefix.c_str());
+            add_casted_stat(statname, counter->conn_queueDrain,
+                            add_stat, cookie);
+
+            checked_snprintf(statname, sl, "%s:items_remaining",
+                             prefix.c_str());
+            add_casted_stat(statname, counter->conn_queueRemaining,
+                            add_stat, cookie);
+
+            checked_snprintf(statname, sl, "%s:total_bytes", prefix.c_str());
+            add_casted_stat(statname, counter->conn_totalBytes,
+                            add_stat, cookie);
+        }
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "showConnAggStat: Failed to build stats: %s", error.what());
     }
 }
 
@@ -4327,55 +4363,63 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
                                                               *cookie,
                                                               ADD_STAT
                                                               add_stat) {
-    char statname[80] = {0};
-    ExecutorPool *expool = ExecutorPool::get();
+    try {
+        char statname[80] = {0};
+        ExecutorPool* expool = ExecutorPool::get();
 
-    int readers = expool->getNumReaders();
-    snprintf(statname, sizeof(statname), "ep_workload:num_readers");
-    add_casted_stat(statname, readers, add_stat, cookie);
+        int readers = expool->getNumReaders();
+        checked_snprintf(statname, sizeof(statname), "ep_workload:num_readers");
+        add_casted_stat(statname, readers, add_stat, cookie);
 
-    int writers = expool->getNumWriters();
-    snprintf(statname, sizeof(statname), "ep_workload:num_writers");
-    add_casted_stat(statname, writers, add_stat, cookie);
+        int writers = expool->getNumWriters();
+        checked_snprintf(statname, sizeof(statname), "ep_workload:num_writers");
+        add_casted_stat(statname, writers, add_stat, cookie);
 
-    int auxio = expool->getNumAuxIO();
-    snprintf(statname, sizeof(statname), "ep_workload:num_auxio");
-    add_casted_stat(statname, auxio, add_stat, cookie);
+        int auxio = expool->getNumAuxIO();
+        checked_snprintf(statname, sizeof(statname), "ep_workload:num_auxio");
+        add_casted_stat(statname, auxio, add_stat, cookie);
 
-    int nonio = expool->getNumNonIO();
-    snprintf(statname, sizeof(statname), "ep_workload:num_nonio");
-    add_casted_stat(statname, nonio, add_stat, cookie);
+        int nonio = expool->getNumNonIO();
+        checked_snprintf(statname, sizeof(statname), "ep_workload:num_nonio");
+        add_casted_stat(statname, nonio, add_stat, cookie);
 
-    int max_readers = expool->getMaxReaders();
-    snprintf(statname, sizeof(statname), "ep_workload:max_readers");
-    add_casted_stat(statname, max_readers, add_stat, cookie);
+        int max_readers = expool->getMaxReaders();
+        checked_snprintf(statname, sizeof(statname), "ep_workload:max_readers");
+        add_casted_stat(statname, max_readers, add_stat, cookie);
 
-    int max_writers = expool->getMaxWriters();
-    snprintf(statname, sizeof(statname), "ep_workload:max_writers");
-    add_casted_stat(statname, max_writers, add_stat, cookie);
+        int max_writers = expool->getMaxWriters();
+        checked_snprintf(statname, sizeof(statname), "ep_workload:max_writers");
+        add_casted_stat(statname, max_writers, add_stat, cookie);
 
-    int max_auxio = expool->getMaxAuxIO();
-    snprintf(statname, sizeof(statname), "ep_workload:max_auxio");
-    add_casted_stat(statname, max_auxio, add_stat, cookie);
+        int max_auxio = expool->getMaxAuxIO();
+        checked_snprintf(statname, sizeof(statname), "ep_workload:max_auxio");
+        add_casted_stat(statname, max_auxio, add_stat, cookie);
 
-    int max_nonio = expool->getMaxNonIO();
-    snprintf(statname, sizeof(statname), "ep_workload:max_nonio");
-    add_casted_stat(statname, max_nonio, add_stat, cookie);
+        int max_nonio = expool->getMaxNonIO();
+        checked_snprintf(statname, sizeof(statname), "ep_workload:max_nonio");
+        add_casted_stat(statname, max_nonio, add_stat, cookie);
 
-    int shards = workload->getNumShards();
-    snprintf(statname, sizeof(statname), "ep_workload:num_shards");
-    add_casted_stat(statname, shards, add_stat, cookie);
+        int shards = workload->getNumShards();
+        checked_snprintf(statname, sizeof(statname), "ep_workload:num_shards");
+        add_casted_stat(statname, shards, add_stat, cookie);
 
-    int numReadyTasks = expool->getNumReadyTasks();
-    snprintf(statname, sizeof(statname), "ep_workload:ready_tasks");
-    add_casted_stat(statname, numReadyTasks, add_stat, cookie);
+        int numReadyTasks = expool->getNumReadyTasks();
+        checked_snprintf(statname, sizeof(statname), "ep_workload:ready_tasks");
+        add_casted_stat(statname, numReadyTasks, add_stat, cookie);
 
-    int numSleepers = expool->getNumSleepers();
-    snprintf(statname, sizeof(statname), "ep_workload:num_sleepers");
-    add_casted_stat(statname, numSleepers, add_stat, cookie);
+        int numSleepers = expool->getNumSleepers();
+        checked_snprintf(statname, sizeof(statname),
+                         "ep_workload:num_sleepers");
+        add_casted_stat(statname, numSleepers, add_stat, cookie);
 
-    expool->doTaskQStat(ObjectRegistry::getCurrentEngine(),
-                                      cookie, add_stat);
+        expool->doTaskQStat(ObjectRegistry::getCurrentEngine(),
+                            cookie, add_stat);
+
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "doWorkloadStats: Error building stats: %s", error.what());
+    }
+
     return ENGINE_SUCCESS;
 }
 
@@ -4392,29 +4436,39 @@ void EventuallyPersistentEngine::addSeqnoVbStats_UNLOCKED(const void *cookie,
         relHighSeqno = info.range.end;
     }
 
-    char buffer[32];
-    failover_entry_t entry = vb->failovers->getLatestEntry();
-    snprintf(buffer, sizeof(buffer), "vb_%d:high_seqno", vb->getId());
-    add_casted_stat(buffer, relHighSeqno, add_stat, cookie);
-    snprintf(buffer, sizeof(buffer), "vb_%d:abs_high_seqno", vb->getId());
-    add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
-    snprintf(buffer, sizeof(buffer), "vb_%d:last_persisted_seqno",
-             vb->getId());
-    add_casted_stat(buffer,
-                    epstore->getVBuckets().getPersistenceSeqno(vb->getId()),
-                    add_stat, cookie);
-    snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
-    add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
-    snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno", vb->getId());
-    add_casted_stat(buffer, vb->getPurgeSeqno(), add_stat, cookie);
-    snapshot_range_t range;
-    vb->getPersistedSnapshot(range);
-    snprintf(buffer, sizeof(buffer), "vb_%d:last_persisted_snap_start",
-             vb->getId());
-    add_casted_stat(buffer, range.start, add_stat, cookie);
-    snprintf(buffer, sizeof(buffer), "vb_%d:last_persisted_snap_end",
-             vb->getId());
-    add_casted_stat(buffer, range.end, add_stat, cookie);
+    try {
+        char buffer[32];
+        failover_entry_t entry = vb->failovers->getLatestEntry();
+        checked_snprintf(buffer, sizeof(buffer), "vb_%d:high_seqno",
+                         vb->getId());
+        add_casted_stat(buffer, relHighSeqno, add_stat, cookie);
+        checked_snprintf(buffer, sizeof(buffer), "vb_%d:abs_high_seqno",
+                         vb->getId());
+        add_casted_stat(buffer, vb->getHighSeqno(), add_stat, cookie);
+        checked_snprintf(buffer, sizeof(buffer), "vb_%d:last_persisted_seqno",
+                         vb->getId());
+        add_casted_stat(buffer,
+                        epstore->getVBuckets().getPersistenceSeqno(vb->getId()),
+                        add_stat, cookie);
+        checked_snprintf(buffer, sizeof(buffer), "vb_%d:uuid", vb->getId());
+        add_casted_stat(buffer, entry.vb_uuid, add_stat, cookie);
+        checked_snprintf(buffer, sizeof(buffer), "vb_%d:purge_seqno",
+                         vb->getId());
+        add_casted_stat(buffer, vb->getPurgeSeqno(), add_stat, cookie);
+        snapshot_range_t range;
+        vb->getPersistedSnapshot(range);
+        checked_snprintf(buffer, sizeof(buffer),
+                         "vb_%d:last_persisted_snap_start",
+                         vb->getId());
+        add_casted_stat(buffer, range.start, add_stat, cookie);
+        checked_snprintf(buffer, sizeof(buffer),
+                         "vb_%d:last_persisted_snap_end",
+                         vb->getId());
+        add_casted_stat(buffer, range.end, add_stat, cookie);
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "addSeqnoVbStats: error building stats: %s", error.what());
+    }
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
@@ -4487,10 +4541,16 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDiskStats(const void *cookie,
                 uint16_t vbid = vb->getId();
                 DBFileInfo dbInfo = vb->getShard()->getRWUnderlying()->getDbFileInfo(vbid);
 
-                snprintf(buf, sizeof(buf), "vb_%d:data_size", vbid);
-                add_casted_stat(buf, dbInfo.spaceUsed, add_stat, cookie);
-                snprintf(buf, sizeof(buf), "vb_%d:file_size", vbid);
-                add_casted_stat(buf, dbInfo.fileSize, add_stat, cookie);
+                try {
+                    checked_snprintf(buf, sizeof(buf), "vb_%d:data_size", vbid);
+                    add_casted_stat(buf, dbInfo.spaceUsed, add_stat, cookie);
+                    checked_snprintf(buf, sizeof(buf), "vb_%d:file_size", vbid);
+                    add_casted_stat(buf, dbInfo.fileSize, add_stat, cookie);
+                } catch (std::exception& error) {
+                    LOG(EXTENSION_LOG_WARNING,
+                        "DiskStatVisitor::visitBucket: Failed to build stat: %s",
+                        error.what());
+                }
             }
             return false;
         }

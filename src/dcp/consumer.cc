@@ -995,13 +995,12 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
     if (pendingSendNoopInterval) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
-        char buf_size[10];
-        snprintf(buf_size, 10, "%u", noopInterval);
+        std::string interval = std::to_string(noopInterval);
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         ret = producers->control(getCookie(), opaque,
                                  noopIntervalCtrlMsg.c_str(),
                                  noopIntervalCtrlMsg.size(),
-                                 buf_size, strlen(buf_size));
+                                 interval.c_str(), interval.size());
         ObjectRegistry::onSwitchThread(epe);
         pendingSendNoopInterval = false;
         return ret;

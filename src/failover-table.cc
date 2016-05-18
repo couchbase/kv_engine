@@ -16,6 +16,8 @@
  */
 #include "config.h"
 
+#include <platform/checked_snprintf.h>
+
 #include "atomic.h"
 #include "failover-table.h"
 #include "locks.h"
@@ -220,18 +222,25 @@ void FailoverTable::cacheTableJSON() {
 void FailoverTable::addStats(const void* cookie, uint16_t vbid,
                              ADD_STAT add_stat) {
     LockHolder lh(lock);
-    char statname[80] = {0};
-    snprintf(statname, 80, "vb_%d:num_entries", vbid);
-    add_casted_stat(statname, table.size(), add_stat, cookie);
+    try {
+        char statname[80] = {0};
+        checked_snprintf(statname, sizeof(statname), "vb_%d:num_entries", vbid);
+        add_casted_stat(statname, table.size(), add_stat, cookie);
 
-    table_t::iterator it;
-    int entrycounter = 0;
-    for(it = table.begin(); it != table.end(); ++it) {
-        snprintf(statname, 80, "vb_%d:%d:id", vbid, entrycounter);
-        add_casted_stat(statname, it->vb_uuid, add_stat, cookie);
-        snprintf(statname, 80, "vb_%d:%d:seq", vbid, entrycounter);
-        add_casted_stat(statname, it->by_seqno, add_stat, cookie);
-        entrycounter++;
+        table_t::iterator it;
+        int entrycounter = 0;
+        for (it = table.begin(); it != table.end(); ++it) {
+            checked_snprintf(statname, sizeof(statname), "vb_%d:%d:id", vbid,
+                             entrycounter);
+            add_casted_stat(statname, it->vb_uuid, add_stat, cookie);
+            checked_snprintf(statname, sizeof(statname), "vb_%d:%d:seq", vbid,
+                             entrycounter);
+            add_casted_stat(statname, it->by_seqno, add_stat, cookie);
+            entrycounter++;
+        }
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "FailoverTable::addStats: Failed to build stats: %s", error.what());
     }
 }
 

@@ -17,6 +17,7 @@
 
 #include "config.h"
 
+#include <platform/checked_snprintf.h>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1754,38 +1755,50 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
     LockHolder lh(queueLock);
     char buf[256];
 
-    snprintf(buf, sizeof(buf), "vb_%d:open_checkpoint_id", vbucketId);
-    add_casted_stat(buf, getOpenCheckpointId_UNLOCKED(), add_stat, cookie);
-    snprintf(buf, sizeof(buf), "vb_%d:last_closed_checkpoint_id", vbucketId);
-    add_casted_stat(buf, getLastClosedCheckpointId_UNLOCKED(),
-    add_stat, cookie);
-    snprintf(buf, sizeof(buf), "vb_%d:num_conn_cursors", vbucketId);
-    add_casted_stat(buf, connCursors.size(), add_stat, cookie);
-    snprintf(buf, sizeof(buf), "vb_%d:num_checkpoint_items", vbucketId);
-    add_casted_stat(buf, numItems, add_stat, cookie);
-    snprintf(buf, sizeof(buf), "vb_%d:num_open_checkpoint_items", vbucketId);
-    add_casted_stat(buf, checkpointList.empty() ? 0 :
-                    checkpointList.back()->getNumItems(),
-                    add_stat, cookie);
-    snprintf(buf, sizeof(buf), "vb_%d:num_checkpoints", vbucketId);
-    add_casted_stat(buf, checkpointList.size(), add_stat, cookie);
-    snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence", vbucketId);
-    add_casted_stat(buf, getNumItemsForCursor_UNLOCKED(pCursorName),
-                    add_stat, cookie);
-
-    snprintf(buf, sizeof(buf), "vb_%d:mem_usage", vbucketId);
-    add_casted_stat(buf, getMemoryUsage_UNLOCKED(), add_stat, cookie);
-
-    cursor_index::iterator cur_it = connCursors.begin();
-    for (; cur_it != connCursors.end(); ++cur_it) {
-        snprintf(buf, sizeof(buf),
-                 "vb_%d:%s:cursor_checkpoint_id", vbucketId,
-                 cur_it->first.c_str());
-        add_casted_stat(buf, (*(cur_it->second.currentCheckpoint))->getId(),
+    try {
+        checked_snprintf(buf, sizeof(buf), "vb_%d:open_checkpoint_id",
+                         vbucketId);
+        add_casted_stat(buf, getOpenCheckpointId_UNLOCKED(), add_stat, cookie);
+        checked_snprintf(buf, sizeof(buf), "vb_%d:last_closed_checkpoint_id",
+                         vbucketId);
+        add_casted_stat(buf, getLastClosedCheckpointId_UNLOCKED(),
                         add_stat, cookie);
-        snprintf(buf, sizeof(buf), "vb_%d:%s:cursor_seqno", vbucketId,
-                 cur_it->first.c_str());
-        add_casted_stat(buf, (*(cur_it->second.currentPos))->getBySeqno(),
+        checked_snprintf(buf, sizeof(buf), "vb_%d:num_conn_cursors", vbucketId);
+        add_casted_stat(buf, connCursors.size(), add_stat, cookie);
+        checked_snprintf(buf, sizeof(buf), "vb_%d:num_checkpoint_items",
+                         vbucketId);
+        add_casted_stat(buf, numItems, add_stat, cookie);
+        checked_snprintf(buf, sizeof(buf), "vb_%d:num_open_checkpoint_items",
+                         vbucketId);
+        add_casted_stat(buf, checkpointList.empty() ? 0 :
+                             checkpointList.back()->getNumItems(),
                         add_stat, cookie);
+        checked_snprintf(buf, sizeof(buf), "vb_%d:num_checkpoints", vbucketId);
+        add_casted_stat(buf, checkpointList.size(), add_stat, cookie);
+        checked_snprintf(buf, sizeof(buf), "vb_%d:num_items_for_persistence",
+                         vbucketId);
+        add_casted_stat(buf, getNumItemsForCursor_UNLOCKED(pCursorName),
+                        add_stat, cookie);
+
+        checked_snprintf(buf, sizeof(buf), "vb_%d:mem_usage", vbucketId);
+        add_casted_stat(buf, getMemoryUsage_UNLOCKED(), add_stat, cookie);
+
+        cursor_index::iterator cur_it = connCursors.begin();
+        for (; cur_it != connCursors.end(); ++cur_it) {
+            checked_snprintf(buf, sizeof(buf),
+                             "vb_%d:%s:cursor_checkpoint_id", vbucketId,
+                             cur_it->first.c_str());
+            add_casted_stat(buf, (*(cur_it->second.currentCheckpoint))->getId(),
+                            add_stat, cookie);
+            checked_snprintf(buf, sizeof(buf), "vb_%d:%s:cursor_seqno",
+                             vbucketId,
+                             cur_it->first.c_str());
+            add_casted_stat(buf, (*(cur_it->second.currentPos))->getBySeqno(),
+                            add_stat, cookie);
+        }
+    } catch (std::exception& error) {
+        LOG(EXTENSION_LOG_WARNING,
+            "CheckpointManager::addStats: An error occurred while adding stats: %s",
+            error.what());
     }
 }

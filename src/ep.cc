@@ -1517,7 +1517,8 @@ void EventuallyPersistentStore::scheduleVBStatePersist(const Priority &priority,
 }
 
 bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
-                                                        const void* cookie) {
+                                                        const void* cookie,
+                                                        bool clearVbCreateFlag) {
     LockHolder lh(vbsetMutex);
 
     hrtime_t start_time(gethrtime());
@@ -1528,7 +1529,9 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
         LockHolder vlh(vb_mutexes[vbid]);
         getRWUnderlying(vbid)->delVBucket(vbid);
         vbMap.setBucketDeletion(vbid, false);
-        vbMap.setBucketCreation(vbid, false);
+        if (clearVbCreateFlag) {
+            vbMap.setBucketCreation(vbid, false);
+        }
         vbMap.setPersistenceSeqno(vbid, 0);
         ++stats.vbucketDeletions;
     }
@@ -1548,13 +1551,15 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
 
 void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
                                                    const void* cookie,
-                                                   double delay) {
+                                                   double delay,
+                                                   bool clearVbCreateFlag) {
     ExTask delTask = new VBucketMemoryDeletionTask(engine, vb, delay);
     ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
 
     if (vbMap.setBucketDeletion(vb->getId(), true)) {
         ExTask task = new VBDeleteTask(&engine, vb->getId(), cookie,
-                                       Priority::VBucketDeletionPriority);
+                                       Priority::VBucketDeletionPriority,
+                                       clearVbCreateFlag);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
 }
@@ -1750,8 +1755,11 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
 
         checkpointCursorInfoList cursors =
                                         vb->checkpointManager.getAllCursors();
+
+        vbMap.setBucketCreation(vbid, true);
+
         // Delete and recreate the vbucket database file
-        scheduleVBDeletion(vb, NULL, 0);
+        scheduleVBDeletion(vb, NULL, 0, /* clearVbCreateFlag */ false);
         setVBucketState(vbid, vbstate, false);
 
         // Copy the all cursors from the old vbucket into the new vbucket

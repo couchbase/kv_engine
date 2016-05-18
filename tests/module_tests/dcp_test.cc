@@ -725,6 +725,96 @@ TEST_F(ConnectionTest, test_stream_request_for_dead_vbucket) {
     delete cookie;
 }
 
+class NotifyTest : public DCPTest {
+protected:
+    void SetUp() {
+        // The test is going to replace a server API method, we must
+        // be able to undo that
+        sapi = *get_mock_server_api();
+        DCPTest::SetUp();
+    }
+
+    void TearDown() {
+        // Reset the server_api for other tests
+        *get_mock_server_api() = sapi;
+        DCPTest::TearDown();
+    }
+
+    SERVER_HANDLE_V1 sapi;
+    std::unique_ptr<MockDcpConnMap> connMap;
+    dcp_producer_t producer;
+    int callbacks;
+};
+
+class ConnMapNotifyTest {
+public:
+    ConnMapNotifyTest(EventuallyPersistentEngine& engine)
+        : connMap(new MockDcpConnMap(engine)),
+          callbacks(0) {
+        connMap->initialize(DCP_CONN_NOTIFIER);
+
+        // Use 'this' instead of a mock cookie
+        producer = connMap->newProducer(static_cast<void*>(this),
+                                        "test_producer",
+                                        /*notifyOnly*/false);
+    }
+
+    void notify() {
+        callbacks++;
+        connMap->notifyPausedConnection(producer.get(), /*schedule*/true);
+    }
+
+    int getCallbacks() {
+        return callbacks;
+    }
+
+
+    static void dcp_test_notify_io_complete(const void *cookie,
+                                            ENGINE_ERROR_CODE status) {
+        auto notifyTest = reinterpret_cast<const ConnMapNotifyTest*>(cookie);
+        // 3. Call notifyPausedConnection again. We're now interleaved inside
+        //    of notifyAllPausedConnections, a second notification should occur.
+        const_cast<ConnMapNotifyTest*>(notifyTest)->notify();
+    }
+
+    std::unique_ptr<MockDcpConnMap> connMap;
+    dcp_producer_t producer;
+
+private:
+    int callbacks;
+
+};
+
+
+TEST_F(NotifyTest, test_mb19503_connmap_notify) {
+    ConnMapNotifyTest notifyTest(*engine);
+
+    // Hook into notify_io_complete
+    SERVER_COOKIE_API* scapi = get_mock_server_api()->cookie;
+    scapi->notify_io_complete = ConnMapNotifyTest::dcp_test_notify_io_complete;
+
+    // Should be 0 when we begin
+    ASSERT_EQ(notifyTest.getCallbacks(), 0);
+
+    // 1. Call notifyPausedConnection with schedule = true
+    //    this will queue the producer
+    notifyTest.connMap->notifyPausedConnection(notifyTest.producer.get(),
+                                               /*schedule*/true);
+
+    // 2. Call notifyAllPausedConnections this will invoke notifyIOComplete
+    //    which we've hooked into. For step 3 go to dcp_test_notify_io_complete
+    notifyTest.connMap->notifyAllPausedConnections();
+
+    // 2.1 One callback should of occurred.
+    EXPECT_EQ(notifyTest.getCallbacks(), 1);
+
+    // 4. Call notifyAllPausedConnections again, is there a new connection?
+    notifyTest.connMap->notifyAllPausedConnections();
+
+    // 5. There should of been 2 callbacks
+    EXPECT_EQ(notifyTest.getCallbacks(), 2);
+}
+
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
