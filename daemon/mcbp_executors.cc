@@ -3377,7 +3377,7 @@ static void stat_executor(McbpConnection* c, void*) {
                 command = key;
             } else {
                 command = key.substr(0, index);
-                argument = key.substr(index++);
+                argument = key.substr(++index);
             }
 
             auto iter = handlers.find(command);
