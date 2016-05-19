@@ -65,6 +65,18 @@ TEST_P(StatsTest, TestReset) {
     ASSERT_NE(nullptr, count);
     EXPECT_EQ(cJSON_Number, count->type);
     EXPECT_EQ(0, count->valueint);
+
+    // Just ensure that the "reset timings" is detected
+    // @todo add a separate test case for cmd timings stats
+    EXPECT_NO_THROW(stats = conn.stats("reset timings"));
+
+    // Just ensure that the "reset bogus" is detected..
+    try {
+        conn.stats("reset bogus");
+        FAIL()<<"stats reset bogus should throw an exception (non a valid cmd)";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isInvalidArguments());
+    }
 }
 
 /**

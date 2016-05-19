@@ -3110,7 +3110,13 @@ static void process_bucket_details(McbpConnection* c) {
 /**
  * Handler for the <code>stats reset</code> command.
  *
- * Clear the global and the connected buckets stats
+ * Clear the global and the connected buckets stats.
+ *
+ * It is possible to clear a subset of the stats by using its submodule.
+ * The following submodules exists:
+ * <ul>
+ *    <li>timings</li>
+ * </ul>
  *
  * @todo I would have assumed that we wanted to clear the stats from
  *       <b>all</b> of the buckets?
@@ -3123,6 +3129,12 @@ static ENGINE_ERROR_CODE stat_reset_executor(const std::string& arg,
     if (arg.empty()) {
         stats_reset(connection.getCookie());
         bucket_reset_stats(&connection);
+        all_buckets[0].timings.reset();
+        all_buckets[connection.getBucketIndex()].timings.reset();
+        return ENGINE_SUCCESS;
+    } else if (arg == "timings") {
+        // Nuke the command timings section for the connected bucket
+        all_buckets[connection.getBucketIndex()].timings.reset();
         return ENGINE_SUCCESS;
     } else {
         return ENGINE_EINVAL;
