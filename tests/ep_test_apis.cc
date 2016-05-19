@@ -32,8 +32,6 @@
 #define check(expr, msg) \
     static_cast<void>((expr) ? 0 : abort_msg(#expr, msg, __LINE__))
 
-extern "C" bool abort_msg(const char *expr, const char *msg, int line);
-
 std::map<std::string, std::string> vals;
 bool dump_stats = false;
 protocol_binary_response_status last_status =
