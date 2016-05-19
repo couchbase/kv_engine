@@ -563,10 +563,9 @@ void safe_close(SOCKET sfd) {
         } while (rval == SOCKET_ERROR && is_interrupted(GetLastNetworkError()));
 
         if (rval == SOCKET_ERROR) {
-            char msg[80];
-            snprintf(msg, sizeof(msg), "Failed to close socket %d (%%s)!!", (int)sfd);
-            log_socket_error(EXTENSION_LOG_WARNING, NULL,
-                             msg);
+            std::string error = cb_strerror();
+            LOG_WARNING(nullptr, "Failed to close socket %d (%s)!!", (int)sfd,
+                       error.c_str());
         } else {
             stats.curr_conns.fetch_sub(1, std::memory_order_relaxed);
             if (is_listen_disabled()) {
@@ -1131,7 +1130,6 @@ static void add_listening_port(struct interface *interf, in_port_t port, sa_fami
 static int server_socket(struct interface *interf) {
     SOCKET sfd;
     struct addrinfo hints;
-    char port_buf[NI_MAXSERV];
     int success = 0;
     const char *host = NULL;
 
@@ -1148,7 +1146,7 @@ static int server_socket(struct interface *interf) {
         hints.ai_family = AF_INET6;
     }
 
-    snprintf(port_buf, sizeof(port_buf), "%u", (unsigned int)interf->port);
+    std::string port_buf = std::to_string(interf->port);
 
     if (interf->host) {
         if (strlen(interf->host) > 0 && strcmp(interf->host, "*") != 0) {
@@ -1157,7 +1155,7 @@ static int server_socket(struct interface *interf) {
     }
 
     struct addrinfo *ai;
-    int error = getaddrinfo(host, port_buf, &hints, &ai);
+    int error = getaddrinfo(host, port_buf.c_str(), &hints, &ai);
     if (error != 0) {
 #ifdef WIN32
         log_errcode_error(EXTENSION_LOG_WARNING, NULL,
@@ -1992,8 +1990,9 @@ void DestroyBucketThread::destroy() {
      * McbpDestroyBucketTask originated from main() then connection
      * will be set to nullptr.
      */
-    const auto* connection_id = (connection == nullptr) ? "<none>"
-                                : std::to_string(connection->getId()).c_str();
+    const std::string connection_id{(connection == nullptr)
+            ? "<none>"
+            : std::to_string(connection->getId())};
 
     int idx = 0;
     for (int ii = 0; ii < settings.max_buckets; ++ii) {
@@ -2017,7 +2016,7 @@ void DestroyBucketThread::destroy() {
     if (ret != ENGINE_SUCCESS) {
         auto code = engine_error_2_mcbp_protocol_error(ret);
         LOG_NOTICE(connection, "%s Delete bucket [%s]: %s",
-                   connection_id, name.c_str(),
+                   connection_id.c_str(), name.c_str(),
                    memcached_status_2_text(code));
         result = ret;
         return;
@@ -2026,7 +2025,7 @@ void DestroyBucketThread::destroy() {
     perform_callbacks(ON_DELETE_BUCKET, nullptr, &all_buckets[idx]);
 
     LOG_NOTICE(connection, "%s Delete bucket [%s]. Wait for clients to disconnect",
-               connection_id, name.c_str());
+               connection_id.c_str(), name.c_str());
 
     /* If this thread is connected to the requested bucket... release it */
     if (connection != nullptr && idx == connection->getBucketIndex()) {
@@ -2041,7 +2040,7 @@ void DestroyBucketThread::destroy() {
     while (all_buckets[idx].clients > 0) {
         LOG_NOTICE(connection,
                    "%u Delete bucket [%s]. Still waiting: %u clients connected",
-                   connection_id, name.c_str(), all_buckets[idx].clients);
+                   connection_id.c_str(), name.c_str(), all_buckets[idx].clients);
         /* drop the lock and notify the worker threads */
         cb_mutex_exit(&all_buckets[idx].mutex);
         threads_notify_bucket_deletion();
@@ -2071,13 +2070,13 @@ void DestroyBucketThread::destroy() {
      */
 
     LOG_NOTICE(connection, "%s Delete bucket [%s]. Shut down the bucket",
-               connection_id, name.c_str());
+               connection_id.c_str(), name.c_str());
 
     all_buckets[idx].engine->destroy
         (v1_handle_2_handle(all_buckets[idx].engine), force);
 
     LOG_NOTICE(connection, "%s Delete bucket [%s]. Clean up allocated resources ",
-               connection_id, name.c_str());
+               connection_id.c_str(), name.c_str());
 
     /* Clean up the stats... */
     delete[]all_buckets[idx].stats;
@@ -2098,7 +2097,7 @@ void DestroyBucketThread::destroy() {
     all_buckets[idx].timings.reset();
 
     LOG_NOTICE(connection, "%s Delete bucket [%s] complete",
-               connection_id, name.c_str());
+               connection_id.c_str(), name.c_str());
     result = ENGINE_SUCCESS;
 }
 

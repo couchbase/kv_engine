@@ -36,6 +36,7 @@
 #include "sasl_tasks.h"
 
 #include <memcached/audit_interface.h>
+#include <platform/checked_snprintf.h>
 #include <snappy-c.h>
 #include <utilities/protocol2text.h>
 
@@ -192,32 +193,48 @@ void add_stat(const void* cookie, ADD_STAT add_stat_callback,
               const char* name, int32_t val) {
     char buf[16];
     int len = snprintf(buf, sizeof(buf), "%" PRId32, val);
-    add_stat_callback(name, uint16_t(strlen(name)),
-                      buf, uint32_t(len), cookie);
+    if (len < 0 || len >= sizeof(buf)) {
+        LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
+    } else {
+        add_stat_callback(name, uint16_t(strlen(name)),
+                          buf, uint32_t(len), cookie);
+    }
 }
 
 void add_stat(const void* cookie, ADD_STAT add_stat_callback,
               const char* name, uint32_t val) {
     char buf[16];
     int len = snprintf(buf, sizeof(buf), "%" PRIu32, val);
-    add_stat_callback(name, uint16_t(strlen(name)),
-                      buf, uint32_t(len), cookie);
+    if (len < 0 || len >= sizeof(buf)) {
+        LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
+    } else {
+        add_stat_callback(name, uint16_t(strlen(name)),
+                          buf, uint32_t(len), cookie);
+    }
 }
 
 void add_stat(const void* cookie, ADD_STAT add_stat_callback,
               const char* name, int64_t val) {
     char buf[32];
     int len = snprintf(buf, sizeof(buf), "%" PRId64, val);
-    add_stat_callback(name, uint16_t(strlen(name)),
-                      buf, uint32_t(len), cookie);
+    if (len < 0 || len >= sizeof(buf)) {
+        LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
+    } else {
+        add_stat_callback(name, uint16_t(strlen(name)),
+                          buf, uint32_t(len), cookie);
+    }
 }
 
 void add_stat(const void* cookie, ADD_STAT add_stat_callback,
               const char* name, uint64_t val) {
     char buf[32];
     int len = snprintf(buf, sizeof(buf), "%" PRIu64, val);
-    add_stat_callback(name, uint16_t(strlen(name)),
-                      buf, uint32_t(len), cookie);
+    if (len < 0 || len >= sizeof(buf)) {
+        LOG_WARNING(nullptr, "add_stat failed to add stat for %s", name);
+    } else {
+        add_stat_callback(name, uint16_t(strlen(name)),
+                          buf, uint32_t(len), cookie);
+    }
 }
 
 void add_stat(const void* cookie, ADD_STAT add_stat_callback,
@@ -434,44 +451,57 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
     auto* cookie = c->getCookie();
     add_stat(cookie, add_stat_callback, "maxconns", settings.maxconns);
 
-    for (auto& ifce : stats.listening_ports) {
-        char interface[1024];
-        int offset;
-        if (ifce.host.empty()) {
-            offset = sprintf(interface, "interface-*:%u", ifce.port);
-        } else {
-            offset = snprintf(interface, sizeof(interface), "interface-%s:%u",
-                              ifce.host.c_str(),
-                              ifce.port);
+    try {
+        for (auto& ifce : stats.listening_ports) {
+            char interface[1024];
+            int offset;
+            if (ifce.host.empty()) {
+                offset = checked_snprintf(interface, sizeof(interface),
+                                          "interface-*:%u",
+                                         ifce.port);
+            } else {
+                offset = checked_snprintf(interface, sizeof(interface),
+                                          "interface-%s:%u",
+                                          ifce.host.c_str(),
+                                          ifce.port);
+            }
+
+            checked_snprintf(interface + offset, sizeof(interface) - offset,
+                             "-maxconn");
+            add_stat(cookie, add_stat_callback, interface, ifce.maxconns);
+            checked_snprintf(interface + offset, sizeof(interface) - offset,
+                             "-backlog");
+            add_stat(cookie, add_stat_callback, interface, ifce.backlog);
+            checked_snprintf(interface + offset, sizeof(interface) - offset,
+                             "-ipv4");
+            add_stat(cookie, add_stat_callback, interface, ifce.ipv4);
+            checked_snprintf(interface + offset, sizeof(interface) - offset,
+                             "-ipv6");
+            add_stat(cookie, add_stat_callback, interface, ifce.ipv6);
+
+            checked_snprintf(interface + offset, sizeof(interface) - offset,
+                             "-tcp_nodelay");
+            add_stat(cookie, add_stat_callback, interface, ifce.tcp_nodelay);
+            checked_snprintf(interface + offset, sizeof(interface) - offset,
+                             "-management");
+            add_stat(cookie, add_stat_callback, interface, ifce.management);
+
+            if (ifce.ssl.enabled) {
+                checked_snprintf(interface + offset, sizeof(interface) - offset,
+                                 "-ssl-pkey");
+                add_stat(cookie, add_stat_callback, interface, ifce.ssl.key);
+                checked_snprintf(interface + offset, sizeof(interface) - offset,
+                                 "-ssl-cert");
+                add_stat(cookie, add_stat_callback, interface, ifce.ssl.cert);
+            } else {
+                checked_snprintf(interface + offset, sizeof(interface) - offset,
+                                 "-ssl");
+                add_stat(cookie, add_stat_callback, interface, "false");
+            }
         }
-
-        snprintf(interface + offset, sizeof(interface) - offset, "-maxconn");
-        add_stat(cookie, add_stat_callback, interface, ifce.maxconns);
-        snprintf(interface + offset, sizeof(interface) - offset, "-backlog");
-        add_stat(cookie, add_stat_callback, interface, ifce.backlog);
-        snprintf(interface + offset, sizeof(interface) - offset, "-ipv4");
-        add_stat(cookie, add_stat_callback, interface, ifce.ipv4);
-        snprintf(interface + offset, sizeof(interface) - offset, "-ipv6");
-        add_stat(cookie, add_stat_callback, interface, ifce.ipv6);
-
-        snprintf(interface + offset, sizeof(interface) - offset,
-                 "-tcp_nodelay");
-        add_stat(cookie, add_stat_callback, interface, ifce.tcp_nodelay);
-        snprintf(interface + offset, sizeof(interface) - offset, "-management");
-        add_stat(cookie, add_stat_callback, interface, ifce.management);
-
-        if (ifce.ssl.enabled) {
-            snprintf(interface + offset, sizeof(interface) - offset,
-                     "-ssl-pkey");
-            add_stat(cookie, add_stat_callback, interface, ifce.ssl.key);
-            snprintf(interface + offset, sizeof(interface) - offset,
-                     "-ssl-cert");
-            add_stat(cookie, add_stat_callback, interface, ifce.ssl.cert);
-        } else {
-            snprintf(interface + offset, sizeof(interface) - offset,
-                     "-ssl");
-            add_stat(cookie, add_stat_callback, interface, "false");
-        }
+    } catch (std::exception& error) {
+        LOG_WARNING(nullptr, "process_stats_settings: Error building stats: %s",
+                    error.what());
     }
 
     add_stat(cookie, add_stat_callback, "verbosity", settings.verbose.load());
@@ -3499,6 +3529,12 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_hello*>(packet);
     char log_buffer[512];
     int offset = snprintf(log_buffer, sizeof(log_buffer), "HELO ");
+
+    if (offset < 0 || offset >= sizeof(log_buffer)) {
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+        return;
+    }
+
     char* key = (char*)packet + sizeof(*req);
     uint16_t klen = ntohs(req->message.header.request.keylen);
     uint32_t total = (ntohl(req->message.header.request.bodylen) - klen) / 2;
@@ -3566,10 +3602,16 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
 
         if (added) {
             out[jj++] = htons(in);
-            offset += snprintf(log_buffer + offset,
-                               sizeof(log_buffer) - offset,
-                               "%s, ",
-                               protocol_feature_2_text(in));
+
+            int nw = snprintf(log_buffer + offset, sizeof(log_buffer) - offset,
+                              "%s, ", protocol_feature_2_text(in));
+
+            if (nw < 0 || nw > sizeof(log_buffer) - offset) {
+                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
+                return;
+            }
+
+            offset += nw;
         }
     }
 
@@ -3812,9 +3854,10 @@ static void arithmetic_executor(McbpConnection* c, void* packet) {
         nw = key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                      incr ? "INCR" : "DECR", key, nkey);
         if (nw != -1) {
-            if (snprintf(buffer + nw, sizeof(buffer) - nw,
-                         " %" PRIu64 ", %" PRIu64 ", %" PRIu64 "\n",
-                         delta, initial, (uint64_t)expiration) != -1) {
+            int nf = snprintf(buffer + nw, sizeof(buffer) - nw,
+                              " %" PRIu64 ", %" PRIu64 ", %" PRIu64 "\n",
+                              delta, initial, (uint64_t)expiration);
+            if (nf > 0 && nf < (sizeof(buffer) - nw)) {
                 LOG_DEBUG(c, "%s", buffer);
             }
         }
@@ -4032,15 +4075,20 @@ static void ioctl_get_executor(McbpConnection* c, void* packet) {
 
     if (status == ENGINE_SUCCESS) {
         char res_buffer[16];
-        size_t length = snprintf(res_buffer, sizeof(res_buffer), "%ld", value);
-        if ((length > sizeof(res_buffer) - 1) ||
-            mcbp_response_handler(NULL, 0, NULL, 0, res_buffer,
-                                  uint32_t(length),
-                                  PROTOCOL_BINARY_RAW_BYTES,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
-                                  c->getCookie())) {
-            mcbp_write_and_free(c, &c->getDynamicBuffer());
-        } else {
+        try {
+            auto length = checked_snprintf(res_buffer, sizeof(res_buffer), "%ld", value);
+            if (mcbp_response_handler(NULL, 0, NULL, 0, res_buffer,
+                                      uint32_t(length),
+                                      PROTOCOL_BINARY_RAW_BYTES,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                                      c->getCookie())) {
+                mcbp_write_and_free(c, &c->getDynamicBuffer());
+            } else {
+                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            }
+        } catch (std::exception& e) {
+            LOG_WARNING(c, "ioctl_get_executor: Failed to format response: %s",
+                        e.what());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
     } else {

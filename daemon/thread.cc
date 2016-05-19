@@ -543,9 +543,9 @@ void thread_init(int nthr, struct event_base *main_base,
 
     /* Create threads after we've done all the libevent setup. */
     for (i = 0; i < nthreads; i++) {
-        char name[16];
-        snprintf(name, sizeof(name), "mc:worker_%d", i);
-        create_worker(worker_libevent, &threads[i], &thread_ids[i], name);
+        std::string name = "mc:worker_" + std::to_string(i);
+        create_worker(worker_libevent, &threads[i], &thread_ids[i],
+                      name.c_str());
         threads[i].thread_id = thread_ids[i];
     }
 

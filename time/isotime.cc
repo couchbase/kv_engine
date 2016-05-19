@@ -23,6 +23,7 @@
 #include <cstring>
 
 #include <memcached/isotime.h>
+#include <platform/checked_snprintf.h>
 
 std::mutex ISOTime::mutex;
 
@@ -57,30 +58,27 @@ int ISOTime::generatetimestamp(ISO8601String &destination,
     int32_t hours = (int32_t)(total_minutes_diff / 60);
     int32_t minutes = (int32_t)(total_minutes_diff) % 60;
 
-    int offset = snprintf(destination.data(), destination.size(),
-                          "%04u-"
-                          "%02u-"
-                          "%02uT"
-                          "%02u:%02u:%02u.%06u",
-                          local_time.tm_year + 1900,
-                          local_time.tm_mon+1,
-                          local_time.tm_mday,
-                          local_time.tm_hour,
-                          local_time.tm_min,
-                          local_time.tm_sec,
-                          frac_of_second);
+    int offset = checked_snprintf(destination.data(), destination.size(),
+                                  "%04u-%02u-%02uT%02u:%02u:%02u.%06u",
+                                  local_time.tm_year + 1900,
+                                  local_time.tm_mon + 1,
+                                  local_time.tm_mday,
+                                  local_time.tm_hour,
+                                  local_time.tm_min,
+                                  local_time.tm_sec,
+                                  frac_of_second);
 
     if (total_seconds_diff == 0.0) {
         strcat(destination.data(), "Z");
         ++offset;
     } else if (total_seconds_diff < 0.0) {
-        offset += snprintf(destination.data() + offset,
-                           destination.size() - offset,
-                           "-%02u:%02u", abs(hours), abs(minutes));
+        offset += checked_snprintf(destination.data() + offset,
+                                   destination.size() - offset,
+                                   "-%02u:%02u", abs(hours), abs(minutes));
     } else {
-        offset += snprintf(destination.data() + offset,
-                           destination.size() - offset,
-                           "+%02u:%02u", hours, minutes);
+        offset += checked_snprintf(destination.data() + offset,
+                                   destination.size() - offset,
+                                   "+%02u:%02u", hours, minutes);
     }
     return offset;
 }

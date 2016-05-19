@@ -23,6 +23,7 @@
 
 #include <exception>
 #include <utilities/protocol2text.h>
+#include <platform/checked_snprintf.h>
 #include <platform/strerror.h>
 #include <platform/timeutils.h>
 
@@ -30,12 +31,12 @@
  * Therefore encode 64bit integers as string.
  */
 static cJSON* json_create_uintptr(uintptr_t value) {
-    char buffer[32];
-    if (snprintf(buffer, sizeof(buffer),
-                 "0x%" PRIxPTR, value) >= int(sizeof(buffer))) {
-        return cJSON_CreateString("<too long>");
-    } else {
+    try {
+        char buffer[32];
+        checked_snprintf(buffer, sizeof(buffer), "0x%" PRIxPTR, value);
         return cJSON_CreateString(buffer);
+    } catch (std::exception& e) {
+        return cJSON_CreateString("<Failed to convert pointer>");
     }
 }
 
@@ -493,12 +494,10 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
             if (is_blocking(error)) {
                 break;
             }
-            char prefix[160];
-            snprintf(prefix, sizeof(prefix),
-                     "%u Closing connection %s due to read error: %%s",
-                     getId(), getDescription().c_str());
-            log_errcode_error(EXTENSION_LOG_WARNING, this, prefix, error);
 
+            std::string errormsg = cb_strerror();
+            LOG_WARNING(this, "%u Closing connection %s due to read error: %s",
+                        getId(), getDescription().c_str(), errormsg.c_str());
             return TryReadResult::SocketError;
         }
     }
@@ -1190,20 +1189,21 @@ void McbpConnection::maybeLogSlowCommand(
     }
 
     if (elapsed > limit) {
-        const char* opcode = memcached_opcode_2_text(cmd);
-        char opcodetext[10];
-        if (opcode == NULL) {
-            snprintf(opcodetext, sizeof(opcodetext), "0x%0X", cmd);
-            opcode = opcodetext;
-        }
-
         hrtime_t timings((hrtime_t)elapsed.count());
         timings *= 1000 * 1000; // convert from ms to ns
 
-        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %s (%s)",
-                    getId(), opcode,
-                    Couchbase::hrtime2text(timings).c_str(),
-                    getDescription().c_str());
+        const char* opcode = memcached_opcode_2_text(cmd);
+        if (opcode == NULL) {
+            LOG_WARNING(NULL, "%u: Slow 0x%0X operation on connection: %s (%s)",
+                        getId(), cmd,
+                        Couchbase::hrtime2text(timings).c_str(),
+                        getDescription().c_str());
+        } else {
+            LOG_WARNING(NULL, "%u: Slow %s operation on connection: %s (%s)",
+                        getId(), opcode,
+                        Couchbase::hrtime2text(timings).c_str(),
+                        getDescription().c_str());
+        }
     }
 }
 
@@ -1270,7 +1270,7 @@ void McbpConnection::runEventLoop(short which) {
     numEvents = max_reqs_per_event;
     try {
         runStateMachinery();
-    } catch (std::invalid_argument& e) {
+    } catch (std::exception& e) {
         LOG_WARNING(this,
                     "%d: exception occurred in runloop - closing connection: %s",
                     getId(), e.what());
@@ -1283,7 +1283,7 @@ void McbpConnection::runEventLoop(short which) {
          */
         try {
             runStateMachinery();
-        } catch (std::invalid_argument& e) {
+        } catch (std::exception& e) {
             LOG_WARNING(this,
                     "%d: exception occurred in runloop whilst"
                     "attempting to close connection: %s",

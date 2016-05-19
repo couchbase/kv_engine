@@ -21,6 +21,7 @@
 
 #include <exception>
 #include <utilities/protocol2text.h>
+#include <platform/checked_snprintf.h>
 #include <platform/strerror.h>
 
 const char* to_string(const Connection::Priority& priority) {
@@ -190,12 +191,12 @@ bool Connection::setTcpNoDelay(bool enable) {
  * Therefore encode 64bit integers as string.
  */
 static cJSON* json_create_uintptr(uintptr_t value) {
-    char buffer[32];
-    if (snprintf(buffer, sizeof(buffer),
-                 "0x%" PRIxPTR, value) >= int(sizeof(buffer))) {
-        return cJSON_CreateString("<too long>");
-    } else {
+    try {
+        char buffer[32];
+        checked_snprintf(buffer, sizeof(buffer), "0x%" PRIxPTR, value);
         return cJSON_CreateString(buffer);
+    } catch (std::exception& e) {
+        return cJSON_CreateString("<Failed to convert pointer>");
     }
 }
 
