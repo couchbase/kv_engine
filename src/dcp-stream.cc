@@ -370,11 +370,15 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         if (end_seqno_ > endSeqno) {
             /* We possibly have items in the open checkpoint
                (incomplete snapshot) */
-            LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") Merging backfill"
-                " and memory snapshot for a replica vbucket, start seqno "
-                "%" PRIu64 " and end seqno %" PRIu64 "",
-                producer->logHeader(), vb_, startSeqno, endSeqno);
-            endSeqno = end_seqno_;
+            uint64_t snapshot_start, snapshot_end;
+            vb->getCurrentSnapshot(snapshot_start, snapshot_end);
+            LOG(EXTENSION_LOG_WARNING,
+                "(vb %" PRIu16 ") Merging backfill and memory snapshot for a "
+                "replica vbucket, backfill start seqno %" PRIu64 ", "
+                "backfill end seqno %" PRIu64 ", "
+                "snapshot end seqno after merge %" PRIu64,
+                vb_, startSeqno, endSeqno, snapshot_end);
+            endSeqno = snapshot_end;
         }
     }
 
@@ -383,14 +387,11 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         endSeqno);
     pushToReadyQ(new SnapshotMarker(opaque_, vb_, startSeqno, endSeqno,
                                     MARKER_FLAG_DISK));
-    lastSentSnapEndSeqno = endSeqno;
+    lastSentSnapEndSeqno.store(endSeqno);
 
     if (!vb) {
         endStream(END_STREAM_STATE);
     } else {
-        if (endSeqno > end_seqno_) {
-            chkCursorSeqno = end_seqno_;
-        }
         // Only re-register the cursor if we still need to get memory snapshots
         CursorRegResult result =
             vb->checkpointManager.registerTAPCursorBySeqno(name_,
@@ -573,6 +574,9 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     add_casted_stat(buffer, itemsFromMemory, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_sent_seqno", name_.c_str(), vb_);
     add_casted_stat(buffer, lastSentSeqno.load(), add_stat, c);
+    snprintf(buffer, bsize, "%s:stream_%d_last_sent_snap_end_seqno",
+             name_.c_str(), vb_);
+    add_casted_stat(buffer, lastSentSnapEndSeqno.load(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_read_seqno", name_.c_str(), vb_);
     add_casted_stat(buffer, lastReadSeqno.load(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_ready_queue_memory", name_.c_str(), vb_);
@@ -805,7 +809,7 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
         }
         pushToReadyQ(new SnapshotMarker(opaque_, vb_, snapStart, snapEnd,
                                         flags));
-        lastSentSnapEndSeqno = snapEnd;
+        lastSentSnapEndSeqno.store(snapEnd);
     }
 
     std::deque<MutationResponse*>::iterator itemItr;
@@ -1030,7 +1034,7 @@ bool ActiveStream::isCurrentSnapshotCompleted() const
     // An atomic read of vbucket state without acquiring the
     // reader lock for state should suffice here.
     if (vbucket && vbucket->getState() == vbucket_state_replica) {
-        if (lastSentSnapEndSeqno >= lastReadSeqno) {
+        if (lastSentSnapEndSeqno.load() >= lastReadSeqno) {
             return false;
         }
     }
