@@ -19,4 +19,20 @@
 #include "testapp_client_test.h"
 
 class StatsTest : public TestappClientTest {
+public:
+    void SetUp() {
+        TestappClientTest::SetUp();
+        // Let all tests start with an empty set of stats (There is
+        // a special test case that tests that reset actually work)
+        resetBucket();
+    }
+
+protected:
+    void resetBucket() {
+        MemcachedConnection& conn = getConnection();
+        ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
+        ASSERT_NO_THROW(conn.selectBucket("default"));
+        ASSERT_NO_THROW(conn.stats("reset"));
+        ASSERT_NO_THROW(conn.reconnect());
+    }
 };

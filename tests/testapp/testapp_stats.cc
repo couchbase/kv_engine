@@ -35,6 +35,23 @@ TEST_P(StatsTest, TestDefaultStats) {
     EXPECT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "pid"));
 }
 
+TEST_P(StatsTest, StatsResetIsPrivileged) {
+    MemcachedConnection& conn = getConnection();
+    unique_cJSON_ptr stats;
+
+    try {
+        conn.stats("reset");
+        FAIL() << "reset is a privileged operation";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isAccessDenied());
+    }
+
+    ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
+    ASSERT_NO_THROW(conn.stats("reset"));
+    ASSERT_NO_THROW(conn.reconnect());
+    ASSERT_THROW(conn.stats("reset"), ConnectionError);
+}
+
 TEST_P(StatsTest, TestReset) {
     MemcachedConnection& conn = getConnection();
     unique_cJSON_ptr stats;
@@ -58,7 +75,7 @@ TEST_P(StatsTest, TestReset) {
     EXPECT_NE(before, count->valueint);
 
     // the cmd_get counter does work.. now check that reset sets it back..
-    ASSERT_NO_THROW(conn.stats("reset"));
+    resetBucket();
 
     ASSERT_NO_THROW(stats = conn.stats(""));
     count = cJSON_GetObjectItem(stats.get(), "cmd_get");
@@ -68,6 +85,8 @@ TEST_P(StatsTest, TestReset) {
 
     // Just ensure that the "reset timings" is detected
     // @todo add a separate test case for cmd timings stats
+    ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
+    ASSERT_NO_THROW(conn.selectBucket("default"));
     EXPECT_NO_THROW(stats = conn.stats("reset timings"));
 
     // Just ensure that the "reset bogus" is detected..
@@ -77,6 +96,7 @@ TEST_P(StatsTest, TestReset) {
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isInvalidArguments());
     }
+    ASSERT_NO_THROW(conn.reconnect());
 }
 
 /**
@@ -87,9 +107,8 @@ TEST_P(StatsTest, TestReset) {
  */
 TEST_P(StatsTest, Test_MB_17815) {
     MemcachedConnection& conn = getConnection();
-    unique_cJSON_ptr stats;
 
-    ASSERT_NO_THROW(conn.stats("reset"));
+    unique_cJSON_ptr stats;
 
     ASSERT_NO_THROW(stats = conn.stats(""));
     auto* count = cJSON_GetObjectItem(stats.get(), "cmd_set");
@@ -166,7 +185,7 @@ TEST_P(StatsTest, TestAuditNoAccess) {
 
 TEST_P(StatsTest, TestAudit) {
     MemcachedConnection& conn = getConnection();
-    conn.authenticate("_admin", "password", "PLAIN");
+    ASSERT_NO_THROW(conn.authenticate("_admin", "password", "PLAIN"));
 
     unique_cJSON_ptr stats;
     ASSERT_NO_THROW(stats = conn.stats("audit"));
@@ -182,7 +201,7 @@ TEST_P(StatsTest, TestAudit) {
     EXPECT_EQ(cJSON_Number, dropped->type);
     EXPECT_EQ(0, dropped->valueint);
 
-    conn.reconnect();
+    ASSERT_NO_THROW(conn.reconnect());
 }
 
 TEST_P(StatsTest, TestBucketDetailsNoAccess) {
@@ -296,7 +315,7 @@ TEST_P(StatsTest, TestConnectionsInvalidNumber) {
 
 TEST_P(StatsTest, TestTopkeys) {
     MemcachedConnection& conn = getConnection();
-    ASSERT_NO_THROW(conn.stats("reset"));
+
     try {
         for (int ii = 0; ii < 10; ++ii) {
             Document doc;
@@ -322,7 +341,7 @@ TEST_P(StatsTest, TestTopkeys) {
 
 TEST_P(StatsTest, TestTopkeysJson) {
     MemcachedConnection& conn = getConnection();
-    ASSERT_NO_THROW(conn.stats("reset"));
+
     try {
         for (int ii = 0; ii < 10; ++ii) {
             Document doc;

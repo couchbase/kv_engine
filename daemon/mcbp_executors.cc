@@ -3345,7 +3345,7 @@ static void stat_executor(McbpConnection* c, void*) {
      * statistics
      */
     static std::unordered_map<std::string, struct stat_handler> handlers = {
-        {"reset", {false, stat_reset_executor}},
+        {"reset", {true, stat_reset_executor}},
         {"settings", {false, stat_settings_executor}},
         {"audit", {true, stat_audit_executor}},
         {"bucket_details", {true, stat_bucket_details_executor}},
