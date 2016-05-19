@@ -1250,8 +1250,6 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
               options = FDB_ITR_NONE;
               validFilter = true;
               break;
-          case DocumentFilter::ONLY_DELETES:
-              break;
      }
 
      if (!validFilter) {

@@ -226,8 +226,7 @@ enum scan_error_t {
 
 enum class DocumentFilter {
     ALL_ITEMS,
-    NO_DELETES,
-    ONLY_DELETES
+    NO_DELETES
 };
 
 enum class ValueFilter {

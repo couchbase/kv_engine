@@ -1263,9 +1263,6 @@ scan_error_t CouchKVStore::scan(ScanContext* ctx) {
         case DocumentFilter::NO_DELETES:
             options = COUCHSTORE_NO_DELETES;
             break;
-        case DocumentFilter::ONLY_DELETES:
-            options = COUCHSTORE_DELETES_ONLY;
-            break;
         case DocumentFilter::ALL_ITEMS:
             options = COUCHSTORE_NO_OPTIONS;
             break;
