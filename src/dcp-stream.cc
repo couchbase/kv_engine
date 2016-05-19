@@ -145,15 +145,13 @@ bool DCPBackfill::run() {
 
     uint64_t lastPersistedSeqno =
         engine->getEpStore()->getLastPersistedSeqno(vbid);
-    uint64_t diskSeqno =
-        engine->getEpStore()->getRWUnderlying(vbid)->getLastPersistedSeqno(vbid);
 
     if (lastPersistedSeqno < endSeqno) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Rescheduling backfill "
             "because backfill up to seqno %llu is needed but only up to "
-            "%llu is persisted (disk %llu)",
+            "%llu is persisted",
             static_cast<ActiveStream*>(stream.get())->logHeader(), vbid,
-            endSeqno, lastPersistedSeqno, diskSeqno);
+            endSeqno, lastPersistedSeqno);
         snooze(DCP_BACKFILL_SLEEP_TIME);
         return true;
     }
@@ -172,9 +170,9 @@ bool DCPBackfill::run() {
 
     LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") "
         "Backfill task (%" PRIu64 " to %" PRIu64 ") "
-        "finished. disk seqno %" PRIu64 " memory seqno %" PRIu64 "",
+        "finished. memory seqno %" PRIu64,
         static_cast<ActiveStream*>(stream.get())->logHeader(), vbid,
-        startSeqno, endSeqno, diskSeqno, lastPersistedSeqno);
+        startSeqno, endSeqno, lastPersistedSeqno);
 
     return false;
 }
