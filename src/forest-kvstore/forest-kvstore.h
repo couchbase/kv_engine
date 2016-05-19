@@ -170,7 +170,7 @@ class ForestKVStore : public KVStore
     void get(const std::string& key, uint16_t vb, Callback<GetValue>& cb,
              bool fetchDelete = false) override;
 
-    void getWithHeader(void* dbHandle, const std::string& key,
+    void getWithHeader(void* handle, const std::string& key,
                        uint16_t vb, Callback<GetValue>& cb,
                        bool fetchDelete = false) override;
 
@@ -244,6 +244,21 @@ class ForestKVStore : public KVStore
     uint16_t getDBFileId(const protocol_binary_request_compact_db& req) override {
         return ntohs(req.message.body.db_file_id);
     }
+
+    /**
+     * Callback that is invoked by FDB api: fdb_changes_since
+     *
+     * @param handle pointer to handle for the KV store
+     * @param doc pointer to the document
+     * @param ctx context set by the caller
+     *
+     * return:
+     *      FDB_CHANGES_CLEAN   : Success, fdb_doc freed by API
+     *      FDB_CHANGES_PRESERVE: Success, fdb_doc will need to be freed by caller
+     *      FDB_CHANGES_CANCEL  : Failure, fdb_doc freed by API, API stops iteration
+     */
+    static fdb_changes_decision recordChanges(fdb_kvs_handle* handle,
+                                              fdb_doc* doc, void* ctx);
 
     /**
      * Callback invoked at compaction time on the database file to purge
