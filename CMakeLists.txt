@@ -188,6 +188,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
   tests/module_tests/dcp_test.cc
   tests/module_tests/evp_engine_test.cc
   tests/module_tests/evp_store_test.cc
+  tests/module_tests/evp_store_single_threaded_test.cc
   src/access_scanner.cc
   src/atomic.cc
   src/backfill.cc

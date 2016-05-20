@@ -103,9 +103,6 @@ void EventuallyPersistentStoreTest::SetUp() {
     // Need to initialize ep_real_time and friends.
     initialize_time_functions(get_mock_server_api()->core);
 
-    // Have all the objects, activate vBucket zero so we can store data.
-    store->setVBucketState(vbid, vbucket_state_active, false);
-
     cookie = create_mock_cookie();
 }
 
@@ -135,6 +132,10 @@ class EPStoreEvictionTest : public EventuallyPersistentStoreTest,
     void SetUp() override {
         config_string += std::string{"item_eviction_policy="} + GetParam();
         EventuallyPersistentStoreTest::SetUp();
+
+        // Have all the objects, activate vBucket zero so we can store data.
+        store->setVBucketState(vbid, vbucket_state_active, false);
+
     }
 };
 
