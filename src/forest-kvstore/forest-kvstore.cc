@@ -111,6 +111,11 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
      */
     fileConfig.seqtree_opt = FDB_SEQTREE_USE;
 
+    /* Enable compression of document body in order to occupy less
+     * space on disk
+     */
+    fileConfig.compress_document_body = true;
+
     initForestDb();
 
     status = fdb_open(&dbFileHandle, dbFile.str().c_str(), &fileConfig);
