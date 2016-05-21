@@ -60,7 +60,7 @@ public:
      * @param cb  persistence callback
      * @param del flag indicating if it is an item deletion or not
      */
-    ForestRequest(const Item &it, MutationRequestCallback &cb, bool del);
+    ForestRequest(const Item& it, MutationRequestCallback& cb, bool del);
 
     /**
      * Destructor
@@ -90,14 +90,14 @@ class ForestKVStore : public KVStore
      *
      * @param config    Configuration information
      */
-    ForestKVStore(KVStoreConfig &config);
+    ForestKVStore(KVStoreConfig& config);
 
     /**
      * Copy constructor
      *
      * @param from the source kvstore instance
      */
-    ForestKVStore(const ForestKVStore &from);
+    ForestKVStore(const ForestKVStore& from);
 
     /**
      * Destructor
@@ -156,7 +156,7 @@ class ForestKVStore : public KVStore
      * @param itm instance representing the document to be inserted or updated
      * @param cb callback instance for SET
      */
-    void set(const Item &itm, Callback<mutation_result> &cb) override;
+    void set(const Item& itm, Callback<mutation_result>& cb) override;
 
     /**
      * Retrieve the document with a given key from the underlying storage system.
@@ -167,11 +167,11 @@ class ForestKVStore : public KVStore
      * @param fetchDelete True if we want to retrieve a deleted item if it not
      *        purged yet.
      */
-    void get(const std::string &key, uint16_t vb, Callback<GetValue> &cb,
+    void get(const std::string& key, uint16_t vb, Callback<GetValue>& cb,
              bool fetchDelete = false) override;
 
-    void getWithHeader(void *dbHandle, const std::string &key,
-                       uint16_t vb, Callback<GetValue> &cb,
+    void getWithHeader(void* dbHandle, const std::string& key,
+                       uint16_t vb, Callback<GetValue>& cb,
                        bool fetchDelete = false) override;
 
     /**
@@ -180,7 +180,7 @@ class ForestKVStore : public KVStore
      * @param vb vbucket id of a document
      * @param itms list of items whose documents are going to be retrieved
      */
-    void getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) override;
+    void getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) override;
 
     /**
      * Get the number of the vbuckets in the underlying database file
@@ -197,7 +197,7 @@ class ForestKVStore : public KVStore
      * @param itm instance representing the document to be deleted
      * @param cb callback instance for DELETE
      */
-    void del(const Item &itm, Callback<int> &cb) override;
+    void del(const Item& itm, Callback<int>& cb) override;
 
     /**
      * Delete a given vbucket database instance from the
@@ -213,7 +213,7 @@ class ForestKVStore : public KVStore
      * @return vbucket state vector instance where key is vbucket id and
      * value is vbucket state
      */
-    std::vector<vbucket_state *>  listPersistedVbuckets(void) override;
+    std::vector<vbucket_state *> listPersistedVbuckets(void) override;
 
     /**
      * Persist a snapshot of the vbucket states in the underlying storage system.
@@ -223,7 +223,7 @@ class ForestKVStore : public KVStore
      * @param options - options used for persisting state to disk
      * @return true if the snapshot is done successfully
      */
-    bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+    bool snapshotVBucket(uint16_t vbucketId, vbucket_state& vbstate,
                          VBStatePersist options) override;
 
     /**
@@ -233,7 +233,7 @@ class ForestKVStore : public KVStore
      *
      * @return false if the compaction fails; true if successful
      */
-    bool compactDB(compaction_ctx *ctx) override;
+    bool compactDB(compaction_ctx* ctx) override;
 
     /**
      * Return the database file id from the compaction request
@@ -263,11 +263,11 @@ class ForestKVStore : public KVStore
      *
      * returns a decision whether to keep or move the document
      */
-    static fdb_compact_decision compaction_cb(fdb_file_handle *fhandle,
+    static fdb_compact_decision compaction_cb(fdb_file_handle* fhandle,
                                               fdb_compaction_status status,
-                                              const char *kv_name,
-                                              const fdb_doc *doc, uint64_t old_offset,
-                                              uint64_t new_offset, void *ctx);
+                                              const char* kv_name,
+                                              const fdb_doc* doc, uint64_t old_offset,
+                                              uint64_t new_offset, void* ctx);
 
     vbucket_state *getVBucketState(uint16_t vbid) override;
 
@@ -335,7 +335,7 @@ class ForestKVStore : public KVStore
      */
     DBFileInfo getAggrDbFileInfo() override;
 
-    ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string &start_key,
+    ENGINE_ERROR_CODE getAllKeys(uint16_t vbid, std::string& start_key,
                                  uint32_t count,
                                  std::shared_ptr<Callback<uint16_t&, char*&> > cb) override;
 
@@ -345,21 +345,21 @@ class ForestKVStore : public KVStore
                                  DocumentFilter options,
                                  ValueFilter valOptions) override;
 
-    scan_error_t scan(ScanContext *sctx) override;
+    scan_error_t scan(ScanContext* sctx) override;
 
-    void destroyScanContext(ScanContext *ctx) override;
+    void destroyScanContext(ScanContext* ctx) override;
 
 private:
     bool intransaction;
     const std::string dbname;
     uint64_t dbFileRevNum;
-    fdb_file_handle *dbFileHandle;
+    fdb_file_handle* dbFileHandle;
     std::unordered_map<uint16_t, fdb_kvs_handle *> writeHandleMap;
     std::unordered_map<uint16_t, fdb_kvs_handle *> readHandleMap;
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
     Couchbase::RelaxedAtomic<uint64_t> cachedFileSize;
     Couchbase::RelaxedAtomic<uint64_t> cachedSpaceUsed;
-    fdb_kvs_handle *vbStateHandle;
+    fdb_kvs_handle* vbStateHandle;
     fdb_config fileConfig;
     fdb_kvs_config kvsConfig;
     std::vector<ForestRequest *> pendingReqsQ;
@@ -376,10 +376,10 @@ private:
     void initForestDb();
     void shutdownForestDb();
     ENGINE_ERROR_CODE readVBState(uint16_t vbId);
-    fdb_kvs_handle *getKvsHandle(uint16_t vbId, handleType htype);
+    fdb_kvs_handle* getKvsHandle(uint16_t vbId, handleType htype);
     bool save2forestdb();
     void updateFileInfo();
-    GetValue docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc, uint16_t vbId,
+    GetValue docToItem(fdb_kvs_handle* kvsHandle, fdb_doc* rdoc, uint16_t vbId,
                        bool metaOnly = false, bool fetchDelete = false);
     ENGINE_ERROR_CODE forestErr2EngineErr(fdb_status errCode);
     size_t getNumItems(fdb_kvs_handle* kvsHandle,
