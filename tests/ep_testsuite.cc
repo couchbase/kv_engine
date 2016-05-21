@@ -5794,6 +5794,12 @@ static void force_vbstate_to_25x(std::string dbname, int vbucket) {
 // we warmup 2 vbuckets and ensure they get unique IDs.
 static enum test_result test_mb19635_upgrade_from_25x(ENGINE_HANDLE *h,
                                                       ENGINE_HANDLE_V1 *h1) {
+
+    std::string backend = get_str_stat(h, h1, "ep_backend");
+    if (backend == "forestdb") {
+        return SKIPPED;
+    }
+
     std::string dbname = get_dbname(testHarness.get_current_testcase()->cfg);
 
     force_vbstate_to_25x(dbname, 0);
