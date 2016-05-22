@@ -1766,7 +1766,7 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     // such that we have 1000 items - enough to give us 0.1%
     // granuarity in any residency calculations. */
     if (i < 1000) {
-        std::cerr << "Error: test_dcp_producer_stream_backfill_no_value: "
+        std::cerr << "Error: test_dcp_producer_stream_req_dgm: "
             "expected at least 1000 items after filling vbucket, "
             "but only have " << i << ". "
             "Check max_size setting for test." << std::endl;
@@ -1774,12 +1774,13 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     }
 
     wait_for_flusher_to_settle(h, h1);
+
     verify_curr_items(h, h1, i, "Wrong number of items");
     int num_non_resident = get_int_stat(h, h1, "vb_active_num_non_resident");
     cb_assert(num_non_resident >= ((float)(50/100) * i));
 
-    // Reduce max_size from 2,000,000 to 1,800,000
-    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "1800000");
+    // Reduce max_size from 6291456 to 6000000
+    set_param(h, h1, protocol_binary_engine_param_flush, "max_size", "6000000");
     cb_assert(get_int_stat(h, h1, "vb_active_perc_mem_resident") < 50);
 
     const void *cookie = testHarness.create_cookie();
@@ -5311,7 +5312,7 @@ BaseTestCase testsuite_testcases[] = {
                  "chk_remover_stime=1;chk_max_items=100", prepare, cleanup),
         TestCase("test producer stream request (DGM)",
                  test_dcp_producer_stream_req_dgm, test_setup, teardown,
-                 "chk_remover_stime=1;max_size=2000000", prepare, cleanup),
+                 "chk_remover_stime=1;max_size=6291456", prepare, cleanup),
         TestCase("test producer stream request (latest flag)",
                  test_dcp_producer_stream_latest, test_setup, teardown, NULL,
                  prepare, cleanup),
@@ -5333,7 +5334,7 @@ BaseTestCase testsuite_testcases[] = {
                     create at least 1000 items when our residency
                     ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
-                 "chk_remover_stime=1;max_size=2000000", prepare, cleanup),
+                 "chk_remover_stime=1;max_size=6291456", prepare, cleanup),
         TestCase("test dcp value compression",
                  test_dcp_value_compression, test_setup, teardown,
                  "dcp_value_compression_enabled=true",
@@ -5343,7 +5344,7 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                     create at least 1000 items when our residency
                     ratio gets to 80%. See test body for more details. */
-                 teardown, "chk_remover_stime=1;max_size=2500000", prepare,
+                 teardown, "chk_remover_stime=1;max_size=6291456", prepare,
                  cleanup),
         TestCase("test producer stream request mem no value",
                  test_dcp_producer_stream_mem_no_value, test_setup, teardown,
