@@ -806,7 +806,7 @@ extern "C" {
 
     static void compact_thread_func(void *args) {
         struct mb16357_ctx *ctx = static_cast<mb16357_ctx *>(args);
-        compact_db(ctx->h, ctx->h1, 0, 99, ctx->items, 1);
+        compact_db(ctx->h, ctx->h1, 0, 0, 99, ctx->items, 1);
     }
 
     static void seqno_persistence_thread(void *arg) {
@@ -4469,7 +4469,7 @@ static enum test_result test_dcp_last_items_purged(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     /* Run compaction */
-    compact_db(h, h1, 0, 2, high_seqno, 1);
+    compact_db(h, h1, 0, 0, 2, high_seqno, 1);
     wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
     check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") ==
             static_cast<int>(high_seqno - 1),
@@ -4550,7 +4550,7 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 
     /* Run compaction */
-    compact_db(h, h1, 0, 2, high_seqno, 1);
+    compact_db(h, h1, 0, 0, 2, high_seqno, 1);
     wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
     check(get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno") ==
             static_cast<int>(high_seqno - 1),

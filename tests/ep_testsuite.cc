@@ -918,7 +918,7 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
     testHarness.time_travel(15);
 
     // Compaction on VBucket
-    compact_db(h, h1, 0, 0, 0, 0);
+    compact_db(h, h1, 0, 0, 0, 0, 0);
     wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
 
     checkeq(50, get_int_stat(h, h1, "ep_expired_compactor"),
@@ -1329,7 +1329,7 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
             "purge_seqno not found to be zero before compaction");
 
     // Compaction on VBucket
-    compact_db(h, h1, 0, 2, 3, 1);
+    compact_db(h, h1, 0, 0, 2, 3, 1);
 
     wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
 
@@ -1363,12 +1363,13 @@ struct comp_thread_ctx {
     ENGINE_HANDLE *h;
     ENGINE_HANDLE_V1 *h1;
     uint16_t vbid;
+    uint16_t db_file_id;
 };
 
 extern "C" {
     static void compaction_thread(void *arg) {
         struct comp_thread_ctx *ctx = static_cast<comp_thread_ctx *>(arg);
-        compact_db(ctx->h, ctx->h1, ctx->vbid, 0, 0, 0);
+        compact_db(ctx->h, ctx->h1, ctx->vbid, ctx->db_file_id, 0, 0, 0);
     }
 }
 
@@ -1408,10 +1409,14 @@ static enum test_result test_multiple_vb_compactions(ENGINE_HANDLE *h,
     cb_thread_t threads[n_threads];
     struct comp_thread_ctx ctx[n_threads];
 
+    const int num_shards = get_int_stat(h, h1, "ep_workload:num_shards",
+                                        "workload");
+
     for (int i = 0; i < n_threads; i++) {
         ctx[i].h = h;
         ctx[i].h1 = h1;
         ctx[i].vbid = static_cast<uint16_t>(i);
+        ctx[i].db_file_id = ctx[i].vbid % num_shards;
         int r = cb_create_thread(&threads[i], compaction_thread, &ctx[i], 0);
         cb_assert(r == 0);
     }
@@ -2347,7 +2352,7 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
                 "Expected bgFetch attempts to increase by five");
 
         // Run compaction, with drop_deletes
-        compact_db(h, h1, 0, 15, 15, 1);
+        compact_db(h, h1, 0, 0, 15, 15, 1);
         while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
@@ -2376,7 +2381,7 @@ static enum test_result test_bloomfilters(ENGINE_HANDLE *h,
 
         // Run compaction, with drop_deletes, to exclude deleted items
         // from bloomfilter.
-        compact_db(h, h1, 0, 15, 15, 1);
+        compact_db(h, h1, 0, 0, 15, 15, 1);
         while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {
             decayingSleep(&sleepTime);
         }
@@ -5369,7 +5374,7 @@ static enum test_result test_expired_item_with_item_eviction(ENGINE_HANDLE *h,
     testHarness.time_travel(11);
 
     // Compaction on VBucket 0
-    compact_db(h, h1, 0, 10, 10, 0);
+    compact_db(h, h1, 0, 0, 10, 10, 0);
 
     useconds_t sleepTime = 128;
     while (get_int_stat(h, h1, "ep_pending_compactions") != 0) {

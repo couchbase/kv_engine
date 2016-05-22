@@ -288,6 +288,7 @@ void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
 
 void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                 const uint16_t vbid,
+                const uint16_t db_file_id,
                 const uint64_t purge_before_ts,
                 const uint64_t purge_before_seq,
                 const uint8_t  drop_deletes);

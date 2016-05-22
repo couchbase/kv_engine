@@ -1012,6 +1012,7 @@ void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 
 void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                      const uint16_t vbucket_id,
+                     const uint16_t db_file_id,
                      const uint64_t purge_before_ts,
                      const uint64_t purge_before_seq,
                      const uint8_t  drop_deletes) {
@@ -1021,11 +1022,21 @@ void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     req.message.body.purge_before_seq = htonll(purge_before_seq);
     req.message.body.drop_deletes     = drop_deletes;
 
+    std::string backend = get_str_stat(h, h1, "ep_backend");
+    uint16_t vbid;
+
+    if (backend == "forestdb") {
+        req.message.body.db_file_id = db_file_id;
+        vbid = 0xFFFF;
+    } else {
+        vbid = vbucket_id;
+    }
+
     const char *args = (const char *)&(req.message.body);
     uint32_t argslen = 24;
 
     protocol_binary_request_header *pkt =
-        createPacket(PROTOCOL_BINARY_CMD_COMPACT_DB, vbucket_id, 0, args, argslen,  NULL, 0,
+        createPacket(PROTOCOL_BINARY_CMD_COMPACT_DB, vbid, 0, args, argslen,  NULL, 0,
                      NULL, 0);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request compact vbucket");
