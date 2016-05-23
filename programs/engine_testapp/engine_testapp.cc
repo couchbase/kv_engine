@@ -1247,6 +1247,17 @@ static int spawn_and_wait(int argc, char* const argv[]) {
     DWORD exit_code;
     GetExitCodeProcess(pinfo.hProcess, &exit_code);
 
+    // remap some of the error codes:
+    if (exit_code == EXIT_FAILURE || exit_code == 3) {
+        // according to https://msdn.microsoft.com/en-us/library/k089yyh0.aspx
+        // abort() will call _exit(3) if no handler is called
+        exit_code = int(FAIL);
+    } else if (exit_code == 255) {
+        // If you click the "terminate program" button in the dialog
+        // opened that allows you debug a program, 255 is returned
+        exit_code = int(DIED);
+    }
+
     // Close process and thread handles.
     CloseHandle(pinfo.hProcess);
     CloseHandle(pinfo.hThread);
