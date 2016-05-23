@@ -197,7 +197,8 @@ void VBucket::setState(vbucket_state_t to) {
         checkpointManager.setOpenCheckpointId(2);
     }
 
-    LOG(EXTENSION_LOG_DEBUG, "transitioning vbucket %" PRIu16 " from %s to %s",
+    LOG(EXTENSION_LOG_NOTICE,
+        "VBucket::setState: transitioning vbucket:%" PRIu16 " from:%s to:%s",
         id, VBucket::toString(oldstate), VBucket::toString(to));
 
     state = to;
