@@ -1289,8 +1289,7 @@ bool EventuallyPersistentStore::persistVBState(const Priority &priority,
 ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                            vbucket_state_t to,
                                                            bool transfer,
-                                                           bool notify_dcp,
-                                                           bool force_persist) {
+                                                           bool notify_dcp) {
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -1341,8 +1340,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
             ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
         }
-        scheduleVBStatePersist(Priority::VBucketPersistLowPriority, vbid,
-                               force_persist);
+        scheduleVBStatePersist(Priority::VBucketPersistLowPriority, vbid);
     } else if (vbid < vbMap.getSize()) {
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
@@ -1371,8 +1369,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vbMap.setPersistenceSeqno(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
         lh.unlock();
-        scheduleVBStatePersist(Priority::VBucketPersistHighPriority, vbid,
-                               force_persist);
+        scheduleVBStatePersist(Priority::VBucketPersistHighPriority, vbid);
     } else {
         return ENGINE_ERANGE;
     }
@@ -1725,16 +1722,7 @@ bool EventuallyPersistentStore::resetVBucket(uint16_t vbid) {
 
         // Delete and recreate the vbucket database file
         scheduleVBDeletion(vb, NULL, 0, /* clearVbCreateFlag */ false);
-
-        // MB-19695: We set force_persist:true as we require the VBstate
-        // go to disk to re-create the database file.
-        // If we don't, and another VBStatePersistTask has just been selected
-        // for running (but not yet cleared the schedule_vbstate_persist[vbid]
-        // flag) then we could end up with the persist happening before the
-        // VBDeletion, and the file never getting re-created.
-        setVBucketState(vbid, vbstate, /*transfer*/false,
-                        /*notify_dcp:default*/true,
-                        /*force_persist*/true);
+        setVBucketState(vbid, vbstate, false);
 
         // Copy the all cursors from the old vbucket into the new vbucket
         RCPtr<VBucket> newvb = vbMap.getBucket(vbid);

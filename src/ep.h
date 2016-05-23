@@ -529,15 +529,9 @@ public:
     void snapshotVBuckets(const Priority &priority, uint16_t shardId);
 
     /* transfer should be set to true *only* if this vbucket is becoming master
-     * as the result of the previous master cleanly handing off control.
-     * @param force_persist: Should the VBstate be forcefully persisted to disk,
-     *                       even if another VBStatePersistTask is already
-     *                       scheduled.
-     */
+     * as the result of the previous master cleanly handing off control. */
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state,
-                                      bool transfer,
-                                      bool notify_dcp = true,
-                                      bool force_persist = false);
+                                      bool transfer, bool notify_dcp = true);
 
     /**
      * Physically deletes a VBucket from disk. This function should only
