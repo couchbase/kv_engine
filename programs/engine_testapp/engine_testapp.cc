@@ -1224,8 +1224,7 @@ static int spawn_and_wait(int argc, char* const argv[]) {
         offset += sprintf(offset, "%s ", argv[i]);
     }
 
-    if (!CreateProcess(argv[0], commandline, NULL, NULL, FALSE,
-                       CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
+    if (!CreateProcess(argv[0], commandline, NULL, NULL, FALSE, 0,
                        NULL, NULL, &sinfo, &pinfo)) {
         LPVOID error_msg;
         DWORD err = GetLastError();
