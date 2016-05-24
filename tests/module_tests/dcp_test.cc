@@ -15,18 +15,22 @@
  *   limitations under the License.
  */
 
+/*
+ * Unit test for DCP-related classes.
+ *
+ * Due to the way our classes are structured, most of the different DCP classes
+ * need an instance of EventuallyPersistentStore & other related objects.
+ */
+
 #include "connmap.h"
 #include "dcp/dcpconnmap.h"
 #include "dcp/producer.h"
 #include "dcp/stream.h"
+#include "evp_engine_test.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "../mock/mock_dcp.h"
 
-#include <platform/dirutils.h>
-
 #include <gtest/gtest.h>
-
-static const char test_dbname[] = "dcp_test_db";
 
 // Mock of the ActiveStream class. Wraps the real ActiveStream, but exposes
 // normally protected methods publically for test purposes.
@@ -147,32 +151,10 @@ public:
     }
 };
 
-class DCPTest : public ::testing::Test {
+class DCPTest : public EventuallyPersistentEngineTest {
 protected:
-    void SetUp() {
-        // Paranoia - kill any existing files in case they are left over
-        // from a previous run.
-        CouchbaseDirectoryUtilities::rmrf(test_dbname);
-
-        // Setup an engine with a single active vBucket.
-        EXPECT_EQ(ENGINE_SUCCESS,
-                  create_instance(1, get_mock_server_api, &handle))
-            << "Failed to create ep engine instance";
-        EXPECT_EQ(1, handle->interface) << "Unexpected engine handle version";
-        engine_v1 = reinterpret_cast<ENGINE_HANDLE_V1*>(handle);
-
-        engine = reinterpret_cast<EventuallyPersistentEngine*>(handle);
-        ObjectRegistry::onSwitchThread(engine);
-        std::string config = "dbname=" + std::string(test_dbname);
-        EXPECT_EQ(ENGINE_SUCCESS, engine->initialize(config.c_str()))
-            << "Failed to initialize engine.";
-
-        engine->setVBucketState(vbid, vbucket_state_active, false);
-
-        // Wait for warmup to complete.
-        while (engine->getEpStore()->isWarmingUp()) {
-            usleep(10);
-        }
+    void SetUp() override {
+        EventuallyPersistentEngineTest::SetUp();
 
         // Set AuxIO threads to zero, so that the producer's
         // ActiveStreamCheckpointProcesserTask doesn't run.
@@ -182,21 +164,7 @@ protected:
         ExecutorPool::get()->setMaxNonIO(0);
     }
 
-    void TearDown() {
-        // Need to force the destroy (i.e. pass true) because
-        // we have disabled NonIO threads.
-        engine_v1->destroy(handle, true);
-        destroy_mock_event_callbacks();
-        destroy_engine();
-        // Cleanup any files we created.
-        CouchbaseDirectoryUtilities::rmrf(test_dbname);
-    }
-
-    const uint16_t vbid = 0;
-
-    ENGINE_HANDLE* handle;
-    ENGINE_HANDLE_V1* engine_v1;
-    EventuallyPersistentEngine* engine;
+    // Use TearDown from parent class
 };
 
 class StreamTest : public DCPTest {
@@ -236,16 +204,6 @@ protected:
     RCPtr<VBucket> vb0;
 };
 
-static void store_item(EventuallyPersistentEngine& engine,
-                       const uint16_t vbid, const std::string& key,
-                       const std::string& value) {
-    Item item(key.c_str(), key.size(), /*flags*/0, /*exp*/0, value.c_str(),
-              value.size());
-    uint64_t cas;
-    EXPECT_EQ(ENGINE_SUCCESS,
-              engine.store(NULL, &item, &cas, OPERATION_SET, vbid));
-}
-
 /* Regression test for MB-17766 - ensure that when an ActiveStream is preparing
  * queued items to be sent out via a DCP consumer, that nextCheckpointItem()
  * doesn't incorrectly return false (meaning that there are no more checkpoint
@@ -254,7 +212,7 @@ static void store_item(EventuallyPersistentEngine& engine,
 TEST_F(StreamTest, test_mb17766) {
 
     // Add an item.
-    store_item(*engine, vbid, "key", "value");
+    store_item(vbid, "key", "value");
 
     setup_dcp_stream();
 
@@ -289,7 +247,7 @@ TEST_F(StreamTest, MB17653_ItemsRemaining) {
     // mutation being added to the checkpoint items.
     const int set_op_count = 10;
     for (unsigned int ii = 0; ii < set_op_count; ii++) {
-        store_item(*engine, vbid, "key", "value");
+        store_item(vbid, "key", "value");
     }
 
     setup_dcp_stream();
@@ -311,7 +269,7 @@ TEST_F(StreamTest, MB17653_ItemsRemaining) {
     // items and put into the streams' ready queue, de-duplication of this new
     // mutation (from the point of view of the stream) isn't possible, so items
     // remaining should increase by one.
-    store_item(*engine, vbid, "key", "value");
+    store_item(vbid, "key", "value");
     EXPECT_EQ(2, mock_stream->getItemsRemaining())
         << "Mismatch after populating readyQ and storing 1 more item";
 
@@ -336,7 +294,7 @@ TEST_F(StreamTest, MB17653_ItemsRemaining) {
     // us having one more item (not 10) due to de-duplication in
     // checkpoints.
     for (unsigned int ii = 0; ii < set_op_count; ii++) {
-        store_item(*engine, vbid, "key_2", "value");
+        store_item(vbid, "key_2", "value");
     }
 
     EXPECT_EQ(2, mock_stream->getItemsRemaining())
@@ -355,7 +313,7 @@ TEST_F(StreamTest, MB17653_ItemsRemaining) {
 TEST_F(StreamTest, test_mb18625) {
 
     // Add an item.
-    store_item(*engine, vbid, "key", "value");
+    store_item(vbid, "key", "value");
 
     setup_dcp_stream();
 
@@ -872,18 +830,4 @@ TEST_F(NotifyTest, test_mb19503_connmap_notify_paused) {
     //    paused this time we *should* get a callback.
     notifyTest.connMap->notifyAllPausedConnections();
     EXPECT_EQ(1, notifyTest.getCallbacks());
-}
-
-
-/* static storage for environment variable set by putenv(). */
-static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
-
-int main(int argc, char **argv) {
-    (void)argc; (void)argv;
-
-    putenv(allow_no_stats_env);
-    init_mock_server(/*log to stderr*/false);
-
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
 }

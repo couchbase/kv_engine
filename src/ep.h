@@ -945,7 +945,6 @@ protected:
                                       const hrtime_t startTime,
                                       VBucketBGFetchItem& fetched_item);
 
-private:
     /**
      * Compaction of a database file
      *

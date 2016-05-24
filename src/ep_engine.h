@@ -858,7 +858,6 @@ protected:
         getlMaxTimeout = value;
     }
 
-private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                              GET_SERVER_API get_server_api,
