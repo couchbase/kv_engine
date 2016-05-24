@@ -660,6 +660,7 @@ static void usage(void) {
     printf("                             .dll) that contains the set of tests\n");
     printf("                             to be executed.\n");
     printf("\n");
+    printf("-a <attempts>                Maximum number of attempts for a test.\n");
     printf("-t <timeout>                 Maximum time to run a test.\n");
     printf("-e <engine_config>           Engine configuration string passed to\n");
     printf("                             the engine.\n");
@@ -711,6 +712,10 @@ static int report_test(const char *name, time_t duration, enum test_result r, bo
     case PENDING:
         color = 33;
         msg = "PENDING";
+        break;
+    case SUCCESS_AFTER_RETRY:
+        msg="OK AFTER RETRY";
+        color = 33;
         break;
     default:
         color = 31;
@@ -1061,8 +1066,7 @@ static int spawn_and_wait(int argc, char* const argv[]) {
         offset += sprintf(offset, "%s ", argv[i]);
     }
 
-    if (!CreateProcess(argv[0], commandline, NULL, NULL, FALSE,
-                       CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW,
+    if (!CreateProcess(argv[0], commandline, NULL, NULL, FALSE, 0,
                        NULL, NULL, &sinfo, &pinfo)) {
         LPVOID error_msg;
         DWORD err = GetLastError();
@@ -1084,6 +1088,17 @@ static int spawn_and_wait(int argc, char* const argv[]) {
     // Get exit code
     DWORD exit_code;
     GetExitCodeProcess(pinfo.hProcess, &exit_code);
+
+    // remap some of the error codes:
+    if (exit_code == EXIT_FAILURE || exit_code == 3) {
+        // according to https://msdn.microsoft.com/en-us/library/k089yyh0.aspx
+        // abort() will call _exit(3) if no handler is called
+        exit_code = int(FAIL);
+    } else if (exit_code == 255) {
+        // If you click the "terminate program" button in the dialog
+        // opened that allows you debug a program, 255 is returned
+        exit_code = int(DIED);
+    }
 
     // Close process and thread handles.
     CloseHandle(pinfo.hProcess);
@@ -1146,6 +1161,12 @@ int main(int argc, char **argv) {
     struct test_harness harness;
     int test_case_id = -1;
 
+    /* If a testcase fails, retry up to 'attempts -1' times to allow it
+       to pass - this is here to allow us to deal with intermittant
+       test failures without having to manually retry the whole
+       job. */
+    int attempts = 1;
+
     /* Hack to remove the warning from C99 */
     union {
         GET_TESTS get_tests;
@@ -1168,6 +1189,14 @@ int main(int argc, char **argv) {
 
     color_enabled = getenv("TESTAPP_ENABLE_COLOR") != NULL;
 
+    /* Allow 'attempts' to also be set via env variable - this allows
+       commit-validation scripts to enable retries for all
+       engine_testapp-driven tests trivually. */
+    const char* attempts_env;
+    if ((attempts_env = getenv("TESTAPP_ATTEMPTS")) != NULL) {
+        attempts = atoi(attempts_env);
+    }
+
     /* Use unbuffered stdio */
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
@@ -1178,6 +1207,7 @@ int main(int argc, char **argv) {
 
     /* process arguments */
     while ((c = getopt(argc, argv,
+                       "a:" /* attempt tests N times before declaring them failed */
                        "h"  /* usage */
                        "E:" /* Engine to load */
                        "e:" /* Engine options */
@@ -1194,6 +1224,9 @@ int main(int argc, char **argv) {
                        "X" /* Use stderr logger */
                        )) != -1) {
         switch (c) {
+        case 'a':
+            attempts = atoi(optarg);
+            break;
         case 's' : {
             int spin = 1;
             while (spin) {
@@ -1378,7 +1411,7 @@ int main(int argc, char **argv) {
             set_test_timeout(timeout);
 
             {
-                enum test_result ecode;
+                enum test_result ecode = FAIL;
                 time_t start;
                 time_t stop;
                 int rc;
@@ -1392,27 +1425,38 @@ int main(int argc, char **argv) {
                     child_argv[i] = &child_args[i][0];
                 }
 
-                start = time(NULL);
-                rc = spawn_and_wait(argc + 2, child_argv.data());
-                stop = time(NULL);
+                for (int attempt = 0;
+                     (attempt < attempts) && ((ecode != SUCCESS) &&
+                                              (ecode != SUCCESS_AFTER_RETRY));
+                     attempt++) {
+                    start = time(NULL);
+                    rc = spawn_and_wait(argc + 2, child_argv.data());
+                    stop = time(NULL);
 
 #ifdef WIN32
-                ecode = (enum test_result)rc;
+                    ecode = (enum test_result)rc;
 #else
-                if (WIFEXITED(rc)) {
-                    ecode = (enum test_result)WEXITSTATUS(rc);
+                    if (WIFEXITED(rc)) {
+                        ecode = (enum test_result)WEXITSTATUS(rc);
 #ifdef WCOREDUMP
-                } else if (WIFSIGNALED(rc) && WCOREDUMP(rc)) {
-                    ecode = CORE;
+                    } else if (WIFSIGNALED(rc) && WCOREDUMP(rc)) {
+                        ecode = CORE;
 #endif
-                } else {
-                    ecode = DIED;
+                    } else {
+                        ecode = DIED;
+                    }
+#endif
+                    /* If we only got SUCCESS after one or more
+                       retries, change result to
+                       SUCCESS_AFTER_RETRY */
+                    if ((ecode == SUCCESS) && (attempt > 0)) {
+                        ecode = SUCCESS_AFTER_RETRY;
+                    }
+                    error = report_test(testcases[i].name,
+                                        stop - start,
+                                        ecode, quiet,
+                                        !verbose);
                 }
-#endif
-                error = report_test(testcases[i].name,
-                                    stop - start,
-                                    ecode, quiet,
-                                    !verbose);
             }
             clear_test_timeout();
 
