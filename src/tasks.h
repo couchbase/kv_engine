@@ -260,12 +260,9 @@ private:
 class VBDeleteTask : public GlobalTask {
 public:
     VBDeleteTask(EventuallyPersistentEngine *e, uint16_t vbid, const void* c,
-                 const Priority &p, bool cvbc = true,
-                 bool completeBeforeShutdown = true) :
+                 const Priority &p, bool completeBeforeShutdown = true) :
         GlobalTask(e, p, 0, completeBeforeShutdown),
-        vbucketId(vbid),
-        cookie(c),
-        clearVbCreateFlag(cvbc) { }
+        vbucketId(vbid), cookie(c) { }
 
     bool run();
 
@@ -278,7 +275,6 @@ public:
 private:
     uint16_t vbucketId;
     const void* cookie;
-    bool clearVbCreateFlag;
 };
 
 /**

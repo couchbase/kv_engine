@@ -89,8 +89,7 @@ bool VBStatePersistTask::run() {
 }
 
 bool VBDeleteTask::run() {
-    return !engine->getEpStore()->completeVBucketDeletion(vbucketId, cookie,
-                                                          clearVbCreateFlag);
+    return !engine->getEpStore()->completeVBucketDeletion(vbucketId, cookie);
 }
 
 bool CompactTask::run() {

@@ -529,26 +529,18 @@ public:
     void snapshotVBuckets(const Priority &priority, uint16_t shardId);
 
     /* transfer should be set to true *only* if this vbucket is becoming master
-     * as the result of the previous master cleanly handing off control.
-     * @param force_persist: Should the VBstate be forcefully persisted to disk,
-     *                       even if another VBStatePersistTask is already
-     *                       scheduled.
-     */
+     * as the result of the previous master cleanly handing off control. */
     ENGINE_ERROR_CODE setVBucketState(uint16_t vbid, vbucket_state_t state,
-                                      bool transfer,
-                                      bool notify_dcp = true,
-                                      bool force_persist = false);
+                                      bool transfer, bool notify_dcp = true);
 
     /**
      * Physically deletes a VBucket from disk. This function should only
      * be called on a VBucket that has already been logically deleted.
      *
-     * @param vbid              vbucket id
-     * @param cookie            The connection that requested the deletion
-     * @param clearVbCreateFlag clear the vbucket creation flag
+     * @param vbid vbucket id
+     * @param cookie The connection that requested the deletion
      */
-    bool completeVBucketDeletion(uint16_t vbid, const void* cookie,
-                                 bool clearVbCreateFlag);
+    bool completeVBucketDeletion(uint16_t vbid, const void* cookie);
 
     /**
      * Deletes a vbucket
@@ -922,8 +914,7 @@ protected:
 
     void scheduleVBDeletion(RCPtr<VBucket> &vb,
                             const void* cookie,
-                            double delay = 0,
-                            bool clearVbCreateFlag = true);
+                            double delay = 0);
 
     /* Queue an item for persistence and replication
      *
