@@ -735,16 +735,19 @@ protected:
         // The test is going to replace a server API method, we must
         // be able to undo that
         sapi = *get_mock_server_api();
+        scookie_api = *get_mock_server_api()->cookie;
         DCPTest::SetUp();
     }
 
     void TearDown() {
         // Reset the server_api for other tests
         *get_mock_server_api() = sapi;
+        *get_mock_server_api()->cookie = scookie_api;
         DCPTest::TearDown();
     }
 
     SERVER_HANDLE_V1 sapi;
+    SERVER_COOKIE_API scookie_api;
     std::unique_ptr<MockDcpConnMap> connMap;
     dcp_producer_t producer;
     int callbacks;

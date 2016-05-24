@@ -4439,7 +4439,7 @@ void EventuallyPersistentEngine::addSeqnoVbStats_UNLOCKED(const void *cookie,
     }
 
     try {
-        char buffer[32];
+        char buffer[64];
         failover_entry_t entry = vb->failovers->getLatestEntry();
         checked_snprintf(buffer, sizeof(buffer), "vb_%d:high_seqno",
                          vb->getId());
