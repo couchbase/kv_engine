@@ -23,6 +23,7 @@
 
 #include <stdlib.h>
 #include <stdexcept>
+#include <string>
 
 #include <memcached/engine.h>
 #include <memcached/visibility.h>
