@@ -1716,47 +1716,6 @@ static enum test_result test_dcp_producer_backfill_limits(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_backfill_mb19428(ENGINE_HANDLE *h,
-                                                           ENGINE_HANDLE_V1 *h1) {
-    const int num_items = 3;
-    write_items(h, h1, num_items);
-
-    wait_for_flusher_to_settle(h, h1);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
-    // Now set VB as dead
-    check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
-          "Failed to set vbucket state.");
-    const void *cookie = testHarness.create_cookie();
-
-    DcpStreamCtx ctx;
-    ctx.flags = DCP_ADD_STREAM_FLAG_DISKONLY;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, static_cast<uint64_t>(-1)};
-    ctx.exp_mutations = 3;
-    ctx.exp_markers = 1;
-    ctx.exp_err = ENGINE_NOT_MY_VBUCKET;
-
-    TestDcpConsumer tdc("unittest", cookie);
-    tdc.addStreamCtx(ctx);
-
-    /* Open the connection with the DCP producer */
-    tdc.openConnection(h, h1);
-
-    /* Open streams in the above open connection */
-    checkeq(ENGINE_NOT_MY_VBUCKET,
-            tdc.openStreams(h, h1),
-            "Expected ENGINE_NOT_MY_VBUCKET from addStream");
-
-    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:backfill_num_active", 0, "dcp");
-    checkeq(uint64_t{0}, get_ull_stat(h, h1,
-            "eq_dcpq:unittest:backfill_buffer_bytes_read", "dcp"),
-            "buffer has data");
-    testHarness.destroy_cookie(cookie);
-
-    return SUCCESS;
-}
-
 static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
     const int num_items = 300, batch_items = 100;
@@ -5633,11 +5592,6 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
                  teardown, NULL, prepare, cleanup),
-
-        TestCase("test dcp producer backfill mb19428",
-                 test_dcp_producer_backfill_mb19428, test_setup, teardown,
-                 NULL, prepare, cleanup),
-
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

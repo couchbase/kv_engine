@@ -309,11 +309,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         }
 
         WriterLockHolder wlh(streamsMutex);
-        if (!notifyOnly) {
-            // MB-19428: Only activate the stream if we are adding it to the
-            // streams map.
-            static_cast<ActiveStream*>(s.get())->setActive();
-        }
+        s->setActive();
         streams[vbucket] = s;
     }
 

@@ -23,11 +23,11 @@
  */
 
 #include "connmap.h"
-#include "dcp/producer.h"
 #include "dcp/stream.h"
 #include "evp_engine_test.h"
 #include "programs/engine_testapp/mock_server.h"
 #include "../mock/mock_dcp.h"
+#include "../mock/mock_dcp_producer.h"
 
 #include <gtest/gtest.h>
 
@@ -90,43 +90,6 @@ public:
         // We do not create a ConnManager task
         // The ConnNotifier is deleted in the DcpConnMap
         // destructor
-    }
-};
-
-/*
- * Mock of the DcpProducer class.  Wraps the real DcpProducer, but exposes
- * normally protected methods publically for test purposes.
- */
-class MockDcpProducer: public DcpProducer {
-public:
-    MockDcpProducer(EventuallyPersistentEngine &theEngine, const void *cookie,
-                    const std::string &name, bool isNotifier)
-    : DcpProducer(theEngine, cookie, name, isNotifier)
-    {}
-
-    ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers)
-    {
-        return DcpProducer::maybeSendNoop(producers);
-    }
-
-    void setNoopSendTime(const rel_time_t timeValue) {
-        noopCtx.sendTime = timeValue;
-    }
-
-    rel_time_t getNoopSendTime() {
-        return noopCtx.sendTime;
-    }
-
-    bool getNoopPendingRecv() {
-        return noopCtx.pendingRecv;
-    }
-
-    void setNoopEnabled(const bool booleanValue) {
-        noopCtx.enabled = booleanValue;
-    }
-
-    bool getNoopEnabled() {
-        return noopCtx.enabled;
     }
 };
 
@@ -646,44 +609,6 @@ TEST_F(ConnectionTest, test_update_of_last_message_time_in_consumer) {
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for setVBucketState";
     destroy_mock_cookie(cookie);
-}
-
-
-// Callback for dcp_add_failover_log
-ENGINE_ERROR_CODE test_dcp_add_failover_log(vbucket_failover_t* entry,
-                                            size_t nentries,
-                                            const void *cookie) {
-    return ENGINE_SUCCESS;
-}
-
-TEST_F(ConnectionTest, test_stream_request_for_dead_vbucket) {
-    // Set vbucket state to dead
-    engine->setVBucketState(vbid, vbucket_state_dead, false);
-
-    MockDcpConnMap connMap(*engine);
-    connMap.initialize(DCP_CONN_NOTIFIER);
-    struct mock_connstruct* cookie = (struct mock_connstruct*)create_mock_cookie();
-
-    // Create a new Dcp producer
-    dcp_producer_t producer = connMap.newProducer(cookie, "test_producer",
-                                                   /*notifyOnly*/false);
-
-    uint64_t rollback_seqno;
-    ENGINE_ERROR_CODE err = producer->streamRequest(/*flags*/0,
-                                                    /*opaque*/0,
-                                                    /*vbucket*/vbid,
-                                                    /*start_seqno*/0,
-                                                    /*end_seqno*/-1,
-                                                    /*vb_uuid*/0xabcd,
-                                                    /*snap_start*/0,
-                                                    /*snap_end*/0,
-                                                    /*rollback seqno*/&rollback_seqno,
-                                                    test_dcp_add_failover_log);
-
-    EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
-
-    producer.reset();
-    delete cookie;
 }
 
 class NotifyTest : public DCPTest {

@@ -124,6 +124,10 @@ public:
         return name_;
     }
 
+    virtual void setActive() {
+        // Stream defaults to do nothing
+    }
+
     bool isActive() {
         return state_ != STREAM_DEAD;
     }
