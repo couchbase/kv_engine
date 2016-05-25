@@ -4188,43 +4188,6 @@ static void audit_config_reload_executor(McbpConnection* c, void*) {
     }
 }
 
-static void assume_role_executor(McbpConnection* c, void* packet) {
-    auto* req = reinterpret_cast<protocol_binary_request_assume_role*>(packet);
-    size_t rlen = ntohs(req->message.header.request.keylen);
-    AuthResult err;
-
-    if (rlen > 0) {
-        try {
-            auto* role_ptr = reinterpret_cast<const char*>(req + 1);
-            std::string role(role_ptr, rlen);
-            err = c->assumeRole(role.c_str());
-
-        } catch (const std::bad_alloc&) {
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
-            return;
-        }
-    } else {
-        err = c->dropRole();
-    }
-
-    switch (err) {
-    case AuthResult::FAIL:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
-        return;
-    case AuthResult::OK:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
-        return;
-    case AuthResult::STALE:
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
-        return;
-    }
-
-    LOG_WARNING(c,
-                "%u: assume_role_executor: err (which is %d) is not a valid "
-                    "AuthResult - closing connection", err);
-    c->setState(conn_closing);
-}
-
 static void audit_put_executor(McbpConnection* c, void* packet) {
 
     auto* req = reinterpret_cast<const protocol_binary_request_audit_put*>(packet);
@@ -4519,7 +4482,6 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_IOCTL_SET] = ioctl_set_executor;
     executors[PROTOCOL_BINARY_CMD_CONFIG_VALIDATE] = config_validate_executor;
     executors[PROTOCOL_BINARY_CMD_CONFIG_RELOAD] = config_reload_executor;
-    executors[PROTOCOL_BINARY_CMD_ASSUME_ROLE] = assume_role_executor;
     executors[PROTOCOL_BINARY_CMD_AUDIT_PUT] = audit_put_executor;
     executors[PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD] = audit_config_reload_executor;
     executors[PROTOCOL_BINARY_CMD_SHUTDOWN] = shutdown_executor;

@@ -19,7 +19,6 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_rbac.cc
                testapp_rbac.h
                testapp_require_init.cc
-               testapp_roles.cc
                testapp_sasl.cc
                testapp_sasl.h
                testapp_shutdown.cc

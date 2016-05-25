@@ -188,36 +188,3 @@ TEST_P(AuditTest, AuditFailedAuth) {
     ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_AUTHENTICATION_FAILED,
                                     "nouser"));
 }
-
-/**
- * Validate that a RBAC violation is logged.
- */
-TEST_P(AuditTest, AuditRBACFailed) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
-
-    /* assume the statistics role */
-    auto len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                                PROTOCOL_BINARY_CMD_ASSUME_ROLE,
-                                "statistics", 10, NULL, 0);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_ASSUME_ROLE,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    /* At this point I should get an EACCESS if I tried to run NOOP */
-    len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
-                           PROTOCOL_BINARY_CMD_NOOP,
-                           NULL, 0, NULL, 0);
-
-    safe_send(buffer.bytes, len, false);
-    safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-    mcbp_validate_response_header(&buffer.response, PROTOCOL_BINARY_CMD_NOOP,
-                                  PROTOCOL_BINARY_RESPONSE_EACCESS);
-
-    ASSERT_TRUE(searchAuditLogForID(MEMCACHED_AUDIT_COMMAND_ACCESS_FAILURE));
-}

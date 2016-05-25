@@ -322,8 +322,6 @@ extern "C"
         PROTOCOL_BINARY_CMD_LIST_BUCKETS = 0x87,
         PROTOCOL_BINARY_CMD_SELECT_BUCKET= 0x89,
 
-        PROTOCOL_BINARY_CMD_ASSUME_ROLE = 0x8a,
-
         PROTOCOL_BINARY_CMD_OBSERVE_SEQNO = 0x91,
         PROTOCOL_BINARY_CMD_OBSERVE = 0x92,
 
@@ -1576,7 +1574,6 @@ extern "C"
     typedef protocol_binary_request_no_extras protocol_binary_request_delete_bucket;
     typedef protocol_binary_request_no_extras protocol_binary_request_list_buckets;
     typedef protocol_binary_request_no_extras protocol_binary_request_select_bucket;
-    typedef protocol_binary_request_no_extras protocol_binary_request_assume_role;
 
     /*
      * Parameter types of CMD_SET_PARAM command.

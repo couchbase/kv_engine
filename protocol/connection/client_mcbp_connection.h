@@ -34,8 +34,6 @@ public:
                               const std::string& password,
                               const std::string& mech) override;
 
-    virtual void assumeRole(const std::string& role) override;
-
     virtual void createBucket(const std::string& name,
                               const std::string& config,
                               const Greenstack::BucketType& type) override;

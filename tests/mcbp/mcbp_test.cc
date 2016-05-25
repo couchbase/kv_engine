@@ -1789,51 +1789,6 @@ namespace BinaryProtocolValidator {
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
 
-    // Test AssumeRole
-    class AssumeRoleValidatorTest : public ValidatorTest {
-        virtual void SetUp() override {
-            ValidatorTest::SetUp();
-            memset(&request, 0, sizeof(request));
-            request.message.header.request.magic = PROTOCOL_BINARY_REQ;
-            request.message.header.request.keylen = htons(8);
-            request.message.header.request.bodylen = htonl(8);
-            request.message.header.request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-        }
-
-    protected:
-        int validate() {
-            return ValidatorTest::validate(PROTOCOL_BINARY_CMD_ASSUME_ROLE,
-                                           static_cast<void*>(&request));
-        }
-        protocol_binary_request_assume_role request;
-    };
-
-    TEST_F(AssumeRoleValidatorTest, CorrectMessage) {
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
-    }
-    TEST_F(AssumeRoleValidatorTest, InvalidMagic) {
-        request.message.header.request.magic = 0;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-    }
-    TEST_F(AssumeRoleValidatorTest, InvalidExtlen) {
-        request.message.header.request.extlen = 2;
-        request.message.header.request.bodylen = htonl(10);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-    }
-    TEST_F(AssumeRoleValidatorTest, InvalidDatatype) {
-        request.message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-    }
-    TEST_F(AssumeRoleValidatorTest, InvalidBody) {
-        request.message.header.request.bodylen = htonl(12);
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-    }
-    TEST_F(AssumeRoleValidatorTest, InvalidCas) {
-        request.message.header.request.cas = 1;
-        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
-    }
-
-
     // Test observe seqno
     class ObserveSeqnoValidatorTest : public ValidatorTest {
         virtual void SetUp() override {

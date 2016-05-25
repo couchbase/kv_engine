@@ -678,27 +678,6 @@ void MemcachedBinprotConnection::configureEwouldBlockEngine(
     }
 }
 
-void MemcachedBinprotConnection::assumeRole(const std::string& role) {
-    Frame frame;
-    mcbp_raw_command(frame,
-                     PROTOCOL_BINARY_CMD_ASSUME_ROLE,
-                     std::vector<uint8_t>(),
-                     role,
-                     std::vector<uint8_t>());
-
-    sendFrame(frame);
-    recvFrame(frame);
-
-    auto* bytes = frame.payload.data();
-    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
-    auto& header = rsp->message.header.response;
-    if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Failed to assume role: \"" + role + "\"",
-                              Protocol::Memcached,
-                              header.status);
-    }
-}
-
 void MemcachedBinprotConnection::reloadAuditConfiguration() {
     Frame frame;
     mcbp_raw_command(frame,

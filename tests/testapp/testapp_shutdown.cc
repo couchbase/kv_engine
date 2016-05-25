@@ -50,29 +50,7 @@ public:
     }
 
 protected:
-    /**
-     * Assume the specified role
-     */
-    void assumeRole(const std::string& role) {
-        std::vector<char> message;
-        message.resize(24 + role.size());
-        mcbp_raw_command(message.data(), message.size(),
-                         PROTOCOL_BINARY_CMD_ASSUME_ROLE,
-                         role.c_str(), role.length(), nullptr, 0);
-        safe_send(message.data(), message.size(), false);
-        uint8_t buffer[1024];
-        safe_recv_packet(buffer, sizeof(buffer));
-        auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(buffer);
-        mcbp_validate_response_header(rsp, PROTOCOL_BINARY_CMD_ASSUME_ROLE,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-    }
 };
-
-TEST_F(ShutdownTest, ShutdownNotAllowed) {
-    assumeRole("statistics");
-    sendShutdown(PROTOCOL_BINARY_RESPONSE_EACCESS);
-}
 
 TEST_F(ShutdownTest, ShutdownAllowed) {
     sendShutdown(PROTOCOL_BINARY_RESPONSE_SUCCESS);

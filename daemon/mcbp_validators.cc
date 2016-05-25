@@ -616,22 +616,6 @@ static protocol_binary_response_status ioctl_set_validator(const Cookie& cookie)
     return PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
-static protocol_binary_response_status assume_role_validator(const Cookie& cookie)
-{
-    auto req = static_cast<protocol_binary_request_no_extras*>(McbpConnection::getPacket(cookie));
-    uint16_t klen = ntohs(req->message.header.request.keylen);
-    uint32_t blen = ntohl(req->message.header.request.bodylen);
-
-    if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
-        req->message.header.request.extlen != 0 || klen != blen  ||
-        req->message.header.request.cas != 0 ||
-        req->message.header.request.datatype != PROTOCOL_BINARY_RAW_BYTES) {
-        return PROTOCOL_BINARY_RESPONSE_EINVAL;
-    }
-
-    return PROTOCOL_BINARY_RESPONSE_SUCCESS;
-}
-
 static protocol_binary_response_status audit_put_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_audit_put*>(McbpConnection::getPacket(cookie));
@@ -891,7 +875,6 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_INIT_COMPLETE, init_complete_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_IOCTL_GET, ioctl_get_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_IOCTL_SET, ioctl_set_validator);
-    chains.push_unique(PROTOCOL_BINARY_CMD_ASSUME_ROLE, assume_role_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_AUDIT_PUT, audit_put_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_AUDIT_CONFIG_RELOAD, audit_config_reload_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SHUTDOWN, shutdown_validator);
