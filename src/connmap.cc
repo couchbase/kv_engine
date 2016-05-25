@@ -128,7 +128,8 @@ private:
 
 
 ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
-    :  engine(theEngine) {
+    :  engine(theEngine),
+       connNotifier_(nullptr) {
 
     Configuration &config = engine.getConfiguration();
     vbConnLocks = new SpinLock[vbConnLockNum];
@@ -147,8 +148,10 @@ void ConnMap::initialize(conn_notifier_type ntype) {
 
 ConnMap::~ConnMap() {
     delete [] vbConnLocks;
-    connNotifier_->stop();
-    delete connNotifier_;
+    if (connNotifier_) {
+        connNotifier_->stop();
+        delete connNotifier_;
+    }
 }
 
 connection_t ConnMap::findByName(const std::string &name) {
