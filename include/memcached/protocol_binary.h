@@ -1781,7 +1781,8 @@ extern "C"
      *
      * Header: Contains the vbucket id. The vbucket id will be used
      *         to identify the database file if the backend is
-     *         couchstore.
+     *         couchstore. If the vbucket id is set to 0xFFFF, then
+     *         the db_file_id field will be used for compaction.
      * Body:
      * - purge_before_ts:  Deleted items whose expiry timestamp is less
      *                     than purge_before_ts will be purged.
