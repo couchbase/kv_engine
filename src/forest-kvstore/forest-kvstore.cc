@@ -1317,12 +1317,12 @@ scan_error_t ForestKVStore::scan(ScanContext* ctx) {
             options |= FDB_ITR_NO_VALUES;
             break;
         case ValueFilter::VALUES_COMPRESSED:
-        case ValueFilter::VALUES_DECOMPRESSED:
             // TODO: NOT SUPPORTED YET (MB-19682)
             LOG(EXTENSION_LOG_WARNING, "ForestKVStore::scan: "
-                "Getting compressed/uncompressed data - "
-                "Not supported yet with forestdb");
+                "Getting compressed data - Not supported yet with forestdb");
             return scan_failed;
+        case ValueFilter::VALUES_DECOMPRESSED:
+            break;
         default:
             std::string err("ForestKVStore::scan: Illegal value filter!" +
                             std::to_string(static_cast<int>(ctx->valFilter)));
