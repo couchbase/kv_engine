@@ -378,6 +378,7 @@ ADD_TEST(memcache-config-parse config_parse_test)
 
 IF(ENABLE_DTRACE)
    ADD_DEPENDENCIES(config_parse_test generate_memcached_dtrace_h)
+   ADD_DEPENDENCIES(memcached_sizes generate_memcached_dtrace_h)
 ENDIF(ENABLE_DTRACE)
 
 
