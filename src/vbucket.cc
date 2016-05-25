@@ -169,6 +169,17 @@ VBucket::VBucket(id_type i,
     pendingOpsStart = 0;
     stats.memOverhead.fetch_add(sizeof(VBucket)
                                 + ht.memorySize() + sizeof(CheckpointManager));
+    LOG(EXTENSION_LOG_NOTICE,
+        "VBucket: created vbucket:%" PRIu16 " with state:%s "
+                "initialState:%s "
+                "lastSeqno:%" PRIu64 " "
+                "lastSnapshot:{%" PRIu64 ",%" PRIu64 "} "
+                "persisted_snapshot:{%" PRIu64 ",%" PRIu64 "} "
+                "max_cas:%" PRIu64,
+        id, VBucket::toString(state), VBucket::toString(initialState),
+        lastSeqno, lastSnapStart, lastSnapEnd,
+        persisted_snapshot_start, persisted_snapshot_end,
+        max_cas.load());
 }
 
 VBucket::~VBucket() {
@@ -251,7 +262,8 @@ void VBucket::setState(vbucket_state_t to) {
         checkpointManager.setOpenCheckpointId(2);
     }
 
-    LOG(EXTENSION_LOG_DEBUG, "transitioning vbucket %" PRIu16 " from %s to %s",
+    LOG(EXTENSION_LOG_NOTICE,
+        "VBucket::setState: transitioning vbucket:%" PRIu16 " from:%s to:%s",
         id, VBucket::toString(oldstate), VBucket::toString(to));
 
     state = to;

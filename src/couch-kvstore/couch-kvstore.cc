@@ -2366,7 +2366,16 @@ size_t CouchKVStore::getNumPersistedDeletes(uint16_t vbid) {
         }
         closeDatabaseHandle(db);
     } else {
-        throw std::invalid_argument("CouchKVStore::getNumPersistedDeletes:"
+        // open failed - map couchstore error code to exception.
+        std::errc ec;
+        switch (errCode) {
+            case COUCHSTORE_ERROR_OPEN_FILE:
+                ec = std::errc::no_such_file_or_directory; break;
+            default:
+                ec = std::errc::io_error; break;
+        }
+        throw std::system_error(std::make_error_code(ec),
+                                "CouchKVStore::getNumPersistedDeletes:"
             "Failed to open database file for vBucket = " +
             std::to_string(vbid) + " rev = " + std::to_string(rev) +
             " with error:" + couchstore_strerror(errCode));
