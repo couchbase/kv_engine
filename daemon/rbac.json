@@ -80,7 +80,6 @@
                     "ADD_WITH_META",
                     "APPEND",
                     "APPENDQ",
-                    "ASSUME_ROLE",
                     "CHECKPOINT_PERSISTENCE",
                     "COMPACT_DB",
                     "CONFIG_VALIDATE",
