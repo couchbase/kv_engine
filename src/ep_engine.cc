@@ -5799,21 +5799,14 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
         size_t vb_items = vb->getNumItems(epstore->getItemEvictionPolicy());
 
         size_t del_items = 0;
-        const VBucketMap &vbMap = epstore->getVBuckets();
-
-        /* Get stats from KV Store only when the vbucket database
-         * file has already been created.
-         */
-        if (!vbMap.isBucketCreation(vbid) && !vbMap.isBucketDeletion(vbid)) {
-            try {
-                del_items = epstore->getRWUnderlying(vbid)->
+        try {
+            del_items = epstore->getRWUnderlying(vbid)->
                                            getNumPersistedDeletes(vbid);
-            } catch (std::runtime_error& e) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "doDcpVbTakeoverStats: exception while getting num "
-                    "persisted deletes for vbucket:%" PRIu16 " - treating as 0 "
-                    "deletes. Details: %s", vbid, e.what());
-            }
+        } catch (std::runtime_error& e) {
+            LOG(EXTENSION_LOG_WARNING,
+                "doDcpVbTakeoverStats: exception while getting num "
+                "persisted deletes for vbucket:%" PRIu16 " - treating as 0 "
+                "deletes. Details: %s", vbid, e.what());
         }
         size_t chk_items = vb_items > 0 ?
                            vb->checkpointManager.getNumOpenChkItems() : 0;
@@ -5846,22 +5839,16 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     std::string tapName("eq_tapq:");
     tapName.append(key);
     size_t vb_items = vb->getNumItems(epstore->getItemEvictionPolicy());
-    const VBucketMap &vbMap = epstore->getVBuckets();
-    size_t del_items = 0;
 
-    /* Get stats from KV Store only when the vbucket database
-     * file has already been created.
-     */
-    if (!vbMap.isBucketCreation(vbid) && !vbMap.isBucketDeletion(vbid)) {
-        try {
-            del_items = epstore->getRWUnderlying(vbid)->
-                                           getNumPersistedDeletes(vbid);
-        } catch (std::runtime_error& e) {
-            LOG(EXTENSION_LOG_WARNING,
-                "doTapVbTakeoverStats: exception while getting num persisted "
-                "deletes for vbucket:%" PRIu16 " - treating as 0 deletes. "
-                "Details: %s", vbid, e.what());
-        }
+    size_t del_items = 0;
+    try {
+        del_items = epstore->getRWUnderlying(vbid)->
+                getNumPersistedDeletes(vbid);
+    } catch (std::runtime_error& e) {
+        LOG(EXTENSION_LOG_WARNING,
+            "doTapVbTakeoverStats: exception while getting num persisted "
+            "deletes for vbucket:%" PRIu16 " - treating as 0 deletes. "
+            "Details: %s", vbid, e.what());
     }
 
     add_casted_stat("name", tapName, add_stat, cookie);

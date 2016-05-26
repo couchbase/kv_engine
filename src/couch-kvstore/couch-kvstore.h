@@ -369,19 +369,9 @@ public:
 
     vbucket_state *getVBucketState(uint16_t vbid);
 
-    /**
-     * Get the number of deleted items that are persisted to a vbucket file
-     *
-     * @param vbid The vbucket if of the file to get the number of deletes for
-     */
-    size_t getNumPersistedDeletes(uint16_t vbid);
+    virtual size_t getNumPersistedDeletes(uint16_t vbid);
 
-    /**
-     * Get the vbucket pertaining stats from a vbucket database file
-     *
-     * @param vbid The vbucket of the file to get the number of docs for
-     */
-    DBFileInfo getDbFileInfo(uint16_t vbid);
+    virtual DBFileInfo getDbFileInfo(uint16_t vbid);
 
     /**
      * Get the number of non-deleted items from a vbucket database file

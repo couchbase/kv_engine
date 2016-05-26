@@ -635,21 +635,14 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
                 vb->checkpointManager.getNumItemsForCursor(name_) : 0;
 
     size_t del_items = 0;
-    const VBucketMap &vbMap = engine->getEpStore()->getVBuckets();
-
-    /* Get stats from KV Store only when the vbucket database
-     * file has already been created or not being deleted.
-     */
-    if (!vbMap.isBucketCreation(vb_) && !vbMap.isBucketDeletion(vb_)) {
-        try {
-            del_items = engine->getEpStore()->getRWUnderlying(vb_)->
+    try {
+        del_items = engine->getEpStore()->getRWUnderlying(vb_)->
                                                         getNumPersistedDeletes(vb_);
-        } catch (std::runtime_error& e) {
-            producer->getLogger().log(EXTENSION_LOG_WARNING,
-                "ActiveStream:addTakeoverStats: exception while getting num persisted "
-                "deletes for vbucket:%" PRIu16 " - treating as 0 deletes. "
-                "Details: %s", vb_, e.what());
-        }
+    } catch (std::runtime_error& e) {
+        producer->getLogger().log(EXTENSION_LOG_WARNING,
+            "ActiveStream:addTakeoverStats: exception while getting num persisted "
+            "deletes for vbucket:%" PRIu16 " - treating as 0 deletes. "
+            "Details: %s", vb_, e.what());
     }
 
     if (end_seqno_ < curChkSeqno) {

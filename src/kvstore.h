@@ -537,14 +537,23 @@ public:
 
     virtual vbucket_state *getVBucketState(uint16_t vbid) = 0;
 
-    virtual size_t getNumPersistedDeletes(uint16_t) {
-        return 0;
-    }
+    /**
+     * Get the number of deleted items that are persisted to a vbucket file
+     *
+     * @param vbid The vbucket if of the file to get the number of deletes for.
+     * @returns the number of deletes which are persisted
+     * @throws std::runtime_error (and subclasses) if it was not possible to
+     *         obtain a count of persisted deletes.
+     */
+    virtual size_t getNumPersistedDeletes(uint16_t vbid) = 0;
 
     /**
      * This method will return information about the file whose id
      * is passed in as an argument. The information returned contains
      * the item count, file size and space used.
+     *
+     * @throws std::runtime_error (and subclasses) if it was not possible to
+     *         obtain the DB file info.
      */
     virtual DBFileInfo getDbFileInfo(uint16_t dbFileId) = 0;
 
