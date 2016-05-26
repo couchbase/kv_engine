@@ -48,6 +48,14 @@ public:
     SynchronousEPEngine(const std::string& extra_config);
 
     void setEPStore(EventuallyPersistentStore* store);
+
+    // Allow us to call the normally protected method.
+    ENGINE_ERROR_CODE public_doTapVbTakeoverStats(const void *cookie,
+                                                  ADD_STAT add_stat,
+                                                  std::string& key,
+                                                  uint16_t vbid) {
+        return doTapVbTakeoverStats(cookie, add_stat, key, vbid);
+    }
 };
 
 /* Subclass of EPStore to expose normally non-public members for test

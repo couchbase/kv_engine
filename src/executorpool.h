@@ -120,16 +120,16 @@ public:
 
     static void shutdown(void);
 
-private:
+protected:
 
     ExecutorPool(size_t t, size_t nTaskSets, size_t r, size_t w, size_t a,
                  size_t n);
-    ~ExecutorPool(void);
+    virtual ~ExecutorPool(void);
 
     TaskQueue* _nextTask(ExecutorThread &t, uint8_t tick);
     bool _cancel(size_t taskId, bool eraseTask=false);
     bool _wake(size_t taskId);
-    bool _startWorkers(void);
+    virtual bool _startWorkers(void);
     bool _snooze(size_t taskId, double tosleep);
     size_t _schedule(ExTask task, task_type_t qidx);
     void _registerTaskable(Taskable& taskable);

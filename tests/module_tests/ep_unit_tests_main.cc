@@ -19,19 +19,48 @@
  * Main function & globals for the ep_unit_test target.
  */
 
+#include <memcached/extension_loggers.h>
 #include "programs/engine_testapp/mock_server.h"
 
+#include <getopt.h>
 #include <gtest/gtest.h>
+
+#include "logger.h"
 
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
 int main(int argc, char **argv) {
-    (void)argc; (void)argv;
+    bool log_to_stderr = false;
+    // Parse command-line options.
+    int cmd;
+    bool invalid_argument = false;
+    while (!invalid_argument &&
+           (cmd = getopt(argc, argv, "v")) != EOF) {
+        switch (cmd) {
+        case 'v':
+            log_to_stderr = true;
+            break;
+        default:
+            std::cerr << "Usage: " << argv[0] << " [-v] [gtest_options...]" << std::endl
+                      << std::endl
+                      << "  -v Verbose - Print verbose output to stderr."
+                      << std::endl << std::endl;
+            invalid_argument = true;
+            break;
+        }
+    }
 
     putenv(allow_no_stats_env);
 
-    init_mock_server(/*log to stderr*/false);
+    init_mock_server(log_to_stderr);
+
+    if (memcached_initialize_stderr_logger(get_mock_server_api) != EXTENSION_SUCCESS) {
+        std::cerr << argv[0] << ": Failed to initialize log system" << std::endl;
+        return 1;
+    }
+    Logger::setLoggerAPI(get_mock_server_api()->log);
+    Logger::setGlobalLogLevel(EXTENSION_LOG_DEBUG);
 
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
