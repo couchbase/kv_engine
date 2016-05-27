@@ -61,6 +61,8 @@ public:
 
     virtual std::string to_string() override;
 
+    std::unique_ptr<MemcachedConnection> clone() override;
+
     virtual void authenticate(const std::string& username,
                               const std::string& password,
                               const std::string& mech) override;
@@ -79,6 +81,8 @@ public:
 
 
     virtual Document get(const std::string& id, uint16_t vbucket) override;
+
+    Frame encodeCmdGet(const std::string& id, uint16_t vbucket) override;
 
     virtual MutationInfo mutate(const Document& doc, uint16_t vbucket,
                                 const Greenstack::mutation_type_t type) override;

@@ -4559,6 +4559,21 @@ int main(int argc, char **argv) {
 
     cb_initialize_sockets();
 
+#if !defined(WIN32)
+    /*
+     * When shutting down SSL connections the SSL layer may attempt to
+     * write to the underlying socket. If the socket has been closed
+     * on the server side then this will raise a SIGPIPE (and
+     * terminate the test program). This is Bad.
+     * Therefore ignore SIGPIPE signals; we can use errno == EPIPE if
+     * we need that information.
+     */
+    if (sigignore(SIGPIPE) == -1) {
+        std::cerr << "Fatal: failed to ignore SIGPIPE; sigaction" << std::endl;
+        return 1;
+    }
+#endif
+
     return RUN_ALL_TESTS();
 }
 

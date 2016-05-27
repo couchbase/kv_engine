@@ -353,6 +353,22 @@ void MemcachedConnection::sendFrame(const Frame& frame) {
     }
 }
 
+void MemcachedConnection::sendPartialFrame(Frame& frame,
+                                           Frame::size_type length) {
+    // Move the remainder to a new frame.
+    auto rem_first = frame.payload.begin() + length;
+    auto rem_last = frame.payload.end();
+    std::vector<uint8_t> remainder;
+    std::copy(rem_first, rem_last, std::back_inserter(remainder));
+    frame.payload.erase(rem_first, rem_last);
+
+    // Send the partial frame.
+    sendFrame(frame);
+
+    // Swap the old payload with the remainder.
+    frame.payload.swap(remainder);
+}
+
 void MemcachedConnection::read(Frame& frame, size_t bytes) {
     if (ssl) {
         readSsl(frame, bytes);

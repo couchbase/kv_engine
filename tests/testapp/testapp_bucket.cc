@@ -18,6 +18,10 @@
 #include <protocol/connection/client_greenstack_connection.h>
 
 #include <algorithm>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
+#include <thread>
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
                         BucketTest,
@@ -145,6 +149,53 @@ TEST_P(BucketTest, TestDeleteNonexistingBucket) {
     } catch (ConnectionError& error) {
         EXPECT_TRUE(error.isNotFound()) << error.getReason();
     }
+}
+
+// Regression test for MB-19756 - if a bucket delete is attempted while there
+// is connection in the conn_nread state, then delete will hang.
+TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
+    auto& conn = getConnection();
+    conn.createBucket("bucket", "", Greenstack::BucketType::Memcached);
+
+    auto second_conn = conn.clone();
+    second_conn->selectBucket("bucket");
+
+    // We need to get the second connection sitting the `conn_nread` state in
+    // memcached - i.e. waiting to read a variable-amount of data from the
+    // client. Simplest is to perform a GET where we don't send the full key
+    // length, by only sending a partial frame
+    Frame frame = second_conn->encodeCmdGet("dummy_key_which_we_will_crop", 0);
+    second_conn->sendPartialFrame(frame, frame.payload.size() - 1);
+
+    // Once we call deleteBucket below, it will hang forever (if the bug is
+    // present), so we need a watchdog thread which will send the remainder
+    // of the GET frame to un-stick bucket deletion. If the watchdog fires
+    // the test has failed.
+    std::mutex cv_m;
+    std::condition_variable cv;
+    std::atomic<bool> bucket_deleted{false};
+    std::atomic<bool> watchdog_fired{false};
+    std::thread watchdog{
+        [&second_conn, frame, &cv_m, &cv, &bucket_deleted,
+         &watchdog_fired]() {
+            std::unique_lock<std::mutex> lock(cv_m);
+            cv.wait_for(lock, std::chrono::seconds(5),
+                        [&bucket_deleted](){return bucket_deleted == true;});
+            watchdog_fired = true;
+            second_conn->sendFrame(frame);
+        }
+    };
+
+    conn.deleteBucket("bucket");
+    // Check that the watchdog didn't fire.
+    EXPECT_FALSE(watchdog_fired) <<
+            "Bucket deletion (with connected client in conn_nread) only "
+            "completed after watchdog fired";
+
+    // Cleanup - stop the watchdog (if it hasn't already fired).
+    bucket_deleted = true;
+    cv.notify_one();
+    watchdog.join();
 }
 
 TEST_P(BucketTest, TestListBucket) {

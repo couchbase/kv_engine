@@ -28,6 +28,8 @@ public:
         std::fill(features.begin(), features.end(), false);
     }
 
+    std::unique_ptr<MemcachedConnection> clone() override;
+
     virtual std::string to_string() override;
 
     virtual void authenticate(const std::string& username,
@@ -47,6 +49,8 @@ public:
     virtual std::vector<std::string> listBuckets() override;
 
     virtual Document get(const std::string& id, uint16_t vbucket) override;
+
+    Frame encodeCmdGet(const std::string& id, uint16_t vbucket) override;
 
     virtual MutationInfo mutate(const Document& doc, uint16_t vbucket,
                                 const Greenstack::mutation_type_t type) override;
