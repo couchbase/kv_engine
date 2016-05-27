@@ -302,6 +302,10 @@ bool conn_new_cmd(McbpConnection *c) {
 }
 
 bool conn_nread(McbpConnection *c) {
+    if (is_bucket_dying(c)) {
+        return true;
+    }
+
     ssize_t res;
 
     if (c->getRlbytes() == 0) {
