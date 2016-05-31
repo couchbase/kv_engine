@@ -1699,9 +1699,6 @@ ENGINE_ERROR_CODE PassiveStream::processMutation(MutationResponse* mutation) {
                                                 true);
     }
 
-    // We should probably handle these error codes in a better way, but since
-    // the producer side doesn't do anything with them anyways let's just log
-    // them for now until we come up with a better solution.
     if (ret != ENGINE_SUCCESS) {
         consumer->getLogger().log(EXTENSION_LOG_WARNING,
             "Got an error code %d while trying to process mutation", ret);
@@ -1754,9 +1751,6 @@ ENGINE_ERROR_CODE PassiveStream::processDeletion(MutationResponse* deletion) {
         ret = ENGINE_SUCCESS;
     }
 
-    // We should probably handle these error codes in a better way, but since
-    // the producer side doesn't do anything with them anyways let's just log
-    // them for now until we come up with a better solution.
     if (ret != ENGINE_SUCCESS) {
         consumer->getLogger().log(EXTENSION_LOG_WARNING,
             "Got an error code %d while trying to process deletion", ret);
