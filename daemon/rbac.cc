@@ -32,7 +32,6 @@
 std::ostream& operator <<(std::ostream &out, const AuthContext &context)
 {
     out << "name=\"" << context.name
-        << "\" role=\"" << context.role
         << "\" connection=[" << context.connection << "]";
     return out;
 }
@@ -220,68 +219,6 @@ AuthContext *RBACManager::createAuthContext(const std::string name,
     return ret;
 }
 
-bool RBACManager::assumeRole(AuthContext *ctx, const std::string &role) {
-    std::lock_guard<std::mutex> lock(mutex);
-    if (ctx->getGeneration() != generation) {
-        // this is an old generation of the config!
-        // @todo add proper objects
-        throw std::string("Stale configuration");
-    }
-
-    bool found = false;
-
-    if (ctx->getRole().length() == 0) {
-        // We're running as a user
-        UserEntry &user = users[ctx->getName()];
-
-        // search for the role in the users roles...
-        StringList::const_iterator iter;
-        iter = std::find(user.getRoles().begin(), user.getRoles().end(), role);
-        if (iter != user.getRoles().end()) {
-            found = true;
-        }
-    } else {
-        // user didn't have it in his role list... search through
-        // the current role..
-        UserEntryMap::const_iterator ii = roles.find(ctx->getRole());
-        if (ii != roles.end()) {
-            StringList::const_iterator iter;
-            iter = std::find(ii->second.getRoles().begin(),
-                             ii->second.getRoles().end(), role);
-            if (iter != ii->second.getRoles().end()) {
-                found = true;
-            }
-        }
-    }
-
-    UserEntryMap::const_iterator iter = roles.find(role);
-    if (found && iter != roles.end()) {
-        // The effective user/role had the requested role listed..
-        // apply the allowed commands to the context
-        ctx->setRole(role);
-        applyProfiles(ctx, iter->second.getProfiles());
-    }
-
-    return found;
-}
-
-void RBACManager::dropRole(AuthContext *ctx) {
-    std::lock_guard<std::mutex> lock(mutex);
-    if (ctx->getGeneration() != generation) {
-        // this is an old generation of the config!
-        // @todo add proper objects
-        throw std::string("Stale configuration");
-    }
-
-    UserEntryMap::iterator iter = users.find(ctx->getName());
-    if (iter == users.end()) {
-        throw std::invalid_argument("RBACManager::dropRole: unknown role '" +
-                                    ctx->getName() + "'");
-    }
-    applyProfiles(ctx, iter->second.getProfiles());
-    ctx->setRole("");
-}
-
 void RBACManager::initialize(cJSON *root) {
     roles.clear();
     profiles.clear();
@@ -414,49 +351,6 @@ AuthContext* auth_create(const char* user,
 void auth_destroy(AuthContext* context)
 {
     delete context;
-}
-
-AuthResult auth_assume_role(AuthContext* ctx, const char *role)
-{
-    if (ctx == nullptr) {
-        return AuthResult::FAIL;
-    }
-
-    AuthResult ret;
-    try {
-        if (rbac.assumeRole(ctx, role)) {
-            ret = AuthResult::OK;
-        } else {
-            ret = AuthResult::FAIL;
-        }
-    } catch (std::string) {
-        ret = AuthResult::STALE;
-    }
-
-    return ret;
-}
-
-AuthResult auth_drop_role(AuthContext* ctx)
-{
-    if (ctx == nullptr) {
-        return AuthResult::FAIL;
-    }
-
-    AuthResult ret;
-    try {
-        rbac.dropRole(ctx);
-        ret = AuthResult::OK;
-    } catch (std::string) {
-        ret = AuthResult::STALE;
-    } catch (std::invalid_argument& e) {
-        auto logger = settings.extensions.logger;
-        logger->log(EXTENSION_LOG_WARNING, nullptr,
-                    "auth_drop_role: Exception while dropping role: %s",
-                    e.what());
-        ret = AuthResult::FAIL;
-    }
-
-    return ret;
 }
 
 AuthResult auth_check_access(AuthContext* context, uint8_t opcode)

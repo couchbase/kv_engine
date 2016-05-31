@@ -112,9 +112,6 @@ public:
     AuthContext *createAuthContext(const std::string name,
                                    const std::string &_connection);
 
-    bool assumeRole(AuthContext *ctx, const std::string &role);
-    void dropRole(AuthContext *ctx);
-
     void initialize(cJSON *root);
 
     uint32_t getGeneration() {

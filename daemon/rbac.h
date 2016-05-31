@@ -54,14 +54,6 @@ public:
         return name;
     }
 
-    void setRole(const std::string &_role) {
-        role.assign(_role);
-    }
-
-    const std::string &getRole() const {
-        return role;
-    }
-
     uint32_t getGeneration() const {
         return generation;
     }
@@ -82,7 +74,6 @@ public:
 
 private:
     std::string name;
-    std::string role; // if we've assumed a role, this is the current role
     uint32_t generation;
     std::string connection;
     std::array<uint8_t, MAX_COMMANDS> commands;
@@ -121,23 +112,6 @@ AuthContext* auth_create(const char* user,
  * @param context the context to destroy
  */
 void auth_destroy(AuthContext *context);
-
-/**
- * Try to assume the given role
- *
- * @param ctx the current authentication context
- * @param role the role to assume
- * @return the status of the operation.
- */
-AuthResult auth_assume_role(AuthContext *ctx, const char *role);
-
-/**
- * Drop the current role
- *
- * @param ctx the current authentication context
- * @return the status of the operation.
- */
-AuthResult auth_drop_role(AuthContext *ctx);
 
 /**
  * check for access for a certain command

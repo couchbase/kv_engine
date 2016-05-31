@@ -43,7 +43,6 @@ cJSON *generate_rbac_config(void)
 
     array2 = cJSON_CreateArray();
     cJSON_AddItemToArray(array2, cJSON_CreateString("stat"));
-    cJSON_AddItemToArray(array2, cJSON_CreateString("assume_role"));
     cJSON_AddItemToObject(obj, "opcode", array2);
     cJSON_AddItemToObject(prof, "memcached", obj);
     cJSON_AddItemToArray(array, prof);

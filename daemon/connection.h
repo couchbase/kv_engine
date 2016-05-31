@@ -218,22 +218,6 @@ public:
     }
 
     /**
-     * Update the authentication context to operate on behalf of a given
-     * role
-     */
-    AuthResult assumeRole(const std::string& role) {
-        return auth_assume_role(auth_context, role.c_str());
-    }
-
-    /**
-     * Update the authentication context to operate as the authenticated
-     * user rather than the current role
-     */
-    AuthResult dropRole() {
-        return auth_drop_role(auth_context);
-    }
-
-    /**
      * @todo this should be pushed down to MCBP, doesn't apply to everyone else
      */
     virtual bool isPipeConnection() {
