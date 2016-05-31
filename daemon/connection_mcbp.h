@@ -739,7 +739,9 @@ protected:
     /** when we read in an item's value, it goes here */
     char* ritem;
 
-    /* data for the nread state */
+    /* read 'left' bytes - how many bytes of data remain to be read for the
+     * nread state
+     */
     uint32_t rlbytes;
 
     /**
