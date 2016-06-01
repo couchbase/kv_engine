@@ -630,8 +630,15 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
      * file has already been created or not being deleted.
      */
     if (!vbMap.isBucketCreation(vb_) && !vbMap.isBucketDeletion(vb_)) {
-        del_items = engine->getEpStore()->getRWUnderlying(vb_)->
-                                                    getNumPersistedDeletes(vb_);
+        try {
+            del_items = engine->getEpStore()->getRWUnderlying(vb_)->
+                                                        getNumPersistedDeletes(vb_);
+        } catch (std::runtime_error& e) {
+            producer->getLogger().log(EXTENSION_LOG_WARNING,
+                "ActiveStream:addTakeoverStats: exception while getting num persisted "
+                "deletes for vbucket:%" PRIu16 " - treating as 0 deletes. "
+                "Details: %s", vb_, e.what());
+        }
     }
 
     if (end_seqno_ < curChkSeqno) {

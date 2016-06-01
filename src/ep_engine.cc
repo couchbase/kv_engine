@@ -5773,8 +5773,15 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
          * file has already been created.
          */
         if (!vbMap.isBucketCreation(vbid) && !vbMap.isBucketDeletion(vbid)) {
-            del_items = epstore->getRWUnderlying(vbid)->
+            try {
+                del_items = epstore->getRWUnderlying(vbid)->
                                            getNumPersistedDeletes(vbid);
+            } catch (std::runtime_error& e) {
+                LOG(EXTENSION_LOG_WARNING,
+                    "doDcpVbTakeoverStats: exception while getting num "
+                    "persisted deletes for vbucket:%" PRIu16 " - treating as 0 "
+                    "deletes. Details: %s", vbid, e.what());
+            }
         }
         size_t chk_items = vb_items > 0 ?
                            vb->checkpointManager.getNumOpenChkItems() : 0;
