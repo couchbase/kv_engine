@@ -323,6 +323,15 @@ static void settings_init_relocable_files(void)
     }
 }
 
+static void update_settings_from_config(void) {
+    if (settings.has.ssl_minimum_protocol) {
+        set_ssl_protocol_mask(settings.ssl_minimum_protocol);
+    }
+
+    if (settings.has.ssl_cipher_list) {
+        set_ssl_cipher_list(settings.ssl_cipher_list);
+    }
+}
 
 /*
  * Adds a message header to a connection.
@@ -8527,6 +8536,8 @@ int main (int argc, char **argv) {
     parse_arguments(argc, argv);
 
     settings_init_relocable_files();
+
+    update_settings_from_config();
 
     /* Initialize breakpad crash catcher with our just-parsed settings. */
     initialize_breakpad(&settings.breakpad);
