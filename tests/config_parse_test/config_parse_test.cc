@@ -288,14 +288,12 @@ static void test_admin_1(struct test_ctx *ctx) {
     /* Empty string should disable admin */
     cJSON_AddStringToObject(ctx->config, "admin", "");
     cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg));
-    cb_assert(settings.disable_admin);
 }
 
 static void test_admin_2(struct test_ctx *ctx) {
     /* non-empty should set admin to that */
     cJSON_AddStringToObject(ctx->config, "admin", "my_admin");
     cb_assert(parse_JSON_config(ctx->config, &settings, &error_msg));
-    cb_assert(settings.disable_admin == false);
     cb_assert(strcmp(settings.admin, "my_admin") == 0);
 }
 

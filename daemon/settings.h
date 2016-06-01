@@ -82,7 +82,6 @@ struct settings {
      * options:
      */
     const char *admin;      /* admin username */
-    bool disable_admin;     /* true if admin disabled. */
     int num_threads;        /* number of worker (without dispatcher) libevent
                                threads to run */
     struct interface *interfaces; /* array of interface settings we are

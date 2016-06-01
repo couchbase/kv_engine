@@ -85,13 +85,9 @@ void SaslAuthTask::notifyExecutionComplete() {
                                               connection.getPeername().c_str(),
                                               connection.getSockname().c_str()));
 
-        if (settings.disable_admin) {
-            /* "everyone is admins" */
+        if (settings.admin != NULL && strcmp(settings.admin,
+                                             connection.getUsername()) == 0) {
             connection.setAdmin(true);
-        } else if (settings.admin != NULL) {
-            if (strcmp(settings.admin, connection.getUsername()) == 0) {
-                connection.setAdmin(true);
-            }
         }
 
         /* associate the connection with the appropriate bucket */

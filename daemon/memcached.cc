@@ -459,7 +459,6 @@ static void settings_init(void) {
     settings.extensions.logger = get_stderr_logger();
     settings.config = NULL;
     settings.admin = NULL;
-    settings.disable_admin = false;
     settings.datatype = false;
     settings.reqs_per_event_high_priority = 50;
     settings.reqs_per_event_med_priority = 5;
@@ -1524,10 +1523,6 @@ static ENGINE_ERROR_CODE release_cookie(const void *void_cookie) {
 }
 
 bool cookie_is_admin(const void *void_cookie) {
-    if (settings.disable_admin) {
-        return true;
-    }
-
     if (void_cookie == nullptr) {
         throw std::invalid_argument("cookie_is_admin: 'cookie' must be non-NULL");
     }

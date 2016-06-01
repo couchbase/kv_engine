@@ -271,11 +271,9 @@ static bool get_admin(cJSON *o, struct settings *settings, char **error_msg) {
     }
     free((char*)settings->admin);
     if (strlen(ptr) == 0) {
-        settings->disable_admin = true;
         settings->admin = NULL;
         free((char*)ptr);
     } else {
-        settings->disable_admin = false;
         settings->admin = ptr;
     }
     settings->has.admin = true;

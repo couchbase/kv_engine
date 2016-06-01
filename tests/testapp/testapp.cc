@@ -365,7 +365,7 @@ cJSON* TestappTest::generate_config(uint16_t ssl_port)
 
     cJSON_AddItemToObject(root, "interfaces", array);
 
-    cJSON_AddStringToObject(root, "admin", "");
+    cJSON_AddStringToObject(root, "admin", "_admin");
     cJSON_AddTrueToObject(root, "datatype_support");
     cJSON_AddStringToObject(root, "rbac_file",
                             mcd_env->getRbacFilename().c_str());
