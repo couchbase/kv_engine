@@ -2383,9 +2383,9 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
     cb_assert(num_non_resident >= (((float)(100 - rr_thresh)/100) * num_items));
 
 
-    // Increase max_size from ~2M to ~20MB
+    // Increase max_size from ~2.5M to ~25MB
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
-              "20000000");
+              "25000000");
     cb_assert(get_int_stat(h, h1, "vb_active_perc_mem_resident") < rr_thresh);
 
     const void *cookie = testHarness.create_cookie();
@@ -5468,7 +5468,7 @@ BaseTestCase testsuite_testcases[] = {
                  /* max_size set so that it's big enough that we can
                     create at least 1000 items when our residency
                     ratio gets to 80%. See test body for more details. */
-                 teardown, "chk_remover_stime=1;max_size=2000000", prepare,
+                 teardown, "chk_remover_stime=1;max_size=2500000", prepare,
                  cleanup),
         TestCase("test producer stream request mem no value",
                  test_dcp_producer_stream_mem_no_value, test_setup, teardown,
