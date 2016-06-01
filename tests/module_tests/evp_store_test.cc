@@ -187,7 +187,7 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
     const char* msg;
     size_t msg_size{sizeof(msg)};
     EXPECT_EQ(ENGINE_SUCCESS, store->evictKey("key", 0, &msg, &msg_size));
-    EXPECT_EQ("Ejected.", msg);
+    EXPECT_EQ("Ejected.", std::string(msg));
 
     // Setup a lambda for how we want to call getKeyStats (saves repeating the
     // same arguments for each instance below).
