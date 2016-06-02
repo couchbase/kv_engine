@@ -49,12 +49,20 @@ public:
 
     void setEPStore(EventuallyPersistentStore* store);
 
-    // Allow us to call the normally protected method.
+    /* Allow us to call normally protected methods */
+
     ENGINE_ERROR_CODE public_doTapVbTakeoverStats(const void *cookie,
                                                   ADD_STAT add_stat,
                                                   std::string& key,
                                                   uint16_t vbid) {
         return doTapVbTakeoverStats(cookie, add_stat, key, vbid);
+    }
+
+    ENGINE_ERROR_CODE public_doDcpVbTakeoverStats(const void *cookie,
+                                                  ADD_STAT add_stat,
+                                                  std::string& key,
+                                                  uint16_t vbid) {
+        return doDcpVbTakeoverStats(cookie, add_stat, key, vbid);
     }
 };
 

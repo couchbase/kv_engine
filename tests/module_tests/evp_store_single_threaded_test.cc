@@ -147,13 +147,18 @@ TEST_F(SingleThreadedEPStoreTest, MB19695_doTapVbTakeoverStats) {
 
     // [[2]] Ok, let's see if we can get TAP takeover stats. This will
     // fail with MB-19695.
-    // Dummy callback to passs into the stats function below.
+    // Dummy callback to pass into the stats function below.
     auto dummy_cb = [](const char *key, const uint16_t klen,
                           const char *val, const uint32_t vlen,
                           const void *cookie) {};
     std::string key{"MB19695_doTapVbTakeoverStats"};
     EXPECT_NO_THROW(engine->public_doTapVbTakeoverStats
                     (nullptr, dummy_cb, key, vbid));
+
+    // Also check DCP variant (MB-19815)
+    EXPECT_NO_THROW(engine->public_doDcpVbTakeoverStats
+                    (nullptr, dummy_cb, key, vbid));
+
     // Cleanup - run the 3rd task - VBStatePersistTask.
     runNextTask(lpWriterQ, "Persisting a vbucket state for vbucket: 0");
 }
