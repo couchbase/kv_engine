@@ -493,7 +493,12 @@ static void settings_init(void) {
     set_ssl_protocol_mask("");
 }
 
-static void settings_init_relocable_files(void)
+/**
+ * The config file may have altered some of the default values we're
+ * caching in other variables. This is the place where we'd propagate
+ * such changes
+ */
+static void update_settings_from_config(void)
 {
     const char *root = DESTINATION_ROOT;
 
@@ -514,6 +519,14 @@ static void settings_init_relocable_files(void)
             settings.rbac_file = strdup(fname.c_str());
             fclose(fp);
         }
+    }
+
+    if (settings.has.ssl_minimum_protocol) {
+        set_ssl_protocol_mask(settings.ssl_minimum_protocol);
+    }
+
+    if (settings.has.ssl_cipher_list) {
+        set_ssl_cipher_list(settings.ssl_cipher_list);
     }
 }
 
@@ -2581,7 +2594,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* Parse command line arguments */
     parse_arguments(argc, argv);
 
-    settings_init_relocable_files();
+    update_settings_from_config();
 
     set_server_initialized(!settings.require_init);
 
