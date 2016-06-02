@@ -2124,9 +2124,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     CheckpointConfig::addConfigChangeListener(*this);
 
     epstore = new EventuallyPersistentStore(*this);
-    if (epstore == NULL) {
-        return ENGINE_ENOMEM;
-    }
 
     initializeEngineCallbacks();
 
