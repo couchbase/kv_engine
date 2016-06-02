@@ -108,6 +108,7 @@ void EventuallyPersistentStoreTest::SetUp() {
 
 void EventuallyPersistentStoreTest::TearDown() {
     destroy_mock_cookie(cookie);
+    destroy_mock_event_callbacks();
     engine.reset();
 
     // Shutdown the ExecutorPool singleton (initialized when we create

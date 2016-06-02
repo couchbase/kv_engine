@@ -28,6 +28,7 @@
 #include "programs/engine_testapp/mock_server.h"
 #include "../mock/mock_dcp.h"
 #include "../mock/mock_dcp_producer.h"
+#include "../mock/mock_dcp_consumer.h"
 
 #include <gtest/gtest.h>
 
@@ -90,26 +91,6 @@ public:
         // We do not create a ConnManager task
         // The ConnNotifier is deleted in the DcpConnMap
         // destructor
-    }
-};
-
-/*
- * Mock of the DcpConsumer class.  Wraps the real DcpConsumer class
- * and provides get/set access to lastMessageTime.
- */
-class MockDcpConsumer: public DcpConsumer {
-public:
-    MockDcpConsumer(EventuallyPersistentEngine &theEngine, const void *cookie,
-                    const std::string &name)
-    : DcpConsumer(theEngine, cookie, name)
-    {}
-
-    void setLastMessageTime(const rel_time_t timeValue) {
-        lastMessageTime = timeValue;
-    }
-
-    rel_time_t getLastMessageTime() {
-        return lastMessageTime;
     }
 };
 

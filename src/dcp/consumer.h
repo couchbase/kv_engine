@@ -138,8 +138,6 @@ protected:
      */
     rel_time_t lastMessageTime;
 
-private:
-
     DcpResponse* getNextItem();
 
     /**

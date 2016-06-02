@@ -2131,9 +2131,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
     CheckpointConfig::addConfigChangeListener(*this);
 
     epstore = new EventuallyPersistentStore(*this);
-    if (epstore == NULL) {
-        return ENGINE_ENOMEM;
-    }
 
     // Register the ON_DISCONNECT callback
     registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
