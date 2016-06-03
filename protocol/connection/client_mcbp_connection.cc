@@ -425,6 +425,49 @@ Frame MemcachedBinprotConnection::encodeCmdGet(const std::string& id,
     return frame;
 }
 
+/* Convenience function which will insert (copy) T into the given container. Only
+ * safe if T is trivially copyable (i.e. save to use memcpy on).
+ */
+template<typename T>
+void encode_to(std::vector<uint8_t>& container, const T& element) {
+    const auto* elem_ptr = reinterpret_cast<const uint8_t*>(&element);
+    container.insert(container.end(), elem_ptr, elem_ptr + sizeof(element));
+}
+
+Frame MemcachedBinprotConnection::encodeCmdDcpOpen() {
+    Frame frame;
+
+    // Encode extras
+    std::vector<uint8_t> extras;
+    encode_to(extras, htonl(0));
+    encode_to(extras, uint32_t{DCP_OPEN_PRODUCER});
+
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_DCP_OPEN, extras,
+                     /*key*/"dcp", /*value*/{});
+
+    return frame;
+}
+
+Frame MemcachedBinprotConnection::encodeCmdDcpStreamReq() {
+    Frame frame;
+
+    // Encode extras
+    std::vector<uint8_t> extras;
+    encode_to(extras, htonl(0));  // flags
+    encode_to(extras, uint32_t{});  // reserved
+    encode_to(extras, htonll(std::numeric_limits<uint64_t>::min()));  // start_seqno
+    encode_to(extras, htonll(std::numeric_limits<uint64_t>::max()));  // end_seqno
+    encode_to(extras, uint64_t{});  // VB UUID
+    encode_to(extras, htonll(std::numeric_limits<uint64_t>::min()));  // snap_start
+    encode_to(extras, htonll(std::numeric_limits<uint64_t>::max()));  // snap_end
+
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, extras,
+                     /*key*/{}, /*value*/{});
+
+    return frame;
+}
+
+
 MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,
                                                 uint16_t vbucket,
                                                 const Greenstack::mutation_type_t type) {
