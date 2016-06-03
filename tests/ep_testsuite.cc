@@ -5796,6 +5796,646 @@ static enum test_result test_mb19635_upgrade_from_25x(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+// Regression test the stats calls that they don't blow the snprintf
+// buffers. All of the tests in this batch make sure that all of the stats
+// exists (the stats call return a fixed set of stats)
+static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
+                                           ENGINE_HANDLE_V1* h1) {
+    // all of these should be const, but g++ seems to have problems with that
+    const std::map<std::string, std::vector<std::string> > statsKeys{
+        {"tap-vbtakeover 0",
+            {
+                "name",
+                "status",
+                "estimate",
+                "on_disk_deletes",
+                "chk_items",
+                "vb_items"
+            }
+        },
+        {"dcp-vbtakeover 0",
+            {
+                "status",
+                "on_disk_deletes",
+                "vb_items",
+                "chk_items",
+                "estimate"
+            }
+        },
+        {"tap",
+            {
+                "ep_replication_throttle_queue_cap",
+                "ep_replication_throttle_threshold",
+                "ep_replication_throttled",
+                "ep_tap_ack_grace_period",
+                "ep_tap_ack_interval",
+                "ep_tap_ack_window_size",
+                "ep_tap_backoff_period",
+                "ep_tap_bg_fetch_requeued",
+                "ep_tap_bg_fetched",
+                "ep_tap_bg_max_pending",
+                "ep_tap_count",
+                "ep_tap_deletes",
+                "ep_tap_fg_fetched",
+                "ep_tap_noop_interval",
+                "ep_tap_queue_backfillremaining",
+                "ep_tap_queue_backoff",
+                "ep_tap_queue_drain",
+                "ep_tap_queue_fill",
+                "ep_tap_queue_itemondisk",
+                "ep_tap_total_backlog_size",
+                "ep_tap_total_fetched",
+                "ep_tap_total_queue"
+            }
+        },
+        {"dcp",
+            {
+                "ep_dcp_count",
+                "ep_dcp_dead_conn_count",
+                "ep_dcp_items_remaining",
+                "ep_dcp_items_sent",
+                "ep_dcp_max_running_backfills",
+                "ep_dcp_num_running_backfills",
+                "ep_dcp_producer_count",
+                "ep_dcp_queue_backfillremaining",
+                "ep_dcp_queue_fill",
+                "ep_dcp_total_bytes",
+                "ep_dcp_total_queue"
+            }
+        },
+        {"hash",
+            {
+                "vb_0:counted",
+                "vb_0:locks",
+                "vb_0:max_depth",
+                "vb_0:mem_size",
+                "vb_0:mem_size_counted",
+                "vb_0:min_depth",
+                "vb_0:reported",
+                "vb_0:resized",
+                "vb_0:size",
+                "vb_0:state"
+            }},
+        {"vbucket",
+            {
+                "vb_0"
+            }
+        },
+        {"vbucket-details 0",
+            {
+                "vb_0",
+                "vb_0:bloom_filter",
+                "vb_0:bloom_filter_key_count",
+                "vb_0:bloom_filter_size",
+                "vb_0:db_data_size",
+                "vb_0:db_file_size",
+                "vb_0:drift_counter",
+                "vb_0:high_seqno",
+                "vb_0:ht_cache_size",
+                "vb_0:ht_item_memory",
+                "vb_0:ht_memory",
+                "vb_0:max_cas",
+                "vb_0:num_ejects",
+                "vb_0:num_items",
+                "vb_0:num_non_resident",
+                "vb_0:num_temp_items",
+                "vb_0:ops_create",
+                "vb_0:ops_delete",
+                "vb_0:ops_reject",
+                "vb_0:ops_update",
+                "vb_0:pending_writes",
+                "vb_0:purge_seqno",
+                "vb_0:queue_age",
+                "vb_0:queue_drain",
+                "vb_0:queue_fill",
+                "vb_0:queue_memory",
+                "vb_0:queue_size",
+                "vb_0:rollback_item_count",
+                "vb_0:time_sync",
+                "vb_0:uuid"
+            }
+        },
+        {"vbucket-seqno",
+            {
+                "vb_0:abs_high_seqno",
+                "vb_0:high_seqno",
+                "vb_0:last_persisted_seqno",
+                "vb_0:last_persisted_snap_end",
+                "vb_0:last_persisted_snap_start",
+                "vb_0:purge_seqno",
+                "vb_0:uuid"
+            }
+        },
+        {"vbucket-seqno 0",
+            {
+                "vb_0:abs_high_seqno",
+                "vb_0:high_seqno",
+                "vb_0:last_persisted_seqno",
+                "vb_0:last_persisted_snap_end",
+                "vb_0:last_persisted_snap_start",
+                "vb_0:purge_seqno",
+                "vb_0:uuid"
+
+            }
+        },
+        {"prev-vbucket",
+            {
+                "vb_0"
+            }
+        },
+        {"prev-vbucket",
+            {
+                "vb_0"
+            }
+        },
+        {"checkpoint",
+            {
+                "vb_0:last_closed_checkpoint_id",
+                "vb_0:mem_usage",
+                "vb_0:num_checkpoint_items",
+                "vb_0:num_checkpoints",
+                "vb_0:num_conn_cursors",
+                "vb_0:num_items_for_persistence",
+                "vb_0:num_open_checkpoint_items",
+                "vb_0:open_checkpoint_id",
+                "vb_0:persisted_checkpoint_id",
+                "vb_0:persistence:cursor_checkpoint_id",
+                "vb_0:persistence:cursor_seqno",
+                "vb_0:state"
+            }
+        },
+        {"checkpoint 0",
+            {
+                "vb_0:last_closed_checkpoint_id",
+                "vb_0:mem_usage",
+                "vb_0:num_checkpoint_items",
+                "vb_0:num_checkpoints",
+                "vb_0:num_conn_cursors",
+                "vb_0:num_items_for_persistence",
+                "vb_0:num_open_checkpoint_items",
+                "vb_0:open_checkpoint_id",
+                "vb_0:persisted_checkpoint_id",
+                "vb_0:persistence:cursor_checkpoint_id",
+                "vb_0:persistence:cursor_seqno",
+                "vb_0:state"
+            }
+        },
+        {"uuid",
+            {
+                "uuid"
+            }
+        },
+        {"kvstore",
+            {
+                "ro_0:backend_type",
+                "ro_0:close",
+                "ro_0:failure_get",
+                "ro_0:failure_open",
+                "ro_0:io_compaction_read_bytes",
+                "ro_0:io_compaction_write_bytes",
+                "ro_0:io_num_read",
+                "ro_0:io_num_write",
+                "ro_0:io_read_bytes",
+                "ro_0:io_total_read_bytes",
+                "ro_0:io_total_write_bytes",
+                "ro_0:io_write_bytes",
+                "ro_0:numLoadedVb",
+                "ro_0:open",
+                "ro_1:backend_type",
+                "ro_1:close",
+                "ro_1:failure_get",
+                "ro_1:failure_open",
+                "ro_1:io_compaction_read_bytes",
+                "ro_1:io_compaction_write_bytes",
+                "ro_1:io_num_read",
+                "ro_1:io_num_write",
+                "ro_1:io_read_bytes",
+                "ro_1:io_total_read_bytes",
+                "ro_1:io_total_write_bytes",
+                "ro_1:io_write_bytes",
+                "ro_1:numLoadedVb",
+                "ro_1:open",
+                "ro_2:backend_type",
+                "ro_2:close",
+                "ro_2:failure_get",
+                "ro_2:failure_open",
+                "ro_2:io_compaction_read_bytes",
+                "ro_2:io_compaction_write_bytes",
+                "ro_2:io_num_read",
+                "ro_2:io_num_write",
+                "ro_2:io_read_bytes",
+                "ro_2:io_total_read_bytes",
+                "ro_2:io_total_write_bytes",
+                "ro_2:io_write_bytes",
+                "ro_2:numLoadedVb",
+                "ro_2:open",
+                "ro_3:backend_type",
+                "ro_3:close",
+                "ro_3:failure_get",
+                "ro_3:failure_open",
+                "ro_3:io_compaction_read_bytes",
+                "ro_3:io_compaction_write_bytes",
+                "ro_3:io_num_read",
+                "ro_3:io_num_write",
+                "ro_3:io_read_bytes",
+                "ro_3:io_total_read_bytes",
+                "ro_3:io_total_write_bytes",
+                "ro_3:io_write_bytes",
+                "ro_3:numLoadedVb",
+                "ro_3:open",
+                "rw_0:backend_type",
+                "rw_0:close",
+                "rw_0:failure_del",
+                "rw_0:failure_get",
+                "rw_0:failure_open",
+                "rw_0:failure_set",
+                "rw_0:failure_vbset",
+                "rw_0:io_compaction_read_bytes",
+                "rw_0:io_compaction_write_bytes",
+                "rw_0:io_num_read",
+                "rw_0:io_num_write",
+                "rw_0:io_read_bytes",
+                "rw_0:io_total_read_bytes",
+                "rw_0:io_total_write_bytes",
+                "rw_0:io_write_bytes",
+                "rw_0:lastCommDocs",
+                "rw_0:numLoadedVb",
+                "rw_0:open",
+                "rw_1:backend_type",
+                "rw_1:close",
+                "rw_1:failure_del",
+                "rw_1:failure_get",
+                "rw_1:failure_open",
+                "rw_1:failure_set",
+                "rw_1:failure_vbset",
+                "rw_1:io_compaction_read_bytes",
+                "rw_1:io_compaction_write_bytes",
+                "rw_1:io_num_read",
+                "rw_1:io_num_write",
+                "rw_1:io_read_bytes",
+                "rw_1:io_total_read_bytes",
+                "rw_1:io_total_write_bytes",
+                "rw_1:io_write_bytes",
+                "rw_1:lastCommDocs",
+                "rw_1:numLoadedVb",
+                "rw_1:open",
+                "rw_2:backend_type",
+                "rw_2:close",
+                "rw_2:failure_del",
+                "rw_2:failure_get",
+                "rw_2:failure_open",
+                "rw_2:failure_set",
+                "rw_2:failure_vbset",
+                "rw_2:io_compaction_read_bytes",
+                "rw_2:io_compaction_write_bytes",
+                "rw_2:io_num_read",
+                "rw_2:io_num_write",
+                "rw_2:io_read_bytes",
+                "rw_2:io_total_read_bytes",
+                "rw_2:io_total_write_bytes",
+                "rw_2:io_write_bytes",
+                "rw_2:lastCommDocs",
+                "rw_2:numLoadedVb",
+                "rw_2:open",
+                "rw_3:backend_type",
+                "rw_3:close",
+                "rw_3:failure_del",
+                "rw_3:failure_get",
+                "rw_3:failure_open",
+                "rw_3:failure_set",
+                "rw_3:failure_vbset",
+                "rw_3:io_compaction_read_bytes",
+                "rw_3:io_compaction_write_bytes",
+                "rw_3:io_num_read",
+                "rw_3:io_num_write",
+                "rw_3:io_read_bytes",
+                "rw_3:io_total_read_bytes",
+                "rw_3:io_total_write_bytes",
+                "rw_3:io_write_bytes",
+                "rw_3:lastCommDocs",
+                "rw_3:numLoadedVb",
+                "rw_3:open",
+            }
+        },
+        {"info",
+            {
+                "info"
+            }
+        },
+        {"allocator",
+            {
+                "detailed"
+            }
+        },
+        {"config",
+            {
+                "ep_access_scanner_enabled",
+                "ep_alog_block_size",
+                "ep_alog_path",
+                "ep_alog_resident_ratio_threshold",
+                "ep_alog_sleep_time",
+                "ep_alog_task_time",
+                "ep_backend",
+                "ep_backfill_mem_threshold",
+                "ep_bfilter_enabled",
+                "ep_bfilter_fp_prob",
+                "ep_bfilter_key_count",
+                "ep_bfilter_residency_threshold",
+                "ep_bg_fetch_delay",
+                "ep_chk_max_items",
+                "ep_chk_period",
+                "ep_chk_remover_stime",
+                "ep_compaction_exp_mem_threshold",
+                "ep_compaction_write_queue_cap",
+                "ep_config_file",
+                "ep_conflict_resolution_type",
+                "ep_couch_bucket",
+                "ep_cursor_dropping_lower_mark",
+                "ep_cursor_dropping_upper_mark",
+                "ep_data_traffic_enabled",
+                "ep_dbname",
+                "ep_dcp_backfill_byte_limit",
+                "ep_dcp_conn_buffer_size",
+                "ep_dcp_conn_buffer_size_aggr_mem_threshold",
+                "ep_dcp_conn_buffer_size_aggressive_perc",
+                "ep_dcp_conn_buffer_size_max",
+                "ep_dcp_conn_buffer_size_perc",
+                "ep_dcp_enable_noop",
+                "ep_dcp_flow_control_policy",
+                "ep_dcp_max_unacked_bytes",
+                "ep_dcp_min_compression_ratio",
+                "ep_dcp_noop_interval",
+                "ep_dcp_producer_snapshot_marker_yield_limit",
+                "ep_dcp_scan_byte_limit",
+                "ep_dcp_scan_item_limit",
+                "ep_dcp_takeover_max_time",
+                "ep_dcp_value_compression_enabled",
+                "ep_defragmenter_age_threshold",
+                "ep_defragmenter_chunk_duration",
+                "ep_defragmenter_enabled",
+                "ep_defragmenter_interval",
+                "ep_enable_chk_merge",
+                "ep_exp_pager_enabled",
+                "ep_exp_pager_initial_run_time",
+                "ep_exp_pager_stime",
+                "ep_failpartialwarmup",
+                "ep_flushall_enabled",
+                "ep_getl_default_timeout",
+                "ep_getl_max_timeout",
+                "ep_ht_locks",
+                "ep_ht_size",
+                "ep_initfile",
+                "ep_item_eviction_policy",
+                "ep_item_num_based_new_chk",
+                "ep_keep_closed_chks",
+                "ep_max_checkpoints",
+                "ep_max_failover_entries",
+                "ep_max_item_size",
+                "ep_max_num_auxio",
+                "ep_max_num_nonio",
+                "ep_max_num_readers",
+                "ep_max_num_shards",
+                "ep_max_num_workers",
+                "ep_max_num_writers",
+                "ep_max_size",
+                "ep_max_threads",
+                "ep_max_vbuckets",
+                "ep_mem_high_wat",
+                "ep_mem_low_wat",
+                "ep_mutation_mem_threshold",
+                "ep_pager_active_vb_pcnt",
+                "ep_postInitfile",
+                "ep_replication_throttle_cap_pcnt",
+                "ep_replication_throttle_queue_cap",
+                "ep_replication_throttle_threshold",
+                "ep_tap_ack_grace_period",
+                "ep_tap_ack_initial_sequence_number",
+                "ep_tap_ack_interval",
+                "ep_tap_ack_window_size",
+                "ep_tap_backfill_resident",
+                "ep_tap_backlog_limit",
+                "ep_tap_backoff_period",
+                "ep_tap_bg_max_pending",
+                "ep_tap_keepalive",
+                "ep_tap_noop_interval",
+                "ep_tap_requeue_sleep_time",
+                "ep_time_synchronization",
+                "ep_uuid",
+                "ep_vb0",
+                "ep_waitforwarmup",
+                "ep_warmup",
+                "ep_warmup_batch_size",
+                "ep_warmup_min_items_threshold",
+                "ep_warmup_min_memory_threshold"
+            }
+        },
+        {"workload",
+            {
+                "ep_workload:num_readers",
+                "ep_workload:num_writers",
+                "ep_workload:num_auxio",
+                "ep_workload:num_nonio",
+                "ep_workload:max_readers",
+                "ep_workload:max_writers",
+                "ep_workload:max_auxio",
+                "ep_workload:max_nonio",
+                "ep_workload:num_shards",
+                "ep_workload:ready_tasks",
+                "ep_workload:num_sleepers",
+                "ep_workload:LowPrioQ_AuxIO:InQsize",
+                "ep_workload:LowPrioQ_AuxIO:OutQsize",
+                "ep_workload:LowPrioQ_NonIO:InQsize",
+                "ep_workload:LowPrioQ_NonIO:OutQsize",
+                "ep_workload:LowPrioQ_Reader:InQsize",
+                "ep_workload:LowPrioQ_Reader:OutQsize",
+                "ep_workload:LowPrioQ_Writer:InQsize",
+                "ep_workload:LowPrioQ_Writer:OutQsize"
+            }
+        },
+        {"failovers 0",
+            {
+                "vb_0:0:id",
+                "vb_0:0:seq",
+                "vb_0:num_entries"
+            }
+        },
+        {"failovers",
+            {
+                "vb_0:0:id",
+                "vb_0:0:seq",
+                "vb_0:num_entries"
+            }
+        },
+        {"diskinfo",
+            {
+                "ep_db_data_size",
+                "ep_db_file_size"
+            }
+        },
+        {"diskinfo detail",
+            {
+                "vb_0:data_size",
+                "vb_0:file_size"
+            }
+        }
+    };
+
+    bool error = false;
+    for (const auto& entry : statsKeys) {
+        vals.clear();
+        checkeq(ENGINE_SUCCESS,
+                h1->get_stats(h, nullptr, entry.first.data(),
+                              entry.first.size(), add_stats),
+                (std::string("Failed to get stats: ") + entry.first).c_str());
+
+        for (const auto& key : entry.second) {
+            auto iter = vals.find(key);
+            if (iter == vals.end()) {
+                error = true;
+                fprintf(stderr, "Missing stat:  %s from stat group %s\n",
+                        key.c_str(),
+                        entry.first.c_str());
+            }
+        }
+
+        if (entry.second.size() != vals.size()) {
+            fprintf(stderr,
+                    "Incorrect number of stats returned for stat group %s: %lu != %lu\n",
+                    entry.first.c_str(), (unsigned long)entry.second.size(),
+                    (unsigned long)vals.size());
+            error = true;
+        }
+    }
+
+    if (error) {
+        abort_msg("missing stats", "stats error", __FILE__, __LINE__);
+    }
+
+    return SUCCESS;
+}
+
+// Regression test the stats calls that they don't blow the snprintf
+// buffers. All of the tests in this batch make sure that some of the stats
+// exists (the server may return more)
+static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
+                                              ENGINE_HANDLE_V1* h1) {
+    // all of these should be const, but g++ seems to have problems with that
+    std::map<std::string, std::vector<std::string> > statsKeys{
+        {"dispatcher", {}}, // Depends on how how long the dispatcher ran..
+
+//        {"tapagg foo",      {}}, // tapagg takes a key and I need to have that tap stream
+//        {"dcpagg bar",      {}}, // dcpagg takes a key and I need to have that dcp stream
+
+        {"key mykey",
+            {
+                "key_cas",
+                "key_exptime",
+                "key_flags",
+                "key_is_dirty",
+                "key_vb_state"
+            }
+        },
+        {"vkey mykey",
+            {
+                "key_cas",
+                "key_exptime",
+                "key_flags",
+                "key_is_dirty",
+                "key_valid",
+                "key_vb_state"
+            }
+        },
+        {"memory",
+            {
+                "bytes",
+                "ep_blob_num",
+                "ep_blob_overhead",
+                "ep_item_num",
+                "ep_kv_size",
+                "ep_max_size",
+                "ep_mem_high_wat",
+                "ep_mem_high_wat_percent",
+                "ep_mem_low_wat",
+                "ep_mem_low_wat_percent",
+                "ep_oom_errors",
+                "ep_overhead",
+                "ep_storedval_num",
+                "ep_storedval_overhead",
+                "ep_storedval_size",
+                "ep_tmp_oom_errors",
+                "ep_value_size",
+                "mem_used",
+            }
+        },
+
+        // These stat groups return histograms so we can't guess the
+        // key names...
+        {"timings",
+            {}
+        },
+        {"scheduler",
+            {}
+        },
+        {"runtimes",
+            {}
+        },
+        {"kvtimings",
+            {}
+        },
+
+        {"warmup",
+            {
+                "ep_warmup",
+                "ep_warmup_state",
+                "ep_warmup_thread",
+                "ep_warmup_key_count",
+                "ep_warmup_value_count",
+                "ep_warmup_dups",
+                "ep_warmup_oom",
+                "ep_warmup_min_memory_threshold",
+                "ep_warmup_min_item_threshold",
+                "ep_warmup_estimated_key_count",
+                "ep_warmup_estimated_value_count"
+            }
+        }
+    };
+
+    item_info info;
+    memset(&info, 0, sizeof(info));
+
+    item *i = nullptr;
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_ADD, "mykey", "data1", &i, 0, 0),
+            "Failed to store an item");
+    h1->release(h, NULL, i);
+
+    bool error = false;
+    for (const auto& entry : statsKeys) {
+        vals.clear();
+        checkeq(ENGINE_SUCCESS,
+                h1->get_stats(h, nullptr, entry.first.data(),
+                              entry.first.size(), add_stats),
+                (std::string("Failed to get stats: ") + entry.first).c_str());
+
+        // Verify that the stats we expected is there..
+        for (const auto& key : entry.second) {
+            auto iter = vals.find(key);
+            if (iter == vals.end()) {
+                error = true;
+                fprintf(stderr, "Missing stat:  %s from stat group %s\n",
+                        key.c_str(),
+                        entry.first.c_str());
+            }
+        }
+    }
+
+    if (error) {
+        abort_msg("missing stats", "stats error", __FILE__, __LINE__);
+    }
+
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite";
@@ -6233,6 +6873,11 @@ BaseTestCase testsuite_testcases[] = {
                  test_mb19635_upgrade_from_25x, test_setup, teardown, NULL,
                  prepare, cleanup),
 
+        TestCase("test_MB-19687_fixed", test_mb19687_fixed, test_setup, teardown, NULL,
+                 prepare, cleanup),
+
+        TestCase("test_MB-19687_variable", test_mb19687_variable, test_setup, teardown, NULL,
+                 prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };
