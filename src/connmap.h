@@ -490,10 +490,11 @@ public:
     }
 
     /**
-     * Closes the stream with the specified name.
-     * Returns true if the stream was closed (based on eligibility).
+     * Handles the slow stream with the specified name.
+     * Returns true if the stream dropped its cursors on the
+     * checkpoint.
      */
-    bool closeSlowStream(uint16_t vbid, const std::string &name);
+    bool handleSlowStream(uint16_t vbid, const std::string &name);
 
     void disconnect(const void *cookie);
 

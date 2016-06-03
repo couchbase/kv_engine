@@ -167,10 +167,12 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
                            uint64_t snap_start_seqno, uint64_t snap_end_seqno)
     :  Stream(n, flags, opaque, vb, st_seqno, en_seqno, vb_uuid,
               snap_start_seqno, snap_end_seqno),
-       lastReadSeqno(st_seqno), lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
+       lastReadSeqnoUnSnapshotted(st_seqno), lastReadSeqno(st_seqno),
+       lastSentSeqno(st_seqno), curChkSeqno(st_seqno),
        takeoverState(vbucket_state_pending), backfillRemaining(0),
        itemsFromMemoryPhase(0), firstMarkerSent(false), waitForSnapshot(0),
        engine(e), producer(p), isBackfillTaskRunning(false),
+       pendingBackfill(false),
        payloadType((flags & DCP_ADD_STREAM_FLAG_NO_VALUE) ? KEY_ONLY :
                                                             KEY_VALUE),
        lastSentSnapEndSeqno(0), chkptItemsExtractionInProgress(false) {
@@ -372,12 +374,18 @@ void ActiveStream::completeBackfill() {
     {
         LockHolder lh(streamMutex);
         if (state_ == STREAM_BACKFILLING) {
-            isBackfillTaskRunning = false;
             producer->getLogger().log(EXTENSION_LOG_NOTICE,
-                "(vb %" PRIu16 ") Backfill complete, %" PRIu64 " items read "
-                "from disk, %" PRIu64 " from memory, last seqno read: %" PRIu64,
-                vb_, uint64_t(backfillItems.disk.load()),
-                uint64_t(backfillItems.memory.load()), lastReadSeqno.load());
+                    "(vb %" PRIu16 ") Backfill complete, %" PRIu64 " items "
+                    "read from disk, %" PRIu64 " from memory, last seqno read: "
+                    "%" PRIu64 "\n", vb_, uint64_t(backfillItems.disk.load()),
+                    uint64_t(backfillItems.memory.load()),
+                    lastReadSeqno.load());
+
+            isBackfillTaskRunning = false;
+            if (pendingBackfill) {
+                scheduleBackfill_UNLOCKED(true);
+                pendingBackfill = false;
+            }
         }
     }
 
@@ -475,7 +483,11 @@ DcpResponse* ActiveStream::inMemoryPhase() {
     if (lastSentSeqno.load() >= end_seqno_) {
         endStream(END_STREAM_OK);
     } else if (readyQ.empty()) {
-        if (nextCheckpointItem()) {
+        if (pendingBackfill) {
+            transitionState(STREAM_BACKFILLING);
+            pendingBackfill = false;
+            return NULL;
+        } else if (nextCheckpointItem()) {
             return NULL;
         }
     }
@@ -787,7 +799,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
             if (qi->getOperation() == queue_op_set ||
                 qi->getOperation() == queue_op_del) {
                 curChkSeqno = qi->getBySeqno();
-                lastReadSeqno = qi->getBySeqno();
+                lastReadSeqnoUnSnapshotted = qi->getBySeqno();
 
                 mutations.push_back(new MutationResponse(qi, opaque_,
                             prepareExtendedMetaData(qi->getVBucketId(),
@@ -830,10 +842,13 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
 
     LockHolder lh(streamMutex);
 
-    if (state_ == STREAM_DEAD) {
+    if ((state_ == STREAM_DEAD) || (state_ == STREAM_BACKFILLING)) {
         // If stream was closed forcefully by the time the checkpoint items
-        // retriever task completed, none of the acquired mutations should
-        // be added on the stream's readyQ.
+        // retriever task completed, or if we decided to switch the stream to
+        // backfill state from in-memory state, none of the acquired mutations
+        // should be added on the stream's readyQ. We must drop items in case
+        // we switch state from in-memory to backfill because we schedule
+        // backfill from lastReadSeqno + 1
         std::deque<MutationResponse *>::iterator itr = items.begin();
         for (; itr != items.end(); ++itr) {
             delete *itr;
@@ -841,6 +856,9 @@ void ActiveStream::snapshot(std::deque<MutationResponse*>& items, bool mark) {
         items.clear();
         return;
     }
+
+    /* This assumes that all items in the "items deque" is put onto readyQ */
+    lastReadSeqno.store(lastReadSeqnoUnSnapshotted);
 
     if (isCurrentSnapshotCompleted()) {
         uint32_t flags = MARKER_FLAG_MEMORY;
@@ -896,6 +914,7 @@ void ActiveStream::notifySeqnoAvailable(uint64_t seqno) {
 
 void ActiveStream::endStream(end_stream_status_t reason) {
     if (state_ != STREAM_DEAD) {
+        pendingBackfill = false;
         if (state_ == STREAM_BACKFILLING) {
             // If Stream were in Backfilling state, clear out the
             // backfilled items to clear up the backfill buffer.
@@ -920,8 +939,14 @@ void ActiveStream::endStream(end_stream_status_t reason) {
     }
 }
 
-void ActiveStream::scheduleBackfill() {
+void ActiveStream::scheduleBackfill_UNLOCKED(bool reschedule) {
     if (isBackfillTaskRunning) {
+        producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                                  "(vb %" PRIu16 ") Skipping "
+                                  "scheduleBackfill_UNLOCKED; "
+                                  "lastReadSeqno %" PRIu64 ", reschedule flag "
+                                  ": %s", vb_, lastReadSeqno.load(),
+                                  reschedule ? "True" : "False");
         return;
     }
 
@@ -934,16 +959,26 @@ void ActiveStream::scheduleBackfill() {
     uint64_t backfillEnd = 0;
     bool tryBackfill = false;
 
-    if (flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) {
+    if ((flags_ & DCP_ADD_STREAM_FLAG_DISKONLY) || reschedule) {
         uint64_t vbHighSeqno = static_cast<uint64_t>(vbucket->getHighSeqno());
         if (lastReadSeqno.load() > vbHighSeqno) {
-            throw std::logic_error("ActiveStream::scheduleBackfill: "
+            throw std::logic_error("ActiveStream::scheduleBackfill_UNLOCKED: "
                                    "lastReadSeqno (which is " +
                                    std::to_string(lastReadSeqno.load()) +
-                                   ") is greater than vbHighSeqno (which is " +
-                                   std::to_string(vbHighSeqno) + ")");
+                                   " ) is greater than vbHighSeqno (which is " +
+                                   std::to_string(vbHighSeqno) + " ). " +
+                                   "for stream " + producer->logHeader() +
+                                   "; vb " + std::to_string(vb_));
         }
-        backfillEnd = end_seqno_;
+        if (reschedule) {
+            /* We need to do this for reschedule because in case of
+               DCP_ADD_STREAM_FLAG_DISKONLY (the else part), end_seqno_ is
+               set to last persisted seqno befor calling
+               scheduleBackfill_UNLOCKED() */
+            backfillEnd = engine->getEpStore()->getLastPersistedSeqno(vb_);
+        } else {
+            backfillEnd = end_seqno_;
+        }
         tryBackfill = true;
     } else {
         CursorRegResult result =
@@ -955,11 +990,13 @@ void ActiveStream::scheduleBackfill() {
         tryBackfill = result.second;
 
         if (lastReadSeqno.load() > curChkSeqno) {
-            throw std::logic_error("ActiveStream::scheduleBackfill: "
+            throw std::logic_error("ActiveStream::scheduleBackfill_UNLOCKED: "
                                    "lastReadSeqno (which is " +
                                    std::to_string(lastReadSeqno.load()) +
-                                   ") is greater than curChkSeqno (which is " +
-                                   std::to_string(curChkSeqno) + ")");
+                                   " ) is greater than curChkSeqno (which is " +
+                                   std::to_string(curChkSeqno) + " ). " +
+                                   "for stream " + producer->logHeader() +
+                                   "; vb " + std::to_string(vb_));
         }
 
         /* We need to find the minimum seqno that needs to be backfilled in
@@ -979,6 +1016,11 @@ void ActiveStream::scheduleBackfill() {
     }
 
     if (backfillStart <= backfillEnd && tryBackfill) {
+        producer->getLogger().log(EXTENSION_LOG_NOTICE,
+                                  "(vb %" PRIu16 ") Scheduling backfill "
+                                  "from %" PRIu64 " to %" PRIu64 ", reschedule "
+                                  "flag : %s", vb_, backfillStart, backfillEnd,
+                                  reschedule ? "True" : "False");
         producer->scheduleBackfillManager(this, backfillStart, backfillEnd);
         isBackfillTaskRunning.store(true);
     } else {
@@ -990,6 +1032,41 @@ void ActiveStream::scheduleBackfill() {
             transitionState(STREAM_IN_MEMORY);
         }
         itemsReady.store(true);
+    }
+}
+
+void ActiveStream::handleSlowStream()
+{
+    LockHolder lh(streamMutex);
+    switch (state_.load()) {
+        case STREAM_BACKFILLING:
+            if (isBackfillTaskRunning.load()) {
+                /* Drop the existing cursor and set pending backfill */
+                dropCheckpointCursor_UNLOCKED();
+                pendingBackfill = true;
+            } else {
+                scheduleBackfill_UNLOCKED(true);
+            }
+            break;
+        case STREAM_IN_MEMORY:
+            /* Drop the existing cursor and set pending backfill */
+            dropCheckpointCursor_UNLOCKED();
+            pendingBackfill = true;
+            break;
+        case STREAM_TAKEOVER_SEND:
+            /* To be handled later if needed */
+        case STREAM_TAKEOVER_WAIT:
+            /* To be handled later if needed */
+        case STREAM_DEAD:
+            /* To be handled later if needed */
+            break;
+        case STREAM_PENDING:
+        case STREAM_READING:
+            throw std::logic_error("ActiveStream::handleSlowStream: "
+                                   "called with state " +
+                                   std::to_string(state_.load()) + " . " +
+                                   "for stream " + producer->logHeader() +
+                                   "; vb " + std::to_string(vb_));
     }
 }
 
@@ -1067,11 +1144,16 @@ void ActiveStream::transitionState(stream_state_t newState) {
                 std::to_string(state_) + ")");
     }
 
+    stream_state_t oldState = state_.load();
     state_ = newState;
 
     switch (newState) {
         case STREAM_BACKFILLING:
-            scheduleBackfill();
+            if (STREAM_PENDING == oldState) {
+                scheduleBackfill_UNLOCKED(false /* reschedule */);
+            } else if (STREAM_IN_MEMORY == oldState) {
+                scheduleBackfill_UNLOCKED(true /* reschedule */);
+            }
             break;
         case STREAM_IN_MEMORY:
             // Check if the producer has sent up till the last requested
@@ -1080,6 +1162,10 @@ void ActiveStream::transitionState(stream_state_t newState) {
             if (lastSentSeqno.load() >= end_seqno_) {
                 // Stream transitioning to DEAD state
                 endStream(END_STREAM_OK);
+                bool inverse = false;
+                if (itemsReady.compare_exchange_strong(inverse, true)) {
+                    producer->notifyStreamReady(vb_, false);
+                }
             } else {
                 nextCheckpointItem();
             }
@@ -1161,6 +1247,16 @@ bool ActiveStream::isCurrentSnapshotCompleted() const
         }
     }
     return true;
+}
+
+void ActiveStream::dropCheckpointCursor_UNLOCKED()
+{
+    RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
+    if (!vbucket) {
+        endStream(END_STREAM_STATE);
+    }
+    /* Drop the existing cursor */
+    vbucket->checkpointManager.removeCursor(name_);
 }
 
 NotifierStream::NotifierStream(EventuallyPersistentEngine* e, dcp_producer_t p,
@@ -1465,10 +1561,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
                 processSetVBucketState(static_cast<SetVBucketState*>(resp));
                 break;
             case DCP_STREAM_END:
-                // Check flags of this END_STREAM message. If reason was found
-                // to be END_STREAM_SLOW, initiate a reconnection.
-                if (!consumer->reconnectSlowStream(
-                                    static_cast<StreamEndResponse*>(resp))) {
+                {
                     LockHolder lh(streamMutex);
                     transitionState(STREAM_DEAD);
                 }
@@ -1528,10 +1621,7 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
                 processSetVBucketState(static_cast<SetVBucketState*>(response));
                 break;
             case DCP_STREAM_END:
-                // Check flags of this END_STREAM message. If reason was found
-                // to be END_STREAM_SLOW, initiate a reconnection.
-                if (!consumer->reconnectSlowStream(
-                                  static_cast<StreamEndResponse*>(response))) {
+                {
                     LockHolder lh(streamMutex);
                     transitionState(STREAM_DEAD);
                 }

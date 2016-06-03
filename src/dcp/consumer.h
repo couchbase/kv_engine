@@ -85,8 +85,6 @@ public:
 
     bool doRollback(uint32_t opaque, uint16_t vbid, uint64_t rollbackSeqno);
 
-    bool reconnectSlowStream(StreamEndResponse *resp);
-
     void addStats(ADD_STAT add_stat, const void *c);
 
     void aggregateQueueStats(ConnCounter& aggregator);

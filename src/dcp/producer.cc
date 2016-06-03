@@ -162,8 +162,7 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     if (name.find("replication") < name.length()) {
         supportsCursorDropping = false;
     } else {
-        /* MB-18256: Disabling cursor droppping temporarily */
-        supportsCursorDropping = false;
+        supportsCursorDropping = true;
     }
 
     backfillMgr = new BackfillManager(&engine_);
@@ -276,15 +275,6 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Couldn't add failover log to "
             "stream request due to error %d", logHeader(), vbucket, rv);
         return rv;
-    }
-
-    // Check if the stream request is for a vbucket whose cursor
-    // was dropped earlier, in which case the vbucket's entry will
-    // need to be removed from the map.
-    std::map<uint16_t, uint64_t>::iterator it;
-    it = tempDroppedStreams.find(vbucket);
-    if (it != tempDroppedStreams.end()) {
-        tempDroppedStreams.erase(it);
     }
 
     stream_t s;
@@ -725,45 +715,12 @@ void DcpProducer::addTakeoverStats(ADD_STAT add_stat, const void* c,
     if (stream && stream->getType() == STREAM_ACTIVE) {
         ActiveStream* as = static_cast<ActiveStream*>(stream.get());
         if (as) {
-            if (as->getState() == STREAM_DEAD &&
-                addTOStatsIfStreamTempDisconnected(add_stat, c, vbid)) {
+            if (as->getState() == STREAM_DEAD) {
                 return;
             }
             as->addTakeoverStats(add_stat, c);
         }
-    } else {
-        addTOStatsIfStreamTempDisconnected(add_stat, c, vbid);
     }
-}
-
-bool DcpProducer::addTOStatsIfStreamTempDisconnected(ADD_STAT add_stat,
-                                                     const void *c,
-                                                     uint16_t vbid) {
-    /**
-     * Check if the vbucket whose stream is being looked up
-     * was closed by the checkpoint remover's cursor dropper,
-     * in which case there would be a reconnection soon.
-     * Stats will reflect an approximate estimate.
-     */
-    std::map<uint16_t, uint64_t>::iterator it;
-    it = tempDroppedStreams.find(vbid);
-    if (it != tempDroppedStreams.end()) {
-        RCPtr<VBucket> vb = engine_.getVBucket(vbid);
-        if (!vb) {
-            tempDroppedStreams.erase(it);
-            return false;
-        }
-        uint64_t estimateRemaining =
-                static_cast<uint64_t>(vb->getHighSeqno()) - it->second;
-        add_casted_stat("status", "temporarily_disconnected",
-                add_stat, c);
-        add_casted_stat("estimate", estimateRemaining,
-                add_stat, c);
-        add_casted_stat("backfillRemaining", estimateRemaining,
-                add_stat, c);
-        return true;
-    }
-    return false;
 }
 
 void DcpProducer::aggregateQueueStats(ConnCounter& aggregator) {
@@ -790,31 +747,18 @@ void DcpProducer::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state) {
     }
 }
 
-bool DcpProducer::closeSlowStream(uint16_t vbid,
-                                  const std::string &name) {
+bool DcpProducer::handleSlowStream(uint16_t vbid,
+                                   const std::string &name) {
     if (supportsCursorDropping) {
         stream_t stream = findStreamByVbid(vbid);
         if (stream) {
             if (stream->getName().compare(name) == 0) {
                 ActiveStream* as = static_cast<ActiveStream*>(stream.get());
                 if (as) {
-                    LOG(EXTENSION_LOG_NOTICE, "%s Producer is closing stream "
-                            "for vbucket %d, stream name '%s' because it seems "
-                            "to be SLOW", logHeader(), vbid, name.c_str());
-                    /**
-                     * Add vbucket id, last sent seqno information to
-                     * tempDroppedStreams, the entry will be removed
-                     * upon a reconnection.
-                     */
-                    tempDroppedStreams[vbid] = as->getLastSentSeqno();
-                    as->setDead(END_STREAM_SLOW);
-
-                    // Remove entry in streams map
-                    {
-                        WriterLockHolder wlh(streamsMutex);
-                        streams.erase(vbid);
-                    }
-
+                    LOG(EXTENSION_LOG_NOTICE, "%s Producer is handling slow "
+                        "stream for vbucket %" PRIu16 ", stream name '%s'",
+                        logHeader(), vbid, name.c_str());
+                    as->handleSlowStream();
                     return true;
                 }
             }
