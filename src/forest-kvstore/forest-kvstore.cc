@@ -780,12 +780,12 @@ bool ForestKVStore::save2forestdb() {
                 fdb_doc statDoc;
                 memset(&statDoc, 0, sizeof(statDoc));
                 char kvsName[20];
-                statDoc.keylen = snprintf(kvsName, sizeof(kvsName),"partition%d", vbid);
-                if (statDoc.keylen <= 0 ||
-                    statDoc.keylen >= sizeof(kvsName)) {
+                int keylen = snprintf(kvsName, sizeof(kvsName),"partition%d", vbid);
+                if (keylen <= 0 || keylen >= static_cast<int>(sizeof(kvsName))) {
                     throw std::runtime_error("ForestKVStore::save2forestdb: "
                                                  "Failed to build partition id");
                 }
+                statDoc.keylen = static_cast<size_t>(keylen);
                 statDoc.key = kvsName;
                 statDoc.meta = NULL;
                 statDoc.metalen = 0;
