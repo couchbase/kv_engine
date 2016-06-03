@@ -1771,13 +1771,8 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     // Sanity check - ensure we have enough vBucket quota (max_size)
     // such that we have 1000 items - enough to give us 0.1%
     // granuarity in any residency calculations. */
-    if (i < 1000) {
-        std::cerr << "Error: test_dcp_producer_stream_backfill_no_value: "
-            "expected at least 1000 items after filling vbucket, "
-            "but only have " << i << ". "
-            "Check max_size setting for test." << std::endl;
-        return FAIL;
-    }
+    checkge(i, 1000,
+            "Does not have expected min items; Check max_size setting");
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, i, "Wrong number of items");
@@ -2160,13 +2155,8 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     // Sanity check - ensure we have enough vBucket quota (max_size)
     // such that we have 1000 items - enough to give us 0.1%
     // granuarity in any residency calculations. */
-    if (num_items < 1000) {
-        std::cerr << "Error: test_dcp_cursor_dropping: "
-            "expected at least 1000 items after filling vbucket, "
-            "but only have " << num_items << ". "
-            "Check max_size setting for test." << std::endl;
-        return FAIL;
-    }
+    checkge(num_items, static_cast<size_t>(1000),
+            "Does not have expected min items; Check max_size setting");
 
     const void *cookie = testHarness.create_cookie();
 
@@ -2369,13 +2359,8 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
     // Sanity check - ensure we have enough vBucket quota (max_size)
     // such that we have 1000 items - enough to give us 0.1%
     // granuarity in any residency calculations. */
-    if (num_items < 1000) {
-        std::cerr << "Error: test_dcp_producer_stream_backfill_no_value: "
-            "expected at least 1000 items after filling vbucket, "
-            "but only have " << num_items << ". "
-            "Check max_size setting for test." << std::endl;
-        return FAIL;
-    }
+    checkge(num_items, static_cast<uint64_t>(1000),
+            "Does not have expected min items; Check max_size setting");
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong number of items");
