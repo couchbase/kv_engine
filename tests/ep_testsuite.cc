@@ -14237,6 +14237,209 @@ static enum test_result test_mb19635_upgrade_from_25x(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_set_dcp_param(ENGINE_HANDLE *h,
+                                           ENGINE_HANDLE_V1 *h1)
+{
+    auto func = [h, h1](std::string key, size_t newValue, bool expectedSetParam){
+        std::string statKey = "ep_" + key;
+        size_t param = get_int_stat(h,
+                                    h1,
+                                    statKey.c_str());
+        std::string value = std::to_string(newValue);
+        check(expectedSetParam == set_param(h, h1,
+                                            protocol_binary_engine_param_dcp,
+                                            key.c_str(),
+                                            value.c_str()),
+                "Set param not expected");
+        check(newValue != param,
+              "Forcing failure as nothing will change");
+
+        if (expectedSetParam) {
+            checkeq(newValue,
+                    size_t(get_int_stat(h,
+                                        h1,
+                                        statKey.c_str())),
+                "Incorrect dcp param value after calling set_param");
+        }
+    };
+
+    func("dcp_consumer_process_buffered_messages_yield_limit", 1000, true);
+    func("dcp_consumer_process_buffered_messages_batch_size", 1000, true);
+    func("dcp_consumer_process_buffered_messages_yield_limit", 0, false);
+    func("dcp_consumer_process_buffered_messages_batch_size", 0, false);
+    return SUCCESS;
+}
+
+
+/*
+ * Test MB-18452
+ * Drive DCP consumer by halting all NONIO tasks
+ * Writing numItems mutations (they get buffered)
+ * Then trigger the NONIO tasks, which will trigger the DCP consumer
+ *  to consume the buffered items.
+ * If the DCP consumer is friendly and not hogging the NONIO threads
+ * we should see it being scheduled many times.
+ * This test function returns the number of times the processor task was
+ * dispatched.
+ */
+static int test_mb18452(ENGINE_HANDLE *h,
+                        ENGINE_HANDLE_V1 *h1,
+                        size_t numItems,
+                        size_t yieldValue,
+                        size_t batchSize) {
+
+    // 1. Setup the consumer params.
+    std::string value = std::to_string(yieldValue);
+    set_param(h, h1, protocol_binary_engine_param_dcp,
+              "dcp_consumer_process_buffered_messages_yield_limit",
+              value.c_str());
+    value = std::to_string(batchSize);
+    set_param(h, h1, protocol_binary_engine_param_dcp,
+              "dcp_consumer_process_buffered_messages_batch_size",
+              value.c_str());
+
+    const uint16_t vbid = 0;
+    const uint32_t opaque = 0xFFFF0000;
+    const uint32_t flags = 0;
+    const void* cookie = testHarness.create_cookie();
+
+    // 2. We need to use a replica
+    check(set_vbucket_state(h, h1, vbid, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    // 3. Force the engine to not run any NONIO tasks whilst we 'load up'
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_nonio",
+              "0");
+
+    // 4. Create a consumer and one stream for the vbucket
+    std::string consumer("unittest");
+    checkeq(h1->dcp.open(h,
+                         cookie,
+                         opaque,
+                         0/*seqno*/,
+                         flags,
+                         (void*)consumer.c_str(),
+                         consumer.length()),
+            ENGINE_SUCCESS,
+            "Failed dcp Consumer open connection.");
+    add_stream_for_consumer(h, h1, cookie, opaque + 1, vbid, flags,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque = get_int_stat(h, h1,
+                                          "eq_dcpq:unittest:stream_0_opaque",
+                                          "dcp");
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.snapshot_marker(h,
+                                    cookie,
+                                    stream_opaque,
+                                    vbid,
+                                    1,//snap start
+                                    numItems,//snap end
+                                    2), //flags
+            "Failed to send snapshot marker");
+
+    for (uint64_t seqno = 1; seqno <= numItems; seqno++) {
+        std::string key = "key" + std::to_string(seqno);
+        checkeq(ENGINE_SUCCESS,
+                h1->dcp.mutation(h,
+                                 cookie,
+                                 stream_opaque,
+                                 key.c_str(),
+                                 key.length(),
+                                 "value", // item value
+                                 sizeof("value"), // item value length
+                                 seqno, // cas
+                                 vbid, // vbucket
+                                 0, // flags
+                                 PROTOCOL_BINARY_RAW_BYTES,
+                                 seqno, // bySeqno
+                                 1, // revSeqno
+                                 0, // expiration
+                                 0, // locktime
+                                 "", //meta
+                                 0, // metalen
+                                 INITIAL_NRU_VALUE),
+                "Failed to send dcp mutation");
+
+        // At n - 1, enable NONIO tasks, the nth mutation will wake up the task.
+        if (seqno == (numItems - 1)) {
+               set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_nonio",
+              "1");
+        }
+    }
+
+    wait_for_stat_to_be(h, h1, "vb_replica_curr_items", numItems);
+
+    // 3. Force the engine to not run any NONIO tasks whilst we 'count up'
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_nonio",
+              "0");
+
+    // Now we should count how many times the NONIO task ran
+    // This is slighly racy, but if the task is yielding we expect many
+    // runs from it, not a small number
+    check(h1->get_stats(h, NULL, "dispatcher",
+                        strlen("dispatcher"), add_stats) == ENGINE_SUCCESS,
+                        "Failed to get worker stats");
+
+    // Count up how many times the Processing task was logged
+    int count = 0;
+    const std::string key1 = "nonio_worker_";
+    const std::string key2 = "Processing buffered items for eq_dcpq:unittest";
+    for (auto kv : vals) {
+        if (kv.first.find(key1) != std::string::npos &&
+            kv.second.find(key2) != std::string::npos) {
+            count++;
+        }
+    }
+
+    // 4. Re-enable NONIO so we can shutdown
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_nonio",
+              "1");
+    return count;
+}
+
+/**
+ * Test the behaviour of DCP consumer under load.
+ * The consumer use a NONIO task to process data from an input buffer.
+ * This task when given lots of data should voluntarily yield if it finds
+ * itself running for n iterations...
+ */
+static enum test_result test_mb18452_smallYield(ENGINE_HANDLE* h,
+                                                 ENGINE_HANDLE_V1* h1) {
+    const int batchSize = 10;
+    const int numItems = 1000;
+    const int yield = 10;
+
+    int processorRuns = test_mb18452(h, h1, numItems, yield, batchSize);
+
+    // Before the ep-engine updates, the processor run count was usually 1 or 2
+    // with the fix it's up around 80 (appears to saturate the log).
+
+    // So we check that it ran the same or more times than the numItems/(yield*batch)
+    check(processorRuns >= (numItems / (yield * batchSize)),
+          "DCP Processor ran less times than expected.");
+    return SUCCESS;
+}
+
+static enum test_result test_mb18452_largeYield(ENGINE_HANDLE* h,
+                                                ENGINE_HANDLE_V1* h1) {
+    const int batchSize = 10;
+    const int numItems = 10000;
+    const int yield = 10000;
+    int processorRuns =  test_mb18452(h, h1, numItems, yield, batchSize);
+    // Here we expect very few yields, so very few runs (definitely not enough to fill
+    // the task log (TASK_LOG_SIZE)
+    check(processorRuns < 80,
+          "DCP Processor ran more times than expected.");
+
+
+    return SUCCESS;
+}
+
 static enum test_result prepare(engine_test_t *test) {
 #ifdef __sun
         // Some of the tests doesn't work on Solaris.. Don't know why yet..
@@ -15289,10 +15492,21 @@ engine_test_t* get_tests(void) {
                  test_mb17517_tap_with_locked_key, test_setup, teardown, NULL,
                  prepare, cleanup),
 
-         TestCase("test_mb19635_upgrade_from_25x",
+        TestCase("test_mb19635_upgrade_from_25x",
                  test_mb19635_upgrade_from_25x, test_setup, teardown, NULL,
                  prepare, cleanup),
 
+        TestCase("test_set_dcp_param",
+                 test_set_dcp_param, test_setup, teardown, NULL,
+                 prepare, cleanup),
+
+        TestCase("test_mb18452_largeYield",
+                 test_mb18452_largeYield, test_setup, teardown, "max_num_nonio=1",
+                 prepare, cleanup),
+
+        TestCase("test_mb18452_smallYield",
+                 test_mb18452_smallYield, test_setup, teardown, "max_num_nonio=1",
+                 prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
     };

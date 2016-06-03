@@ -564,6 +564,37 @@ extern "C" {
         return rv;
     }
 
+    static protocol_binary_response_status setDcpParam(
+                                                    EventuallyPersistentEngine *e,
+                                                    const char *keyz,
+                                                    const char *valz,
+                                                    const char **msg,
+                                                    size_t *) {
+        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        try {
+
+            if (strcmp(keyz, "dcp_consumer_process_buffered_messages_yield_limit") == 0) {
+                size_t v = atoi(valz);
+                checkNumeric(valz);
+                validate(v, size_t(1), std::numeric_limits<size_t>::max());
+                e->getConfiguration().setDcpConsumerProcessBufferedMessagesYieldLimit(v);
+            } else if (strcmp(keyz, "dcp_consumer_process_buffered_messages_batch_size") == 0) {
+                size_t v = atoi(valz);
+                checkNumeric(valz);
+                validate(v, size_t(1), std::numeric_limits<size_t>::max());
+                e->getConfiguration().setDcpConsumerProcessBufferedMessagesBatchSize(v);
+            } else {
+                *msg = "Unknown config param";
+                rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            }
+        } catch (std::runtime_error& ex) {
+            *msg = "Value out of range.";
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+
+        return rv;
+    }
+
     static protocol_binary_response_status evictKey(
                                                  EventuallyPersistentEngine *e,
                                                  protocol_binary_request_header
@@ -757,7 +788,7 @@ extern "C" {
         const char *valuep = keyp + keylen;
         vallen -= (keylen + extlen);
 
-        char keyz[32];
+        char keyz[128];
         char valz[512];
 
         // Read the key.
@@ -787,6 +818,9 @@ extern "C" {
             break;
         case protocol_binary_engine_param_checkpoint:
             rv = setCheckpointParam(e, keyz, valz, msg, msg_size);
+            break;
+        case protocol_binary_engine_param_dcp:
+            rv = setDcpParam(e, keyz, valz, msg, msg_size);
             break;
         default:
             rv = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;

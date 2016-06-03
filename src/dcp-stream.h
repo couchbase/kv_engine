@@ -396,7 +396,8 @@ public:
 
     ~PassiveStream();
 
-    process_items_error_t processBufferedMessages(uint32_t &processed_bytes);
+    process_items_error_t processBufferedMessages(uint32_t &processed_bytes,
+                                                  size_t batchSize);
 
     DcpResponse* next();
 
@@ -410,8 +411,6 @@ public:
     ENGINE_ERROR_CODE messageReceived(DcpResponse* response);
 
     void addStats(ADD_STAT add_stat, const void *c);
-
-    static const size_t batchSize;
 
 private:
 

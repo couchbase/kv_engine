@@ -70,10 +70,18 @@ std::string Processer::getDescription() {
 
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
-    : Consumer(engine, cookie, name), opaqueCounter(0), processTaskId(0),
-          itemsToProcess(false), lastNoopTime(ep_current_time()), backoffs(0) {
+    : Consumer(engine, cookie, name),
+      opaqueCounter(0),
+      processTaskId(0),
+      itemsToProcess(false),
+      lastNoopTime(ep_current_time()),
+      backoffs(0),
+      processBufferedMessagesYieldThreshold(engine.getConfiguration().
+                                                getDcpConsumerProcessBufferedMessagesYieldLimit()),
+      processBufferedMessagesBatchSize(engine.getConfiguration().
+                                            getDcpConsumerProcessBufferedMessagesBatchSize()) {
     Configuration& config = engine.getConfiguration();
-    streams = new passive_stream_t[config.getMaxVbuckets()];
+    streams.resize(config.getMaxVbuckets());
     setSupportAck(false);
     setLogHeader("DCP (Consumer) " + getName() + " -");
     setReserved(true);
@@ -141,7 +149,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
 }
 
 DcpConsumer::~DcpConsumer() {
-    delete[] streams;
     engine_.getDcpConnMap().decAggrDcpConsumerBufferSize
                                 (flowControl.bufferSize);
 }
@@ -697,6 +704,46 @@ void DcpConsumer::aggregateQueueStats(ConnCounter* aggregator) {
     aggregator->conn_queueBackoff += backoffs;
 }
 
+bool DcpConsumer::tryAndAssignVbucketsStream(uint16_t vbid, passive_stream_t& stream) {
+    if (streams[vbid]) {
+        // This assignment hits a spinlock, so we only want to do it
+        // if streams[vbucket] owns a pointer
+        stream = streams[vbid];
+        // Now we've done the 'expensive' copy, recheck as it's possible
+        // the stream went to null after our first cheap check.
+        return stream.get() != nullptr;
+    }
+    return false;
+}
+
+process_items_error_t DcpConsumer::drainStreamsBufferedItems(passive_stream_t& stream,
+                                                             size_t yieldThreshold) {
+    process_items_error_t rval = all_processed;
+    uint32_t bytesProcessed = 0;
+    size_t iterations = 0;
+    do {
+         if (!engine_.getTapThrottle().shouldProcess()) {
+                backoffs++;
+                return cannot_process;
+        }
+
+        bytesProcessed = 0;
+        rval = stream->processBufferedMessages(bytesProcessed,
+                                               processBufferedMessagesBatchSize);
+        flowControl.freedBytes.fetch_add(bytesProcessed);
+        iterations++;
+    } while (bytesProcessed > 0 &&
+             rval == all_processed &&
+             iterations <= yieldThreshold);
+
+    // The stream may not be done yet so must go back in the ready queue
+    if (bytesProcessed > 0) {
+        rval = more_to_process; // Return more_to_process to force a snooze(0.0)
+    }
+
+    return rval;
+}
+
 process_items_error_t DcpConsumer::processBufferedItems() {
     itemsToProcess.store(false);
     process_items_error_t process_ret = all_processed;
@@ -705,31 +752,15 @@ process_items_error_t DcpConsumer::processBufferedItems() {
     for (int vbucket = 0; vbucket < max_vbuckets; vbucket++) {
 
         passive_stream_t stream;
-        if (streams[vbucket]) {
-            // only assign a stream if there is one present to reduce
-            // the amount of cycles the RCPtr spinlock will use.
-            stream = streams[vbucket];
-        }
 
-        // Now that we think there's a stream, check again in-case it was
-        // removed after our first "cheap" if (streams[vb]) test and the actual
-        // copy construction onto stream.
-        if (!stream) {
+        if (!tryAndAssignVbucketsStream(vbucket, stream)) {
+            // Try popping again
             continue;
         }
 
-        uint32_t bytes_processed;
+        process_ret = drainStreamsBufferedItems(stream,
+                                                processBufferedMessagesYieldThreshold);
 
-        do {
-            if (!engine_.getTapThrottle().shouldProcess()) {
-                backoffs++;
-                return cannot_process;
-            }
-
-            bytes_processed = 0;
-            process_ret = stream->processBufferedMessages(bytes_processed);
-            flowControl.freedBytes.fetch_add(bytes_processed);
-        } while (bytes_processed > 0 && process_ret != cannot_process);
     }
 
     if (isBufferSufficientlyDrained(flowControl.freedBytes.load())) {

@@ -92,6 +92,14 @@ public:
 
     bool isStreamPresent(uint16_t vbucket);
 
+    void setProcessorYieldThreshold(size_t newValue) {
+        processBufferedMessagesYieldThreshold = newValue;
+    }
+
+    void setProcessBufferedMessagesBatchSize(size_t newValue) {
+        processBufferedMessagesBatchSize = newValue;
+    }
+
 private:
 
     DcpResponse* getNextItem();
@@ -118,6 +126,23 @@ private:
     ENGINE_ERROR_CODE handleExtMetaData(struct dcp_message_producers* producers);
     inline bool isBufferSufficientlyDrained(uint32_t ackable_bytes);
 
+    /**
+     * Try to assign the vbucket's stream.
+     * Returns true if one was assigned, else false
+     */
+    bool tryAndAssignVbucketsStream(uint16_t vbid, passive_stream_t& stream);
+
+    /**
+     * Drain the stream of bufferedItems
+     * The function will stop draining
+     *  - if there's no more data - all_processed
+     *  - if the replication throttle says no more - cannot_process
+     *  - if there's an error, e.g. ETMPFAIL/ENOMEM - cannot_process
+     *  - if we hit the yieldThreshold - more_to_process
+     */
+    process_items_error_t drainStreamsBufferedItems(passive_stream_t& stream,
+                                                    size_t yieldThreshold);
+
     uint64_t opaqueCounter;
     size_t processTaskId;
     AtomicValue<bool> itemsToProcess;
@@ -125,7 +150,7 @@ private:
     Mutex readyMutex;
     std::list<uint16_t> ready;
 
-    passive_stream_t* streams;
+    std::vector<passive_stream_t> streams;
     opaque_map opaqueMap_;
 
     rel_time_t lastNoopTime;
@@ -148,6 +173,20 @@ private:
         AtomicValue<uint32_t> freedBytes;
         AtomicValue<uint64_t> ackedBytes;
     } flowControl;
+
+    /**
+     * An upper bound on how many times drainStreamsBufferedItems will
+     * call into processBufferedMessages before returning and triggering
+     * Processor to yield. Initialised from the configuration
+     *  'dcp_consumer_process_buffered_messages_yield_limit'
+     */
+    size_t processBufferedMessagesYieldThreshold;
+
+    /**
+     * An upper bound on how many items a single consumer stream will process
+     * in one call of stream->processBufferedMessages()
+     */
+    size_t processBufferedMessagesBatchSize;
 };
 
 /*
