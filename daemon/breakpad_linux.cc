@@ -50,20 +50,20 @@ static bool dumpCallback(const MinidumpDescriptor& descriptor,
     return succeeded;
 }
 
-static void create_breakpad(const char* minidump_dir) {
-    MinidumpDescriptor descriptor(minidump_dir);
+static void create_breakpad(const std::string& minidump_dir) {
+    MinidumpDescriptor descriptor(minidump_dir.c_str());
     handler = new ExceptionHandler(descriptor, /*filter*/NULL, dumpCallback,
         /*callback-context*/NULL,
         /*install_handler*/true, /*server_fd*/-1);
 }
 
-void initialize_breakpad(const breakpad_settings_t* settings) {
+void initialize_breakpad(const BreakpadSettings& settings) {
     // We cannot actually change any of breakpad's settings once created, only
     // remove it and re-create with new settings.
     destroy_breakpad();
 
-    if (settings->enabled) {
-        create_breakpad(settings->minidump_dir);
+    if (settings.isEnabled()) {
+        create_breakpad(settings.getMinidumpDir());
     }
 }
 

@@ -85,8 +85,7 @@ void SaslAuthTask::notifyExecutionComplete() {
                                               connection.getPeername().c_str(),
                                               connection.getSockname().c_str()));
 
-        if (settings.admin != NULL && strcmp(settings.admin,
-                                             connection.getUsername()) == 0) {
+        if (settings.isAdmin(connection.getUsername())) {
             connection.setAdmin(true);
         }
 

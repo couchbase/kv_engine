@@ -24,7 +24,7 @@
 // Detail should be printed if verbose > 2
 #define LOG_DETAIL(COOKIE, ...) \
     do { \
-        if (settings.verbose > 2) { \
+        if (settings.getVerbose() > 2) { \
             LOGGER(EXTENSION_LOG_DETAIL, COOKIE, __VA_ARGS__); \
         } \
     } while (0)
@@ -33,7 +33,7 @@
 // Debug should be printed if verbose > 1
 #define LOG_DEBUG(COOKIE, ...) \
     do { \
-        if (settings.verbose > 1) { \
+        if (settings.getVerbose() > 1) { \
             LOGGER(EXTENSION_LOG_DEBUG, COOKIE, __VA_ARGS__); \
         } \
     } while (0)
@@ -42,7 +42,7 @@
 // Info should be printed if verbose > 0
 #define LOG_INFO(COOKIE, ...) \
     do { \
-        if (settings.verbose > 0) { \
+        if (settings.getVerbose() > 0) { \
             LOGGER(EXTENSION_LOG_INFO, COOKIE, __VA_ARGS__); \
         } \
     } while (0)

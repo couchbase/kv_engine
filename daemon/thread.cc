@@ -172,7 +172,7 @@ static void setup_dispatcher(struct event_base *main_base,
 static void setup_thread(LIBEVENT_THREAD *me) {
     me->type = ThreadType::GENERAL;
 
-    if (settings.stdin_listen) {
+    if (settings.isStdinListen()) {
         // can't use epoll for stdin listening
         struct event_config *cfg = event_config_new();
         event_config_avoid_method(cfg, "epoll");
@@ -466,7 +466,7 @@ static int last_thread = -1;
  * from the main thread, or because of an incoming connection.
  */
 void dispatch_conn_new(SOCKET sfd, int parent_port) {
-    int tid = (last_thread + 1) % settings.num_threads;
+    int tid = (last_thread + 1) % settings.getNumWorkerThreads();
     LIBEVENT_THREAD* thread = threads + tid;
     last_thread = tid;
 
@@ -500,7 +500,7 @@ void notify_dispatcher(void) {
 /******************************* GLOBAL STATS ******************************/
 
 void threadlocal_stats_reset(struct thread_stats *thread_stats) {
-    for (int ii = 0; ii < settings.num_threads; ++ii) {
+    for (int ii = 0; ii < settings.getNumWorkerThreads(); ++ii) {
         thread_stats[ii].reset();
     }
 }

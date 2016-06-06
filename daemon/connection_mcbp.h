@@ -652,7 +652,7 @@ public:
      */
     bool enableSSL(const std::string& cert, const std::string& pkey) {
         if (ssl.enable(cert, pkey)) {
-            if (settings.verbose > 1) {
+            if (settings.getVerbose() > 1) {
                 ssl.dumpCipherList(getId());
             }
 

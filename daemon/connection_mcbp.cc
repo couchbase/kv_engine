@@ -85,15 +85,15 @@ bool McbpConnection::registerEvent() {
     struct timeval tv;
     struct timeval* tp = nullptr;
 
-    if (settings.connection_idle_time == 0 || isAdmin() || isDCP() || isTAP()) {
+    if (settings.getConnectionIdleTime() == 0 || isAdmin() || isDCP() || isTAP()) {
         tp = nullptr;
         ev_timeout_enabled = false;
     } else {
-        tv.tv_sec = settings.connection_idle_time;
+        tv.tv_sec = settings.getConnectionIdleTime();
         tv.tv_usec = 0;
         tp = &tv;
         ev_timeout_enabled = true;
-        ev_timeout = settings.connection_idle_time;
+        ev_timeout = settings.getConnectionIdleTime();
     }
 
     ev_insert_time = mc_time_get_current_time();
@@ -141,7 +141,7 @@ bool McbpConnection::updateEvent(const short new_flags) {
                           " disable timeout", getId());
         } else {
             rel_time_t now = mc_time_get_current_time();
-            const int reinsert_time = settings.connection_idle_time / 2;
+            const int reinsert_time = settings.getConnectionIdleTime() / 2;
 
             if ((ev_insert_time + reinsert_time) > now) {
                 return true;
@@ -563,7 +563,7 @@ int McbpConnection::sslRead(char* dest, size_t nbytes) {
 int McbpConnection::sslWrite(const char* src, size_t nbytes) {
     int ret = 0;
 
-    int chunksize = settings.bio_drain_buffer_sz;
+    int chunksize = settings.getBioDrainBufferSize();
 
     while (ret < int(nbytes)) {
         int n;
@@ -639,8 +639,8 @@ bool SslContext::enable(const std::string& cert, const std::string& pkey) {
     client = NULL;
 
     try {
-        in.buffer.resize(settings.bio_drain_buffer_sz);
-        out.buffer.resize(settings.bio_drain_buffer_sz);
+        in.buffer.resize(settings.getBioDrainBufferSize());
+        out.buffer.resize(settings.getBioDrainBufferSize());
     } catch (std::bad_alloc) {
         return false;
     }
@@ -882,7 +882,7 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
       stateMachine(new McbpStateMachine(conn_immediate_close)),
       tap_iterator(nullptr),
       dcp(false),
-      max_reqs_per_event(settings.default_reqs_per_event),
+      max_reqs_per_event(settings.getRequestsPerEventNotification(EventPriority::Default)),
       numEvents(0),
       cmd(PROTOCOL_BINARY_CMD_INVALID),
       registered_in_libevent(false),
@@ -928,7 +928,7 @@ McbpConnection::McbpConnection(SOCKET sfd,
       stateMachine(new McbpStateMachine(conn_new_cmd)),
       tap_iterator(nullptr),
       dcp(false),
-      max_reqs_per_event(settings.default_reqs_per_event),
+      max_reqs_per_event(settings.getRequestsPerEventNotification(EventPriority::Default)),
       numEvents(0),
       cmd(PROTOCOL_BINARY_CMD_INVALID),
       registered_in_libevent(false),
@@ -1255,7 +1255,7 @@ PipeConnection::PipeConnection(SOCKET sfd, event_base* b)
 }
 
 PipeConnection::~PipeConnection() {
-    if (settings.exit_on_connection_close) {
+    if (settings.isExitOnConnectionClose()) {
         exit(0);
     }
 }
@@ -1329,13 +1329,13 @@ void McbpConnection::setPriority(const Connection::Priority& priority) {
     Connection::setPriority(priority);
     switch (priority) {
     case Priority::High:
-        max_reqs_per_event = settings.reqs_per_event_high_priority;
+        max_reqs_per_event = settings.getRequestsPerEventNotification(EventPriority::High);
         return;
     case Priority::Medium:
-        max_reqs_per_event = settings.reqs_per_event_med_priority;
+        max_reqs_per_event = settings.getRequestsPerEventNotification(EventPriority::Medium);
         return;
     case Priority::Low:
-        max_reqs_per_event = settings.reqs_per_event_low_priority;
+        max_reqs_per_event = settings.getRequestsPerEventNotification(EventPriority::Low);
         return;
     }
     throw std::invalid_argument(

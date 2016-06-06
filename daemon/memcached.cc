@@ -130,7 +130,6 @@ static void settings_init(void);
 
 /** exported globals **/
 struct stats stats;
-struct settings settings;
 
 /** file scope variables **/
 Connection *listen_conn = NULL;
@@ -188,7 +187,7 @@ bool associate_bucket(Connection *c, const char *name) {
 
     /* Try to associate with the named bucket */
     /* @todo add auth checks!!! */
-    for (int ii = 1; ii < settings.max_buckets && !found; ++ii) {
+    for (int ii = 1; ii < settings.getMaxBuckets() && !found; ++ii) {
         Bucket &b = all_buckets.at(ii);
         cb_mutex_enter(&b.mutex);
         if (b.state == BucketState::Ready && strcmp(b.name, name) == 0) {
@@ -337,12 +336,12 @@ static void register_callback(ENGINE_HANDLE *eh,
         if (eh == nullptr) {
             throw std::invalid_argument("register_callback: 'eh' must be non-NULL");
         }
-        for (idx = 0; idx < settings.max_buckets; ++idx) {
+        for (idx = 0; idx < settings.getMaxBuckets(); ++idx) {
             if ((void *)eh == (void *)all_buckets[idx].engine) {
                 break;
             }
         }
-        if (idx == settings.max_buckets) {
+        if (idx == settings.getMaxBuckets()) {
             throw std::invalid_argument("register_callback: eh (which is" +
                     std::to_string(reinterpret_cast<uintptr_t>(eh)) +
                     ") is not a engine associated with a bucket");
@@ -366,7 +365,7 @@ static void register_callback(ENGINE_HANDLE *eh,
 
 static void free_callbacks() {
     // free per-bucket callbacks.
-    for (int idx = 0; idx < settings.max_buckets; ++idx) {
+    for (int idx = 0; idx < settings.getMaxBuckets(); ++idx) {
         for (auto& type_vec : all_buckets[idx].engine_event_handlers) {
             type_vec.clear();
         }
@@ -389,7 +388,7 @@ static void stats_init(void) {
 
 struct thread_stats *get_thread_stats(Connection *c) {
     struct thread_stats *independent_stats;
-    cb_assert(c->getThread()->index < (settings.num_threads + 1));
+    cb_assert(c->getThread()->index < (settings.getNumWorkerThreads() + 1));
     independent_stats = all_buckets[c->getBucketIndex()].stats;
     return &independent_stats[c->getThread()->index];
 }
@@ -441,55 +440,116 @@ static int get_number_of_worker_threads(void) {
     return ret;
 }
 
+static void priv_debug_changed_listener(const std::string&, Settings &s) {
+    auth_set_privilege_debug(s.isRbacPrivilegeDebug());
+}
+
+static void breakpad_changed_listener(const std::string&, Settings &s) {
+    initialize_breakpad(s.getBreakpadSettings());
+}
+
+static void ssl_minimum_protocol_changed_listener(const std::string&, Settings &s) {
+    set_ssl_protocol_mask(s.getSslMinimumProtocol());
+}
+
+static void ssl_cipher_list_changed_listener(const std::string&, Settings &s) {
+    set_ssl_cipher_list(s.getSslCipherList());
+}
+
+static void verbosity_changed_listener(const std::string&, Settings &s) {
+    perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
+}
+
+static void interfaces_changed_listener(const std::string&, Settings &s) {
+    for (const auto& ifc : s.getInterfaces()) {
+        auto* port = get_listening_port_instance(ifc.port);
+        if (port != nullptr) {
+            if (port->maxconns != ifc.maxconn) {
+                port->maxconns = ifc.maxconn;
+            }
+
+            if (port->backlog != ifc.backlog) {
+                port->backlog = ifc.backlog;
+            }
+
+            if (port->tcp_nodelay != ifc.tcp_nodelay) {
+                port->tcp_nodelay = ifc.tcp_nodelay;
+            }
+        }
+    }
+    s.calculateMaxconns();
+}
+
 static void settings_init(void) {
-    static struct interface default_interface;
-    default_interface.port = 11211;
-    default_interface.maxconn = 1000;
-    default_interface.backlog = 1024;
+    // Set up the listener functions
+    settings.addChangeListener("rbac_privilege_debug",
+                               priv_debug_changed_listener);
+    settings.addChangeListener("breakpad",
+                               breakpad_changed_listener);
+    settings.addChangeListener("ssl_minimum_protocol",
+                               ssl_minimum_protocol_changed_listener);
+    settings.addChangeListener("ssl_cipher_list",
+                               ssl_cipher_list_changed_listener);
+    settings.addChangeListener("verbosity", verbosity_changed_listener);
+    settings.addChangeListener("interfaces", interfaces_changed_listener);
 
-    memset(&settings, 0, sizeof(settings));
-    settings.num_interfaces = 1;
-    settings.interfaces = &default_interface;
-    settings.bio_drain_buffer_sz = 8192;
+    struct interface default_interface;
+    settings.addInterface(default_interface);
 
-    settings.verbose = 0;
-    settings.connection_idle_time = 0; // Connection idle time disabled
-    settings.num_threads = get_number_of_worker_threads();
-    settings.require_sasl = false;
+    settings.setBioDrainBufferSize(8192);
+
+    settings.setVerbose(0);
+    settings.setConnectionIdleTime(0); // Connection idle time disabled
+    settings.setNumWorkerThreads(get_number_of_worker_threads());
+    settings.setRequireSasl(false);
     settings.extensions.logger = get_stderr_logger();
-    settings.config = NULL;
-    settings.admin = NULL;
-    settings.datatype = false;
-    settings.reqs_per_event_high_priority = 50;
-    settings.reqs_per_event_med_priority = 5;
-    settings.reqs_per_event_low_priority = 1;
-    settings.default_reqs_per_event = 20;
+    settings.setDatatypeSupport(false);
+    settings.setRequestsPerEventNotification(50, EventPriority::High);
+    settings.setRequestsPerEventNotification(5, EventPriority::Medium);
+    settings.setRequestsPerEventNotification(1, EventPriority::Low);
+    settings.setRequestsPerEventNotification(20, EventPriority::Default);
+
     /*
      * The max object size is 20MB. Let's allow packets up to 30MB to
      * be handled "properly" by returing E2BIG, but packets bigger
      * than that will cause the server to disconnect the client
      */
-    settings.max_packet_size = 30 * 1024 * 1024;
+    settings.setMaxPacketSize(30 * 1024 * 1024);
 
-    settings.breakpad.enabled = false;
-    settings.breakpad.minidump_dir = NULL;
-    settings.breakpad.content = CONTENT_DEFAULT;
-    settings.require_init = false;
+    settings.setRequireInit(false);
     // (we need entry 0 in the list to represent "no bucket")
-    settings.max_buckets = COUCHBASE_MAX_NUM_BUCKETS + 1;
-    settings.admin = strdup("_admin");
-    settings.dedupe_nmvb_maps.store(false);
+    settings.setMaxBuckets(COUCHBASE_MAX_NUM_BUCKETS + 1);
+    settings.setAdmin("_admin");
+    settings.setDedupeNmvbMaps(false);
 
     char *tmp = getenv("MEMCACHED_TOP_KEYS");
-    settings.topkeys_size = 20;
+    settings.setTopkeysSize(20);
     if (tmp != NULL) {
         int count;
         if (safe_strtol(tmp, &count)) {
-            settings.topkeys_size = count;
+            settings.setTopkeysSize(count);
         }
     }
 
-    set_ssl_protocol_mask("");
+    {
+        // MB-13642 Allow the user to specify the SSL cipher list
+        //    If someone wants to use SSL we should try to be "secure
+        //    by default", and only allow for using strong ciphers.
+        //    Users that may want to use a less secure cipher list
+        //    should be allowed to do so by setting an environment
+        //    variable (since there is no place in the UI to do
+        //    so currently). Whenever ns_server allows for specifying
+        //    the SSL cipher list in the UI, it will be stored
+        //    in memcached.json and override these settings.
+        const char *env = getenv("COUCHBASE_SSL_CIPHER_LIST");
+        if (env == nullptr) {
+            settings.setSslCipherList("HIGH");
+        } else {
+            settings.setSslCipherList(env);
+        }
+    }
+
+    settings.setSslMinimumProtocol("tlsv1");
 }
 
 /**
@@ -499,13 +559,13 @@ static void settings_init(void) {
  */
 static void update_settings_from_config(void)
 {
-    const char *root = DESTINATION_ROOT;
+    std::string root(DESTINATION_ROOT);
 
-    if (settings.root) {
-        root = settings.root;
+    if (!settings.getRoot().empty()) {
+        root = settings.getRoot().c_str();
     }
 
-    if (settings.rbac_file == NULL) {
+    if (settings.getRbacFile().empty()) {
         std::string fname(root);
         fname.append("/etc/security/rbac.json");
 #ifdef WIN32
@@ -515,17 +575,9 @@ static void update_settings_from_config(void)
 
         FILE *fp = fopen(fname.c_str(), "r");
         if (fp != NULL) {
-            settings.rbac_file = strdup(fname.c_str());
+            settings.setRbacFile(fname);
             fclose(fp);
         }
-    }
-
-    if (settings.has.ssl_minimum_protocol) {
-        set_ssl_protocol_mask(settings.ssl_minimum_protocol);
-    }
-
-    if (settings.has.ssl_cipher_list) {
-        set_ssl_cipher_list(settings.ssl_cipher_list);
     }
 }
 
@@ -770,7 +822,7 @@ bool conn_listening(ListenConnection *c)
         port_conns = ++port_instance->curr_conns;
     }
 
-    if (curr_conns >= settings.maxconns || port_conns >= port_instance->maxconns) {
+    if (curr_conns >= settings.getMaxconns() || port_conns >= port_instance->maxconns) {
         {
             std::lock_guard<std::mutex> guard(stats_mutex);
             --port_instance->curr_conns;
@@ -780,7 +832,7 @@ bool conn_listening(ListenConnection *c)
                     "Too many open connections. Current/Limit for port "
                         "%d: %d/%d; total: %d/%d", port_instance->port,
                     port_conns, port_instance->maxconns,
-                    curr_conns, settings.maxconns);
+                    curr_conns, settings.getMaxconns());
 
         safe_close(sfd);
         return false;
@@ -980,10 +1032,7 @@ static void maximize_sndbuf(const SOCKET sfd) {
 
     /* Start with the default size. */
     if (getsockopt(sfd, SOL_SOCKET, SO_SNDBUF, old_ptr, &intsize) != 0) {
-        if (settings.verbose > 0) {
-            LOG_WARNING(NULL, "getsockopt(SO_SNDBUF): %s", strerror(errno));
-        }
-
+        LOG_WARNING(NULL, "getsockopt(SO_SNDBUF): %s", strerror(errno));
         return;
     }
 
@@ -1006,7 +1055,7 @@ static void maximize_sndbuf(const SOCKET sfd) {
         }
     }
 
-    if (settings.verbose > 1) {
+    if (settings.getVerbose() > 1) {
         LOG_DEBUG(NULL,
                   "<%d send buffer was %d, now %d", sfd, old_size, last_good);
     }
@@ -1087,7 +1136,7 @@ static SOCKET new_server_socket(struct addrinfo *ai, bool tcp_nodelay) {
  * @param port the port number in use
  * @param family the address family for the port
  */
-static void add_listening_port(struct interface *interf, in_port_t port, sa_family_t family) {
+static void add_listening_port(const struct interface *interf, in_port_t port, sa_family_t family) {
     auto *descr = get_listening_port_instance(port);
 
     if (descr == nullptr) {
@@ -1097,10 +1146,10 @@ static void add_listening_port(struct interface *interf, in_port_t port, sa_fami
         newport.curr_conns = 1;
         newport.maxconns = interf->maxconn;
 
-        if (interf->host != nullptr) {
+        if (!interf->host.empty()) {
             newport.host = interf->host;
         }
-        if (interf->ssl.key == nullptr || interf->ssl.cert == nullptr) {
+        if (interf->ssl.key.empty() || interf->ssl.cert.empty()) {
             newport.ssl.enabled = false;
         } else {
             newport.ssl.enabled = true;
@@ -1137,7 +1186,7 @@ static void add_listening_port(struct interface *interf, in_port_t port, sa_fami
  * @param interface the interface to bind to
  * @param port the port number to bind to
  */
-static int server_socket(struct interface *interf) {
+static int server_socket(const struct interface *interf) {
     SOCKET sfd;
     struct addrinfo hints;
     int success = 0;
@@ -1158,10 +1207,8 @@ static int server_socket(struct interface *interf) {
 
     std::string port_buf = std::to_string(interf->port);
 
-    if (interf->host) {
-        if (strlen(interf->host) > 0 && strcmp(interf->host, "*") != 0) {
-            host = interf->host;
-        }
+    if (!interf->host.empty() && interf->host != "*") {
+        host = interf->host.c_str();
     }
 
     struct addrinfo *ai;
@@ -1248,15 +1295,15 @@ static int server_sockets(bool management) {
         LOG_NOTICE(nullptr, "Enable user port(s)");
     }
 
-    for (int ii = 0; ii < settings.num_interfaces; ++ii) {
-        if (management && settings.interfaces[ii].management) {
-            ret |= server_socket(settings.interfaces + ii);
-        } else if (!management && !settings.interfaces[ii].management) {
-            ret |= server_socket(settings.interfaces + ii);
+    for (auto& interface : settings.getInterfaces()) {
+        if (management && interface.management) {
+            ret |= server_socket(&interface);
+        } else if (!management && !interface.management) {
+            ret |= server_socket(&interface);
         }
     }
 
-    if (settings.stdin_listen) {
+    if (settings.isStdinListen()) {
         dispatch_conn_new(fileno(stdin), 0);
     }
 
@@ -1268,7 +1315,7 @@ static void create_listen_sockets(bool management) {
         FATAL_ERROR(EX_OSERR, "Failed to create listening socket");
     }
 
-    if (management && !settings.require_init) {
+    if (management && !settings.isRequireInit()) {
         // the client is not expecting us to update the port set at
         // later time, so enable all ports immediately
         if (server_sockets(false)) {
@@ -1716,7 +1763,7 @@ static EXTENSION_LOGGER_DESCRIPTOR* get_logger(void)
 static EXTENSION_LOG_LEVEL get_log_level(void)
 {
     EXTENSION_LOG_LEVEL ret;
-    switch (settings.verbose.load()) {
+    switch (settings.getVerbose()) {
     case 0: ret = EXTENSION_LOG_NOTICE; break;
     case 1: ret = EXTENSION_LOG_INFO; break;
     case 2: ret = EXTENSION_LOG_DEBUG; break;
@@ -1732,12 +1779,16 @@ static void set_log_level(EXTENSION_LOG_LEVEL severity)
     case EXTENSION_LOG_FATAL:
     case EXTENSION_LOG_WARNING:
     case EXTENSION_LOG_NOTICE:
-        settings.verbose = 0;
+        settings.setVerbose(0);
         break;
-    case EXTENSION_LOG_INFO: settings.verbose = 1; break;
-    case EXTENSION_LOG_DEBUG: settings.verbose = 2; break;
+    case EXTENSION_LOG_INFO:
+        settings.setVerbose(1);
+        break;
+    case EXTENSION_LOG_DEBUG:
+        settings.setVerbose(2);
+        break;
     default:
-        settings.verbose = 3;
+        settings.setVerbose(3);
     }
 }
 
@@ -1848,7 +1899,7 @@ void CreateBucketThread::create() {
     bool found = false;
 
     cb_mutex_enter(&buckets_lock);
-    for (ii = 0; ii < settings.max_buckets && !found; ++ii) {
+    for (ii = 0; ii < settings.getMaxBuckets() && !found; ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (first_free == -1 && all_buckets[ii].state == BucketState::None) {
             first_free = ii;
@@ -1880,7 +1931,7 @@ void CreateBucketThread::create() {
         all_buckets[ii].type = type;
         strcpy(all_buckets[ii].name, name.c_str());
         try {
-            all_buckets[ii].topkeys = new TopKeys(settings.topkeys_size);
+            all_buckets[ii].topkeys = new TopKeys(settings.getTopkeysSize());
         } catch (const std::bad_alloc &) {
             result = ENGINE_ENOMEM;
             LOG_WARNING(&connection,
@@ -1972,7 +2023,7 @@ void CreateBucketThread::run()
 }
 
 void notify_thread_bucket_deletion(LIBEVENT_THREAD *me) {
-    for (int ii = 0; ii < settings.max_buckets; ++ii) {
+    for (int ii = 0; ii < settings.getMaxBuckets(); ++ii) {
         bool destroy = false;
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (all_buckets[ii].state == BucketState::Destroying) {
@@ -2001,7 +2052,7 @@ void DestroyBucketThread::destroy() {
             : std::to_string(connection->getId())};
 
     int idx = 0;
-    for (int ii = 0; ii < settings.max_buckets; ++ii) {
+    for (int ii = 0; ii < settings.getMaxBuckets(); ++ii) {
         cb_mutex_enter(&all_buckets[ii].mutex);
         if (name == all_buckets[ii].name) {
             idx = ii;
@@ -2086,7 +2137,7 @@ void DestroyBucketThread::destroy() {
 
     /* Clean up the stats... */
     delete[]all_buckets[idx].stats;
-    int numthread = settings.num_threads + 1;
+    int numthread = settings.getNumWorkerThreads() + 1;
     all_buckets[idx].stats = new thread_stats[numthread];
 
     memset(&all_buckets[idx].engine_event_handlers, 0,
@@ -2116,9 +2167,9 @@ void DestroyBucketThread::run() {
 
 static void initialize_buckets(void) {
     cb_mutex_initialize(&buckets_lock);
-    all_buckets.resize(settings.max_buckets);
+    all_buckets.resize(settings.getMaxBuckets());
 
-    int numthread = settings.num_threads + 1;
+    int numthread = settings.getNumWorkerThreads() + 1;
     for (auto &b : all_buckets) {
         b.stats = new thread_stats[numthread];
     }
@@ -2217,7 +2268,7 @@ void delete_all_buckets() {
          * Start at one (not zero) because zero is reserved for "no bucket".
          * The "no bucket" has a state of BucketState::Ready but no name.
          */
-        for (int ii = 1; ii < settings.max_buckets && done; ++ii) {
+        for (int ii = 1; ii < settings.getMaxBuckets() && done; ++ii) {
             cb_mutex_enter(&all_buckets[ii].mutex);
             if (all_buckets[ii].state == BucketState::Ready) {
                 name.assign(all_buckets[ii].name);
@@ -2294,9 +2345,7 @@ bool load_extension(const char *soname, const char *config) {
         return false;
     }
 
-    if (settings.verbose > 0) {
-        LOG_INFO(NULL, "Loaded extensions from: %s", soname);
-    }
+    LOG_INFO(NULL, "Loaded extensions from: %s", soname);
 
     return true;
 }
@@ -2394,8 +2443,8 @@ static void set_max_filehandles(void) {
     if (getrlimit(RLIMIT_NOFILE, &rlim) != 0) {
         FATAL_ERROR(EX_OSERR, "Failed to getrlimit number of files");
     } else {
-        const rlim_t maxfiles = settings.maxconns + (3 * (settings.num_threads + 2));
-        rlim_t syslimit = rlim.rlim_cur;
+        const rlim_t maxfiles = settings.getMaxconns() +
+            (3 * (settings.getNumWorkerThreads() + 2));
         if (rlim.rlim_cur < maxfiles) {
             rlim.rlim_cur = maxfiles;
         }
@@ -2409,38 +2458,22 @@ static void set_max_filehandles(void) {
                 "system\nresource restrictions. Increase the number of file "
                 "descriptors allowed\nto the memcached user process.\n"
                 "The maximum number of connections is set to %d.\n";
-            req = settings.maxconns;
-            settings.maxconns = syslimit - (3 * (settings.num_threads + 2));
-            if (settings.maxconns < 0) {
-                FATAL_ERROR(EX_OSERR, "Failed to set rlimit to %d for "
-                            "open files. Currently requesting %d more connections"
-                            "than the syslimit of %d.  Try starting as root or "
-                            "requesting smaller maxconns value.", rlim.rlim_max,
-                            abs(settings.maxconns), syslimit);
-            }
-            LOG_WARNING(NULL, fmt, req, settings.maxconns);
+            req = settings.getMaxconns();
+            LOG_WARNING(NULL, fmt, req, settings.getMaxconns());
         }
     }
 }
 
 #endif
 
-void calculate_maxconns(void) {
-    int ii;
-    settings.maxconns = 0;
-    for (ii = 0; ii < settings.num_interfaces; ++ii) {
-        settings.maxconns += settings.interfaces[ii].maxconn;
-    }
-}
-
 static void load_extensions(void) {
-    for (int ii = 0; ii < settings.num_pending_extensions; ii++) {
-        if (!load_extension(settings.pending_extensions[ii].soname,
-                            settings.pending_extensions[ii].config)) {
+    for (const auto& ext : settings.getPendingExtensions()) {
+        LOG_INFO(nullptr, "Loading extension %s with config: %s",
+                ext.soname.c_str(), ext.config.c_str());
+        if (!load_extension(ext.soname.c_str(), ext.config.c_str())) {
             FATAL_ERROR(EXIT_FAILURE, "Unable to load extension %s "
-                        "using the config %s",
-                        settings.pending_extensions[ii].soname,
-                        settings.pending_extensions[ii].config);
+                        "using the config %s", ext.soname.c_str(),
+                        ext.config.c_str());
         }
     }
 }
@@ -2490,9 +2523,10 @@ static int sasl_getopt_callback(void*, const char*,
             return CBSASL_OK;
         }
     } else if (key == "sasl mechanisms") {
-        if (settings.sasl_mechanisms != nullptr) {
-            *result = settings.sasl_mechanisms;
-            *len = strlen(settings.sasl_mechanisms);
+        const auto& value = settings.getSaslMechanisms();
+        if (!value.empty()) {
+            *result = value.data();
+            *len = static_cast<unsigned int>(value.size());
             return CBSASL_OK;
         }
     }
@@ -2566,33 +2600,20 @@ extern "C" int memcached_main(int argc, char **argv) {
         return EX_OSERR;
     }
 
-    {
-        // MB-13642 Allow the user to specify the SSL cipher list
-        //    If someone wants to use SSL we should try to be "secure
-        //    by default", and only allow for using strong ciphers.
-        //    Users that may want to use a less secure cipher list
-        //    should be allowed to do so by setting an environment
-        //    variable (since there is no place in the UI to do
-        //    so currently). Whenever ns_server allows for specifying
-        //    the SSL cipher list in the UI, it will be stored
-        //    in memcached.json and override these settings.
-        const char *env = getenv("COUCHBASE_SSL_CIPHER_LIST");
-        if (env == NULL) {
-            set_ssl_cipher_list("HIGH");
-        } else {
-            set_ssl_cipher_list(env);
-        }
-    }
-
     /* Parse command line arguments */
-    parse_arguments(argc, argv);
+    try {
+        parse_arguments(argc, argv);
+    } catch (std::exception& exception) {
+        FATAL_ERROR(EXIT_FAILURE, "Failed initialize server: %s",
+                    exception.what());
+    }
 
     update_settings_from_config();
 
-    set_server_initialized(!settings.require_init);
+    set_server_initialized(!settings.isRequireInit());
 
     /* Initialize breakpad crash catcher with our just-parsed settings. */
-    initialize_breakpad(&settings.breakpad);
+    initialize_breakpad(settings.getBreakpadSettings());
 
     /* load extensions specified in the settings */
     load_extensions();
@@ -2625,11 +2646,11 @@ extern "C" int memcached_main(int argc, char **argv) {
     initialize_audit();
 
     /* Initialize RBAC data */
-    if (load_rbac_from_file(settings.rbac_file) != 0) {
+    if (load_rbac_from_file(settings.getRbacFile().c_str()) != 0) {
         FATAL_ERROR(EXIT_FAILURE,
                     "FATAL: Failed to load RBAC configuration: %s",
-                    (settings.rbac_file) ? settings.rbac_file :
-                    "no file specified");
+                    (settings.getRbacFile().empty()) ?
+                    "no file specified" : settings.getRbacFile().c_str());
     }
 
     /* inform interested parties of initial verbosity level */
@@ -2638,7 +2659,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     set_max_filehandles();
 
     /* Aggregate the maximum number of connections */
-    calculate_maxconns();
+    settings.calculateMaxconns();
 
     {
         char *errmsg;
@@ -2675,9 +2696,9 @@ extern "C" int memcached_main(int argc, char **argv) {
 #endif
 
     /* start up worker threads if MT mode */
-    thread_init(settings.num_threads, main_base, dispatch_event_handler);
+    thread_init(settings.getNumWorkerThreads(), main_base, dispatch_event_handler);
 
-    executorPool.reset(new ExecutorPool(size_t(settings.num_threads)));
+    executorPool.reset(new ExecutorPool(size_t(settings.getNumWorkerThreads())));
 
     /* Initialise memcached time keeping */
     mc_time_init(main_base);
@@ -2693,7 +2714,7 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     if (!memcached_shutdown) {
         /* enter the event loop */
-        if (settings.require_init) {
+        if (settings.isRequireInit()) {
             LOG_NOTICE(nullptr,
                        "Accepting management clients to initialize buckets");
         } else {
@@ -2743,9 +2764,6 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_NOTICE(NULL, "Releasing callbacks");
     free_callbacks();
-
-    LOG_NOTICE(NULL, "Releasing settings");
-    free_settings(&settings);
 
     LOG_NOTICE(NULL, "Shutting down OpenSSL");
     shutdown_openssl();

@@ -51,7 +51,7 @@ void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction t
         }
     }
 
-    if (settings.verbose > 2 || task == conn_closing
+    if (settings.getVerbose() > 2 || task == conn_closing
         || task == conn_setup_tap_stream) {
         settings.extensions.logger->log(EXTENSION_LOG_DETAIL, this,
                                         "%u: going from %s to %s\n",
@@ -225,7 +225,7 @@ bool conn_read(McbpConnection *c) {
 
     switch (c->tryReadNetwork()) {
     case McbpConnection::TryReadResult::NoDataReceived:
-        if (settings.exit_on_connection_close) {
+        if (settings.isExitOnConnectionClose()) {
             // No more data, proceed to close which will exit the process
             c->setState(conn_closing);
         } else {
@@ -593,7 +593,7 @@ bool conn_audit_configuring(McbpConnection *c) {
     default:
         LOG_WARNING(c,
                     "configuration of audit daemon failed with config file: %s",
-                    settings.audit_file);
+                    settings.getAuditFile().c_str());
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
     }
 

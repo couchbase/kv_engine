@@ -25,7 +25,7 @@
  * The function may be called multiple times and allow for reconfiguration
  * of the breakpad settings.
  */
-void initialize_breakpad(const breakpad_settings_t* settings);
+void initialize_breakpad(const BreakpadSettings& settings);
 
 /**
  * Cleaning up when breakpad no longer needed

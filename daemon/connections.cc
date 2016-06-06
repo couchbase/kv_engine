@@ -208,7 +208,7 @@ Connection* conn_new(const SOCKET sfd, in_port_t parent_port,
     c->setThread(thread);
     MEMCACHED_CONN_ALLOCATE(c->getId());
 
-    if (settings.verbose > 1) {
+    if (settings.getVerbose() > 1) {
         LOG_DEBUG(c, "<%d new client connection", sfd);
     }
 
@@ -299,7 +299,7 @@ void conn_close(McbpConnection *c) {
         std::logic_error("conn_close: unable to obtain non-NULL thread from connection");
     }
     /* remove from pending-io list */
-    if (settings.verbose > 1 && list_contains(thread->pending_io, c)) {
+    if (settings.getVerbose() > 1 && list_contains(thread->pending_io, c)) {
         LOG_WARNING(c,
                     "Current connection was in the pending-io list.. Nuking it");
     }
@@ -553,7 +553,7 @@ static BufferLoan conn_loan_single_buffer(McbpConnection *c, struct net_buf *thr
             /* Unable to alloc a buffer for the thread. Not much we can do here
              * other than terminate the current connection.
              */
-            if (settings.verbose) {
+            if (settings.getVerbose()) {
                 LOG_WARNING(c,
                             "%u: Failed to allocate new read buffer.. closing"
                                 " connection",

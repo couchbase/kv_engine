@@ -19,7 +19,7 @@
 #include "breakpad.h"
 #include <stdlib.h>
 
-void initialize_breakpad(const breakpad_settings_t* settings) {
+void initialize_breakpad(const BreakpadSettings& settings) {
 }
 
 void destroy_breakpad(void) {

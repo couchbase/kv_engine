@@ -78,7 +78,7 @@ static bool authenticated(McbpConnection* c) {
         rv = c->isAuthenticated();
     }
 
-    if (settings.verbose > 1) {
+    if (settings.getVerbose() > 1) {
         LOG_DEBUG(c, "%u: authenticated() in cmd 0x%02x is %s",
                   c->getId(), c->getCmd(), rv ? "true" : "false");
     }
@@ -123,11 +123,9 @@ static void bin_read_chunk(McbpConnection* c, uint32_t chunk) {
 
         if (nsize != c->read.size) {
             char* newm;
-            if (settings.verbose > 1) {
-                LOG_DEBUG(c, "%u: Need to grow buffer from %lu to %lu",
-                          c->getId(), (unsigned long)c->read.size,
-                          (unsigned long)nsize);
-            }
+            LOG_DEBUG(c, "%u: Need to grow buffer from %lu to %lu",
+                      c->getId(), (unsigned long)c->read.size,
+                      (unsigned long)nsize);
             newm = reinterpret_cast<char*>(realloc(c->read.buf, nsize));
             if (newm == NULL) {
                 LOG_WARNING(c, "%u: Failed to grow buffer.. closing connection",
@@ -145,9 +143,7 @@ static void bin_read_chunk(McbpConnection* c, uint32_t chunk) {
         if (c->read.buf != c->read.curr) {
             memmove(c->read.buf, c->read.curr, c->read.bytes);
             c->read.curr = c->read.buf;
-            if (settings.verbose > 1) {
-                LOG_DEBUG(c, "%u: Repack input buffer", c->getId());
-            }
+            LOG_DEBUG(c, "%u: Repack input buffer", c->getId());
         }
     }
 
@@ -270,7 +266,7 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
 
     struct thread_stats thread_stats;
     thread_stats.aggregate(all_buckets[c->getBucketIndex()].stats,
-                           settings.num_threads);
+                           settings.getNumWorkerThreads());
 
     auto* cookie = c->getCookie();
 
@@ -350,7 +346,7 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
         add_stat(cookie, add_stat_callback, "listen_disabled_num",
                  get_listen_disabled_num());
         add_stat(cookie, add_stat_callback, "rejected_conns", stats.rejected_conns);
-        add_stat(cookie, add_stat_callback, "threads", settings.num_threads);
+        add_stat(cookie, add_stat_callback, "threads", settings.getNumWorkerThreads());
         add_stat(cookie, add_stat_callback, "conn_yields", thread_stats.conn_yields);
         add_stat(cookie, add_stat_callback, "rbufs_allocated",
                  thread_stats.rbufs_allocated);
@@ -449,7 +445,7 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
                                         "add_stat_callback must be non-NULL");
     }
     auto* cookie = c->getCookie();
-    add_stat(cookie, add_stat_callback, "maxconns", settings.maxconns);
+    add_stat(cookie, add_stat_callback, "maxconns", settings.getMaxconns());
 
     try {
         for (auto& ifce : stats.listening_ports) {
@@ -504,16 +500,16 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
                     error.what());
     }
 
-    add_stat(cookie, add_stat_callback, "verbosity", settings.verbose.load());
-    add_stat(cookie, add_stat_callback, "num_threads", settings.num_threads);
+    add_stat(cookie, add_stat_callback, "verbosity", settings.getVerbose());
+    add_stat(cookie, add_stat_callback, "num_threads", settings.getNumWorkerThreads());
     add_stat(cookie, add_stat_callback, "reqs_per_event_high_priority",
-             settings.reqs_per_event_high_priority);
+             settings.getRequestsPerEventNotification(EventPriority::High));
     add_stat(cookie, add_stat_callback, "reqs_per_event_med_priority",
-             settings.reqs_per_event_med_priority);
+             settings.getRequestsPerEventNotification(EventPriority::Medium));
     add_stat(cookie, add_stat_callback, "reqs_per_event_low_priority",
-             settings.reqs_per_event_low_priority);
+             settings.getRequestsPerEventNotification(EventPriority::Low));
     add_stat(cookie, add_stat_callback, "reqs_per_event_def_priority",
-             settings.default_reqs_per_event);
+             settings.getRequestsPerEventNotification(EventPriority::Default));
     add_stat(cookie, add_stat_callback, "auth_enabled_sasl", "yes");
     add_stat(cookie, add_stat_callback, "auth_sasl_engine", "cbsasl");
 
@@ -523,7 +519,8 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
         add_stat(cookie, add_stat_callback, "auth_sasl_mechanisms", sasl_mechs);
     }
 
-    add_stat(cookie, add_stat_callback, "auth_required_sasl", settings.require_sasl);
+    add_stat(cookie, add_stat_callback, "auth_required_sasl",
+             settings.isRequireSasl());
     {
         EXTENSION_DAEMON_DESCRIPTOR* ptr;
         for (ptr = settings.extensions.daemons; ptr != NULL; ptr = ptr->next) {
@@ -540,26 +537,21 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
         }
     }
 
-    if (settings.config) {
-        add_stat(cookie, add_stat_callback, "config", settings.config);
-    }
+    add_stat(cookie, add_stat_callback, "rbac", settings.getRbacFile().c_str());
+    add_stat(cookie, add_stat_callback, "rbac privilege debug",
+            settings.isRbacPrivilegeDebug());
 
-    if (settings.rbac_file) {
-        add_stat(cookie, add_stat_callback, "rbac", settings.rbac_file);
-    }
-
-    if (settings.audit_file) {
-        add_stat(cookie, add_stat_callback, "audit", settings.audit_file);
-    }
+    add_stat(cookie, add_stat_callback, "audit",
+             settings.getAuditFile().c_str());
 
     add_stat(cookie, add_stat_callback, "connection_idle_time",
-             std::to_string(settings.connection_idle_time.load()).c_str());
+             std::to_string(settings.getConnectionIdleTime()).c_str());
     add_stat(cookie, add_stat_callback, "datatype",
-            settings.datatype ? "true" : "false");
+            settings.isDatatypeSupport() ? "true" : "false");
     add_stat(cookie, add_stat_callback, "dedupe_nmvb_maps",
-            settings.dedupe_nmvb_maps.load() ? "true" : "false");
+            settings.isDedupeNmvbMaps() ? "true" : "false");
     add_stat(cookie, add_stat_callback, "max_packet_size",
-             std::to_string(settings.max_packet_size).c_str());
+             std::to_string(settings.getMaxPacketSize()).c_str());
 }
 
 
@@ -575,7 +567,7 @@ static void process_bin_get(McbpConnection* c) {
     uint8_t datatype;
     bool need_inflate = false;
 
-    if (settings.verbose > 1) {
+    if (settings.getVerbose() > 1) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     "GET", key, nkey) != -1) {
@@ -1079,10 +1071,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
             c->setState(conn_closing);
         } else {
             /* No more items to ship to the slave at this time.. suspend.. */
-            if (settings.verbose > 1) {
-                LOG_DEBUG(c, "%u: No more items in tap log.. waiting",
-                          c->getId());
-            }
+            LOG_DEBUG(c, "%u: No more items in tap log.. waiting", c->getId());
             c->setEwouldblock(true);
         }
     }
@@ -1213,7 +1202,7 @@ static void process_bin_tap_connect(McbpConnection* c) {
         key -= 4;
     }
 
-    if (settings.verbose && c->binary_header.request.keylen > 0) {
+    if (settings.getVerbose() && c->binary_header.request.keylen > 0) {
         char buffer[1024];
         size_t len = c->binary_header.request.keylen;
         if (len >= sizeof(buffer)) {
@@ -1959,12 +1948,10 @@ void ship_mcbp_dcp_log(McbpConnection* c) {
     c->setStart(gethrtime());
 
     if (!c->addMsgHdr(true)) {
-        if (settings.verbose) {
-            LOG_WARNING(c,
-                        "%u: Failed to create output headers. Shutting down "
-                            "DCP connection",
-                        c->getId());
-        }
+        LOG_WARNING(c,
+                    "%u: Failed to create output headers. Shutting down "
+                        "DCP connection",
+                    c->getId());
         c->setState(conn_closing);
         return;
     }
@@ -2777,7 +2764,7 @@ static void add_set_replace_executor(McbpConnection* c, void* packet,
         store_op = OPERATION_CAS;
     }
 
-    if (settings.verbose > 1) {
+    if (settings.getVerbose() > 1) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     memcached_opcode_2_text(store_op), key,
@@ -3122,7 +3109,7 @@ static void process_bucket_details(McbpConnection* c) {
     cJSON* obj = cJSON_CreateObject();
 
     cJSON* array = cJSON_CreateArray();
-    for (int ii = 0; ii < settings.max_buckets; ++ii) {
+    for (int ii = 0; ii < settings.getMaxBuckets(); ++ii) {
         cJSON* o = get_bucket_details(ii);
         if (o != NULL) {
             cJSON_AddItemToArray(array, o);
@@ -3389,7 +3376,7 @@ static void stat_executor(McbpConnection* c, void*) {
     // The raw representing the key
     const std::string key(binary_get_key(c), c->binary_header.request.keylen);
 
-    if (settings.verbose > 1) {
+    if (settings.getVerbose() > 1) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     "STATS", key.c_str(), key.size()) != -1) {
@@ -3519,7 +3506,7 @@ static void verbosity_executor(McbpConnection* c, void* packet) {
     if (level > MAX_VERBOSITY_LEVEL) {
         level = MAX_VERBOSITY_LEVEL;
     }
-    settings.verbose = (int)level;
+    settings.setVerbose(static_cast<int>(level));
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
     mcbp_write_response(c, NULL, 0, 0, 0);
 }
@@ -3577,7 +3564,7 @@ static void process_hello_packet_executor(McbpConnection* c, void* packet) {
             /* Not implemented */
             break;
         case PROTOCOL_BINARY_FEATURE_DATATYPE:
-            if (settings.datatype && !c->isSupportsDatatype()) {
+            if (settings.isDatatypeSupport() && !c->isSupportsDatatype()) {
                 c->setSupportsDatatype(true);
                 added = true;
             }
@@ -3741,7 +3728,7 @@ static void delete_executor(McbpConnection* c, void*) {
     size_t nkey = c->binary_header.request.keylen;
     uint64_t cas = ntohll(req->message.header.request.cas);
 
-    if (settings.verbose > 1) {
+    if (settings.getVerbose() > 1) {
         char buffer[1024];
         if (key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
                                     "DELETE", key, nkey) != -1) {
@@ -3848,7 +3835,7 @@ static void arithmetic_executor(McbpConnection* c, void* packet) {
     incr = (c->getCmd() == PROTOCOL_BINARY_CMD_INCREMENT ||
             c->getCmd() == PROTOCOL_BINARY_CMD_INCREMENTQ);
 
-    if (settings.verbose > 1) {
+    if (settings.getVerbose() > 1) {
         char buffer[1024];
         ssize_t nw;
         nw = key_to_printable_buffer(buffer, sizeof(buffer), c->getId(), true,
@@ -4001,7 +3988,7 @@ static void get_cmd_timer_executor(McbpConnection* c, void* packet) {
         mcbp_write_and_free(c, &c->getDynamicBuffer());
     } else if (cookie_is_admin(c->getCookie())) {
         bool found = false;
-        for (int ii = 1; ii < settings.max_buckets && !found; ++ii) {
+        for (int ii = 1; ii < settings.getMaxBuckets() && !found; ++ii) {
             // Need the lock to get the bucket state and name
             cb_mutex_enter(&all_buckets[ii].mutex);
             if ((all_buckets[ii].state == BucketState::Ready) &&
@@ -4170,9 +4157,11 @@ static void config_reload_executor(McbpConnection* c, void*) {
 }
 
 static void audit_config_reload_executor(McbpConnection* c, void*) {
-    if (settings.audit_file) {
+    if (settings.getAuditFile().empty()) {
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    } else {
         if (configure_auditdaemon(get_audit_handle(),
-                                  settings.audit_file,
+                                  settings.getAuditFile().c_str(),
                                   c->getCookie()) == AUDIT_EWOULDBLOCK) {
             c->setEwouldblock(true);
             c->setState(conn_audit_configuring);
@@ -4180,11 +4169,9 @@ static void audit_config_reload_executor(McbpConnection* c, void*) {
             LOG_WARNING(NULL,
                         "configuration of audit daemon failed with config "
                             "file: %s",
-                        settings.audit_file);
+                        settings.getAuditFile().c_str());
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
         }
-    } else {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
     }
 }
 
@@ -4677,7 +4664,7 @@ static void dispatch_bin_command(McbpConnection* c) {
         return;
     }
 
-    if (settings.require_sasl && !authenticated(c)) {
+    if (settings.isRequireSasl() && !authenticated(c)) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_ERROR);
         c->setWriteAndGo(conn_closing);
         return;
@@ -4707,7 +4694,7 @@ static void dispatch_bin_command(McbpConnection* c) {
      * Protect ourself from someone trying to kill us by sending insanely
      * large packets.
      */
-    if (c->binary_header.request.bodylen > settings.max_packet_size) {
+    if (c->binary_header.request.bodylen > settings.getMaxPacketSize()) {
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINVAL);
         c->setWriteAndGo(conn_closing);
     } else {
@@ -4749,16 +4736,13 @@ int try_read_mcbp_command(McbpConnection* c) {
             /* must realign input buffer */
             memmove(c->read.buf, c->read.curr, c->read.bytes);
             c->read.curr = c->read.buf;
-            if (settings.verbose > 1) {
-                settings.extensions.logger->log(EXTENSION_LOG_DEBUG, c,
-                                                "%d: Realign input buffer\n", c->sfd);
-            }
+            LOG_DEBUG(c, "%d: Realign input buffer", c->sfd);
         }
 #endif
         protocol_binary_request_header* req;
         req = (protocol_binary_request_header*)c->read.curr;
 
-        if (settings.verbose > 1) {
+        if (settings.getVerbose() > 1) {
             /* Dump the packet before we convert it to host order */
             char buffer[1024];
             ssize_t nw;

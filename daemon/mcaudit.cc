@@ -142,7 +142,7 @@ void initialize_audit() {
     memset(&audit_extension_data, 0, sizeof(audit_extension_data));
     audit_extension_data.log_extension = settings.extensions.logger;
     audit_extension_data.notify_io_complete = notify_io_complete;
-    audit_extension_data.configfile = settings.audit_file;
+    audit_extension_data.configfile = settings.getAuditFile().c_str();
     Audit* handle = nullptr;
     if (start_auditdaemon(&audit_extension_data, &handle) != AUDIT_SUCCESS) {
         FATAL_ERROR(EXIT_FAILURE, "FATAL: Failed to start audit daemon");

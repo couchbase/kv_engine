@@ -41,9 +41,9 @@ void set_server_initialized(bool enable) {
 static std::string ssl_cipher_list;
 static std::mutex ssl_cipher_list_mutex;
 
-void set_ssl_cipher_list(const char *list) {
+void set_ssl_cipher_list(const std::string& list) {
     std::lock_guard<std::mutex> lock(ssl_cipher_list_mutex);
-    if (list == NULL) {
+    if (list.empty()) {
         ssl_cipher_list.resize(0);
     } else {
         ssl_cipher_list.assign(list);

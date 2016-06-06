@@ -124,7 +124,7 @@ subdoc_create_context(McbpConnection* c, const SubdocCmdTraits traits,
                                                      flags, path});
             }
 
-            if (settings.verbose > 1) {
+            if (settings.getVerbose() > 1) {
                 const uint8_t extlen = req->message.header.request.extlen;
                 const char* key = (char*)packet + sizeof(req->message.header) + extlen;
                 const uint16_t keylen = ntohs(req->message.header.request.keylen);
@@ -176,7 +176,7 @@ subdoc_create_context(McbpConnection* c, const SubdocCmdTraits traits,
                 offset += headerlen + path.len + spec_value.len;
             }
 
-            if (settings.verbose > 1) {
+            if (settings.getVerbose() > 1) {
                 const protocol_binary_request_subdocument *req =
                         reinterpret_cast<const protocol_binary_request_subdocument*>(packet);
 
@@ -443,12 +443,10 @@ get_document_for_searching(McbpConnection * c, const item* item,
             // will later be used as the the send buffer for the subset of the
             // document we send.
             if (!c->growDynamicBuffer(uncompressed_len)) {
-                if (settings.verbose > 0) {
-                    LOG_WARNING(c,
-                                "<%u ERROR: Failed to grow dynamic buffer to %"
-                                    PRIu64 "for uncompressing document.",
-                                c->getId(), uncompressed_len);
-                }
+                LOG_WARNING(c,
+                            "<%u ERROR: Failed to grow dynamic buffer to %"
+                                PRIu64 "for uncompressing document.",
+                            c->getId(), uncompressed_len);
                 return PROTOCOL_BINARY_RESPONSE_E2BIG;
             }
 

@@ -29,7 +29,7 @@ bool is_server_initialized(void);
 
 void set_server_initialized(bool enable);
 
-void set_ssl_cipher_list(const char* new_list);
+void set_ssl_cipher_list(const std::string& new_list);
 
 void set_ssl_ctx_cipher_list(SSL_CTX* ctx);
 

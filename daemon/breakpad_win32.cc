@@ -51,13 +51,13 @@ static bool dumpCallback(const wchar_t* dump_path, const wchar_t* minidump_id,
     return succeeded;
 }
 
-static void create_breakpad(const char* minidump_dir) {
+static void create_breakpad(const std::string& minidump_dir) {
     // Takes a wchar_t* on Windows. Isn't the Breakpad API nice and
     // consistent? ;)
-    size_t len = strlen(minidump_dir) + 1;
+    size_t len = minidump_dir.length() + 1;
     wchar_t* wc_minidump_dir = new wchar_t[len];
     size_t wlen = 0;
-    mbstowcs_s(&wlen, wc_minidump_dir, len, minidump_dir, _TRUNCATE);
+    mbstowcs_s(&wlen, wc_minidump_dir, len, minidump_dir.c_str(), _TRUNCATE);
 
     handler = new ExceptionHandler(wc_minidump_dir, /*filter*/NULL,
                                    dumpCallback, /*callback-context*/NULL,
@@ -68,13 +68,13 @@ static void create_breakpad(const char* minidump_dir) {
     delete[] wc_minidump_dir;
 }
 
-void initialize_breakpad(const breakpad_settings_t* settings) {
+void initialize_breakpad(const BreakpadSettings& settings) {
     // We cannot actually change any of breakpad's settings once created, only
     // remove it and re-create with new settings.
     destroy_breakpad();
 
-    if (settings->enabled) {
-        create_breakpad(settings->minidump_dir);
+    if (settings.isEnabled()) {
+        create_breakpad(settings.getMinidumpDir());
     }
 }
 

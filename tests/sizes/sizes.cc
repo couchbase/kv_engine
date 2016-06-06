@@ -45,7 +45,7 @@ static void display_used_opcodes(void) {
 int main(int argc, char **argv) {
     display("Thread stats", sizeof(struct thread_stats));
     display("Global stats", sizeof(struct stats));
-    display("Settings", sizeof(struct settings));
+    display("Settings", sizeof(Settings));
     display("Libevent thread",
             sizeof(LIBEVENT_THREAD));
     display("Connection", calc_conn_size());

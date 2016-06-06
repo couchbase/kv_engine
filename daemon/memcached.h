@@ -176,9 +176,6 @@ void safe_close(SOCKET sfd);
 bool list_contains(Connection *h, Connection *n);
 Connection *list_remove(Connection *h, Connection *n);
 
-/* Aggregate the maximum number of connections */
-void calculate_maxconns(void);
-
 bool load_extension(const char *soname, const char *config);
 
 int add_conn_to_pending_io_list(Connection *c);

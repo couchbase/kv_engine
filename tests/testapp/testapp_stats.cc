@@ -166,7 +166,6 @@ TEST_P(StatsTest, TestSettings) {
 
     // skip extensions, loggers and daemons
 
-    ASSERT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "config"));
     ASSERT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "rbac"));
 
     // Skip audit.. it is "optional" and we don't pass it to the config

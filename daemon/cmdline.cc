@@ -48,21 +48,13 @@ static void add_option(int cmd, char *optarg) {
 }
 
 static void handle_b(struct Option* o) {
-    int backlog = atoi(o->optarg);
-    int ii = 0;
-
-    for (ii = 0; ii < settings.num_interfaces; ++ii) {
-        settings.interfaces[ii].backlog = backlog;
-    }
+    fprintf(stderr,
+            "-b is no longer used. Update the per interface description\n");
 }
 
 static void handle_c(struct Option* o) {
-    int maxconn = atoi(o->optarg);
-    int ii = 0;
-
-    for (ii = 0; ii < settings.num_interfaces; ++ii) {
-        settings.interfaces[ii].maxconn = maxconn;
-    }
+    fprintf(stderr,
+            "-c is no longer used. Update the per interface description\n");
 }
 
 static void handle_X(struct Option* o) {
@@ -93,16 +85,27 @@ static void apply_compat_arguments(void) {
             handle_b(o);
             break;
         case 'R':
-            settings.default_reqs_per_event = atoi(o->optarg);
+            try {
+                settings.setRequestsPerEventNotification(std::stoi(o->optarg),
+                                                         EventPriority::Default);
+            } catch (const std::exception& e) {
+                LOG_WARNING(nullptr, "Failed to parse \"%s\": %s", o->optarg,
+                           e.what());
+            }
             break;
         case 'c':
             handle_c(o);
             break;
         case 't':
-            settings.num_threads = atoi(o->optarg);
+            try {
+                settings.setNumWorkerThreads(std::stoi(o->optarg));
+            } catch (const std::exception& e) {
+                LOG_WARNING(nullptr, "Failed to parse \"%s\": %s", o->optarg,
+                            e.what());
+            }
             break;
         case 'v':
-            ++settings.verbose;
+            settings.setVerbose(settings.getVerbose() + 1);
             break;
         case 'X':
             handle_X(o);
@@ -220,7 +223,7 @@ void parse_arguments(int argc, char **argv) {
     }
 
     if (config_file) {
-        load_config_file(config_file, &settings);
+        load_config_file(config_file, settings);
     }
 
     /* Process other arguments */

@@ -69,7 +69,7 @@ static ENGINE_ERROR_CODE get_vb_map_cb(const void* void_cookie,
     protocol_binary_response_header header;
     size_t needed = sizeof(protocol_binary_response_header);
 
-    if (settings.dedupe_nmvb_maps) {
+    if (settings.isDedupeNmvbMaps()) {
         int revno = get_clustermap_revno(reinterpret_cast<const char*>(map),
                                          mapsize);
         if (revno == c->getClustermapRevno()) {
@@ -176,7 +176,7 @@ void mcbp_write_packet(McbpConnection* c, protocol_binary_response_status err) {
             }
         }
 
-        if (errtext && settings.verbose > 1) {
+        if (errtext && settings.getVerbose() > 1) {
             LOG_DEBUG(c, ">%u Writing an error: %s", c->getId(), errtext);
         }
 
@@ -220,7 +220,7 @@ int mcbp_add_header(McbpConnection* c,
     header->response.opaque = c->getOpaque();
     header->response.cas = htonll(c->getCAS());
 
-    if (settings.verbose > 1) {
+    if (settings.getVerbose() > 1) {
         char buffer[1024];
         if (bytes_to_output_string(buffer, sizeof(buffer), c->getId(), false,
                                    "Writing bin response:",
