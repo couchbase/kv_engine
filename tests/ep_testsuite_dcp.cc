@@ -1778,7 +1778,7 @@ static enum test_result test_dcp_producer_backfill_limits(ENGINE_HANDLE *h,
        to run additional 'num_items' during backfill_state_scanning state. */
     uint64_t exp_backfill_task_runs = 4 + num_items;
     checkeq(exp_backfill_task_runs,
-            get_histo_stat(h, h1, "backfill_tasks", "runtimes",
+            get_histo_stat(h, h1, "backfill_tasks[AUXIO]", "runtimes",
                            Histo_stat_info::TOTAL_COUNT),
             "backfill_tasks did not run expected number of times");
 

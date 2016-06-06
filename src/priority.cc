@@ -58,61 +58,61 @@ const Priority Priority::TapResumePriority(TAP_RESUME_ID, 316);
 const char *Priority::getTypeName(const type_id_t i) {
         switch (i) {
             case BGFETCHER_ID:
-                return "bg_fetcher_tasks";
+                return "bg_fetcher_tasks[READ]";
             case BGFETCHER_GET_META_ID:
-                return "bg_fetcher_meta_tasks";
+                return "bg_fetcher_meta_tasks[READ]";
             case TAP_BGFETCHER_ID:
-                return "tap_bg_fetcher_tasks";
+                return "tap_bg_fetcher_tasks[AUXIO]";
             case VKEY_STAT_BGFETCHER_ID:
-                return "vkey_stat_bg_fetcher_tasks";
+                return "vkey_stat_bg_fetcher_tasks[READ]";
             case WARMUP_ID:
-                return "warmup_tasks";
+                return "warmup_tasks[READ]";
             case VBUCKET_PERSIST_HIGH_ID:
-                return "vbucket_persist_high_tasks";
+                return "vbucket_persist_high_tasks[WRITE]";
             case VBUCKET_DELETION_ID:
-                return "vbucket_deletion_tasks";
+                return "vbucket_deletion_tasks[WRITE]";
             case FLUSHER_ID:
-                return "flusher_tasks";
+                return "flusher_tasks[WRITE]";
             case FLUSHALL_ID:
-                return "flush_all_tasks";
+                return "flush_all_tasks[WRITE]";
             case COMPACTOR_ID:
-                return "compactor_tasks";
+                return "compactor_tasks[WRITE]";
             case VBUCKET_PERSIST_LOW_ID:
-                return "vbucket_persist_low_tasks";
+                return "vbucket_persist_low_tasks[WRITE]";
             case STAT_SNAP_ID:
-                return "statsnap_tasks";
+                return "statsnap_tasks[WRITE]";
             case MUTATION_LOG_COMPACTOR_ID:
-                return "mutation_log_compactor_tasks";
+                return "mutation_log_compactor_tasks[WRITE]";
             case ACCESS_SCANNER_ID:
-                return "access_scanner_tasks";
+                return "access_scanner_tasks[AUXIO]";
             case TAP_CONN_NOTIFICATION_ID:
-                return "conn_notification_tasks";
+                return "conn_notification_tasks[NONIO]";
             case CHECKPOINT_REMOVER_ID:
-                return "checkpoint_remover_tasks";
+                return "checkpoint_remover_tasks[NONIO]";
             case VB_MEMORY_DELETION_ID:
-                return "vb_memory_deletion_tasks";
+                return "vb_memory_deletion_tasks[NONIO]";
             case CHECKPOINT_STATS_ID:
-                return "checkpoint_stats_tasks";
+                return "checkpoint_stats_tasks[NONIO]";
             case ITEM_PAGER_ID:
-                return "item_pager_tasks";
+                return "item_pager_tasks[NONIO]";
             case BACKFILL_TASK_ID:
-                return "backfill_tasks";
+                return "backfill_tasks[AUXIO]";
             case WORKLOAD_MONITOR_TASK_ID:
-                return "workload_monitor_tasks";
+                return "workload_monitor_tasks[NONIO]";
             case TAP_RESUME_ID:
-                return "tap_resume_tasks";
+                return "tap_resume_tasks[NONIO]";
             case TAP_CONNECTION_REAPER_ID:
-                return "tapconnection_reaper_tasks";
+                return "tapconnection_reaper_tasks[NONIO]";
             case HT_RESIZER_ID:
-                return "hashtable_resize_tasks";
+                return "hashtable_resize_tasks[NONIO]";
             case PENDING_OPS_ID:
-                return "pending_ops_tasks";
+                return "pending_ops_tasks[NONIO]";
             case TAP_CONN_MGR_ID:
-                return "conn_manager_tasks";
+                return "conn_manager_tasks[NONIO]";
             case DEFRAGMENTER_ID:
-                return "defragmenter_tasks";
+                return "defragmenter_tasks[NONIO]";
             case ACTIVE_STREAM_CHKPT_PROCESSOR_ID:
-                return "activestream_chkpt_processor_tasks";
+                return "activestream_chkpt_processor_tasks[AUXIO]";
             default: break;
         }
 
