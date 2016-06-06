@@ -339,7 +339,7 @@ private:
 class PendingOpsNotification : public GlobalTask {
 public:
     PendingOpsNotification(EventuallyPersistentEngine &e, RCPtr<VBucket> &vb) :
-        GlobalTask(&e, Priority::VBMemoryDeletionPriority, 0, false),
+        GlobalTask(&e, Priority::PendingOpsPriority, 0, false),
         engine(e), vbucket(vb) { }
 
     std::string getDescription() {

@@ -124,8 +124,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingSetPriority = true;
     pendingEnableExtMetaData = true;
     pendingEnableValueCompression = config.isDcpValueCompressionEnabled();
-    /* MB-18256: Disabling cursor droppping temporarily */
-    pendingSupportCursorDropping = false;
+    pendingSupportCursorDropping = true;
 
     ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
     processerTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
@@ -729,33 +728,6 @@ bool DcpConsumer::doRollback(uint32_t opaque, uint16_t vbid,
         stream->reconnectStream(vb, opaque, vb->getHighSeqno());
     }
 
-    return false;
-}
-
-bool DcpConsumer::reconnectSlowStream(StreamEndResponse *resp) {
-    /**
-     * To be invoked only if END_STREAM was received, and the reconnection
-     * is initiated only if the reason states SLOW.
-     */
-    if (resp == nullptr) {
-        throw std::invalid_argument("DcpConsumer::reconnectSlowStream: resp is NULL");
-    }
-
-    if (resp->getFlags() == END_STREAM_SLOW) {
-        uint16_t vbid = resp->getVbucket();
-        RCPtr<VBucket> vb = engine_.getVBucket(vbid);
-        if (vb) {
-            auto stream = findStream(vbid);
-            if (stream) {
-                LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Consumer is attempting "
-                        "to reconnect stream, as it received END_STREAM for "
-                        "the vbucket with reason as SLOW", logHeader(), vbid);
-                stream->reconnectStream(vb, resp->getOpaque(),
-                                        vb->getHighSeqno());
-                return true;
-            }
-        }
-    }
     return false;
 }
 

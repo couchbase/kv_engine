@@ -56,7 +56,8 @@ enum end_stream_status_t {
     END_STREAM_STATE,
     //! The stream closed early because the connection was disconnected
     END_STREAM_DISCONNECTED,
-    //! The stream was closed early because it was too slow
+    //! The stream was closed early because it was too slow (currently unused,
+    //! but not deleted because it is part of the externally-visible API)
     END_STREAM_SLOW
 };
 
@@ -122,6 +123,10 @@ public:
 
     const std::string& getName() {
         return name_;
+    }
+
+    virtual void setActive() {
+        // Stream defaults to do nothing
     }
 
     bool isActive() {
@@ -238,6 +243,11 @@ public:
     // Runs on ActiveStreamCheckpointProcessorTask
     void nextCheckpointItemTask();
 
+    /* Function to handle a slow stream that is supposedly hogging memory in
+       checkpoint mgr. Currently we handle the slow stream by switching from
+       in-memory to backfilling */
+    void handleSlowStream();
+
 protected:
     // Returns the outstanding items for the stream's checkpoint cursor.
     void getOutstandingItems(RCPtr<VBucket> &vb, std::vector<queued_item> &items);
@@ -268,7 +278,14 @@ private:
 
     void endStream(end_stream_status_t reason);
 
-    void scheduleBackfill();
+    /* reschedule = FALSE ==> First backfill on the stream
+     * reschedule = TRUE ==> Schedules another backfill on the stream that has
+     *                       finished backfilling once and still in
+     *                       STREAM_BACKFILLING state or in STREAM_IN_MEMORY
+     *                       state.
+     * Note: Expects the streamMutex to be acquired when called
+     */
+    void scheduleBackfill_UNLOCKED(bool reschedule);
 
     const char* getEndStreamStatusStr(end_stream_status_t status);
 
@@ -277,7 +294,17 @@ private:
 
     bool isCurrentSnapshotCompleted() const;
 
-    //! The last sequence number queued from disk or memory
+    /* Drop the cursor registered with the checkpoint manager.
+     * Note: Expects the streamMutex to be acquired when called
+     */
+    void dropCheckpointCursor_UNLOCKED();
+
+    /* The last sequence number queued from disk or memory, but is yet to be
+       snapshotted and put onto readyQ */
+    std::atomic<uint64_t> lastReadSeqnoUnSnapshotted;
+
+    /* The last sequence number queued from disk or memory and is
+       snapshotted and put onto readyQ */
     std::atomic<uint64_t> lastReadSeqno;
 
     //! The last sequence number sent to the network layer
@@ -314,6 +341,12 @@ private:
     EventuallyPersistentEngine* engine;
     dcp_producer_t producer;
     std::atomic<bool> isBackfillTaskRunning;
+
+    /* Indicates if another backfill must be scheduled
+     * following the completion of current running backfill.
+     * Guarded by streamMutex
+     */
+    bool pendingBackfill;
 
     struct {
         std::atomic<uint32_t> bytes;

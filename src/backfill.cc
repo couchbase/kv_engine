@@ -115,8 +115,10 @@ bool BackfillDiskLoad::run() {
     if (connMap.checkConnectivity(name) &&
                                !engine->getEpStore()->isFlushAllScheduled()) {
         size_t num_items;
+        size_t num_deleted;
         try {
             num_items = store->getItemCount(vbucket);
+            num_deleted = store->getNumPersistedDeletes(vbucket);
         } catch (std::system_error& e) {
             if (e.code() == std::error_code(ENOENT, std::system_category())) {
                 // File creation hasn't completed yet; backoff and wait.
@@ -132,7 +134,6 @@ bool BackfillDiskLoad::run() {
                 throw e;
             }
         }
-        size_t num_deleted = store->getNumPersistedDeletes(vbucket);
         connMap.incrBackfillRemaining(name, num_items + num_deleted);
 
         std::shared_ptr<Callback<GetValue> >

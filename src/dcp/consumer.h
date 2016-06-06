@@ -85,8 +85,6 @@ public:
 
     bool doRollback(uint32_t opaque, uint16_t vbid, uint64_t rollbackSeqno);
 
-    bool reconnectSlowStream(StreamEndResponse *resp);
-
     void addStats(ADD_STAT add_stat, const void *c);
 
     void aggregateQueueStats(ConnCounter& aggregator);
@@ -139,8 +137,6 @@ protected:
      * for testing purposes.
      */
     rel_time_t lastMessageTime;
-
-private:
 
     // Searches the streams map for a stream for vbucket ID. Returns the found
     // stream, or an empty pointer if none found.

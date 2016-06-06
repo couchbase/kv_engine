@@ -1521,18 +1521,40 @@ bool abort_msg(const char *expr, const char *msg, const char *file, int line) {
     abort();
 }
 
+/* Helper function to validate the return from store() */
+void validate_store_resp(ENGINE_ERROR_CODE ret, int& num_items)
+{
+    switch (ret) {
+        case ENGINE_SUCCESS:
+            num_items++;
+            break;
+        case ENGINE_TMPFAIL:
+            /* TMPFAIL means we are hitting high memory usage; retry */
+            break;
+        default:
+            check(false,
+                  ("write_items_upto_mem_perc: Unexpected response from "
+                   "store(): " + std::to_string(ret)).c_str());
+            break;
+    }
+}
+
 /* Helper function to write unique "num_items" starting from keyXX
    (XX is start_seqno) */
 void write_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int num_items,
                  int start_seqno, const char *key_prefix, const char *value)
 {
-    for (int j = 0; j < num_items; ++j) {
+    int j = 0;
+    while (1) {
+        if (j == num_items) {
+            break;
+        }
         item *i = nullptr;
         std::string key(key_prefix + std::to_string(j + start_seqno));
-        checkeq(ENGINE_SUCCESS,
-                store(h, h1, nullptr, OPERATION_SET, key.c_str(),
-                      value, &i), "write_items: Failed to store a value");
+        ENGINE_ERROR_CODE ret = store(h, h1, nullptr, OPERATION_SET,
+                                      key.c_str(), value, &i);
         h1->release(h, nullptr, i);
+        validate_store_resp(ret, j);
     }
 }
 
@@ -1562,22 +1584,7 @@ int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         ENGINE_ERROR_CODE ret = store(h, h1, nullptr, OPERATION_SET,
                                       key.c_str(), "somevalue", &itm);
         h1->release(h, nullptr, itm);
-
-        switch (ret) {
-            case ENGINE_SUCCESS:
-                num_items++;
-                break;
-
-            case ENGINE_TMPFAIL:
-                // TMPFAIL means we getting below 100%; retry.
-                break;
-
-            default:
-                check(false,
-                      ("write_items_upto_mem_perc: Unexpected response from "
-                       "store(): " + std::to_string(ret)).c_str());
-                break;
-        }
+        validate_store_resp(ret, num_items);
     }
     return num_items;
 }

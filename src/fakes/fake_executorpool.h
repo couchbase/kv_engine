@@ -30,6 +30,7 @@
 
 #include "executorpool.h"
 #include "executorthread.h"
+#include "taskqueue.h"
 
 #include <gtest/gtest.h>
 
@@ -79,29 +80,110 @@ public:
     TaskQ& getLpTaskQ() {
         return lpTaskQ;
     }
+
+    /*
+     * Mark all tasks as cancelled and remove the from the locator.
+     */
+    void cancelAll() {
+        for (auto& it : taskLocator) {
+            it.second.first->cancel();
+            // And force awake so he is "runnable"
+            it.second.second->wake(it.second.first);
+        }
+        taskLocator.clear();
+    }
 };
 
-/* A fake execution 'thread', to be used with the FakeExecutorPool Allows
- * execution of tasks synchronously in the current thrad.
+/*
+ * A container for a single task to 'execute' on divorced of the logical thread.
+ * Performs checks of the taskQueue once execution is complete.
  */
-class FakeExecutorThread : public ExecutorThread {
+class CheckedExecutor : public ExecutorThread {
 public:
-    FakeExecutorThread(ExecutorPool* manager_, int startingQueue)
-        : ExecutorThread(manager_, startingQueue, "mock_executor") {
+
+    CheckedExecutor(ExecutorPool* manager_, TaskQueue& q)
+        : ExecutorThread(manager_, q.getQueueType(), "checked_executor"),
+          queue(q),
+          preFutureQueueSize(queue.getFutureQueueSize()),
+          preReadyQueueSize(queue.getReadyQueueSize()) {
+        if (!queue.fetchNextTask(*this, false)) {
+            throw std::logic_error("CheckedExecutor failed fetchNextTask");
+        }
+
+        // Configure a checker to run, some tasks are subtly different
+        if (getTaskName().compare("Snapshotting vbucket states") == 0 ||
+            getTaskName().compare("Removing closed unreferenced checkpoints from memory") == 0 ||
+            getTaskName().compare("Paging expired items.") == 0 ||
+            getTaskName().compare("Adjusting hash table sizes.") == 0) {
+            checker = [=](bool taskRescheduled) {
+                // These tasks all schedule one other task
+                this->oneExecutes(taskRescheduled, 1);
+            };
+        } else {
+            checker = [=](bool taskRescheduled) {
+                this->oneExecutes(taskRescheduled, 0);
+            };
+        }
+    }
+
+    void runCurrentTask(const std::string& expectedTask) {
+        EXPECT_EQ(expectedTask, getTaskName());
+        checker(run());
     }
 
     void runCurrentTask() {
-        // Only supports one-shot tasks
-        EXPECT_FALSE(currentTask->run());
-        manager->doneWork(curTaskType);
-        manager->cancel(currentTask->getId(), true);
-    }
-
-    ExTask& getCurrentTask() {
-        return currentTask;
+        checker(run());
     }
 
     void updateCurrentTime() {
         now = gethrtime();
     }
+private:
+
+    /*
+     * Performs checks based on the assumption that one task executes and can
+     * as part of that execution
+     *   - request itself to be rescheduled
+     *   - schedule other tasks (expectedToBeScheduled)
+     */
+    void oneExecutes(bool rescheduled, int expectedToBeScheduled) {
+        if (rescheduled) {
+            // One task executed and was rescheduled, account for it.
+            expectedToBeScheduled++;
+        }
+
+        // Check that the new sizes of the future and ready tally given
+        // one executed and n were scheduled as a side effect.
+        EXPECT_EQ((preFutureQueueSize + preReadyQueueSize) - 1,
+                  (queue.getFutureQueueSize() + queue.getReadyQueueSize()) -
+                  expectedToBeScheduled);
+    }
+
+    /*
+     * Run the task and return if it was rescheduled.
+     */
+    bool run() {
+        bool again = currentTask->run();
+        manager->doneWork(curTaskType);
+        if (again && !currentTask->isdead()) {
+            queue.reschedule(currentTask, curTaskType);
+            return true;
+        } else {
+            manager->cancel(currentTask->getId(), true);
+        }
+
+        return false;
+    }
+
+    TaskQueue& queue;
+    size_t preFutureQueueSize;
+    size_t preReadyQueueSize;
+
+    /*
+     * A function object that runs post task execution for the purpose of
+     * running checks against state changes.
+     * The defined function accepts one boolean parameter that states if the
+     * task which just executed has been rescheduled.
+     */
+    std::function<void(bool)> checker;
 };

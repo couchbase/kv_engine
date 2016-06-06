@@ -59,12 +59,6 @@ public:
 
     void addTakeoverStats(ADD_STAT add_stat, const void* c, uint16_t vbid);
 
-    // This function adds takeover (TO) stats and returns true if an entry
-    // was found in the map that holds the vbucket information for streams
-    // that were closed by the checkpoint remover's cursor dropped.
-    bool addTOStatsIfStreamTempDisconnected(ADD_STAT add_stat, const void* c,
-                                            uint16_t vbid);
-
     void aggregateQueueStats(ConnCounter& aggregator);
 
     void setDisconnect(bool disconnect);
@@ -73,7 +67,10 @@ public:
 
     void vbucketStateChanged(uint16_t vbucket, vbucket_state_t state);
 
-    bool closeSlowStream(uint16_t vbid, const std::string &name);
+    /* This function handles a stream that is detected as slow by the checkpoint
+       remover. Currently we handle the slow stream by switching from in-memory
+       to backfilling */
+    bool handleSlowStream(uint16_t vbid, const std::string &name);
 
     void closeAllStreams();
 
@@ -265,13 +262,6 @@ private:
     ExTask checkpointCreatorTask;
     static const uint32_t defaultNoopInerval;
 
-    /**
-     * This map holds the vbucket id, and the last sent seqno
-     * information for streams that have been dropped by the
-     * checkpoint remover's cursor dropper, which are awaiting
-     * reconnection.
-     */
-    std::map<uint16_t, uint64_t> tempDroppedStreams;
 };
 
 #endif  // SRC_DCP_PRODUCER_H_

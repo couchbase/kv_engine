@@ -724,6 +724,77 @@ static void dcp_stream_to_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 }
 
+/* This is a helper function to read items from an existing DCP Producer. It
+   reads items from start to end on the connection. (Note: this can work
+   correctly only in case there is one vbucket)
+   Currently this supports only streaming mutations, but can be extend to stream
+   deletion etc */
+static void dcp_stream_from_producer_conn(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1,
+                                          const void *cookie, uint32_t opaque,
+                                          uint64_t start, uint64_t end)
+{
+    bool done = false;
+    size_t bytes_read = 0;
+    bool pending_marker_ack = false;
+    uint64_t marker_end = 0;
+    uint64_t num_mutations = 0;
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
+
+    do {
+        if (bytes_read > 512) {
+            checkeq(ENGINE_SUCCESS,
+                    h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0,
+                                                   bytes_read),
+                    "Failed to get dcp buffer ack");
+            bytes_read = 0;
+        }
+        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
+        if (err == ENGINE_DISCONNECT) {
+            done = true;
+        } else {
+            switch (dcp_last_op) {
+                case PROTOCOL_BINARY_CMD_DCP_MUTATION:
+                    bytes_read += dcp_last_packet_size;
+                    if (pending_marker_ack && dcp_last_byseqno == marker_end) {
+                        sendDcpAck(h, h1, cookie,
+                                   PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
+                                   PROTOCOL_BINARY_RESPONSE_SUCCESS,
+                                   dcp_last_opaque);
+                    }
+                    num_mutations++;
+                    break;
+                case PROTOCOL_BINARY_CMD_DCP_STREAM_END:
+                    done = true;
+                    bytes_read += dcp_last_packet_size;
+                    break;
+                case PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER:
+                    if (dcp_last_flags & 8) {
+                        pending_marker_ack = true;
+                        marker_end = dcp_last_snap_end_seqno;
+                    }
+                    bytes_read += dcp_last_packet_size;
+                    break;
+                case 0:
+                    break;
+                default:
+                    // Aborting ...
+                    std::string err_string("Unexpected DCP operation: " +
+                                           std::to_string(dcp_last_op));
+                    check(false, err_string.c_str());
+            }
+            if (dcp_last_byseqno >= end) {
+                done = true;
+            }
+            dcp_last_op = 0;
+        }
+    } while (!done);
+
+    /* Do buffer ack of the outstanding bytes */
+    h1->dcp.buffer_acknowledgement(h, cookie, ++opaque, 0, bytes_read);
+    checkeq((end - start + 1), num_mutations, "Invalid number of mutations");
+}
+
 struct mb16357_ctx {
     mb16357_ctx(ENGINE_HANDLE *_h, ENGINE_HANDLE_V1 *_h1, int _items) :
     h(_h), h1(_h1), items(_items) { }
@@ -1716,47 +1787,6 @@ static enum test_result test_dcp_producer_backfill_limits(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
-static enum test_result test_dcp_producer_backfill_mb19428(ENGINE_HANDLE *h,
-                                                           ENGINE_HANDLE_V1 *h1) {
-    const int num_items = 3;
-    write_items(h, h1, num_items);
-
-    wait_for_flusher_to_settle(h, h1);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
-    wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
-    // Now set VB as dead
-    check(set_vbucket_state(h, h1, 0, vbucket_state_dead),
-          "Failed to set vbucket state.");
-    const void *cookie = testHarness.create_cookie();
-
-    DcpStreamCtx ctx;
-    ctx.flags = DCP_ADD_STREAM_FLAG_DISKONLY;
-    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, static_cast<uint64_t>(-1)};
-    ctx.exp_mutations = 3;
-    ctx.exp_markers = 1;
-    ctx.exp_err = ENGINE_NOT_MY_VBUCKET;
-
-    TestDcpConsumer tdc("unittest", cookie);
-    tdc.addStreamCtx(ctx);
-
-    /* Open the connection with the DCP producer */
-    tdc.openConnection(h, h1);
-
-    /* Open streams in the above open connection */
-    checkeq(ENGINE_NOT_MY_VBUCKET,
-            tdc.openStreams(h, h1),
-            "Expected ENGINE_NOT_MY_VBUCKET from addStream");
-
-    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:backfill_num_active", 0, "dcp");
-    checkeq(uint64_t{0}, get_ull_stat(h, h1,
-            "eq_dcpq:unittest:backfill_buffer_bytes_read", "dcp"),
-            "buffer has data");
-    testHarness.destroy_cookie(cookie);
-
-    return SUCCESS;
-}
-
 static enum test_result test_dcp_producer_stream_req_mem(ENGINE_HANDLE *h,
                                                          ENGINE_HANDLE_V1 *h1) {
     const int num_items = 300, batch_items = 100;
@@ -1812,13 +1842,8 @@ static enum test_result test_dcp_producer_stream_req_dgm(ENGINE_HANDLE *h,
     // Sanity check - ensure we have enough vBucket quota (max_size)
     // such that we have 1000 items - enough to give us 0.1%
     // granuarity in any residency calculations. */
-    if (i < 1000) {
-        std::cerr << "Error: test_dcp_producer_stream_req_dgm: "
-            "expected at least 1000 items after filling vbucket, "
-            "but only have " << i << ". "
-            "Check max_size setting for test." << std::endl;
-        return FAIL;
-    }
+    checkge(i, 1000,
+            "Does not have expected min items; Check max_size setting");
 
     wait_for_flusher_to_settle(h, h1);
 
@@ -2196,51 +2221,141 @@ static test_result test_dcp_agg_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
 static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
                                             ENGINE_HANDLE_V1 *h1) {
-    stop_persistence(h, h1);
-    size_t num_items = write_items_upto_mem_perc(h, h1, 90);
+    /* Initially write a few items */
+    int num_items = 25;
+    const int cursor_dropping_mem_thres_perc = 90;
 
-    // Sanity check - ensure we have enough vBucket quota (max_size)
-    // such that we have 1000 items - enough to give us 0.1%
-    // granuarity in any residency calculations. */
-    if (num_items < 1000) {
-        std::cerr << "Error: test_dcp_cursor_dropping: "
-            "expected at least 1000 items after filling vbucket, "
-            "but only have " << num_items << ". "
-            "Check max_size setting for test." << std::endl;
-        return FAIL;
-    }
+    write_items(h, h1, num_items, 1);
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+
+    /* Set up a dcp producer conn and stream a few items. This will cause the
+       stream to transition from pending -> backfill -> in-memory state */
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     const void *cookie = testHarness.create_cookie();
-
-    start_persistence(h, h1);
-    std::string name("unittest");
+    std::string conn_name("unittest");
+    uint32_t opaque = 1;
+    uint64_t last_seqno_streamed = 0;
 
     DcpStreamCtx ctx;
     ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
-    ctx.seqno = {0, get_ull_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno")};
-    ctx.exp_mutations = num_items;
-    ctx.exp_markers = 1;
-    ctx.skip_estimate_check = true;
+    ctx.seqno = {0, static_cast<uint64_t>(-1)};
+    ctx.snapshot = {0, 0};
 
-    TestDcpConsumer tdc(name, cookie);
-    tdc.simulateCursorDropping();
+    TestDcpConsumer tdc(conn_name, cookie);
+
     tdc.addStreamCtx(ctx);
-    tdc.run(h, h1);
 
-    if (get_int_stat(h, h1, "ep_cursors_dropped") > 0) {
-        checkeq(static_cast<uint32_t>(4),
-                dcp_last_flags, "Last DCP flag not END_STREAM_SLOW");
-        // Also ensure the status of the active stream for the vbucket
-        // shows as "temporarily_disconnected", in vbtakeover stats.
-        std::string stats_takeover("dcp-vbtakeover 0 " + name);
-        std::string status = get_str_stat(h, h1, "status",
-                                          stats_takeover.c_str());
-        checkeq(status.compare("temporarily_disconnected"), 0,
-                "Unexpected status");
-    } else {
-        checkeq(static_cast<uint32_t>(0), dcp_last_flags,
-                "Last DCP flag not END_STREAM_OK");
-    }
+    tdc.openConnection(h, h1);
+    tdc.openStreams(h, h1);
+
+    /* Stream (from in-memory state) less than the number of items written.
+       We want to do this because we want to test if the stream drops the items
+       in the readyQ when we later switch from in-memory -> backfill state */
+    dcp_stream_from_producer_conn(h, h1, cookie, opaque,
+                                  last_seqno_streamed + 1, num_items - 5);
+    last_seqno_streamed = num_items - 5;
+
+    /* Check if the stream is still in in-memory state after sending out
+       items */
+    std::string stat_stream_state("eq_dcpq:" + conn_name + ":stream_" +
+                                  std::to_string(0) + "_state");
+    std::string state = get_str_stat(h, h1, stat_stream_state.c_str(), "dcp");
+    checkeq(state.compare("in-memory"), 0, "Stream is in memory state");
+
+    /* Write items such that cursor is dropped due to heavy memory usage and
+       stream state changes from memory->backfill */
+    stop_persistence(h, h1);
+    num_items += write_items_upto_mem_perc(h, h1,
+                                           cursor_dropping_mem_thres_perc,
+                                           num_items + 1);
+
+    // Sanity check - ensure we have enough vBucket quota (max_size)
+    // such that we have 1000 items - enough to give us 0.1%
+    // granularity in any residency calculations. */
+    checkge(num_items, 1000,
+            "Does not have expected min items; Check max_size setting");
+
+    /* Persist all items */
+    start_persistence(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+
+    /* wait for cursor to be dropped. You need to make sure that there are
+       2 checkpoints so that the cursors of one of the checkpoint is dropped.
+       For this we need to have correct combination of max_size and
+       chk_max_items (max_size=2000000;chk_max_items=2500 in this case) */
+    wait_for_stat_to_be_gte(h, h1, "ep_cursors_dropped", 1);
+    dcp_stream_from_producer_conn(h, h1, cookie, opaque,
+                                  last_seqno_streamed + 1, num_items);
+    last_seqno_streamed = num_items;
+
+    /* Write 10 more items to test if stream transitions correctly from
+       backfill -> in-memory and sends out items */
+    write_items(h, h1, 10, num_items + 1);
+    num_items += 10;
+    dcp_stream_from_producer_conn(h, h1, cookie, opaque,
+                                  last_seqno_streamed + 1, num_items);
+
+    checkeq(1, get_int_stat(h, h1, "ep_cursors_dropped"),
+            "Expected number of cursors not dropped");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
+static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
+                                                     ENGINE_HANDLE_V1 *h1) {
+    /* Initially write a few items */
+    int num_items = 50;
+    const int cursor_dropping_mem_thres_perc = 90;
+
+    write_items(h, h1, num_items, 1);
+
+    wait_for_flusher_to_settle(h, h1);
+    verify_curr_items(h, h1, num_items, "Wrong amount of items");
+    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
+
+    /* Set up a connection */
+    const void *cookie = testHarness.create_cookie();
+    std::string conn_name("unittest");
+    uint32_t opaque = 1;
+
+    DcpStreamCtx ctx;
+    ctx.vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    ctx.seqno = {0, static_cast<uint64_t>(-1)};
+    ctx.snapshot = {0, 0};
+
+    TestDcpConsumer tdc(conn_name, cookie);
+
+    tdc.addStreamCtx(ctx);
+
+    tdc.openConnection(h, h1);
+    tdc.openStreams(h, h1);
+
+    /* Write items such that we cross threshold for cursor dropping */
+    stop_persistence(h, h1);
+    num_items += write_items_upto_mem_perc(h, h1,
+                                           cursor_dropping_mem_thres_perc,
+                                           num_items + 1);
+
+    /* Sanity check - ensure we have enough vBucket quota (max_size)
+       such that we have 1000 items - enough to give us 0.1%
+       granuarity in any residency calculations. */
+    checkge(num_items, 1000,
+            "Does not have expected min items; Check max_size setting");
+
+    /* Persist all items so that we can drop the replication cursor and
+       schedule another backfill */
+    start_persistence(h, h1);
+    wait_for_flusher_to_settle(h, h1);
+
+    wait_for_stat_to_be(h, h1, "ep_cursors_dropped", 1);
+
+    /* Read all the items from the producer. This ensures that the items are
+       backfilled correctly after scheduling 2 successive backfills. */
+    dcp_stream_from_producer_conn(h, h1, cookie, opaque, 1, num_items);
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;
@@ -2411,13 +2526,8 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
     // Sanity check - ensure we have enough vBucket quota (max_size)
     // such that we have 1000 items - enough to give us 0.1%
     // granularity in any residency calculations. */
-    if (num_items < 1000) {
-        std::cerr << "Error: test_dcp_producer_stream_backfill_no_value: "
-            "expected at least 1000 items after filling vbucket, "
-            "but only have " << num_items << ". "
-            "Check max_size setting for test." << std::endl;
-        return FAIL;
-    }
+    checkge(num_items, static_cast<uint64_t>(1000),
+            "Does not have expected min items; Check max_size setting");
 
     wait_for_flusher_to_settle(h, h1);
     verify_curr_items(h, h1, num_items, "Wrong number of items");
@@ -2425,9 +2535,9 @@ static enum test_result test_dcp_producer_stream_backfill_no_value(
     cb_assert(num_non_resident >= (((float)(100 - rr_thresh)/100) * num_items));
 
 
-    // Increase max_size from ~2M to ~20MB
+    // Increase max_size from ~2.5M to ~25MB
     set_param(h, h1, protocol_binary_engine_param_flush, "max_size",
-              "20000000");
+              "25000000");
     cb_assert(get_int_stat(h, h1, "vb_active_perc_mem_resident") < rr_thresh);
 
     const void *cookie = testHarness.create_cookie();
@@ -2696,12 +2806,10 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         cb_assert(dcp_last_opaque != opaque);
     }
 
-#if 0 /* MB-18256: Disabling cursor droppping temporarily */
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op = PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("supports_cursor_dropping") == 0);
     cb_assert(dcp_last_opaque != opaque);
-#endif
 
     checkeq(ENGINE_SUCCESS,
             h1->dcp.add_stream(h, cookie, opaque, vbucket, flags),
@@ -5500,7 +5608,16 @@ BaseTestCase testsuite_testcases[] = {
                     create at least 1000 items when our residency
                     ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
-                 "chk_remover_stime=1;max_size=6291456", prepare, cleanup),
+                 "chk_remover_stime=1;max_size=6291456;chk_max_items=2500",
+                 prepare, cleanup),
+        TestCase("test dcp cursor dropping backfill",
+                 test_dcp_cursor_dropping_backfill, test_setup, teardown,
+                 /* max_size set so that it's big enough that we can
+                  create at least 1000 items when our residency
+                  ratio gets to 90%. See test body for more details. */
+                 "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
+                 "chk_remover_stime=1;max_size=2000000;chk_max_items=2500",
+                 prepare, cleanup),
         TestCase("test dcp value compression",
                  test_dcp_value_compression, test_setup, teardown,
                  "dcp_value_compression_enabled=true",
@@ -5634,11 +5751,6 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
                  teardown, NULL, prepare, cleanup),
-
-        TestCase("test dcp producer backfill mb19428",
-                 test_dcp_producer_backfill_mb19428, test_setup, teardown,
-                 NULL, prepare, cleanup),
-
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

@@ -158,7 +158,7 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
 
 bool TaskQueue::fetchNextTask(ExecutorThread &thread, bool toSleep) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    size_t rv = _fetchNextTask(thread, toSleep);
+    bool rv = _fetchNextTask(thread, toSleep);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
 }
