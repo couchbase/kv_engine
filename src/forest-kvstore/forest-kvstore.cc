@@ -654,10 +654,18 @@ fdb_changes_decision ForestKVStore::recordChanges(fdb_kvs_handle* handle,
 
     ForestMetaData meta = forestMetaDecode(doc);
 
+    void* valuePtr = nullptr;
+    size_t valueLen = 0;
+
+    if (sctx->valFilter != ValueFilter::KEYS_ONLY && !doc->deleted) {
+        valuePtr = doc->body;
+        valueLen = doc->bodylen;
+    }
+
     Item* it = new Item(doc->key, doc->keylen,
                         meta.flags,
                         meta.exptime,
-                        doc->body, doc->bodylen,
+                        valuePtr, valueLen,
                         meta.ext_meta, EXT_META_LEN,
                         meta.cas,
                         byseqno,
