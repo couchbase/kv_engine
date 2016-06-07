@@ -16,6 +16,27 @@
  */
 #include "buckets.h"
 
+Bucket::Bucket(const Bucket& other)
+{
+    cb_mutex_enter(&other.mutex);
+
+    cb_mutex_initialize(&mutex);
+    cb_cond_initialize(&cond);
+    clients = other.clients;
+    state = other.state.load();
+    type = other.type;
+    std::copy(std::begin(other.name), std::end(other.name),
+              std::begin(name));
+    engine_event_handlers = other.engine_event_handlers;
+    engine = other.engine;
+    stats = other.stats;
+    timings = other.timings;
+    subjson_operation_times = other.subjson_operation_times;
+    topkeys = other.topkeys;
+
+    cb_mutex_exit(&other.mutex);
+}
+
 namespace BucketValidator {
     bool validateBucketName(const std::string& name, std::string& errors) {
         if (name.empty()) {
