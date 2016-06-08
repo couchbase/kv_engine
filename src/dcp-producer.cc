@@ -178,17 +178,10 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_TMPFAIL;
     }
 
-    if (flags & DCP_ADD_STREAM_FLAG_LATEST) {
-        end_seqno = vb->getHighSeqno();
-    }
-
-    if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
-        end_seqno = engine_.getEpStore()->getLastPersistedSeqno(vbucket);
-    }
-
     if (!notifyOnly && start_seqno > end_seqno) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
-            "the start seqno (%llu) is larger than the end seqno (%llu)",
+            "the start seqno (%llu) is larger than the end seqno (%llu); "
+            "Incorrect params passed by the DCP client",
             logHeader(), vbucket, start_seqno, end_seqno);
         return ENGINE_ERANGE;
     }
@@ -247,6 +240,34 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Couldn't add failover log to "
             "stream request due to error %d", logHeader(), vbucket, rv);
         return rv;
+    }
+
+    if (flags & DCP_ADD_STREAM_FLAG_LATEST) {
+        end_seqno = vb->getHighSeqno();
+    }
+
+    if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+        end_seqno = engine_.getEpStore()->getLastPersistedSeqno(vbucket);
+    }
+
+    if (!notifyOnly && start_seqno > end_seqno) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+            "the start seqno (%llu) is larger than the end seqno (%llu), "
+            "stream request flags %d, vb_uuid %llu, snapStartSeqno %llu, "
+            "snapEndSeqno %llu; should have rolled back instead",
+            logHeader(), vbucket, start_seqno, end_seqno, flags, vbucket_uuid,
+            snap_start_seqno, snap_end_seqno);
+        return ENGINE_ERANGE;
+    }
+
+    if (!notifyOnly && start_seqno > vb->getHighSeqno()) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+            "the start seqno (%llu) is larger than the vb highSeqno (%llu), "
+            "stream request flags is %d, vb_uuid %llu, snapStartSeqno %llu, "
+            "snapEndSeqno %llu; should have rolled back instead",
+            logHeader(), vbucket, start_seqno, vb->getHighSeqno(), flags,
+            vbucket_uuid, snap_start_seqno, snap_end_seqno);
+        return ENGINE_ERANGE;
     }
 
     stream_t s;
