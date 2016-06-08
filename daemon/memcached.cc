@@ -638,7 +638,7 @@ static cJSON *get_bucket_details_UNLOCKED(const Bucket& bucket, int idx) {
 
     cJSON *root = cJSON_CreateObject();
     cJSON_AddNumberToObject(root, "index", idx);
-    switch (bucket.state) {
+    switch (bucket.state.load()) {
     case BucketState::None:
         cJSON_AddStringToObject(root, "state", "none");
         break;
@@ -772,12 +772,10 @@ bool is_bucket_dying(Connection *c)
 {
     bool disconnect = memcached_shutdown;
     Bucket &b = all_buckets.at(c->getBucketIndex());
-    cb_mutex_enter(&b.mutex);
 
     if (b.state != BucketState::Ready) {
         disconnect = true;
     }
-    cb_mutex_exit(&b.mutex);
 
     if (disconnect) {
         LOG_NOTICE(c,
@@ -2097,7 +2095,7 @@ static void cleanup_buckets(void) {
         do {
             waiting = false;
             cb_mutex_enter(&bucket.mutex);
-            switch (bucket.state) {
+            switch (bucket.state.load()) {
             case BucketState::Stopping:
             case BucketState::Destroying:
             case BucketState::Creating:
