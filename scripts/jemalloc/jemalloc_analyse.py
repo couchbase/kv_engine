@@ -29,6 +29,25 @@ utilization and fragmentation information.""".format(sys.argv[0]),
               file=sys.stderr)
         return 1
 
+    with open(sys.argv[1]) if len(sys.argv) > 1 else sys.stdin as stats:
+        line = stats.readline()
+        while line:
+            if line.startswith('Merged arenas stats:'):
+                calc_bin_stats(stats, "merged")
+            elif line.startswith('arenas['):
+                m = re.search('arenas\[(\d+)\]', line)
+                calc_bin_stats(stats, m.group(1))
+
+            line = stats.readline()
+
+    # Some explanation of the table(s)
+    print("""
+    utilization = allocated / (size * regions_per_run * cur runs)
+    % of small  = allocated / total allocated
+    frag memory = (size * regions_per_run * cur runs) - allocated
+    % of blame  = frag memory / total frag memory
+""")
+
 
 def calc_bin_stats(stats, arena_ID):
     FMT = ('  {0:>3} {1:>9} {2:>8} {3:>9} {4:>12} {5:>12} {6:>9} {7:>7} '
