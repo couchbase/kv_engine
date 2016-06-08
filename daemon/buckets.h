@@ -99,6 +99,11 @@ public:
         McbpValidatorChains::initializeMcbpValidatorChains(validatorChains);
     }
 
+    /* Copy-construct. Note acquires the lock of `other` ensuring a
+     * consistent state is copied.
+     */
+    Bucket(const Bucket& other);
+
     ~Bucket() {
         cb_mutex_destroy(&mutex);
         cb_cond_destroy(&cond);
@@ -117,10 +122,10 @@ public:
                                                 Cookie& cookie);
 
     /**
-     * Mutex protecting the state and refcount. (@todo move to std::mutex)
+     * Mutex protecting the state and refcount. (@todo move to std::mutex).
      */
-    cb_mutex_t mutex;
-    cb_cond_t cond;
+    mutable cb_mutex_t mutex;
+    mutable cb_cond_t cond;
 
     /**
      * The number of clients currently connected to the bucket (performed
@@ -129,9 +134,11 @@ public:
     uint32_t clients;
 
     /**
-     * The current state of the bucket.
+     * The current state of the bucket. Atomic as we permit it to be
+     * read without acquiring the mutex, for example in
+     * is_bucket_dying().
      */
-    BucketState state;
+    std::atomic<BucketState> state;
 
     /**
      * The type of bucket

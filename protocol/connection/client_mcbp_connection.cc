@@ -122,6 +122,12 @@ static int sasl_get_password(cbsasl_conn_t* conn, void* context, int id,
 // Implementation of the MemcachedBinaryConnection class
 /////////////////////////////////////////////////////////////////////////
 
+std::unique_ptr<MemcachedConnection> MemcachedBinprotConnection::clone() {
+    auto* result = new MemcachedBinprotConnection(this->port, this->family,
+                                                  this->ssl);
+    return std::unique_ptr<MemcachedConnection>{result};
+}
+
 void MemcachedBinprotConnection::sendFrame(const Frame& frame) {
     MemcachedConnection::sendFrame(frame);
     if (packet_dump) {
@@ -373,11 +379,7 @@ std::vector<std::string> MemcachedBinprotConnection::listBuckets() {
 
 Document MemcachedBinprotConnection::get(const std::string& id,
                                          uint16_t vbucket) {
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_GET,
-                     std::vector<uint8_t>(), id, std::vector<uint8_t>());
-    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(frame.payload.data());
-    req->message.header.request.vbucket = htons(vbucket);
+    Frame frame = encodeCmdGet(id, vbucket);
     sendFrame(frame);
 
     recvFrame(frame);
@@ -410,6 +412,17 @@ Document MemcachedBinprotConnection::get(const std::string& id,
     memcpy(ret.value.data(), rsp->bytes + 28, ret.value.size());
 
     return ret;
+}
+
+Frame MemcachedBinprotConnection::encodeCmdGet(const std::string& id,
+                                               uint16_t vbucket) {
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_GET, std::vector<uint8_t>(), id,
+                     std::vector<uint8_t>());
+    auto* req =
+            reinterpret_cast<protocol_binary_request_no_extras*>(frame.payload.data());
+    req->message.header.request.vbucket = htons(vbucket);
+    return frame;
 }
 
 MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,

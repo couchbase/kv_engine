@@ -67,6 +67,12 @@ static int sasl_get_password(cbsasl_conn_t* conn, void* context, int id,
 /////////////////////////////////////////////////////////////////////////
 typedef std::unique_ptr<Greenstack::Message> UniqueMessagePtr;
 
+std::unique_ptr<MemcachedConnection> MemcachedGreenstackConnection::clone() {
+    return std::unique_ptr<MemcachedConnection>(
+            new MemcachedGreenstackConnection(this->port, this->family,
+                                              this->ssl));
+}
+
 void MemcachedGreenstackConnection::authenticate(const std::string& username,
                                                  const std::string& password,
                                                  const std::string& mech) {
@@ -305,11 +311,7 @@ std::vector<std::string> MemcachedGreenstackConnection::listBuckets() {
 
 Document MemcachedGreenstackConnection::get(const std::string& id,
                                             uint16_t vbucket) {
-    Greenstack::GetRequest request(id);
-    request.getFlexHeader().setVbucketId(vbucket);
-    Frame frame;
-
-    Greenstack::Frame::encode(request, frame.payload);
+    Frame frame = encodeCmdGet(id, vbucket);
     sendFrame(frame);
 
     UniqueMessagePtr rsp = recvMessage();
@@ -342,6 +344,15 @@ Document MemcachedGreenstackConnection::get(const std::string& id,
         throw GreenstackError("Get document [" + id + "] failed",
                               msg->getStatus());
     }
+}
+
+Frame MemcachedGreenstackConnection::encodeCmdGet(const std::string& id,
+                                                    uint16_t vbucket) {
+    Frame frame;
+    Greenstack::GetRequest request(id);
+    request.getFlexHeader().setVbucketId(vbucket);
+    Greenstack::Frame::encode(request, frame.payload);
+    return frame;
 }
 
 MutationInfo MemcachedGreenstackConnection::mutate(const Document& doc,

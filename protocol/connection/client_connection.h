@@ -180,6 +180,10 @@ public:
 
     virtual ~MemcachedConnection();
 
+    // Creates clone (copy) of the given connection - i.e. a second independent
+    // channel to memcached. Used for multi-connection testing.
+    virtual std::unique_ptr<MemcachedConnection> clone() = 0;
+
     in_port_t getPort() const {
         return port;
     }
@@ -260,6 +264,11 @@ public:
      */
     virtual Document get(const std::string& id, uint16_t vbucket) = 0;
 
+    /*
+     * Form a Frame representing a CMD_GET
+     */
+    virtual Frame encodeCmdGet(const std::string& id, uint16_t vbucket) = 0;
+
     /**
      * Perform the mutation on the attached document.
      *
@@ -287,6 +296,17 @@ public:
      * @param frame the frame to send to the server
      */
     virtual void sendFrame(const Frame& frame);
+
+    /** Send part of the given frame over this connection. Upon success,
+     * the frame's payload will be modified such that the sent bytes are
+     * deleted - i.e. after a successful call the frame object will only have
+     * the remaining, unsent bytes left.
+     *
+     * @param frame The frame to partially send.
+     * @param length The number of bytes to transmit. Must be less than or
+     *               equal to the size of the frame.
+     */
+    void sendPartialFrame(Frame& frame, Frame::size_type length);
 
     /**
      * Receive the next frame on the connection
