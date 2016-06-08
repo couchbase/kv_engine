@@ -292,7 +292,7 @@ private:
     DcpResponse *rejectResp; // stash response for retry if E2BIG was hit
 
     bool notifyOnly;
-    rel_time_t lastSendTime;
+    AtomicValue<rel_time_t> lastSendTime;
     BufferLog log;
 
     // Guards all accesses to streams map. If only reading elements in streams

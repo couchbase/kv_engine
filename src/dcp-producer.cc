@@ -392,7 +392,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
         delete resp;
     }
 
-    lastSendTime = ep_current_time();
+    lastSendTime.store(ep_current_time(), memory_order_relaxed);
     return (ret == ENGINE_SUCCESS) ? ENGINE_WANT_MORE : ret;
 }
 
@@ -537,7 +537,8 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("items_sent", getItemsSent(), add_stat, c);
     addStat("items_remaining", getItemsRemaining(), add_stat, c);
     addStat("total_bytes_sent", getTotalBytes(), add_stat, c);
-    addStat("last_sent_time", lastSendTime, add_stat, c);
+    addStat("last_sent_time", lastSendTime.load(memory_order_relaxed), add_stat,
+            c);
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
 
@@ -720,7 +721,7 @@ ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(struct dcp_message_producers* produ
                 ret = ENGINE_WANT_MORE;
                 noopCtx.pendingRecv = true;
                 noopCtx.sendTime = ep_current_time();
-                lastSendTime = ep_current_time();
+                lastSendTime.store(ep_current_time(), memory_order_relaxed);
             }
             return ret;
         }
