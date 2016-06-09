@@ -225,8 +225,8 @@ public:
             cb_assert(end >= (uint64_t)checkpointManager.getHighSeqno());
         }
 
-        cur_snapshot_start = start;
-        cur_snapshot_end = end;
+        cur_snapshot_start.store(start);
+        cur_snapshot_end.store(end);
     }
 
     void getCurrentSnapshot(uint64_t& start, uint64_t& end) {
@@ -235,8 +235,12 @@ public:
     }
 
     void getCurrentSnapshot_UNLOCKED(uint64_t& start, uint64_t& end) {
-        start = cur_snapshot_start;
-        end = cur_snapshot_end;
+        start = cur_snapshot_start.load();
+        end = cur_snapshot_end.load();
+    }
+
+    void getCurrentSnapshotEnd(uint64_t& end) {
+        end = cur_snapshot_end.load();
     }
 
     int getId(void) const { return id; }
@@ -451,9 +455,11 @@ private:
     Mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;
 
+    /* snapshotMutex is used to update/read the pair {start, end} atomically,
+       but not if reading a single field. */
     Mutex snapshotMutex;
-    uint64_t cur_snapshot_start;
-    uint64_t cur_snapshot_end;
+    AtomicValue<uint64_t> cur_snapshot_start;
+    AtomicValue<uint64_t> cur_snapshot_end;
 
     Mutex hpChksMutex;
     std::list<HighPriorityVBEntry> hpChks;

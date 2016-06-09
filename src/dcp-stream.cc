@@ -368,8 +368,8 @@ void ActiveStream::markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno) {
         if (end_seqno_ > endSeqno) {
             /* We possibly have items in the open checkpoint
                (incomplete snapshot) */
-            uint64_t snapshot_start, snapshot_end;
-            vb->getCurrentSnapshot(snapshot_start, snapshot_end);
+            uint64_t snapshot_end;
+            vb->getCurrentSnapshotEnd(snapshot_end);
             LOG(EXTENSION_LOG_WARNING,
                 "(vb %" PRIu16 ") Merging backfill and memory snapshot for a "
                 "replica vbucket, backfill start seqno %" PRIu64 ", "
