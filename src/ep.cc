@@ -3296,7 +3296,14 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 }
             }
 
-            //commit all mutations to disk if the commit interval is zero
+            /* Perform an explicit commit to disk if the commit interval reaches zero.
+             * The commit interval varies based on the underlying store. For couchstore,
+             * the commit interval is set 1, so a commit is performed on every
+             * flushVBucket call. For forestdb, in order to be more optimized for SSDs,
+             * a larger commit interval is set, so that there is a bigger batch of
+             * writes perfomed. Hence, a commit is not explicitly performed on
+             * each flushVBucket call.
+             */
             if (decrCommitInterval(shard->getId()) == 0) {
                 commit(shard->getId());
             }
