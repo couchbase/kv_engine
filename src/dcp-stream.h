@@ -257,7 +257,7 @@ private:
     //! The last sequence number sent to the network layer
     AtomicValue<uint64_t> lastSentSeqno;
     //! The last known seqno pointed to by the checkpoint cursor
-    uint64_t curChkSeqno;
+    AtomicValue<uint64_t> curChkSeqno;
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;
     /* backfillRemaining is a stat recording the amount of
