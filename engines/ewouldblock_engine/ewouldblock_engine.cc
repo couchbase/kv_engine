@@ -43,6 +43,18 @@
  * See the 'Modes' enum below for the possible modes for a connection. The mode
  * can be selected by sending a `request_ewouldblock_ctl` command
  *  (opcode PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL).
+ *
+ * DCP:
+ * There is also very basic, fake DCP support to ewouldblock_engine. Only three
+ * methods are supported:
+ *   - dcp_open - Always returns success.
+ *   - dcp_stream_req - Always returns success.
+ *   - dcp_step - Always produces a single, fixed DCP_MUTATION message, and
+ *                returns ENGINE_WANT_MORE.
+ *
+ * While very basic, this is sufficient to allow a client to request a
+ * DCP stream from memcached, and for us to pump infinite DCP mutation
+ * messages to it.
  */
 
 #include "ewouldblock_engine.h"
@@ -191,16 +203,12 @@ public:
                 ewb->real_handle, real_engine_config.c_str());
 
         if (res == ENGINE_SUCCESS) {
-            // For engine interface functions which cannot return EWOULDBLOCK, we can
-            // simply use the real_engine's functions directly.
+            // For engine interface functions which cannot return EWOULDBLOCK,
+            // and we otherwise don't want to interpose, we can simply use the
+            // real_engine's functions directly.
             ewb->ENGINE_HANDLE_V1::get_stats_struct = ewb->real_engine->get_stats_struct;
             ewb->ENGINE_HANDLE_V1::item_set_cas = ewb->real_engine->item_set_cas;
-            ewb->ENGINE_HANDLE_V1::get_item_info = ewb->real_engine->get_item_info;
             ewb->ENGINE_HANDLE_V1::set_item_info = ewb->real_engine->set_item_info;
-
-            // TODO: Add support for DCP interposing. For now just use the real
-            // engines' interface.
-            ewb->ENGINE_HANDLE_V1::dcp = ewb->real_engine->dcp;
         }
         return res;
     }
@@ -243,7 +251,15 @@ public:
 
     static void release(ENGINE_HANDLE* handle, const void *cookie, item* item) {
         EWB_Engine* ewb = to_engine(handle);
-        return ewb->real_engine->release(ewb->real_handle, cookie, item);
+        auto logger = ewb->gsa()->log->get_logger();
+        logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: release");
+
+        if (item == &ewb->dcp_mutation_item) {
+            // Ignore the DCP mutation, we own it (and don't track
+            // refcounts on it).
+        } else {
+            return ewb->real_engine->release(ewb->real_handle, cookie, item);
+        }
     }
 
     static ENGINE_ERROR_CODE get(ENGINE_HANDLE* handle, const void* cookie,
@@ -434,8 +450,31 @@ public:
 
     static bool get_item_info(ENGINE_HANDLE *handle, const void *cookie,
                               const item* item, item_info *item_info) {
-        // Should never be called - set item_set_cas().
-        abort();
+        EWB_Engine* ewb = to_engine(handle);
+        auto logger = ewb->gsa()->log->get_logger();
+        logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: get_item_info");
+
+        // This function cannot return EWOULDBLOCK - just chain to the real
+        // engine's function, unless it is a request for our special DCP item.
+        if (item == &ewb->dcp_mutation_item) {
+            item_info->cas = 0;
+            item_info->vbucket_uuid = 0;
+            item_info->seqno = 0;
+            item_info->exptime = 0;
+            item_info->nbytes = ewb->dcp_mutation_item.value.size();
+            item_info->flags = 0;
+            item_info->datatype = PROTOCOL_BINARY_RAW_BYTES;
+            item_info->clsid = 0;
+            item_info->nkey = ewb->dcp_mutation_item.key.size();
+            item_info->nvalue = 1;
+            item_info->key = ewb->dcp_mutation_item.key.c_str();
+            item_info->value[0].iov_base = &ewb->dcp_mutation_item.value[0];
+            item_info->value[0].iov_len = item_info->nbytes;
+            return true;
+        } else {
+            return ewb->real_engine->get_item_info(ewb->real_handle, cookie,
+                                                   item, item_info);
+        }
     }
     static bool set_item_info(ENGINE_HANDLE *handle, const void *cookie,
                               item* item, const item_info *item_info) {
@@ -477,6 +516,27 @@ private:
 
     // Handle of the notification thread.
     cb_thread_t notification_thread;
+
+
+    /* DCP iterator static methods *******************************************/
+    static ENGINE_ERROR_CODE dcp_step(ENGINE_HANDLE* handle, const void* cookie,
+                                      struct dcp_message_producers *producers);
+
+    static ENGINE_ERROR_CODE dcp_open(ENGINE_HANDLE* handle, const void* cookie,
+                                      uint32_t opaque, uint32_t seqno,
+                                      uint32_t flags, void *name,
+                                      uint16_t nname);
+
+    static ENGINE_ERROR_CODE dcp_stream_req(ENGINE_HANDLE* handle,
+                                            const void* cookie, uint32_t flags,
+                                            uint32_t opaque, uint16_t vbucket,
+                                            uint64_t start_seqno,
+                                            uint64_t end_seqno,
+                                            uint64_t vbucket_uuid,
+                                            uint64_t snap_start_seqno,
+                                            uint64_t snap_end_seqno,
+                                            uint64_t *rollback_seqno,
+                                            dcp_add_failover_log callback);
 
     // Base class for all fault injection modes.
     struct FaultInjectMode {
@@ -637,6 +697,14 @@ private:
     std::map<uint64_t, std::pair<const void*, std::shared_ptr<FaultInjectMode> > > connection_map;
     // Mutex for above map.
     std::mutex cookie_map_mutex;
+
+    // Current DCP mutation `item`. We return the address of this
+    // (in the dcp step() function) back to the server, and then in
+    // get_item_info we check if the requested item is this one.
+    struct {
+        std::string key;
+        std::string value;
+    } dcp_mutation_item;
 };
 
 void process_pending_queue(void* arg) {
@@ -683,6 +751,11 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
     ENGINE_HANDLE_V1::get_stats_struct = NULL;
     ENGINE_HANDLE_V1::set_log_level = NULL;
 
+    ENGINE_HANDLE_V1::dcp = {};
+    ENGINE_HANDLE_V1::dcp.step = dcp_step;
+    ENGINE_HANDLE_V1::dcp.open = dcp_open;
+    ENGINE_HANDLE_V1::dcp.stream_req = dcp_stream_req;
+
     std::memset(&info, 0, sizeof(info.buffer));
     info.eng_info.description = "EWOULDBLOCK Engine";
     info.eng_info.features[info.eng_info.num_features++].feature = ENGINE_FEATURE_LRU;
@@ -706,6 +779,49 @@ EWB_Engine::~EWB_Engine() {
     condvar.notify_all();
     cb_join_thread(notification_thread);
 
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_step(ENGINE_HANDLE* handle, const void* cookie,
+                                       struct dcp_message_producers *producers) {
+    EWB_Engine* ewb = to_engine(handle);
+    auto logger = ewb->gsa()->log->get_logger();
+    logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: dcp_step");
+
+    // Set a simple, static key and value for the DCP mutation.
+    ewb->dcp_mutation_item.key = "k";
+    ewb->dcp_mutation_item.value.resize(1, 'v');
+
+    producers->mutation(cookie, /*opqaue*/0xdeadbeef, &ewb->dcp_mutation_item,
+                        /*vb*/0, /*by_seqno*/0, /*rev_seqno*/0,
+                        /*lock_time*/0, /*meta*/nullptr, /*nmeta*/0, /*nru*/0);
+
+    return ENGINE_WANT_MORE;
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_open(ENGINE_HANDLE* handle,
+                                       const void* cookie, uint32_t opaque,
+                                       uint32_t seqno, uint32_t flags,
+                                       void *name, uint16_t nname) {
+    EWB_Engine* ewb = to_engine(handle);
+    auto logger = ewb->gsa()->log->get_logger();
+    logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: dcp_open");
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE EWB_Engine::dcp_stream_req(ENGINE_HANDLE* handle,
+                                             const void* cookie, uint32_t flags,
+                                             uint32_t opaque, uint16_t vbucket,
+                                             uint64_t start_seqno,
+                                             uint64_t end_seqno,
+                                             uint64_t vbucket_uuid,
+                                             uint64_t snap_start_seqno,
+                                             uint64_t snap_end_seqno,
+                                             uint64_t *rollback_seqno,
+                                             dcp_add_failover_log callback) {
+    EWB_Engine* ewb = to_engine(handle);
+    auto logger = ewb->gsa()->log->get_logger();
+    logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: dcp_stream_req");
+    return ENGINE_SUCCESS;
 }
 
 ENGINE_ERROR_CODE create_instance(uint64_t interface,

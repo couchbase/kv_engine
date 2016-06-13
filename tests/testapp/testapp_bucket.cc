@@ -199,6 +199,126 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     watchdog.join();
 }
 
+// Strictly speaking this test /should/ work on Windows, however the
+// issue we hit is that the memcached connection send buffer on
+// Windows is huge (256MB in my testing) and so we timeout long before
+// we manage to fill the buffer with the tiny DCP packets we use (they
+// have to be small so we totally fill it).
+// Therefore disabling this test for now.
+#if !defined(WIN32)
+TEST_P(BucketTest, MB19748TestDeleteWhileConnShipLogAndFullWriteBuffer) {
+    auto& conn = getConnection();
+
+    auto second_conn = conn.clone();
+    conn.createBucket("bucket", "default_engine.so", Greenstack::BucketType::EWouldBlock);
+    second_conn->selectBucket("bucket");
+
+    // We need to get into the `conn_ship_log` state, and then fill up the
+    // connections' write (send) buffer.
+    Frame frame = second_conn->encodeCmdDcpOpen();
+    //    Frame frame = second_conn->encode_cmd_tap_connect();
+    second_conn->sendFrame(frame);
+
+    frame = second_conn->encodeCmdDcpStreamReq();
+    second_conn->sendFrame(frame);
+
+    // Now need to wait for the for the write (send) buffer of
+    // second_conn to fill in memcached. There's no direct way to
+    // check this from second_conn itself; and even if we examine the
+    // connections' state via a `connections` stats call there isn't
+    // any explicit state we can measure - basically the "kernel sendQ
+    // full" state is indistinguishable from "we have /some/ amount of
+    // data outstanding". We also can't get access to the current
+    // sendQ size in any portable way. Therefore we 'infer' the sendQ
+    // is full by sampling the "total_send" statistic and when it
+    // stops changing we assume the buffer is full.
+
+    // This isn't foolproof (a really slow machine would might look
+    // like it's full), but it is the best I can think of :/
+
+    // Assume that we'll see traffic at least every 500ms.
+    for (int previous_total_send = -1;
+         ;
+         std::this_thread::sleep_for(std::chrono::milliseconds(500))) {
+        // Get stats for all connections, then locate this connection
+        // - should be the one with dcp:true.
+        auto all_stats = conn.stats("connections");
+        unique_cJSON_ptr my_conn_stats;
+        for (size_t ii{0}; my_conn_stats.get() == nullptr; ii++) {
+            auto* conn_stats = cJSON_GetObjectItem(all_stats.get(),
+                                                   std::to_string(ii).c_str());
+            if (conn_stats == nullptr) {
+                // run out of connections.
+                break;
+            }
+            // Each value is a string containing escaped JSON.
+            unique_cJSON_ptr conn_json{cJSON_Parse(conn_stats->valuestring)};
+            auto* dcp_flag = cJSON_GetObjectItem(conn_json.get(), "dcp");
+            if (dcp_flag != nullptr && dcp_flag->type == cJSON_True) {
+                my_conn_stats.swap(conn_json);
+            }
+        }
+
+        if (my_conn_stats.get() == nullptr) {
+            // Connection isn't in DCP state yet (we are racing here with
+            // processing messages on second_conn). Retry on next iteration.
+            continue;
+        }
+
+        // Check how many bytes have been sent and see if it is
+        // unchanged from the previous sample.
+        auto* total_send = cJSON_GetObjectItem(my_conn_stats.get(),
+                                               "total_send");
+        ASSERT_NE(nullptr, total_send)
+            << "Missing 'total_send' field in connection stats";
+
+        if (total_send->valueint == previous_total_send) {
+            // Unchanged - assume sendQ is now full.
+            break;
+        }
+
+        previous_total_send = total_send->valueint;
+    };
+
+    // Once we call deleteBucket below, it will hang forever (if the bug is
+    // present), so we need a watchdog thread which will write more data to
+    // the connection; triggering a READ event in libevent and hence causing
+    // the connection's state machine to be advanced (and connection closed).
+    std::mutex cv_m;
+    std::condition_variable cv;
+    std::atomic<bool> bucket_deleted{false};
+    std::atomic<bool> watchdog_fired{false};
+    std::thread watchdog{
+        [&second_conn, &cv_m, &cv, &bucket_deleted,
+         &watchdog_fired]() {
+            std::unique_lock<std::mutex> lock(cv_m);
+            cv.wait_for(lock, std::chrono::seconds(5),
+                        [&bucket_deleted](){return bucket_deleted == true;});
+            watchdog_fired = true;
+            auto frame = second_conn->encodeCmdGet("wakeup_conn", 0);
+            try {
+                second_conn->sendFrame(frame);
+            } catch (std::runtime_error& ) {
+                // It is ok for sendFrame to fail - the connection might have
+                // been closed by the server due to the bucket deletion.
+            }
+        }
+    };
+
+    conn.deleteBucket("bucket");
+
+    // Check that the watchdog didn't fire.
+    EXPECT_FALSE(watchdog_fired)
+        << "Bucket deletion (with connected client in conn_ship_log and full "
+           "sendQ) only completed after watchdog fired";
+
+    // Cleanup - stop the watchdog (if it hasn't already fired).
+    bucket_deleted = true;
+    cv.notify_one();
+    watchdog.join();
+}
+#endif
+
 TEST_P(BucketTest, TestListBucket) {
     auto& conn = getConnection();
     auto buckets = conn.listBuckets();

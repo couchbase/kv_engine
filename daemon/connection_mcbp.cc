@@ -1310,6 +1310,11 @@ void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
          * updateEvent().
          */
         updateEvent(EV_READ | EV_WRITE | EV_PERSIST);
+
+        // Raise a 'fake' write event to ensure the connection has an
+        // event delivered (in case its sendQ is full).
+        event_active(&event, EV_WRITE, 0);
+
     } else if (logbusy) {
         auto* js = toJSON();
         char* details = cJSON_PrintUnformatted(js);
