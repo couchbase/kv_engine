@@ -91,7 +91,7 @@ public:
     }
 
 
-    enum conflict_resolution_mode getConflictResMode(void) {
+    enum conflict_resolution_mode getConflictResMode(void) const {
         return static_cast<enum conflict_resolution_mode>(conflictResMode);
     }
 

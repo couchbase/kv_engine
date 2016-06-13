@@ -135,8 +135,8 @@ public:
     /**
      * Return datatype stored in Value Blob.
      */
-    const uint8_t getDataType() const {
-        return extMetaLen > 0 ? *(data + FLEX_DATA_OFFSET) :
+    const protocol_binary_datatypes getDataType() const {
+        return extMetaLen > 0 ? protocol_binary_datatypes(*(data + FLEX_DATA_OFFSET)) :
             PROTOCOL_BINARY_RAW_BYTES;
     }
 
@@ -520,7 +520,7 @@ public:
         return metaData.cas;
     }
 
-    uint8_t getDataType() const {
+    protocol_binary_datatypes getDataType() const {
         return value.get() ? value->getDataType() :
             PROTOCOL_BINARY_RAW_BYTES;
     }

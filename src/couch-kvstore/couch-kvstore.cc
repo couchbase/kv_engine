@@ -55,11 +55,6 @@ using namespace CouchbaseDirectoryUtilities;
 
 static const int MAX_OPEN_DB_RETRY = 10;
 
-static const uint32_t DEFAULT_META_LEN = 16;
-static const uint32_t V1_META_LEN = 18;
-static const uint32_t V2_META_LEN = 19;
-
-
 extern "C" {
     static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
     {
@@ -82,9 +77,8 @@ static std::string getStrError(Db *db) {
     return errorStr;
 }
 
-static uint8_t determine_datatype(const unsigned char* value,
-                                  size_t length) {
-    if (checkUTF8JSON(value, length)) {
+static protocol_binary_datatypes determine_datatype(sized_buf doc) {
+    if (checkUTF8JSON(reinterpret_cast<uint8_t*>(doc.buf), doc.size)) {
         return PROTOCOL_BINARY_DATATYPE_JSON;
     } else {
         return PROTOCOL_BINARY_RAW_BYTES;
@@ -173,61 +167,62 @@ struct AllKeysCtx {
     uint32_t count;
 };
 
+couchstore_content_meta_flags CouchRequest::getContentMeta(const Item& it) {
+    couchstore_content_meta_flags rval = (it.getDataType() ==
+                                          PROTOCOL_BINARY_DATATYPE_JSON) ?
+                                          COUCH_DOC_IS_JSON :
+                                          COUCH_DOC_NON_JSON_MODE;
+
+    if (it.getNBytes() > 0 &&
+        ((it.getDataType() == PROTOCOL_BINARY_RAW_BYTES) ||
+        (it.getDataType() == PROTOCOL_BINARY_DATATYPE_JSON))) {
+        rval |= COUCH_DOC_IS_COMPRESSED;
+    }
+
+    return rval;
+}
+
 CouchRequest::CouchRequest(const Item &it, uint64_t rev,
                            MutationRequestCallback &cb, bool del)
-    : IORequest(it.getVBucketId(), cb, del, it.getKey()), value(it.getValue()),
-      fileRevNum(rev)
-{
-    uint64_t cas = htonll(it.getCas());
-    uint32_t flags = it.getFlags();
-    uint32_t vlen = it.getNBytes();
-    uint32_t exptime = it.getExptime();
-    uint8_t confresmode = static_cast<uint8_t>(it.getConflictResMode());
+      : IORequest(it.getVBucketId(), cb, del, it.getKey()), value(it.getValue()),
+        fileRevNum(rev) {
 
     // Datatype used to determine whether document requires compression or not
-    uint8_t datatype;
-
-    // Save time of deletion in expiry time field of deleted item's metadata.
-    if (del) {
-        exptime = ep_real_time();
-    }
-    exptime = htonl(exptime);
-
+    uint8_t datatype = PROTOCOL_BINARY_RAW_BYTES;
     dbDoc.id.buf = const_cast<char *>(key.c_str());
     dbDoc.id.size = it.getNKey();
-    if (vlen) {
+    if (it.getNBytes()) {
         dbDoc.data.buf = const_cast<char *>(value->getData());
-        dbDoc.data.size = vlen;
+        dbDoc.data.size = it.getNBytes();;
         datatype = it.getDataType();
     } else {
         dbDoc.data.buf = NULL;
         dbDoc.data.size = 0;
-        datatype = 0x00;
     }
-
-    memset(meta, 0, sizeof(meta));
-    memcpy(meta, &cas, 8);
-    memcpy(meta + 8, &exptime, 4);
-    memcpy(meta + 12, &flags, 4);
-    *(meta + DEFAULT_META_LEN) = FLEX_META_CODE;
+    meta.setCas(it.getCas());
+    meta.setFlags(it.getFlags());
+    meta.setConfResMode(it.getConflictResMode());
+    if (del) {
+        meta.setExptime(ep_real_time());
+    } else {
+        meta.setExptime(it.getExptime());
+    }
 
     //For a deleted item, there is no extended meta data available
     //as part of the item object, hence by default populate the
     //data type to PROTOCOL_BINARY_RAW_BYTES
     if (del) {
-        uint8_t del_datatype = PROTOCOL_BINARY_RAW_BYTES;
-        memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
-               &del_datatype, sizeof(uint8_t));
-    } else {
-        memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET, it.getExtMeta(),
-               it.getExtMetaLen());
+        meta.setDataType(PROTOCOL_BINARY_RAW_BYTES);
+    } else if (it.getExtMetaLen()){
+        meta.setDataType(it.getDataType());
     }
-    memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET + EXT_META_LEN,
-           &confresmode, CONFLICT_RES_META_LEN);
 
     dbDocInfo.db_seq = it.getBySeqno();
-    dbDocInfo.rev_meta.buf = reinterpret_cast<char *>(meta);
-    dbDocInfo.rev_meta.size = COUCHSTORE_METADATA_SIZE;
+
+    // Now allocate space to hold the meta and get it ready for storage
+    dbDocInfo.rev_meta.size = MetaData::getMetaDataSize(MetaData::Version::V2);
+    dbDocInfo.rev_meta.buf = meta.prepareAndGetForPersistence();
+
     dbDocInfo.rev_seq = it.getRevSeqno();
     dbDocInfo.size = dbDoc.data.size;
 
@@ -237,10 +232,10 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
         dbDocInfo.deleted = 0;
     }
     dbDocInfo.id = dbDoc.id;
-    dbDocInfo.content_meta = (datatype == PROTOCOL_BINARY_DATATYPE_JSON) ?
-                                    COUCH_DOC_IS_JSON : COUCH_DOC_NON_JSON_MODE;
 
-    //Compress only those documents that aren't already compressed.
+    dbDocInfo.content_meta = getContentMeta(it);
+
+    // Compress only those documents that aren't already compressed.
     if (dbDoc.data.size > 0 && !deleteItem) {
         if (datatype == PROTOCOL_BINARY_RAW_BYTES ||
                 datatype == PROTOCOL_BINARY_DATATYPE_JSON) {
@@ -645,7 +640,11 @@ static std::string getDBFileName(const std::string &dbname,
 }
 
 static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
-    if ((*info)->rev_meta.size == DEFAULT_META_LEN) {
+    // Examine the metadata of the doc
+    auto documentMetaData = MetaDataFactory::createMetaData((*info)->rev_meta);
+    // Allocate latest metadata
+    auto metadata = MetaDataFactory::createMetaData();
+    if (documentMetaData->getVersionInitialisedFrom() == MetaData::Version::V0) {
         // Metadata doesn't have flex_meta_code, datatype and
         // conflict_resolution_mode, provision space for
         // these paramenters.
@@ -664,95 +663,44 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
             data = (const unsigned char*)item->buf;
             ret = checkUTF8JSON(data, item->size);
         }
-        uint8_t flex_code = FLEX_META_CODE;
-        uint8_t datatype;
+        protocol_binary_datatypes datatype = PROTOCOL_BINARY_RAW_BYTES;
         if (ret) {
             datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-        } else {
-            datatype = PROTOCOL_BINARY_RAW_BYTES;
         }
 
-        DocInfo *docinfo = (DocInfo *) calloc (1,
-                                               sizeof(DocInfo) +
-                                               (*info)->id.size +
-                                               (*info)->rev_meta.size +
-                                               FLEX_DATA_OFFSET + EXT_META_LEN +
-                                               sizeof(uint8_t));
-        if (!docinfo) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to allocate docInfo, "
-                    "while editing docinfo in the compaction's docinfo_hook");
-            return 0;
-        }
-
-        char *extra = (char *)docinfo + sizeof(DocInfo);
-        memcpy(extra, (*info)->id.buf, (*info)->id.size);
-        docinfo->id.buf = extra;
-        docinfo->id.size = (*info)->id.size;
-
-        extra += (*info)->id.size;
-        memcpy(extra, (*info)->rev_meta.buf, (*info)->rev_meta.size);
-        memcpy(extra + (*info)->rev_meta.size,
-               &flex_code, FLEX_DATA_OFFSET);
-        memcpy(extra + (*info)->rev_meta.size + FLEX_DATA_OFFSET,
-               &datatype, sizeof(uint8_t));
-        uint8_t conflict_resolution_mode = revision_seqno;
-        memcpy(extra + (*info)->rev_meta.size + FLEX_DATA_OFFSET + EXT_META_LEN,
-               &conflict_resolution_mode, sizeof(uint8_t));
-        docinfo->rev_meta.buf = extra;
-        docinfo->rev_meta.size = (*info)->rev_meta.size +
-                                 FLEX_DATA_OFFSET + EXT_META_LEN +
-                                 sizeof(uint8_t);
-
-        docinfo->db_seq = (*info)->db_seq;
-        docinfo->rev_seq = (*info)->rev_seq;
-        docinfo->deleted = (*info)->deleted;
-        docinfo->content_meta = (*info)->content_meta;
-        docinfo->bp = (*info)->bp;
-        docinfo->size = (*info)->size;
-
-        couchstore_free_docinfo(*info);
-        *info = docinfo;
-        return 1;
-    } else if ((*info)->rev_meta.size == V1_META_LEN) {
+        // Copy the metadata this will pull accross available V0 fields.
+        *metadata = *documentMetaData;
+        // Setup flex code and datatype
+        metadata->setFlexCode();
+        metadata->setDataType(datatype);
+        // Setup conflict mode
+        metadata->setConfResMode(revision_seqno);
+    } else if (documentMetaData->getVersionInitialisedFrom() == MetaData::Version::V1) {
         // Metadata doesn't have conflict_resolution_mode,
-        // provision space for this flag.
-        DocInfo *docinfo = (DocInfo *) calloc (1,
-                                               sizeof(DocInfo) +
-                                               (*info)->id.size +
-                                               (*info)->rev_meta.size +
-                                               sizeof(uint8_t));
-        if (!docinfo) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to allocate docInfo, "
-                    "while editing docinfo in the compaction's docinfo_hook");
-            return 0;
-        }
 
-        char *extra = (char *)docinfo + sizeof(DocInfo);
-        memcpy(extra, (*info)->id.buf, (*info)->id.size);
-        docinfo->id.buf = extra;
-        docinfo->id.size = (*info)->id.size;
+        // Copy the metadata (this will copy all but conf-mode);
+        *metadata = *documentMetaData;
 
-        extra += (*info)->id.size;
-        memcpy(extra, (*info)->rev_meta.buf, (*info)->rev_meta.size);
-        uint8_t conflict_resolution_mode = revision_seqno;
-        memcpy(extra + (*info)->rev_meta.size,
-               &conflict_resolution_mode, sizeof(uint8_t));
-        docinfo->rev_meta.buf = extra;
-        docinfo->rev_meta.size = (*info)->rev_meta.size +
-                                 sizeof(uint8_t);
-
-        docinfo->db_seq = (*info)->db_seq;
-        docinfo->rev_seq = (*info)->rev_seq;
-        docinfo->deleted = (*info)->deleted;
-        docinfo->content_meta = (*info)->content_meta;
-        docinfo->bp = (*info)->bp;
-        docinfo->size = (*info)->size;
-
-        couchstore_free_docinfo(*info);
-        *info = docinfo;
-        return 1;
+        // Set the conflict resmode
+        metadata->setConfResMode(revision_seqno);
     }
-    return 0;
+
+    DocInfo* docInfo = new DocInfo();
+
+    // Copy the current DocInfo (db_seq/rev_seq etc..)
+    *docInfo = **info;
+
+    docInfo->rev_meta.size = MetaData::getMetaDataSize(MetaData::Version::V2);
+    docInfo->rev_meta.buf = new char[docInfo->rev_meta.size];
+    metadata->copyToBuf(docInfo->rev_meta);
+
+    // Free the orginal
+    couchstore_free_docinfo(*info);
+
+    // Return the newly allocated docinfo with corrected metadata
+    *info = docInfo;
+
+    return 1;
 }
 
 static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
@@ -775,10 +723,9 @@ static int time_purge_hook(Db* d, DocInfo* info, void* ctx_p) {
         max_purge_seq = it->second;
     }
 
-    if (info->rev_meta.size >= DEFAULT_META_LEN) {
-        uint32_t exptime;
-        memcpy(&exptime, info->rev_meta.buf + 8, 4);
-        exptime = ntohl(exptime);
+    if (info->rev_meta.size >= MetaData::getMetaDataSize(MetaData::Version::V0)) {
+        auto metadata = MetaDataFactory::createMetaData(info->rev_meta);
+        uint32_t exptime = metadata->getExptime();
         if (info->deleted) {
             if (info->db_seq != infoDb.last_sequence) {
                 if (ctx->drop_deletes) { // all deleted items must be dropped ...
@@ -1515,55 +1462,42 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                                           GetValue &docValue, uint16_t vbId,
                                           bool metaOnly, bool fetchDelete) {
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
-    sized_buf metadata = docinfo->rev_meta;
-    uint32_t itemFlags = 0;
-    uint64_t cas = 0;
-    time_t exptime = 0;
-    uint8_t ext_meta[EXT_META_LEN];
-    uint8_t ext_len = 0;
-    uint8_t conf_res_mode = 0;
-
-    if (metadata.size < DEFAULT_META_LEN) {
+    std::unique_ptr<MetaData> metadata;
+    try {
+        metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
+    } catch(std::logic_error& e) {
         return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
     }
 
-    if (metadata.size >= DEFAULT_META_LEN) {
-        memcpy(&cas, (metadata.buf), 8);
-        memcpy(&exptime, (metadata.buf) + 8, 4);
-        memcpy(&itemFlags, (metadata.buf) + 12, 4);
-        ext_len = 0;
-    }
-
-    if (metadata.size >= V1_META_LEN) {
-        memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
-               EXT_META_LEN);
-        ext_len = EXT_META_LEN;
-    }
-
-    if (metadata.size == V2_META_LEN) {
-        memcpy(&conf_res_mode, metadata.buf + V1_META_LEN, CONFLICT_RES_META_LEN);
-    }
-
-    cas = ntohll(cas);
-    exptime = ntohl(exptime);
-
     if (metaOnly || (fetchDelete && docinfo->deleted)) {
-        Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
-                            itemFlags, (time_t)exptime, NULL, docinfo->size,
-                            ext_meta, ext_len, cas, docinfo->db_seq, vbId);
+        uint8_t extMeta[EXT_META_LEN];
+        extMeta[0] = metadata->getDataType();
+        Item *it = new Item(docinfo->id.buf,
+                            (size_t)docinfo->id.size,
+                            metadata->getFlags(),
+                            metadata->getExptime(),
+                            nullptr,
+                            docinfo->size,
+                            extMeta,
+                            EXT_META_LEN,
+                            metadata->getCas(),
+                            docinfo->db_seq,
+                            vbId);
+
+
+
+        it->setConflictResMode(metadata->getConfResMode());
+        it->setRevSeqno(docinfo->rev_seq);
+
         if (docinfo->deleted) {
             it->setDeleted();
         }
-
-        it->setConflictResMode(
-                static_cast<enum conflict_resolution_mode>(conf_res_mode));
-        it->setRevSeqno(docinfo->rev_seq);
         docValue = GetValue(it);
         // update ep-engine IO stats
         ++st.io_num_read;
         st.io_read_bytes += docinfo->id.size;
     } else {
-        Doc *doc = NULL;
+        Doc *doc = nullptr;
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
                                                    DECOMPRESS_DOC_BODIES);
         if (errCode == COUCHSTORE_SUCCESS) {
@@ -1590,19 +1524,27 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                  * read from couch files where datatype is
                  * not supported.
                  */
-                if (metadata.size == DEFAULT_META_LEN) {
-                    ext_len = EXT_META_LEN;
-                    ext_meta[0] = determine_datatype((const unsigned char*)valuePtr,
-                                                     valuelen);
+                uint8_t extMeta = 0;
+                if (metadata->getVersionInitialisedFrom() == MetaData::Version::V0) {
+                    extMeta = determine_datatype(doc->data);
+                } else {
+                    extMeta = metadata->getDataType();
                 }
 
-                Item *it = new Item(docinfo->id.buf, (size_t)docinfo->id.size,
-                                    itemFlags, (time_t)exptime, valuePtr, valuelen,
-                                    ext_meta, ext_len, cas, docinfo->db_seq, vbId,
+                Item *it = new Item(docinfo->id.buf,
+                                    (size_t)docinfo->id.size,
+                                    metadata->getFlags(),
+                                    metadata->getExptime(),
+                                    valuePtr,
+                                    valuelen,
+                                    &extMeta,
+                                    EXT_META_LEN,
+                                    metadata->getCas(),
+                                    docinfo->db_seq,
+                                    vbId,
                                     docinfo->rev_seq);
 
-                it->setConflictResMode(
-                           static_cast<enum conflict_resolution_mode>(conf_res_mode));
+                it->setConflictResMode(metadata->getConfResMode());
 
                 docValue = GetValue(it);
 
@@ -1622,29 +1564,17 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     std::shared_ptr<Callback<GetValue> > cb = sctx->callback;
     std::shared_ptr<Callback<CacheLookup> > cl = sctx->lookup;
 
-    Doc *doc = NULL;
-    void *valuePtr = NULL;
+    Doc *doc = nullptr;
     size_t valuelen = 0;
+    void* valueptr = nullptr;
     uint64_t byseqno = docinfo->db_seq;
-    sized_buf  metadata = docinfo->rev_meta;
     uint16_t vbucketId = sctx->vbid;
-    sized_buf key = docinfo->id;
-    uint32_t itemflags = 0;
-    uint64_t cas = 0;
-    uint32_t exptime = 0;
-    uint8_t ext_meta[EXT_META_LEN] = {0};
-    uint8_t ext_len = 0;
-    uint8_t conf_res_mode = 0;
 
+    sized_buf key = docinfo->id;
     if (key.size > UINT16_MAX) {
         throw std::invalid_argument("CouchKVStore::recordDbDump: "
                         "docinfo->id.size (which is " + std::to_string(key.size) +
                         ") is greater than " + std::to_string(UINT16_MAX));
-    }
-    if (metadata.size < DEFAULT_META_LEN) {
-        throw std::invalid_argument("CouchKVStore::recordDbDump: "
-                        "docinfo->rev_meta.size (which is " + std::to_string(key.size) +
-                        ") is less than " + std::to_string(DEFAULT_META_LEN));
     }
 
     std::string docKey(docinfo->id.buf, docinfo->id.size);
@@ -1657,36 +1587,19 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         return COUCHSTORE_ERROR_CANCEL;
     }
 
-    if (metadata.size >= DEFAULT_META_LEN) {
-        memcpy(&cas, (metadata.buf), 8);
-        memcpy(&exptime, (metadata.buf) + 8, 4);
-        memcpy(&itemflags, (metadata.buf) + 12, 4);
-        ext_len = 0;
-    }
-
-    if (metadata.size >= V1_META_LEN) {
-        memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
-               EXT_META_LEN);
-        ext_len = EXT_META_LEN;
-    }
-
-    if (metadata.size == V2_META_LEN) {
-        memcpy(&conf_res_mode, metadata.buf + V1_META_LEN, CONFLICT_RES_META_LEN);
-    }
-
-    exptime = ntohl(exptime);
-    cas = ntohll(cas);
+    auto metadata = MetaDataFactory::createMetaData(docinfo->rev_meta);
 
     if (sctx->valFilter != ValueFilter::KEYS_ONLY && !docinfo->deleted) {
         couchstore_error_t errCode;
         bool expectCompressed = false;
-        /**
-         * If couch files do not support datatype or no special
-         * request is made to retrieve compressed documents as is,
-         * then DECOMPRESS the document.
-         */
         couchstore_open_options openOptions = 0;
-        if (metadata.size == DEFAULT_META_LEN ||
+
+        /**
+         * If the stored document has V0 metdata (no datatype)
+         * or no special request is made to retrieve compressed documents
+         * as is, then DECOMPRESS the document and update datatype
+         */
+        if (docinfo->rev_meta.size == metadata->getMetaDataSize(MetaData::Version::V0) ||
             sctx->valFilter == ValueFilter::VALUES_DECOMPRESSED) {
             openOptions = DECOMPRESS_DOC_BODIES;
         } else {
@@ -1697,31 +1610,20 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
 
         if (errCode == COUCHSTORE_SUCCESS) {
             if (doc->data.size) {
+                valueptr = doc->data.buf;
                 valuelen = doc->data.size;
-                valuePtr = doc->data.buf;
-
-                /**
-                 * Set Datatype correctly if data is being
-                 * read from couch files where datatype is
-                 * not supported.
-                 */
-                if (metadata.size == DEFAULT_META_LEN) {
-                    ext_len = EXT_META_LEN;
-                    ext_meta[0] = determine_datatype((const unsigned char*)valuePtr,
-                                                     valuelen);
-                }
-
                 if (expectCompressed) {
                     /**
                      * If a compressed document was retrieved as is,
                      * update the datatype of the document.
                      */
-                    uint8_t datatype = ext_meta[0];
-                    if (datatype == PROTOCOL_BINARY_DATATYPE_JSON) {
-                        ext_meta[0] = PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON;
-                    } else if (datatype == PROTOCOL_BINARY_RAW_BYTES) {
-                        ext_meta[0] = PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+                    if (metadata->getDataType() == PROTOCOL_BINARY_DATATYPE_JSON) {
+                        metadata->setDataType(PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON);
+                    } else if (metadata->getDataType() == PROTOCOL_BINARY_RAW_BYTES) {
+                        metadata->setDataType(PROTOCOL_BINARY_DATATYPE_COMPRESSED);
                     }
+                } else {
+                    metadata->setDataType(determine_datatype(doc->data));
                 }
             }
         } else {
@@ -1734,22 +1636,26 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         }
     }
 
+    uint8_t extMeta = metadata->getDataType();
+    uint8_t extMetaLen = metadata->getFlexCode() == FLEX_META_CODE ? EXT_META_LEN : 0;
     Item *it = new Item((void *)key.buf,
                         key.size,
-                        itemflags,
-                        (time_t)exptime,
-                        valuePtr, valuelen,
-                        ext_meta, ext_len,
-                        cas,
+                        metadata->getFlags(),
+                        metadata->getExptime(),
+                        valueptr,
+                        valuelen,
+                        &extMeta,
+                        extMetaLen,
+                        metadata->getCas(),
                         docinfo->db_seq, // return seq number being persisted on disk
                         vbucketId,
                         docinfo->rev_seq);
+
     if (docinfo->deleted) {
         it->setDeleted();
     }
 
-    it->setConflictResMode(
-                 static_cast<enum conflict_resolution_mode>(conf_res_mode));
+    it->setConflictResMode(metadata->getConfResMode());
 
     bool onlyKeys = (sctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
     GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);
