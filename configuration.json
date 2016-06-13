@@ -91,7 +91,12 @@
         "bfilter_key_count": {
             "default": "10000",
             "desr": "Bloomfilter: Estimated key count per vbucket",
-            "type": "size_t"
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "min": 1
+                }
+            }
         },
         "bfilter_fp_prob": {
             "default": "0.01",
