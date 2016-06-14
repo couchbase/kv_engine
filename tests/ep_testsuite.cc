@@ -4149,10 +4149,10 @@ static void dcp_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *name,
 }
 
 static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                           uint32_t opaque, uint16_t vbucket, uint64_t start,
+                           uint32_t opaque, uint32_t stream_flag,
+                           uint16_t vbucket, uint64_t start,
                            uint64_t end, uint64_t uuid,
-                           uint64_t snap_start_seqno,
-                           uint64_t snap_end_seqno,
+                           uint64_t snap_start_seqno, uint64_t snap_end_seqno,
                            uint64_t exp_rollback, ENGINE_ERROR_CODE err) {
     const void *cookie = testHarness.create_cookie();
     uint32_t flags = DCP_OPEN_PRODUCER;
@@ -4163,10 +4163,11 @@ static void dcp_stream_req(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
           == ENGINE_SUCCESS, "Failed dcp Consumer open connection.");
 
     uint64_t rollback = 0;
-    ENGINE_ERROR_CODE rv = h1->dcp.stream_req(h, cookie, 0, 1, 0, start, end,
-                                              uuid, snap_start_seqno,
-                                              snap_end_seqno,
-                                              &rollback, mock_dcp_add_failover_log);
+    ENGINE_ERROR_CODE rv = h1->dcp.stream_req(h, cookie, stream_flag, 1,
+                                              vbucket, start, end, uuid,
+                                              snap_start_seqno, snap_end_seqno,
+                                              &rollback,
+                                              mock_dcp_add_failover_log);
     check(rv == err, "Unexpected error code");
     if (err == ENGINE_ROLLBACK || err == ENGINE_KEY_ENOENT) {
         check(exp_rollback == rollback, "Rollback didn't match expected value");
@@ -9619,12 +9620,12 @@ static enum test_result test_dcp_rollback_after_purge(ENGINE_HANDLE *h,
     wait_for_stat_to_be(h, h1, "vb_0:num_checkpoints", 1, "checkpoint");
 
     /* DCP stream, expect a rollback to seq 0 */
-    dcp_stream_req(h, h1, 1, 0, 3, high_seqno, vb_uuid,
+    dcp_stream_req(h, h1, 1, 0, 0, 3, high_seqno, vb_uuid,
                    3, high_seqno, 0, ENGINE_ROLLBACK);
 
     /* Do not expect rollback when you already have all items in the snapshot
        (that is, start == snap_end_seqno)*/
-    dcp_stream_req(h, h1, 1, 0, high_seqno, high_seqno + 10, vb_uuid,
+    dcp_stream_req(h, h1, 1, 0, 0, high_seqno, high_seqno + 10, vb_uuid,
                    0, high_seqno, 0, ENGINE_SUCCESS);
 
     return SUCCESS;
@@ -13870,7 +13871,7 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     uint64_t uuid = 0;
     uint64_t snap_start_seq = start;
     uint64_t snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
 
     start = 0;
@@ -13878,7 +13879,7 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
 
     start = 2;
@@ -13886,7 +13887,7 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
 
     start = 10;
@@ -13894,7 +13895,7 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_SUCCESS);
 
     start = 12;
@@ -13902,7 +13903,7 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
     snap_start_seq = start;
     snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 10, ENGINE_ROLLBACK);
 
     start = 2;
@@ -13910,8 +13911,24 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     uuid = 123456;
     snap_start_seq = start;
     snap_end_seq = start;
-    dcp_stream_req(h, h1, 1, 0, start, end, uuid,
+    dcp_stream_req(h, h1, 1, 0, 0, start, end, uuid,
                    snap_start_seq, snap_end_seq, 0, ENGINE_ROLLBACK);
+
+    /* Test a case where start_seqno > vb_high_seqno and flags
+       DCP_ADD_STREAM_FLAG_LATEST/DCP_ADD_STREAM_FLAG_DISKONLY set */
+    start = 12;
+    end = 1000;
+    uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
+    snap_start_seq = start;
+    snap_end_seq = start;
+
+    /* Expect rollback */
+    dcp_stream_req(h, h1, 1, DCP_ADD_STREAM_FLAG_LATEST, 0, start, end, uuid,
+                   snap_start_seq, snap_end_seq, 10, ENGINE_ROLLBACK);
+
+    /* Expect rollback */
+    dcp_stream_req(h, h1, 1, DCP_ADD_STREAM_FLAG_DISKONLY, 0, start, end, uuid,
+                   snap_start_seq, snap_end_seq, 10, ENGINE_ROLLBACK);
 
     return SUCCESS;
 }
