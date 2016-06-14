@@ -41,6 +41,7 @@
 #include "ep_testsuite_common.h"
 #include "locks.h"
 #include <libcouchstore/couch_db.h>
+#include "mock/mock_dcp.h"
 #include "mutex.h"
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
@@ -6869,7 +6870,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_mb17517_tap_with_locked_key, test_setup, teardown, NULL,
                  prepare, cleanup),
 
-         TestCase("test_mb19635_upgrade_from_25x",
+        TestCase("test_mb19635_upgrade_from_25x",
                  test_mb19635_upgrade_from_25x, test_setup, teardown, NULL,
                  prepare, cleanup),
 
