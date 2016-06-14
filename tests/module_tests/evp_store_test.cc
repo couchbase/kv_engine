@@ -30,13 +30,14 @@
 #include "checkpoint.h"
 #include "checkpoint_remover.h"
 #include "connmap.h"
+#include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
 #include "flusher.h"
 #include "../mock/mock_dcp_producer.h"
+#include "replicationthrottle.h"
 
 #include "programs/engine_testapp/mock_server.h"
 #include <platform/dirutils.h>
-
 #include <thread>
 
 SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
@@ -64,6 +65,10 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
 
     // checkpointConfig is needed by CheckpointManager (via EPStore).
     checkpointConfig = new CheckpointConfig(*this);
+
+    dcpFlowControlManager_ = new DcpFlowControlManager(*this);
+
+    replicationThrottle = new ReplicationThrottle(configuration, stats);
 }
 
 void SynchronousEPEngine::setEPStore(EventuallyPersistentStore* store) {

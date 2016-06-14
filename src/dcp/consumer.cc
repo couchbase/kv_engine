@@ -56,29 +56,29 @@ bool Processer::run() {
         return false;
     }
 
-    double sleepFor = 0;
+    double sleepFor = 0.0;
     enum process_items_error_t state = consumer->processBufferedItems();
     switch (state) {
-    case all_processed:
-        sleepFor = INT_MAX;
-        break;
-    case more_to_process:
-        sleepFor = 0;
-        break;
-    case cannot_process:
-        sleepFor = 5;
-        break;
+        case all_processed:
+            sleepFor = INT_MAX;
+            break;
+        case more_to_process:
+            sleepFor = 0.0;
+            break;
+        case cannot_process:
+            sleepFor = 5.0;
+            break;
     }
 
     if (consumer->notifiedProcesser(false)) {
-        snooze(0);
+        snooze(0.0);
         state = more_to_process;
     } else {
         snooze(sleepFor);
         // Check if the processer was notified again,
         // in which case the task should wake immediately.
         if (consumer->notifiedProcesser(false)) {
-            snooze(0);
+            snooze(0.0);
             state = more_to_process;
         }
     }

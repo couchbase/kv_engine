@@ -262,3 +262,65 @@ TEST_F(SingleThreadedEPStoreTest, MB19892_BackfillNotDeleted) {
                       /*snap_end*/0, &rollbackSeqno,
                       dummy_dcp_add_failover_cb));
 }
+
+/*
+ * Test that the DCP processor returns a 'yield' return code when
+ * working on a large enough buffer size.
+ */
+TEST_F(SingleThreadedEPStoreTest, MB18452_yield_dcp_processor) {
+
+    // We need a replica VB
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    // Create a MockDcpConsumer
+    dcp_consumer_t consumer = new MockDcpConsumer(*engine, cookie, "test");
+
+    // Add the stream
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/0, vbid, /*flags*/0));
+
+    // The processBufferedItems should yield every "yield * batchSize"
+    // So add '(n * (yield * batchSize)) + 1' messages and we should see
+    // processBufferedMessages return 'more_to_process' 'n' times and then
+    // 'all_processed' once.
+    const int n = 4;
+    const int yield = engine->getConfiguration().getDcpConsumerProcessBufferedMessagesYieldLimit();
+    const int batchSize = engine->getConfiguration().getDcpConsumerProcessBufferedMessagesBatchSize();
+    const int messages = n * (batchSize * yield);
+
+    // Force the stream to buffer rather than process messages immediately
+    const ssize_t queueCap = engine->getEpStats().replicationThrottleWriteQueueCap;
+    engine->getEpStats().replicationThrottleWriteQueueCap = 0;
+
+    // 1. Add the first message, a snapshot marker.
+    consumer->snapshotMarker(/*opaque*/1, vbid, /*startseq*/0,
+                             /*endseq*/messages, /*flags*/0);
+
+    // 2. Now add the rest as mutations.
+    for (int ii = 0; ii <= messages; ii++) {
+        std::string key = "key" + std::to_string(ii);
+        std::string value = "value";
+        consumer->mutation(/*opaque*/1, key.c_str(), key.length(),
+                           value.c_str(), value.length(), /*cas*/0,
+                           vbid, /*flags*/0, /*datatype*/0, /*locktime*/0,
+                           /*bySeqno*/ii, /*revSeqno*/0, /*exptime*/0,
+                           /*nru*/0, /*meta*/nullptr, /*nmeta*/0);
+    }
+
+    // Set the throttle back to the original value
+    engine->getEpStats().replicationThrottleWriteQueueCap = queueCap;
+
+    // Get our target stream ready.
+    static_cast<MockDcpConsumer*>(consumer.get())->public_notifyVbucketReady(vbid);
+
+    // 3. processBufferedItems returns more_to_process n times
+    for (int ii = 0; ii < n; ii++) {
+        EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+    }
+
+    // 4. processBufferedItems returns a final all_processed
+    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+
+    // Drop the stream
+    consumer->closeStream(/*opaque*/0, vbid);
+}

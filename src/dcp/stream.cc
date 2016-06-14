@@ -1559,7 +1559,11 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
                 }
                 break;
             default:
-                abort();
+                // Above switch should've returned DISCONNECT, throw an exception
+                throw std::logic_error("PassiveStream::messageReceived: (vb " +
+                                       std::to_string(vb_) +
+                                       ") received unknown message type " +
+                                       std::to_string(resp->getEvent()));
         }
         if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
             delete resp;
@@ -1619,11 +1623,11 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
                 }
                 break;
             default:
-                LOG(EXTENSION_LOG_WARNING,
-                    "PassiveStream::processBufferedMessages: "
-                    "(vb %d) PassiveStream failing "
-                    "unknown message type %d",
-                    vb_, response->getEvent());
+                consumer->getLogger().log(EXTENSION_LOG_WARNING,
+                                          "PassiveStream::processBufferedMessages:"
+                                          "(vb %" PRIu16 ") PassiveStream failing "
+                                          "unknown message type %d",
+                                          vb_, response->getEvent());
                 failed = true;
         }
 
