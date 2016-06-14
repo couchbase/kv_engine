@@ -55,12 +55,12 @@ int main(int argc, char **argv) {
 
     init_mock_server(log_to_stderr);
 
+    get_mock_server_api()->log->set_level(EXTENSION_LOG_DEBUG);
     if (memcached_initialize_stderr_logger(get_mock_server_api) != EXTENSION_SUCCESS) {
         std::cerr << argv[0] << ": Failed to initialize log system" << std::endl;
         return 1;
     }
     Logger::setLoggerAPI(get_mock_server_api()->log);
-    Logger::setGlobalLogLevel(EXTENSION_LOG_DEBUG);
 
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

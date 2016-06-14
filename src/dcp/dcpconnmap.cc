@@ -372,7 +372,7 @@ void DcpConnMap::updateMaxActiveSnoozingBackfills(size_t maxDataSize)
     maxActiveSnoozingBackfills =
         std::max(static_cast<size_t>(1),
                  std::min(max, static_cast<size_t>(numBackfillsThreshold)));
-    LOG(EXTENSION_LOG_DEBUG, "Max active snoozing backfills set to %d",
+    LOG(EXTENSION_LOG_DEBUG, "Max active snoozing backfills set to %" PRIu16,
         maxActiveSnoozingBackfills);
 }
 
