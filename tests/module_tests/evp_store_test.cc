@@ -109,7 +109,14 @@ void EventuallyPersistentStoreTest::SetUp() {
     // from a previous run.
     CouchbaseDirectoryUtilities::rmrf(test_dbname);
 
-    engine.reset(new SynchronousEPEngine(config_string));
+    // Add dbname to config string.
+    std::string config = config_string;
+    if (config.size() > 0) {
+        config += ";";
+    }
+    config += "dbname=" + std::string(test_dbname);
+
+    engine.reset(new SynchronousEPEngine(config));
     ObjectRegistry::onSwitchThread(engine.get());
 
     store = new MockEPStore(*engine);
