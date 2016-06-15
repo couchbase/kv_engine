@@ -5936,7 +5936,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:last_persisted_snap_start",
                 "vb_0:purge_seqno",
                 "vb_0:uuid"
-
             }
         },
         {"prev-vbucket",
@@ -6167,6 +6166,8 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_dcp_min_compression_ratio",
                 "ep_dcp_noop_interval",
                 "ep_dcp_producer_snapshot_marker_yield_limit",
+                "ep_dcp_consumer_process_buffered_messages_yield_limit",
+                "ep_dcp_consumer_process_buffered_messages_batch_size",
                 "ep_dcp_scan_byte_limit",
                 "ep_dcp_scan_item_limit",
                 "ep_dcp_takeover_max_time",

@@ -441,9 +441,7 @@ private:
 
 };
 
-
 class DcpConnMap : public ConnMap {
-
 public:
 
     DcpConnMap(EventuallyPersistentEngine &engine);
@@ -537,6 +535,16 @@ protected:
      */
     std::list<connection_t> deadConnections;
 
+    /*
+     * Change the value at which a DcpConsumer::Processor task will yield
+     */
+    void consumerYieldConfigChanged(size_t newValue);
+
+    /*
+     * Change the batchsize that the DcpConsumer::Processor operates with
+     */
+    void consumerBatchSizeConfigChanged(size_t newValue);
+
 private:
 
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
@@ -562,6 +570,14 @@ private:
     /* Total memory used by all DCP consumer buffers */
     AtomicValue<size_t> aggrDcpConsumerBufferSize;
 
+    class DcpConfigChangeListener : public ValueChangedListener {
+    public:
+        DcpConfigChangeListener(DcpConnMap& connMap);
+        virtual ~DcpConfigChangeListener() { }
+        virtual void sizeValueChanged(const std::string &key, size_t value);
+    private:
+        DcpConnMap& myConnMap;
+    };
 };
 
 

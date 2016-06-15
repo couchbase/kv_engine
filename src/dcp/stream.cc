@@ -42,7 +42,6 @@ static const char* snapshotTypeToString(snapshot_type_t type) {
 }
 
 const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
-const size_t PassiveStream::batchSize = 10;
 
 Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
                uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
@@ -1582,18 +1581,18 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
     return ENGINE_TMPFAIL;
 }
 
-process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed_bytes) {
+process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed_bytes,
+                                                             size_t batchSize) {
     LockHolder lh(buffer.bufMutex);
     uint32_t count = 0;
     uint32_t message_bytes = 0;
     uint32_t total_bytes_processed = 0;
     bool failed = false;
-
     if (buffer.messages.empty()) {
         return all_processed;
     }
 
-    while (count < PassiveStream::batchSize && !buffer.messages.empty()) {
+    while (count < batchSize && !buffer.messages.empty()) {
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         /* If the stream is in dead state we should not process any remaining
            items in the buffer, we should rather clear them */
@@ -1627,7 +1626,12 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
                 }
                 break;
             default:
-                abort();
+                LOG(EXTENSION_LOG_WARNING,
+                    "PassiveStream::processBufferedMessages: "
+                    "(vb %d) PassiveStream failing "
+                    "unknown message type %d",
+                    vb_, response->getEvent());
+                failed = true;
         }
 
         if (ret == ENGINE_TMPFAIL || ret == ENGINE_ENOMEM) {

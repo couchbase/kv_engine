@@ -928,6 +928,14 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     updateMaxActiveSnoozingBackfills(engine.getEpStats().getMaxDataSize());
     minCompressionRatioForProducer.store(
                     engine.getConfiguration().getDcpMinCompressionRatio());
+
+    // Note: these allocations are deleted by ~Configuration
+    engine.getConfiguration().
+        addValueChangedListener("dcp_consumer_process_buffered_messages_yield_limit",
+                                new DcpConfigChangeListener(*this));
+    engine.getConfiguration().
+        addValueChangedListener("dcp_consumer_process_buffered_messages_batch_size",
+                                new DcpConfigChangeListener(*this));
 }
 
 DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
@@ -995,6 +1003,45 @@ ENGINE_ERROR_CODE DcpConnMap::addPassiveStream(ConnHandler& conn,
     }
 
     return conn.addStream(opaque, vbucket, flags);
+}
+
+
+DcpConnMap::DcpConfigChangeListener::DcpConfigChangeListener(DcpConnMap& connMap)
+    : myConnMap(connMap){}
+
+void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(const std::string &key,
+                                                           size_t value) {
+    if (key == "dcp_consumer_process_buffered_messages_yield_limit") {
+        myConnMap.consumerYieldConfigChanged(value);
+    } else if (key == "dcp_consumer_process_buffered_messages_batch_size") {
+        myConnMap.consumerBatchSizeConfigChanged(value);
+    }
+}
+
+/*
+ * Find all DcpConsumers and set the yield threshold
+ */
+void DcpConnMap::consumerYieldConfigChanged(size_t newValue) {
+    LockHolder lh(connsLock);
+    for (auto it : all) {
+        DcpConsumer* dcpConsumer = dynamic_cast<DcpConsumer*>(it.get());
+        if (dcpConsumer) {
+            dcpConsumer->setProcessorYieldThreshold(newValue);
+        }
+    }
+}
+
+/*
+ * Find all DcpConsumers and set the processor batchsize
+ */
+void DcpConnMap::consumerBatchSizeConfigChanged(size_t newValue) {
+    LockHolder lh(connsLock);
+    for (auto it : all) {
+        DcpConsumer* dcpConsumer = dynamic_cast<DcpConsumer*>(it.get());
+        if (dcpConsumer) {
+            dcpConsumer->setProcessBufferedMessagesBatchSize(newValue);
+        }
+    }
 }
 
 DcpProducer *DcpConnMap::newProducer(const void* cookie,

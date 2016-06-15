@@ -633,7 +633,35 @@
         "dcp_producer_snapshot_marker_yield_limit": {
             "default": "10",
             "descr": "The number of snapshots before ActiveStreamCheckpointProcessorTask::run yields.",
-            "type": "size_t"
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000000,
+                    "min": 1
+                }
+            }
+        },
+        "dcp_consumer_process_buffered_messages_yield_limit" : {
+            "default": "10",
+            "descr": "The number of processBufferedMessages iterations before forcing the task to yield.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000000,
+                    "min": 1
+                }
+            }
+        },
+        "dcp_consumer_process_buffered_messages_batch_size" : {
+            "default": "10",
+            "descr": "The maximum number of items stream->processBufferedMessages will consume.",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max": 100000000,
+                    "min": 1
+                }
+            }
         },
         "time_synchronization": {
             "default": "disabled",
