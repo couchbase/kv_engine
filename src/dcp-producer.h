@@ -307,7 +307,7 @@ private:
 
     bool notifyOnly;
     bool enableExtMetaData;
-    rel_time_t lastSendTime;
+    AtomicValue<rel_time_t> lastSendTime;
     BufferLog log;
 
     BackfillManager* backfillMgr;
