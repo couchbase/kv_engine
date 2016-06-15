@@ -152,7 +152,7 @@ bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 bool get_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                        vbucket_state_t state, const void *cookie);
 void verify_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                          int vb_start, int vb_end);
+                          uint16_t vb_start, uint16_t vb_end);
 void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,

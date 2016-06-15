@@ -14022,57 +14022,6 @@ struct mb16357_ctx {
 };
 
 extern "C" {
-    static void dcp_thread_func(void *args) {
-        struct mb16357_ctx *ctx = static_cast<mb16357_ctx *>(args);
-
-        const void *cookie = testHarness.create_cookie();
-        uint32_t opaque = 0xFFFF0000;
-        uint32_t flags = 0;
-        std::string name = "unittest";
-
-        while (get_int_stat(ctx->h, ctx->h1, "ep_pending_compactions") == 0);
-
-        // Switch to replica
-        check(set_vbucket_state(ctx->h, ctx->h1, 0, vbucket_state_replica),
-                "Failed to set vbucket state.");
-
-        // Open consumer connection
-        checkeq(ctx->h1->dcp.open(ctx->h, cookie, opaque, 0, flags,
-                                  (void*)name.c_str(), name.length()),
-                ENGINE_SUCCESS,
-                "Failed dcp Consumer open connection.");
-
-        add_stream_for_consumer(ctx->h, ctx->h1, cookie, opaque++, 0, 0,
-                PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-
-        uint32_t stream_opaque = get_int_stat(ctx->h, ctx->h1,
-                                              "eq_dcpq:unittest:stream_0_opaque",
-                                              "dcp");
-
-
-        for (int i = 1; i <= ctx->items; i++) {
-            std::stringstream ss;
-            ss << "kamakeey-" << i;
-
-            // send mutations in single mutation snapshots to race more with compaction
-            checkeq(ctx->h1->dcp.snapshot_marker(ctx->h, cookie,
-                                                 stream_opaque, 0/*vbid*/,
-                                                 ctx->items, ctx->items + i, 2),
-                    ENGINE_SUCCESS,
-                    "Failed to send snapshot marker");
-            checkeq(ctx->h1->dcp.mutation(ctx->h, cookie, stream_opaque,
-                                          ss.str().c_str(), ss.str().length(),
-                                          "value", 5, i * 3, 0, 0, 0,
-                                          i + ctx->items, i + ctx->items,
-                                          0, 0, "", 0, INITIAL_NRU_VALUE),
-                    ENGINE_SUCCESS,
-                    "Failed to send dcp mutation");
-        }
-
-        testHarness.destroy_cookie(cookie);
-    }
-
     static void compact_thread_func(void *args) {
         struct mb16357_ctx *ctx = static_cast<mb16357_ctx *>(args);
         compact_db(ctx->h, ctx->h1, 0, 99, ctx->items, 1);
@@ -14100,17 +14049,59 @@ static enum test_result test_mb16357(ENGINE_HANDLE *h,
     testHarness.time_travel(3617); // force expiry pushing time forward.
 
     struct mb16357_ctx ctx(h, h1, num_items);
-    cb_thread_t cp_thread, dcp_thread;
+    cb_thread_t cp_thread;
 
     cb_assert(cb_create_thread(&cp_thread,
                                compact_thread_func,
                                &ctx, 0) == 0);
-    cb_assert(cb_create_thread(&dcp_thread,
-                               dcp_thread_func,
-                               &ctx, 0) == 0);
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    std::string name = "unittest";
+
+    while (get_int_stat(h, h1, "ep_pending_compactions") == 0);
+
+    // Switch to replica
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    // Open consumer connection
+    checkeq(h1->dcp.open(h, cookie, opaque, 0, flags,
+                         (void*)name.c_str(), name.length()),
+            ENGINE_SUCCESS,
+            "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    uint32_t stream_opaque = get_int_stat(h, h1,
+                                          "eq_dcpq:unittest:stream_0_opaque",
+                                          "dcp");
+
+
+    for (int i = 1; i <= num_items; i++) {
+        std::stringstream ss;
+        ss << "kamakeey-" << i;
+
+        // send mutations in single mutation snapshots to race more with compaction
+        checkeq(h1->dcp.snapshot_marker(h, cookie,
+                                        stream_opaque, 0/*vbid*/,
+                                        num_items, num_items + i, 2),
+                ENGINE_SUCCESS,
+                "Failed to send snapshot marker");
+        checkeq(h1->dcp.mutation(h, cookie, stream_opaque,
+                                 ss.str().c_str(), ss.str().length(),
+                                 "value", 5, i * 3, 0, 0, 0,
+                                 i + num_items, i + num_items,
+                                 0, 0, "", 0, INITIAL_NRU_VALUE),
+                ENGINE_SUCCESS,
+                "Failed to send dcp mutation");
+    }
+
+    testHarness.destroy_cookie(cookie);
 
     cb_assert(cb_join_thread(cp_thread) == 0);
-    cb_assert(cb_join_thread(dcp_thread) == 0);
 
     return SUCCESS;
 }
@@ -14454,6 +14445,71 @@ static enum test_result test_mb18452_largeYield(ENGINE_HANDLE* h,
           "DCP Processor ran more times than expected.");
 
 
+    return SUCCESS;
+}
+
+/**
+ * This test demonstrates bucket shutdown when there is a rogue
+ * backfill (whose producer and stream are already closed).
+ */
+static enum test_result test_mb19153(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1) {
+
+    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+
+    // Set max num AUX IO to 0, so no backfill would start
+    // immediately
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_auxio", "0");
+
+    int num_items = 10000;
+
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key-" << j;
+        check(store(h, h1, NULL, OPERATION_SET,
+                    ss.str().c_str(), "data", &i, 0, 0, 0, 0)
+                    == ENGINE_SUCCESS, "Failed to store a value");
+
+        h1->release(h, NULL, i);
+    }
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t flags = DCP_OPEN_PRODUCER;
+    const char *name = "unittest";
+
+    uint32_t opaque = 1;
+    uint64_t start = 0;
+    uint64_t end = num_items;
+
+    // Setup a producer connection
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, ++opaque, 0, flags,
+                         (void*)name, strlen(name)),
+            "Failed dcp Consumer open connection.");
+
+    // Initiate a stream request
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t rollback = 0;
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.stream_req(h, cookie, 0, opaque, 0, start, end,
+                               vb_uuid, 0, 0,
+                               &rollback, mock_dcp_add_failover_log),
+            "Expected success");
+
+    // Disconnect the producer
+    testHarness.destroy_cookie(cookie);
+
+    // Wait for ConnManager to clear out dead connections from dcpConnMap
+    wait_for_stat_to_be(h, h1, "ep_dcp_dead_conn_count", 0, "dcp");
+
+    // Set auxIO threads to 1, so the backfill for the closed producer
+    // is picked up, and begins to run.
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_auxio", "1");
+
+    // Terminate engine
     return SUCCESS;
 }
 
@@ -15496,6 +15552,9 @@ engine_test_t* get_tests(void) {
         TestCase("test MB-16357", test_mb16357,
                  test_setup, teardown, "compaction_exp_mem_threshold=85",
                  prepare, cleanup),
+        TestCase("test MB-19153", test_mb19153,
+                 test_setup, teardown, NULL, prepare, cleanup),
+
         TestCase("test dcp early termination", test_dcp_early_termination,
                  test_setup, teardown, NULL, prepare, cleanup),
 
