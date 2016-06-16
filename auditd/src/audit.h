@@ -47,6 +47,7 @@ public:
     bool terminate_audit_daemon;
     std::string configfile;
     cb_thread_t consumer_tid;
+    std::atomic_bool consumer_thread_running;
     cb_cond_t processeventqueue_empty;
     cb_cond_t events_arrived;
     cb_mutex_t producer_consumer_lock;
@@ -63,6 +64,7 @@ public:
           terminate_audit_daemon(false),
           dropped_events(0),
           max_audit_queue(50000) {
+        consumer_thread_running.store(false);
         cb_cond_initialize(&processeventqueue_empty);
         cb_cond_initialize(&events_arrived);
         cb_mutex_initialize(&producer_consumer_lock);

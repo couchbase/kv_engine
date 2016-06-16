@@ -135,6 +135,7 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA* extension_data,
                                "Failed to create audit thread");
             return AUDIT_FAILED;
         }
+        audit->consumer_thread_running.store(true);
     } catch (std::runtime_error& err) {
         extension_data->log_extension->log(EXTENSION_LOG_WARNING, nullptr, "%s",
                                            err.what());
