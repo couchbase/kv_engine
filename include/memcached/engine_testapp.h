@@ -19,6 +19,11 @@ enum test_result {
     SUCCESS_AFTER_RETRY = 24
 };
 
+enum OutputFormat {
+    FORMAT_Text,
+    FORMAT_XML,
+};
+
 typedef struct test engine_test_t;
 
 struct test_harness {
@@ -26,6 +31,8 @@ struct test_harness {
     const char *default_engine_cfg;
     void(*reload_engine)(ENGINE_HANDLE **, ENGINE_HANDLE_V1 **,
                          const char *, const char *, bool, bool);
+    enum OutputFormat output_format;
+    const char* output_file_prefix;
     const void *(*create_cookie)(void);
     void (*destroy_cookie)(const void *cookie);
     void (*set_ewouldblock_handling)(const void *cookie, bool enable);
