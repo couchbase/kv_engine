@@ -40,43 +40,13 @@ public:
         setHolder(true);
     }
 
-    void wait(const struct timeval &tv) {
-        // Todo:
-        //   This logic is a bit weird, because normally we want to
-        //   sleep for a certain amount of time, but since we built
-        //   the stuff on pthreads and the API looked like it did we
-        //   used the absolute timers making us sleep to a certain
-        //   point in the future.. now we need to roll back that work
-        //   and do it again in the library API...
-        //   I believe we should rather try to modify our own code
-        //   to only do relative waits, and then have the native
-        //   calls do the either absolute or relative checks.
-        //
-        //   There is no point of having an explicit return
-        //   value if it was a timeout or something else, because
-        //   you would have to evaluate the reason you waited anyway
-        //   (because one could have spurious wakeups etc)
-        struct timeval now;
-        gettimeofday(&now, NULL);
-
-        if (tv.tv_sec < now.tv_sec) {
-            return ;
-        }
-
-        uint64_t a = (now.tv_sec * 1000) + (now.tv_usec / 1000);
-        uint64_t b = (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
-
-        if (b < a) {
-            // Already expired
-            return ;
-        }
-
-        cb_cond_timedwait(&cond, &mutex, (int)(b - a));
+    void wait(const double secs) {
+        cb_cond_timedwait(&cond, &mutex, (unsigned int)(secs * 1000.0));
         setHolder(true);
     }
 
-    void wait(const double secs) {
-        cb_cond_timedwait(&cond, &mutex, (unsigned int)(secs * 1000.0));
+    void wait(const hrtime_t nanoSecs) {
+        cb_cond_timedwait(&cond, &mutex, (unsigned int)(nanoSecs/1000000));
         setHolder(true);
     }
 

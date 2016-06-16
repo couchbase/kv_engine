@@ -47,6 +47,8 @@ public:
     AtomicValue<size_t> completedCount;
 
 private:
+    void updateAlogTime(double sleepSecs);
+
     EventuallyPersistentStore &store;
     EPStats &stats;
     double sleepTime;

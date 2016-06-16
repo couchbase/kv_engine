@@ -157,8 +157,16 @@ bool AccessScanner::run() {
         }
     }
     snooze(sleepTime);
-    stats.alogTime.store(waketime.tv_sec);
+    updateAlogTime(sleepTime);
+
     return true;
+}
+
+void AccessScanner::updateAlogTime(double sleepSecs) {
+    struct timeval _waketime;
+    gettimeofday(&_waketime, NULL);
+    _waketime.tv_sec += sleepSecs;
+    stats.alogTime.store(_waketime.tv_sec);
 }
 
 std::string AccessScanner::getDescription() {
