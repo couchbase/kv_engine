@@ -60,6 +60,9 @@ static const int MUTATION_SUCCESS = 1;
 static const int MAX_OPEN_DB_RETRY = 10;
 
 static const uint32_t DEFAULT_META_LEN = 16;
+static const uint32_t V1_META_LEN = 18;
+static const uint32_t V2_META_LEN = 19;
+
 
 class NoLookupCallback : public Callback<CacheLookup> {
 public:
@@ -693,7 +696,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
         couchstore_free_docinfo(*info);
         *info = docinfo;
         return 1;
-    } else if ((*info)->rev_meta.size == DEFAULT_META_LEN + 2) {
+    } else if ((*info)->rev_meta.size == V1_META_LEN) {
         // Metadata doesn't have conflict_resolution_mode,
         // provision space for this flag.
         DocInfo *docinfo = (DocInfo *) calloc (sizeof(DocInfo) +
@@ -1523,29 +1526,29 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                                           bool metaOnly, bool fetchDelete) {
     couchstore_error_t errCode = COUCHSTORE_SUCCESS;
     sized_buf metadata = docinfo->rev_meta;
-    uint32_t itemFlags;
-    uint64_t cas;
-    time_t exptime;
+    uint32_t itemFlags = 0;
+    uint64_t cas = 0;
+    time_t exptime = 0;
     uint8_t ext_meta[EXT_META_LEN];
-    uint8_t ext_len;
+    uint8_t ext_len = 0;
     uint8_t conf_res_mode = 0;
 
     cb_assert(metadata.size >= DEFAULT_META_LEN);
-    if (metadata.size == DEFAULT_META_LEN) {
+    if (metadata.size >= DEFAULT_META_LEN) {
         memcpy(&cas, (metadata.buf), 8);
         memcpy(&exptime, (metadata.buf) + 8, 4);
         memcpy(&itemFlags, (metadata.buf) + 12, 4);
         ext_len = 0;
-    } else {
-        //metadata.size => 19, FLEX_META_CODE at offset 16
-        memcpy(&cas, (metadata.buf), 8);
-        memcpy(&exptime, (metadata.buf) + 8, 4);
-        memcpy(&itemFlags, (metadata.buf) + 12, 4);
+    }
+
+    if (metadata.size >= V1_META_LEN) {
         memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
                EXT_META_LEN);
-        memcpy(&conf_res_mode, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET +
-               EXT_META_LEN, CONFLICT_RES_META_LEN);
         ext_len = EXT_META_LEN;
+    }
+
+    if (metadata.size == V2_META_LEN) {
+        memcpy(&conf_res_mode, metadata.buf + V1_META_LEN, CONFLICT_RES_META_LEN);
     }
 
     cas = ntohll(cas);
@@ -1624,11 +1627,11 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     sized_buf  metadata = docinfo->rev_meta;
     uint16_t vbucketId = sctx->vbid;
     sized_buf key = docinfo->id;
-    uint32_t itemflags;
-    uint64_t cas;
-    uint32_t exptime;
+    uint32_t itemflags = 0;
+    uint64_t cas = 0;
+    uint32_t exptime = 0;
     uint8_t ext_meta[EXT_META_LEN];
-    uint8_t ext_len;
+    uint8_t ext_len = 0;
     uint8_t conf_res_mode = 0;
 
     cb_assert(key.size <= UINT16_MAX);
@@ -1644,22 +1647,23 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         return COUCHSTORE_ERROR_CANCEL;
     }
 
-    if (metadata.size == DEFAULT_META_LEN) {
+    if (metadata.size >= DEFAULT_META_LEN) {
         memcpy(&cas, (metadata.buf), 8);
         memcpy(&exptime, (metadata.buf) + 8, 4);
         memcpy(&itemflags, (metadata.buf) + 12, 4);
         ext_len = 0;
-    } else {
-        //metadata.size > 16, FLEX_META_CODE at offset 16
-        memcpy(&cas, (metadata.buf), 8);
-        memcpy(&exptime, (metadata.buf) + 8, 4);
-        memcpy(&itemflags, (metadata.buf) + 12, 4);
+    }
+
+    if (metadata.size >= V1_META_LEN) {
         memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
                EXT_META_LEN);
-        memcpy(&conf_res_mode, (metadata.buf) + DEFAULT_META_LEN +
-               FLEX_DATA_OFFSET + EXT_META_LEN, CONFLICT_RES_META_LEN);
         ext_len = EXT_META_LEN;
     }
+
+    if (metadata.size == V2_META_LEN) {
+        memcpy(&conf_res_mode, metadata.buf + V1_META_LEN, CONFLICT_RES_META_LEN);
+    }
+
     exptime = ntohl(exptime);
     cas = ntohll(cas);
 
