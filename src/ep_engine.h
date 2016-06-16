@@ -809,7 +809,7 @@ public:
      * Explicitly trigger the AccessScanner task. Provided to facilitate
      * testing.
      */
-    void runAccessScannerTask(void);
+    bool runAccessScannerTask(void);
 
     /*
      * Explicitly trigger the VbStatePersist task. Provided to facilitate

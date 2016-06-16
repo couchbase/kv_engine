@@ -534,7 +534,9 @@ extern "C" {
                 e->getConfiguration().setDcpMinCompressionRatio(
                         std::stof(valz));
             } else if (strcmp(keyz, "access_scanner_run") == 0) {
-                e->runAccessScannerTask();
+                if (!(e->runAccessScannerTask())) {
+                    rv = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+                }
             } else if (strcmp(keyz, "vb_state_persist_run") == 0) {
                 e->runVbStatePersistTask(std::stoi(valz));
             } else {
@@ -4645,8 +4647,8 @@ void EventuallyPersistentEngine::runDefragmenterTask(void) {
     epstore->runDefragmenterTask();
 }
 
-void EventuallyPersistentEngine::runAccessScannerTask(void) {
-    epstore->runAccessScannerTask();
+bool EventuallyPersistentEngine::runAccessScannerTask(void) {
+    return epstore->runAccessScannerTask();
 }
 
 void EventuallyPersistentEngine::runVbStatePersistTask(int vbid) {

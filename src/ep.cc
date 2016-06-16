@@ -4151,8 +4151,8 @@ void EventuallyPersistentStore::runDefragmenterTask() {
     defragmenterTask->run();
 }
 
-void EventuallyPersistentStore::runAccessScannerTask() {
-    ExecutorPool::get()->wake(accessScanner.task);
+bool EventuallyPersistentStore::runAccessScannerTask() {
+    return ExecutorPool::get()->wake(accessScanner.task);
 }
 
 void EventuallyPersistentStore::runVbStatePersistTask(int vbid) {
