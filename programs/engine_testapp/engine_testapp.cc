@@ -1286,6 +1286,7 @@ int main(int argc, char **argv) {
     const char *test_suite = NULL;
     std::regex test_case_regex(".*");
     engine_test_t *testcases = NULL;
+    enum OutputFormat output_format = FORMAT_Text;
     cb_dlhandle_t handle;
     char *errmsg = NULL;
     void *symbol = NULL;
@@ -1353,6 +1354,7 @@ int main(int argc, char **argv) {
                        "C:" /* Test case id */
                        "s" /* spinlock the program */
                        "X" /* Use stderr logger */
+                       "f:" /* output format. Valid values are: 'text' and 'xml' */
                        )) != -1) {
         switch (c) {
         case 'a':
@@ -1373,6 +1375,16 @@ int main(int argc, char **argv) {
             break;
         case 'e':
             engine_args = optarg;
+            break;
+        case 'f':
+            if (std::string(optarg) == "text") {
+                output_format = FORMAT_Text;
+            } else if (std::string(optarg) == "xml") {
+                output_format = FORMAT_XML;
+            } else {
+                fprintf(stderr, "Invalid option for output format '%s'. Valid options are 'text' and 'xml'.\n", optarg);
+                return 1;
+            }
             break;
         case 'h':
             usage();
@@ -1444,6 +1456,8 @@ int main(int argc, char **argv) {
     memset(&harness, 0, sizeof(harness));
     harness.default_engine_cfg = engine_args;
     harness.engine_path = engine;
+    harness.output_format = output_format;
+    harness.output_file_prefix = "output.";
     harness.reload_engine = reload_engine;
     harness.create_cookie = create_mock_cookie;
     harness.destroy_cookie = destroy_mock_cookie;
