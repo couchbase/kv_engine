@@ -157,6 +157,9 @@ public:
      */
     CouchRequest(const Item &it, uint64_t rev, CouchRequestCallback &cb, bool del);
 
+
+    virtual ~CouchRequest() {}
+
     /**
      * Get the vbucket id of a document to be persisted
      *
@@ -252,7 +255,7 @@ public:
         return key;
     }
 
-private :
+protected:
     value_t value;
     uint8_t meta[COUCHSTORE_METADATA_SIZE];
     uint16_t vbucketId;
@@ -542,8 +545,6 @@ public:
     scan_error_t scan(ScanContext* sctx);
 
     void destroyScanContext(ScanContext* ctx);
-
-private:
 
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          Callback<kvstats_ctx> *cb, bool reset=false);

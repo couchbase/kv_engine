@@ -321,7 +321,8 @@ ADD_EXECUTABLE(ep-engine_kvstore_test
   ${COUCH_KVSTORE_SOURCE}
   ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_kvstore_test
-                      cJSON JSON_checker couchstore dirutils platform)
+                      gmock gtest cJSON JSON_checker
+                      couchstore dirutils platform)
 
 ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
 ADD_TEST(ep-engine_atomic_test ep-engine_atomic_test)
