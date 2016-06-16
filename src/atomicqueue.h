@@ -18,6 +18,8 @@
 #ifndef SRC_ATOMICQUEUE_H_
 #define SRC_ATOMICQUEUE_H_ 1
 
+#include "atomic.h"
+
 #ifdef _MSC_VER
 
 #include <queue>

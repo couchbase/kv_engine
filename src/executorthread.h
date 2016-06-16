@@ -123,7 +123,7 @@ public:
 
     const hrtime_t getCurTime(void) { return now; }
 
-private:
+protected:
 
     cb_thread_t thread;
     ExecutorPool *manager;

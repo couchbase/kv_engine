@@ -194,7 +194,7 @@ public:
     */
     void cancelCheckpointProcessorTask();
 
-private:
+protected:
 
     /**
      * DcpProducerReadyQueue is a std::queue wrapper for managing a

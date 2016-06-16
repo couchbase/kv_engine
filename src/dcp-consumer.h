@@ -95,7 +95,7 @@ public:
 
     bool isStreamPresent(uint16_t vbucket);
 
-private:
+protected:
 
     DcpResponse* getNextItem();
 

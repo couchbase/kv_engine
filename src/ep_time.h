@@ -19,12 +19,23 @@
 
 #include "config.h"
 
+#include <memcached/server_api.h>
 #include <memcached/types.h>
 #include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* Initializes the below time functions using the function pointers
+ * provided by the specified SERVER_CORE_API. This function should be
+ * called before attempting to use them, typically by the first engine
+ * loaded.
+ * Note: Only the first call to this function will have any effect,
+ * i.e.  once initialized the functions should not be modified to
+ * prevent data races between the different threads which use them.
+ */
+void initialize_time_functions(const SERVER_CORE_API* core_api);
 
 extern rel_time_t (*ep_current_time)(void);
 extern time_t (*ep_abs_time)(rel_time_t);

@@ -179,7 +179,8 @@ private:
 };
 
 ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
-    :  engine(theEngine) {
+    :  engine(theEngine),
+       connNotifier_(NULL) {
 
     Configuration &config = engine.getConfiguration();
     vbConnLocks = new SpinLock[vbConnLockNum];
@@ -198,7 +199,9 @@ void ConnMap::initialize(conn_notifier_type ntype) {
 
 ConnMap::~ConnMap() {
     delete [] vbConnLocks;
-    connNotifier_->stop();
+    if (connNotifier_ != NULL) {
+        connNotifier_->stop();
+    }
     delete connNotifier_;
 }
 

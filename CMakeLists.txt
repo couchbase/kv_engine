@@ -15,9 +15,13 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${CMAKE_CURRENT_BINARY_DIR}/src
                            ${SNAPPY_INCLUDE_DIR}
                            ${Platform_SOURCE_DIR}/include
+                           ${Memcached_SOURCE_DIR}
                            ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_BINARY_DIR})
+
+INCLUDE_DIRECTORIES(AFTER
+                    ${gtest_SOURCE_DIR}/include)
 
 CHECK_INCLUDE_FILES("arpa/inet.h" HAVE_ARPA_INET_H)
 CHECK_INCLUDE_FILES("unistd.h" HAVE_UNISTD_H)
@@ -137,8 +141,17 @@ ADD_LIBRARY(ep SHARED
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore dirutils platform ${LIBEVENT_LIBRARIES})
 
-ADD_EXECUTABLE(ep-engine_stream_test
-  tests/module_tests/stream_test.cc
+# Single executable containing all class-level unit tests involving
+# EventuallyPersistentEngine driven by GoogleTest.
+# (We end up compiling most of the src/ files of ep-engine for these unit tests,
+# so simpler / quicker just to link them into a single executable).
+ADD_EXECUTABLE(ep-engine_ep_unit_tests
+  tests/mock/mock_dcp.cc
+  tests/module_tests/ep_unit_tests_main.cc
+  tests/module_tests/dcp_test.cc
+  tests/module_tests/evp_engine_test.cc
+  tests/module_tests/evp_store_test.cc
+  tests/module_tests/evp_store_single_threaded_test.cc
   src/access_scanner.cc
   src/atomic.cc
   src/backfill.cc
@@ -180,7 +193,7 @@ ADD_EXECUTABLE(ep-engine_stream_test
   ${KVSTORE_SOURCE}
   ${COUCH_KVSTORE_SOURCE}
   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.c)
-TARGET_LINK_LIBRARIES(ep-engine_stream_test couchstore cJSON dirutils JSON_checker mcd_util platform)
+TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils gtest JSON_checker mcd_util platform)
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
@@ -239,6 +252,7 @@ ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
 ADD_TEST(ep-engine_atomic_test ep-engine_atomic_test)
 ADD_TEST(ep-engine_checkpoint_test ep-engine_checkpoint_test)
 ADD_TEST(ep-engine_chunk_creation_test ep-engine_chunk_creation_test)
+ADD_TEST(ep-engine_ep_unit_tests ep-engine_ep_unit_tests)
 ADD_TEST(ep-engine_failover_table_test ep-engine_failover_table_test)
 ADD_TEST(ep-engine_hash_table_test ep-engine_hash_table_test)
 ADD_TEST(ep-engine_histo_test ep-engine_histo_test)
@@ -247,7 +261,6 @@ ADD_TEST(ep-engine_misc_test ep-engine_misc_test)
 ADD_TEST(ep-engine_mutex_test ep-engine_mutex_test)
 ADD_TEST(ep-engine_priority_test ep-engine_priority_test)
 ADD_TEST(ep-engine_ringbuffer_test ep-engine_ringbuffer_test)
-ADD_TEST(ep-engine_stream_test ep-engine_stream_test)
 
 ADD_LIBRARY(timing_tests SHARED tests/module_tests/timing_tests.cc)
 SET_TARGET_PROPERTIES(timing_tests PROPERTIES PREFIX "")

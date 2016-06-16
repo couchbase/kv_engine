@@ -484,7 +484,7 @@ public:
 
     void addStats(ADD_STAT add_stat, const void *c);
 
-private:
+protected:
 
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
 

@@ -226,8 +226,6 @@ protected:
 
     bool nextCheckpointItem();
 
-private:
-
     void transitionState(stream_state_t newState);
 
     DcpResponse* backfillPhase();

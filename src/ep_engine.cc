@@ -1745,13 +1745,19 @@ extern "C" {
         }
         delete inital_tracking;
 
-        ep_current_time = api->core->get_current_time;
-        ep_abs_time = api->core->abstime;
-        ep_reltime = api->core->realtime;
+        initialize_time_functions(api->core);
 
         *handle = reinterpret_cast<ENGINE_HANDLE*> (engine);
 
         return ENGINE_SUCCESS;
+    }
+
+    /*
+        This method is called prior to unloading of the shared-object.
+        Global clean-up should be performed from this method.
+     */
+    void destroy_engine() {
+        ExecutorPool::shutdown();
     }
 
     static bool EvpGetItemInfo(ENGINE_HANDLE *, const void *,
@@ -2020,8 +2026,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
         return ENGINE_ENOMEM;
     }
 
-    // Register the callback
-    registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
+    initializeEngineCallbacks();
 
     // Complete the initialization of the ep-store
     if (!epstore->initialize()) {
@@ -2841,6 +2846,11 @@ TapProducer* EventuallyPersistentEngine::getTapProducer(const void *cookie) {
         return NULL;
     }
     return rv;
+}
+
+void EventuallyPersistentEngine::initializeEngineCallbacks() {
+    // Register the callback
+    registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
