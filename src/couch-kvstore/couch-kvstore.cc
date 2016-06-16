@@ -1589,11 +1589,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     uint8_t conf_res_mode = 0;
 
     if (metadata.size < DEFAULT_META_LEN) {
-        throw std::invalid_argument("CouchKVStore::fetchDoc: "
-                        "docValue->rev_meta.size (which is " +
-                        std::to_string(metadata.size) +
-                        ") is less than DEFAULT_META_LEN (which is " +
-                        std::to_string(DEFAULT_META_LEN) + ")");
+        return COUCHSTORE_ERROR_DB_NO_LONGER_VALID;
     }
 
     if (metadata.size == DEFAULT_META_LEN) {
