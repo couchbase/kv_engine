@@ -34,15 +34,14 @@
 
 std::map<std::string, std::string> vals;
 bool dump_stats = false;
-protocol_binary_response_status last_status =
-    static_cast<protocol_binary_response_status>(0);
-uint32_t last_bodylen = 0;
-char *last_key = NULL;
-char *last_body = NULL;
-bool last_deleted_flag = false;
-uint8_t last_conflict_resolution_mode = static_cast<uint8_t>(-1);
-uint64_t last_cas = 0;
-uint8_t last_datatype = 0x00;
+AtomicValue<protocol_binary_response_status> last_status(
+    static_cast<protocol_binary_response_status>(0));
+std::string last_key;
+std::string last_body;
+bool last_deleted_flag(false);
+AtomicValue<uint8_t> last_conflict_resolution_mode{0xff};
+AtomicValue<uint64_t> last_cas(0);
+AtomicValue<uint8_t> last_datatype(0x00);
 ItemMetaData last_meta;
 uint64_t last_uuid = 0;
 uint64_t last_seqno = 0;
@@ -65,16 +64,7 @@ ENGINE_ERROR_CODE vb_map_response(const void *cookie,
                                   const void *map,
                                   size_t mapsize) {
     (void)cookie;
-    last_bodylen = mapsize;
-    if (last_body) {
-        free(last_body);
-        last_body = NULL;
-    }
-    if (mapsize > 0) {
-        last_body = static_cast<char*>(malloc(mapsize));
-        cb_assert(last_body);
-        memcpy(last_body, map, mapsize);
-    }
+    last_body.assign(static_cast<const char*>(map), mapsize);
     return ENGINE_SUCCESS;
 }
 
@@ -85,28 +75,9 @@ bool add_response(const void *key, uint16_t keylen, const void *ext,
     (void)ext;
     (void)extlen;
     (void)cookie;
-    last_bodylen = bodylen;
     last_status = static_cast<protocol_binary_response_status>(status);
-    if (last_body) {
-        free(last_body);
-        last_body = NULL;
-    }
-    if (bodylen > 0) {
-        last_body = static_cast<char*>(malloc(bodylen + 1));
-        cb_assert(last_body);
-        memcpy(last_body, body, bodylen);
-        last_body[bodylen] = '\0';
-    }
-    if (last_key) {
-        free(last_key);
-        last_key = NULL;
-    }
-    if (keylen > 0) {
-        last_key = static_cast<char*>(malloc(keylen + 1));
-        cb_assert(last_key);
-        memcpy(last_key, key, keylen);
-        last_key[keylen] = '\0';
-    }
+    last_body.assign(static_cast<const char*>(body), bodylen);
+    last_key.assign(static_cast<const char*>(key), keylen);
     last_cas = cas;
     last_datatype = datatype;
     return true;
@@ -407,7 +378,7 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
               "Expected exists when evicting key.");
     } else {
-        if (strcmp(last_body, "Already ejected.") != 0) {
+        if (last_body != "Already ejected.") {
             nonResidentItems++;
             numEjectedItems++;
         }
@@ -420,9 +391,9 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     check(get_int_stat(h, h1, "ep_num_value_ejects") == numEjectedItems,
           "Incorrect number of ejected items");
 
-    if (msg != NULL && strcmp(last_body, msg) != 0) {
+    if (msg != NULL && last_body != msg) {
         fprintf(stderr, "Expected evict to return ``%s'', but it returned ``%s''\n",
-                msg, last_body);
+                msg, last_body.c_str());
         abort();
     }
 }
@@ -661,12 +632,12 @@ void verify_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     const int per_vb_resp_size = sizeof(uint16_t) + sizeof(uint64_t);
     const int high_seqno_offset = sizeof(uint16_t);
 
-    std::string seqno_body(last_body, last_bodylen);
+    std::string seqno_body = last_body;
 
     /* Check if the total response length is as expected. We expect 10 bytes
        (2 for vb_id + 8 for seqno) */
-    checkeq((uint32_t)((vb_end - vb_start + 1) * per_vb_resp_size),
-            last_bodylen, "Failed to get all vb info.");
+    checkeq((size_t)((vb_end - vb_start + 1) * per_vb_resp_size),
+            last_body.size(), "Failed to get all vb info.");
     /* Check if the contents are correct */
     for (int i = 0; i < (vb_end - vb_start + 1); i++) {
         /* Check for correct vb_id */
@@ -966,13 +937,14 @@ bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
     if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         if (!mute) {
             fprintf(stderr, "Last protocol status was %d (%s)\n",
-                    last_status, last_body ? last_body : "unknown");
+                    last_status.load(),
+                    last_body.size() > 0 ? last_body.c_str() : "unknown");
         }
         return false;
     }
 
     vbucket_state_t state;
-    memcpy(&state, last_body, sizeof(state));
+    memcpy(&state, last_body.data(), sizeof(state));
     state = static_cast<vbucket_state_t>(ntohl(state));
     return state == expected;
 }
@@ -1221,7 +1193,7 @@ void set_degraded_mode(ENGINE_HANDLE *h,
     if (last_status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         std::cerr << "Failed to set degraded mode to " << enable
                   << ". protocol code: " << last_status << std::endl;
-        if (last_body) {
+        if (last_body.size() > 0) {
             std::cerr << "\tBody: [" << last_body << "]" << std::endl;
         }
 
