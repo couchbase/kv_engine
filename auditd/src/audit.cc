@@ -518,10 +518,15 @@ bool Audit::terminate_consumer_thread(void)
     cb_mutex_enter(&producer_consumer_lock);
     cb_cond_broadcast(&events_arrived);
     cb_mutex_exit(&producer_consumer_lock);
-    if (cb_join_thread(consumer_tid) == 0) {
-        return true;
-    }
-    return false;
+    if (consumer_thread_running.load()) {
+        if (cb_join_thread(consumer_tid) == 0) {
+            consumer_thread_running.store(false);
+            return true;
+        }
+        return false;
+   } else {
+        return false;
+   }
 }
 
 bool Audit::clean_up(void) {

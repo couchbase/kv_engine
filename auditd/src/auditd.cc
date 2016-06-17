@@ -114,6 +114,7 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
         Audit::log_error(AuditErrorCode::CB_CREATE_THREAD_ERROR, NULL);
         return AUDIT_FAILED;
     }
+    audit.consumer_thread_running.store(true);
     return AUDIT_SUCCESS;
 }
 
