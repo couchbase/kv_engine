@@ -2285,7 +2285,7 @@ static test_result test_dcp_cursor_dropping(ENGINE_HANDLE *h,
     /* wait for cursor to be dropped. You need to make sure that there are
        2 checkpoints so that the cursors of one of the checkpoint is dropped.
        For this we need to have correct combination of max_size and
-       chk_max_items (max_size=2000000;chk_max_items=2500 in this case) */
+       chk_max_items (max_size=6291456;chk_max_items=8000 in this case) */
     wait_for_stat_to_be_gte(h, h1, "ep_cursors_dropped", 1);
     dcp_stream_from_producer_conn(h, h1, cookie, opaque,
                                   last_seqno_streamed + 1, num_items);
@@ -2351,7 +2351,7 @@ static test_result test_dcp_cursor_dropping_backfill(ENGINE_HANDLE *h,
     start_persistence(h, h1);
     wait_for_flusher_to_settle(h, h1);
 
-    wait_for_stat_to_be(h, h1, "ep_cursors_dropped", 1);
+    wait_for_stat_to_be_gte(h, h1, "ep_cursors_dropped", 1);
 
     /* Read all the items from the producer. This ensures that the items are
        backfilled correctly after scheduling 2 successive backfills. */
@@ -5608,7 +5608,7 @@ BaseTestCase testsuite_testcases[] = {
                     create at least 1000 items when our residency
                     ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
-                 "chk_remover_stime=1;max_size=6291456;chk_max_items=2500",
+                 "chk_remover_stime=1;max_size=6291456;chk_max_items=8000",
                  prepare, cleanup),
         TestCase("test dcp cursor dropping backfill",
                  test_dcp_cursor_dropping_backfill, test_setup, teardown,
@@ -5616,7 +5616,7 @@ BaseTestCase testsuite_testcases[] = {
                   create at least 1000 items when our residency
                   ratio gets to 90%. See test body for more details. */
                  "cursor_dropping_lower_mark=60;cursor_dropping_upper_mark=70;"
-                 "chk_remover_stime=1;max_size=6291456;chk_max_items=2500",
+                 "chk_remover_stime=1;max_size=6291456;chk_max_items=8000",
                  prepare, cleanup),
         TestCase("test dcp value compression",
                  test_dcp_value_compression, test_setup, teardown,
