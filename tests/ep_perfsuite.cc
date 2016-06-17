@@ -37,6 +37,7 @@
 #include <random>
 #include <algorithm>
 #include <iterator>
+#include <fstream>
 
 #include "ep_testsuite_common.h"
 #include "ep_test_apis.h"
@@ -81,38 +82,22 @@ struct Stats {
     std::vector<T>* values;
 };
 
-// Given a vector of values (each a vector<T>) calcuate metrics on them
-// and print to stdout.
+static void fillLineWith(const char c, int spaces) {
+    for (int i = 0; i < spaces; ++i) {
+        putchar(c);
+    }
+}
+
+// Render the specified value stats, in human-readable text format.
 template<typename T>
-void print_values(std::vector<std::pair<std::string, std::vector<T>*> > values,
-                  std::string unit)
-{
-    // First, calculate mean, median, standard deviation and percentiles of
-    // each set of values, both for printing and to derive what the range of
-    // the graphs should be.
-    std::vector<Stats<T>> value_stats;
-    for (const auto& t : values) {
-        Stats<T> stats;
-        stats.name = t.first;
-        stats.values = t.second;
-        std::vector<T>& vec = *t.second;
+void renderToText(const std::string& name,
+                  const std::string& description,
+                  const std::vector<Stats<T> >& value_stats,
+                  const std::string& unit) {
 
-        // Calculate latency percentiles
-        std::sort(vec.begin(), vec.end());
-        stats.median = vec[(vec.size() * 50) / 100];
-        stats.pct5 = vec[(vec.size() * 5) / 100];
-        stats.pct95 = vec[(vec.size() * 95) / 100];
-        stats.pct99 = vec[(vec.size() * 99) / 100];
-
-        const double sum = std::accumulate(vec.begin(), vec.end(), 0.0);
-        stats.mean = sum / vec.size();
-        double accum = 0.0;
-        std::for_each (vec.begin(), vec.end(), [&](const double d) {
-            accum += (d - stats.mean) * (d - stats.mean);
-        });
-        stats.stddev = sqrt(accum / (vec.size() - 1));
-
-        value_stats.push_back(stats);
+    printf("%s", description.c_str());
+    if (description.size() < 88) {
+        fillLineWith('=', 88 - description.size());
     }
 
     // From these find the start and end for the spark graphs which covers the
@@ -168,12 +153,83 @@ void print_values(std::vector<std::pair<std::string, std::vector<T>*> > values,
            int(spark_start/1e3), unit.c_str(), int(spark_end/1e3));
 }
 
-void fillLineWith(const char c, int spaces) {
-    for (int i = 0; i < spaces; ++i) {
-        putchar(c);
+template<typename T>
+void renderToXML(const std::string& name, const std::string& description,
+                 const std::vector<Stats<T> >& value_stats,
+                 const std::string& unit) {
+    std::string test_name = testHarness.output_file_prefix;
+    test_name += name;
+    std::ofstream file(test_name + ".xml");
+
+    time_t now;
+    time(&now);
+    char timebuf[256];
+    // Ideally would use 'put_time' here, but it is not supported until GCC 5
+    strftime(timebuf, sizeof timebuf, "%FT%T%z\0", gmtime(&now));
+
+    file << "<testsuites timestamp=\"" << timebuf << "\">\n";
+    file << "  <testsuite name=\"ep-perfsuite\">\n";
+
+    for (const auto& stats : value_stats) {
+        file << "    <testcase name=\"" << name << "." << stats.name
+        << ".median\" time=\"" << stats.median/1e3 << "\" classname=\"ep-perfsuite\"/>\n"
+        << "    <testcase name=\"" << name << "." << stats.name
+        << ".pct95\" time=\"" << stats.pct95/1e3 << "\" classname=\"ep-perfsuite\"/>\n"
+        << "    <testcase name=\"" << name << "." << stats.name
+        << ".pct99\" time=\"" << stats.pct99/1e3 << "\" classname=\"ep-perfsuite\"/>\n";
     }
+    file << "  </testsuite>\n";
+    file << "</testsuites>\n";
 }
 
+// Given a vector of values (each a vector<T>) calculate metrics on them
+// and print in the format specified by {testharness.output_format}.
+template<typename T>
+void output_result(const std::string& name,
+                   const std::string& description,
+                   std::vector<std::pair<std::string, std::vector<T>* >> values,
+                   std::string unit) {
+    // First, calculate mean, median, standard deviation and percentiles of
+    // each set of values, both for printing and to derive what the range of
+    // the graphs should be.
+    std::string new_name = name;
+    std::replace(new_name.begin(), new_name.end(), ' ', '_');
+    std::vector<Stats<T>> value_stats;
+    for (const auto &t : values) {
+        Stats<T> stats;
+        stats.name = t.first;
+        stats.values = t.second;
+        std::vector <T> &vec = *t.second;
+
+        // Calculate latency percentiles
+        std::sort(vec.begin(), vec.end());
+        stats.median = vec[(vec.size() * 50) / 100];
+        stats.pct5 = vec[(vec.size() * 5) / 100];
+        stats.pct95 = vec[(vec.size() * 95) / 100];
+        stats.pct99 = vec[(vec.size() * 99) / 100];
+
+        const double sum = std::accumulate(vec.begin(), vec.end(), 0.0);
+        stats.mean = sum / vec.size();
+        double accum = 0.0;
+        std::for_each (vec.begin(), vec.end(),[&](const double d) {
+            accum += (d - stats.mean) * (d - stats.mean);
+        });
+        stats.stddev = sqrt(accum / (vec.size() - 1));
+
+        value_stats.push_back(stats);
+    }
+
+    // Now render in the given format.
+    switch (testHarness.output_format) {
+    case FORMAT_Text:
+        renderToText(new_name, description, value_stats, unit);
+        break;
+
+    case FORMAT_XML:
+        renderToXML(new_name, description, value_stats, unit);
+        break;
+    }
+}
 /* Add a sentinal document (one with a the key SENTINAL_KEY).
  * This can be used by TAP / DCP streams to reliably detect the end of
  * a run (sequence numbers are only supported by DCP, and
@@ -308,9 +364,8 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     append_timings.reserve(num_docs);
     delete_timings.reserve(num_docs);
 
-    int printed = printf("\n\n=== Latency [%s] - %" PRIu64 " items (µs)",
-                         title, uint64_t(num_docs));
-    fillLineWith('=', 88-printed);
+    std::string description(std::string("Latency [") + title + "] - " +
+                            std::to_string(num_docs) + " items (µs)");
 
     // run and measure on this thread.
     perf_latency_core(h, h1, 0, num_docs, add_timings, get_timings,
@@ -324,7 +379,7 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
     all_timings.push_back(std::make_pair("Replace", &replace_timings));
     all_timings.push_back(std::make_pair("Append", &append_timings));
     all_timings.push_back(std::make_pair("Delete", &delete_timings));
-    print_values(all_timings, "µs");
+    output_result(title, description, all_timings, "µs");
     return SUCCESS;
 }
 
@@ -333,7 +388,7 @@ static enum test_result perf_latency(ENGINE_HANDLE *h,
 static enum test_result perf_latency_baseline(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
 
-    return perf_latency(h, h1, "Baseline", ITERATIONS);
+    return perf_latency(h, h1, "1_bucket_1_thread_baseline", ITERATIONS);
 }
 
 /* Benchmark the baseline latency with the defragmenter enabled.
@@ -412,7 +467,7 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
     std::vector<BucketHolder> buckets;
 
     printf("\n\n");
-    int printed = printf("=== Latency(%d - bucket(s) % d - thread(s)) - %u items(µs)",
+    int printed = printf("=== Latency(%d - bucket(s) %d - thread(s)) - %u items(µs)",
                          n_buckets, n_threads, num_docs);
 
     fillLineWith('=', 88-printed);
@@ -491,7 +546,9 @@ static enum test_result perf_latency_baseline_multi_thread_bucket(engine_test_t*
     all_timings.push_back(std::make_pair("Replace", &replace_timings));
     all_timings.push_back(std::make_pair("Append", &append_timings));
     all_timings.push_back(std::make_pair("Delete", &delete_timings));
-    print_values(all_timings, "µs");
+    std::stringstream title;
+    title << n_buckets << "_buckets_" << n_threads << "_threads_baseline";
+    output_result(title.str(), "Timings", all_timings, "µs");
 
     return SUCCESS;
 }
@@ -945,19 +1002,20 @@ static enum test_result perf_dcp_latency_and_bandwidth(ENGINE_HANDLE *h,
     }
 
     printf("\n\n");
-    int printed = printf("=== %s Latency - %zu items(µs)", title.c_str(),
+
+    int printed = printf("=== %s KB Rcvd. - %zu items (KB)", title.c_str(),
                          item_count);
-    fillLineWith('=', 88-printed);
-
-    print_values(all_timings, "µs");
-
-    printed = printf("=== %s KB Rcvd. - %zu items (KB)", title.c_str(),
-                     item_count);
     fillLineWith('=', 86-printed);
 
-    print_values(all_sizes, "KB");
+    output_result(title, "Size", all_sizes, "KB");
 
     fillLineWith('=', 86);
+
+    printed = printf("=== %s Latency - %zu items(µs)", title.c_str(),
+                     item_count);
+    fillLineWith('=', 88-printed);
+
+    output_result(title, "Latency", all_timings, "µs");
     printf("\n\n");
 
     return SUCCESS;
