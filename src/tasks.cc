@@ -28,15 +28,14 @@ static const double WORKLOAD_MONITOR_FREQ(5.0);
 void GlobalTask::snooze(const double secs) {
     if (secs == INT_MAX) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        set_max_tv(waketime);
+        waketime = hrtime_t(-1);
         return;
     }
 
-    gettimeofday(&waketime, NULL);
-
+    waketime = gethrtime();
     if (secs) {
         setState(TASK_SNOOZED, TASK_RUNNING);
-        advance_tv(waketime, secs);
+        waketime += hrtime_t(secs * 1000000000);
     }
 }
 
