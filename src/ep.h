@@ -704,7 +704,7 @@ public:
     }
 
     size_t getTransactionTimePerItem() {
-        return lastTransTimePerItem;
+        return lastTransTimePerItem.load();
     }
 
     bool isFlushAllScheduled() {
@@ -991,7 +991,7 @@ private:
         AtomicValue<size_t> replicaRatio;
     } cachedResidentRatio;
     size_t statsSnapshotTaskId;
-    size_t lastTransTimePerItem;
+    AtomicValue<size_t> lastTransTimePerItem;
     item_eviction_policy_t eviction_policy;
 
     Mutex compactionLock;

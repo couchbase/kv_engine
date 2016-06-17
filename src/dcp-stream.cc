@@ -65,7 +65,8 @@ void Stream::pushToReadyQ(DcpResponse* resp)
 {
     if (resp) {
         readyQ.push(resp);
-        readyQueueMemory += resp->getMessageSize();
+        readyQueueMemory.fetch_add(resp->getMessageSize(),
+                                   std::memory_order_relaxed);
     }
 }
 
@@ -75,20 +76,20 @@ void Stream::popFromReadyQ(void)
         uint32_t respSize = readyQ.front()->getMessageSize();
         readyQ.pop();
         /* Decrement the readyQ size */
-        if ((readyQueueMemory - respSize) <= readyQueueMemory) {
-            readyQueueMemory -= respSize;
+        if (respSize <= readyQueueMemory.load(std::memory_order_relaxed)) {
+            readyQueueMemory.fetch_sub(respSize, std::memory_order_relaxed);
         } else {
             LOG(EXTENSION_LOG_DEBUG, "readyQ size for stream %s (vb %d)"
                 "underflow, likely wrong stat calculation! curr size: %llu;"
-                "new size: %d", name_.c_str(), getVBucket(), readyQueueMemory,
-                respSize);
-            readyQueueMemory = 0;
+                "new size: %d", name_.c_str(), getVBucket(),
+                readyQueueMemory.load(std::memory_order_relaxed), respSize);
+            readyQueueMemory.store(0, std::memory_order_relaxed);
         }
     }
 }
 
 uint64_t Stream::getReadyQueueMemory() {
-    return readyQueueMemory;
+    return readyQueueMemory.load(std::memory_order_relaxed);
 }
 
 const char * Stream::stateName(stream_state_t st) const {
@@ -308,7 +309,7 @@ void ActiveStream::completeBackfill() {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Backfill complete, %d items read"
             " from disk %d from memory, last seqno read: %llu",
             producer->logHeader(), vb_, backfillItems.disk.load(),
-            backfillItems.memory.load(), lastReadSeqno);
+            backfillItems.memory.load(), lastReadSeqno.load());
     }
 
     isBackfillTaskRunning.store(false);
@@ -342,7 +343,7 @@ void ActiveStream::setVBucketStateAckRecieved() {
             RCPtr<VBucket> vbucket = engine->getVBucket(vb_);
             LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRIu16 ") Vbucket marked as "
                 "dead, last sent seqno: %" PRIu64 ", high seqno: %" PRIu64 "",
-                producer->logHeader(), vb_, lastSentSeqno,
+                producer->logHeader(), vb_, lastSentSeqno.load(),
                 vbucket->getHighSeqno());
         } else {
             LOG(EXTENSION_LOG_INFO, "%s (vb %" PRIu16 ") Receive ack for set "
@@ -379,8 +380,8 @@ DcpResponse* ActiveStream::backfillPhase() {
     }
 
     if (!isBackfillTaskRunning && readyQ.empty()) {
-        backfillRemaining = 0;
-        if (lastReadSeqno >= end_seqno_) {
+        backfillRemaining.store(0, std::memory_order_relaxed);
+        if (lastReadSeqno.load() >= end_seqno_) {
             endStream(END_STREAM_OK);
         } else if (flags_ & DCP_ADD_STREAM_FLAG_TAKEOVER) {
             transitionState(STREAM_TAKEOVER_SEND);
@@ -399,7 +400,7 @@ DcpResponse* ActiveStream::backfillPhase() {
 }
 
 DcpResponse* ActiveStream::inMemoryPhase() {
-    if (lastSentSeqno >= end_seqno_) {
+    if (lastSentSeqno.load() >= end_seqno_) {
         endStream(END_STREAM_OK);
     } else if (readyQ.empty()) {
         if (nextCheckpointItem()) {
@@ -454,14 +455,14 @@ void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
     snprintf(buffer, bsize, "%s:stream_%d_memory_phase", name_.c_str(), vb_);
     add_casted_stat(buffer, itemsFromMemoryPhase, add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_sent_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, lastSentSeqno, add_stat, c);
+    add_casted_stat(buffer, lastSentSeqno.load(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_sent_snap_end_seqno",
              name_.c_str(), vb_);
     add_casted_stat(buffer,
                     lastSentSnapEndSeqno.load(std::memory_order_relaxed),
                     add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_last_read_seqno", name_.c_str(), vb_);
-    add_casted_stat(buffer, lastReadSeqno, add_stat, c);
+    add_casted_stat(buffer, lastReadSeqno.load(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_ready_queue_memory", name_.c_str(), vb_);
     add_casted_stat(buffer, getReadyQueueMemory(), add_stat, c);
     snprintf(buffer, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
@@ -749,7 +750,7 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             "sent from memory phase, %" PRIu64 " was last seqno sent, "
             "reason: %s", producer->logHeader(), vb_,
             uint64_t(backfillItems.sent.load()),
-            uint64_t(itemsFromMemoryPhase), lastSentSeqno,
+            uint64_t(itemsFromMemoryPhase), lastSentSeqno.load(),
             getEndStreamStatusStr(reason));
     }
 }
@@ -907,12 +908,12 @@ size_t ActiveStream::getItemsRemaining() {
     uint64_t high_seqno = vbucket->getHighSeqno();
 
     if (end_seqno_ < high_seqno) {
-        if (end_seqno_ > lastSentSeqno) {
-            return (end_seqno_ - lastSentSeqno);
+        if (end_seqno_ > lastSentSeqno.load()) {
+            return (end_seqno_ - lastSentSeqno.load());
         }
     } else {
-        if (high_seqno > lastSentSeqno) {
-            return (high_seqno - lastSentSeqno);
+        if (high_seqno > lastSentSeqno.load()) {
+            return (high_seqno - lastSentSeqno.load());
         }
     }
 

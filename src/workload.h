@@ -58,11 +58,11 @@ public:
     }
 
     workload_pattern_t getWorkLoadPattern(void) {
-        return workloadPattern;
+        return workloadPattern.load();
     }
 
     std::string stringOfWorkLoadPattern(void) {
-        switch (workloadPattern) {
+        switch (workloadPattern.load()) {
         case READ_HEAVY:
             return "read_heavy";
         case WRITE_HEAVY:
@@ -73,14 +73,14 @@ public:
     }
 
     void setWorkLoadPattern(workload_pattern_t pattern) {
-        workloadPattern = pattern;
+        workloadPattern.store(pattern);
     }
 
 private:
 
     int maxNumWorkers;
     int maxNumShards;
-    volatile workload_pattern_t workloadPattern;
+    AtomicValue<workload_pattern_t> workloadPattern;
 };
 
 #endif  // SRC_WORKLOAD_H_

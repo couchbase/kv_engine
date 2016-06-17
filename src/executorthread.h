@@ -86,9 +86,13 @@ public:
 
     void wake(ExTask &task);
 
+    // Changes this threads' current task to the specified task
+    void setCurrentTask(ExTask newTask);
+
     const std::string& getName() const { return name; }
 
-    const std::string getTaskName() const {
+    const std::string getTaskName() {
+        LockHolder lh(currentTaskMutex);
         if (currentTask) {
             return currentTask->getDescription();
         } else {
@@ -130,7 +134,10 @@ private:
     hrtime_t waketime; // set to the earliest
 
     hrtime_t taskStart;
+
+    Mutex currentTaskMutex; // Protects currentTask
     ExTask currentTask;
+
     task_type_t curTaskType;
 
     Mutex logMutex;

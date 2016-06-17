@@ -126,7 +126,7 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
     }
 
     if (!readyQueue.empty() && readyQueue.top()->isdead()) {
-        t.currentTask = _popReadyTask(); // clean out dead tasks first
+        t.setCurrentTask(_popReadyTask()); // clean out dead tasks first
         ret = true;
     } else if (!readyQueue.empty() || !pendingQueue.empty()) {
         t.curTaskType = manager->tryNewWork(queueType);
@@ -138,7 +138,7 @@ bool TaskQueue::_fetchNextTask(ExecutorThread &t, bool toSleep) {
             _checkPendingQueue();
 
             ExTask tid = _popReadyTask(); // and pop out the top task
-            t.currentTask = tid; // assign task to thread
+            t.setCurrentTask(tid);
             ret = true;
         } else if (!readyQueue.empty()) { // We hit limit on max # workers
             ExTask tid = _popReadyTask(); // that can work on current Q type!

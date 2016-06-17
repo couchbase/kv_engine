@@ -516,7 +516,7 @@ private:
 
     Mutex hpChksMutex;
     std::list<HighPriorityVBEntry> hpChks;
-    volatile size_t numHpChks; // size of list hpChks (to avoid MB-9434)
+    AtomicValue<size_t> numHpChks; // size of list hpChks (to avoid MB-9434)
     KVShard *shard;
 
     Mutex bfMutex;

@@ -167,8 +167,11 @@ protected:
     const static uint64_t dcpMaxSeqno;
 
 private:
-    /* This tracks the memory occupied by elements in the readyQ */
-    uint64_t readyQueueMemory;
+    /* readyQueueMemory tracks the memory occupied by elements
+     * in the readyQ.  It is an atomic because otherwise
+       getReadyQueueMemory would need to acquire streamMutex.
+     */
+    AtomicValue <uint64_t> readyQueueMemory;
 };
 
 
@@ -202,7 +205,7 @@ public:
     void setVBucketStateAckRecieved();
 
     void incrBackfillRemaining(size_t by) {
-        backfillRemaining += by;
+        backfillRemaining.fetch_add(by);
     }
 
     void markDiskSnapshot(uint64_t startSeqno, uint64_t endSeqno);
@@ -262,15 +265,19 @@ private:
     bool isCurrentSnapshotCompleted() const;
 
     //! The last sequence number queued from disk or memory
-    uint64_t lastReadSeqno;
+    AtomicValue<uint64_t> lastReadSeqno;
     //! The last sequence number sent to the network layer
-    uint64_t lastSentSeqno;
+    AtomicValue<uint64_t> lastSentSeqno;
     //! The last known seqno pointed to by the checkpoint cursor
     uint64_t curChkSeqno;
     //! The current vbucket state to send in the takeover stream
     vbucket_state_t takeoverState;
-    //! The amount of items remaining to be read from disk
-    size_t backfillRemaining;
+    /* backfillRemaining is a stat recording the amount of
+     * items remaining to be read from disk.  It is an atomic
+     * because otherwise the function incrBackfillRemaining
+     * must acquire the streamMutex lock.
+     */
+    AtomicValue <size_t> backfillRemaining;
     //! Stats to track items read and sent from the backfill phase
     struct {
         AtomicValue<size_t> memory;
