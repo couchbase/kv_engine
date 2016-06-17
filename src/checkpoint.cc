@@ -295,6 +295,13 @@ bool Checkpoint::isEligibleToBeUnreferenced() {
     return true;
 }
 
+std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
+    os << "Checkpoint[" << &c << "] with "
+       << "seqno:{" << c.getLowSeqno() << "," << c.getHighSeqno() << "} "
+       << "state:" << c.getState();
+    return os;
+}
+
 CheckpointManager::~CheckpointManager() {
     LockHolder lh(queueLock);
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
@@ -365,7 +372,8 @@ bool CheckpointManager::addNewCheckpoint_UNLOCKED(uint64_t id,
     }
 
     LOG(EXTENSION_LOG_INFO, "Create a new open checkpoint %" PRIu64
-        " for vbucket %d", id, vbucketId);
+        " for vbucket %" PRIu16 " at seqno:%" PRIu64,
+        id, vbucketId, snapStartSeqno);
 
     bool was_empty = checkpointList.empty() ? true : false;
     Checkpoint *checkpoint = new Checkpoint(stats, id, snapStartSeqno,
@@ -432,12 +440,15 @@ bool CheckpointManager::closeOpenCheckpoint_UNLOCKED() {
         return true;
     }
 
-    uint64_t id = checkpointList.back()->getId();
+    auto& cur_ckpt = checkpointList.back();
     LOG(EXTENSION_LOG_INFO, "Close the open checkpoint %" PRIu64
-        " for vbucket %d", id, vbucketId);
+        " for vbucket:%" PRIu16 " seqnos:{%" PRIu64 ",%" PRIu64 "}",
+        cur_ckpt->getId(), vbucketId, cur_ckpt->getLowSeqno(),
+        cur_ckpt->getHighSeqno());
 
-    // This item represents the end of the current open checkpoint and is sent to the slave node.
-    queued_item qi = createCheckpointItem(id, vbucketId,
+    // This item represents the end of the current open checkpoint and is sent
+    // to the slave node.
+    queued_item qi = createCheckpointItem(cur_ckpt->getId(), vbucketId,
                                           queue_op_checkpoint_end);
 
     checkpointList.back()->queueDirty(qi, this);
@@ -692,7 +703,7 @@ size_t CheckpointManager::getNumOfCursors() {
     return connCursors.size();
 }
 
-size_t CheckpointManager::getNumCheckpoints() {
+size_t CheckpointManager::getNumCheckpoints() const {
     LockHolder lh(queueLock);
     return checkpointList.size();
 }
@@ -1801,4 +1812,13 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
             "CheckpointManager::addStats: An error occurred while adding stats: %s",
             error.what());
     }
+}
+
+std::ostream& operator <<(std::ostream& os, const CheckpointManager& m) {
+    os << "CheckpointManager[" << &m << "] with "
+       << m.getNumCheckpoints() << " checkpoints, " << m.getNumItems() << " items." << std::endl;
+    for (auto* c : m.checkpointList) {
+        os << "    " << *c << std::endl;
+    }
+    return os;
 }

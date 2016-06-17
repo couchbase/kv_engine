@@ -28,9 +28,11 @@
 
 #include "bgfetcher.h"
 #include "checkpoint.h"
+#include "checkpoint_remover.h"
 #include "connmap.h"
 #include "ep_engine.h"
 #include "flusher.h"
+#include "../mock/mock_dcp_producer.h"
 
 #include "programs/engine_testapp/mock_server.h"
 #include <platform/dirutils.h>
@@ -70,7 +72,15 @@ void SynchronousEPEngine::setEPStore(EventuallyPersistentStore* store) {
 }
 
 MockEPStore::MockEPStore(EventuallyPersistentEngine &theEngine)
-    : EventuallyPersistentStore(theEngine) {}
+    : EventuallyPersistentStore(theEngine) {
+    // Perform a limited set of setup (normally done by EPStore::initialize) -
+    // enough such that objects which are assumed to exist are present.
+
+    // Create the closed checkpoint removed task. Note we do _not_ schedule
+    // it, unlike EPStore::initialize
+    chkTask = new ClosedUnrefCheckpointRemoverTask
+            (&engine, stats, theEngine.getConfiguration().getChkRemoverStime());
+}
 
 VBucketMap& MockEPStore::getVbMap() {
     return vbMap;
@@ -100,6 +110,10 @@ void EventuallyPersistentStoreTest::SetUp() {
     store = new MockEPStore(*engine);
     engine->setEPStore(store);
 
+    // Ensure that EPEngine is hold about necessary server callbacks
+    // (client disconnect, bucket delete).
+    engine->public_initializeEngineCallbacks();
+
     // Need to initialize ep_real_time and friends.
     initialize_time_functions(get_mock_server_api()->core);
 
@@ -109,6 +123,7 @@ void EventuallyPersistentStoreTest::SetUp() {
 void EventuallyPersistentStoreTest::TearDown() {
     destroy_mock_cookie(cookie);
     destroy_mock_event_callbacks();
+    engine->getDcpConnMap().manageConnections();
     engine.reset();
 
     // Shutdown the ExecutorPool singleton (initialized when we create

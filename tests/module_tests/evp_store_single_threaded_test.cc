@@ -210,3 +210,55 @@ TEST_F(SingleThreadedEPStoreTest, MB19428_no_streams_against_dead_vbucket) {
         EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
     }
 }
+
+// Check that in-progress disk backfills (`CouchKVStore::backfill`) are
+// correctly deleted when we delete a bucket. If not then we leak vBucket file
+// descriptors, which can prevent ns_server from cleaning up old vBucket files
+// and consequently re-adding a node to the cluster.
+//
+TEST_F(SingleThreadedEPStoreTest, MB19892_BackfillNotDeleted) {
+    // Make vbucket active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Perform one SET, then close it's checkpoint. This means that we no
+    // longer have all sequence numbers in memory checkpoints, forcing the
+    // DCP stream request to go to disk (backfill).
+    store_item(vbid, "key", "value");
+
+    // Force a new checkpoint.
+    auto vb = store->getVbMap().getBucket(vbid);
+    auto& ckpt_mgr = vb->checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+
+    // Directly flush the vbucket, ensuring data is on disk.
+    //  (This would normally also wake up the checkpoint remover task, but
+    //   as that task was never registered with the ExecutorPool in this test
+    //   environment, we need to manually remove the prev checkpoint).
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+
+    bool new_ckpt_created;
+    EXPECT_EQ(1,
+              ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created));
+
+    // Create a DCP producer, and start a stream request.
+    std::string name{"test_producer"};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->dcpOpen(cookie, /*opaque:unused*/{}, /*seqno:unused*/{},
+                              DCP_OPEN_PRODUCER, name.data(), name.size()));
+
+    uint64_t rollbackSeqno;
+    auto dummy_dcp_add_failover_cb = [](vbucket_failover_t* entry,
+                                       size_t nentries, const void *cookie) {
+        return ENGINE_SUCCESS;
+    };
+
+    // Actual stream request method (EvpDcpStreamReq) is static, so access via
+    // the engine_interface.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine.get()->dcp.stream_req(
+                      &engine.get()->interface, cookie, /*flags*/0,
+                      /*opaque*/0, /*vbucket*/vbid, /*start_seqno*/0,
+                      /*end_seqno*/-1, /*vb_uuid*/0xabcd, /*snap_start*/0,
+                      /*snap_end*/0, &rollbackSeqno,
+                      dummy_dcp_add_failover_cb));
+}

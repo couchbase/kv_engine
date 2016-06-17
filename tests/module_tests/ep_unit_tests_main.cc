@@ -25,7 +25,9 @@
 #include <getopt.h>
 #include <gtest/gtest.h>
 
+#include "configuration.h"
 #include "logger.h"
+#include "stored-value.h"
 
 /* static storage for environment variable set by putenv(). */
 static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
@@ -61,6 +63,11 @@ int main(int argc, char **argv) {
     }
     Logger::setLoggerAPI(get_mock_server_api()->log);
     Logger::setGlobalLogLevel(EXTENSION_LOG_DEBUG);
+
+    // Default number of hashtable locks is too large for TSan to
+    // track. Use the value in configuration.json (47 at time of
+    // writing).
+    HashTable::setDefaultNumLocks(Configuration().getHtLocks());
 
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

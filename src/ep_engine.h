@@ -486,7 +486,7 @@ public:
                               uint32_t opaque,
                               uint32_t seqno,
                               uint32_t flags,
-                              void *stream_name,
+                              const void *stream_name,
                               uint16_t nname);
 
     ENGINE_ERROR_CODE dcpAddStream(const void* cookie,
@@ -1004,6 +1004,10 @@ protected:
     // Get the current tap connection for this cookie.
     // If this method returns NULL, you should return TAP_DISCONNECT
     TapProducer* getTapProducer(const void *cookie);
+
+    // Initialize all required callbacks of this engine with the underlying
+    // server.
+    void initializeEngineCallbacks();
 
     SERVER_HANDLE_V1 *serverApi;
     EventuallyPersistentStore *epstore;

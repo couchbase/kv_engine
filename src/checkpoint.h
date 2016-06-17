@@ -305,14 +305,14 @@ public:
     queue_dirty_t queueDirty(const queued_item &qi,
                              CheckpointManager *checkpointManager);
 
-    uint64_t getLowSeqno() {
-        std::list<queued_item>::iterator pos = toWrite.begin();
+    uint64_t getLowSeqno() const {
+        auto pos = toWrite.begin();
         pos++;
         return (*pos)->getBySeqno();
     }
 
-    uint64_t getHighSeqno() {
-        std::list<queued_item>::reverse_iterator pos = toWrite.rbegin();
+    uint64_t getHighSeqno() const {
+        auto pos = toWrite.rbegin();
         return (*pos)->getBySeqno();
     }
 
@@ -420,6 +420,8 @@ private:
     // The following stat is to contain the memory consumption of all
     // the queued items in the given checkpoint.
     size_t                         effectiveMemUsage;
+
+    friend std::ostream& operator <<(std::ostream& os, const Checkpoint& m);
 };
 
 typedef std::pair<uint64_t, bool> CursorRegResult;
@@ -562,13 +564,13 @@ public:
      * Return the total number of items (including meta items) that belong to
      * this checkpoint manager.
      */
-    size_t getNumItems() {
+    size_t getNumItems() const {
         return numItems;
     }
 
     size_t getNumOpenChkItems();
 
-    size_t getNumCheckpoints();
+    size_t getNumCheckpoints() const;
 
     /* Returns the count of Items (excluding meta items) that the given cursor
      * has yet to process (i.e. between the cursor's current position and the
@@ -763,7 +765,7 @@ private:
 
     EPStats                 &stats;
     CheckpointConfig        &checkpointConfig;
-    Mutex                    queueLock;
+    mutable Mutex            queueLock;
     const uint16_t           vbucketId;
 
     // Total number of items (including meta items) in /all/ checkpoints managed
@@ -778,7 +780,12 @@ private:
     cursor_index             connCursors;
 
     FlusherCallback          flusherCB;
+
+    friend std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
 };
+
+// Outputs a textual description of the CheckpointManager.
+std::ostream& operator<<(std::ostream& os, const CheckpointManager& m);
 
 /**
  * A class containing the config parameters for checkpoint.

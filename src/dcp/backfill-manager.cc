@@ -26,20 +26,37 @@ static const size_t sleepTime = 1;
 
 class BackfillManagerTask : public GlobalTask {
 public:
-    BackfillManagerTask(EventuallyPersistentEngine* e, backfill_manager_t mgr,
+    BackfillManagerTask(EventuallyPersistentEngine* e, std::weak_ptr<BackfillManager> mgr,
                         const Priority &p, double sleeptime = 0,
                         bool completeBeforeShutdown = false)
-        : GlobalTask(e, p, sleeptime, completeBeforeShutdown), manager(mgr) {}
+        : GlobalTask(e, p, sleeptime, completeBeforeShutdown),
+          weak_manager(mgr) {}
 
     bool run();
 
     std::string getDescription();
 
 private:
-    backfill_manager_t manager;
+    // A weak pointer to the backfill manager which owns this
+    // task. The manager is owned by the DcpProducer, but we need to
+    // give the BackfillManagerTask access to the manager as it runs
+    // concurrently in a different thread.
+    // If the manager is deleted (by the DcpProducer) then the
+    // ManagerTask simply cancels itself and stops running.
+    std::weak_ptr<BackfillManager> weak_manager;
 };
 
 bool BackfillManagerTask::run() {
+    // Create a new shared_ptr to the manager for the duration of this
+    // execution.
+    auto manager = weak_manager.lock();
+    if (!manager) {
+        // backfill manager no longer exists - cancel ourself and stop
+        // running.
+        cancel();
+        return false;
+    }
+
     backfill_status_t status = manager->backfill();
     if (status == backfill_finished) {
         return false;
@@ -88,6 +105,11 @@ void BackfillManager::addStats(connection_t conn, ADD_STAT add_stat,
 }
 
 BackfillManager::~BackfillManager() {
+    if (managerTask) {
+        managerTask->cancel();
+        managerTask.reset();
+    }
+
     while (!activeBackfills.empty()) {
         DCPBackfill* backfill = activeBackfills.front();
         activeBackfills.pop_front();
@@ -112,14 +134,6 @@ BackfillManager::~BackfillManager() {
     }
 }
 
-void BackfillManager::terminate() {
-    LockHolder lh(lock);
-    if (managerTask) {
-        managerTask->cancel();
-        managerTask.reset();
-    }
-}
-
 
 void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
     LockHolder lh(lock);
@@ -134,7 +148,7 @@ void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
         return;
     }
 
-    managerTask.reset(new BackfillManagerTask(engine, this,
+    managerTask.reset(new BackfillManagerTask(engine, shared_from_this(),
                                               Priority::BackfillTaskPriority));
     ExecutorPool::get()->schedule(managerTask, AUXIO_TASK_IDX);
 }

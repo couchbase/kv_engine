@@ -2167,11 +2167,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     epstore = new EventuallyPersistentStore(*this);
 
-    // Register the ON_DISCONNECT callback
-    registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
-
-    // Register the ON_DELETE_BUCKET callback
-    registerEngineCallback(ON_DELETE_BUCKET, EvpHandleDeleteBucket, this);
+    initializeEngineCallbacks();
 
     // Complete the initialization of the ep-store
     if (!epstore->initialize()) {
@@ -3004,6 +3000,13 @@ TapProducer* EventuallyPersistentEngine::getTapProducer(const void *cookie) {
         return NULL;
     }
     return rv;
+}
+
+void EventuallyPersistentEngine::initializeEngineCallbacks() {
+    // Register the ON_DISCONNECT callback
+    registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
+    // Register the ON_DELETE_BUCKET callback
+    registerEngineCallback(ON_DELETE_BUCKET, EvpHandleDeleteBucket, this);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
@@ -6304,7 +6307,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,
                                                        uint32_t opaque,
                                                        uint32_t seqno,
                                                        uint32_t flags,
-                                                       void *stream_name,
+                                                       const void *stream_name,
                                                        uint16_t nname)
 {
     (void) opaque;

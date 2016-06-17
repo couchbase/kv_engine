@@ -165,14 +165,14 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
         supportsCursorDropping = true;
     }
 
-    backfillMgr = new BackfillManager(&engine_);
+    backfillMgr.reset(new BackfillManager(&engine_));
 
     checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(e);
     ExecutorPool::get()->schedule(checkpointCreatorTask, AUXIO_TASK_IDX);
 }
 
 DcpProducer::~DcpProducer() {
-    backfillMgr->terminate();
+    backfillMgr.reset();
     delete rejectResp;
 
     ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
@@ -783,6 +783,17 @@ void DcpProducer::closeAllStreams() {
     for (const auto vbid: vbvector) {
          engine_.getDcpConnMap().removeVBConnByVBId(conn, vbid);
     }
+
+    // Destroy the backfillManager. (BackfillManager task also
+    // may hold a weak reference to it while running, but that is
+    // guaranteed to decay and free the BackfillManager once it
+    // completes run().
+    // This will terminate any tasks and delete any backfills
+    // associated with this Producer.  This is necessary as if we
+    // don't, then the RCPtr references which exist between
+    // DcpProducer and ActiveStream result in us leaking DcpProducer
+    // objects (and Couchstore vBucket files, via DCPBackfill task).
+    backfillMgr.reset();
 }
 
 const char* DcpProducer::getType() const {

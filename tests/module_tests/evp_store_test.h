@@ -64,6 +64,10 @@ public:
                                                   uint16_t vbid) {
         return doDcpVbTakeoverStats(cookie, add_stat, key, vbid);
     }
+
+    void public_initializeEngineCallbacks() {
+        return initializeEngineCallbacks();
+    }
 };
 
 /* Subclass of EPStore to expose normally non-public members for test
