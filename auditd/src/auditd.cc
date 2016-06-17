@@ -110,6 +110,7 @@ AUDIT_ERROR_CODE start_auditdaemon(const AUDIT_EXTENSION_DATA *extension_data) {
         Audit::log_error(CB_CREATE_THREAD_ERROR, NULL);
         return AUDIT_FAILED;
     }
+    audit.consumer_thread_running.store(true);
     return AUDIT_SUCCESS;
 }
 
@@ -185,9 +186,12 @@ AUDIT_ERROR_CODE shutdown_auditdaemon(const char *config) {
     cb_mutex_enter(&audit.producer_consumer_lock);
     cb_cond_broadcast(&audit.events_arrived);
     cb_mutex_exit(&audit.producer_consumer_lock);
-    if (cb_join_thread(audit.consumer_tid) != 0) {
-        audit.clean_up();
-        return AUDIT_FAILED;
+    if (audit.consumer_thread_running.load()) {
+        if (cb_join_thread(audit.consumer_tid) != 0) {
+            audit.consumer_thread_running.store(false);
+            audit.clean_up();
+            return AUDIT_FAILED;
+        }
     }
     audit.clean_up();
     return AUDIT_SUCCESS;

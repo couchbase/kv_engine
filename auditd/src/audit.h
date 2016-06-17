@@ -43,6 +43,7 @@ public:
     std::string auditfile_open_time_string;
     std::string configfile;
     cb_thread_t consumer_tid;
+    std::atomic_bool consumer_thread_running;
     cb_cond_t processeventqueue_empty;
     cb_cond_t events_arrived;
     cb_mutex_t producer_consumer_lock;
@@ -54,6 +55,7 @@ public:
     std::atomic<uint32_t> dropped_events;
 
     Audit(void) : dropped_events(0), max_audit_queue(50000) {
+        consumer_thread_running.store(false);
         processeventqueue = &eventqueue1;
         filleventqueue = &eventqueue2;
         cb_cond_initialize(&processeventqueue_empty);
