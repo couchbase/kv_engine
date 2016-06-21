@@ -40,6 +40,43 @@ typedef struct ForestMetaData {
     uint8_t  confresmode;
 } ForestMetaData;
 
+/**
+ * Forest KV store handle
+ */
+class ForestKvsHandle {
+public:
+    ForestKvsHandle(fdb_file_handle* fHandle,
+                    fdb_kvs_handle* kHandle) {
+        fileHandle = fHandle;
+        kvsHandle  = kHandle;
+    }
+
+    ~ForestKvsHandle() {
+        if (kvsHandle) {
+            fdb_kvs_close(kvsHandle);
+        }
+
+        if (fileHandle) {
+            fdb_close(fileHandle);
+        }
+    }
+
+    fdb_kvs_handle* getKvsHandle() {
+        return kvsHandle;
+    }
+
+    fdb_file_handle* getFileHandle() {
+        return fileHandle;
+    }
+
+private:
+
+    fdb_file_handle* fileHandle;
+    fdb_kvs_handle* kvsHandle;
+
+    DISALLOW_COPY_AND_ASSIGN(ForestKvsHandle);
+};
+
 #define forestMetaOffset(field) offsetof(ForestMetaData, field)
 
 enum class handleType {
@@ -369,22 +406,37 @@ private:
     bool intransaction;
     const std::string dbname;
     std::atomic<uint64_t> dbFileRevNum;
-    fdb_file_handle* dbFileHandle;
+    std::string dbFileNameStr;
+    /* ForestDB file handle for the reader tasks. Used
+     * primarily by the bgFetcher task.
+     */
+    fdb_file_handle* readDBFileHandle;
+    /* ForestDB file handle for the writer tasks. Used
+     * by tasks that write data (flusher), deletes vbuckets,
+     * snapshotting vbucket state */
+    fdb_file_handle* writeDBFileHandle;
     std::unordered_map<uint16_t, fdb_kvs_handle *> writeHandleMap;
     std::unordered_map<uint16_t, fdb_kvs_handle *> readHandleMap;
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDeleteCount;
     Couchbase::RelaxedAtomic<uint64_t> cachedFileSize;
     Couchbase::RelaxedAtomic<uint64_t> cachedSpaceUsed;
-    fdb_kvs_handle* vbStateHandle;
+    fdb_kvs_handle* readVbStateHandle;
+    fdb_kvs_handle* writeVbStateHandle;
     fdb_config fileConfig;
     fdb_kvs_config kvsConfig;
     std::vector<ForestRequest *> pendingReqsQ;
     static std::mutex initLock;
     static int numGlobalFiles;
     std::atomic<size_t> scanCounter; //atomic counter for generating scan id
-    std::map<size_t, fdb_kvs_handle*> scans; //map holding active scans
+    std::map<size_t, std::unique_ptr<ForestKvsHandle>> scans; //map holding active scans
     std::mutex scanLock; //lock guarding the scan map
     fdb_filemgr_ops_t statCollectingFileOps;
+    /* guard for the writer tasks to synchronize access to writeDBFileHandle */
+    std::mutex writerLock;
+    /* guard to synchronize access between compactor task to close the handle
+     * and another thread to create a new ForestDB handle
+     */
+    std::mutex handleLock;
 
 private:
     void close();
@@ -393,8 +445,9 @@ private:
     void initForestDb();
     void shutdownForestDb();
     ENGINE_ERROR_CODE readVBState(uint16_t vbId);
-    fdb_kvs_handle *getKvsHandle(uint16_t vbId, handleType htype);
     void commitCallback(std::vector<ForestRequest *>& committedReqs);
+    fdb_kvs_handle* getKvsHandle(uint16_t vbId, handleType htype);
+    std::unique_ptr<ForestKvsHandle> createKvsHandle(uint16_t vbId);
     bool save2forestdb();
     void updateFileInfo();
     fdb_filemgr_ops_t getForestStatOps(FileStats* stats);
