@@ -367,7 +367,7 @@ class ForestKVStore : public KVStore
 private:
     bool intransaction;
     const std::string dbname;
-    uint64_t dbFileRevNum;
+    std::atomic<uint64_t> dbFileRevNum;
     fdb_file_handle* dbFileHandle;
     std::unordered_map<uint16_t, fdb_kvs_handle *> writeHandleMap;
     std::unordered_map<uint16_t, fdb_kvs_handle *> readHandleMap;
