@@ -1491,15 +1491,12 @@ fdb_compact_decision ForestKVStore::compaction_cb(fdb_file_handle* fhandle,
 
 bool ForestKVStore::compactDB(compaction_ctx* ctx) {
     uint16_t shardId = ctx->db_file_id;
-    uint64_t prevRevNum = dbFileRevNum;
-
-    dbFileRevNum++;
 
     std::string dbFileBase = dbname + "/" + std::to_string(shardId) + ".fdb.";
 
-    std::string prevDbFile = dbFileBase + std::to_string(prevRevNum);
+    std::string prevDbFile = dbFileBase + std::to_string(dbFileRevNum);
 
-    std::string newDbFile = dbFileBase + std::to_string(dbFileRevNum);
+    std::string newDbFile = dbFileBase + std::to_string(dbFileRevNum + 1);
 
     fileConfig.compaction_cb = compaction_cb_c;
     fileConfig.compaction_cb_ctx = ctx;
@@ -1507,7 +1504,7 @@ bool ForestKVStore::compactDB(compaction_ctx* ctx) {
 
     ctx->store = this;
 
-    fdb_file_handle* compactFileHandle;
+    fdb_file_handle* compactFileHandle = NULL;
     fdb_status status = fdb_open(&compactFileHandle, prevDbFile.c_str(),
                                  &fileConfig);
 
@@ -1530,6 +1527,9 @@ bool ForestKVStore::compactDB(compaction_ctx* ctx) {
     }
 
     fdb_close(compactFileHandle);
+
+    /* Compaction is complete at this point. Switch to the new file */
+    ++dbFileRevNum;
 
     return true;
 }
