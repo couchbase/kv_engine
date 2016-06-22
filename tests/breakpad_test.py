@@ -117,9 +117,6 @@ else:
           file=sys.stderr)
     cleanup_and_exit(1)
 
-rbac = {"foo": "bar"}
-rbac_json = json.dumps(rbac)
-
 # Given there are multiple breakpad tests which can run in parallel, give
 # each one it's own minidump directory.
 minidump_dir = tempfile.mkdtemp(prefix='breakpad_test_tmp.')

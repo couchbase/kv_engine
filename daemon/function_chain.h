@@ -116,6 +116,10 @@ public:
         return rval;
     }
 
+    bool empty() const {
+        return chain.empty();
+    }
+
 private:
     /*
      * Vector to store the chain of Function objects.

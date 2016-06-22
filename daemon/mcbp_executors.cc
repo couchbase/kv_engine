@@ -34,6 +34,7 @@
 #include "enginemap.h"
 #include "mcbpdestroybuckettask.h"
 #include "sasl_tasks.h"
+#include "mcbp_privileges.h"
 
 #include <memcached/audit_interface.h>
 #include <platform/checked_snprintf.h>
@@ -536,10 +537,6 @@ static void process_stat_settings(ADD_STAT add_stat_callback,
             add_stat(cookie, add_stat_callback, "binary_extension", ptr->get_name());
         }
     }
-
-    add_stat(cookie, add_stat_callback, "rbac", settings.getRbacFile().c_str());
-    add_stat(cookie, add_stat_callback, "rbac privilege debug",
-            settings.isRbacPrivilegeDebug());
 
     add_stat(cookie, add_stat_callback, "audit",
              settings.getAuditFile().c_str());
@@ -4284,31 +4281,39 @@ static void create_bucket_executor(McbpConnection* c, void* packet) {
 }
 
 static void list_bucket_executor(McbpConnection* c, void*) {
-    try {
-        std::string blob;
-        for (auto& bucket : all_buckets) {
-            cb_mutex_enter(&bucket.mutex);
-            if (bucket.state == BucketState::Ready) {
-                blob += bucket.name + std::string(" ");
+    // @todo We're currently allowing every user to run list buckets
+    //       in the global privilege check, but we have to filter out
+    //       the buckets people may use or not
+    static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
+    if (c->isAdmin() || testing) {
+        try {
+            std::string blob;
+            for (auto& bucket : all_buckets) {
+                cb_mutex_enter(&bucket.mutex);
+                if (bucket.state == BucketState::Ready) {
+                    blob += bucket.name + std::string(" ");
+                }
+                cb_mutex_exit(&bucket.mutex);
             }
-            cb_mutex_exit(&bucket.mutex);
-        }
 
-        if (blob.size() > 0) {
-            /* remove trailing " " */
-            blob.pop_back();
-        }
+            if (blob.size() > 0) {
+                /* remove trailing " " */
+                blob.pop_back();
+            }
 
-        if (mcbp_response_handler(NULL, 0, NULL, 0, blob.data(),
-                                  uint32_t(blob.size()), 0,
-                                  PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
-                                  c->getCookie())) {
-            mcbp_write_and_free(c, &c->getDynamicBuffer());
-        } else {
+            if (mcbp_response_handler(NULL, 0, NULL, 0, blob.data(),
+                                      uint32_t(blob.size()), 0,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
+                                      c->getCookie())) {
+                mcbp_write_and_free(c, &c->getDynamicBuffer());
+            } else {
+                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+            }
+        } catch (const std::bad_alloc&) {
             mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
         }
-    } catch (const std::bad_alloc&) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_ENOMEM);
+    } else {
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
     }
 }
 
@@ -4373,17 +4378,25 @@ static void delete_bucket_executor(McbpConnection* c, void* packet) {
 }
 
 static void select_bucket_executor(McbpConnection* c, void* packet) {
-    /* The validator ensured that we're not doing a buffer overflow */
-    char bucketname[1024];
-    auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
-    uint16_t klen = ntohs(req->message.header.request.keylen);
-    memcpy(bucketname, req->bytes + (sizeof(*req)), klen);
-    bucketname[klen] = '\0';
+    // @todo We're currently allowing every user to run select bucket
+    //       in the global privilege check, but we have to filter out
+    //       the buckets people may use or not
+    static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
+    if (c->isAdmin() || testing) {
+        /* The validator ensured that we're not doing a buffer overflow */
+        char bucketname[1024];
+        auto* req = reinterpret_cast<protocol_binary_request_no_extras*>(packet);
+        uint16_t klen = ntohs(req->message.header.request.keylen);
+        memcpy(bucketname, req->bytes + (sizeof(*req)), klen);
+        bucketname[klen] = '\0';
 
-    if (associate_bucket(c, bucketname)) {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        if (associate_bucket(c, bucketname)) {
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_SUCCESS);
+        } else {
+            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+        }
     } else {
-        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_KEY_ENOENT);
+        mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
     }
 }
 
@@ -4581,6 +4594,8 @@ static protocol_binary_response_status validate_bin_header(McbpConnection* c) {
 }
 
 static void process_bin_packet(McbpConnection* c) {
+    static McbpPrivilegeChains privilegeChains;
+    protocol_binary_response_status result;
 
     char* packet = (c->read.curr - (c->binary_header.request.bodylen +
                                     sizeof(c->binary_header)));
@@ -4588,9 +4603,9 @@ static void process_bin_packet(McbpConnection* c) {
     auto opcode = static_cast<protocol_binary_command>(c->binary_header.request.opcode);
     auto executor = executors[opcode];
 
-    AuthResult res = c->checkAccess(opcode);
+    auto res = privilegeChains.invoke(opcode, c->getCookieObject());
     switch (res) {
-    case AuthResult::FAIL:
+    case PrivilegeAccess::Fail:
         LOG_WARNING(c,
                     "%u %s: no access to command %s",
                     c->getId(), c->getDescription().c_str(),
@@ -4598,8 +4613,8 @@ static void process_bin_packet(McbpConnection* c) {
         audit_command_access_failed(c);
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EACCESS);
         return;
-    case AuthResult::OK: {
-        protocol_binary_response_status result = validate_bin_header(c);
+    case PrivilegeAccess::Ok:
+        result = validate_bin_header(c);
         if (result == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
             result = c->validateCommand(opcode);
         }
@@ -4621,8 +4636,7 @@ static void process_bin_packet(McbpConnection* c) {
             process_bin_unknown_packet(c);
         }
         return;
-    }
-    case AuthResult::STALE:
+    case PrivilegeAccess::Stale:
         mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_AUTH_STALE);
         return;
     }

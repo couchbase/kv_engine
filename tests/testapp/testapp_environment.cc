@@ -18,7 +18,6 @@
 
 #include "programs/utilities.h"
 #include "testapp_environment.h"
-#include "testapp_rbac.h"
 
 #include <cJSON_utils.h>
 #include <fstream>
@@ -46,7 +45,6 @@ static std::string get_working_current_directory() {
 
 void McdEnvironment::SetUp() {
     cwd = get_working_current_directory();
-    SetupRbacFile();
     SetupAuditFile();
     SetupIsaslPw();
 }
@@ -106,22 +104,6 @@ void McdEnvironment::SetupAuditFile() {
     rewriteAuditConfig();
 }
 
-void McdEnvironment::SetupRbacFile() {
-    try {
-        rbac_file_name = cwd + "/" + generateTempFile("testapp_rbac.json.XXXXXX");
-
-        unique_cJSON_ptr rbac(generate_rbac_config());
-        std::string rbac_text = to_string(rbac);
-
-        std::ofstream out(rbac_file_name);
-        out.write(rbac_text.c_str(), rbac_text.size());
-        out.flush();
-        out.close();
-    } catch (std::exception& e) {
-        FAIL() << "Failed to store RBAC data: " << e.what();
-    }
-}
-
 void McdEnvironment::TearDown() {
     // Cleanup Audit config file
     if (!audit_file_name.empty()) {
@@ -132,9 +114,6 @@ void McdEnvironment::TearDown() {
     if (!audit_log_dir.empty()) {
         EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(audit_log_dir));
     }
-
-    // Cleanup RBAC config file.
-    EXPECT_NE(-1, remove(rbac_file_name.c_str()));
 
     // Cleanup isasl file
     EXPECT_NE(-1, remove(isasl_file_name.c_str()));

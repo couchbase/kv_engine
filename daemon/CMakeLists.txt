@@ -1,13 +1,4 @@
 INCLUDE_DIRECTORIES(AFTER ${Greenstack_SOURCE_DIR/include})
-ADD_CUSTOM_COMMAND(OUTPUT
-                     ${Memcached_BINARY_DIR}/default_rbac.cc
-                  COMMAND
-                     generate_rbac -o ${Memcached_BINARY_DIR}/default_rbac.cc
-                                   -i ${Memcached_SOURCE_DIR}/daemon/rbac.json
-                  DEPENDS
-                        rbac.json
-                        generate_rbac
-                  COMMENT "Generating code for default rbac config")
 
 IF (BREAKPAD_FOUND)
   IF (WIN32)
@@ -45,7 +36,6 @@ ENDIF()
 
 ADD_LIBRARY(memcached_daemon STATIC
                ${BREAKPAD_SRCS}
-               ${Memcached_BINARY_DIR}/default_rbac.cc
                ${Memcached_SOURCE_DIR}/utilities/protocol2text.cc
                ${Memcached_SOURCE_DIR}/utilities/terminate_handler.cc
                $<TARGET_OBJECTS:memory_tracking>
@@ -95,6 +85,8 @@ ADD_LIBRARY(memcached_daemon STATIC
                mcbp.h
                mcbp_executors.cc
                mcbp_executors.h
+               mcbp_privileges.cc
+               mcbp_privileges.h
                mcbp_topkeys.cc
                mcbp_topkeys.h
                mcbp_validators.cc
@@ -106,10 +98,6 @@ ADD_LIBRARY(memcached_daemon STATIC
                net_buf.h
                privileges.c
                privileges.h
-               rbac.cc
-               rbac.h
-               rbac.json
-               rbac_impl.h
                runtime.cc
                runtime.h
                sasl_tasks.cc

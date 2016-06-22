@@ -1,2 +1,0 @@
-ADD_EXECUTABLE(generate_rbac generate_rbac.c)
-TARGET_LINK_LIBRARIES(generate_rbac platform)

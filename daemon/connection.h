@@ -18,8 +18,6 @@
 
 #include "config.h"
 
-#include "rbac.h"
-
 #include "settings.h"
 
 #include <cJSON.h>
@@ -255,37 +253,14 @@ public:
     }
 
     /**
-     * Set the authentication context to be used by this connection.
+     * Check if this connection is in posession of the requested privilege
      *
-     * The connection object takes the ownership of the pointer and is
-     * responsible for releasing the memory.
+     * @param privilege the privilege to check for
+     * @return Ok - the connection holds the privilege
+     *         Fail - the connection is missing the privilege
+     *         Stale - the authentication context is stale
      */
-    void setAuthContext(AuthContext* auth_context) {
-        if (Connection::auth_context != nullptr) {
-            // Delete the previously allocated auth object
-            auth_destroy(Connection::auth_context);
-        }
-        Connection::auth_context = auth_context;
-    }
-
-    /**
-     * Check if the client is allowed to execute the specified opcode
-     *
-     * @param opcode the opcode in the memcached binary protocol
-     */
-    AuthResult checkAccess(uint8_t opcode) const {
-        return auth_check_access(auth_context, opcode);
-    }
-
-    /**
-     * Check if the client is allowed to execute the specified opcode
-     *
-     * @param opcode the opcode in the memcached binary protocol
-     */
-    AuthResult checkAccess(const Greenstack::Opcode& opcode) const {
-        return auth_check_access(auth_context, opcode);
-    }
-
+    PrivilegeAccess checkPrivilege(const Privilege& privilege) const;
 
     int getBucketIndex() const {
         return bucketIndex;
@@ -396,11 +371,6 @@ protected:
 
     /** Listening port that creates this connection instance */
     in_port_t parent_port;
-
-    /**
-     * The authentication context in use by this connection
-     */
-    AuthContext* auth_context;
 
     /**
      * The index of the connected bucket

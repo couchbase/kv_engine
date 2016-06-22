@@ -23,7 +23,6 @@
 #include "dynamic_buffer.h"
 #include "log_macros.h"
 #include "net_buf.h"
-#include "rbac.h"
 #include "settings.h"
 #include "statemachine_mcbp.h"
 

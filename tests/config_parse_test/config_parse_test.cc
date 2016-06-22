@@ -246,54 +246,6 @@ TEST_F(SettingsTest, Admin) {
     }
 }
 
-TEST_F(SettingsTest, RbacFile) {
-    // Ensure that we detect non-string values for admin
-    nonStringValuesShouldFail("rbac_file");
-
-    char pattern[] = {"rbac_file.XXXXXX"};
-
-    // Ensure that we accept a string, but the file must exist
-    EXPECT_NE(nullptr, cb_mktemp(pattern));
-
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddStringToObject(obj.get(), "rbac_file", pattern);
-    try {
-        Settings settings(obj);
-        EXPECT_EQ(pattern, settings.getRbacFile());
-        EXPECT_TRUE(settings.has.rbac);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    // But we should fail if the file don't exist
-    CouchbaseDirectoryUtilities::rmrf(pattern);
-    expectFail(obj);
-}
-
-TEST_F(SettingsTest, RbacPrivilegeDebug) {
-    nonBooleanValuesShouldFail("rbac_privilege_debug");
-
-    unique_cJSON_ptr obj(cJSON_CreateObject());
-    cJSON_AddTrueToObject(obj.get(), "rbac_privilege_debug");
-    try {
-        Settings settings(obj);
-        EXPECT_TRUE(settings.isRbacPrivilegeDebug());
-        EXPECT_TRUE(settings.has.rbac_privilege_debug);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-
-    obj.reset(cJSON_CreateObject());
-    cJSON_AddFalseToObject(obj.get(), "rbac_privilege_debug");
-    try {
-        Settings settings(obj);
-        EXPECT_FALSE(settings.isRbacPrivilegeDebug());
-        EXPECT_TRUE(settings.has.rbac_privilege_debug);
-    } catch (std::exception& exception) {
-        FAIL() << exception.what();
-    }
-}
-
 TEST_F(SettingsTest, AuditFile) {
     // Ensure that we detect non-string values for admin
     nonStringValuesShouldFail("audit_file");
@@ -998,41 +950,6 @@ TEST(SettingsUpdateTest, BreakpadIsDynamic) {
     EXPECT_EQ("/var/crash/minidump",
               settings.getBreakpadSettings().getMinidumpDir());
     EXPECT_FALSE(settings.getBreakpadSettings().isEnabled());
-}
-
-TEST(SettingsUpdateTest, RbacFileIsNotDynamic) {
-    Settings updated;
-    Settings settings;
-    // setting it to the same value should work
-    settings.setRbacFile("/etc/opt/couchbase/etc/security/rbac.json");
-    updated.setRbacFile(settings.getRbacFile());
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-
-    // Changing it should fail
-    updated.setRbacFile("/opt/couchbase/etc/security/rbac.json");
-    EXPECT_THROW(settings.updateSettings(updated, false),
-                 std::invalid_argument);
-}
-
-TEST(SettingsUpdateTest, RbacPrivilegeDebugIsDynamic) {
-    Settings updated;
-    Settings settings;
-
-    // setting it to the same value should work
-    settings.setRbacPrivilegeDebug(true);
-    updated.setRbacPrivilegeDebug(true);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_TRUE(settings.isRbacPrivilegeDebug());
-
-    // We should be able to change it
-    updated.setRbacPrivilegeDebug(false);
-    EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_FALSE(settings.isRbacPrivilegeDebug());
-    updated.setRbacPrivilegeDebug(true);
-    EXPECT_NO_THROW(settings.updateSettings(updated, false));
-    EXPECT_FALSE(settings.isRbacPrivilegeDebug());
-    EXPECT_NO_THROW(settings.updateSettings(updated));
-    EXPECT_TRUE(settings.isRbacPrivilegeDebug());
 }
 
 TEST(SettingsUpdateTest, AuditFileIsNotDynamic) {

@@ -223,7 +223,6 @@ Connection* conn_pipe_new(const int fd,
                           LIBEVENT_THREAD* thread) {
     Connection *c = allocate_pipe_connection(fd, base);
 
-    c->setAuthContext(auth_create(NULL, "pipe", "pipe"));
     stats.total_conns++;
     c->incrementRefcount();
     c->setThread(thread);

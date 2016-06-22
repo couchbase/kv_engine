@@ -8,8 +8,6 @@
             "content" : "default"
         },
     "require_init" : true,
-    "rbac_file" : "/opt/couchbase/etc/security/rbac.json",
-    "rbac_privilege_debug" : false,
     "audit_file" : "/opt/couchbase/etc/security/audit.json",
     "ssl_cipher_list" : "HIGH",
     "threads" : 4,

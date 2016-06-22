@@ -46,7 +46,6 @@ ListenConnection::ListenConnection(SOCKET sfd,
 
     parent_port = port;
     resolveConnectionName(true);
-    setAuthContext(auth_create(NULL, NULL, NULL));
     // Listen connections should not be associated with a bucket
     setBucketIndex(-1);
     enable();

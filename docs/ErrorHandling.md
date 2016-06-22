@@ -210,7 +210,7 @@ read / write. Data *files* includes:
 
 2. Log files (`memcached.log`, `auditd.log`)
 
-3. Configuration files (`memcached.json`, `rbac.json`).
+3. Configuration files (`memcached.json`).
 
 Data can also refer to internal, intermediate data stored for example
 in the HashTable, disk queues or caches.

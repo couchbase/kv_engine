@@ -65,7 +65,6 @@ Connection::Connection(SOCKET sfd, event_base* b)
       next(nullptr),
       thread(nullptr),
       parent_port(0),
-      auth_context(nullptr),
       bucketIndex(0),
       bucketEngine(nullptr),
       peername("unknown"),
@@ -82,13 +81,11 @@ Connection::Connection(SOCKET sock,
     : Connection(sock, b) {
     parent_port = interface.port;
     resolveConnectionName(false);
-    setAuthContext(auth_create(NULL, peername.c_str(), sockname.c_str()));
     setTcpNoDelay(interface.tcp_nodelay);
 }
 
 Connection::~Connection() {
     MEMCACHED_CONN_DESTROY(this);
-    auth_destroy(auth_context);
     if (socketDescriptor != INVALID_SOCKET) {
         LOG_INFO(this, "%u - Closing socket descriptor", getId());
         safe_close(socketDescriptor);
@@ -298,7 +295,56 @@ void Connection::restartAuthentication() {
     admin = false;
     authenticated = false;
     username = "";
-    setAuthContext(auth_create(nullptr,
-                               getPeername().c_str(),
-                               getSockname().c_str()));
+}
+
+/**
+ * This is currently just a dummy implementation which provides more or
+ * less the same privilege checks we had before we added the RBAC
+ * files. The "admin" connection is allowed to do whatever it wants
+ * and all other connections may perform most other commands.
+ *
+ * This function will be replaces when we get access to ns_servers
+ * RBAC data.
+ */
+PrivilegeAccess Connection::checkPrivilege(const Privilege& privilege) const {
+    static bool testing = getenv("MEMCACHED_UNIT_TESTS") != nullptr;
+
+    if (isAdmin() || testing) {
+        return PrivilegeAccess::Ok;
+    }
+
+    switch (privilege) {
+    case Privilege::Read:
+        return PrivilegeAccess::Ok;
+    case Privilege::Write:
+        return PrivilegeAccess::Ok;
+    case Privilege::SimpleStats:
+        return PrivilegeAccess::Ok;
+    case Privilege::Stats:
+        return PrivilegeAccess::Ok;
+    case Privilege::BucketManagement:
+        return PrivilegeAccess::Fail;
+    case Privilege::NodeManagement:
+        return PrivilegeAccess::Ok;
+    case Privilege::SessionManagement:
+        return PrivilegeAccess::Fail;
+    case Privilege::Audit:
+        return PrivilegeAccess::Fail;
+    case Privilege::AuditManagement:
+        return PrivilegeAccess::Fail;
+    case Privilege::DcpConsumer:
+        return PrivilegeAccess::Ok;
+    case Privilege::DcpProducer:
+        return PrivilegeAccess::Ok;
+    case Privilege::DCP:
+        return PrivilegeAccess::Ok;
+    case Privilege::TAP:
+        return PrivilegeAccess::Ok;
+    case Privilege::MetaRead:
+        return PrivilegeAccess::Ok;
+    case Privilege::MetaWrite:
+        return PrivilegeAccess::Ok;
+    }
+
+    throw std::logic_error("Unknown privilege requested");
 }

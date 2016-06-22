@@ -63,24 +63,6 @@ will be allowed, but upon a successful authentication "NOT
 INITIALIZED" will be returned unless the SASL authentication was done
 for the admin user.
 
-=== rbac_file
-
-Specify the filename containing all of the RBAC definitions
-
-=== rbac_privilege_debug
-
-The *rbac_privilege_debug* is a boolean value that may be used by
-developers to detect the privileges required for their module to
-work. It should _never_ be enabled in a production environment!
-
-When running in the privilege debug mode, all commands will be
-permitted for all users. If the current user profile lacks the
-permission for the operation to be performed, the following entry is
-printed to standard error:
-
-Missing privilege for *user profile*. Need *command*.
-
-
 === audit_file
 
 Specify the filename containing all of the Audit configurations
@@ -315,8 +297,6 @@ A Sample memcached.json:
                 "content" : "default"
             },
         "require_init" : true,
-        "rbac_file" : "/opt/couchbase/etc/security/rbac.json",
-        "rbac_privilege_debug" : false,
         "audit_file" : "/opt/couchbase/etc/security/audit.json",
         "ssl_cipher_list" : "HIGH",
         "threads" : 4,

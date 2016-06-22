@@ -77,14 +77,6 @@ void SaslAuthTask::notifyExecutionComplete() {
                  connection.getId(), connection.getPeername().c_str(),
                  connection.getUsername());
 
-        /*
-         * We've successfully changed our user identity.
-         * Update the authentication context
-         */
-        connection.setAuthContext(auth_create(connection.getUsername(),
-                                              connection.getPeername().c_str(),
-                                              connection.getSockname().c_str()));
-
         if (settings.isAdmin(connection.getUsername())) {
             connection.setAdmin(true);
         }

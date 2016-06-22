@@ -31,7 +31,6 @@ Settings settings;
  */
 Settings::Settings()
     : num_threads(0),
-      rbac_privilege_debug(false),
       require_sasl(false),
       bio_drain_buffer_sz(0),
       datatype(false),
@@ -88,45 +87,6 @@ static void throw_missing_file_exception(const std::string &key, cJSON* obj) {
     }
     message.append(" does not exists");
     throw std::invalid_argument(message);
-}
-
-/**
- * Handle the "rbac_file" tag in the settings
- *
- * The value must be a string that points to a file that must exist
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_rbac_file(Settings& s, cJSON* obj) {
-    if (obj->type != cJSON_String) {
-        throw std::invalid_argument("\"rbac_file\" must be a string");
-    }
-
-    if (!CouchbaseDirectoryUtilities::isFile(obj->valuestring)) {
-        throw_missing_file_exception("rbac_file", obj);
-    }
-
-    s.setRbacFile(obj->valuestring);
-}
-
-/**
- * Handle the "rbac_privilege_debug" tag in the settings
- *
- * The value must be a boolean value
- *
- * @param s the settings object to update
- * @param obj the object in the configuration
- */
-static void handle_rbac_privilege_debug(Settings& s, cJSON* obj) {
-    if (obj->type == cJSON_True) {
-        s.setRbacPrivilegeDebug(true);
-    } else if (obj->type == cJSON_False) {
-        s.setRbacPrivilegeDebug(false);
-    } else {
-        throw std::invalid_argument(
-            "\"rbac_privilege_debug\" must be a boolean value");
-    }
 }
 
 /**
@@ -529,8 +489,6 @@ void Settings::reconfigure(const unique_cJSON_ptr& json) {
 
     std::vector<settings_config_tokens> handlers = {
         {"admin",                        handle_admin},
-        {"rbac_file",                    handle_rbac_file},
-        {"rbac_privilege_debug",         handle_rbac_privilege_debug},
         {"audit_file",                   handle_audit_file},
         {"threads",                      handle_threads},
         {"interfaces",                   handle_interfaces},
@@ -774,11 +732,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
             throw std::invalid_argument("audit can't be changed dynamically");
         }
     }
-    if (other.has.rbac) {
-        if (other.rbac_file != rbac_file) {
-            throw std::invalid_argument("rbac can't be changed dynamically");
-        }
-    }
     if (other.has.require_sasl) {
         if (other.require_sasl != require_sasl) {
             throw std::invalid_argument(
@@ -898,14 +851,6 @@ void Settings::updateSettings(const Settings& other, bool apply) {
         }
     }
 
-    if (other.has.rbac_privilege_debug) {
-        if (other.rbac_privilege_debug != rbac_privilege_debug) {
-            // Allow update!
-            logit(EXTENSION_LOG_NOTICE, "%s privilege debug",
-                  other.rbac_privilege_debug ? "Enable" : "Disable");
-            setRbacPrivilegeDebug(other.rbac_privilege_debug);
-        }
-    }
     if (other.has.reqs_per_event_high_priority) {
         if (other.reqs_per_event_high_priority !=
             reqs_per_event_high_priority) {

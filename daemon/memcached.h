@@ -25,7 +25,6 @@
 #include "executorpool.h"
 #include "log_macros.h"
 #include "net_buf.h"
-#include "rbac.h"
 #include "settings.h"
 
 /** Maximum length of a key. */

@@ -326,52 +326,6 @@ public:
     }
 
     /**
-     * Is privilege debugging enabled or not
-     *
-     * In privilege debug mode all operations will be allowed, but if the
-     * context lacks the appropriate privilege the entry is logged.
-     *
-     * @return true if privilege debug is enabled
-     */
-    bool isRbacPrivilegeDebug() const {
-        return rbac_privilege_debug;
-    }
-
-    /**
-     * Should privilege debugging be enabled or not
-     *
-     * In privilege debug mode all operations will be allowed, but if the
-     * context lacks the appropriate privilege the entry is logged.
-     *
-     * @param rbac_privilege_debug true if privilege debug is to be enabled
-     */
-    void setRbacPrivilegeDebug(bool rbac_privilege_debug) {
-        Settings::rbac_privilege_debug = rbac_privilege_debug;
-        has.rbac_privilege_debug = true;
-        notify_changed("rbac_privilege_debug");
-    }
-
-    /**
-     * Get the name of the file containing the RBAC database
-     *
-     * @return the name of the file file containing the RBAC database
-     */
-    const std::string& getRbacFile() const {
-        return rbac_file;
-    }
-
-    /**
-     * Set the name of the file containing the RBAC database
-     *
-     * @param rbac_file the name of the file file containing the RBAC database
-     */
-    void setRbacFile(const std::string& rbac_file) {
-        Settings::rbac_file = rbac_file;
-        has.rbac = true;
-        notify_changed("rbac_file");
-    }
-
-    /**
      * Is SASL required or not
      *
      * When SASL is required all connections _MUST_ perform SASL authentication.
@@ -860,16 +814,6 @@ protected:
     std::string audit_file;
 
     /**
-     * Should privilege debug be enabled or not
-     */
-    bool rbac_privilege_debug;
-
-    /**
-     * The file containing RBAC information
-     */
-    std::string rbac_file;
-
-    /**
      * require SASL auth
      */
     bool require_sasl;
@@ -975,8 +919,6 @@ public:
         bool interfaces;
         bool extensions;
         bool audit;
-        bool rbac;
-        bool rbac_privilege_debug;
         bool require_sasl;
         bool reqs_per_event_high_priority;
         bool reqs_per_event_med_priority;

@@ -16,8 +16,6 @@ ADD_EXECUTABLE(memcached_testapp
                testapp_getset.cc
                testapp_greenstack.cc
                testapp_greenstack.h
-               testapp_rbac.cc
-               testapp_rbac.h
                testapp_require_init.cc
                testapp_sasl.cc
                testapp_sasl.h

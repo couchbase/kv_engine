@@ -5,6 +5,7 @@
 
 #include <memcached/types.h>
 #include <memcached/config_parser.h>
+#include <memcached/privileges.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -165,6 +166,22 @@ extern "C" {
          * @return a unique identifier for a connection
          */
         uint64_t (*get_connection_id)(const void* cookie);
+
+        /**
+         * Check if the cookie have the specified privilege in it's
+         * active set.
+         *
+         * @todo We should probably add the key we want to access as part
+         *       of the API. We're going to need that when we're adding
+         *       support for collections. For now let's assume that it
+         *       won't be a big problem to fix that later on.
+         * @param cookie the cookie sent to the engine for an operation
+         * @param privilege the privilege to check for
+         * @return true if the cookie have the privilege in its active set,
+         *         false otherwise
+         */
+        PrivilegeAccess (* check_privilege)(const void* cookie,
+                                            const Privilege privilege);
     } SERVER_COOKIE_API;
 
 #ifdef WIN32

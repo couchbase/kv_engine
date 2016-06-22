@@ -11,7 +11,6 @@ eventually persistent engine -
 # Architecture
 
 * [KV-Engine Architecture](docs/Architecture.md)
-* [Role Based Access Control](daemon/RBAC.md)
 * [CBSASL](cbsasl/CBSASL.md)
 * [Audit](auditd/README.md)
 * [Error Handling Best Practices](docs/ErrorHandling.md)

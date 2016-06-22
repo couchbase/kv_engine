@@ -73,7 +73,8 @@
 
 // MB-14649: log crashing on windows..
 #include <math.h>
-#include <include/memcached/audit_interface.h>
+#include <memcached/audit_interface.h>
+#include <memcached/server_api.h>
 
 #if HAVE_LIBNUMA
 #include <numa.h>
@@ -440,10 +441,6 @@ static int get_number_of_worker_threads(void) {
     return ret;
 }
 
-static void priv_debug_changed_listener(const std::string&, Settings &s) {
-    auth_set_privilege_debug(s.isRbacPrivilegeDebug());
-}
-
 static void breakpad_changed_listener(const std::string&, Settings &s) {
     initialize_breakpad(s.getBreakpadSettings());
 }
@@ -482,8 +479,6 @@ static void interfaces_changed_listener(const std::string&, Settings &s) {
 
 static void settings_init(void) {
     // Set up the listener functions
-    settings.addChangeListener("rbac_privilege_debug",
-                               priv_debug_changed_listener);
     settings.addChangeListener("breakpad",
                                breakpad_changed_listener);
     settings.addChangeListener("ssl_minimum_protocol",
@@ -563,21 +558,6 @@ static void update_settings_from_config(void)
 
     if (!settings.getRoot().empty()) {
         root = settings.getRoot().c_str();
-    }
-
-    if (settings.getRbacFile().empty()) {
-        std::string fname(root);
-        fname.append("/etc/security/rbac.json");
-#ifdef WIN32
-        // Make sure that the path is in windows format
-        std::replace(fname.begin(), fname.end(), '/', '\\');
-#endif
-
-        FILE *fp = fopen(fname.c_str(), "r");
-        if (fp != NULL) {
-            settings.setRbacFile(fname);
-            fclose(fp);
-        }
     }
 }
 
@@ -659,6 +639,26 @@ uint64_t get_connection_id(const void *void_cookie) {
         throw std::logic_error("get_connection_id: connection can't be null");
     }
     return uint64_t(cookie->connection);
+}
+
+/**
+ * Check if the cookie holds the privilege
+ *
+ * @param void_cookie this is the cookie passed down to the engine.
+ *                    it may either be a connection handle (MCBP) or
+ *                    a given command (Greenstack)
+ * @param privilege The privilege to check for
+ * @return if the privilege is held or not (or if the privilege data is stale)
+ */
+static PrivilegeAccess check_privilege(const void* void_cookie,
+                                       const Privilege privilege) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+    if (cookie->connection == nullptr) {
+        throw std::logic_error("check_privilege: connection can't be null");
+    }
+
+    return cookie->connection->checkPrivilege(privilege);
 }
 
 static void cbsasl_refresh_main(void *c)
@@ -1830,6 +1830,7 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.set_priority = cookie_set_priority;
         server_cookie_api.get_bucket_id = get_bucket_id;
         server_cookie_api.get_connection_id = get_connection_id;
+        server_cookie_api.check_privilege = check_privilege;
 
         server_stat_api.evicting = count_eviction;
 
@@ -2644,14 +2645,6 @@ extern "C" int memcached_main(int argc, char **argv) {
 #endif
 
     initialize_audit();
-
-    /* Initialize RBAC data */
-    if (load_rbac_from_file(settings.getRbacFile().c_str()) != 0) {
-        FATAL_ERROR(EXIT_FAILURE,
-                    "FATAL: Failed to load RBAC configuration: %s",
-                    (settings.getRbacFile().empty()) ?
-                    "no file specified" : settings.getRbacFile().c_str());
-    }
 
     /* inform interested parties of initial verbosity level */
     perform_callbacks(ON_LOG_LEVEL, NULL, NULL);
