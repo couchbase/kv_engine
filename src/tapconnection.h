@@ -340,11 +340,11 @@ public:
     }
 
     const void *getCookie() const {
-        return cookie;
+        return cookie.load();
     }
 
     void setCookie(const void *c) {
-        cookie = c;
+        cookie.store(const_cast<void*>(c));
     }
 
     void setExpiryTime(rel_time_t t) {
@@ -408,7 +408,7 @@ private:
     std::string logString;
 
     //! The cookie representing this connection (provided by the memcached code)
-    const void* cookie;
+    AtomicValue<void*> cookie;
 
     //! Whether or not the connection is reserved in the memcached layer
     AtomicValue<bool> reserved;

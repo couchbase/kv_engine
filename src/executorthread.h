@@ -27,6 +27,8 @@
 #include <utility>
 #include <vector>
 
+#include <relaxed_atomic.h>
+
 #include "atomic.h"
 #include "common.h"
 #include "mutex.h"
@@ -130,10 +132,10 @@ private:
     const std::string name;
     AtomicValue<executor_state_t> state;
 
-    hrtime_t     now;  // record of current time
-    hrtime_t waketime; // set to the earliest
+    AtomicValue<hrtime_t> now;  // record of current time
+    AtomicValue<hrtime_t> waketime; // set to the earliest
 
-    hrtime_t taskStart;
+    Couchbase::RelaxedAtomic<hrtime_t> taskStart;
 
     Mutex currentTaskMutex; // Protects currentTask
     ExTask currentTask;
