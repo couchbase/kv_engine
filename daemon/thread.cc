@@ -514,7 +514,7 @@ void threadlocal_stats_reset(struct thread_stats *thread_stats) {
 void thread_init(int nthr, struct event_base *main_base,
                  void (*dispatcher_callback)(evutil_socket_t, short, void *)) {
     int i;
-    nthreads = nthr + 1;
+    nthreads = nthr;
 
     cb_mutex_initialize(&conn_lock);
     cb_mutex_initialize(&init_lock);

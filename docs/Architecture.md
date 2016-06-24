@@ -40,11 +40,11 @@
 +-------+ DCP Consumer |   |    stdin    <-+-Interface-+->                        |   ───────▶  | |
 |KV-Node|----11209-----+-->|  ╲            |           | |  +------------------+  |   ────────  | |
 +-------+              |   |   ───────▶    |           | |  |    vbucket 1     |  |  ╱        ╲ | |                 +------------+
-                       |   |   ────────    |           | |  |                  |  |    Writer   | |-------TAP------>| TAP Client |
-                       |   |  ╱        ╲   |           | |  |  +############+  |  |  ╲      xN  | |                 +------------+
-                       |   |     TAP       |           | |  |  # Hash-table |  |  |   ───────▶  | |
-                       |   |  ╲            |           | |  |  +------------+  |  |   ────────  | |
-                       |   |   ───────▶    |           | |  +------------------+  |  ╱        ╲ | |
+                       |   |               |           | |  |                  |  |    Writer   | |-------TAP------>| TAP Client |
+                       |   |               |           | |  |  +############+  |  |  ╲      xN  | |                 +------------+
+                       |   |               |           | |  |  # Hash-table |  |  |   ───────▶  | |
+                       |   |               |           | |  |  +------------+  |  |   ────────  | |
+                       |   |               |           | |  +------------------+  |  ╱        ╲ | |
                        |   |   ────────    |           | +------------------------+    Reader   | |
                        |   |  ╱        ╲   |           |                             ╲      xN  | |
                        |   |   Logging     |           |                              ───────▶  | |
@@ -89,9 +89,7 @@ On startup Memcached has a number of tasks:
 The `Connection` class represents a Socket (it is used by both clients and
 server objects).
 
-The Connection object is bound to a thread object, and never changes (Except
-for clients running TAP, which are moved over to the TAP thread after the
-initial packet).
+The Connection object is bound to a thread object, and never changes.
 
 If the connection is idle for a configurable (through
 `connection_idle_time`) amount of time (5 minutes by default) it is
@@ -124,7 +122,6 @@ total number of cores on the system.
 
 #### Other threads
 
-* The TAP thread is responsible for serving all TAP communication.
 * The logging thread is responsible for writing log entries in the log buffer to
 file and for managing the log rotation. A separate thread so that the worker
 threads do not get blocked handling IO. This is an optional thread created when
@@ -135,10 +132,10 @@ another thread is busy in order to keep shutdown fast. It is required for
 integration with ns_server. It is currently planned to be changed due to
 failures with this communication (Including deadlocks).
 * Some commands (bucket creation/deletion, reload of the SASL password database)
-are run on a 'new' separate executor pool whilst others are implemented by 
-dispatching separate threads to execute the user's command. There are currently 
-no checks trying to protect ourselves from clients trying to allocate too many 
-threads (but the commands themselves are not available to the regular bucket 
+are run on a 'new' separate executor pool whilst others are implemented by
+dispatching separate threads to execute the user's command. There are currently
+no checks trying to protect ourselves from clients trying to allocate too many
+threads (but the commands themselves are not available to the regular bucket
 users).
 
 #### Worker thread locking
