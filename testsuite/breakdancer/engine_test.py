@@ -162,7 +162,7 @@ class DecrWithDefault(Action):
 class TestFile(object):
 
     def __init__(self, path, n=10):
-        self.tmpfilenames = ["%s_%d.c.tmp" % (path, i) for i in range(n)]
+        self.tmpfilenames = ["%s_%d.cc.tmp" % (path, i) for i in range(n)]
         self.files = [open(tfn, "w") for tfn in self.tmpfilenames]
         self.seq = [list() for f in self.files]
         self.index = 0

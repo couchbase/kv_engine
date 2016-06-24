@@ -33,7 +33,7 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                       ENGINE_STORE_OPERATION op) {
     item *it = NULL;
     uint64_t cas = 0;
-    char *value = "0";
+    const char *value = "0";
     const int flags = 0;
     const void *cookie = NULL;
 	size_t vlen;
@@ -142,14 +142,13 @@ void incrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     item_info info;
     item *i = NULL;
-    char *buf;
     ENGINE_ERROR_CODE rv = h1->get(h, NULL, &i, key, (int)strlen(key), 0);
     cb_assert(rv == ENGINE_SUCCESS);
 
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
 
-    buf = malloc(info.value[0].iov_len + 1);
+    char* buf = new char[info.value[0].iov_len + 1];
     memcpy(buf, info.value[0].iov_base, info.value[0].iov_len);
     buf[info.value[0].iov_len] = 0x00;
     cb_assert(info.nvalue == 1);
@@ -165,7 +164,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     }
 
     h1->release(h, NULL, i);
-    free(buf);
+    delete []buf;
 }
 
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
