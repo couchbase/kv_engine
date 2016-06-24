@@ -3951,7 +3951,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doDcpStats(const void *cookie,
                                                          ADD_STAT add_stat) {
     ConnCounter aggregator;
     ConnStatBuilder dcpVisitor(cookie, add_stat, &aggregator);
-    dcpConnMap_->each(dcpVisitor);
+    // MB-19982 - use RCU version of each, as it will drop
+    // the connMap lock before invoking the visitor against
+    // a copy of the connections list.
+    dcpConnMap_->eachRCU(dcpVisitor);
 
     add_casted_stat("ep_dcp_count", aggregator.totalConns, add_stat, cookie);
     add_casted_stat("ep_dcp_producer_count", aggregator.totalProducers, add_stat, cookie);
