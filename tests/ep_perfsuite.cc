@@ -221,11 +221,11 @@ void output_result(const std::string& name,
 
     // Now render in the given format.
     switch (testHarness.output_format) {
-    case FORMAT_Text:
+    case OutputFormat::Text:
         renderToText(new_name, description, value_stats, unit);
         break;
 
-    case FORMAT_XML:
+    case OutputFormat::XML:
         renderToXML(new_name, description, value_stats, unit);
         break;
     }
