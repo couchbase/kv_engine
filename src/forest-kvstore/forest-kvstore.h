@@ -199,13 +199,7 @@ class ForestKVStore : public KVStore
      */
     void del(const Item& itm, Callback<int>& cb) override;
 
-    /**
-     * Delete a given vbucket database instance from the
-     * underlying storage system
-     *
-     * @param vbucket vbucket id
-     */
-    void delVBucket(uint16_t vbucket) override;
+    bool delVBucket(uint16_t vbucket) override;
 
     /**
      * Retrieve the list of persisted vbucket states

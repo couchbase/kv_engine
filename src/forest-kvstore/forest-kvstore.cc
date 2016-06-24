@@ -448,7 +448,7 @@ void ForestKVStore::updateFileInfo(void) {
     }
 }
 
-void ForestKVStore::delVBucket(uint16_t vbucket) {
+bool ForestKVStore::delVBucket(uint16_t vbucket) {
     fdb_kvs_handle* kvsHandle = getKvsHandle(vbucket, handleType::READER);
     fdb_status status;
 
@@ -457,7 +457,7 @@ void ForestKVStore::delVBucket(uint16_t vbucket) {
         if (status != FDB_RESULT_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING,
                 "ForestKVStore::delVBucket: fdb_kvs_close API call failed for "
-                "vbucket %d with error: %s\n", vbucket, fdb_error_msg(status));
+                "vbucket %" PRIu16 "with error: %s", vbucket, fdb_error_msg(status));
         }
     }
 
@@ -470,7 +470,7 @@ void ForestKVStore::delVBucket(uint16_t vbucket) {
         if (status != FDB_RESULT_SUCCESS) {
             LOG(EXTENSION_LOG_WARNING,
                 "ForestKVStore::delVBucket: fdb_kvs_close API call failed for "
-                "vbucket %d with error: %s\n", vbucket, fdb_error_msg(status));
+                "vbucket %" PRIu16 "with error: %s", vbucket, fdb_error_msg(status));
         }
     }
 
@@ -483,8 +483,19 @@ void ForestKVStore::delVBucket(uint16_t vbucket) {
     if (status != FDB_RESULT_SUCCESS) {
         LOG(EXTENSION_LOG_WARNING,
             "ForestKVStore::delVBucket: KV Store remove failed for vbucket "
-            "%d with error: %s\n", vbucket,
-            fdb_error_msg(status));
+            "%" PRIu16 "with error: %s", vbucket, fdb_error_msg(status));
+
+        /* If the forestdb handle is busy or fails because compaction is
+         * running at the same time, reschedule the vbucket deletion.
+         * This is a workaround until forestdb supports this */
+        if (status == FDB_RESULT_FAIL_BY_COMPACTION ||
+            status == FDB_RESULT_HANDLE_BUSY) {
+            LOG(EXTENSION_LOG_WARNING,
+                "ForestKVStore::delVBucket: rescheduling vbucket deletion for "
+                "vbucket %" PRIu16, vbucket);
+        }
+
+        return false;
     }
 
     if (cachedVBStates[vbucket]) {
@@ -519,6 +530,8 @@ void ForestKVStore::delVBucket(uint16_t vbucket) {
 
     updateFileInfo();
     cachedValidVBCount--;
+
+    return true;
 }
 
 ENGINE_ERROR_CODE ForestKVStore::forestErr2EngineErr(fdb_status errCode) {

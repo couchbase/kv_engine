@@ -1526,7 +1526,9 @@ bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
          vbMap.isBucketDeletion(vbid)) {
         lh.unlock();
         LockHolder vlh(vb_mutexes[vbid]);
-        getRWUnderlying(vbid)->delVBucket(vbid);
+        if (!getRWUnderlying(vbid)->delVBucket(vbid)) {
+            return false;
+        }
         vbMap.setBucketDeletion(vbid, false);
         vbMap.setBucketCreation(vbid, false);
         vbMap.setPersistenceSeqno(vbid, 0);

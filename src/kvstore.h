@@ -601,9 +601,12 @@ public:
     virtual void del(const Item &itm, Callback<int> &cb) = 0;
 
     /**
-     * Delete a given vbucket database.
+     * Delete a given vbucket database instance from underlying storage
+     *
+     * @param vbucket vbucket id
+     * return true, if vbucket deletion was successful. Else, false.
      */
-    virtual void delVBucket(uint16_t vbucket) = 0;
+    virtual bool delVBucket(uint16_t vbucket) = 0;
 
     /**
      * Get a list of all persisted vbuckets (with their states).

@@ -546,7 +546,7 @@ void CouchKVStore::del(const Item &itm,
     pendingReqsQ.push_back(req);
 }
 
-void CouchKVStore::delVBucket(uint16_t vbucket) {
+bool CouchKVStore::delVBucket(uint16_t vbucket) {
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::delVBucket: Not valid on a "
                         "read-only object.");
@@ -568,6 +568,8 @@ void CouchKVStore::delVBucket(uint16_t vbucket) {
                                                 0, 0, 0, INITIAL_DRIFT,
                                                 failovers);
     updateDbFileMap(vbucket, 1);
+
+    return true;
 }
 
 std::vector<vbucket_state *> CouchKVStore::listPersistedVbuckets() {
