@@ -1155,7 +1155,7 @@ int main(int argc, char **argv) {
     const char *test_suite = NULL;
     std::regex test_case_regex(".*");
     engine_test_t *testcases = NULL;
-    enum OutputFormat output_format = FORMAT_Text;
+    OutputFormat output_format(OutputFormat::Text);
     cb_dlhandle_t handle;
     char *errmsg = NULL;
     void *symbol = NULL;
@@ -1247,11 +1247,12 @@ int main(int argc, char **argv) {
             break;
         case 'f':
             if (std::string(optarg) == "text") {
-                output_format = FORMAT_Text;
+                output_format = OutputFormat::Text;
             } else if (std::string(optarg) == "xml") {
-                output_format = FORMAT_XML;
+                output_format = OutputFormat::XML;
             } else {
-                fprintf(stderr, "Invalid option for output format '%s'. Valid options are 'text' and 'xml'.\n", optarg);
+                fprintf(stderr, "Invalid option for output format '%s'. Valid "
+                    "options are 'text' and 'xml'.\n", optarg);
                 return 1;
             }
             break;

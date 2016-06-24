@@ -1,8 +1,13 @@
-/* -*- Mode: C; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
-#ifndef MEMCACHED_ENGINE_TESTAPP_H
-#define MEMCACHED_ENGINE_TESTAPP_H
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+
+#pragma once
 
 #include <memcached/engine.h>
+
+enum class OutputFormat {
+    Text,
+    XML,
+};
 
 #ifdef    __cplusplus
 extern "C" {
@@ -19,11 +24,6 @@ enum test_result {
     SUCCESS_AFTER_RETRY = 24
 };
 
-enum OutputFormat {
-    FORMAT_Text,
-    FORMAT_XML,
-};
-
 typedef struct test engine_test_t;
 
 struct test_harness {
@@ -31,7 +31,7 @@ struct test_harness {
     const char *default_engine_cfg;
     void(*reload_engine)(ENGINE_HANDLE **, ENGINE_HANDLE_V1 **,
                          const char *, const char *, bool, bool);
-    enum OutputFormat output_format;
+    OutputFormat output_format;
     const char* output_file_prefix;
     const void *(*create_cookie)(void);
     void (*destroy_cookie)(const void *cookie);
@@ -109,5 +109,3 @@ typedef bool (*TEARDOWN_SUITE)(void);
 #ifdef    __cplusplus
 }
 #endif
-
-#endif    /* MEMCACHED_ENGINE_TESTAPP_H */
