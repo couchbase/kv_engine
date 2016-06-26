@@ -314,7 +314,8 @@ private:
 class ActiveStreamCheckpointProcessorTask : public GlobalTask {
 public:
     ActiveStreamCheckpointProcessorTask(EventuallyPersistentEngine& e)
-      : GlobalTask(&e, Priority::ActiveStreamCheckpointProcessor, INT_MAX, false),
+        : GlobalTask(&e, TaskId::ActiveStreamCheckpointProcessorTask,
+                     INT_MAX, false),
       notified(false),
       iterationsBeforeYield(e.getConfiguration()
                             .getDcpProducerSnapshotMarkerYieldLimit()) { }

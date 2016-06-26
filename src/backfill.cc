@@ -156,7 +156,6 @@ bool BackFillVisitor::visitBucket(RCPtr<VBucket> &vb) {
             "Schedule a full backfill from disk for vbucket %d.", vb->getId());
         ExTask task = new BackfillDiskLoad(name, engine, connMap,
                                           underlying, vb->getId(), 0, connToken,
-                                          Priority::TapBgFetcherPriority,
                                           0, false);
         ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
     }
@@ -210,6 +209,6 @@ bool BackFillVisitor::checkValidity() {
 
 bool BackfillTask::run(void) {
     engine->getEpStore()->visit(bfv, "Backfill task", NONIO_TASK_IDX,
-                                Priority::BackfillTaskPriority, 1);
+                                TaskId::BackfillVisitorTask, 1);
     return false;
 }

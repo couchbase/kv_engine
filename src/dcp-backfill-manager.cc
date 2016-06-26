@@ -26,10 +26,12 @@ static const size_t sleepTime = 1;
 
 class BackfillManagerTask : public GlobalTask {
 public:
-    BackfillManagerTask(EventuallyPersistentEngine* e, BackfillManager* mgr,
-                        const Priority &p, double sleeptime = 0,
+    BackfillManagerTask(EventuallyPersistentEngine* e,
+                        BackfillManager* mgr,
+                        double sleeptime = 0,
                         bool shutdown = false)
-        : GlobalTask(e, p, sleeptime, shutdown), manager(mgr) {}
+        : GlobalTask(e, TaskId::BackfillManagerTask, sleeptime, shutdown),
+          manager(mgr) {}
 
     bool run();
 
@@ -129,8 +131,7 @@ void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
         return;
     }
 
-    managerTask.reset(new BackfillManagerTask(engine, this,
-                                              Priority::BackfillTaskPriority));
+    managerTask.reset(new BackfillManagerTask(engine, this));
     ExecutorPool::get()->schedule(managerTask, AUXIO_TASK_IDX);
 }
 

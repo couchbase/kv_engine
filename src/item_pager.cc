@@ -263,7 +263,7 @@ bool ItemPager::run(void) {
                                                        available,
                                                        false, bias, &phase));
         store->visit(pv, "Item pager", NONIO_TASK_IDX,
-                    Priority::ItemPagerPriority);
+                     TaskId::ItemPagerVisitor);
     }
 
     snooze(sleepTime);
@@ -281,7 +281,7 @@ bool ExpiredItemPager::run(void) {
                                                        true, 1, NULL));
         // track spawned tasks for shutdown..
         store->visit(pv, "Expired item remover", NONIO_TASK_IDX,
-                Priority::ItemPagerPriority, 10);
+                     TaskId::ExpiredItemPagerVisitor, 10);
     }
     snooze(sleepTime);
     return true;

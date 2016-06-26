@@ -63,7 +63,7 @@ public:
      * @param st the stats
      */
     ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
-        GlobalTask(e, Priority::ItemPagerPriority, 10, false),
+        GlobalTask(e, TaskId::ItemPager, 10, false),
         engine(e), stats(st), available(true), phase(PAGING_UNREFERENCED),
         doEvict(false) {}
 
@@ -104,7 +104,7 @@ public:
      */
     ExpiredItemPager(EventuallyPersistentEngine *e, EPStats &st,
                      size_t stime) :
-        GlobalTask(e, Priority::ItemPagerPriority, static_cast<double>(stime),
+        GlobalTask(e, TaskId::ExpiredItemPager, static_cast<double>(stime),
         false), engine(e), stats(st), sleepTime(static_cast<double>(stime)),
         available(true) { }
 

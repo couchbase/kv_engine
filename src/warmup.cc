@@ -421,8 +421,7 @@ void Warmup::stop(void)
 
 void Warmup::scheduleInitialize()
 {
-    ExTask task = new WarmupInitialize(*store, this,
-            Priority::WarmupPriority);
+    ExTask task = new WarmupInitialize(*store, this);
     taskId = task->getId();
     ExecutorPool::get()->schedule(task, READER_TASK_IDX);
 }
@@ -452,8 +451,7 @@ void Warmup::scheduleCreateVBuckets()
 {
     threadtask_count = 0;
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
-        ExTask task = new WarmupCreateVBuckets(*store, i, this,
-                                               Priority::WarmupPriority);
+        ExTask task = new WarmupCreateVBuckets(*store, i, this);
         taskId = task->getId();
         ExecutorPool::get()->schedule(task, READER_TASK_IDX);
     }
@@ -520,8 +518,7 @@ void Warmup::scheduleEstimateDatabaseItemCount()
     estimateTime = 0;
     estimatedItemCount = 0;
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
-        ExTask task = new WarmupEstimateDatabaseItemCount(
-                                *store, i, this, Priority::WarmupPriority);
+        ExTask task = new WarmupEstimateDatabaseItemCount(*store, i, this);
         taskId = task->getId();
         ExecutorPool::get()->schedule(task, READER_TASK_IDX);
     }
@@ -564,8 +561,7 @@ void Warmup::scheduleKeyDump()
 {
     threadtask_count = 0;
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
-        ExTask task = new WarmupKeyDump(*store, this,
-                                        i, Priority::WarmupPriority);
+        ExTask task = new WarmupKeyDump(*store, this, i);
         taskId = task->getId();
         ExecutorPool::get()->schedule(task, READER_TASK_IDX);
     }
@@ -619,8 +615,7 @@ void Warmup::keyDumpforShard(uint16_t shardId)
 
 void Warmup::scheduleCheckForAccessLog()
 {
-    ExTask task = new WarmupCheckforAccessLog(*store, this,
-            Priority::WarmupPriority);
+    ExTask task = new WarmupCheckforAccessLog(*store, this);
     taskId = task->getId();
     ExecutorPool::get()->schedule(task, READER_TASK_IDX);
 }
@@ -661,8 +656,7 @@ void Warmup::scheduleLoadingAccessLog()
 {
     threadtask_count = 0;
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
-        ExTask task = new WarmupLoadAccessLog(*store, this, i,
-                Priority::WarmupPriority);
+        ExTask task = new WarmupLoadAccessLog(*store, this, i);
         taskId = task->getId();
         ExecutorPool::get()->schedule(task, READER_TASK_IDX);
     }
@@ -774,8 +768,7 @@ void Warmup::scheduleLoadingKVPairs()
 
     threadtask_count = 0;
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
-        ExTask task = new WarmupLoadingKVPairs(*store, this,
-                                               i, Priority::WarmupPriority);
+        ExTask task = new WarmupLoadingKVPairs(*store, this, i);
         taskId = task->getId();
         ExecutorPool::get()->schedule(task, READER_TASK_IDX);
     }
@@ -824,8 +817,7 @@ void Warmup::scheduleLoadingData()
 
     threadtask_count = 0;
     for (size_t i = 0; i < store->vbMap.shards.size(); i++) {
-        ExTask task = new WarmupLoadingData(*store, this,
-                                            i, Priority::WarmupPriority);
+        ExTask task = new WarmupLoadingData(*store, this, i);
         taskId = task->getId();
         ExecutorPool::get()->schedule(task, READER_TASK_IDX);
     }
@@ -862,8 +854,7 @@ void Warmup::loadDataforShard(uint16_t shardId)
 }
 
 void Warmup::scheduleCompletion() {
-    ExTask task = new WarmupCompletion(*store, this,
-                                       Priority::WarmupPriority);
+    ExTask task = new WarmupCompletion(*store, this);
     taskId = task->getId();
     ExecutorPool::get()->schedule(task, READER_TASK_IDX);
 }

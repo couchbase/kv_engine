@@ -200,9 +200,8 @@ class RollbackTask : public GlobalTask {
 public:
     RollbackTask(EventuallyPersistentEngine* e,
                  uint32_t opaque_, uint16_t vbid_,
-                 uint64_t rollbackSeqno_, dcp_consumer_t conn,
-                 const Priority &p):
-        GlobalTask(e, p, 0, false), engine(e),
+                 uint64_t rollbackSeqno_, dcp_consumer_t conn):
+        GlobalTask(e, TaskId::RollbackTask, 0, false), engine(e),
         opaque(opaque_), vbid(vbid_), rollbackSeqno(rollbackSeqno_),
         cons(conn) { }
 

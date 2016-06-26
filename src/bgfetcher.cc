@@ -31,8 +31,7 @@ void BgFetcher::start() {
     bool inverse = false;
     pendingFetch.compare_exchange_strong(inverse, true);
     ExecutorPool* iom = ExecutorPool::get();
-    ExTask task = new BgFetcherTask(&(store->getEPEngine()), this,
-                                      Priority::BgFetcherPriority, false);
+    ExTask task = new MultiBGFetcherTask(&(store->getEPEngine()), this, false);
     this->setTaskId(task->getId());
     iom->schedule(task, READER_TASK_IDX);
     cb_assert(taskId > 0);

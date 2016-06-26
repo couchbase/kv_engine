@@ -91,7 +91,7 @@ bool ClosedUnrefCheckpointRemoverTask::run(void) {
         shared_ptr<CheckpointVisitor> pv(new CheckpointVisitor(store, stats,
                                                                available));
         store->visit(pv, "Checkpoint Remover", NONIO_TASK_IDX,
-                     Priority::CheckpointRemoverPriority);
+                     TaskId::ClosedUnrefCheckpointRemoverVisitorTask);
     }
     snooze(sleepTime);
     return true;

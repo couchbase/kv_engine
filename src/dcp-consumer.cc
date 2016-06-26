@@ -25,48 +25,44 @@
 #include "dcp-response.h"
 #include "dcp-stream.h"
 
-class Processer : public GlobalTask {
+class Processor : public GlobalTask {
 public:
-    Processer(EventuallyPersistentEngine* e, connection_t c,
-                const Priority &p, double sleeptime = 1, bool shutdown = false)
-        : GlobalTask(e, p, sleeptime, shutdown), conn(c) {}
+    Processor(EventuallyPersistentEngine* e, connection_t c,
+              double sleeptime = 1, bool shutdown = false)
+        : GlobalTask(e, TaskId::Processor, sleeptime, shutdown), conn(c) {}
 
-    bool run();
+    bool run() {
+        DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
+        if (consumer->doDisconnect()) {
+            return false;
+        }
 
-    std::string getDescription();
+        switch (consumer->processBufferedItems()) {
+            case all_processed:
+                snooze(1);
+                break;
+            case more_to_process:
+                snooze(0);
+                break;
+            case cannot_process:
+                snooze(5);
+                break;
+            default:
+                abort();
+        }
+
+        return true;
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss << "Processing buffered items for " << conn->getName();
+        return ss.str();
+    }
 
 private:
     connection_t conn;
 };
-
-bool Processer::run() {
-    DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
-    if (consumer->doDisconnect()) {
-        return false;
-    }
-
-    switch (consumer->processBufferedItems()) {
-        case all_processed:
-            snooze(1);
-            break;
-        case more_to_process:
-            snooze(0);
-            break;
-        case cannot_process:
-            snooze(5);
-            break;
-        default:
-            abort();
-    }
-
-    return true;
-}
-
-std::string Processer::getDescription() {
-    std::stringstream ss;
-    ss << "Processing buffered items for " << conn->getName();
-    return ss.str();
-}
 
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
@@ -144,7 +140,7 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     setPriority = true;
     enableExtMetaData = true;
 
-    ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
+    ExTask task = new Processor(&engine, this, 1);
     processTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
 }
 
@@ -642,8 +638,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
                 "to rollback seq no. %llu", logHeader(), vbid, rollbackSeqno);
 
             ExTask task = new RollbackTask(&engine_, opaque, vbid,
-                                           rollbackSeqno, this,
-                                           Priority::TapBgFetcherPriority);
+                                           rollbackSeqno, this);
             ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
             return ENGINE_SUCCESS;
         }
@@ -852,7 +847,7 @@ void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
                 RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
                 vb->failovers->replaceFailoverLog(body, bodylen);
                 EventuallyPersistentStore* st = engine_.getEpStore();
-                st->scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
+                st->scheduleVBSnapshot(VBSnapshotTask::Priority::HIGH,
                                 st->getVBuckets().getShard(vbucket)->getId());
             }
             LOG(EXTENSION_LOG_INFO, "%s (vb %d) Add stream for opaque %ld"

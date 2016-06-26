@@ -34,9 +34,9 @@ class AccessScanner : public GlobalTask {
     friend class AccessScannerValueChangeListener;
 public:
     AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
-                  const Priority &p, double sleeptime = 0,
+                  double sleeptime = 0,
                   bool completeBeforeShutdown = false)
-        : GlobalTask(&_store.getEPEngine(), p, sleeptime,
+        : GlobalTask(&_store.getEPEngine(), TaskId::AccessScanner, sleeptime,
                      completeBeforeShutdown),
           completedCount(0), store(_store), stats(st), sleepTime(sleeptime),
           available(true) { }

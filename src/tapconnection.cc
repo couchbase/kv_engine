@@ -664,7 +664,7 @@ class ResumeCallback : public GlobalTask {
 public:
     ResumeCallback(EventuallyPersistentEngine &e, Producer *c,
                    double sleepTime)
-        : GlobalTask(&e, Priority::TapResumePriority, sleepTime),
+        : GlobalTask(&e, TaskId::ResumeCallback, sleepTime),
           engine(e), conn(c) {
         std::stringstream ss;
         ss << "Resuming suspended tap connection: " << conn->getName();
@@ -1029,8 +1029,7 @@ const char *TapProducer::opaqueCmdToString(uint32_t opaque_code) {
 
 void TapProducer::queueBGFetch_UNLOCKED(const std::string &key, uint64_t id, uint16_t vb) {
     ExTask task = new BGFetchCallback(&engine(), getName(), key, vb,
-                                      getConnectionToken(),
-                                      Priority::TapBgFetcherPriority, 0);
+                                      getConnectionToken(), 0);
     ExecutorPool::get()->schedule(task, AUXIO_TASK_IDX);
     ++bgJobIssued;
     std::map<uint16_t, CheckpointState>::iterator it = checkpointState_.find(vb);

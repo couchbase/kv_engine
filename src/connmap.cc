@@ -45,11 +45,8 @@ class ConnectionReaperCallback : public GlobalTask {
 public:
     ConnectionReaperCallback(EventuallyPersistentEngine &e, ConnMap& cm,
                              connection_t &conn)
-        : GlobalTask(&e, Priority::TapConnectionReaperPriority),
+        : GlobalTask(&e, TaskId::ConnectionReaperCallback),
           connMap(cm), connection(conn) {
-        std::stringstream ss;
-        ss << "Reaping tap or dcp connection: " << connection->getName();
-        descr = ss.str();
     }
 
     bool run(void) {
@@ -62,13 +59,12 @@ public:
     }
 
     std::string getDescription() {
-        return descr;
+        return "Reaping tap or dcp connection: " + connection->getName();
     }
 
 private:
     ConnMap &connMap;
     connection_t connection;
-    std::string descr;
 };
 
 /**
@@ -77,7 +73,7 @@ private:
 class ConnNotifierCallback : public GlobalTask {
 public:
     ConnNotifierCallback(EventuallyPersistentEngine *e, ConnNotifier *notifier)
-    : GlobalTask(e, Priority::TapConnNotificationPriority),
+    : GlobalTask(e, TaskId::ConnNotifierCallback),
       connNotifier(notifier) { }
 
     bool run(void) {
@@ -145,7 +141,7 @@ bool ConnNotifier::notifyConnections() {
 class ConnManager : public GlobalTask {
 public:
     ConnManager(EventuallyPersistentEngine *e, ConnMap *cmap)
-        : GlobalTask(e, Priority::TapConnMgrPriority, MIN_SLEEP_TIME, false),
+        : GlobalTask(e, TaskId::ConnManager, MIN_SLEEP_TIME, false),
           engine(e), connmap(cmap) { }
 
     bool run(void) {

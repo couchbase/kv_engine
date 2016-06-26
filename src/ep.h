@@ -119,8 +119,8 @@ class Warmup;
 class VBCBAdaptor : public GlobalTask {
 public:
 
-    VBCBAdaptor(EventuallyPersistentStore *s,
-                shared_ptr<VBucketVisitor> v, const char *l, const Priority &p,
+    VBCBAdaptor(EventuallyPersistentStore *s, TaskId id,
+                shared_ptr<VBucketVisitor> v, const char *l,
                 double sleep=0);
 
     std::string getDescription() {
@@ -516,7 +516,7 @@ public:
         return vbMap.getPersistenceSeqno(vb);
     }
 
-    void snapshotVBuckets(const Priority &priority, uint16_t shardId);
+    void snapshotVBuckets(VBSnapshotTask::Priority prio, uint16_t shardId);
 
     /* transfer should be set to true *only* if this vbucket is becoming master
      * as the result of the previous master cleanly handing off contorol. */
@@ -579,10 +579,10 @@ public:
      * Note that this is asynchronous.
      */
     size_t visit(shared_ptr<VBucketVisitor> visitor, const char *lbl,
-               task_type_t taskGroup, const Priority &prio,
+               task_type_t taskGroup, TaskId id,
                double sleepTime=0) {
-        return ExecutorPool::get()->schedule(new VBCBAdaptor(this, visitor,
-                                             lbl, prio, sleepTime), taskGroup);
+        return ExecutorPool::get()->schedule(new VBCBAdaptor(this, id, visitor,
+                                             lbl, sleepTime), taskGroup);
     }
 
     /**
@@ -671,24 +671,24 @@ public:
     /**
      * schedule a vb_state snapshot task for all the shards.
      */
-    bool scheduleVBSnapshot(const Priority &priority);
+    bool scheduleVBSnapshot(VBSnapshotTask::Priority prio);
 
     /**
      * schedule a vb_state snapshot task for a given shard.
      */
-    void scheduleVBSnapshot(const Priority &priority, uint16_t shardId,
+    void scheduleVBSnapshot(VBSnapshotTask::Priority prio, uint16_t shardId,
                             bool force = false);
 
     /**
      * Schedule a vbstate persistence task for a given vbucket.
      */
-    void scheduleVBStatePersist(const Priority &priority, uint16_t vbid,
+    void scheduleVBStatePersist(VBStatePersistTask::Priority prio, uint16_t vbid,
                                 bool force = false);
 
     /**
      * Persist a vbucket's state.
      */
-    bool persistVBState(const Priority &priority, uint16_t vbid);
+    bool persistVBState(uint16_t vbid);
 
     const VBucketMap &getVBuckets() {
         return vbMap;
@@ -749,12 +749,12 @@ public:
         ++vb->numExpiredItems;
     }
 
-    void logQTime(type_id_t taskType, hrtime_t enqTime) {
-        stats.schedulingHisto[taskType].add(enqTime);
+    void logQTime(TaskId taskType, hrtime_t enqTime) {
+        stats.schedulingHisto[static_cast<int>(taskType)].add(enqTime);
     }
 
-    void logRunTime(type_id_t taskType, hrtime_t runTime) {
-        stats.taskRuntimeHisto[taskType].add(runTime);
+    void logRunTime(TaskId taskType, hrtime_t runTime) {
+        stats.taskRuntimeHisto[static_cast<int>(taskType)].add(runTime);
     }
 
     bool multiBGFetchEnabled() {

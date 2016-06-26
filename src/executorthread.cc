@@ -93,7 +93,7 @@ void ExecutorThread::run() {
             if (currentTask->isdead()) {
                 // release capacity back to TaskQueue
                 manager->doneWork(curTaskType);
-                manager->cancel(currentTask->taskId, true);
+                manager->cancel(currentTask->uid, true);
                 continue;
             }
 
@@ -131,7 +131,7 @@ void ExecutorThread::run() {
                 if (!again || currentTask->isdead()) {
                     // release capacity back to TaskQueue
                     manager->doneWork(curTaskType);
-                    manager->cancel(currentTask->taskId, true);
+                    manager->cancel(currentTask->uid, true);
                 } else {
                     hrtime_t new_waketime;
                     // if a task has not set snooze, update its waketime to now
