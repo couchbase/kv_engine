@@ -255,7 +255,7 @@ CouchKVStore::CouchKVStore(KVStoreConfig &config, FileOpsInterface& ops,
     : KVStore(config, read_only),
       dbname(config.getDBName()),
       intransaction(false),
-      backfillCounter(0),
+      scanCounter(0),
       logger(config.getLogger()),
       base_ops(ops)
 {
@@ -1230,12 +1230,14 @@ ScanContext* CouchKVStore::initScanContext(std::shared_ptr<Callback<GetValue> > 
         throw std::runtime_error(err);
     }
 
-    size_t backfillId = backfillCounter++;
+    size_t scanId = scanCounter++;
 
-    LockHolder lh(backfillLock);
-    backfills[backfillId] = db;
+    {
+        LockHolder lh(scanLock);
+        scans[scanId] = db;
+    }
 
-    ScanContext* sctx = new ScanContext(cb, cl, vbid, backfillId, startSeqno,
+    ScanContext* sctx = new ScanContext(cb, cl, vbid, scanId, startSeqno,
                                         info.last_sequence, options,
                                         valOptions, count);
     sctx->logger = &logger;
@@ -1251,14 +1253,16 @@ scan_error_t CouchKVStore::scan(ScanContext* ctx) {
         return scan_success;
     }
 
-    LockHolder lh(backfillLock);
-    std::map<size_t, Db*>::iterator itr = backfills.find(ctx->scanId);
-    if (itr == backfills.end()) {
-        return scan_failed;
-    }
+    Db* db;
+    {
+        LockHolder lh(scanLock);
+        auto itr = scans.find(ctx->scanId);
+        if (itr == scans.end()) {
+            return scan_failed;
+        }
 
-    Db* db = itr->second;
-    lh.unlock();
+        db = itr->second;
+    }
 
     couchstore_docinfos_options options;
     switch (ctx->docFilter) {
@@ -1302,11 +1306,11 @@ void CouchKVStore::destroyScanContext(ScanContext* ctx) {
         return;
     }
 
-    LockHolder lh(backfillLock);
-    std::map<size_t, Db*>::iterator itr = backfills.find(ctx->scanId);
-    if (itr != backfills.end()) {
+    LockHolder lh(scanLock);
+    auto itr = scans.find(ctx->scanId);
+    if (itr != scans.end()) {
         closeDatabaseHandle(itr->second);
-        backfills.erase(itr);
+        scans.erase(itr);
     }
     delete ctx;
 }

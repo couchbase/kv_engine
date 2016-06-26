@@ -374,9 +374,9 @@ private:
     std::vector<ForestRequest *> pendingReqsQ;
     static std::mutex initLock;
     static int numGlobalFiles;
-    std::atomic<size_t> backfillCounter;
-    std::map<size_t, fdb_kvs_handle *> backfills;
-    std::mutex backfillLock; /* guard for the backfills map */
+    std::atomic<size_t> scanCounter; //atomic counter for generating scan id
+    std::map<size_t, fdb_kvs_handle*> scans; //map holding active scans
+    std::mutex scanLock; //lock guarding the scan map
 
 private:
     void close();

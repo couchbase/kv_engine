@@ -491,7 +491,7 @@ protected:
 class KVStore {
 public:
     KVStore(KVStoreConfig &config, bool read_only = false)
-        : configuration(config), readOnly(read_only) { }
+        : configuration(config), readOnly(read_only) {}
 
     virtual ~KVStore() {}
 

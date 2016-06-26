@@ -601,9 +601,9 @@ private:
     /* pending file deletions */
     AtomicQueue<std::string> pendingFileDeletions;
 
-    std::atomic<size_t> backfillCounter;
-    std::map<size_t, Db*> backfills;
-    std::mutex backfillLock;
+    std::atomic<size_t> scanCounter; //atomic counter for generating scan id
+    std::map<size_t, Db*> scans; //map holding active scans
+    std::mutex scanLock; //lock guarding the scan map
 
     Logger& logger;
 

@@ -60,7 +60,7 @@ void ForestKVStore::shutdownForestDb() {
 
 ForestKVStore::ForestKVStore(KVStoreConfig &config) :
     KVStore(config), intransaction(false),
-    dbname(config.getDBName()), dbFileRevNum(1) {
+    dbname(config.getDBName()), dbFileRevNum(1), scanCounter(0) {
 
     /* create the data directory */
     createDataDir(dbname);
@@ -1288,15 +1288,17 @@ ScanContext* ForestKVStore::initScanContext(std::shared_ptr<Callback<GetValue> >
         throw std::runtime_error(err);
     }
 
-    size_t backfillId = backfillCounter++;
+    size_t scanId = scanCounter++;
     size_t count = getNumItems(kvsHandle,
                                startSeqno,
                                std::numeric_limits<uint64_t>::max());
 
-    LockHolder lh(backfillLock);
-    backfills[backfillId] = kvsHandle;
+    {
+        LockHolder lh(scanLock);
+        scans[scanId] = kvsHandle;
+    }
 
-    return new ScanContext(cb, cl, vbid, backfillId, startSeqno,
+    return new ScanContext(cb, cl, vbid, scanId, startSeqno,
                            (uint64_t)kvsInfo.last_seqnum, options,
                            valOptions, count);
 }
@@ -1310,14 +1312,16 @@ scan_error_t ForestKVStore::scan(ScanContext* ctx) {
         return scan_success;
     }
 
-    LockHolder lh(backfillLock);
-    auto itr = backfills.find(ctx->scanId);
-    if (itr == backfills.end()) {
-        return scan_failed;
-    }
+    fdb_kvs_handle* kvsHandle;
+    {
+        LockHolder lh(scanLock);
+        auto itr = scans.find(ctx->scanId);
+        if (itr == scans.end()) {
+            return scan_failed;
+        }
 
-    fdb_kvs_handle* kvsHandle = itr->second;
-    lh.unlock();
+        kvsHandle = itr->second;
+    }
 
     fdb_iterator_opt_t options;
 
@@ -1382,10 +1386,10 @@ void ForestKVStore::destroyScanContext(ScanContext* ctx) {
         return;
     }
 
-    LockHolder lh(backfillLock);
-    auto itr = backfills.find(ctx->scanId);
-    if (itr != backfills.end()) {
-        backfills.erase(itr);
+    LockHolder lh(scanLock);
+    auto itr = scans.find(ctx->scanId);
+    if (itr != scans.end()) {
+        scans.erase(itr);
     }
 
     delete ctx;
