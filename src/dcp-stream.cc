@@ -185,7 +185,7 @@ DcpResponse* ActiveStream::next() {
 
     DcpResponse* response = NULL;
 
-    switch (state_) {
+    switch (initState) {
         case STREAM_PENDING:
             break;
         case STREAM_BACKFILLING:
@@ -209,7 +209,9 @@ DcpResponse* ActiveStream::next() {
             abort();
     }
 
-    if (state_ != STREAM_DEAD && initState != state_ && !response) {
+    stream_state_t newState = state_;
+
+    if (newState != STREAM_DEAD && newState != state_ && !response) {
         lh.unlock();
         return next();
     }
@@ -834,7 +836,7 @@ void ActiveStream::transitionState(stream_state_t newState) {
         return;
     }
 
-    switch (state_) {
+    switch (state_.load()) {
         case STREAM_PENDING:
             cb_assert(newState == STREAM_BACKFILLING || newState == STREAM_DEAD);
             break;
@@ -1034,7 +1036,7 @@ void NotifierStream::transitionState(stream_state_t newState) {
         return;
     }
 
-    switch (state_) {
+    switch (state_.load()) {
         case STREAM_PENDING:
             cb_assert(newState == STREAM_DEAD);
             break;
@@ -1466,10 +1468,17 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
 
     const int bsize = 1024;
     char buf[bsize];
+    size_t buffer_bytes;
+    size_t buffer_items;
+    {
+        LockHolder lh(buffer.bufMutex);
+        buffer_bytes = buffer.bytes;
+        buffer_items = buffer.items;
+    }
     snprintf(buf, bsize, "%s:stream_%d_buffer_items", name_.c_str(), vb_);
-    add_casted_stat(buf, buffer.items, add_stat, c);
+    add_casted_stat(buf, buffer_items, add_stat, c);
     snprintf(buf, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(), vb_);
-    add_casted_stat(buf, buffer.bytes, add_stat, c);
+    add_casted_stat(buf, buffer_bytes, add_stat, c);
     snprintf(buf, bsize, "%s:stream_%d_items_ready", name_.c_str(), vb_);
     add_casted_stat(buf, itemsReady.load() ? "true" : "false", add_stat, c);
     snprintf(buf, bsize, "%s:stream_%d_last_received_seqno", name_.c_str(), vb_);
@@ -1524,7 +1533,7 @@ bool PassiveStream::transitionState(stream_state_t newState) {
         return false;
     }
 
-    switch (state_) {
+    switch (state_.load()) {
         case STREAM_PENDING:
             cb_assert(newState == STREAM_READING || newState == STREAM_DEAD);
             break;

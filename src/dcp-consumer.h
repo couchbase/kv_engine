@@ -22,6 +22,9 @@
 
 #include "tapconnection.h"
 #include "dcp-stream.h"
+
+#include <relaxed_atomic.h>
+
 typedef RCPtr<PassiveStream> passive_stream_t;
 
 class DcpResponse;
@@ -154,7 +157,7 @@ private:
     opaque_map opaqueMap_;
 
     rel_time_t lastMessageTime;
-    uint32_t backoffs;
+    Couchbase::RelaxedAtomic<uint32_t> backoffs;
     uint32_t noopInterval;
     bool enableNoop;
     bool sendNoopInterval;

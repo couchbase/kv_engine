@@ -20,6 +20,8 @@
 
 #include "config.h"
 
+#include <relaxed_atomic.h>
+
 #include "common.h"
 #include "stats.h"
 
@@ -48,8 +50,8 @@ private:
     bool persistenceQueueSmallEnough() const;
     bool hasSomeMemory() const;
 
-    ssize_t queueCap;
-    size_t capPercent;
+    Couchbase::RelaxedAtomic<ssize_t> queueCap;
+    Couchbase::RelaxedAtomic<size_t> capPercent;
     EPStats &stats;
 };
 

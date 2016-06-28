@@ -157,7 +157,7 @@ protected:
     uint64_t vb_uuid_;
     uint64_t snap_start_seqno_;
     uint64_t snap_end_seqno_;
-    stream_state_t state_;
+    AtomicValue<stream_state_t> state_;
     stream_type_t type_;
 
     AtomicValue<bool> itemsReady;
