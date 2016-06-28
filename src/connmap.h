@@ -473,10 +473,9 @@ private:
 
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
 
-    void disconnect_UNLOCKED(const void *cookie);
-
     void closeAllStreams_UNLOCKED();
 
+    // Guarded by the parent's classes `connsLock`
     std::list<connection_t> deadConnections;
 };
 
