@@ -135,4 +135,4 @@ AuthResult auth_check_access(AuthContext *context, const Greenstack::Opcode& opc
 void auth_set_privilege_debug(bool enable);
 
 
-int load_rbac_from_file(const char *file);
+int load_rbac_from_file(const std::string& file);

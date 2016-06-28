@@ -410,16 +410,16 @@ void auth_set_privilege_debug(bool enable) {
     rbac.setPrivilegeDebugging(enable);
 }
 
-int load_rbac_from_file(const char *file)
+int load_rbac_from_file(const std::string& file)
 {
     cJSON *root;
-    if (file == nullptr) {
+    if (file == "") {
         root = getDefaultRbacConfig();
     } else {
-        config_error_t err = config_load_file(file, &root);
+        config_error_t err = config_load_file(file.c_str(), &root);
         if (err != CONFIG_SUCCESS) {
             fprintf(stderr, "Failed to read profiles: %s\n",
-                    config_strerror(file, err));
+                    config_strerror(file.c_str(), err));
             return -1;
         }
     }
