@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "libcouchstore/couch_db.h"
+#include <relaxed_atomic.h>
 
 #include <map>
 #include <string>
@@ -610,7 +611,12 @@ public:
 
     Configuration &configuration;
     const std::string dbname;
-    std::vector<uint64_t>dbFileRevMap;
+
+    // Map of the fileRev for each vBucket. Using RelaxedAtomic so
+    // stats gathering (doDcpVbTakeoverStats) can get a snapshot
+    // without having to lock.
+    std::vector<Couchbase::RelaxedAtomic<uint64_t> > dbFileRevMap;
+
     uint16_t numDbFiles;
     std::vector<CouchRequest *> pendingReqsQ;
     bool intransaction;
