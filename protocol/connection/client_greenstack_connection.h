@@ -56,8 +56,9 @@ private:
 
 class MemcachedGreenstackConnection : public MemcachedConnection {
 public:
-    MemcachedGreenstackConnection(in_port_t port, sa_family_t family, bool ssl)
-        : MemcachedConnection(port, family, ssl, Protocol::Greenstack) { }
+    MemcachedGreenstackConnection(const std::string& host, in_port_t port,
+                                  sa_family_t family, bool ssl)
+        : MemcachedConnection(host, port, family, ssl, Protocol::Greenstack) {}
 
     virtual std::string to_string() override;
 
@@ -96,24 +97,9 @@ public:
 
     virtual void recvFrame(Frame& frame) override;
 
-    /**
-     * Run Hello to the server and identify ourself with the userAgent,
-     * userAgentVersion and comment.
-     *
-     * @throws std::runtime_error if an error occurs
-     */
-    void hello(const std::string& userAgent,
-               const std::string& userAgentVersion,
-               const std::string& comment);
-
-
-    /**
-     * Get the servers SASL mechanisms. This is only valid after running a
-     * successful HELLO
-     */
-    const std::string& getSaslMechanisms() const {
-        return saslMechanisms;
-    }
+    virtual void hello(const std::string& userAgent,
+                       const std::string& userAgentVersion,
+                       const std::string& comment) override;
 
 
     virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
@@ -122,7 +108,5 @@ public:
 
 protected:
     Greenstack::UniqueMessagePtr recvMessage();
-
-    std::string saslMechanisms;
 
 };

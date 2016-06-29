@@ -345,8 +345,40 @@ public:
                                             ENGINE_ERROR_CODE err_code = ENGINE_EWOULDBLOCK,
                                             uint32_t value = 0) = 0;
 
+
+    /**
+     * Identify ourself to the server and fetch the available SASL mechanisms
+     * (available by calling `getSaslMechanisms()`
+     *
+     * @throws std::runtime_error if an error occurs
+     */
+    virtual void hello(const std::string& userAgent,
+                       const std::string& userAgentVersion,
+                       const std::string& comment) = 0;
+
+
+    /**
+     * Get the servers SASL mechanisms. This is only valid after running a
+     * successful `hello()`
+     */
+    const std::string& getSaslMechanisms() const {
+        return saslMechanisms;
+    }
+
 protected:
-    MemcachedConnection(in_port_t port, sa_family_t family, bool ssl,
+    /**
+     * Create a new instance of the MemcachedConnection
+     *
+     * @param host the hostname to connect to (empty == localhost)
+     * @param port the port number to connect to
+     * @param family the socket family to connect as (AF_INET, AF_INET6
+     *               or use AF_UNSPEC to just pick one)
+     * @param ssl connect over SSL or not
+     * @param protocol the protocol the implementation is using
+     * @return
+     */
+    MemcachedConnection(const std::string& host, in_port_t port,
+                        sa_family_t family, bool ssl,
                         const Protocol& protocol);
 
     void close();
@@ -363,6 +395,7 @@ protected:
 
     void sendFrameSsl(const Frame& frame);
 
+    std::string host;
     in_port_t port;
     sa_family_t family;
     bool ssl;
@@ -371,6 +404,7 @@ protected:
     BIO* bio;
     SOCKET sock;
     bool synchronous;
+    std::string saslMechanisms;
 };
 
 class ConnectionMap {

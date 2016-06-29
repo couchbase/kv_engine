@@ -23,8 +23,9 @@
 
 class MemcachedBinprotConnection : public MemcachedConnection {
 public:
-    MemcachedBinprotConnection(in_port_t port, sa_family_t family, bool ssl)
-        : MemcachedConnection(port, family, ssl, Protocol::Memcached) {
+    MemcachedBinprotConnection(const std::string& host, in_port_t port,
+                               sa_family_t family, bool ssl)
+        : MemcachedConnection(host, port, family, ssl, Protocol::Memcached) {
         std::fill(features.begin(), features.end(), false);
     }
 
@@ -65,6 +66,10 @@ public:
     virtual void sendFrame(const Frame& frame) override;
 
     virtual void recvFrame(Frame& frame) override;
+
+    virtual void hello(const std::string& userAgent,
+                       const std::string& userAgentVersion,
+                       const std::string& comment) override;
 
     void setDatatypeSupport(bool enable);
 

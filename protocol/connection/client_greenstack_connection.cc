@@ -69,7 +69,9 @@ typedef std::unique_ptr<Greenstack::Message> UniqueMessagePtr;
 
 std::unique_ptr<MemcachedConnection> MemcachedGreenstackConnection::clone() {
     return std::unique_ptr<MemcachedConnection>(
-            new MemcachedGreenstackConnection(this->port, this->family,
+            new MemcachedGreenstackConnection(this->host,
+                                              this->port,
+                                              this->family,
                                               this->ssl));
 }
 

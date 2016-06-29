@@ -118,11 +118,14 @@ void ConnectionMap::initialize(cJSON* ports) {
         MemcachedConnection* connection;
         if (strcmp(protocol->valuestring, "greenstack") == 0) {
             // Enable when we get greenstack support
-            connection = new MemcachedGreenstackConnection(portval,
+            connection = new MemcachedGreenstackConnection("",
+                                                           portval,
                                                            family,
                                                            useSsl);
         } else {
-            connection = new MemcachedBinprotConnection(portval, family,
+            connection = new MemcachedBinprotConnection("",
+                                                        portval,
+                                                        family,
                                                         useSsl);
         }
         connections.push_back(connection);
@@ -139,9 +142,11 @@ void ConnectionMap::invalidate() {
 /////////////////////////////////////////////////////////////////////////
 // Implementation of the MemcachedConnection class
 /////////////////////////////////////////////////////////////////////////
-MemcachedConnection::MemcachedConnection(in_port_t port, sa_family_t family,
+MemcachedConnection::MemcachedConnection(const std::string& host, in_port_t port,
+                                         sa_family_t family,
                                          bool ssl, const Protocol& protocol)
-    : port(port),
+    : host(host),
+      port(port),
       family(family),
       ssl(ssl),
       protocol(protocol),
@@ -180,7 +185,7 @@ void MemcachedConnection::close() {
     }
 }
 
-SOCKET new_socket(in_port_t port, sa_family_t family) {
+SOCKET new_socket(std::string& host, in_port_t port, sa_family_t family) {
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
     hints.ai_flags = AI_PASSIVE;
@@ -190,15 +195,22 @@ SOCKET new_socket(in_port_t port, sa_family_t family) {
 
     int error;
     struct addrinfo* ai;
-    if (family == AF_INET) {
-        error = getaddrinfo("127.0.0.1", std::to_string(port).c_str(), &hints,
-                            &ai);
-    } else {
-        error = getaddrinfo("::1", std::to_string(port).c_str(), &hints, &ai);
+
+    if (host.empty() || host == "localhost") {
+        if (family == AF_INET) {
+            host.assign("127.0.0.1");
+        } else if (family == AF_INET6){
+            host.assign("::1");
+        } else if (family == AF_UNSPEC) {
+            host.assign("localhost");
+        }
     }
 
+    error = getaddrinfo(host.c_str(), std::to_string(port).c_str(), &hints,
+                        &ai);
+
     if (error != 0) {
-        std::string msg("Failed to resolve address");
+        std::string msg("Failed to resolve address ");
         msg.append(std::to_string(error));
         throw std::runtime_error(msg);
     }
@@ -236,13 +248,13 @@ SOCKET new_socket(in_port_t port, sa_family_t family) {
 }
 
 void MemcachedConnection::connect() {
-    sock = new_socket(port, family);
+    sock = new_socket(host, port, family);
     if (sock == INVALID_SOCKET) {
         std::string msg("Failed to connect to: ");
-        if (family == AF_INET) {
-            msg.append("127.0.0.1:");
+        if (family == AF_INET || family == AF_UNSPEC) {
+            msg += host + ":";
         } else {
-            msg.append("[::1]:");
+            msg += "[" + host + "]:";
         }
         msg.append(std::to_string(port));
         throw std::runtime_error(msg);
