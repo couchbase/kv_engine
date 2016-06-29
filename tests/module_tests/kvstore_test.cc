@@ -400,8 +400,7 @@ TEST_F(CouchstoreTest, fuzzV0) {
     kvstore->get("key", 0, gc);
 }
 
-// NB: Test triggers valgrind warning for builds without MB-19948
-TEST_F(CouchstoreTest, DISABLED_fuzzV1) { //disabled until fixed (Valgrind)
+TEST_F(CouchstoreTest, fuzzV1) {
     Item item("key", 3, 0, 0, "value", 5);
     WriteCallback wc;
     kvstore->begin();
@@ -454,8 +453,7 @@ TEST_F(CouchstoreTest, fuzzV2) {
     kvstore->get("key", 0, gc);
 }
 
-// NB: Test triggers valgrind warning for builds without MB-19948
-TEST_F(CouchstoreTest, DISABLED_testV1WriteReadWriteRead) {
+TEST_F(CouchstoreTest, testV1WriteReadWriteRead) {
     // Ensure CAS, exptime and flags are set to something.
     uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
     Item item("key", 3,
