@@ -4323,7 +4323,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
 
         uint64_t relHighSeqno = vb->getHighSeqno();
 
-        ReaderLockHolder rlh(vb->getStateLock());
+        // An atomic read of vbucket state without acquiring the
+        // reader lock for state should suffice here.
         if (vb->getState() != vbucket_state_active) {
             snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
             relHighSeqno = info.range.end;
@@ -4348,7 +4349,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
         RCPtr<VBucket> vb = getVBucket(*itr);
         if (vb) {
             uint64_t relHighSeqno = vb->getHighSeqno();
-            ReaderLockHolder rlh(vb->getStateLock());
+
+            // An atomic read of vbucket state without acquiring the
+            // reader lock for state should suffice here.
             if (vb->getState() != vbucket_state_active) {
                 snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
                 relHighSeqno = info.range.end;
