@@ -533,61 +533,10 @@ MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,
 }
 
 void MemcachedBinprotConnection::setDatatypeSupport(bool enable) {
-    std::vector<uint16_t> feat;
-    if (enable) {
-        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_DATATYPE));
-    }
-
-    if (features[1]) {
-        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY));
-    }
-
-    if (features[2]) {
-        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO));
-    }
-
-    std::vector<uint8_t> data(feat.size() * sizeof(feat.at(0)));
-    memcpy(data.data(), feat.data(), data.size());
-
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_HELLO, std::vector<uint8_t>(),
-                     "mcbp", data);
-
-    sendFrame(frame);
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_set*>(frame.payload.data());
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Failed to enable features",
-                              Protocol::Memcached,
-                              rsp->message.header.response.status);
-    }
-
-    // Validate the result!
-    if ((rsp->message.header.response.bodylen & 1) != 0) {
-        throw ConnectionError("Invalid response returned", Protocol::Memcached,
-                              PROTOCOL_BINARY_RESPONSE_EINVAL);
-    }
-
-    std::vector<uint16_t> enabled;
-    enabled.resize(rsp->message.header.response.bodylen / 2);
-    memcpy(enabled.data(), (rsp + 1), rsp->message.header.response.bodylen);
-    for (auto val : enabled) {
-        val = ntohs(val);
-        switch (val) {
-        case PROTOCOL_BINARY_FEATURE_DATATYPE:
-            features[0] = true;
-            break;
-        case PROTOCOL_BINARY_FEATURE_TCPNODELAY:
-            features[1] = true;
-            break;
-        case PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO:
-            features[2] = true;
-            break;
-        default:
-            throw std::runtime_error("Unsupported version returned");
-        }
-    }
+    std::array<bool, 3> requested;
+    std::copy(features.begin(), features.end(), requested.begin());
+    requested[0] = enable;
+    setFeatures("mcbp", requested);
 
     if (enable && !features[0]) {
         throw std::runtime_error("Failed to enable datatype");
@@ -595,61 +544,10 @@ void MemcachedBinprotConnection::setDatatypeSupport(bool enable) {
 }
 
 void MemcachedBinprotConnection::setMutationSeqnoSupport(bool enable) {
-    std::vector<uint16_t> feat;
-    if (features[0]) {
-        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_DATATYPE));
-    }
-
-    if (features[1]) {
-        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY));
-    }
-
-    if (enable) {
-        feat.push_back(htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO));
-    }
-
-    std::vector<uint8_t> data(feat.size() * sizeof(feat.at(0)));
-    memcpy(data.data(), feat.data(), data.size());
-
-    Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_HELLO, std::vector<uint8_t>(),
-                     "mcbp", data);
-
-    sendFrame(frame);
-    recvFrame(frame);
-    auto* rsp = reinterpret_cast<protocol_binary_response_set*>(frame.payload.data());
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Failed to enable features",
-                              Protocol::Memcached,
-                              rsp->message.header.response.status);
-    }
-
-    // Validate the result!
-    if ((rsp->message.header.response.bodylen & 1) != 0) {
-        throw ConnectionError("Invalid response returned", Protocol::Memcached,
-                              PROTOCOL_BINARY_RESPONSE_EINVAL);
-    }
-
-    std::vector<uint16_t> enabled;
-    enabled.resize(rsp->message.header.response.bodylen / 2);
-    memcpy(enabled.data(), (rsp + 1), rsp->message.header.response.bodylen);
-    for (auto val : enabled) {
-        val = ntohs(val);
-        switch (val) {
-        case PROTOCOL_BINARY_FEATURE_DATATYPE:
-            features[0] = true;
-            break;
-        case PROTOCOL_BINARY_FEATURE_TCPNODELAY:
-            features[1] = true;
-            break;
-        case PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO:
-            features[2] = true;
-            break;
-        default:
-            throw std::runtime_error("Unsupported version returned");
-        }
-    }
+    std::array<bool, 3> requested;
+    std::copy(features.begin(), features.end(), requested.begin());
+    requested[2] = enable;
+    setFeatures("mcbp", requested);
 
     if (enable && !features[2]) {
         throw std::runtime_error("Failed to enable datatype");
@@ -759,17 +657,40 @@ void MemcachedBinprotConnection::reloadAuditConfiguration() {
 void MemcachedBinprotConnection::hello(const std::string& userAgent,
                                        const std::string& userAgentVersion,
                                        const std::string& comment) {
+    std::array<bool, 3> requested;
+    std::copy(features.begin(), features.end(), requested.begin());
+    setFeatures(userAgent + " " + userAgentVersion, requested);
+
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_SASL_LIST_MECHS, {}, {}, {});
+    sendFrame(frame);
+    recvFrame(frame);
+    auto *rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw ConnectionError("Failed to fetch sasl mechanisms",
+                              Protocol::Memcached,
+                              rsp->message.header.response.status);
+    }
+
+    saslMechanisms.resize(rsp->message.header.response.bodylen);
+    saslMechanisms.assign((const char*)(rsp + 1),
+                          rsp->message.header.response.bodylen);
+}
+
+void MemcachedBinprotConnection::setFeatures(const std::string& agent,
+                                             const std::array<bool, 3>& requested) {
 
     std::vector<uint16_t> feat;
-    if (features[0]) {
+    if (requested[0]) {
         feat.push_back(htons(PROTOCOL_BINARY_FEATURE_DATATYPE));
     }
 
-    if (features[1]) {
+    if (requested[1]) {
         feat.push_back(htons(PROTOCOL_BINARY_FEATURE_TCPNODELAY));
     }
 
-    if (features[2]) {
+    if (requested[2]) {
         feat.push_back(htons(PROTOCOL_BINARY_FEATURE_MUTATION_SEQNO));
     }
 
@@ -777,8 +698,7 @@ void MemcachedBinprotConnection::hello(const std::string& userAgent,
     memcpy(data.data(), feat.data(), data.size());
 
     Frame frame;
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_HELLO, {},
-                     userAgent + " " + userAgentVersion, data);
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_HELLO, {}, agent, data);
 
     sendFrame(frame);
     recvFrame(frame);
@@ -815,19 +735,4 @@ void MemcachedBinprotConnection::hello(const std::string& userAgent,
             throw std::runtime_error("Unsupported feature returned");
         }
     }
-
-    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_SASL_LIST_MECHS, {}, {}, {});
-    sendFrame(frame);
-    recvFrame(frame);
-    rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
-    if (rsp->message.header.response.status !=
-        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Failed to fetch sasl mechanisms",
-                              Protocol::Memcached,
-                              rsp->message.header.response.status);
-    }
-
-    saslMechanisms.resize(rsp->message.header.response.bodylen);
-    saslMechanisms.assign((const char*)(rsp + 1),
-                          rsp->message.header.response.bodylen);
 }

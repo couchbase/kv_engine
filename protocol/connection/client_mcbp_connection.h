@@ -81,4 +81,17 @@ public:
                                             uint32_t value) override;
 
     std::array<bool, 3> features;
+
+protected:
+    /**
+     * Set the features on the server by using the MCBP hello command
+     *
+     * The internal `features` array is updated with the result sent back
+     * from the server.
+     *
+     * @param agent the agent name provided by the client
+     * @param feat the featureset to enable
+     */
+    void setFeatures(const std::string& agent,
+                     const std::array<bool, 3>& requested);
 };
