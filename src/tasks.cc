@@ -28,39 +28,6 @@
 static const double VBSTATE_SNAPSHOT_FREQ(300.0);
 static const double WORKLOAD_MONITOR_FREQ(5.0);
 
-GlobalTask::GlobalTask(Taskable& t, const Priority &p,
-           double sleeptime, bool completeBeforeShutdown) :
-      RCValue(), priority(p),
-      blockShutdown(completeBeforeShutdown),
-      state(TASK_RUNNING), taskId(nextTaskId()), engine(NULL), taskable(t) {
-    snooze(sleeptime);
-}
-
-GlobalTask::GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
-           double sleeptime, bool completeBeforeShutdown) :
-      RCValue(), priority(p),
-      blockShutdown(completeBeforeShutdown),
-      state(TASK_RUNNING), taskId(nextTaskId()), engine(e),
-      taskable(e->getTaskable()) {
-    snooze(sleeptime);
-}
-
-void GlobalTask::snooze(const double secs) {
-    if (secs == INT_MAX) {
-        setState(TASK_SNOOZED, TASK_RUNNING);
-        updateWaketime(hrtime_t(-1));
-        return;
-    }
-
-    hrtime_t curTime = gethrtime();
-    if (secs) {
-        setState(TASK_SNOOZED, TASK_RUNNING);
-        waketime.store(curTime + hrtime_t(secs * 1000000000));
-    } else {
-        waketime.store(curTime);
-    }
-}
-
 bool FlusherTask::run() {
     return flusher->step(this);
 }

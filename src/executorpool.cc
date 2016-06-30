@@ -357,19 +357,19 @@ bool ExecutorPool::wake(size_t taskId) {
     return rv;
 }
 
-bool ExecutorPool::_snooze(size_t taskId, double tosleep) {
+bool ExecutorPool::_snooze(size_t taskId, double toSleep) {
     LockHolder lh(tMutex);
     std::map<size_t, TaskQpair>::iterator itr = taskLocator.find(taskId);
     if (itr != taskLocator.end()) {
-        itr->second.first->snooze(tosleep);
+        itr->second.second->snooze(itr->second.first, toSleep);
         return true;
     }
     return false;
 }
 
-bool ExecutorPool::snooze(size_t taskId, double tosleep) {
+bool ExecutorPool::snooze(size_t taskId, double toSleep) {
     EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    bool rv = _snooze(taskId, tosleep);
+    bool rv = _snooze(taskId, toSleep);
     ObjectRegistry::onSwitchThread(epe);
     return rv;
 }

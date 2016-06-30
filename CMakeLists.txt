@@ -148,6 +148,7 @@ ADD_LIBRARY(ep SHARED
             src/ext_meta_parser.cc
             src/failover-table.cc
             src/flusher.cc
+            src/globaltask.cc
             src/hash_table.cc
             src/htresizer.cc
             src/item.cc
@@ -189,6 +190,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
   tests/module_tests/evp_engine_test.cc
   tests/module_tests/evp_store_test.cc
   tests/module_tests/evp_store_single_threaded_test.cc
+  tests/module_tests/futurequeue_test.cc
   src/access_scanner.cc
   src/atomic.cc
   src/backfill.cc
@@ -218,6 +220,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
   src/ext_meta_parser.cc
   src/failover-table.cc
   src/flusher.cc
+  src/globaltask.cc
   src/hash_table.cc
   src/htresizer.cc
   src/item.cc

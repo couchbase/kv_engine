@@ -21,6 +21,7 @@
 
 #include <queue>
 
+#include "futurequeue.h"
 #include "ringbuffer.h"
 #include "task_type.h"
 #include "tasks.h"
@@ -57,6 +58,10 @@ public:
 
     size_t getPendingQueueSize();
 
+    void snooze(ExTask& task, const double secs) {
+        futureQueue.snooze(task, secs);
+    }
+
 private:
     void _schedule(ExTask &task);
     hrtime_t _reschedule(ExTask &task, task_type_t &curTaskType);
@@ -74,11 +79,12 @@ private:
     ExecutorPool *manager;
     size_t sleepers; // number of threads sleeping in this taskQueue
 
-    // sorted by task priority then waketime ..
-    std::priority_queue<ExTask, std::deque<ExTask >,
+    // sorted by task priority.
+    std::priority_queue<ExTask, std::deque<ExTask>,
                         CompareByPriority> readyQueue;
-    std::priority_queue<ExTask, std::deque<ExTask >,
-                        CompareByDueDate> futureQueue;
+
+    // sorted by waketime.
+    FutureQueue<> futureQueue;
 
     std::list<ExTask> pendingQueue;
 };

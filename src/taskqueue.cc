@@ -242,21 +242,13 @@ void TaskQueue::schedule(ExTask &task) {
 }
 
 void TaskQueue::_wake(ExTask &task) {
-    size_t numReady = 0;
     const hrtime_t now = gethrtime();
 
     LockHolder lh(mutex);
     LOG(EXTENSION_LOG_DEBUG, "%s: Wake a task \"%s\" id %" PRIu64,
         name.c_str(), task->getDescription().c_str(), uint64_t(task->getId()));
 
-    // MB-9986: Re-sort futureQueue for now. TODO: avoid this O(N) overhead
     std::queue<ExTask> notReady;
-    while (!futureQueue.empty()) {
-        ExTask tid = futureQueue.top();
-        notReady.push(tid);
-        futureQueue.pop();
-    }
-
     // Wake thread-count-serialized tasks too
     for (std::list<ExTask>::iterator it = pendingQueue.begin();
          it != pendingQueue.end();) {
@@ -269,8 +261,9 @@ void TaskQueue::_wake(ExTask &task) {
         }
     }
 
-    // Note that this task that we are waking may nor may not be blocked in Q
-    task->updateWaketime(now);
+    // Initialise numReady from the updateWaketime call, it returns true if the
+    // task was in futureQueue. Init to 1 if the task was in the queue.
+    size_t numReady = size_t(futureQueue.updateWaketime(task, now));
     task->setState(TASK_RUNNING, TASK_SNOOZED);
 
     while (!notReady.empty()) {

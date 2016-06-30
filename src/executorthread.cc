@@ -25,8 +25,6 @@
 #include "taskqueue.h"
 #include "ep_engine.h"
 
-std::atomic<size_t> GlobalTask::task_id_counter(1);
-
 extern "C" {
     static void launch_executor_thread(void *arg) {
         ExecutorThread *executor = (ExecutorThread*) arg;
