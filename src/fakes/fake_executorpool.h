@@ -92,6 +92,14 @@ public:
         }
         taskLocator.clear();
     }
+
+    size_t getTotReadyTasks() {
+        return totReadyTasks;
+    }
+
+    size_t getNumReadyTasks(task_type_t qType) {
+        return numReadyTasks[qType];
+    }
 };
 
 /*

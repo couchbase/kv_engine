@@ -298,3 +298,55 @@ TEST_F(SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_deletion) {
 
     cb_join_thread(concurrent_task_thread);
 }
+
+/*
+ * MB-18953 is triggered by the executorpool wake path moving tasks directly
+ * into the readyQueue, thus allowing for high-priority tasks to dominiate
+ * a taskqueue.
+ */
+TEST_F(SingleThreadedEPStoreTest, MB18953_taskWake) {
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+
+    class TestTask : public GlobalTask {
+    public:
+        TestTask(EventuallyPersistentEngine* e, TaskId id)
+          : GlobalTask(e, id, 0.0, false) {}
+
+        // returning true will also drive the ExecutorPool::reschedule path.
+        bool run() { return true; }
+
+        std::string getDescription() {
+            return std::string("TestTask ") + GlobalTask::getTaskName(getTypeId());
+        }
+    };
+
+    ExTask hpTask = new TestTask(engine,
+                                 TaskId::PendingOpsNotification);
+    task_executor->schedule(hpTask, NONIO_TASK_IDX);
+
+    ExTask lpTask = new TestTask(engine,
+                                 TaskId::DefragmenterTask);
+    task_executor->schedule(lpTask, NONIO_TASK_IDX);
+
+    runNextTask(lpNonioQ, "TestTask PendingOpsNotification"); // hptask goes first
+    // Ensure that a wake to the hpTask doesn't mean the lpTask gets ignored
+    lpNonioQ.wake(hpTask);
+
+    // Check 1 task is ready
+    EXPECT_EQ(1, task_executor->getTotReadyTasks());
+    EXPECT_EQ(1, task_executor->getNumReadyTasks(NONIO_TASK_IDX));
+
+    runNextTask(lpNonioQ, "TestTask DefragmenterTask"); // lptask goes second
+
+    // Run the tasks again to check that coming from ::reschedule our
+    // expectations are still met.
+    runNextTask(lpNonioQ, "TestTask PendingOpsNotification"); // hptask goes first
+
+    // Ensure that a wake to the hpTask doesn't mean the lpTask gets ignored
+    lpNonioQ.wake(hpTask);
+
+    // Check 1 task is ready
+    EXPECT_EQ(1, task_executor->getTotReadyTasks());
+    EXPECT_EQ(1, task_executor->getNumReadyTasks(NONIO_TASK_IDX));
+    runNextTask(lpNonioQ, "TestTask DefragmenterTask"); // lptask goes second
+}
