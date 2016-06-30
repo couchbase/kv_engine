@@ -26,9 +26,11 @@
 #include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
+#include <platform/dynamic.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <utilities/protocol2text.h>
 
 enum class Protocol : uint8_t {
     Memcached,
@@ -78,86 +80,24 @@ public:
 
 class ConnectionError : public std::runtime_error {
 public:
-    explicit ConnectionError(const char* what_arg, const Protocol& protocol_,
-                             uint16_t reason_)
-        : std::runtime_error(what_arg),
-          protocol(protocol_),
-          reason(reason_) {
-
+    explicit ConnectionError(const char* what_arg)
+        : std::runtime_error(what_arg) {
+        // Empty
     }
 
-    explicit ConnectionError(const std::string what_arg,
-                             const Protocol& protocol_, uint16_t reason_)
-        : std::runtime_error(what_arg),
-          protocol(protocol_),
-          reason(reason_) {
+    virtual uint16_t getReason() const = 0;
 
-    }
+    virtual Protocol getProtocol() const = 0;
 
-#ifdef WIN32
-#define NOEXCEPT
-#else
-#define NOEXCEPT noexcept
-#endif
+    virtual bool isInvalidArguments() const = 0;
 
-    virtual const char* what() const NOEXCEPT override {
-        std::string msg(std::runtime_error::what());
-        msg.append(" ");
-        msg.append(std::to_string(reason));
-        return msg.c_str();
-    }
+    virtual bool isAlreadyExists() const = 0;
 
-    uint16_t getReason() const {
-        return reason;
-    }
+    virtual bool isNotFound() const = 0;
 
-    Protocol getProtocol() const {
-        return protocol;
-    }
+    virtual bool isNotStored() const = 0;
 
-    bool isInvalidArguments() const {
-        if (protocol == Protocol::Memcached) {
-            return reason == PROTOCOL_BINARY_RESPONSE_EINVAL;
-        } else {
-            return reason == uint16_t(Greenstack::Status::InvalidArguments);
-        }
-    }
-
-    bool isAlreadyExists() const {
-        if (protocol == Protocol::Memcached) {
-            return reason == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-        } else {
-            return reason == uint16_t(Greenstack::Status::AlreadyExists);
-        }
-    }
-
-    bool isNotFound() const {
-        if (protocol == Protocol::Memcached) {
-            return reason == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-        } else {
-            return reason == uint16_t(Greenstack::Status::NotFound);
-        }
-    }
-
-    bool isNotStored() const {
-        if (protocol == Protocol::Memcached) {
-            return reason == PROTOCOL_BINARY_RESPONSE_NOT_STORED;
-        } else {
-            return reason == uint16_t(Greenstack::Status::NotStored);
-        }
-    }
-
-    bool isAccessDenied() const {
-        if (protocol == Protocol::Memcached) {
-            return reason == PROTOCOL_BINARY_RESPONSE_EACCESS;
-        } else {
-            return reason == uint16_t(Greenstack::Status::NoAccess);
-        }
-    }
-
-private:
-    Protocol protocol;
-    uint16_t reason;
+    virtual bool isAccessDenied() const = 0;
 };
 
 /**
@@ -206,8 +146,7 @@ public:
 
     virtual void setSynchronous(bool enable) {
         if (!enable) {
-            throw ConnectionError("Not implemented", Protocol::Memcached,
-                                  PROTOCOL_BINARY_RESPONSE_EINVAL);
+            std::runtime_error("MemcachedConnection::setSynchronous: Not implemented");
         }
     }
 

@@ -21,6 +21,65 @@
 
 #include "client_connection.h"
 
+inline std::string formatMcbpExceptionMsg(const std::string& prefix,
+                                          uint16_t reason) {
+    // Format the error message
+    std::string errormessage(prefix);
+    errormessage.append(": ");
+    auto err = static_cast<protocol_binary_response_status>(reason);
+    errormessage.append(memcached_status_2_text(err));
+    errormessage.append(" (");
+    errormessage.append(std::to_string(reason));
+    errormessage.append(")");
+    return errormessage;
+}
+
+class BinprotConnectionError : public ConnectionError {
+public:
+public:
+    explicit BinprotConnectionError(const char* prefix,
+                                    uint16_t reason_)
+        : ConnectionError(formatMcbpExceptionMsg(prefix, reason_).c_str()),
+          reason(reason_) {
+    }
+
+    explicit BinprotConnectionError(const std::string& prefix,
+                                    uint16_t reason_)
+        : BinprotConnectionError(prefix.c_str(), reason_) {
+    }
+
+    uint16_t getReason() const override {
+        return reason;
+    }
+
+    Protocol getProtocol() const override {
+        return Protocol::Memcached;
+    }
+
+    bool isInvalidArguments() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_EINVAL;
+    }
+
+    bool isAlreadyExists() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
+    }
+
+    bool isNotFound() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+    }
+
+    bool isNotStored() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_NOT_STORED;
+    }
+
+    bool isAccessDenied() const override {
+        return reason == PROTOCOL_BINARY_RESPONSE_EACCESS;
+    }
+
+private:
+    uint16_t reason;
+};
+
 class MemcachedBinprotConnection : public MemcachedConnection {
 public:
     MemcachedBinprotConnection(const std::string& host, in_port_t port,

@@ -19,39 +19,62 @@
 #include "client_connection.h"
 #include <libgreenstack/Greenstack.h>
 
-class GreenstackError : public ConnectionError {
+inline std::string formatGreenstackExceptionMsg(const std::string& prefix,
+                                                Greenstack::Status reason) {
+    // Format the error message
+    std::string errormessage(prefix);
+    errormessage.append(": ");
+    errormessage.append(Greenstack::to_string(reason));
+    errormessage.append(" (");
+    errormessage.append(std::to_string(uint16_t(reason)));
+    errormessage.append(")");
+    return errormessage;
+}
+
+class GreenstackConnectionError : public ConnectionError {
 public:
-    explicit GreenstackError(const char* what_arg, Greenstack::Status stat)
-        : ConnectionError(what_arg, Protocol::Greenstack, uint16_t(stat)),
-          status(stat) {
+    explicit GreenstackConnectionError(const char* prefix,
+                                       Greenstack::Status reason_)
+        : ConnectionError(formatGreenstackExceptionMsg(prefix,
+                                                       reason_).c_str()),
+          reason(reason_) {
     }
 
-    explicit GreenstackError(const std::string& what_arg,
-                             Greenstack::Status stat)
-        : ConnectionError(what_arg, Protocol::Greenstack, uint16_t(stat)),
-          status(stat) {
+    explicit GreenstackConnectionError(const std::string& prefix,
+                                       Greenstack::Status reason_)
+        : GreenstackConnectionError(prefix.c_str(), reason_) {
     }
 
-    Greenstack::Status getStatus() const {
-        return status;
+    uint16_t getReason() const override {
+        return static_cast<uint16_t>(reason);
     }
 
-#ifdef WIN32
-#define NOEXCEPT
-#else
-#define NOEXCEPT noexcept
-#endif
+    Protocol getProtocol() const override {
+        return Protocol::Greenstack;
+    }
 
-    virtual const char* what() const NOEXCEPT override {
-        std::string msg(std::runtime_error::what());
-        msg.append(" ");
-        msg.append(Greenstack::to_string(status));
+    bool isInvalidArguments() const override {
+        return reason == Greenstack::Status::InvalidArguments;
+    }
 
-        return msg.c_str();
+    bool isAlreadyExists() const override {
+        return reason == Greenstack::Status::AlreadyExists;
+    }
+
+    bool isNotFound() const override {
+        return reason == Greenstack::Status::NotFound;
+    }
+
+    bool isNotStored() const override {
+        return reason == Greenstack::Status::NotStored;
+    }
+
+    bool isAccessDenied() const override {
+        return reason == Greenstack::Status::NoAccess;
     }
 
 private:
-    Greenstack::Status status;
+    Greenstack::Status reason;
 };
 
 class MemcachedGreenstackConnection : public MemcachedConnection {

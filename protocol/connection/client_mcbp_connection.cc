@@ -301,8 +301,8 @@ void MemcachedBinprotConnection::createBucket(const std::string& name,
 
     if (rsp->message.header.response.status !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Create bucket failed: ", Protocol::Memcached,
-                              rsp->message.header.response.status);
+        throw BinprotConnectionError("Create bucket failed: ",
+                                     rsp->message.header.response.status);
     }
 }
 
@@ -316,8 +316,8 @@ void MemcachedBinprotConnection::deleteBucket(const std::string& name) {
 
     if (rsp->message.header.response.status !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Delete bucket failed: ", Protocol::Memcached,
-                              rsp->message.header.response.status);
+        throw BinprotConnectionError("Delete bucket failed: ",
+                                     rsp->message.header.response.status);
     }
 }
 
@@ -331,8 +331,8 @@ void MemcachedBinprotConnection::selectBucket(const std::string& name) {
 
     if (rsp->message.header.response.status !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Select bucket failed: ", Protocol::Memcached,
-                              rsp->message.header.response.status);
+        throw BinprotConnectionError("Select bucket failed: ",
+                                     rsp->message.header.response.status);
     }
 }
 
@@ -364,8 +364,8 @@ std::vector<std::string> MemcachedBinprotConnection::listBuckets() {
 
     if (rsp->message.header.response.status !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("List bucket failed: ", Protocol::Memcached,
-                              rsp->message.header.response.status);
+        throw BinprotConnectionError("List bucket failed: ",
+                                     rsp->message.header.response.status);
     }
 
     std::vector<std::string> ret;
@@ -389,8 +389,8 @@ Document MemcachedBinprotConnection::get(const std::string& id,
 
     if (rsp->message.header.response.status !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Failed to get: " + id, Protocol::Memcached,
-                              rsp->message.header.response.status);
+        throw BinprotConnectionError("Failed to get: " + id,
+                                     rsp->message.header.response.status);
     }
 
     Document ret;
@@ -503,9 +503,8 @@ MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,
     auto* req = reinterpret_cast<protocol_binary_request_set*>(frame.payload.data());
     if (doc.info.compression != Greenstack::Compression::None) {
         if (doc.info.compression != Greenstack::Compression::Snappy) {
-            throw ConnectionError("Invalid compression for MCBP",
-                                  Protocol::Memcached,
-                                  PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
+            throw BinprotConnectionError("Invalid compression for MCBP",
+                                         PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED);
         }
         req->message.header.request.datatype = PROTOCOL_BINARY_DATATYPE_COMPRESSED;
     }
@@ -521,9 +520,8 @@ MutationInfo MemcachedBinprotConnection::mutate(const Document& doc,
     auto* rsp = reinterpret_cast<protocol_binary_response_set*>(frame.payload.data());
     if (rsp->message.header.response.status !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Failed to store " + doc.info.id,
-                              Protocol::Memcached,
-                              rsp->message.header.response.status);
+        throw BinprotConnectionError("Failed to store " + doc.info.id,
+                                     rsp->message.header.response.status);
     }
 
     MutationInfo info;
@@ -570,8 +568,8 @@ unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand
         auto* rsp = reinterpret_cast<protocol_binary_response_stats*>(bytes);
         auto& header = rsp->message.header.response;
         if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-            throw ConnectionError("Stats failed", Protocol::Memcached,
-                                  header.status);
+            throw BinprotConnectionError("Stats failed",
+                                         header.status);
         }
 
         if (header.bodylen == 0) {
@@ -607,7 +605,6 @@ unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand
 void MemcachedBinprotConnection::configureEwouldBlockEngine(
     const EWBEngineMode& mode, ENGINE_ERROR_CODE err_code, uint32_t value) {
 
-
     request_ewouldblock_ctl request;
     memset(request.bytes, 0, sizeof(request.bytes));
     request.message.header.request.magic = 0x80;
@@ -628,9 +625,8 @@ void MemcachedBinprotConnection::configureEwouldBlockEngine(
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
     auto& header = rsp->message.header.response;
     if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Failed to configure ewouldblock engine",
-                              Protocol::Memcached,
-                              header.status);
+        throw BinprotConnectionError("Failed to configure ewouldblock engine",
+                                     header.status);
     }
 }
 
@@ -648,9 +644,8 @@ void MemcachedBinprotConnection::reloadAuditConfiguration() {
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(bytes);
     auto& header = rsp->message.header.response;
     if (header.status != PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Failed to reload audit configuration",
-                              Protocol::Memcached,
-                              header.status);
+        throw BinprotConnectionError("Failed to reload audit configuration",
+                                     header.status);
     }
 }
 
@@ -668,9 +663,8 @@ void MemcachedBinprotConnection::hello(const std::string& userAgent,
     auto *rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
     if (rsp->message.header.response.status !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Failed to fetch sasl mechanisms",
-                              Protocol::Memcached,
-                              rsp->message.header.response.status);
+        throw BinprotConnectionError("Failed to fetch sasl mechanisms",
+                                     rsp->message.header.response.status);
     }
 
     saslMechanisms.resize(rsp->message.header.response.bodylen);
@@ -705,15 +699,14 @@ void MemcachedBinprotConnection::setFeatures(const std::string& agent,
     auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
     if (rsp->message.header.response.status !=
         PROTOCOL_BINARY_RESPONSE_SUCCESS) {
-        throw ConnectionError("Failed to say hello",
-                              Protocol::Memcached,
-                              rsp->message.header.response.status);
+        throw BinprotConnectionError("Failed to say hello",
+                                     rsp->message.header.response.status);
     }
 
     // Validate the result!
     if ((rsp->message.header.response.bodylen & 1) != 0) {
-        throw ConnectionError("Invalid response returned", Protocol::Memcached,
-                              PROTOCOL_BINARY_RESPONSE_EINVAL);
+        throw BinprotConnectionError("Invalid response returned",
+                                     PROTOCOL_BINARY_RESPONSE_EINVAL);
     }
 
     std::vector<uint16_t> enabled;
