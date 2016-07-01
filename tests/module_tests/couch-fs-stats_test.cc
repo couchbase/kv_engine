@@ -32,7 +32,7 @@ public:
         return reinterpret_cast<couch_file_handle>(sf);
     }
 protected:
-    CouchstoreStats _stats;
+    FileStats _stats;
     std::unique_ptr<FileOpsInterface> wrapped_ops;
 };
 

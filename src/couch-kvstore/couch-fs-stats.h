@@ -25,52 +25,14 @@
 
 #include <libcouchstore/couch_db.h>
 #include <platform/histogram.h>
-
-struct CouchstoreStats {
-public:
-    CouchstoreStats() :
-        readSeekHisto(ExponentialGenerator<size_t>(1, 2), 50),
-        readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
-        writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
-        totalBytesRead(0),
-        totalBytesWritten(0) { }
-
-    //Read time length
-    Histogram<hrtime_t> readTimeHisto;
-    //Distance from last read
-    Histogram<size_t> readSeekHisto;
-    //Size of read
-    Histogram<size_t> readSizeHisto;
-    //Write time length
-    Histogram<hrtime_t> writeTimeHisto;
-    //Write size
-    Histogram<size_t> writeSizeHisto;
-    //Time spent in sync
-    Histogram<hrtime_t> syncTimeHisto;
-
-    // total bytes read from disk.
-    std::atomic<size_t> totalBytesRead;
-    // Total bytes written to disk.
-    std::atomic<size_t> totalBytesWritten;
-
-    void reset() {
-        readTimeHisto.reset();
-        readSeekHisto.reset();
-        readSizeHisto.reset();
-        writeTimeHisto.reset();
-        writeSizeHisto.reset();
-        syncTimeHisto.reset();
-        totalBytesRead = 0;
-        totalBytesWritten = 0;
-    }
-};
+#include "kvstore.h"
 
 /**
- * Returns an instance of StatsOps from a CouchstoreStats reference and
+ * Returns an instance of StatsOps from a FileStats reference and
  * a reference to a base FileOps implementation to wrap
  */
 std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(
-    CouchstoreStats& stats, FileOpsInterface& base_ops);
+    FileStats& stats, FileOpsInterface& base_ops);
 
 /**
  * FileOpsInterface implementation which records various statistics
@@ -78,7 +40,7 @@ std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(
  */
 class StatsOps : public FileOpsInterface {
 public:
-    StatsOps(CouchstoreStats& _stats, FileOpsInterface& ops)
+    StatsOps(FileStats& _stats, FileOpsInterface& ops)
         : stats(_stats),
           wrapped_ops(ops) {}
 
@@ -105,7 +67,7 @@ public:
     void destructor(couch_file_handle handle) override;
 
 protected:
-    CouchstoreStats& stats;
+    FileStats& stats;
     FileOpsInterface& wrapped_ops;
 
     struct StatFile {
@@ -117,7 +79,6 @@ protected:
         couch_file_handle orig_handle;
         cs_off_t last_offs;
     };
-
 };
 
 #endif  // SRC_COUCH_KVSTORE_COUCH_FS_STATS_H_

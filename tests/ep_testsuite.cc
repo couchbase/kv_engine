@@ -1883,6 +1883,16 @@ static enum test_result test_mem_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    int exp_read_bytes = 4, exp_write_bytes;
+    std::string backend = get_str_stat(h, h1, "ep_backend");
+    if (backend == "forestdb") {
+        exp_write_bytes = 35; /* TBD: Do not hard code the value */
+    } else if (backend == "couchdb") {
+        exp_write_bytes = 23; /* TBD: Do not hard code the value */
+    } else {
+        return SKIPPED;
+    }
+
     h1->reset_stats(h, NULL);
 
     check(get_int_stat(h, h1, "rw_0:io_num_read", "kvstore") == 0,
@@ -1899,17 +1909,20 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Expected storing one value to not change the read counter");
 
     check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 1 &&
-          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 23,
+          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") ==
+                                                                exp_write_bytes,
           "Expected storing the key to update the write counter");
     evict_key(h, h1, "a", 0, "Ejected.");
 
     check_key_value(h, h1, "a", "b\r\n", 3, 0);
 
     check(get_int_stat(h, h1, "ro_0:io_num_read", "kvstore") == 1 &&
-          get_int_stat(h, h1, "ro_0:io_read_bytes", "kvstore") == 4,
+          get_int_stat(h, h1, "ro_0:io_read_bytes", "kvstore") ==
+                                                                 exp_read_bytes,
           "Expected reading the value back in to update the read counter");
     check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 1 &&
-          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 23,
+          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") ==
+                                                                exp_write_bytes,
           "Expected reading the value back in to not update the write counter");
 
     return SUCCESS;

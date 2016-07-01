@@ -227,6 +227,7 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     dbDocInfo.rev_meta.size = COUCHSTORE_METADATA_SIZE;
     dbDocInfo.rev_seq = it.getRevSeqno();
     dbDocInfo.size = dbDoc.data.size;
+
     if (del) {
         dbDocInfo.deleted =  1;
     } else {
@@ -482,7 +483,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
                    "Failed to open database for data fetch, "
                    "vBucketId = %" PRIu16 ", numDocs = %d\n",
             vb, numItems);
-        st.numGetFailure.fetch_add(numItems);
+        st.numGetFailure += numItems;
         vb_bgfetch_queue_t::iterator itr = itms.begin();
         for (; itr != itms.end(); ++itr) {
             vb_bgfetch_item_ctx_t &bg_itm_ctx = (*itr).second;
@@ -509,7 +510,7 @@ void CouchKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t &itms) {
     errCode = couchstore_docinfos_by_id(db, ids, itms.size(),
                                         0, getMultiCbC, &ctx);
     if (errCode != COUCHSTORE_SUCCESS) {
-        st.numGetFailure.fetch_add(numItems);
+        st.numGetFailure += numItems;
         for (itr = itms.begin(); itr != itms.end(); ++itr) {
             logger.log(EXTENSION_LOG_WARNING, "Failed to read database by"
                        " vBucketId = %" PRIu16 " key = %s error = %s [%s]\n",
@@ -1073,73 +1074,6 @@ bool CouchKVStore::commit() {
     return !intransaction;
 }
 
-void CouchKVStore::addStats(const std::string &prefix,
-                            ADD_STAT add_stat,
-                            const void *c) {
-    const char *prefix_str = prefix.c_str();
-
-    /* stats for both read-only and read-write threads */
-    addStat(prefix_str, "backend_type",   "couchstore",       add_stat, c);
-    addStat(prefix_str, "open",           st.numOpen,         add_stat, c);
-    addStat(prefix_str, "close",          st.numClose,        add_stat, c);
-    addStat(prefix_str, "readTime",       st.readTimeHisto,   add_stat, c);
-    addStat(prefix_str, "readSize",       st.readSizeHisto,   add_stat, c);
-    addStat(prefix_str, "numLoadedVb",    st.numLoadedVb,     add_stat, c);
-
-    // failure stats
-    addStat(prefix_str, "failure_open",   st.numOpenFailure, add_stat, c);
-    addStat(prefix_str, "failure_get",    st.numGetFailure,  add_stat, c);
-
-    if (!isReadOnly()) {
-        addStat(prefix_str, "failure_set",   st.numSetFailure,   add_stat, c);
-        addStat(prefix_str, "failure_del",   st.numDelFailure,   add_stat, c);
-        addStat(prefix_str, "failure_vbset", st.numVbSetFailure, add_stat, c);
-        addStat(prefix_str, "lastCommDocs",  st.docsCommitted,   add_stat, c);
-    }
-
-    addStat(prefix_str, "io_num_read", st.io_num_read, add_stat, c);
-    addStat(prefix_str, "io_num_write", st.io_num_write, add_stat, c);
-    addStat(prefix_str, "io_read_bytes", st.io_read_bytes, add_stat, c);
-    addStat(prefix_str, "io_write_bytes", st.io_write_bytes, add_stat, c);
-
-    const size_t read = st.fsStats.totalBytesRead.load() +
-                        st.fsStatsCompaction.totalBytesRead.load();
-    addStat(prefix_str, "io_total_read_bytes", read, add_stat, c);
-
-    const size_t written = st.fsStats.totalBytesWritten.load() +
-                           st.fsStatsCompaction.totalBytesWritten.load();
-    addStat(prefix_str, "io_total_write_bytes", written, add_stat, c);
-
-    addStat(prefix_str, "io_compaction_read_bytes",
-            st.fsStatsCompaction.totalBytesRead, add_stat, c);
-    addStat(prefix_str, "io_compaction_write_bytes",
-            st.fsStatsCompaction.totalBytesWritten, add_stat, c);
-}
-
-void CouchKVStore::addTimingStats(const std::string &prefix,
-                                  ADD_STAT add_stat, const void *c) {
-    if (isReadOnly()) {
-        return;
-    }
-    const char *prefix_str = prefix.c_str();
-    addStat(prefix_str, "commit",      st.commitHisto,      add_stat, c);
-    addStat(prefix_str, "compact",     st.compactHisto,     add_stat, c);
-    addStat(prefix_str, "snapshot",    st.snapshotHisto,    add_stat, c);
-    addStat(prefix_str, "delete",      st.delTimeHisto,     add_stat, c);
-    addStat(prefix_str, "save_documents", st.saveDocsHisto, add_stat, c);
-    addStat(prefix_str, "writeTime",   st.writeTimeHisto,   add_stat, c);
-    addStat(prefix_str, "writeSize",   st.writeSizeHisto,   add_stat, c);
-    addStat(prefix_str, "bulkSize",    st.batchSize,        add_stat, c);
-
-    // Couchstore file ops stats
-    addStat(prefix_str, "fsReadTime",  st.fsStats.readTimeHisto,  add_stat, c);
-    addStat(prefix_str, "fsWriteTime", st.fsStats.writeTimeHisto, add_stat, c);
-    addStat(prefix_str, "fsSyncTime",  st.fsStats.syncTimeHisto,  add_stat, c);
-    addStat(prefix_str, "fsReadSize",  st.fsStats.readSizeHisto,  add_stat, c);
-    addStat(prefix_str, "fsWriteSize", st.fsStats.writeSizeHisto, add_stat, c);
-    addStat(prefix_str, "fsReadSeek",  st.fsStats.readSeekHisto,  add_stat, c);
-}
-
 bool CouchKVStore::getStat(const char* name, size_t& value)  {
     if (strcmp("io_total_read_bytes", name) == 0) {
         value = st.fsStats.totalBytesRead.load() +
@@ -1158,14 +1092,6 @@ bool CouchKVStore::getStat(const char* name, size_t& value)  {
     }
 
     return false;
-}
-
-template <typename T>
-void CouchKVStore::addStat(const std::string &prefix, const char *stat, T &val,
-                           ADD_STAT add_stat, const void *c) {
-    std::stringstream fullstat;
-    fullstat << prefix << ":" << stat;
-    add_casted_stat(fullstat.str().c_str(), val, add_stat, c);
 }
 
 void CouchKVStore::pendingTasks() {
@@ -1632,7 +1558,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         docValue = GetValue(it);
         // update ep-engine IO stats
         ++st.io_num_read;
-        st.io_read_bytes.fetch_add(docinfo->id.size);
+        st.io_read_bytes += docinfo->id.size;
     } else {
         Doc *doc = NULL;
         errCode = couchstore_open_doc_with_docinfo(db, docinfo, &doc,
@@ -1679,7 +1605,7 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
 
                 // update ep-engine IO stats
                 ++st.io_num_read;
-                st.io_read_bytes.fetch_add(docinfo->id.size + valuelen);
+                st.io_read_bytes += (docinfo->id.size + valuelen);
             }
             couchstore_free_document(doc);
         }
@@ -2040,7 +1966,7 @@ void CouchKVStore::commitCallback(std::vector<CouchRequest *> &committedReqs,
         size_t keySize = committedReqs[index]->getKey().length();
         /* update ep stats */
         ++st.io_num_write;
-        st.io_write_bytes.fetch_add(keySize + dataSize);
+        st.io_write_bytes += (keySize + dataSize);
 
         if (committedReqs[index]->isDelete()) {
             int rv = getMutationStatus(errCode);
@@ -2250,7 +2176,7 @@ int CouchKVStore::getMultiCb(Db *db, DocInfo *docinfo, void *ctx) {
 
     std::string keyStr(docinfo->id.buf, docinfo->id.size);
     GetMultiCbCtx *cbCtx = static_cast<GetMultiCbCtx *>(ctx);
-    CouchKVStoreStats &st = cbCtx->cks.getCKVStoreStat();
+    KVStoreStats& st = cbCtx->cks.getKVStoreStat();
 
     vb_bgfetch_queue_t::iterator qitr = cbCtx->fetches.find(keyStr);
     if (qitr == cbCtx->fetches.end()) {

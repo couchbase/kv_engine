@@ -38,103 +38,6 @@
 
 #define COUCHSTORE_NO_OPTIONS 0
 
-/**
- * Stats and timings for couchKVStore
- */
-class CouchKVStoreStats {
-
-public:
-    /**
-     * Default constructor
-     */
-    CouchKVStoreStats() :
-      docsCommitted(0), numOpen(0), numClose(0),
-      numLoadedVb(0), numGetFailure(0), numSetFailure(0),
-      numDelFailure(0), numOpenFailure(0), numVbSetFailure(0),
-      io_num_read(0), io_num_write(0), io_read_bytes(0), io_write_bytes(0),
-      readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
-      writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25) {
-    }
-
-    void reset() {
-        docsCommitted.store(0);
-        numOpen.store(0);
-        numClose.store(0);
-        numLoadedVb.store(0);
-        numGetFailure.store(0);
-        numSetFailure.store(0);
-        numDelFailure.store(0);
-        numOpenFailure.store(0);
-        numVbSetFailure.store(0);
-
-        readTimeHisto.reset();
-        readSizeHisto.reset();
-        writeTimeHisto.reset();
-        writeSizeHisto.reset();
-        delTimeHisto.reset();
-        compactHisto.reset();
-        snapshotHisto.reset();
-        commitHisto.reset();
-        saveDocsHisto.reset();
-        batchSize.reset();
-        fsStats.reset();
-    }
-
-    // the number of docs committed
-    std::atomic<size_t> docsCommitted;
-    // the number of open() calls
-    std::atomic<size_t> numOpen;
-    // the number of close() calls
-    std::atomic<size_t> numClose;
-    // the number of vbuckets loaded
-    std::atomic<size_t> numLoadedVb;
-
-    //stats tracking failures
-    std::atomic<size_t> numGetFailure;
-    std::atomic<size_t> numSetFailure;
-    std::atomic<size_t> numDelFailure;
-    std::atomic<size_t> numOpenFailure;
-    std::atomic<size_t> numVbSetFailure;
-
-    //! Number of read related io operations
-    std::atomic<size_t> io_num_read;
-    //! Number of write related io operations
-    std::atomic<size_t> io_num_write;
-    //! Number of bytes read
-    std::atomic<size_t> io_read_bytes;
-    //! Number of bytes written (key + value + application rev metadata)
-    std::atomic<size_t> io_write_bytes;
-
-    /* for flush and vb delete, no error handling in CouchKVStore, such
-     * failure should be tracked in MC-engine  */
-
-    // How long it takes us to complete a read
-    Histogram<hrtime_t> readTimeHisto;
-    // How big are our reads?
-    Histogram<size_t> readSizeHisto;
-    // How long it takes us to complete a write
-    Histogram<hrtime_t> writeTimeHisto;
-    // How big are our writes?
-    Histogram<size_t> writeSizeHisto;
-    // Time spent in delete() calls.
-    Histogram<hrtime_t> delTimeHisto;
-    // Time spent in couchstore commit
-    Histogram<hrtime_t> commitHisto;
-    // Time spent in couchstore compaction
-    Histogram<hrtime_t> compactHisto;
-    // Time spent in couchstore save documents
-    Histogram<hrtime_t> saveDocsHisto;
-    // Batch size of saveDocs calls
-    Histogram<size_t> batchSize;
-    //Time spent in vbucket snapshot
-    Histogram<hrtime_t> snapshotHisto;
-
-    // Stats from the underlying OS file operations done by couchstore.
-    CouchstoreStats fsStats;
-    // Underlying stats for OS file operations during compaction.
-    CouchstoreStats fsStatsCompaction;
-};
-
 class EventuallyPersistentEngine;
 
 // Additional 3 Bytes for flex meta, datatype and conflict resolution mode
@@ -446,33 +349,7 @@ public:
      */
     void pendingTasks() override;
 
-    /**
-     * Add all the kvstore stats to the stat response
-     *
-     * @param prefix stat name prefix
-     * @param add_stat upstream function that allows us to add a stat to the response
-     * @param cookie upstream connection cookie
-     */
-    void addStats(const std::string &prefix, ADD_STAT add_stat, const void *cookie) override;
-
-    /**
-     * Add all the kvstore timings stats to the stat response
-     *
-     * @param prefix stat name prefix
-     * @param add_stat upstream function that allows us to add a stat to the response
-     * @param cookie upstream connection cookie
-     */
-    void addTimingStats(const std::string &prefix, ADD_STAT add_stat,
-                        const void *c) override;
-
     bool getStat(const char* name, size_t& value) override;
-
-    /**
-     * Resets couchstore stats
-     */
-    void resetStats() override {
-        st.reset();
-    }
 
     static int recordDbDump(Db *db, DocInfo *docinfo, void *ctx);
     static int recordDbStat(Db *db, DocInfo *docinfo, void *ctx);
@@ -483,8 +360,6 @@ public:
                                 GetValue &docValue, uint16_t vbId,
                                 bool metaOnly, bool fetchDelete = false);
     ENGINE_ERROR_CODE couchErr2EngineErr(couchstore_error_t errCode);
-
-    CouchKVStoreStats &getCKVStoreStat(void) { return st; }
 
     uint64_t getLastPersistedSeqno(uint16_t vbid);
 
@@ -573,9 +448,6 @@ private:
     uint16_t numDbFiles;
     std::vector<CouchRequest *> pendingReqsQ;
     bool intransaction;
-
-    /* all stats */
-    CouchKVStoreStats   st;
 
     /**
      * FileOpsInterface implementation for couchstore which tracks

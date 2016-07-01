@@ -59,8 +59,10 @@ public:
      * @param it  Item instance to be persisted
      * @param cb  persistence callback
      * @param del flag indicating if it is an item deletion or not
+     * @param itemDataSize data size of the item
      */
-    ForestRequest(const Item& it, MutationRequestCallback& cb, bool del);
+    ForestRequest(const Item &it, MutationRequestCallback &cb,
+                  bool del, size_t itmDataSize);
 
     /**
      * Destructor
@@ -75,8 +77,13 @@ public:
         return status;
     }
 
+    const size_t getDataSize(void) {
+        return dataSize;
+    }
+
 private :
     int8_t status;
+    size_t dataSize;
 };
 
 /**
@@ -377,6 +384,7 @@ private:
     std::atomic<size_t> scanCounter; //atomic counter for generating scan id
     std::map<size_t, fdb_kvs_handle*> scans; //map holding active scans
     std::mutex scanLock; //lock guarding the scan map
+    fdb_filemgr_ops_t statCollectingFileOps;
 
 private:
     void close();
@@ -385,10 +393,12 @@ private:
     void initForestDb();
     void shutdownForestDb();
     ENGINE_ERROR_CODE readVBState(uint16_t vbId);
-    fdb_kvs_handle* getKvsHandle(uint16_t vbId, handleType htype);
+    fdb_kvs_handle *getKvsHandle(uint16_t vbId, handleType htype);
+    void commitCallback(std::vector<ForestRequest *>& committedReqs);
     bool save2forestdb();
     void updateFileInfo();
-    GetValue docToItem(fdb_kvs_handle* kvsHandle, fdb_doc* rdoc, uint16_t vbId,
+    fdb_filemgr_ops_t getForestStatOps(FileStats* stats);
+    GetValue docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc, uint16_t vbId,
                        bool metaOnly = false, bool fetchDelete = false);
     ENGINE_ERROR_CODE forestErr2EngineErr(fdb_status errCode);
     size_t getNumItems(fdb_kvs_handle* kvsHandle,

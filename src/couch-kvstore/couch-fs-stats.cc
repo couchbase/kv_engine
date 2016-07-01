@@ -22,7 +22,7 @@
 #include <platform/histogram.h>
 
 std::unique_ptr<FileOpsInterface> getCouchstoreStatsOps(
-    CouchstoreStats& stats, FileOpsInterface& base_ops) {
+    FileStats& stats, FileOpsInterface& base_ops) {
     return std::unique_ptr<FileOpsInterface>(new StatsOps(stats, base_ops));
 }
 

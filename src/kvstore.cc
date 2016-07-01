@@ -24,6 +24,7 @@
 #include "common.h"
 #include "couch-kvstore/couch-kvstore.h"
 #include "forest-kvstore/forest-kvstore.h"
+#include "statwriter.h"
 #include "kvstore.h"
 #include "vbucket.h"
 #include <platform/dirutils.h>
@@ -194,6 +195,80 @@ bool KVStore::snapshotStats(const std::map<std::string,
     }
 
     return rv;
+}
+
+template <typename T>
+void KVStore::addStat(const std::string &prefix, const char *stat, T &val,
+                           ADD_STAT add_stat, const void *c) {
+    std::stringstream fullstat;
+    fullstat << prefix << ":" << stat;
+    add_casted_stat(fullstat.str().c_str(), val, add_stat, c);
+}
+
+void KVStore::addStats(const std::string &prefix,
+                       ADD_STAT add_stat,
+                       const void *c) {
+    const char *backend = configuration.getBackend().c_str();
+
+    /* stats for both read-only and read-write threads */
+    addStat(prefix, "backend_type",   backend,            add_stat, c);
+    addStat(prefix, "open",           st.numOpen,         add_stat, c);
+    addStat(prefix, "close",          st.numClose,        add_stat, c);
+    addStat(prefix, "readTime",       st.readTimeHisto,   add_stat, c);
+    addStat(prefix, "readSize",       st.readSizeHisto,   add_stat, c);
+    addStat(prefix, "numLoadedVb",    st.numLoadedVb,     add_stat, c);
+
+    // failure stats
+    addStat(prefix, "failure_open",   st.numOpenFailure, add_stat, c);
+    addStat(prefix, "failure_get",    st.numGetFailure,  add_stat, c);
+
+    if (!isReadOnly()) {
+        addStat(prefix, "failure_set",   st.numSetFailure,   add_stat, c);
+        addStat(prefix, "failure_del",   st.numDelFailure,   add_stat, c);
+        addStat(prefix, "failure_vbset", st.numVbSetFailure, add_stat, c);
+        addStat(prefix, "lastCommDocs",  st.docsCommitted,   add_stat, c);
+    }
+
+    addStat(prefix, "io_num_read", st.io_num_read, add_stat, c);
+    addStat(prefix, "io_num_write", st.io_num_write, add_stat, c);
+    addStat(prefix, "io_read_bytes", st.io_read_bytes, add_stat, c);
+    addStat(prefix, "io_write_bytes", st.io_write_bytes, add_stat, c);
+
+    const size_t read = st.fsStats.totalBytesRead.load() +
+                        st.fsStatsCompaction.totalBytesRead.load();
+    addStat(prefix, "io_total_read_bytes", read, add_stat, c);
+
+    const size_t written = st.fsStats.totalBytesWritten.load() +
+                           st.fsStatsCompaction.totalBytesWritten.load();
+    addStat(prefix, "io_total_write_bytes", written, add_stat, c);
+
+    addStat(prefix, "io_compaction_read_bytes",
+            st.fsStatsCompaction.totalBytesRead, add_stat, c);
+    addStat(prefix, "io_compaction_write_bytes",
+            st.fsStatsCompaction.totalBytesWritten, add_stat, c);
+}
+
+void KVStore::addTimingStats(const std::string &prefix,
+                             ADD_STAT add_stat, const void *c) {
+    if (isReadOnly()) {
+        return;
+    }
+    addStat(prefix, "commit",      st.commitHisto,      add_stat, c);
+    addStat(prefix, "compact",     st.compactHisto,     add_stat, c);
+    addStat(prefix, "snapshot",    st.snapshotHisto,    add_stat, c);
+    addStat(prefix, "delete",      st.delTimeHisto,     add_stat, c);
+    addStat(prefix, "save_documents", st.saveDocsHisto, add_stat, c);
+    addStat(prefix, "writeTime",   st.writeTimeHisto,   add_stat, c);
+    addStat(prefix, "writeSize",   st.writeSizeHisto,   add_stat, c);
+    addStat(prefix, "bulkSize",    st.batchSize,        add_stat, c);
+
+    //file ops stats
+    addStat(prefix, "fsReadTime",  st.fsStats.readTimeHisto,  add_stat, c);
+    addStat(prefix, "fsWriteTime", st.fsStats.writeTimeHisto, add_stat, c);
+    addStat(prefix, "fsSyncTime",  st.fsStats.syncTimeHisto,  add_stat, c);
+    addStat(prefix, "fsReadSize",  st.fsStats.readSizeHisto,  add_stat, c);
+    addStat(prefix, "fsWriteSize", st.fsStats.writeSizeHisto, add_stat, c);
+    addStat(prefix, "fsReadSeek",  st.fsStats.readSeekHisto,  add_stat, c);
 }
 
 std::string vbucket_state::toJSON() const {

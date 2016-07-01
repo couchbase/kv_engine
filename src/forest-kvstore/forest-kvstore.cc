@@ -25,6 +25,10 @@
 #include <JSON_checker.h>
 #include <locks.h>
 
+#define STATWRITER_NAMESPACE forestdb_engine
+#include "statwriter.h"
+#undef STATWRITER_NAMESPACE
+
 using namespace CouchbaseDirectoryUtilities;
 
 std::mutex ForestKVStore::initLock;
@@ -116,6 +120,10 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
      */
     fileConfig.compress_document_body = true;
 
+    statCollectingFileOps = getForestStatOps(&st.fsStats);
+
+    fileConfig.custom_file_ops = &statCollectingFileOps;
+
     initForestDb();
 
     status = fdb_open(&dbFileHandle, dbFile.str().c_str(), &fileConfig);
@@ -154,6 +162,7 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
                 readVBState(i);
                 if (cachedVBStates[i] && cachedVBStates[i]->state != vbucket_state_dead) {
                     cachedValidVBCount++;
+                    st.numLoadedVb++;
                 }
             }
             shardId += maxShards; // jump to next vbucket in shard
@@ -298,9 +307,11 @@ void ForestKVStore::reset(uint16_t vbucketId) {
     updateFileInfo();
 }
 
-ForestRequest::ForestRequest(const Item &it, MutationRequestCallback &cb ,bool del)
+ForestRequest::ForestRequest(const Item &it, MutationRequestCallback &cb,
+                             bool del, size_t itmDataSize = 0)
     : IORequest(it.getVBucketId(), cb, del, it.getKey()),
-      status(MUTATION_SUCCESS) { }
+      status(MUTATION_SUCCESS),
+      dataSize(itmDataSize) { }
 
 ForestRequest::~ForestRequest() { }
 
@@ -561,6 +572,7 @@ void ForestKVStore::getWithHeader(void* handle, const std::string& key,
                                     std::to_string(vb));
     }
 
+    hrtime_t start = gethrtime();
     RememberingCallback<GetValue> *rc =
                        static_cast<RememberingCallback<GetValue> *>(&cb);
     bool getMetaOnly = rc && rc->val.isPartial();
@@ -590,6 +602,7 @@ void ForestKVStore::getWithHeader(void* handle, const std::string& key,
                 "vbucketId:%d key:%s error:%s deleted:%s", vb, key.c_str(),
                 fdb_error_msg(status), rdoc.deleted ? "yes" : "no");
         }
+        ++st.numGetFailure;
     } else {
         rv = docToItem(kvsHandle, &rdoc, vb, getMetaOnly, fetchDelete);
     }
@@ -597,6 +610,11 @@ void ForestKVStore::getWithHeader(void* handle, const std::string& key,
     rdoc.key = NULL;
     fdb_free_block(rdoc.meta);
     fdb_free_block(rdoc.body);
+
+    st.readTimeHisto.add((gethrtime() - start) / 1000);
+    if (status == FDB_RESULT_SUCCESS) {
+        st.readSizeHisto.add(key.length() + rv.getValue()->getNBytes());
+    }
 
     rv.setStatus(forestErr2EngineErr(status));
     cb.callback(rv);
@@ -740,6 +758,9 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle* kvsHandle, fdb_doc* rdoc,
         if (rdoc->deleted) {
             it->setDeleted();
         }
+
+        /* update ep-engine IO stat read_bytes */
+        st.io_read_bytes += rdoc->keylen;
     } else {
         size_t valuelen = rdoc->bodylen;
         void* valuePtr = rdoc->body;
@@ -755,11 +776,18 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle* kvsHandle, fdb_doc* rdoc,
                       forestMetaData.exptime, valuePtr, valuelen,
                       ext_meta, EXT_META_LEN, forestMetaData.cas,
                       (uint64_t)rdoc->seqnum, vbId);
+
+        /* update ep-engine IO stat read_bytes */
+        st.io_read_bytes += (rdoc->keylen + valuelen);
     }
 
     it->setConflictResMode(
             static_cast<enum conflict_resolution_mode>(forestMetaData.confresmode));
     it->setRevSeqno(forestMetaData.rev_seqno);
+
+    /* increment ep-engine IO stat num_read */
+    ++st.io_num_read;
+
     return GetValue(it);
 }
 
@@ -767,14 +795,32 @@ vbucket_state* ForestKVStore::getVBucketState(uint16_t vbucketId) {
     return cachedVBStates[vbucketId];
 }
 
-static void commitCallback(std::vector<ForestRequest *>& committedReqs) {
+void ForestKVStore::commitCallback(std::vector<ForestRequest *> &committedReqs) {
     size_t commitSize = committedReqs.size();
 
     for (size_t index = 0; index < commitSize; index++) {
+        size_t dataSize = committedReqs[index]->getDataSize();
+        size_t keySize = committedReqs[index]->getKey().length();
+        /* update ep stats */
+        ++st.io_num_write;
+        st.io_write_bytes += (keySize + dataSize);
+
         int rv = committedReqs[index]->getStatus();
         if (committedReqs[index]->isDelete()) {
+            if (rv != MUTATION_SUCCESS) {
+                ++st.numDelFailure;
+            } else {
+                st.delTimeHisto.add(committedReqs[index]->getDelta() / 1000);
+                st.writeSizeHisto.add(keySize + FORESTDB_METADATA_SIZE);
+            }
             committedReqs[index]->getDelCallback()->callback(rv);
         } else {
+            if (rv != MUTATION_SUCCESS) {
+               ++st.numSetFailure;
+            } else {
+               st.writeTimeHisto.add(committedReqs[index]->getDelta() / 1000);
+               st.writeSizeHisto.add(dataSize + keySize);
+            }
             //TODO: For now, all mutations are passed in as insertions.
             //This needs to be revisited in order to update stats.
             mutation_result p(rv, true);
@@ -824,12 +870,15 @@ bool ForestKVStore::save2forestdb() {
         }
     }
 
+    hrtime_t start = gethrtime();
     fdb_status status = fdb_commit(dbFileHandle, FDB_COMMIT_NORMAL);
     if (status != FDB_RESULT_SUCCESS) {
         throw std::runtime_error("ForestKVStore::save2forestdb: "
             "fdb_commit failed for shard id: " + std::to_string(shardId) +
             "with error: " + std::string(fdb_error_msg(status)));
     }
+
+    st.commitHisto.add((gethrtime() - start) / 1000);
 
     for (uint16_t vbId = shardId; vbId < maxVbuckets; vbId += numShards) {
         fdb_kvs_handle* kvsHandle = getKvsHandle(vbId, handleType::READER);
@@ -860,6 +909,9 @@ bool ForestKVStore::save2forestdb() {
     updateFileInfo();
 
     pendingReqsQ.clear();
+
+    st.docsCommitted = pendingCommitCnt;
+
     return true;
 }
 
@@ -985,7 +1037,8 @@ void ForestKVStore::set(const Item& itm, Callback<mutation_result>& cb) {
 
     // each req will be de-allocated after commit
     requestcb.setCb = &cb;
-    ForestRequest* req = new ForestRequest(itm, requestcb, false);
+    ForestRequest *req = new ForestRequest(itm, requestcb, false,
+                                           FORESTDB_METADATA_SIZE + itm.getNBytes());
     fdb_doc setDoc;
     fdb_kvs_handle* kvsHandle = NULL;
     fdb_status status;
@@ -1113,6 +1166,12 @@ void ForestKVStore::getMulti(uint16_t vb, vb_bgfetch_queue_t& itms) {
 
         for (fitr = fetches.begin(); fitr != fetches.end(); ++fitr) {
             (*fitr)->value = gcb.val;
+            st.readTimeHisto.add((gethrtime() - (*fitr)->initTime) / 1000);
+        }
+
+        if (status == ENGINE_SUCCESS) {
+            st.readSizeHisto.add(gcb.val.getValue()->getNKey() +
+                                 gcb.val.getValue()->getNBytes());
         }
     }
 }
@@ -1224,6 +1283,9 @@ DBFileInfo ForestKVStore::getAggrDbFileInfo() {
 
 bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state& vbstate,
                                     VBStatePersist options) {
+
+    hrtime_t start = gethrtime();
+
     if (updateCachedVBState(vbucketId, vbstate) &&
          (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
           options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
@@ -1260,6 +1322,8 @@ bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state& vbstate,
     }
 
     updateFileInfo();
+
+    st.snapshotHisto.add((gethrtime() - start) / 1000);
 
     return true;
 }
@@ -1507,6 +1571,7 @@ fdb_compact_decision ForestKVStore::compaction_cb(fdb_file_handle* fhandle,
 }
 
 bool ForestKVStore::compactDB(compaction_ctx* ctx) {
+    hrtime_t start = gethrtime();
     uint16_t shardId = ctx->db_file_id;
 
     std::string dbFileBase = dbname + "/" + std::to_string(shardId) + ".fdb.";
@@ -1547,6 +1612,8 @@ bool ForestKVStore::compactDB(compaction_ctx* ctx) {
 
     /* Compaction is complete at this point. Switch to the new file */
     ++dbFileRevNum;
+
+    st.compactHisto.add((gethrtime() - start) / 1000);
 
     return true;
 }
@@ -1705,4 +1772,219 @@ RollbackResult ForestKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
     vbucket_state *vb_state = cachedVBStates[vbid];
     return RollbackResult(true, vb_state->highSeqno,
                           vb_state->lastSnapStart, vb_state->lastSnapEnd);
+}
+
+extern "C" {
+    static fdb_fileops_handle ffs_constructor(void *ctx);
+    static fdb_status ffs_open(const char *pathname, fdb_fileops_handle *, int flags,
+                               mode_t mode);
+    static fdb_ssize_t ffs_pwrite(fdb_fileops_handle fops_handle, void *buf,
+                                  size_t count, cs_off_t offset);
+    static fdb_ssize_t ffs_pread(fdb_fileops_handle fops_handle, void *buf,
+                                 size_t count, cs_off_t offset);
+    static int ffs_close(fdb_fileops_handle fops_handle);
+    static cs_off_t ffs_goto_eof(fdb_fileops_handle fops_handle);
+    static cs_off_t ffs_file_size(fdb_fileops_handle fops_handle, const char *filename);
+    static int ffs_fdatasync(fdb_fileops_handle fops_handle);
+    static int ffs_fsync(fdb_fileops_handle fops_handle);
+    static void ffs_get_errno_str(fdb_fileops_handle fops_handle, char *buf, size_t size);
+
+    static int ffs_aio_init(fdb_fileops_handle fops_handle, struct async_io_handle *aio_handle);
+    static int ffs_aio_prep_read(fdb_fileops_handle fops_handle,
+                                 struct async_io_handle *aio_handle, size_t aio_idx,
+                                 size_t read_size, uint64_t offset);
+    static int ffs_aio_submit(fdb_fileops_handle fops_handle,
+                              struct async_io_handle *aio_handle, int num_subs);
+    static int ffs_aio_getevents(fdb_fileops_handle fops_handle,
+                                 struct async_io_handle *aio_handle, int min,
+                                 int max, unsigned int timeout);
+    static int ffs_aio_destroy(fdb_fileops_handle fops_handle,
+                               struct async_io_handle *aio_handle);
+    static int ffs_get_fs_type(fdb_fileops_handle src_fops_handle);
+    static int ffs_copy_file_range(int fs_type, fdb_fileops_handle src_fops_handle,
+                                   fdb_fileops_handle dst_fops_handle,
+                                   uint64_t src_off, uint64_t dst_off, uint64_t len);
+    static void ffs_destructor(fdb_fileops_handle fops_handle);
+}
+
+fdb_filemgr_ops_t ForestKVStore::getForestStatOps(FileStats* stats) {
+    fdb_filemgr_ops_t fileOps = {
+        ffs_constructor,
+        ffs_open,
+        ffs_pwrite,
+        ffs_pread,
+        ffs_close,
+        ffs_goto_eof,
+        ffs_file_size,
+        ffs_fdatasync,
+        ffs_fsync,
+        ffs_get_errno_str,
+        ffs_aio_init,
+        ffs_aio_prep_read,
+        ffs_aio_submit,
+        ffs_aio_getevents,
+        ffs_aio_destroy,
+        ffs_get_fs_type,
+        ffs_copy_file_range,
+        ffs_destructor,
+        stats,
+    };
+
+    return fileOps;
+}
+
+struct ForestStatFile {
+    ForestStatFile(fdb_filemgr_ops_t *_orig_ops, fdb_fileops_handle _orig_handle,
+                   cs_off_t _last_offs) {
+        orig_ops = _orig_ops;
+        orig_handle = _orig_handle;
+        last_offs = _last_offs;
+    }
+    FileStats *fs_stats;
+    const fdb_filemgr_ops_t *orig_ops;
+    fdb_fileops_handle orig_handle;
+    cs_off_t last_offs;
+};
+
+extern "C" {
+    static fdb_fileops_handle ffs_constructor(void *ctx) {
+        fdb_filemgr_ops_t *orig_ops = fdb_get_default_file_ops();
+        ForestStatFile *fsf = new ForestStatFile(orig_ops,
+                                                 orig_ops->constructor(orig_ops->ctx), 0);
+        fsf->fs_stats = static_cast<FileStats *>(ctx);
+        return reinterpret_cast<fdb_fileops_handle>(fsf);
+    }
+
+    static fdb_status ffs_open(const char *pathname, fdb_fileops_handle *fops_handle,
+                               int flags, mode_t mode) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(*fops_handle);
+        return fsf->orig_ops->open(pathname, &fsf->orig_handle, flags, mode);
+    }
+
+    static fdb_ssize_t ffs_pwrite(fdb_fileops_handle fops_handle, void *buf,
+                                  size_t count, cs_off_t offset) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        fsf->fs_stats->writeSizeHisto.add(count);
+        BlockTimer bt(&fsf->fs_stats->writeTimeHisto);
+        ssize_t result = fsf->orig_ops->pwrite(fsf->orig_handle, buf, count,
+                                               offset);
+        if (result > 0) {
+            fsf->fs_stats->totalBytesWritten += result;
+        }
+
+        return result;
+    }
+
+    static fdb_ssize_t ffs_pread(fdb_fileops_handle fops_handle, void *buf,
+                                 size_t count, cs_off_t offset) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        fsf->fs_stats->readSizeHisto.add(count);
+        if (fsf->last_offs) {
+            fsf->fs_stats->readSeekHisto.add(std::abs(offset - fsf->last_offs));
+        }
+
+        fsf->last_offs = offset;
+        BlockTimer bt(&fsf->fs_stats->readTimeHisto);
+        ssize_t result = fsf->orig_ops->pread(fsf->orig_handle, buf, count,
+                                              offset);
+        if (result) {
+            fsf->fs_stats->totalBytesRead += result;
+        }
+
+        return result;
+    }
+
+    static int ffs_close(fdb_fileops_handle fops_handle) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        return fsf->orig_ops->close(fsf->orig_handle);
+    }
+
+    static cs_off_t ffs_goto_eof(fdb_fileops_handle fops_handle) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        return fsf->orig_ops->goto_eof(fsf->orig_handle);
+    }
+
+    static cs_off_t ffs_file_size(fdb_fileops_handle fops_handle, const char *filename) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        return fsf->orig_ops->file_size(fsf->orig_handle, filename);
+    }
+
+    static int ffs_fdatasync(fdb_fileops_handle fops_handle) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        return fsf->orig_ops->fdatasync(fsf->orig_handle);
+    }
+
+    static int ffs_fsync(fdb_fileops_handle fops_handle) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        BlockTimer bt(&fsf->fs_stats->syncTimeHisto);
+        return fsf->orig_ops->fsync(fsf->orig_handle);
+    }
+
+    static void ffs_get_errno_str(fdb_fileops_handle fops_handle, char *buf, size_t size) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        fsf->orig_ops->get_errno_str(fsf->orig_handle, buf, size);
+    }
+
+    static int ffs_aio_init(fdb_fileops_handle fops_handle,
+                            struct async_io_handle *aio_handle) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        return fsf->orig_ops->aio_init(fsf->orig_handle, aio_handle);
+    }
+
+    static int ffs_aio_prep_read(fdb_fileops_handle fops_handle,
+                                 struct async_io_handle *aio_handle,
+                                 size_t aio_idx, size_t read_size,
+                                 uint64_t offset) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        return fsf->orig_ops->aio_prep_read(fsf->orig_handle, aio_handle,
+                                       aio_idx, read_size, offset);
+    }
+
+    static int ffs_aio_submit(fdb_fileops_handle fops_handle,
+                              struct async_io_handle *aio_handle,
+                              int num_subs) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        return fsf->orig_ops->aio_submit(fsf->orig_handle, aio_handle,
+                                         num_subs);
+    }
+
+    static int ffs_aio_getevents(fdb_fileops_handle fops_handle,
+                                 struct async_io_handle *aio_handle,
+                                 int min, int max, unsigned int timeout) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        return fsf->orig_ops->aio_getevents(fsf->orig_handle,
+                                            aio_handle, min, max, timeout);
+    }
+
+    static int ffs_aio_destroy(fdb_fileops_handle fops_handle,
+                               struct async_io_handle *aio_handle) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        return fsf->orig_ops->aio_destroy(fsf->orig_handle,
+                                          aio_handle);
+    }
+
+    static int ffs_get_fs_type(fdb_fileops_handle src_fileops_handle) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(src_fileops_handle);
+        return fsf->orig_ops->get_fs_type(fsf->orig_handle);
+    }
+
+    static int ffs_copy_file_range(int fs_type,
+                                   fdb_fileops_handle src_fops_handle,
+                                   fdb_fileops_handle dst_fops_handle,
+                                   uint64_t src_off,
+                                   uint64_t dst_off,
+                                   uint64_t len) {
+        ForestStatFile *src_fsf = reinterpret_cast<ForestStatFile *>(src_fops_handle);
+        ForestStatFile *dst_fsf = reinterpret_cast<ForestStatFile *>(dst_fops_handle);
+
+        return src_fsf->orig_ops->copy_file_range(fs_type, src_fsf->orig_handle,
+                                                  dst_fsf->orig_handle,
+                                                  src_off, dst_off, len);
+    }
+
+    static void ffs_destructor(fdb_fileops_handle fops_handle) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        fsf->orig_ops->destructor(fsf->orig_handle);
+        delete fsf;
+    }
 }

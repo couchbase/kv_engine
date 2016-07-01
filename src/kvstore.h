@@ -283,6 +283,154 @@ struct KVStatsCtx{
 
 typedef struct KVStatsCtx kvstats_ctx;
 
+struct FileStats {
+public:
+    FileStats() :
+        readSeekHisto(ExponentialGenerator<size_t>(1, 2), 50),
+        readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
+        writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
+        totalBytesRead(0),
+        totalBytesWritten(0) { }
+
+    //Read time length
+    Histogram<hrtime_t> readTimeHisto;
+    //Distance from last read
+    Histogram<size_t> readSeekHisto;
+    //Size of read
+    Histogram<size_t> readSizeHisto;
+    //Write time length
+    Histogram<hrtime_t> writeTimeHisto;
+    //Write size
+    Histogram<size_t> writeSizeHisto;
+    //Time spent in sync
+    Histogram<hrtime_t> syncTimeHisto;
+
+    // total bytes read from disk.
+    std::atomic<size_t> totalBytesRead;
+    // Total bytes written to disk.
+    std::atomic<size_t> totalBytesWritten;
+
+    void reset() {
+        readTimeHisto.reset();
+        readSeekHisto.reset();
+        readSizeHisto.reset();
+        writeTimeHisto.reset();
+        writeSizeHisto.reset();
+        syncTimeHisto.reset();
+        totalBytesRead = 0;
+        totalBytesWritten = 0;
+    }
+};
+
+/**
+ * Stats and timings for KVStore
+ */
+class KVStoreStats {
+
+public:
+    /**
+     * Default constructor
+     */
+    KVStoreStats() :
+      docsCommitted(0),
+      numOpen(0),
+      numClose(0),
+      numLoadedVb(0),
+      numGetFailure(0),
+      numSetFailure(0),
+      numDelFailure(0),
+      numOpenFailure(0),
+      numVbSetFailure(0),
+      io_num_read(0),
+      io_num_write(0),
+      io_read_bytes(0),
+      io_write_bytes(0),
+      readSizeHisto(ExponentialGenerator<size_t>(1, 2), 25),
+      writeSizeHisto(ExponentialGenerator<size_t>(1, 2), 25) {
+    }
+
+    KVStoreStats(const KVStoreStats &copyFrom) {}
+
+    void reset() {
+        docsCommitted = 0;
+        numOpen = 0;
+        numClose = 0;
+        numLoadedVb = 0;
+        numGetFailure = 0;
+        numSetFailure = 0;
+        numDelFailure = 0;
+        numOpenFailure = 0;
+        numVbSetFailure = 0;
+
+        readTimeHisto.reset();
+        readSizeHisto.reset();
+        writeTimeHisto.reset();
+        writeSizeHisto.reset();
+        delTimeHisto.reset();
+        compactHisto.reset();
+        snapshotHisto.reset();
+        commitHisto.reset();
+        saveDocsHisto.reset();
+        batchSize.reset();
+        fsStats.reset();
+    }
+
+    // the number of docs committed
+    Couchbase::RelaxedAtomic<size_t> docsCommitted;
+    // the number of open() calls
+    Couchbase::RelaxedAtomic<size_t> numOpen;
+    // the number of close() calls
+    Couchbase::RelaxedAtomic<size_t> numClose;
+    // the number of vbuckets loaded
+    Couchbase::RelaxedAtomic<size_t> numLoadedVb;
+
+    //stats tracking failures
+    Couchbase::RelaxedAtomic<size_t> numGetFailure;
+    Couchbase::RelaxedAtomic<size_t> numSetFailure;
+    Couchbase::RelaxedAtomic<size_t> numDelFailure;
+    Couchbase::RelaxedAtomic<size_t> numOpenFailure;
+    Couchbase::RelaxedAtomic<size_t> numVbSetFailure;
+
+    //! Number of read related io operations
+    Couchbase::RelaxedAtomic<size_t> io_num_read;
+    //! Number of write related io operations
+    Couchbase::RelaxedAtomic<size_t> io_num_write;
+    //! Number of bytes read
+    Couchbase::RelaxedAtomic<size_t> io_read_bytes;
+    //! Number of bytes written (key + value + application rev metadata)
+    Couchbase::RelaxedAtomic<size_t> io_write_bytes;
+
+    /* for flush and vb delete, no error handling in KVStore, such
+     * failure should be tracked in MC-engine  */
+
+    // How long it takes us to complete a read
+    Histogram<hrtime_t> readTimeHisto;
+    // How big are our reads?
+    Histogram<size_t> readSizeHisto;
+    // How long it takes us to complete a write
+    Histogram<hrtime_t> writeTimeHisto;
+    // How big are our writes?
+    Histogram<size_t> writeSizeHisto;
+    // Time spent in delete() calls.
+    Histogram<hrtime_t> delTimeHisto;
+    // Time spent in commit
+    Histogram<hrtime_t> commitHisto;
+    // Time spent in compaction
+    Histogram<hrtime_t> compactHisto;
+    // Time spent in saving documents to disk
+    Histogram<hrtime_t> saveDocsHisto;
+    // Batch size while saving documents
+    Histogram<size_t> batchSize;
+    //Time spent in vbucket snapshot
+    Histogram<hrtime_t> snapshotHisto;
+
+    // Stats from the underlying OS file operations
+    FileStats fsStats;
+
+    // Underlying stats for OS file operations during compaction
+    FileStats fsStatsCompaction;
+};
+
 /**
  * Type of vbucket map.
  *
@@ -483,6 +631,7 @@ protected:
     MutationRequestCallback callback;
     hrtime_t start;
     std::string key;
+    size_t dataSize;
 };
 
 /**
@@ -502,11 +651,7 @@ public:
      * @param add_stat the callback function to add statistics
      * @param c the cookie to pass to the callback function
      */
-    virtual void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c) {
-        (void)prefix;
-        (void)add_stat;
-        (void)c;
-    }
+    void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
 
     /**
      * Request the specified statistic name from the kvstore.
@@ -527,13 +672,13 @@ public:
      * @param add_stat the callback function to add statistics
      * @param c the cookie to pass to the callback function
      */
-    virtual void addTimingStats(const std::string &, ADD_STAT, const void *) {
-    }
+    virtual void addTimingStats(const std::string &, ADD_STAT, const void *);
 
     /**
      * Resets kvstore specific stats
      */
-    virtual void resetStats() {
+    void resetStats() {
+        st.reset();
     }
 
     /**
@@ -729,6 +874,10 @@ public:
         return configuration;
     }
 
+    KVStoreStats& getKVStoreStat(void) {
+        return st;
+    }
+
     virtual ENGINE_ERROR_CODE getAllKeys(uint16_t vbid,
                             std::string &start_key, uint32_t count,
                             std::shared_ptr<Callback<uint16_t&, char*&> > cb) = 0;
@@ -744,7 +893,10 @@ public:
     virtual void destroyScanContext(ScanContext* ctx) = 0;
 
 protected:
-    KVStoreConfig &configuration;
+
+    /* all stats */
+    KVStoreStats st;
+    KVStoreConfig& configuration;
     bool readOnly;
     std::vector<vbucket_state *> cachedVBStates;
     /* non-deleted docs in each file, indexed by vBucket.
@@ -752,7 +904,13 @@ protected:
     std::vector<Couchbase::RelaxedAtomic<size_t>> cachedDocCount;
     Couchbase::RelaxedAtomic<uint16_t> cachedValidVBCount;
     std::list<PersistenceCallback *> pcbs;
+
+protected:
+
     void createDataDir(const std::string& dbname);
+    template <typename T>
+    void addStat(const std::string& prefix, const char* nm, T& val,
+                 ADD_STAT add_stat, const void* c);
 
     /**
      * Updates the cached state for a vbucket
