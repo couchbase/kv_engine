@@ -294,6 +294,7 @@ TARGET_LINK_LIBRARIES(ep-engine_configuration_test gtest gtest_main platform)
 
 ADD_EXECUTABLE(ep-engine_couch-fs-stats_test
         src/couch-kvstore/couch-fs-stats.cc
+        src/generated_configuration.h
         tests/module_tests/couch-fs-stats_test.cc
         $<TARGET_OBJECTS:couchstore_wrapped_fileops_test_framework>)
 TARGET_INCLUDE_DIRECTORIES(ep-engine_couch-fs-stats_test
