@@ -5011,7 +5011,7 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
 
 static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    const int num_items = 50, num_testcases = 12;
+    const int num_items = 50;
     uint64_t end_seqno = num_items + 1000;
     uint32_t high_seqno = 0;
 
@@ -5032,6 +5032,7 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     uint64_t uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
 
     typedef struct dcp_params {
+        uint32_t flags;
         uint64_t vb_uuid;
         uint64_t start_seqno;
         uint64_t snap_start_seqno;
@@ -5040,49 +5041,60 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
         ENGINE_ERROR_CODE exp_err_code;
     } dcp_params_t;
 
-    dcp_params_t params[num_testcases] =
+    dcp_params_t params[] =
     {   /* Do not expect rollback when start_seqno is 0 */
-        {uuid, 0, 0, 0, 0, ENGINE_SUCCESS},
+        {0, uuid, 0, 0, 0, 0, ENGINE_SUCCESS},
         /* Do not expect rollback when start_seqno is 0 and vb_uuid mismatch */
-        {0xBAD, 0, 0, 0, 0, ENGINE_SUCCESS},
+        {0, 0xBAD, 0, 0, 0, 0, ENGINE_SUCCESS},
         /* Don't expect rollback when you already have all items in the snapshot
            (that is, start == snap_end) and upper >= snap_end */
-        {uuid, high_seqno, 0, high_seqno, 0, ENGINE_SUCCESS},
-        {uuid, high_seqno - 1, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
+        {0, uuid, high_seqno, 0, high_seqno, 0, ENGINE_SUCCESS},
+        {0, uuid, high_seqno - 1, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
         /* Do not expect rollback when you have no items in the snapshot
          (that is, start == snap_start) and upper >= snap_end */
-        {uuid, high_seqno - 10, high_seqno - 10, high_seqno, 0, ENGINE_SUCCESS},
-        {uuid, high_seqno - 10, high_seqno - 10, high_seqno - 1, 0,
+        {0, uuid, high_seqno - 10, high_seqno - 10, high_seqno, 0, ENGINE_SUCCESS},
+        {0, uuid, high_seqno - 10, high_seqno - 10, high_seqno - 1, 0,
          ENGINE_SUCCESS},
         /* Do not expect rollback when you are in middle of a snapshot (that is,
            snap_start < start < snap_end) and upper >= snap_end */
-        {uuid, 10, 0, high_seqno, 0, ENGINE_SUCCESS},
-        {uuid, 10, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
+        {0, uuid, 10, 0, high_seqno, 0, ENGINE_SUCCESS},
+        {0, uuid, 10, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
         /* Expect rollback when you are in middle of a snapshot (that is,
            snap_start < start < snap_end) and upper < snap_end. Rollback to
            snap_start if snap_start < upper */
-        {uuid, 20, 10, high_seqno + 1, 10, ENGINE_ROLLBACK},
+        {0, uuid, 20, 10, high_seqno + 1, 10, ENGINE_ROLLBACK},
         /* Expect rollback when upper < snap_start_seqno. Rollback to upper */
-        {uuid, high_seqno + 20, high_seqno + 10, high_seqno + 30, high_seqno,
+        {0, uuid, high_seqno + 20, high_seqno + 10, high_seqno + 30, high_seqno,
          ENGINE_ROLLBACK},
-        {uuid, high_seqno + 10, high_seqno + 10, high_seqno + 10, high_seqno,
+        {0, uuid, high_seqno + 10, high_seqno + 10, high_seqno + 10, high_seqno,
          ENGINE_ROLLBACK},
         /* vb_uuid not found in failover table, rollback to zero */
-        {0xBAD, 10, 0, high_seqno, 0, ENGINE_ROLLBACK},
+        {0, 0xBAD, 10, 0, high_seqno, 0, ENGINE_ROLLBACK},
+
+        /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_LATEST
+           set - expect rollback */
+        {DCP_ADD_STREAM_FLAG_LATEST, uuid, high_seqno + 1, high_seqno + 1,
+         high_seqno + 1, high_seqno, ENGINE_ROLLBACK},
+
+        /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_DISKONLY
+           set - expect rollback */
+        {DCP_ADD_STREAM_FLAG_DISKONLY, uuid, high_seqno + 1, high_seqno + 1,
+         high_seqno + 1, high_seqno, ENGINE_ROLLBACK},
+
         /* Add new test case here */
     };
 
-    for (int i = 0; i < num_testcases; i++)
-    {
+    for (const auto& testcase : params) {
         DcpStreamCtx ctx;
-        ctx.vb_uuid = params[i].vb_uuid;
-        ctx.seqno = {params[i].start_seqno, end_seqno};
-        ctx.snapshot = {params[i].snap_start_seqno, params[i].snap_end_seqno};
-        ctx.exp_err = params[i].exp_err_code;
-        ctx.exp_rollback = params[i].exp_rollback;
+        ctx.flags = testcase.flags;
+        ctx.vb_uuid = testcase.vb_uuid;
+        ctx.seqno = {testcase.start_seqno, end_seqno};
+        ctx.snapshot = {testcase.snap_start_seqno, testcase.snap_end_seqno};
+        ctx.exp_err = testcase.exp_err_code;
+        ctx.exp_rollback = testcase.exp_rollback;
 
         const void *cookie = testHarness.create_cookie();
-        std::string conn_name("unittest" + std::to_string(i));
+        std::string conn_name("test_failover_log_dcp");
         TestDcpConsumer tdc(conn_name.c_str(), cookie);
         tdc.addStreamCtx(ctx);
 
