@@ -41,6 +41,8 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     : EventuallyPersistentEngine(get_mock_server_api) {
     maxFailoverEntries = 1;
 
+    EventuallyPersistentEngine::loggerApi = get_mock_server_api()->log;
+
     // Merge any extra config into the main configuration.
     if (extra_config.size() > 0) {
         if (!configuration.parseConfiguration(extra_config.c_str(),

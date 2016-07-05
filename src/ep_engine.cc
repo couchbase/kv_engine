@@ -52,7 +52,8 @@
 #include <JSON_checker.h>
 
 static ALLOCATOR_HOOKS_API *hooksApi;
-static SERVER_LOG_API *loggerApi;
+SERVER_LOG_API* EventuallyPersistentEngine::loggerApi;
+
 
 static size_t percentOf(size_t val, double percent) {
     return static_cast<size_t>(static_cast<double>(val) * percent);
@@ -1724,7 +1725,7 @@ extern "C" {
         }
 
         hooksApi = api->alloc_hooks;
-        loggerApi = api->log;
+        EventuallyPersistentEngine::loggerApi = api->log;
         MemoryTracker::getInstance();
         ObjectRegistry::initialize(api->alloc_hooks->get_allocation_size);
 
@@ -1809,11 +1810,11 @@ extern "C" {
 void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     char buffer[2048];
 
-    if (loggerApi != NULL) {
+    if (EventuallyPersistentEngine::loggerApi != NULL) {
         EXTENSION_LOGGER_DESCRIPTOR* logger =
-            (EXTENSION_LOGGER_DESCRIPTOR*)loggerApi->get_logger();
+            (EXTENSION_LOGGER_DESCRIPTOR*)EventuallyPersistentEngine::loggerApi->get_logger();
 
-        if (loggerApi->get_level() <= severity) {
+        if (EventuallyPersistentEngine::loggerApi->get_level() <= severity) {
             EventuallyPersistentEngine *engine = ObjectRegistry::onSwitchThread(NULL, true);
             va_list va;
             va_start(va, fmt);

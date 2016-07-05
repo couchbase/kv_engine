@@ -740,6 +740,8 @@ public:
     ENGINE_ERROR_CODE getAllVBucketSequenceNumbers(const void *cookie,
                                                    ADD_RESPONSE response);
 
+    static SERVER_LOG_API *loggerApi;
+
 protected:
     friend class EpEngineValueChangeListener;
 
