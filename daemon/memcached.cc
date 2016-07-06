@@ -43,7 +43,6 @@
 #include "stats.h"
 #include "mcbp_executors.h"
 #include "memcached_openssl.h"
-#include "privileges.h"
 #include "greenstack.h"
 #include "mcbpdestroybuckettask.h"
 #include "libevent_locking.h"
@@ -2698,9 +2697,6 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     /* create the listening socket, bind it, and init */
     create_listen_sockets(true);
-
-    /* Drop privileges no longer needed */
-    drop_privileges();
 
     /* Optional parent monitor */
     setup_parent_monitor();
