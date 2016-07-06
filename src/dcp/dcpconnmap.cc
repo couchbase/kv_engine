@@ -281,9 +281,6 @@ void DcpConnMap::manageConnections() {
         deadConnections.pop_front();
     }
 
-    const int maxIdleTime = 5;
-    rel_time_t now = ep_current_time();
-
     // Collect the list of connections that need to be signaled.
     std::list<connection_t> toNotify;
     std::map<const void*, connection_t>::iterator iter;
@@ -292,10 +289,14 @@ void DcpConnMap::manageConnections() {
         Notifiable *tp = dynamic_cast<Notifiable*>(conn.get());
         if (tp && (tp->isPaused() || conn->doDisconnect()) &&
             conn->isReserved()) {
-            if (!tp->sentNotify() ||
-                (conn->getLastWalkTime() + maxIdleTime < now)) {
-                toNotify.push_back(iter->second);
-            }
+            /**
+             * Note: We want to send a notify even if we have sent one
+             * previously i.e. tp->sentNotify() == true.  The reason for this
+             * is manageConnections is used to notify idle connections once a
+             * second.  This results in the step function being invoked,
+             * which in turn may result in a dcp noop message being sent.
+             */
+            toNotify.push_back(iter->second);
         }
     }
 

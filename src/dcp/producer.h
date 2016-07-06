@@ -217,16 +217,35 @@ protected:
      */
     SingleThreadedRCPtr<Stream> findStream(uint16_t vbid);
 
+    /** We may disconnect if noop messages are enabled and the last time we
+     *  received any message (including a noop) exceeds the dcpTimeout.
+     *  Returns ENGINE_DISCONNECT if noop messages are enabled and the timeout
+     *  is exceeded.
+     *  Returns ENGINE_FAILED if noop messages are disabled, or if the timeout
+     *  is not exceeded.  In this case continue without disconnecting.
+     */
+    ENGINE_ERROR_CODE maybeDisconnect();
+
+    /** We may send a noop if a noop acknowledgement is not pending and
+     *  we have exceeded the dcpNoopTxInterval since we last sent a noop.
+     *  Returns ENGINE_WANT_MORE if a noop was sent.
+     *  Returns ENGINE_FAILED if a noop is not required to be sent.
+     *  This occurs if noop messages are disabled, or because we have already
+     *  sent a noop and we are awaiting a receive, or because the time interval
+     *  has not passed.
+     */
     ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers);
 
     struct {
         rel_time_t sendTime;
         uint32_t opaque;
-        uint32_t noopInterval;
+        std::chrono::seconds dcpIdleTimeout;
+        std::chrono::seconds dcpNoopTxInterval;
         Couchbase::RelaxedAtomic<bool> pendingRecv;
         Couchbase::RelaxedAtomic<bool> enabled;
     } noopCtx;
 
+    Couchbase::RelaxedAtomic<rel_time_t> lastReceiveTime;
 private:
 
 
@@ -264,7 +283,7 @@ private:
     std::atomic<size_t> totalBytesSent;
 
     ExTask checkpointCreatorTask;
-    static const uint32_t defaultNoopInerval;
+    static const std::chrono::seconds defaultDcpNoopTxInterval;
 
 };
 

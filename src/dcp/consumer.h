@@ -139,8 +139,8 @@ protected:
     /**
      * Records when the consumer last received a message from producer.
      * It is used to detect dead connections. The connection is closed
-     * if a message, including a No-Op message, is not seen in a period
-     * equal to twice the "noop interval".
+     * if a message, including a No-Op message, is not seen in a
+     * specified time period.
      * It is protected so we can access from MockDcpConsumer, for
      * for testing purposes.
      */
@@ -206,7 +206,10 @@ protected:
     opaque_map opaqueMap_;
 
     Couchbase::RelaxedAtomic<uint32_t> backoffs;
-    uint32_t noopInterval;
+    // The maximum interval between dcp messages before the consumer disconnects
+    const std::chrono::seconds dcpIdleTimeout;
+    // The interval that the consumer tells the producer to send noops
+    const std::chrono::seconds dcpNoopTxInterval;
 
     bool pendingEnableNoop;
     bool pendingSendNoopInterval;

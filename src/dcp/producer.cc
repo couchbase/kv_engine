@@ -29,7 +29,7 @@
 #include "dcp/response.h"
 #include "dcp/stream.h"
 
-const uint32_t DcpProducer::defaultNoopInerval = 20;
+const std::chrono::seconds DcpProducer::defaultDcpNoopTxInterval(20);
 
 DcpProducer::BufferLog::State DcpProducer::BufferLog::getState_UNLOCKED() {
     if (isEnabled_UNLOCKED()) {
@@ -145,11 +145,13 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
     // noop interval to 20 seconds by default, but in post 3.0 releases we set
     // it to be higher by default. Starting in 3.0.1 the DCP consumer sets the
     // noop interval of the producer when connecting so in an all 3.0.1+ cluster
-    // this value will be overriden. In 3.0 however we do not set the noop
+    // this value will be overridden. In 3.0 however we do not set the noop
     // interval so setting this value will make sure we don't disconnect on
     // accident due to the producer and the consumer having a different noop
     // interval.
-    noopCtx.noopInterval = defaultNoopInerval;
+    noopCtx.dcpNoopTxInterval = defaultDcpNoopTxInterval;
+    noopCtx.dcpIdleTimeout = std::chrono::seconds(
+            engine_.getConfiguration().getDcpIdleTimeout());
     noopCtx.pendingRecv = false;
     noopCtx.enabled = false;
 
@@ -189,6 +191,8 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
                                              uint64_t snap_end_seqno,
                                              uint64_t *rollback_seqno,
                                              dcp_add_failover_log callback) {
+
+    lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -348,6 +352,7 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
 ENGINE_ERROR_CODE DcpProducer::getFailoverLog(uint32_t opaque, uint16_t vbucket,
                                               dcp_add_failover_log callback) {
     (void) opaque;
+    lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -370,6 +375,10 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
     }
 
     ENGINE_ERROR_CODE ret;
+    if ((ret = maybeDisconnect()) != ENGINE_FAILED) {
+          return ret;
+    }
+
     if ((ret = maybeSendNoop(producers)) != ENGINE_FAILED) {
         return ret;
     }
@@ -525,6 +534,7 @@ ENGINE_ERROR_CODE DcpProducer::step(struct dcp_message_producers* producers) {
 ENGINE_ERROR_CODE DcpProducer::bufferAcknowledgement(uint32_t opaque,
                                                      uint16_t vbucket,
                                                      uint32_t buffer_bytes) {
+    lastReceiveTime = ep_current_time();
     log.acknowledge(buffer_bytes);
     return ENGINE_SUCCESS;
 }
@@ -532,6 +542,7 @@ ENGINE_ERROR_CODE DcpProducer::bufferAcknowledgement(uint32_t opaque,
 ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
                                        uint16_t nkey, const void* value,
                                        uint32_t nvalue) {
+    lastReceiveTime = ep_current_time();
     const char* param = static_cast<const char*>(key);
     std::string keyStr(static_cast<const char*>(key), nkey);
     std::string valueStr(static_cast<const char*>(value), nvalue);
@@ -577,7 +588,9 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
         }
         return ENGINE_SUCCESS;
     } else if (strncmp(param, "set_noop_interval", nkey) == 0) {
-        if (parseUint32(valueStr.c_str(), &noopCtx.noopInterval)) {
+        uint32_t noopInterval;
+        if (parseUint32(valueStr.c_str(), &noopInterval)) {
+            noopCtx.dcpNoopTxInterval = std::chrono::seconds(noopInterval);
             return ENGINE_SUCCESS;
         }
     } else if(strncmp(param, "set_priority", nkey) == 0) {
@@ -604,6 +617,7 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
 
 ENGINE_ERROR_CODE DcpProducer::handleResponse(
                                         protocol_binary_response_header *resp) {
+    lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -659,6 +673,7 @@ ENGINE_ERROR_CODE DcpProducer::handleResponse(
 }
 
 ENGINE_ERROR_CODE DcpProducer::closeStream(uint32_t opaque, uint16_t vbucket) {
+    lastReceiveTime = ep_current_time();
     if (doDisconnect()) {
         return ENGINE_DISCONNECT;
     }
@@ -807,6 +822,7 @@ bool DcpProducer::handleSlowStream(uint16_t vbid,
 }
 
 void DcpProducer::closeAllStreams() {
+    lastReceiveTime = ep_current_time();
     std::vector<uint16_t> vbvector;
     {
         // Need to synchronise the disconnect and clear, therefore use
@@ -933,34 +949,47 @@ void DcpProducer::notifyPaused(bool schedule) {
     engine_.getDcpConnMap().notifyPausedConnection(this, schedule);
 }
 
-ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(struct dcp_message_producers* producers) {
-    if (!noopCtx.enabled) {
-        // Returning ENGINE_FAILED means ignore and continue without sending a noop
-        return ENGINE_FAILED;
-    }
-    size_t sinceTime = ep_current_time() - noopCtx.sendTime;
-    if (sinceTime <= noopCtx.noopInterval) {
-        // The time interval has not passed so ignore and continue without sending
-        return ENGINE_FAILED;
-    }
-    // The time interval has passed.  First check to see if waiting for a noop reply
-    if (noopCtx.pendingRecv) {
-        LOG(EXTENSION_LOG_NOTICE, "%s Disconnected because the connection"
+ENGINE_ERROR_CODE DcpProducer::maybeDisconnect() {
+    std::chrono::seconds elapsedTime(ep_current_time() - lastReceiveTime);
+    if (noopCtx.enabled && elapsedTime > noopCtx.dcpIdleTimeout) {
+        LOG(EXTENSION_LOG_NOTICE, "%s Disconnecting because the connection"
             " appears to be dead", logHeader());
-        return ENGINE_DISCONNECT;
-    }
-    // Try to send a noop to the consumer
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
-    ENGINE_ERROR_CODE ret = producers->noop(getCookie(), ++noopCtx.opaque);
-    ObjectRegistry::onSwitchThread(epe);
+            return ENGINE_DISCONNECT;
+        }
+        // Returning ENGINE_FAILED means ignore and continue
+        // without disconnecting
+        return ENGINE_FAILED;
+}
 
-    if (ret == ENGINE_SUCCESS) {
-        ret = ENGINE_WANT_MORE;
-        noopCtx.pendingRecv = true;
-        noopCtx.sendTime = ep_current_time();
-        lastSendTime = noopCtx.sendTime;
+ENGINE_ERROR_CODE DcpProducer::maybeSendNoop(
+        struct dcp_message_producers* producers) {
+    if (!noopCtx.enabled) {
+        // Returning ENGINE_FAILED means ignore and continue
+        // without sending a noop
+        return ENGINE_FAILED;
     }
-    return ret;
+    std::chrono::seconds elapsedTime(ep_current_time() - noopCtx.sendTime);
+
+    // Check to see if waiting for a noop reply.
+    // If not try to send a noop to the consumer if the interval has passed
+    if (!noopCtx.pendingRecv && elapsedTime >= noopCtx.dcpNoopTxInterval) {
+        EventuallyPersistentEngine *epe = ObjectRegistry::
+                onSwitchThread(NULL, true);
+        ENGINE_ERROR_CODE ret = producers->noop(getCookie(), ++noopCtx.opaque);
+        ObjectRegistry::onSwitchThread(epe);
+
+        if (ret == ENGINE_SUCCESS) {
+            ret = ENGINE_WANT_MORE;
+            noopCtx.pendingRecv = true;
+            noopCtx.sendTime = ep_current_time();
+            lastSendTime = noopCtx.sendTime;
+        }
+      return ret;
+    }
+    // We have already sent a noop and are awaiting a receive or
+    // the time interval has not passed.  In either case continue
+    // without sending a noop.
+    return ENGINE_FAILED;
 }
 
 bool DcpProducer::isTimeForNoop() {

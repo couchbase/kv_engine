@@ -362,26 +362,39 @@ TEST_F(ConnectionTest, test_maybesendnoop_send_noop) {
 TEST_F(ConnectionTest, test_maybesendnoop_noop_already_pending) {
     const void* cookie = create_mock_cookie();
     // Create a Mock Dcp producer
-    MockDcpProducer producer(*engine, cookie, "test_producer", /*notifyOnly*/false);
+    MockDcpProducer producer(*engine, cookie, "test_producer",
+                             /*notifyOnly*/false);
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(handle, engine_v1));
+    std::unique_ptr<dcp_message_producers> producers(
+            get_dcp_producers(handle, engine_v1));
+    mock_time_travel(engine->getConfiguration().getDcpIdleTimeout() + 1);
     producer.setNoopEnabled(true);
-    producer.setNoopSendTime(21);
+    producer.setNoopSendTime(0);
     ENGINE_ERROR_CODE ret = producer.maybeSendNoop(producers.get());
+    // Check to see if a noop was sent i.e. returned ENGINE_WANT_MORE
     EXPECT_EQ(ENGINE_WANT_MORE, ret)
-    << "maybeSendNoop not returning ENGINE_WANT_MORE";
+        << "maybeSendNoop not returning ENGINE_WANT_MORE";
     EXPECT_TRUE(producer.getNoopPendingRecv())
-    << "Not awaiting noop acknowledgement";
-    EXPECT_NE(21, producer.getNoopSendTime())
-    << "SendTime has not been updated";
-    producer.setNoopSendTime(21);
-    ENGINE_ERROR_CODE ret2 = producer.maybeSendNoop(producers.get());
-    EXPECT_EQ(ENGINE_DISCONNECT, ret2)
-     << "maybeSendNoop not returning ENGINE_DISCONNECT";
+        << "Not awaiting noop acknowledgement";
+    EXPECT_NE(0, producer.getNoopSendTime())
+        << "SendTime has not been updated";
+    ret = producer.maybeSendNoop(producers.get());
+    // Check to see if a noop was not sent i.e. returned ENGINE_FAILED
+    EXPECT_EQ(ENGINE_FAILED, ret)
+        << "maybeSendNoop not returning ENGINE_FAILED";
+    producer.setLastReceiveTime(0);
+    ret = producer.maybeDisconnect();
+    // Check to see if we want to disconnect i.e. returned ENGINE_DISCONNECT
+    EXPECT_EQ(ENGINE_DISCONNECT, ret)
+        << "maybeDisconnect not returning ENGINE_DISCONNECT";
+    producer.setLastReceiveTime(engine->getConfiguration().
+                                getDcpIdleTimeout() + 1);
+    ret = producer.maybeDisconnect();
+    // Check to see if we don't want to disconnect i.e. returned ENGINE_FAILED
+    EXPECT_EQ(ENGINE_FAILED, ret)
+        << "maybeDisconnect not returning ENGINE_FAILED";
     EXPECT_TRUE(producer.getNoopPendingRecv())
-    << "Not waiting for noop acknowledgement";
-    EXPECT_EQ(21, producer.getNoopSendTime())
-    << "SendTime has been updated";
+        << "Not waiting for noop acknowledgement";
     destroy_mock_cookie(cookie);
 }
 

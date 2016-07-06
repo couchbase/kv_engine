@@ -105,6 +105,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
       processorTaskState(all_processed),
       processorNotification(false),
       backoffs(0),
+      dcpIdleTimeout(engine.getConfiguration().getDcpIdleTimeout()),
+      dcpNoopTxInterval(engine.getConfiguration().getDcpNoopTxInterval()),
       taskAlreadyCancelled(false),
       flowControl(engine, this),
       processBufferedMessagesYieldThreshold(engine.getConfiguration().
@@ -115,8 +117,6 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     setSupportAck(false);
     setLogHeader("DCP (Consumer) " + getName() + " -");
     setReserved(true);
-
-    noopInterval = config.getDcpNoopInterval();
 
     pendingEnableNoop = config.isDcpEnableNoop();
     pendingSendNoopInterval = config.isDcpEnableNoop();
@@ -991,7 +991,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
     if (pendingSendNoopInterval) {
         ENGINE_ERROR_CODE ret;
         uint32_t opaque = ++opaqueCounter;
-        std::string interval = std::to_string(noopInterval);
+        std::string interval = std::to_string(dcpNoopTxInterval.count());
         EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
         ret = producers->control(getCookie(), opaque,
                                  noopIntervalCtrlMsg.c_str(),
@@ -1002,10 +1002,11 @@ ENGINE_ERROR_CODE DcpConsumer::handleNoop(struct dcp_message_producers* producer
         return ret;
     }
 
-    if ((ep_current_time() - lastMessageTime) > (noopInterval * 2)) {
-        LOG(EXTENSION_LOG_NOTICE, "%s Disconnecting because a message has "
-            "not been received for %u seconds. lastMessageTime was %u seconds ago.",
-            logHeader(), (noopInterval * 2), (ep_current_time() - lastMessageTime));
+    if ((ep_current_time() - lastMessageTime) > dcpIdleTimeout.count()) {
+        LOG(EXTENSION_LOG_NOTICE, "%s Disconnecting because a message has not been "
+            "received for %" PRIu64 " seconds. lastMessageTime was %u seconds ago.",
+            logHeader(), uint64_t(dcpIdleTimeout.count()),
+            (ep_current_time() - lastMessageTime));
         return ENGINE_DISCONNECT;
     }
 

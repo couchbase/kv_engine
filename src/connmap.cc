@@ -108,12 +108,19 @@ bool ConnNotifier::notifyConnections() {
 class ConnManager : public GlobalTask {
 public:
     ConnManager(EventuallyPersistentEngine *e, ConnMap *cmap)
-        : GlobalTask(e, TaskId::ConnManager, MIN_SLEEP_TIME, true),
+        : GlobalTask(e, TaskId::ConnManager, sleepTime, true),
           engine(e), connmap(cmap) { }
 
+    /**
+     * The ConnManager task is used to run the manageConnections function
+     * once a second.  This is required for two reasons:
+     * (1) To clean-up dead connections
+     * (2) To notify idle connections; either for connections that need to be
+     * closed or to ensure dcp noop messages are sent once a second.
+     */
     bool run(void) {
         connmap->manageConnections();
-        snooze(MIN_SLEEP_TIME);
+        snooze(sleepTime);
         return !engine->getEpStats().isShutdown ||
                !connmap->isAllEmpty() ||
                !connmap->isDeadConnectionsEmpty();
@@ -124,10 +131,12 @@ public:
     }
 
 private:
+    static const double sleepTime;
     EventuallyPersistentEngine *engine;
     ConnMap *connmap;
 };
 
+const double ConnManager::sleepTime = 1.0;
 
 ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
     :  engine(theEngine),

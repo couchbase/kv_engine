@@ -30,9 +30,16 @@ public:
     : DcpProducer(theEngine, cookie, name, isNotifier)
     {}
 
-    ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers)
-    {
+    ENGINE_ERROR_CODE maybeDisconnect() {
+        return DcpProducer::maybeDisconnect();
+    }
+
+    ENGINE_ERROR_CODE maybeSendNoop(struct dcp_message_producers* producers) {
         return DcpProducer::maybeSendNoop(producers);
+    }
+
+    void setLastReceiveTime(const rel_time_t timeValue) {
+        lastReceiveTime = timeValue;
     }
 
     void setNoopSendTime(const rel_time_t timeValue) {

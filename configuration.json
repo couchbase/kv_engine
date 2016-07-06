@@ -606,10 +606,21 @@
                 }
             }
         },
-        "dcp_noop_interval": {
-            "default": "180",
-            "descr": "Number of seconds between a noop",
+        "dcp_idle_timeout": {
+            "default": "360",
+            "descr": "The maximum number of seconds between dcp messages before a connection is disconnected",
             "type": "size_t"
+        },
+        "dcp_noop_tx_interval": {
+            "default": "1",
+            "descr": "The time interval in seconds between noop messages being sent to the consumer",
+            "type": "size_t",
+            "validator": {
+                "range": {
+                    "max" : 360,
+                    "min" : 1
+                }
+            }
         },
         "dcp_max_unacked_bytes": {
             "default": "524288",
