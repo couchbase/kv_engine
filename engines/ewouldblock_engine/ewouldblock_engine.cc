@@ -131,6 +131,7 @@ public:
         }
 
         const bool inject = iter->second.second->should_inject_error(cmd, err);
+        const bool add_to_pending_io_ops = iter->second.second->add_to_pending_io_ops();
 
         if (inject) {
             auto logger = gsa()->log->get_logger();
@@ -138,7 +139,7 @@ public:
                         "EWB_Engine: injecting error:%d for cmd:%s",
                         err, to_string(cmd));
 
-            if (err == ENGINE_EWOULDBLOCK) {
+            if (err == ENGINE_EWOULDBLOCK && add_to_pending_io_ops) {
                 // The server expects that if EWOULDBLOCK is returned then the
                 // server should be notified in the future when the operation is
                 // ready - so add this op to the pending IO queue.
@@ -379,6 +380,10 @@ public:
                     new_mode = std::make_shared<ErrSequence>(injected_error, value);
                     break;
 
+                case EWBEngineMode::No_Notify:
+                    new_mode = std::make_shared<ErrOnNoNotify>(injected_error);
+                    break;
+
                 case EWBEngineMode::CasMismatch:
                     new_mode = std::make_shared<CASMismatch>(value);
                     break;
@@ -543,6 +548,9 @@ private:
         FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
           : injected_error(injected_error_) {}
 
+        virtual bool add_to_pending_io_ops() {
+            return true;
+        }
         virtual bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) = 0;
 
         virtual std::string to_string() const = 0;
@@ -667,6 +675,35 @@ private:
         uint32_t sequence;
         uint32_t pos;
     };
+
+    class ErrOnNoNotify : public FaultInjectMode {
+        public:
+            ErrOnNoNotify(ENGINE_ERROR_CODE injected_error_)
+              : FaultInjectMode(injected_error_),
+                issued_return_error(false) {}
+
+            bool add_to_pending_io_ops() {return false;}
+            bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+                if (!issued_return_error) {
+                    issued_return_error = true;
+                    err = injected_error;
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+            std::string to_string() const {
+                return std::string("ErrOnNoNotify") +
+                       " inject_error=" + std::to_string(injected_error) +
+                       " issued_return_error=" +
+                       std::to_string(issued_return_error);
+            }
+
+        private:
+            // Record of whether have yet issued return error.
+            bool issued_return_error;
+        };
 
     class CASMismatch : public FaultInjectMode {
     public:

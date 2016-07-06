@@ -199,6 +199,39 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     watchdog.join();
 }
 
+// Regression test for MB-19981 - if a bucket delete is attempted while there
+// is connection in the conn_nread state.  And that connection is currently
+// blocked waiting for a response from the server; the connection will not
+// have an event registered in libevent.  Therefore a call to updateEvent
+// will fail.
+
+// Note before the fix, if the event_active function call is removed from the
+// signalIfIdle function the test will hang.  The reason the test works with
+// the event_active function call in place is that the event_active function
+// can be invoked regardless of whether the event is registered
+// (i.e. in a pending state) or not.
+
+TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
+    auto& conn = getConnection();
+    conn.createBucket("bucket", "default_engine.so",
+                      Greenstack::BucketType::EWouldBlock);
+    auto second_conn = conn.clone();
+    second_conn->selectBucket("bucket");
+    // Configure so that the engine will return ENGINE_EWOULDBLOCK and
+    // not process any operation given to it.  This means the connection
+    // will remain in a blocked state.
+    second_conn->configureEwouldBlockEngine(EWBEngineMode::No_Notify,
+                                            ENGINE_EWOULDBLOCK, /*unused */0);
+    Frame frame = second_conn->encodeCmdGet("dummy_key_where_never_return", 0);
+    // Send the get operation, however we will not get a response from the
+    // engine, and so it will block indefinately.
+    second_conn->sendFrame(frame);
+    // On a different connection we now instruct the bucket to be deleted.
+    // The connection that is currently blocked needs to be sent a fake
+    // event to allow the connection to be closed.
+    conn.deleteBucket("bucket");
+}
+
 // Strictly speaking this test /should/ work on Windows, however the
 // issue we hit is that the memcached connection send buffer on
 // Windows is huge (256MB in my testing) and so we timeout long before

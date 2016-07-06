@@ -1305,16 +1305,22 @@ void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
         state == conn_waiting ||
         state == conn_new_cmd ||
         state == conn_ship_log) {
-        /*
-         * set write access to ensure it's handled (error logged in
-         * updateEvent().
-         */
-        updateEvent(EV_READ | EV_WRITE | EV_PERSIST);
 
         // Raise a 'fake' write event to ensure the connection has an
-        // event delivered (in case its sendQ is full).
+        // event delivered (for example if its sendQ is full).
+        if (!registered_in_libevent) {
+            ev_flags = EV_READ | EV_WRITE | EV_PERSIST;
+            if (!registerEvent()) {
+                LOG_WARNING(this, "McbpConnection::signalIfIdle: Unable to "
+                                  "registerEvent.  Setting state to conn_closing");
+                setState(conn_closing);
+            }
+        } else if (!updateEvent(EV_READ | EV_WRITE | EV_PERSIST)) {
+            LOG_WARNING(this, "McbpConnection::signalIfIdle: Unable to "
+                              "updateEvent.  Setting state to conn_closing");
+            setState(conn_closing);
+        }
         event_active(&event, EV_WRITE, 0);
-
     } else if (logbusy) {
         auto* js = toJSON();
         char* details = cJSON_PrintUnformatted(js);

@@ -68,9 +68,9 @@ enum class EWBEngineMode : uint32_t {
     Random = 1,
 
     // The first call to a given function from each connection will return
-    // {inject_error}, with the next (and subsequent) calls to he *same*
+    // {inject_error}, with the next (and subsequent) calls to the *same*
     // function operating normally. Calling a different function will reset
-    // back to failing again.  In other words, return {inject_error} iif the
+    // back to failing again.  In other words, return {inject_error} if the
     // previous function was not this one.
     First = 2,
 
@@ -84,5 +84,10 @@ enum class EWBEngineMode : uint32_t {
 
     // Increment the cluster map sequence number. Value and inject_error is
     // ignored for this opcode
-    IncrementClusterMapRevno = 5
+    IncrementClusterMapRevno = 5,
+
+    // Make a single call into engine and return {inject_error}.  In addition
+    // do not add the operation to the processing queue and so a
+    // notify_io_complete is never sent.
+    No_Notify = 6
 };
