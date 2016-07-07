@@ -143,7 +143,8 @@ ActiveStream::ActiveStream(EventuallyPersistentEngine* e, dcp_producer_t p,
 
     RCPtr<VBucket> vbucket = engine->getVBucket(vb);
     if (vbucket) {
-        ReaderLockHolder rlh(vbucket->getStateLock());
+        // An atomic read of vbucket state without acquiring the
+        // reader lock for state should suffice here.
         if (vbucket->getState() == vbucket_state_replica) {
             snapshot_info_t info = vbucket->checkpointManager.getSnapshotInfo();
             if (info.range.end > en_seqno) {
