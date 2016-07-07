@@ -28,8 +28,6 @@
 #include "configuration.h"
 #include "stored-value.h"
 
-/* static storage for environment variable set by putenv(). */
-static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
 int main(int argc, char **argv) {
     bool log_to_stderr = false;
@@ -51,8 +49,6 @@ int main(int argc, char **argv) {
             break;
         }
     }
-
-    putenv(allow_no_stats_env);
 
     init_mock_server(log_to_stderr);
     get_mock_server_api()->log->set_level(EXTENSION_LOG_DEBUG);

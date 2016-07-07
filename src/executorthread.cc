@@ -78,6 +78,7 @@ void ExecutorThread::run() {
             break;
         }
 
+        now = gethrtime();
         if (TaskQueue *q = manager->nextTask(*this, tick)) {
             EventuallyPersistentEngine *engine = currentTask->getEngine();
             ObjectRegistry::onSwitchThread(engine);
@@ -90,7 +91,6 @@ void ExecutorThread::run() {
 
             // Measure scheduling overhead as difference between the time
             // that the task wanted to wake up and the current time
-            now = gethrtime();
             hrtime_t woketime = currentTask->getWaketime();
             engine->getEpStore()->logQTime(currentTask->getTypeId(),
                                            now > woketime ? now - woketime

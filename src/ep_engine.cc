@@ -5661,7 +5661,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,
                                                        uint32_t opaque,
                                                        uint32_t seqno,
                                                        uint32_t flags,
-                                                       void *stream_name,
+                                                       const void *stream_name,
                                                        uint16_t nname)
 {
     (void) opaque;

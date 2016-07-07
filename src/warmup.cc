@@ -361,7 +361,7 @@ void LoadValueCallback::callback(CacheLookup &lookup)
 
 
 Warmup::Warmup(EventuallyPersistentStore *st) :
-    state(), store(st), startTime(0), metadata(0), warmup(0),
+    state(), store(st), taskId(0), startTime(0), metadata(0), warmup(0),
     threadtask_count(0),
     estimateTime(0), estimatedItemCount(std::numeric_limits<size_t>::max()),
     cleanShutdown(true), corruptAccessLog(false), warmupComplete(false),

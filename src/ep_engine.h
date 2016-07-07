@@ -429,7 +429,7 @@ public:
                               uint32_t opaque,
                               uint32_t seqno,
                               uint32_t flags,
-                              void *stream_name,
+                              const void *stream_name,
                               uint16_t nname);
 
     ENGINE_ERROR_CODE dcpAddStream(const void* cookie,
