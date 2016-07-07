@@ -28,6 +28,8 @@ class BackfillManager;
 class Stream;
 typedef SingleThreadedRCPtr<Stream> stream_t;
 
+#include <relaxed_atomic.h>
+
 class DcpResponse;
 
 class DcpProducer : public Producer {
@@ -297,8 +299,8 @@ private:
         rel_time_t sendTime;
         uint32_t opaque;
         uint32_t noopInterval;
-        bool pendingRecv;
-        bool enabled;
+        Couchbase::RelaxedAtomic<bool> pendingRecv;
+        Couchbase::RelaxedAtomic<bool> enabled;
     } noopCtx;
 
     std::string priority;
