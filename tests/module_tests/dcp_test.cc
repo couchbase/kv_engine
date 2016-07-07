@@ -69,6 +69,26 @@ public:
     }
 };
 
+/* Mock of the PassiveStream class. Wraps the real PassiveStream, but exposes
+ * normally protected methods publically for test purposes.
+ */
+class MockPassiveStream : public PassiveStream {
+public:
+    MockPassiveStream(EventuallyPersistentEngine* e, dcp_consumer_t consumer,
+                      const std::string &name, uint32_t flags, uint32_t opaque,
+                      uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
+                      uint64_t vb_uuid, uint64_t snap_start_seqno,
+                      uint64_t snap_end_seqno, uint64_t vb_high_seqno)
+    : PassiveStream(e, consumer, name, flags, opaque, vb, start_seqno,
+                    end_seqno, vb_uuid, snap_start_seqno, snap_end_seqno,
+                    vb_high_seqno) {}
+
+    // Expose underlying protected PassiveStream methods as public
+    bool public_transitionState(stream_state_t newState) {
+        return transitionState(newState);
+    }
+};
+
 /*
  * Mock of the DcpConnMap class.  Wraps the real DcpConnMap, but exposes
  * normally protected methods publically for test purposes.
@@ -289,7 +309,12 @@ TEST_F(StreamTest, test_mb18625) {
         << "Expected no more messages in the readyQ";
 }
 
-class ConnectionTest : public DCPTest {};
+class ConnectionTest : public DCPTest {
+protected:
+    ENGINE_ERROR_CODE set_vb_state(uint16_t vbid, vbucket_state_t state) {
+        return engine->getEpStore()->setVBucketState(vbid, state, true);
+    }
+};
 
 ENGINE_ERROR_CODE mock_noop_return_engine_e2big(const void* cookie,uint32_t opaque) {
     return ENGINE_E2BIG;
@@ -591,6 +616,42 @@ TEST_F(ConnectionTest, test_update_of_last_message_time_in_consumer) {
                               /*state*/vbucket_state_active);
     EXPECT_NE(1234, consumer->getLastMessageTime())
         << "lastMessagerTime not updated for setVBucketState";
+    destroy_mock_cookie(cookie);
+}
+
+TEST_F(ConnectionTest, test_consumer_add_stream) {
+    const void* cookie = create_mock_cookie();
+    uint16_t vbid = 0;
+
+    /* Create a Mock Dcp consumer. Since child class subobj of MockDcpConsumer
+       obj are accounted for by SingleThreadedRCPtr, use the same here */
+    connection_t conn = new MockDcpConsumer(*engine, cookie, "test_consumer");
+    MockDcpConsumer* consumer = dynamic_cast<MockDcpConsumer*>(conn.get());
+
+    ASSERT_EQ(ENGINE_SUCCESS, set_vb_state(vbid, vbucket_state_replica));
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
+                                                  /*flags*/0));
+
+    /* Set the passive to dead state. Note that we want to set the stream to
+       dead state but not erase it from the streams map in the consumer
+       connection*/
+    MockPassiveStream *stream = static_cast<MockPassiveStream*>
+                                    ((consumer->getVbucketStream(vbid)).get());
+
+    stream->public_transitionState(STREAM_DEAD);
+
+    /* Add a passive stream on the same vb */
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->addStream(/*opaque*/0, vbid,
+                                                  /*flags*/0));
+
+    /* Expected the newly added stream to be in active state */
+    stream = static_cast<MockPassiveStream*>
+                                    ((consumer->getVbucketStream(vbid)).get());
+    ASSERT_TRUE(stream->isActive());
+
+    /* Close stream before deleting the connection */
+    ASSERT_EQ(ENGINE_SUCCESS, consumer->closeStream(/*opaque*/0, vbid));
+
     destroy_mock_cookie(cookie);
 }
 

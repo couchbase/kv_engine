@@ -185,10 +185,14 @@ ENGINE_ERROR_CODE DcpConsumer::addStream(uint32_t opaque, uint16_t vbucket,
     uint64_t high_seqno = vb->getHighSeqno();
 
     auto stream = findStream(vbucket);
-    if (stream && stream->isActive()) {
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot add stream because one "
-            "already exists", logHeader(), vbucket);
-        return ENGINE_KEY_EEXISTS;
+    if (stream) {
+        if(stream->isActive()) {
+            LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Cannot add stream because "
+                "one already exists", logHeader(), vbucket);
+            return ENGINE_KEY_EEXISTS;
+        } else {
+            streams.erase(vbucket);
+        }
     }
 
     streams.insert({vbucket,

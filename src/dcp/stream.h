@@ -480,7 +480,9 @@ public:
 
     static const size_t batchSize;
 
-private:
+protected:
+
+    bool transitionState(stream_state_t newState);
 
     ENGINE_ERROR_CODE processMutation(MutationResponse* mutation);
 
@@ -491,8 +493,6 @@ private:
     void processMarker(SnapshotMarker* marker);
 
     void processSetVBucketState(SetVBucketState* state);
-
-    bool transitionState(stream_state_t newState);
 
     uint32_t clearBuffer_UNLOCKED();
 
