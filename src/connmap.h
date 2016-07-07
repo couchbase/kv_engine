@@ -141,6 +141,21 @@ public:
     }
 
     /**
+     * Call a function on each connection, but without the connsLock held
+     * Read Copy Update... the all list is copied under connsLock and then
+     * the function is applied against the copy without the lock held.
+     */
+    template <typename Fun>
+    void eachRCU(Fun f) const {
+        std::list<connection_t> currentConnections;
+        {
+            LockHolder lh(connsLock);
+            currentConnections = all;
+        }
+        std::for_each(currentConnections.begin(), currentConnections.end(), f);
+    }
+
+    /**
      * Call a function on each connection *without* a lock.
      */
     template <typename Fun>
@@ -216,7 +231,7 @@ protected:
     // removing connections.
     // Actual modification of the underlying
     // ConnHandler objects is guarded by {releaseLock}.
-    Mutex                                    connsLock;
+    mutable Mutex                            connsLock;
 
     std::map<const void*, connection_t>      map_;
     std::list<connection_t>                  all;
@@ -508,10 +523,9 @@ private:
 
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
 
-    void disconnect_UNLOCKED(const void *cookie);
-
     void closeAllStreams_UNLOCKED();
 
+    // Guarded by the parent's classes `connsLock`
     std::list<connection_t> deadConnections;
 
     SpinLock numBackfillsLock;

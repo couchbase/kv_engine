@@ -1647,7 +1647,7 @@ void EventuallyPersistentStore::completeBGFetch(const std::string &key,
         StoredValue *v = fetchValidValue(vb, key, bucket_num, true);
         if (isMeta) {
             if ((v && v->unlocked_restoreMeta(gcb.val.getValue(),
-                                             gcb.val.getStatus(), vb->ht))
+                                              gcb.val.getStatus(), vb->ht))
                 || ENGINE_KEY_ENOENT == status) {
                 /* If ENGINE_KEY_ENOENT is the status from storage and the temp
                  key is removed from hash table by the time bgfetch returns
