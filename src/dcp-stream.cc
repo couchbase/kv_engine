@@ -439,7 +439,19 @@ DcpResponse* ActiveStream::takeoverWaitPhase() {
 }
 
 DcpResponse* ActiveStream::deadPhase() {
-    return nextQueuedItem();
+    DcpResponse* resp = nextQueuedItem();
+    if (!resp) {
+        LOG(EXTENSION_LOG_WARNING,
+            "(vb %" PRIu16 ") Stream closed, "
+            "%" PRIu64 " items sent from backfill phase, "
+            "%" PRIu64 " items sent from memory phase, "
+            "%" PRIu64 " was last seqno sent",
+            vb_,
+            uint64_t(backfillItems.sent.load()),
+            uint64_t(itemsFromMemoryPhase),
+            lastSentSeqno.load());
+    }
+    return resp;
 }
 
 void ActiveStream::addStats(ADD_STAT add_stat, const void *c) {
@@ -748,12 +760,12 @@ void ActiveStream::endStream(end_stream_status_t reason) {
             pushToReadyQ(new StreamEndResponse(opaque_, reason, vb_));
         }
         transitionState(STREAM_DEAD);
-        LOG(EXTENSION_LOG_WARNING, "%s (vb %" PRId16 ") Stream closing, "
-            "%" PRIu64 " items sent from backfill phase, %" PRIu64 " items "
-            "sent from memory phase, %" PRIu64 " was last seqno sent, "
-            "reason: %s", producer->logHeader(), vb_,
-            uint64_t(backfillItems.sent.load()),
-            uint64_t(itemsFromMemoryPhase), lastSentSeqno.load(),
+        LOG(EXTENSION_LOG_WARNING,
+            "(vb %" PRIu16 ") Stream closing, "
+            "sent until seqno %" PRIu64 " "
+            "reason: %s",
+            vb_,
+            lastSentSeqno.load(),
             getEndStreamStatusStr(reason));
     }
 }
