@@ -321,7 +321,7 @@ PrivilegeAccess Connection::checkPrivilege(const Privilege& privilege) const {
     case Privilege::SimpleStats:
         return PrivilegeAccess::Ok;
     case Privilege::Stats:
-        return PrivilegeAccess::Ok;
+        return PrivilegeAccess::Fail;
     case Privilege::BucketManagement:
         return PrivilegeAccess::Fail;
     case Privilege::NodeManagement:

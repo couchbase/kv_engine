@@ -35,7 +35,7 @@ TEST_P(StatsTest, TestDefaultStats) {
     EXPECT_NE(nullptr, cJSON_GetObjectItem(stats.get(), "pid"));
 }
 
-TEST_P(StatsTest, StatsResetIsPrivileged) {
+TEST_P(StatsTest, DISABLED_StatsResetIsPrivileged) {
     MemcachedConnection& conn = getConnection();
     unique_cJSON_ptr stats;
 
@@ -169,7 +169,7 @@ TEST_P(StatsTest, TestSettings) {
     // Skip audit.. it is "optional" and we don't pass it to the config
 }
 
-TEST_P(StatsTest, TestAuditNoAccess) {
+TEST_P(StatsTest, DISABLED_TestAuditNoAccess) {
     MemcachedConnection& conn = getConnection();
 
     try {
@@ -201,7 +201,7 @@ TEST_P(StatsTest, TestAudit) {
     ASSERT_NO_THROW(conn.reconnect());
 }
 
-TEST_P(StatsTest, TestBucketDetailsNoAccess) {
+TEST_P(StatsTest, DISABLED_TestBucketDetailsNoAccess) {
     MemcachedConnection& conn = getConnection();
 
     try {

@@ -3415,10 +3415,16 @@ static void stat_executor(McbpConnection* c, void*) {
                                                       append_stats);
             } else {
                 if (iter->second.privileged) {
-                    if (c->isAdmin()) {
+                    switch (c->checkPrivilege(Privilege::Stats)) {
+                    case PrivilegeAccess::Ok:
                         ret = iter->second.handler(argument, *c);
-                    } else {
+                        break;
+                    case PrivilegeAccess::Fail:
                         ret = ENGINE_EACCESS;
+                        break;
+                    case PrivilegeAccess::Stale:
+                        ret = ENGINE_AUTH_STALE;
+                        break;
                     }
                 } else {
                     ret = iter->second.handler(argument, *c);
