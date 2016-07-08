@@ -189,6 +189,11 @@ enum class Privilege {
      * on documents.
      */
     MetaWrite,
+    /**
+     * The `IdleConnection` privilege allows a client to hold on to an
+     * idle connection witout being disconnected.
+     */
+    IdleConnection,
 };
 
 enum class PrivilegeAccess {

@@ -346,6 +346,8 @@ PrivilegeAccess Connection::checkPrivilege(const Privilege& privilege) const {
         return PrivilegeAccess::Ok;
     case Privilege::MetaWrite:
         return PrivilegeAccess::Ok;
+    case Privilege::IdleConnection:
+        return PrivilegeAccess::Ok;
     }
 
     throw std::logic_error("Unknown privilege requested");
