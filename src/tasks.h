@@ -127,7 +127,7 @@ public:
     /**
      * Puts the task to sleep for a given duration.
      */
-    void snooze(const double secs);
+    virtual void snooze(const double secs);
 
     /**
      * Returns the id of this task.

@@ -109,8 +109,9 @@ void ConnNotifier::stop() {
 void ConnNotifier::notifyMutationEvent(void) {
     bool inverse = false;
     if (pendingNotification.compare_exchange_strong(inverse, true)) {
-        cb_assert(task > 0);
-        ExecutorPool::get()->wake(task);
+        if (task > 0) {
+            ExecutorPool::get()->wake(task);
+        }
     }
 }
 
@@ -179,7 +180,8 @@ private:
 };
 
 ConnMap::ConnMap(EventuallyPersistentEngine &theEngine)
-    :  engine(theEngine) {
+    :  engine(theEngine),
+       connNotifier_(NULL) {
 
     Configuration &config = engine.getConfiguration();
     vbConnLocks = new SpinLock[vbConnLockNum];
@@ -198,7 +200,9 @@ void ConnMap::initialize(conn_notifier_type ntype) {
 
 ConnMap::~ConnMap() {
     delete [] vbConnLocks;
-    connNotifier_->stop();
+    if (connNotifier_ != NULL) {
+        connNotifier_->stop();
+    }
     delete connNotifier_;
 }
 

@@ -51,6 +51,10 @@ extern "C" {
     ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                       GET_SERVER_API get_server_api,
                                       ENGINE_HANDLE **handle);
+
+    EXPORT_FUNCTION
+    void destroy_engine(void);
+
     void EvpNotifyPendingConns(void*arg);
 }
 
@@ -801,7 +805,6 @@ protected:
         getlMaxTimeout = value;
     }
 
-private:
     EventuallyPersistentEngine(GET_SERVER_API get_server_api);
     friend ENGINE_ERROR_CODE create_instance(uint64_t interface,
                                              GET_SERVER_API get_server_api,
@@ -941,6 +944,10 @@ private:
     // Get the current tap connection for this cookie.
     // If this method returns NULL, you should return TAP_DISCONNECT
     TapProducer* getTapProducer(const void *cookie);
+
+    // Initialize all required callbacks of this engine with the underlying
+    // server.
+    void initializeEngineCallbacks();
 
     SERVER_HANDLE_V1 *serverApi;
     EventuallyPersistentStore *epstore;

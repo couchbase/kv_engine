@@ -103,7 +103,7 @@ public:
         processBufferedMessagesBatchSize = newValue;
     }
 
-private:
+protected:
 
     DcpResponse* getNextItem();
 

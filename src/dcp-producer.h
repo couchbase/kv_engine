@@ -208,7 +208,7 @@ public:
     */
     void clearCheckpointProcessorTaskQueues();
 
-private:
+protected:
 
     /**
      * DcpProducerReadyQueue is a std::queue wrapper for managing a

@@ -40,7 +40,6 @@ void BgFetcher::start() {
 void BgFetcher::stop() {
     bool inverse = true;
     pendingFetch.compare_exchange_strong(inverse, false);
-    cb_assert(taskId > 0);
     ExecutorPool::get()->cancel(taskId);
 }
 
