@@ -97,14 +97,16 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /* End VBucket commands */
 
     /* TAP commands */
-    setup(PROTOCOL_BINARY_CMD_TAP_CONNECT, require<Privilege::TAP>);
-    setup(PROTOCOL_BINARY_CMD_TAP_MUTATION, require<Privilege::TAP>);
-    setup(PROTOCOL_BINARY_CMD_TAP_DELETE, require<Privilege::TAP>);
-    setup(PROTOCOL_BINARY_CMD_TAP_FLUSH, require<Privilege::TAP>);
-    setup(PROTOCOL_BINARY_CMD_TAP_OPAQUE, require<Privilege::TAP>);
-    setup(PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET, require<Privilege::TAP>);
-    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START, require<Privilege::TAP>);
-    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END, require<Privilege::TAP>);
+    setup(PROTOCOL_BINARY_CMD_TAP_CONNECT, require<Privilege::TapProducer>);
+    setup(PROTOCOL_BINARY_CMD_TAP_MUTATION, require<Privilege::TapConsumer>);
+    setup(PROTOCOL_BINARY_CMD_TAP_DELETE, require<Privilege::TapConsumer>);
+    setup(PROTOCOL_BINARY_CMD_TAP_FLUSH, require<Privilege::TapConsumer>);
+    // TAP_OPAQUE is used by both the consumer and the producer so
+    // ep-engine needs to perform the privilege check
+    setup(PROTOCOL_BINARY_CMD_TAP_OPAQUE, empty);
+    setup(PROTOCOL_BINARY_CMD_TAP_VBUCKET_SET, require<Privilege::TapConsumer>);
+    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_START, require<Privilege::TapConsumer>);
+    setup(PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END, require<Privilege::TapConsumer>);
     /* End TAP */
 
     /* Vbucket command to get the VBUCKET sequence numbers for all
@@ -158,7 +160,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
      * Close the TAP connection for the registered TAP client and
      * remove the checkpoint cursors from its registered vbuckets.
      */
-    setup(PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT, require<Privilege::TAP>);
+    setup(PROTOCOL_BINARY_CMD_DEREGISTER_TAP_CLIENT, require<Privilege::TapProducer>);
 
     /**
      * Reset the replication chain from the node that receives
@@ -198,7 +200,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /**
      * Command to change the vbucket filter for a given TAP producer.
      */
-    setup(PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER, require<Privilege::TAP>);
+    setup(PROTOCOL_BINARY_CMD_CHANGE_VB_FILTER, require<Privilege::TapProducer>);
     /**
      * Command to wait for the checkpoint persistence
      */

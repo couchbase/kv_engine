@@ -338,7 +338,9 @@ PrivilegeAccess Connection::checkPrivilege(const Privilege& privilege) const {
         return PrivilegeAccess::Ok;
     case Privilege::DCP:
         return PrivilegeAccess::Ok;
-    case Privilege::TAP:
+    case Privilege::TapProducer:
+        return PrivilegeAccess::Ok;
+    case Privilege::TapConsumer:
         return PrivilegeAccess::Ok;
     case Privilege::MetaRead:
         return PrivilegeAccess::Ok;

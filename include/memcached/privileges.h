@@ -172,11 +172,13 @@ enum class Privilege {
     DCP,
 
     /**
-     * The `TAP` privilege allows for setting up a TAP stream (or
-     * consuming a TAP stream). (TAP is deprecated, but not removed from
-     * the code yet. Afaik TAP is not supposed to be supported in Spock)
+     * The `TapProducer` privilege allows for setting up a TAP stream
      */
-    TAP,
+    TapProducer,
+    /**
+     * The `TapConsumer` privilege allows for consuming TAP events
+     */
+    TapConsumer,
     /**
      * The `MetaRead` privilege allows for reading the meta information
      * on documents.
