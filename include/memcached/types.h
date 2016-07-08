@@ -55,6 +55,7 @@ extern "C" {
         ENGINE_ROLLBACK = 0x0f, /**< Roll back to a previous version */
         ENGINE_NO_BUCKET = 0x10, /**< The connection isn't bound to an engine */
         ENGINE_EBUSY = 0x11, /**< Can't serve the request.. busy */
+        ENGINE_AUTH_STALE = 0x12, /**< Auth data stale */
         ENGINE_FAILED = 0xff  /**< Generic failue. */
     } ENGINE_ERROR_CODE;
 

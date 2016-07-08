@@ -268,6 +268,8 @@ protocol_binary_response_status engine_error_2_mcbp_protocol_error(
         return PROTOCOL_BINARY_RESPONSE_NO_BUCKET;
     case ENGINE_EBUSY:
         return PROTOCOL_BINARY_RESPONSE_EBUSY;
+    case ENGINE_AUTH_STALE:
+        return PROTOCOL_BINARY_RESPONSE_AUTH_STALE;
     default:
         ret = PROTOCOL_BINARY_RESPONSE_EINTERNAL;
     }
