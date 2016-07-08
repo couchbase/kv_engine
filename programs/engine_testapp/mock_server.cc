@@ -7,10 +7,11 @@
 #include <string.h>
 #include <atomic>
 #include <time.h>
+#include <memcached/allocator_hooks.h>
 #include <memcached/engine.h>
 #include <memcached/extension.h>
 #include <memcached/extension_loggers.h>
-#include <memcached/allocator_hooks.h>
+#include <memcached/server_api.h>
 #include "daemon/alloc_hooks.h"
 
 #include <array>
@@ -152,6 +153,12 @@ static ENGINE_ERROR_CODE mock_cookie_release(const void *cookie) {
 static void mock_set_priority(const void* cookie, CONN_PRIORITY priority) {
     (void) cookie;
     (void) priority;
+}
+
+static PrivilegeAccess mock_check_privilege(const void*,
+                                       const Privilege) {
+    // @todo allow for mocking privilege access
+    return PrivilegeAccess::Ok;
 }
 
 /* time-sensitive callers can call it by hand with this, outside the
@@ -369,6 +376,7 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.reserve = mock_cookie_reserve;
       server_cookie_api.release = mock_cookie_release;
       server_cookie_api.set_priority = mock_set_priority;
+      server_cookie_api.check_privilege = mock_check_privilege;
 
       server_stat_api.evicting = mock_count_eviction;
 
