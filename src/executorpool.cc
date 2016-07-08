@@ -612,9 +612,10 @@ void ExecutorPool::_unregisterBucket(EventuallyPersistentEngine *engine,
 
 void ExecutorPool::unregisterBucket(EventuallyPersistentEngine *engine,
                                     bool force) {
-    EventuallyPersistentEngine *epe = ObjectRegistry::onSwitchThread(NULL, true);
+    // Note: unregistering a bucket is special - any memory allocations /
+    // deallocations made while unregistering *should* be accounted to the
+    // bucket in question - hence no `onSwitchThread(NULL)` call.
     _unregisterBucket(engine, force);
-    ObjectRegistry::onSwitchThread(epe);
 }
 
 void ExecutorPool::doTaskQStat(EventuallyPersistentEngine *engine,

@@ -28,13 +28,36 @@
 #include "configuration.h"
 #include "stored-value.h"
 
-/* static storage for environment variable set by putenv(). */
-static char allow_no_stats_env[] = "ALLOW_NO_STATS_UPDATE=yeah";
 
 int main(int argc, char **argv) {
-    putenv(allow_no_stats_env);
+    bool log_to_stderr = false;
+    // Parse command-line options.
+    int cmd;
+    bool invalid_argument = false;
+    while (!invalid_argument &&
+           (cmd = getopt(argc, argv, "v")) != EOF) {
+        switch (cmd) {
+        case 'v':
+            log_to_stderr = true;
+            break;
+        default:
+            std::cerr << "Usage: " << argv[0] << " [-v] [gtest_options...]" << std::endl
+                      << std::endl
+                      << "  -v Verbose - Print verbose output to stderr."
+                      << std::endl << std::endl;
+            invalid_argument = true;
+            break;
+        }
+    }
 
-    init_mock_server(false);
+    init_mock_server(log_to_stderr);
+    get_mock_server_api()->log->set_level(EXTENSION_LOG_DEBUG);
+
+    if (memcached_initialize_stderr_logger(get_mock_server_api) != EXTENSION_SUCCESS) {
+        std::cerr << argv[0] << ": Failed to initialize log system" << std::endl;
+        return 1;
+    }
+
     mock_init_alloc_hooks();
 
     // Default number of hashtable locks is too large for TSan to

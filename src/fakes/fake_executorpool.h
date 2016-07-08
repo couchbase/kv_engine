@@ -82,7 +82,7 @@ public:
 };
 
 /* A fake execution 'thread', to be used with the FakeExecutorPool Allows
- * execution of tasks synchronously in the current thrad.
+ * execution of tasks synchronously in the current thread.
  */
 class FakeExecutorThread : public ExecutorThread {
 public:
@@ -93,8 +93,15 @@ public:
     void runCurrentTask() {
         // Only supports one-shot tasks
         EXPECT_FALSE(currentTask->run());
+        completeCurrentTask();
+    }
+
+    // 'completes' the current task; useful if the caller wants to seperately
+    // run() the current task and then tidy up afterwards.
+    void completeCurrentTask() {
         manager->doneWork(curTaskType);
         manager->cancel(currentTask->getId(), true);
+        currentTask.reset();
     }
 
     ExTask& getCurrentTask() {

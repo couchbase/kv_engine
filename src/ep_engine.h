@@ -450,7 +450,7 @@ public:
                               uint32_t opaque,
                               uint32_t seqno,
                               uint32_t flags,
-                              void *stream_name,
+                              const void *stream_name,
                               uint16_t nname);
 
     ENGINE_ERROR_CODE dcpAddStream(const void* cookie,
@@ -789,6 +789,8 @@ public:
                                         const void *cookie,
                                         protocol_binary_request_header *request,
                                         ADD_RESPONSE response);
+
+    static SERVER_LOG_API *loggerApi;
 
 protected:
     friend class EpEngineValueChangeListener;

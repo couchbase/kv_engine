@@ -755,7 +755,9 @@ bool TapConnMap::mapped(connection_t &tc) {
 void TapConnMap::shutdownAllConnections() {
     LOG(EXTENSION_LOG_WARNING, "Shutting down tap connections!");
 
-    connNotifier_->stop();
+    if (connNotifier_ != NULL) {
+        connNotifier_->stop();
+    }
 
     // Not safe to acquire both connsLock and releaseLock at the same time
     // (can trigger deadlock), so first acquire releaseLock to release all
@@ -1073,7 +1075,9 @@ DcpProducer *DcpConnMap::newProducer(const void* cookie,
 void DcpConnMap::shutdownAllConnections() {
     LOG(EXTENSION_LOG_WARNING, "Shutting down dcp connections!");
 
-    connNotifier_->stop();
+    if (connNotifier_ != NULL) {
+        connNotifier_->stop();
+    }
 
     // Not safe to acquire both connsLock and releaseLock at the same time
     // (can trigger deadlock), so first acquire releaseLock to release all

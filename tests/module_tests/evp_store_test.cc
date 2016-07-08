@@ -32,6 +32,7 @@
 #include "connmap.h"
 #include "ep_engine.h"
 #include "flusher.h"
+#include "tapthrottle.h"
 #include "../mock/mock_dcp_producer.h"
 
 #include "programs/engine_testapp/mock_server.h"
@@ -40,6 +41,8 @@
 SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     : EventuallyPersistentEngine(get_mock_server_api) {
     maxFailoverEntries = 1;
+
+    EventuallyPersistentEngine::loggerApi = get_mock_server_api()->log;
 
     // Merge any extra config into the main configuration.
     if (extra_config.size() > 0) {
@@ -62,6 +65,12 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
 
     // checkpointConfig is needed by CheckpointManager (via EPStore).
     checkpointConfig = new CheckpointConfig(*this);
+
+    // tapConfig is needed by doTapStats().
+    tapConfig = new TapConfig(*this);
+
+    // tapThrottle is needed by doEngineStats().
+    tapThrottle = new TapThrottle(configuration, stats);
 }
 
 void SynchronousEPEngine::setEPStore(EventuallyPersistentStore* store) {
@@ -130,7 +139,9 @@ void EventuallyPersistentStoreTest::SetUp() {
 void EventuallyPersistentStoreTest::TearDown() {
     destroy_mock_cookie(cookie);
     destroy_mock_event_callbacks();
-    engine->getDcpConnMap().manageConnections();
+    if (engine) {
+        engine->getDcpConnMap().manageConnections();
+    }
 
     // Need to have the current engine valid before deleting (this is what
     // EvpDestroy does normally; however we have a smart ptr to the engine
