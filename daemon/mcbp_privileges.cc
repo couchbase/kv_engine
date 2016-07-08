@@ -219,7 +219,8 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     /**
      * Command that returns cluster configuration (open to anyone)
      */
-    // setup(PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG,
+    setup(PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, empty);
+
     setup(PROTOCOL_BINARY_CMD_GET_RANDOM_KEY, require<Privilege::Read>);
     /**
      * Command to wait for the dcp sequence number persistence
