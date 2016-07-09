@@ -651,7 +651,7 @@ public:
      * @param add_stat the callback function to add statistics
      * @param c the cookie to pass to the callback function
      */
-    void addStats(const std::string &prefix, ADD_STAT add_stat, const void *c);
+    void addStats(ADD_STAT add_stat, const void *c);
 
     /**
      * Request the specified statistic name from the kvstore.

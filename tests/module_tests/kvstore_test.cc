@@ -273,15 +273,15 @@ TEST(CouchKVStoreTest, StatsTest) {
     EXPECT_TRUE(kvstore->commit());
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
-    kvstore->addStats("", add_stat_callback, &stats);
-    EXPECT_EQ("1", stats[":io_num_write"]);
-    const size_t io_write_bytes = stoul(stats[":io_write_bytes"]);
+    kvstore->addStats(add_stat_callback, &stats);
+    EXPECT_EQ("1", stats["rw_0:io_num_write"]);
+    const size_t io_write_bytes = stoul(stats["rw_0:io_write_bytes"]);
     EXPECT_EQ(key.size() + value.size() + COUCHSTORE_METADATA_SIZE,
               io_write_bytes);
 
     // Hard to determine exactly how many bytes should have been written, but
     // expect non-zero, and least as many as the actual documents.
-    const size_t io_total_write_bytes = stoul(stats[":io_total_write_bytes"]);
+    const size_t io_total_write_bytes = stoul(stats["rw_0:io_total_write_bytes"]);
     EXPECT_GT(io_total_write_bytes, 0);
     EXPECT_GE(io_total_write_bytes, io_write_bytes);
 }
@@ -319,15 +319,15 @@ TEST(CouchKVStoreTest, CompactStatsTest) {
     EXPECT_TRUE(kvstore->compactDB(&cctx));
     // Check statistics are correct.
     std::map<std::string, std::string> stats;
-    kvstore->addStats("", add_stat_callback, &stats);
-    EXPECT_EQ("1", stats[":io_num_write"]);
-    const size_t io_write_bytes = stoul(stats[":io_write_bytes"]);
+    kvstore->addStats(add_stat_callback, &stats);
+    EXPECT_EQ("1", stats["rw_0:io_num_write"]);
+    const size_t io_write_bytes = stoul(stats["rw_0:io_write_bytes"]);
 
     // Hard to determine exactly how many bytes should have been written, but
     // expect non-zero, and at least twice as many as the actual documents for
     // the total and once as many for compaction alone.
-    const size_t io_total_write_bytes = stoul(stats[":io_total_write_bytes"]);
-    const size_t io_compaction_write_bytes = stoul(stats[":io_compaction_write_bytes"]);
+    const size_t io_total_write_bytes = stoul(stats["rw_0:io_total_write_bytes"]);
+    const size_t io_compaction_write_bytes = stoul(stats["rw_0:io_compaction_write_bytes"]);
     EXPECT_GT(io_total_write_bytes, 0);
     EXPECT_GT(io_compaction_write_bytes, 0);
     EXPECT_GT(io_total_write_bytes, io_compaction_write_bytes);

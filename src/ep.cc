@@ -3988,14 +3988,19 @@ void EventuallyPersistentStore::resetUnderlyingStats(void)
 void EventuallyPersistentStore::addKVStoreStats(ADD_STAT add_stat,
                                                 const void* cookie) {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
-        std::stringstream rwPrefix;
-        std::stringstream roPrefix;
-        rwPrefix << "rw_" << i;
-        roPrefix << "ro_" << i;
-        vbMap.shards[i]->getRWUnderlying()->addStats(rwPrefix.str(), add_stat,
-                                                     cookie);
-        vbMap.shards[i]->getROUnderlying()->addStats(roPrefix.str(), add_stat,
-                                                     cookie);
+        /* Add the different KVStore instances into a set and then
+         * retrieve the stats from each instance separately. This
+         * is because CouchKVStore has separate read only and read
+         * write instance whereas ForestKVStore has only instance
+         * for both read write and read-only.
+         */
+        std::set<KVStore *> underlyingSet;
+        underlyingSet.insert(vbMap.shards[i]->getRWUnderlying());
+        underlyingSet.insert(vbMap.shards[i]->getROUnderlying());
+
+        for (auto* store : underlyingSet) {
+            store->addStats(add_stat, cookie);
+        }
     }
 }
 

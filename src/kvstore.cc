@@ -205,10 +205,19 @@ void KVStore::addStat(const std::string &prefix, const char *stat, T &val,
     add_casted_stat(fullstat.str().c_str(), val, add_stat, c);
 }
 
-void KVStore::addStats(const std::string &prefix,
-                       ADD_STAT add_stat,
-                       const void *c) {
-    const char *backend = configuration.getBackend().c_str();
+void KVStore::addStats(ADD_STAT add_stat, const void *c) {
+    const char* backend = configuration.getBackend().c_str();
+
+    uint16_t shardId = configuration.getShardId();
+    std::stringstream prefixStream;
+
+    if (isReadOnly()) {
+        prefixStream << "ro_" << shardId;
+    } else {
+        prefixStream << "rw_" << shardId;
+    }
+
+    const std::string& prefix = prefixStream.str();
 
     /* stats for both read-only and read-write threads */
     addStat(prefix, "backend_type",   backend,            add_stat, c);
