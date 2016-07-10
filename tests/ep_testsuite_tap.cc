@@ -421,6 +421,16 @@ static enum test_result test_tap_agg_stats(ENGINE_HANDLE *h,
 }
 
 static enum test_result test_tap_sends_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    /* MB-20115: This test times out with forestdb as backend as
+     * deleted items don't get reflected in the final item
+     * count because forestdb doesn't provide accurate
+     * item count until a wal flush happens.
+     */
+    std::string backend = get_str_stat(h, h1, "ep_backend");
+    if (backend == "forestdb") {
+        return SKIPPED;
+    }
+
     const int num_keys = 5;
     for (int ii = 0; ii < num_keys; ++ii) {
         std::stringstream ss;
