@@ -1221,6 +1221,9 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    /* Update the compaction ctx with the previous purge seqno */
+    c.max_purged_seq = vb->getPurgeSeqno();
+
     LockHolder lh(compactionLock);
     ExTask task = new CompactVBucketTask(&engine, Priority::CompactorPriority,
                                          vbid, c, cookie);
