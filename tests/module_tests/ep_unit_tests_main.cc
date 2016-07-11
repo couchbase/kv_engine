@@ -18,6 +18,7 @@
 /*
  * Main function & globals for the ep_unit_test target.
  */
+#include "config.h"
 
 #include <memcached/extension_loggers.h>
 #include "programs/engine_testapp/mock_server.h"

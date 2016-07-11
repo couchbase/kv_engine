@@ -45,6 +45,9 @@ public:
         }
     }
 
+    /**
+     * True if this queue is empty.
+     */
     bool empty() {
         std::lock_guard<std::mutex> lock(mutex);
         return queue.empty();
@@ -57,7 +60,6 @@ public:
         std::lock_guard<std::mutex> lock(mutex);
         return queue.size();
     }
-
 private:
     std::queue<T> queue;
     std::mutex mutex;

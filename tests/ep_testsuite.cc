@@ -3111,6 +3111,65 @@ static enum test_result test_vbucket_compact(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/* This test case checks the purge seqno validity when no items are actually
+   purged in a compaction call */
+static enum test_result test_vbucket_compact_no_purge(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+    const int num_items = 2;
+    const char* key[num_items] = {"k1", "k2"};
+    const char* value = "somevalue";
+
+    /* Write 2 keys */
+    for (int count = 0; count < num_items; count++){
+        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, key[count],
+                                      value, NULL, 0, 0, 0),
+                "Error setting.");
+    }
+
+    /* Delete one key */
+    checkeq(ENGINE_SUCCESS, del(h, h1, key[0], 0, 0),
+            "Failed remove with value.");
+
+    /* Store a dummy item since we do not purge the item with highest seqno */
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "dummy_key", value, NULL,
+                  0, 0, 0),
+            "Error setting.");
+    wait_for_flusher_to_settle(h, h1);
+
+    /* Compact once */
+    int exp_purge_seqno = get_int_stat(h, h1, "vb_0:high_seqno",
+                                       "vbucket-seqno") - 1;
+    compact_db(h, h1, 0, 2,
+               get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"), 1);
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    checkeq(exp_purge_seqno,
+            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            "purge_seqno didn't match expected value");
+
+    /* Compact again, this time we don't expect to purge any items */
+    compact_db(h, h1, 0, 2,
+               get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"), 1);
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    checkeq(exp_purge_seqno,
+            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            "purge_seqno didn't match expected value after another compaction");
+
+    /* Reload the engine */
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    /* Purge seqno should not change after reload */
+    checkeq(exp_purge_seqno,
+            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            "purge_seqno didn't match expected value after reload");
+
+    return SUCCESS;
+}
+
 static enum test_result test_compaction_config(ENGINE_HANDLE *h,
                                                ENGINE_HANDLE_V1 *h1) {
 
@@ -15235,6 +15294,8 @@ engine_test_t* get_tests(void) {
         TestCase("test vbucket create", test_vbucket_create,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test vbucket compact", test_vbucket_compact,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test vbucket compact no purge", test_vbucket_compact_no_purge,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test compaction config", test_compaction_config,
                  test_setup, teardown, NULL, prepare, cleanup),
