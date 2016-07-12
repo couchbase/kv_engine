@@ -114,22 +114,25 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS, require<Privilege::MetaRead>);
 
     /* DCP */
-    setup(PROTOCOL_BINARY_CMD_DCP_OPEN, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_STREAM_END, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_MUTATION, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_DELETION, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_EXPIRATION, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_FLUSH, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_NOOP, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_CONTROL, require<Privilege::DCP>);
-    setup(PROTOCOL_BINARY_CMD_DCP_RESERVED4, require<Privilege::DCP>);
+    // @todo ep-engine need to check the following
+    setup(PROTOCOL_BINARY_CMD_DCP_OPEN, empty);
+    setup(PROTOCOL_BINARY_CMD_DCP_ADD_STREAM, require<Privilege::DcpProducer>);
+    setup(PROTOCOL_BINARY_CMD_DCP_CLOSE_STREAM, require<Privilege::DcpProducer>);
+    setup(PROTOCOL_BINARY_CMD_DCP_STREAM_REQ, require<Privilege::DcpProducer>);
+    setup(PROTOCOL_BINARY_CMD_DCP_GET_FAILOVER_LOG, require<Privilege::DcpProducer>);
+    setup(PROTOCOL_BINARY_CMD_DCP_STREAM_END, require<Privilege::DcpConsumer>);
+    setup(PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER, require<Privilege::DcpConsumer>);
+    setup(PROTOCOL_BINARY_CMD_DCP_MUTATION, require<Privilege::DcpConsumer>);
+    setup(PROTOCOL_BINARY_CMD_DCP_DELETION, require<Privilege::DcpConsumer>);
+    setup(PROTOCOL_BINARY_CMD_DCP_EXPIRATION, require<Privilege::DcpConsumer>);
+    setup(PROTOCOL_BINARY_CMD_DCP_FLUSH, require<Privilege::DcpConsumer>);
+    setup(PROTOCOL_BINARY_CMD_DCP_SET_VBUCKET_STATE, require<Privilege::DcpConsumer>);
+    // @todo ep-engine need to check the following
+    setup(PROTOCOL_BINARY_CMD_DCP_NOOP, empty);
+    setup(PROTOCOL_BINARY_CMD_DCP_BUFFER_ACKNOWLEDGEMENT, empty);
+    setup(PROTOCOL_BINARY_CMD_DCP_CONTROL, empty);
+    // This isn't used yet, so no one should have access to it...
+    // setup(PROTOCOL_BINARY_CMD_DCP_RESERVED4, );
     /* End DCP */
 
     setup(PROTOCOL_BINARY_CMD_STOP_PERSISTENCE, require<Privilege::NodeManagement>);

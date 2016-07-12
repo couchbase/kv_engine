@@ -166,12 +166,6 @@ enum class Privilege {
      */
     DcpProducer,
     /**
-     * All use of the `DCP` privilege should be replaced with `DcpConsumer`
-     * and `DcpProducer`.
-     */
-    DCP,
-
-    /**
      * The `TapProducer` privilege allows for setting up a TAP stream
      */
     TapProducer,
