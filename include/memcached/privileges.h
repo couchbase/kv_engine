@@ -188,6 +188,16 @@ enum class Privilege {
      * idle connection witout being disconnected.
      */
     IdleConnection,
+    /**
+     * The `XattrRead` privilege allows the connection to read the
+     * system attributes on the documents
+     */
+    XattrRead,
+    /**
+     * The `XattrWrite` privilege allows the connection to write to the
+     * system attributes on the documents
+     */
+    XattrWrite,
 };
 
 enum class PrivilegeAccess {

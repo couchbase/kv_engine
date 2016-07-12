@@ -346,6 +346,10 @@ PrivilegeAccess Connection::checkPrivilege(const Privilege& privilege) const {
         return PrivilegeAccess::Ok;
     case Privilege::IdleConnection:
         return PrivilegeAccess::Ok;
+    case Privilege::XattrRead:
+    case Privilege::XattrWrite:
+        return PrivilegeAccess::Fail;
+
     }
 
     throw std::logic_error("Unknown privilege requested");
