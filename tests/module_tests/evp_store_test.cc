@@ -151,6 +151,17 @@ void EventuallyPersistentStoreTest::flush_vbucket_to_disk(uint16_t vbid) {
     } while (std::chrono::steady_clock::now() < deadline);
 
     ASSERT_EQ(1, result) << "Failed to flush the one item we have stored.";
+
+    /**
+     * Although a flushVBucket writes the item to the underlying store,
+     * the item is not marked clean until an explicit commit is called
+     * If the underlying store is couchstore, a commit is called with
+     * a flushVBucket but in the case of forestdb, a commit is not
+     * always called, hence call an explicit commit.
+     */
+    uint16_t numShards = store->getVbMap().getNumShards();
+
+    store->commit(vbid % numShards);
 }
 
 void EventuallyPersistentStoreTest::delete_item(uint16_t vbid,
@@ -213,17 +224,6 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
 
     // Trigger a flush to disk.
     flush_vbucket_to_disk(vbid);
-
-    /**
-     * Although a flushVBucket writes the item to the underlying store,
-     * the item is not marked clean until an explicit commit is called
-     * If the underlying store is couchstore, a commit is called with
-     * a flushVBucket but in the case of forestdb, a commit is not
-     * always called, hence call an explicit commit.
-     */
-    uint16_t numShards = store->getVbMap().getNumShards();
-
-    store->commit(vbid % numShards);
 
     evict_key(vbid, "key");
 
