@@ -349,6 +349,8 @@ PrivilegeAccess Connection::checkPrivilege(const Privilege& privilege) const {
     case Privilege::XattrRead:
     case Privilege::XattrWrite:
         return PrivilegeAccess::Fail;
+    case Privilege::CollectionManagement:
+        return PrivilegeAccess::Fail;
 
     }
 

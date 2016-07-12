@@ -198,6 +198,12 @@ enum class Privilege {
      * system attributes on the documents
      */
     XattrWrite,
+    /**
+     * The `CollectionManagement` privilege allows the connection to create or
+     * delete collections.
+     */
+    CollectionManagement,
+
 };
 
 enum class PrivilegeAccess {
