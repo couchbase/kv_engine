@@ -14,55 +14,6 @@
  *   limitations under the License.
  */
 
-/*
- * === High-level overview of the task execution system. ===
- *
- * ExecutorPool is the core interface for users wishing to run tasks on our
- * worker threads.
- *
- * Under the covers we have a configurable number of system threads that are
- * labeled with a type (see task_type_t). These threads service all buckets.
- *
- * Each thread operates by reading from a shared TaskQueue. Each thread wakes
- * up and fetches (TaskQueue::fetchNextTask) a task for execution
- * (GlobalTask::run() is called to execute the task).
- *
- * The pool also has the concept of high and low priority which is achieved by
- * having two TaskQueue objects per task-type. When a thread wakes up to run
- * a task, it will service the high-priority queue more frequently than the
- * low-priority queue.
- *
- * Within a single queue itself there is also a task priority. The task priority
- * is a value where lower is better. When many tasks are ready for execution
- * they are moved to a ready queue and sorted by their priority. Thus tasks
- * with priority 0 get to go before tasks with priority 1. Only once the ready
- * queue of tasks is empty will we consider looking for more eligible tasks.
- * In this context, an eligible task is one that has a wakeTime <= now.
- *
- * === Important methods of the ExecutorPool ===
- *
- * ExecutorPool* ExecutorPool::get()
- *   The ExecutorPool is accessed via the static get() method. Calling get
- *   returns the processes global ExecutorPool object. This is an instance
- *   that is global/shared between all buckets.
- *
- * ExecutorPool::schedule(ExTask task, task_type_t qidx)
- *   The schedule method allows task to be scheduled for future execution by a
- *   thread of type 'qidx'. The task's 'wakeTime' determines approximately when
- *   the task will be executed (no guarantees).
- *
- * ExecutorPool::wake(size_t taskId)
- *   The wake method allows for a caller to request that the task matching
- *   taskId be executed by its thread-type now'. The tasks wakeTime is modified
- *   so that it has a wakeTime of now and a thread of the correct type is
- *   signaled to wake-up and perform fetching. The woken task will have to wait
- *   for any current tasks to be executed first, but it will jump ahead of other
- *   tasks as tasks that are ready to run are ordered by their priority.
- *
- * ExecutorPool::snooze(size_t taskId, double toSleep)
- *   The pool's snooze method will locate the task matching taskId and adjust
- *   its wakeTime to account for the toSleep value.
- */
 #ifndef SRC_EXECUTORPOOL_H_
 #define SRC_EXECUTORPOOL_H_ 1
 
