@@ -197,76 +197,6 @@ static enum test_result replace_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 }
 
 /*
- * Verify append behavior
- */
-static enum test_result append_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *it;
-    const char* key = "key";
-    uint64_t cas;
-    item_info item_info;
-    item_info.nvalue = 1;
-
-    cb_assert(h1->allocate(h, NULL, &it, key,
-                        strlen(key), 5, 1, 0,
-                        PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
-    memcpy(item_info.value[0].iov_base, "HELLO", 5);
-    cb_assert(h1->store(h, NULL, it, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
-    h1->release(h, NULL, it);
-    cb_assert(h1->allocate(h, NULL, &it, key,
-                        strlen(key), 6, 1, 0,
-                        PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    item_info.nvalue = 1;
-    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
-    memcpy(item_info.value[0].iov_base, " WORLD", 6);
-    cb_assert(h1->store(h, NULL, it, &cas, OPERATION_APPEND, 0) == ENGINE_SUCCESS);
-    h1->release(h, NULL, it);
-
-    cb_assert(h1->get(h, NULL, &it, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
-    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
-    cb_assert(item_info.value[0].iov_len == 11);
-    cb_assert(memcmp(item_info.value[0].iov_base, "HELLO WORLD", 11) == 0);
-    h1->release(h, NULL, it);
-
-    return SUCCESS;
-}
-
-/*
- * Verify prepend behavior
- */
-static enum test_result prepend_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    item *it;
-    const char* key = "key";
-    uint64_t cas;
-    item_info item_info;
-    item_info.nvalue = 1;
-
-    cb_assert(h1->allocate(h, NULL, &it, key,
-                        strlen(key), 5, 1, 0,
-                        PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
-    memcpy(item_info.value[0].iov_base, "HELLO", 5);
-    cb_assert(h1->store(h, NULL, it, &cas, OPERATION_SET, 0) == ENGINE_SUCCESS);
-    h1->release(h, NULL, it);
-    cb_assert(h1->allocate(h, NULL, &it, key,
-                        strlen(key), 6, 1, 0,
-                        PROTOCOL_BINARY_RAW_BYTES) == ENGINE_SUCCESS);
-    item_info.nvalue = 1;
-    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
-    memcpy(item_info.value[0].iov_base, " WORLD", 6);
-    cb_assert(h1->store(h, NULL, it, &cas, OPERATION_PREPEND, 0) == ENGINE_SUCCESS);
-    h1->release(h, NULL, it);
-
-    cb_assert(h1->get(h, NULL, &it, key, (int)strlen(key), 0) == ENGINE_SUCCESS);
-    cb_assert(h1->get_item_info(h, NULL, it, &item_info) == true);
-    cb_assert(item_info.value[0].iov_len == 11);
-    cb_assert(memcmp(item_info.value[0].iov_base, " WORLDHELLO", 11) == 0);
-    h1->release(h, NULL, it);
-
-    return SUCCESS;
-}
-
-/*
  * Make sure when we can successfully store an item after it has been allocated
  * and that the cas for the stored item has been generated.
  */
@@ -970,8 +900,6 @@ engine_test_t* get_tests(void) {
         TEST_CASE("set test", set_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("add test", add_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("replace test", replace_test, NULL, NULL, NULL, NULL, NULL),
-        TEST_CASE("append test", append_test, NULL, NULL, NULL, NULL, NULL),
-        TEST_CASE("prepend test", prepend_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("store test", store_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("get test", get_test, NULL, NULL, NULL, NULL, NULL),
         TEST_CASE("expiry test", expiry_test, NULL, NULL, NULL, NULL, NULL),

@@ -41,12 +41,6 @@ static void storeItem(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 	ENGINE_ERROR_CODE rv;
     item_info info;
 
-    if (op == OPERATION_APPEND) {
-        value = "-suffix";
-    } else if (op == OPERATION_PREPEND) {
-        value = "prefix-";
-    }
-
     vlen = strlen(value);
     rv = h1->allocate(h, cookie, &it,
                       key, strlen(key),
@@ -73,10 +67,6 @@ void add(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     storeItem(h, h1, OPERATION_ADD);
 }
 
-void append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    storeItem(h, h1, OPERATION_APPEND);
-}
-
 void decr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     item* result_item = NULL;
     uint64_t result;
@@ -97,10 +87,6 @@ void decrWithDefault(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     if (!hasError) {
         h1->release(h, NULL, result_item);
     }
-}
-
-void prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    storeItem(h, h1, OPERATION_PREPEND);
 }
 
 void flush(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

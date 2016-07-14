@@ -39,6 +39,7 @@
 #include <memcached/audit_interface.h>
 #include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
+#include <platform/compress.h>
 #include <snappy-c.h>
 #include <utilities/protocol2text.h>
 
@@ -2927,142 +2928,326 @@ static void replaceq_executor(McbpConnection* c, void* packet) {
     add_set_replace_executor(c, packet, OPERATION_REPLACE);
 }
 
+/**
+ * The AppendPrependCommandContext is a state machine used by the memcached
+ * core to implement append and prepend by fetching the document from the
+ * underlying engine, performing the operation and try to use CAS to replace
+ * the document in the underlying engine. Multiple clients operating on the
+ * same document will be detected by the CAS store operation returning EEXISTS,
+ * and we just retry the operation.
+ */
+class AppendPrependCommandContext : public CommandContext {
+public:
+    /**
+     * The internal state machine used to implement the append / prepend
+     * operation in the core rather than having each backend try to
+     * implement it.
+     */
+    enum class State : uint8_t {
+        // If the client sends compressed data we need to inflate the
+        // input data before we can do anything
+        InflateInputData,
+        // Look up the item to operate on
+        GetItem,
+        // Allocate the destination object
+        AllocateNewItem,
+        // Store the new document
+        StoreItem,
+        // Release all allocated resources. The reason we've got a separate
+        // state for this and not using the destructor for this is that
+        // we try to store the newly created document with a CAS operation
+        // and we might have a race with another client.
+        Reset,
+        // We're all done :)
+        Done
+    };
+
+    enum class Mode : uint8_t {
+        Append,
+        Prepend
+    };
+
+    AppendPrependCommandContext(McbpConnection& c,
+                                protocol_binary_request_append* req,
+                                const Mode &mode_)
+        : connection(c),
+          mode(mode_),
+          key((char*)req->bytes + sizeof(req->bytes),
+              ntohs(req->message.header.request.keylen)),
+          value(key.buf + key.len, ntohl(req->message.header.request.bodylen) - key.len),
+          vbucket(ntohs(req->message.header.request.vbucket)),
+          cas(ntohll(req->message.header.request.cas)),
+          olditem(nullptr),
+          newitem(nullptr),
+          state(State::GetItem) {
+
+        if (req->message.header.request.datatype &
+            PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+            state = State::InflateInputData;
+        }
+    }
+
+    ENGINE_ERROR_CODE step() {
+        ENGINE_ERROR_CODE ret;
+        do {
+            switch (state) {
+            case State::InflateInputData:
+                ret = inflateInputData();
+                break;
+            case State::GetItem:
+                ret = getItem();
+                break;
+            case State::AllocateNewItem:
+                ret = allocateNewItem();
+                break;
+            case State::StoreItem:
+                ret = storeItem();
+                break;
+            case State::Reset:
+                ret = reset();
+                break;
+            case State::Done:
+                return ENGINE_SUCCESS;
+            }
+        } while (ret == ENGINE_SUCCESS);
+
+        if (ret != ENGINE_EWOULDBLOCK) {
+            SLAB_INCR(&connection, cmd_set, key, nkey);
+        }
+
+        return ret;
+    }
+
+    ~AppendPrependCommandContext() override {
+        reset();
+    }
+
+private:
+    ENGINE_ERROR_CODE inflateInputData() {
+        try {
+            if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                          value.buf, value.len, inputbuffer)) {
+                return ENGINE_EINVAL;
+            }
+            value.buf = inputbuffer.data.get();
+            value.len = inputbuffer.len;
+            state = State::GetItem;
+        } catch (const std::bad_alloc&) {
+            return ENGINE_ENOMEM;
+        }
+
+        return ENGINE_SUCCESS;
+    }
+
+    ENGINE_ERROR_CODE getItem() {
+        auto ret = bucket_get(&connection, &olditem, key.buf, key.len, vbucket);
+        if (ret == ENGINE_SUCCESS) {
+            oldItemInfo.info.clsid = 0;
+            oldItemInfo.info.nvalue = 1;
+
+            if (!bucket_get_item_info(&connection, olditem,
+                                      &oldItemInfo.info)) {
+                return ENGINE_FAILED;
+            }
+
+            uint64_t oldcas = oldItemInfo.info.cas;
+            if (cas != 0 && cas != oldcas) {
+                return ENGINE_KEY_EEXISTS;
+            }
+
+            if (oldItemInfo.info.datatype &
+                PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+                try {
+                    if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
+                                                  (const char*)oldItemInfo.info.value[0].iov_base,
+                                                  oldItemInfo.info.value[0].iov_len,
+                                                  buffer)) {
+                        return ENGINE_FAILED;
+                    }
+                } catch (const std::bad_alloc&) {
+                    return ENGINE_ENOMEM;
+                }
+            }
+
+            // Move on to the next state
+            state = State::AllocateNewItem;
+        }
+
+        return ret;
+    }
+
+    ENGINE_ERROR_CODE allocateNewItem() {
+        size_t oldsize = oldItemInfo.info.nbytes;
+        if (buffer.len != 0) {
+            oldsize = buffer.len;
+        }
+
+        ENGINE_ERROR_CODE ret;
+        ret = bucket_allocate(&connection, &newitem, key.buf, key.len,
+                              oldsize + value.len, oldItemInfo.info.flags, 0,
+                              PROTOCOL_BINARY_RAW_BYTES);
+        if (ret == ENGINE_SUCCESS) {
+            // copy the data over..
+            newItemInfo.info.clsid = 0;
+            newItemInfo.info.nvalue = 1;
+
+            if (!bucket_get_item_info(&connection, newitem,
+                                      &newItemInfo.info)) {
+                return ENGINE_FAILED;
+            }
+
+            const char* src = (const char*)oldItemInfo.info.value[0].iov_base;
+            size_t oldsize = oldItemInfo.info.value[0].iov_len;
+            if (buffer.len != 0) {
+                src = buffer.data.get();
+                oldsize = buffer.len;
+            }
+
+            char* newdata = (char*)newItemInfo.info.value[0].iov_base;
+
+            // do the op
+            if (mode == Mode::Append) {
+                memcpy(newdata, src, oldsize);
+                memcpy(newdata + oldsize, value.buf, value.len);
+            } else {
+                memcpy(newdata, value.buf, value.len);
+                memcpy(newdata + value.len, src, oldsize);
+            }
+            bucket_item_set_cas(&connection, newitem, oldItemInfo.info.cas);
+
+            state = State::StoreItem;
+        }
+        return ret;
+    }
+
+    ENGINE_ERROR_CODE storeItem() {
+        uint64_t ncas = cas;
+        auto ret = bucket_store(&connection, newitem, &ncas, OPERATION_CAS,
+                                vbucket);
+
+        if (ret == ENGINE_SUCCESS) {
+            update_topkeys(key.buf, key.len, &connection);
+            connection.setCAS(ncas);
+            if (connection.isSupportsMutationExtras()) {
+                newItemInfo.info.nvalue = 1;
+                if (!bucket_get_item_info(&connection, newitem,
+                                          &newItemInfo.info)) {
+                    return ENGINE_FAILED;
+                }
+                mutation_descr_t* const extras = (mutation_descr_t*)
+                    (connection.write.buf +
+                     sizeof(protocol_binary_response_no_extras));
+                extras->vbucket_uuid = htonll(newItemInfo.info.vbucket_uuid);
+                extras->seqno = htonll(newItemInfo.info.seqno);
+                mcbp_write_response(&connection, extras, sizeof(*extras), 0,
+                                    sizeof(*extras));
+            } else {
+                mcbp_write_packet(&connection,
+                                  PROTOCOL_BINARY_RESPONSE_SUCCESS);
+            }
+            state = State::Done;
+        } else if (ret == ENGINE_KEY_EEXISTS && cas == 0) {
+            state = State::Reset;
+        }
+
+        return ret;
+    }
+
+    ENGINE_ERROR_CODE reset() {
+        if (olditem != nullptr) {
+            bucket_release_item(&connection, olditem);
+            olditem = nullptr;
+        }
+        if (newitem != nullptr) {
+            bucket_release_item(&connection, newitem);
+            newitem = nullptr;
+        }
+
+        if (buffer.len > 0) {
+            buffer.len = 0;
+            buffer.data.reset();
+        }
+        state = State::GetItem;
+        return ENGINE_SUCCESS;
+    }
+
+    McbpConnection& connection;
+    const Mode mode;
+    const const_sized_buffer key;
+    const_sized_buffer value;
+    const uint16_t vbucket;
+    const uint64_t cas;
+
+    item* olditem;
+    item_info_holder oldItemInfo;
+
+    item* newitem;
+    item_info_holder newItemInfo;
+
+    cb::compression::Buffer buffer;
+    cb::compression::Buffer inputbuffer;
+    State state;
+};
+
 static void append_prepend_executor(McbpConnection* c,
                                     void* packet,
-                                    ENGINE_STORE_OPERATION store_op) {
-    auto* req = reinterpret_cast<protocol_binary_request_append*>(packet);
+                                    const AppendPrependCommandContext::Mode mode) {
+    if (c->getCommandContext() == nullptr) {
+        auto* req = reinterpret_cast<protocol_binary_request_append*>(packet);
+        auto* context = new AppendPrependCommandContext(*c, req, mode);
+        c->setCommandContext(context);
+    }
+
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
 
-    char* key = (char*)packet + sizeof(req->bytes);
-    uint16_t nkey = ntohs(req->message.header.request.keylen);
-    uint32_t vlen = ntohl(req->message.header.request.bodylen) - nkey;
-    item_info_holder info;
-    info.info.clsid = 0;
-    info.info.nvalue = 1;
-
-    if (c->getItem() == NULL) {
-        item* it;
-
-        if (ret == ENGINE_SUCCESS) {
-            ret = c->getBucketEngine()->allocate(c->getBucketEngineAsV0(), c->getCookie(),
-                                                 &it, key, nkey,
-                                                 vlen, 0, 0,
-                                                 req->message.header.request.datatype);
-        }
-
-        switch (ret) {
-        case ENGINE_SUCCESS:
-            break;
-        case ENGINE_EWOULDBLOCK:
-            c->setEwouldblock(true);
-            return;
-        case ENGINE_DISCONNECT:
-            c->setState(conn_closing);
-            return;
-        default:
-            mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-            return;
-        }
-
-        bucket_item_set_cas(c, it, ntohll(req->message.header.request.cas));
-        if (!bucket_get_item_info(c, it, &info.info)) {
-            bucket_release_item(c, it);
-            mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-            return;
-        }
-
-        c->setItem(it);
-        cb_assert(info.info.value[0].iov_len == vlen);
-        memcpy(info.info.value[0].iov_base, key + nkey, vlen);
-
-        if (!c->isSupportsDatatype()) {
-            auto* validator = c->getThread()->validator;
-            try {
-                auto* ptr = reinterpret_cast<uint8_t*>(info.info.value[0].iov_base);
-                if (validator->validate(ptr, info.info.value[0].iov_len)) {
-                    info.info.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
-                    if (!bucket_set_item_info(c, it, &info.info)) {
-                        LOG_WARNING(c, "%u: Failed to set item info",
-                                    c->getId());
-                    }
-                }
-            } catch (std::bad_alloc&) {
-                bucket_release_item(c, c->getItem());
-                c->setItem(nullptr);
-                c->setState(conn_closing);
-                return;
-            }
-        }
-        update_topkeys(key, nkey, c);
-    }
-
     if (ret == ENGINE_SUCCESS) {
-        uint64_t cas = c->getCAS();
-        ret = bucket_store(c, c->getItem(), &cas, store_op,
-                           ntohs(req->message.header.request.vbucket));
-        if (ret == ENGINE_SUCCESS) {
-            c->setCAS(cas);
-        }
+        auto* context = reinterpret_cast<AppendPrependCommandContext*>(c->getCommandContext());
+        ret = context->step();
     }
 
     switch (ret) {
     case ENGINE_SUCCESS:
-        /* Stored */
-        if (c->isSupportsMutationExtras()) {
-            info.info.nvalue = 1;
-            if (!bucket_get_item_info(c, c->getItem(), &info.info)) {
-                bucket_release_item(c, c->getItem());
-                LOG_WARNING(c, "%u: Failed to get item info", c->getId());
-                mcbp_write_packet(c, PROTOCOL_BINARY_RESPONSE_EINTERNAL);
-                return;
-            }
-            mutation_descr_t* const extras = (mutation_descr_t*)
-                (c->write.buf + sizeof(protocol_binary_response_no_extras));
-            extras->vbucket_uuid = htonll(info.info.vbucket_uuid);
-            extras->seqno = htonll(info.info.seqno);
-            mcbp_write_response(c, extras, sizeof(*extras), 0, sizeof(*extras));
-        } else {
-            mcbp_write_response(c, NULL, 0, 0, 0);
-        }
         break;
     case ENGINE_EWOULDBLOCK:
+        c->setAiostat(ENGINE_EWOULDBLOCK);
         c->setEwouldblock(true);
-        break;
+        return;
     case ENGINE_DISCONNECT:
         c->setState(conn_closing);
-        break;
+        return;
+    case ENGINE_KEY_ENOENT:
+        // for some reason the return code for no key is not stored..
+        ret = ENGINE_NOT_STORED;
     default:
         mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
-    }
-
-    if (!c->isEwouldblock()) {
-        SLAB_INCR(c, cmd_set, key, nkey);
-        /* release the c->item reference */
-        bucket_release_item(c, c->getItem());
-        c->setItem(nullptr);
+        return;
     }
 }
 
 static void append_executor(McbpConnection* c, void* packet) {
     c->setNoReply(false);
-    append_prepend_executor(c, packet, OPERATION_APPEND);
+    append_prepend_executor(c, packet,
+                            AppendPrependCommandContext::Mode::Append);
 }
 
 static void appendq_executor(McbpConnection* c, void* packet) {
     c->setNoReply(true);
-    append_prepend_executor(c, packet, OPERATION_APPEND);
+    append_prepend_executor(c, packet,
+                            AppendPrependCommandContext::Mode::Append);
 }
 
 static void prepend_executor(McbpConnection* c, void* packet) {
     c->setNoReply(false);
-    append_prepend_executor(c, packet, OPERATION_PREPEND);
+    append_prepend_executor(c, packet,
+                            AppendPrependCommandContext::Mode::Prepend);
 }
 
 static void prependq_executor(McbpConnection* c, void* packet) {
     c->setNoReply(true);
-    append_prepend_executor(c, packet, OPERATION_PREPEND);
+    append_prepend_executor(c, packet,
+                            AppendPrependCommandContext::Mode::Prepend);
 }
 
 

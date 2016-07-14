@@ -241,12 +241,6 @@ public:
         case OPERATION_REPLACE:
             ret = replace_locked(itm);
             break;
-        case OPERATION_APPEND:
-            ret = append_locked(itm);
-            break;
-        case OPERATION_PREPEND:
-            ret = prepend_locked(itm);
-            break;
         case OPERATION_CAS:
             ret = cas_locked(itm);
             break;

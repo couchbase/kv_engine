@@ -142,6 +142,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       mcd_util
                       greenstack
                       cbsasl
+                      cbcompress
                       platform
                       cJSON
                       JSON_checker

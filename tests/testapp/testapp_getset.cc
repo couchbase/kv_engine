@@ -21,6 +21,7 @@
 #include <protocol/connection/client_mcbp_connection.h>
 
 #include <algorithm>
+#include <platform/compress.h>
 
 class GetSetTest : public TestappClientTest {
 };
@@ -199,7 +200,7 @@ TEST_P(GetSetTest, TestAppend) {
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Json, stored.info.datatype);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(doc.info.flags, stored.info.flags);
     EXPECT_EQ(doc.info.id, stored.info.id);
     doc.value[0] = 'a';
@@ -228,7 +229,7 @@ TEST_P(GetSetTest, TestAppendCasSuccess) {
 
     EXPECT_NE(info.cas, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Json, stored.info.datatype);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(doc.info.flags, stored.info.flags);
     EXPECT_EQ(doc.info.id, stored.info.id);
     doc.value[0] = 'a';
@@ -287,7 +288,7 @@ TEST_P(GetSetTest, TestPrepend) {
 
     EXPECT_NE(Greenstack::CAS::Wildcard, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Json, stored.info.datatype);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(doc.info.flags, stored.info.flags);
     EXPECT_EQ(doc.info.id, stored.info.id);
     doc.value.push_back('a');
@@ -315,7 +316,7 @@ TEST_P(GetSetTest, TestPrependCasSuccess) {
 
     EXPECT_NE(info.cas, stored.info.cas);
     EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
-    EXPECT_EQ(Greenstack::Datatype::Json, stored.info.datatype);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
     EXPECT_EQ(doc.info.flags, stored.info.flags);
     EXPECT_EQ(doc.info.id, stored.info.id);
     doc.value.push_back('a');
@@ -370,4 +371,221 @@ TEST_P(GetSetTest, TestIllegalVbucket) {
     }
 
     conn.deleteBucket("bucket");
+}
+
+static void compress_vector(const std::vector<char>& input,
+                            std::vector<uint8_t>& output) {
+    cb::compression::Buffer compressed;
+    EXPECT_TRUE(cb::compression::deflate(cb::compression::Algorithm::Snappy,
+                                         input.data(), input.size(),
+                                         compressed));
+    EXPECT_GT(input.size(), compressed.len);
+    output.resize(compressed.len);
+    memcpy(output.data(), compressed.data.get(), compressed.len);
+}
+
+TEST_P(GetSetTest, TestAppendCompressedSource) {
+    MemcachedConnection& conn = getConnection();
+    Document doc;
+    doc.info.cas = Greenstack::CAS::Wildcard;
+    doc.info.compression = Greenstack::Compression::Snappy;
+    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'a');
+    compress_vector(input, doc.value);
+
+    MutationInfo info;
+    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    doc.value.resize(input.size());
+    std::fill(doc.value.begin(), doc.value.end(), 'b');
+    doc.info.compression = Greenstack::Compression::None;
+
+    conn.mutate(doc, 0, Greenstack::MutationType::Append);
+    Document stored;
+    EXPECT_NO_THROW(stored = conn.get(name, 0));
+
+    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(doc.info.flags, stored.info.flags);
+    EXPECT_EQ(doc.info.id, stored.info.id);
+
+    std::vector<uint8_t> expected(input.size() * 2);
+    memset(expected.data(), 'a', input.size());
+    memset(expected.data() + input.size(), 'b', input.size());
+    EXPECT_EQ(expected, stored.value);
+}
+
+TEST_P(GetSetTest, TestAppendCompressedData) {
+    MemcachedConnection& conn = getConnection();
+    Document doc;
+    doc.info.cas = Greenstack::CAS::Wildcard;
+    doc.info.compression = Greenstack::Compression::None;
+    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+    doc.value.resize(1024);
+    std::fill(doc.value.begin(), doc.value.end(), 'a');
+    MutationInfo info;
+    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'b');
+    compress_vector(input, doc.value);
+    doc.info.compression = Greenstack::Compression::Snappy;
+    conn.mutate(doc, 0, Greenstack::MutationType::Append);
+
+    Document stored;
+    EXPECT_NO_THROW(stored = conn.get(name, 0));
+
+    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(doc.info.flags, stored.info.flags);
+    EXPECT_EQ(doc.info.id, stored.info.id);
+
+    std::vector<uint8_t> expected(input.size() * 2);
+    memset(expected.data(), 'a', input.size());
+    memset(expected.data() + input.size(), 'b', input.size());
+
+    ASSERT_EQ(2048, stored.value.size());
+
+    EXPECT_EQ(expected, stored.value);
+}
+
+TEST_P(GetSetTest, TestAppendCompressedSourceAndData) {
+    MemcachedConnection& conn = getConnection();
+    Document doc;
+    doc.info.cas = Greenstack::CAS::Wildcard;
+    doc.info.compression = Greenstack::Compression::Snappy;
+    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'a');
+    compress_vector(input, doc.value);
+
+    MutationInfo info;
+    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+
+    std::vector<char> append(1024);
+    std::fill(append.begin(), append.end(), 'b');
+    compress_vector(append, doc.value);
+    conn.mutate(doc, 0, Greenstack::MutationType::Append);
+    Document stored;
+    EXPECT_NO_THROW(stored = conn.get(name, 0));
+
+    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(doc.info.flags, stored.info.flags);
+    EXPECT_EQ(doc.info.id, stored.info.id);
+
+    std::vector<uint8_t> expected(input.size() + append.size());
+    memset(expected.data(), 'a', input.size());
+    memset(expected.data() + input.size(), 'b', append.size());
+    EXPECT_EQ(expected, stored.value);
+}
+
+
+TEST_P(GetSetTest, TestPrependCompressedSource) {
+    MemcachedConnection& conn = getConnection();
+    Document doc;
+    doc.info.cas = Greenstack::CAS::Wildcard;
+    doc.info.compression = Greenstack::Compression::Snappy;
+    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'a');
+    compress_vector(input, doc.value);
+
+    MutationInfo info;
+    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+    doc.value.resize(input.size());
+    std::fill(doc.value.begin(), doc.value.end(), 'b');
+    doc.info.compression = Greenstack::Compression::None;
+
+    conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
+    Document stored;
+    EXPECT_NO_THROW(stored = conn.get(name, 0));
+
+    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(doc.info.flags, stored.info.flags);
+    EXPECT_EQ(doc.info.id, stored.info.id);
+
+    std::vector<uint8_t> expected(input.size() * 2);
+    memset(expected.data(), 'b', input.size());
+    memset(expected.data() + input.size(), 'a', input.size());
+    EXPECT_EQ(expected, stored.value);
+}
+
+TEST_P(GetSetTest, TestPrependCompressedData) {
+    MemcachedConnection& conn = getConnection();
+    Document doc;
+    doc.info.cas = Greenstack::CAS::Wildcard;
+    doc.info.compression = Greenstack::Compression::None;
+    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+    doc.value.resize(1024);
+    std::fill(doc.value.begin(), doc.value.end(), 'a');
+    MutationInfo info;
+    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'b');
+    compress_vector(input, doc.value);
+    doc.info.compression = Greenstack::Compression::Snappy;
+    conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
+
+    Document stored;
+    EXPECT_NO_THROW(stored = conn.get(name, 0));
+
+    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(doc.info.flags, stored.info.flags);
+    EXPECT_EQ(doc.info.id, stored.info.id);
+
+    std::vector<uint8_t> expected(input.size() * 2);
+    memset(expected.data(), 'b', input.size());
+    memset(expected.data() + input.size(), 'a', input.size());
+    EXPECT_EQ(expected, stored.value);
+}
+
+TEST_P(GetSetTest, TestPrepepndCompressedSourceAndData) {
+    MemcachedConnection& conn = getConnection();
+    Document doc;
+    doc.info.cas = Greenstack::CAS::Wildcard;
+    doc.info.compression = Greenstack::Compression::Snappy;
+    doc.info.datatype = Greenstack::Datatype::Raw;
+    doc.info.flags = 0xcaffee;
+    doc.info.id = name;
+
+    std::vector<char> input(1024);
+    std::fill(input.begin(), input.end(), 'a');
+    compress_vector(input, doc.value);
+
+    MutationInfo info;
+    EXPECT_NO_THROW(info = conn.mutate(doc, 0, Greenstack::MutationType::Set));
+
+    std::vector<char> append(1024);
+    std::fill(append.begin(), append.end(), 'b');
+    compress_vector(append, doc.value);
+    conn.mutate(doc, 0, Greenstack::MutationType::Prepend);
+    Document stored;
+    EXPECT_NO_THROW(stored = conn.get(name, 0));
+
+    EXPECT_EQ(Greenstack::Compression::None, stored.info.compression);
+    EXPECT_EQ(Greenstack::Datatype::Raw, stored.info.datatype);
+    EXPECT_EQ(doc.info.flags, stored.info.flags);
+    EXPECT_EQ(doc.info.id, stored.info.id);
+
+    std::vector<uint8_t> expected(input.size() + append.size());
+    memset(expected.data(), 'b', input.size());
+    memset(expected.data() + input.size(), 'a', append.size());
+    EXPECT_EQ(expected, stored.value);
 }

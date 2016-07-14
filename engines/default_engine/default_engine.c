@@ -279,6 +279,10 @@ static ENGINE_ERROR_CODE default_item_allocate(ENGINE_HANDLE* handle,
       return ENGINE_E2BIG;
    }
 
+   if (nbytes > engine->config.item_size_max) {
+      return ENGINE_E2BIG;
+   }
+
    it = item_alloc(engine, key, nkey, flags, engine->server.core->realtime(exptime),
                    (uint32_t)nbytes, cookie, datatype);
 

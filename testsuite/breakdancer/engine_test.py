@@ -63,20 +63,6 @@ class FlushEffect(Effect):
     def __call__(self, state):
         state.clear()
 
-class AppendEffect(Effect):
-
-    suffix = '-suffix'
-
-    def __call__(self, state):
-        state[TESTKEY] = state[TESTKEY] + self.suffix
-
-class PrependEffect(Effect):
-
-    prefix = 'prefix-'
-
-    def __call__(self, state):
-        state[TESTKEY] = self.prefix + state[TESTKEY]
-
 class ArithmeticEffect(Effect):
 
     default = '0'
@@ -118,18 +104,6 @@ class Flush(Action):
 
 class Delay(Flush):
     pass
-
-class Append(Action):
-
-    preconditions = [ExistsCondition()]
-    effect = AppendEffect()
-    postconditions = [ExistsCondition()]
-
-class Prepend(Action):
-
-    preconditions = [ExistsCondition()]
-    effect = PrependEffect()
-    postconditions = [ExistsCondition()]
 
 class Incr(Action):
 

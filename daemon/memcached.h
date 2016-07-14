@@ -352,6 +352,19 @@ static inline void bucket_release_item(McbpConnection* c, item* it) {
                                   c->getCookie(), it);
 }
 
+static inline ENGINE_ERROR_CODE bucket_allocate(McbpConnection* c,
+                                                item** it,
+                                                const void* key,
+                                                const size_t nkey,
+                                                const size_t nbytes,
+                                                const int flags,
+                                                const rel_time_t exptime,
+                                                uint8_t datatype) {
+    return c->getBucketEngine()->allocate(c->getBucketEngineAsV0(),
+                                          c->getCookie(), it, key, nkey,
+                                          nbytes, flags, exptime, datatype);
+}
+
 /**
  * The executor pool used to pick up the result for requests spawn by the
  * client io threads and dispatched over to a background thread (in order

@@ -559,9 +559,7 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
     if (old_it != NULL && operation == OPERATION_ADD) {
         /* add only adds a nonexistent item, but promote to head of LRU */
         do_item_update(engine, old_it);
-    } else if (!old_it && (operation == OPERATION_REPLACE
-        || operation == OPERATION_APPEND || operation == OPERATION_PREPEND))
-    {
+    } else if (!old_it && operation == OPERATION_REPLACE) {
         /* replace only replaces an existing value; don't store */
     } else if (operation == OPERATION_CAS) {
         /* validate cas operation */
@@ -587,57 +585,6 @@ static ENGINE_ERROR_CODE do_store_item(struct default_engine *engine,
             stored = ENGINE_KEY_EEXISTS;
         }
     } else {
-        /*
-         * Append - combine new and old record into single one. Here it's
-         * atomic and thread-safe.
-         */
-        if (operation == OPERATION_APPEND || operation == OPERATION_PREPEND) {
-            /*
-             * Validate CAS
-             */
-            if (item_get_cas(it) != 0) {
-                /* CAS much be equal */
-                if (item_get_cas(it) != item_get_cas(old_it)) {
-                    stored = ENGINE_KEY_EEXISTS;
-                }
-            }
-
-            if (stored == ENGINE_NOT_STORED) {
-                size_t total = it->nbytes + old_it->nbytes;
-                if (total > engine->config.item_size_max) {
-                    return ENGINE_E2BIG;
-                }
-
-                /* we have it and old_it here - alloc memory to hold both */
-                new_it = do_item_alloc(engine, key,
-                                       old_it->flags,
-                                       old_it->exptime,
-                                       it->nbytes + old_it->nbytes,
-                                       cookie, it->datatype);
-                if (new_it == NULL) {
-                    /* SERVER_ERROR out of memory */
-                    if (old_it != NULL) {
-                        do_item_release(engine, old_it);
-                    }
-
-                    return ENGINE_NOT_STORED;
-                }
-
-                /* copy data from it and old_it to new_it */
-
-                if (operation == OPERATION_APPEND) {
-                    memcpy(item_get_data(new_it), item_get_data(old_it), old_it->nbytes);
-                    memcpy(item_get_data(new_it) + old_it->nbytes, item_get_data(it), it->nbytes);
-                } else {
-                    /* OPERATION_PREPEND */
-                    memcpy(item_get_data(new_it), item_get_data(it), it->nbytes);
-                    memcpy(item_get_data(new_it) + it->nbytes, item_get_data(old_it), old_it->nbytes);
-                }
-
-                it = new_it;
-            }
-        }
-
         if (stored == ENGINE_NOT_STORED) {
             if (old_it != NULL) {
                 do_item_replace(engine, old_it, it);

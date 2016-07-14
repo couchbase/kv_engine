@@ -64,11 +64,9 @@ extern "C" {
      */
     typedef enum {
         OPERATION_ADD = 1, /**< Store with add semantics */
-        OPERATION_SET, /**< Store with set semantics */
-        OPERATION_REPLACE, /**< Store with replace semantics */
-        OPERATION_APPEND, /**< Store with append semantics */
-        OPERATION_PREPEND, /**< Store with prepend semantics */
-        OPERATION_CAS /**< Store with set semantics. */
+        OPERATION_SET = 2, /**< Store with set semantics */
+        OPERATION_REPLACE = 3, /**< Store with replace semantics */
+        OPERATION_CAS = 6 /**< Store with set semantics. */
     } ENGINE_STORE_OPERATION;
 
     typedef enum {
