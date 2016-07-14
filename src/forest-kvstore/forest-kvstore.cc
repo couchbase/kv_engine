@@ -34,6 +34,22 @@ using namespace CouchbaseDirectoryUtilities;
 std::mutex ForestKVStore::initLock;
 int ForestKVStore::numGlobalFiles = 0;
 
+extern "C" {
+    static fdb_compact_decision compaction_cb_c(fdb_file_handle* fhandle,
+                            fdb_compaction_status status, const char* kv_name,
+                            fdb_doc* doc, uint64_t old_offset,
+                            uint64_t new_offset, void* ctx) {
+        return ForestKVStore::compaction_cb(fhandle, status, kv_name, doc,
+                                            old_offset, new_offset, ctx);
+    }
+
+    static void errorlog_cb(int err_code, const char* err_msg, void* ctx_data) {
+        LOG(EXTENSION_LOG_WARNING, "%s with error: %s",
+            err_msg, fdb_error_msg(static_cast<fdb_status>(err_code)));
+    }
+}
+
+
 void ForestKVStore::initForestDb() {
     LockHolder lh(initLock);
     if (numGlobalFiles == 0) {
@@ -161,6 +177,13 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
             std::string(fdb_error_msg(status)));
     }
 
+    status = fdb_set_log_callback(readVbStateHandle, errorlog_cb, nullptr);
+
+    if (status != FDB_RESULT_SUCCESS) {
+        throw std::runtime_error("ForestKVStore::ForestKVStore: Setting the "
+            "log callback failed with error: " + std::string(fdb_error_msg(status)));
+    }
+
     status = fdb_kvs_open_default(writeDBFileHandle,
                                   &writeVbStateHandle, &kvsConfig);
 
@@ -168,6 +191,13 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
         throw std::runtime_error("ForestKVStore::ForestKVStore: Opening the "
             "write vbucket state KV store instance failed with error: " +
             std::string(fdb_error_msg(status)));
+    }
+
+    status = fdb_set_log_callback(writeVbStateHandle, errorlog_cb, nullptr);
+
+    if (status != FDB_RESULT_SUCCESS) {
+        throw std::runtime_error("ForestKVStore::ForestKVStore: Setting the "
+            "log callback failed with error: " + std::string(fdb_error_msg(status)));
     }
 
     cachedVBStates.reserve(maxVbuckets);
@@ -1005,6 +1035,12 @@ std::unique_ptr<ForestKvsHandle> ForestKVStore::createKvsHandle(uint16_t vbucket
             std::string(fdb_error_msg(status)));
     }
 
+    status = fdb_set_log_callback(newKvsHandle, errorlog_cb, nullptr);
+    if (status != FDB_RESULT_SUCCESS) {
+        throw std::runtime_error("ForestKVStore::createKvsHandle: Setting the "
+            "log callback failed with error: " + std::string(fdb_error_msg(status)));
+    }
+
     return std::unique_ptr<ForestKvsHandle>(new ForestKvsHandle(newDBFileHandle,
                                                                 newKvsHandle));
 }
@@ -1047,6 +1083,14 @@ fdb_kvs_handle* ForestKVStore::getKvsHandle(uint16_t vbucketId, handleType htype
                 "for vbucket %d failed with error: %s", vbucketId,
                 fdb_error_msg(status));
             return NULL;
+        }
+
+        status = fdb_set_log_callback(kvsHandle, errorlog_cb, nullptr);
+
+        if (status != FDB_RESULT_SUCCESS) {
+            LOG(EXTENSION_LOG_WARNING,
+                "ForestKVStore::getKvsHandle: Setting the log callback for KV store instance "
+                "failed with error: %s", fdb_error_msg(status));
         }
 
         found->second = kvsHandle;
@@ -1536,16 +1580,6 @@ void ForestKVStore::destroyScanContext(ScanContext* ctx) {
     }
 
     delete ctx;
-}
-
-extern "C" {
-    static fdb_compact_decision compaction_cb_c(fdb_file_handle* fhandle,
-                            fdb_compaction_status status, const char* kv_name,
-                            fdb_doc* doc, uint64_t old_offset,
-                            uint64_t new_offset, void* ctx) {
-        return ForestKVStore::compaction_cb(fhandle, status, kv_name, doc,
-                                            old_offset, new_offset, ctx);
-    }
 }
 
 fdb_compact_decision ForestKVStore::compaction_cb(fdb_file_handle* fhandle,
