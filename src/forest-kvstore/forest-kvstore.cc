@@ -1998,77 +1998,116 @@ extern "C" {
     static fdb_status ffs_open(const char *pathname, fdb_fileops_handle *fops_handle,
                                int flags, mode_t mode) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(*fops_handle);
-        return fsf->orig_ops->open(pathname, &fsf->orig_handle, flags, mode);
+        if (fsf) {
+            return fsf->orig_ops->open(pathname, &fsf->orig_handle, flags, mode);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static fdb_ssize_t ffs_pwrite(fdb_fileops_handle fops_handle, void *buf,
                                   size_t count, cs_off_t offset) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        fsf->fs_stats->writeSizeHisto.add(count);
-        BlockTimer bt(&fsf->fs_stats->writeTimeHisto);
-        ssize_t result = fsf->orig_ops->pwrite(fsf->orig_handle, buf, count,
-                                               offset);
-        if (result > 0) {
-            fsf->fs_stats->totalBytesWritten += result;
+        if (fsf) {
+            fsf->fs_stats->writeSizeHisto.add(count);
+            BlockTimer bt(&fsf->fs_stats->writeTimeHisto);
+            ssize_t result = fsf->orig_ops->pwrite(fsf->orig_handle, buf, count,
+                                                   offset);
+            if (result > 0) {
+                fsf->fs_stats->totalBytesWritten += result;
+            }
+
+            return result;
         }
 
-        return result;
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static fdb_ssize_t ffs_pread(fdb_fileops_handle fops_handle, void *buf,
                                  size_t count, cs_off_t offset) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        fsf->fs_stats->readSizeHisto.add(count);
-        if (fsf->last_offs) {
-            fsf->fs_stats->readSeekHisto.add(std::abs(offset - fsf->last_offs));
+
+        if (fsf) {
+            fsf->fs_stats->readSizeHisto.add(count);
+            if (fsf->last_offs) {
+                fsf->fs_stats->readSeekHisto.add(std::abs(offset - fsf->last_offs));
+            }
+
+            fsf->last_offs = offset;
+            BlockTimer bt(&fsf->fs_stats->readTimeHisto);
+            ssize_t result = fsf->orig_ops->pread(fsf->orig_handle, buf, count,
+                                                  offset);
+            if (result) {
+                fsf->fs_stats->totalBytesRead += result;
+            }
+
+            return result;
         }
 
-        fsf->last_offs = offset;
-        BlockTimer bt(&fsf->fs_stats->readTimeHisto);
-        ssize_t result = fsf->orig_ops->pread(fsf->orig_handle, buf, count,
-                                              offset);
-        if (result) {
-            fsf->fs_stats->totalBytesRead += result;
-        }
-
-        return result;
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static int ffs_close(fdb_fileops_handle fops_handle) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        return fsf->orig_ops->close(fsf->orig_handle);
+        if (fsf) {
+            return fsf->orig_ops->close(fsf->orig_handle);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static cs_off_t ffs_goto_eof(fdb_fileops_handle fops_handle) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        return fsf->orig_ops->goto_eof(fsf->orig_handle);
+        if (fsf) {
+            return fsf->orig_ops->goto_eof(fsf->orig_handle);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static cs_off_t ffs_file_size(fdb_fileops_handle fops_handle, const char *filename) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        return fsf->orig_ops->file_size(fsf->orig_handle, filename);
+        if (fsf) {
+            return fsf->orig_ops->file_size(fsf->orig_handle, filename);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static int ffs_fdatasync(fdb_fileops_handle fops_handle) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        return fsf->orig_ops->fdatasync(fsf->orig_handle);
+        if (fsf) {
+            return fsf->orig_ops->fdatasync(fsf->orig_handle);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static int ffs_fsync(fdb_fileops_handle fops_handle) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        BlockTimer bt(&fsf->fs_stats->syncTimeHisto);
-        return fsf->orig_ops->fsync(fsf->orig_handle);
+        if (fsf) {
+            BlockTimer bt(&fsf->fs_stats->syncTimeHisto);
+            return fsf->orig_ops->fsync(fsf->orig_handle);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static void ffs_get_errno_str(fdb_fileops_handle fops_handle, char *buf, size_t size) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        fsf->orig_ops->get_errno_str(fsf->orig_handle, buf, size);
+        if (fsf) {
+            fsf->orig_ops->get_errno_str(fsf->orig_handle, buf, size);
+        }
     }
 
     static int ffs_aio_init(fdb_fileops_handle fops_handle,
                             struct async_io_handle *aio_handle) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        return fsf->orig_ops->aio_init(fsf->orig_handle, aio_handle);
+        if (fsf) {
+            return fsf->orig_ops->aio_init(fsf->orig_handle, aio_handle);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static int ffs_aio_prep_read(fdb_fileops_handle fops_handle,
@@ -2076,36 +2115,56 @@ extern "C" {
                                  size_t aio_idx, size_t read_size,
                                  uint64_t offset) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        return fsf->orig_ops->aio_prep_read(fsf->orig_handle, aio_handle,
-                                       aio_idx, read_size, offset);
+        if (fsf) {
+            return fsf->orig_ops->aio_prep_read(fsf->orig_handle, aio_handle,
+                                                aio_idx, read_size, offset);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static int ffs_aio_submit(fdb_fileops_handle fops_handle,
                               struct async_io_handle *aio_handle,
                               int num_subs) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        return fsf->orig_ops->aio_submit(fsf->orig_handle, aio_handle,
-                                         num_subs);
+        if (fsf) {
+            return fsf->orig_ops->aio_submit(fsf->orig_handle, aio_handle,
+                                             num_subs);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static int ffs_aio_getevents(fdb_fileops_handle fops_handle,
                                  struct async_io_handle *aio_handle,
                                  int min, int max, unsigned int timeout) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        return fsf->orig_ops->aio_getevents(fsf->orig_handle,
-                                            aio_handle, min, max, timeout);
+        if (fsf) {
+            return fsf->orig_ops->aio_getevents(fsf->orig_handle,
+                                                aio_handle, min, max, timeout);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static int ffs_aio_destroy(fdb_fileops_handle fops_handle,
                                struct async_io_handle *aio_handle) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
-        return fsf->orig_ops->aio_destroy(fsf->orig_handle,
-                                          aio_handle);
+        if (fsf) {
+            return fsf->orig_ops->aio_destroy(fsf->orig_handle,
+                                              aio_handle);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static int ffs_get_fs_type(fdb_fileops_handle src_fileops_handle) {
         ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(src_fileops_handle);
-        return fsf->orig_ops->get_fs_type(fsf->orig_handle);
+        if (fsf) {
+            return fsf->orig_ops->get_fs_type(fsf->orig_handle);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static int ffs_copy_file_range(int fs_type,
@@ -2117,9 +2176,13 @@ extern "C" {
         ForestStatFile *src_fsf = reinterpret_cast<ForestStatFile *>(src_fops_handle);
         ForestStatFile *dst_fsf = reinterpret_cast<ForestStatFile *>(dst_fops_handle);
 
-        return src_fsf->orig_ops->copy_file_range(fs_type, src_fsf->orig_handle,
-                                                  dst_fsf->orig_handle,
-                                                  src_off, dst_off, len);
+        if (src_fsf && dst_fsf) {
+            return src_fsf->orig_ops->copy_file_range(fs_type, src_fsf->orig_handle,
+                                                      dst_fsf->orig_handle,
+                                                      src_off, dst_off, len);
+        }
+
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static void ffs_destructor(fdb_fileops_handle fops_handle) {
