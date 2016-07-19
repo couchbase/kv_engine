@@ -3338,6 +3338,14 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                                                  genBySeqno);
         v->setBySeqno(qi->getBySeqno());
 
+        /* During backfill on a TAP receiver we need to update the snapshot
+           range in the checkpoint. Has to be done here because in case of TAP
+           backfill, above, we use vb->queueBackfillItem() instead of
+           vb->checkpointManager.queueDirty() */
+        if (tapBackfill && genBySeqno) {
+            vb->checkpointManager.resetSnapshotRange();
+        }
+
         if (seqno) {
             *seqno = v->getBySeqno();
         }
