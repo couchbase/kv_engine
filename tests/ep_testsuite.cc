@@ -8636,12 +8636,14 @@ static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     // MB-12279: limiting max writers to 4 for DGM bgfetch performance
     check(num_write_threads == 4, "Incorrect number of writers");
     check(num_auxio_threads == 1, "Incorrect number of auxio threads");
-    check(num_nonio_threads == 1, "Incorrect number of nonio threads");
+    check(num_nonio_threads > 1 && num_nonio_threads <= 8,
+          "Incorrect number of nonio threads");
     check(max_read_threads == 4, "Incorrect limit of readers");
     // MB-12279: limiting max writers to 4 for DGM bgfetch performance
     check(max_write_threads == 4, "Incorrect limit of writers");
     check(max_auxio_threads == 1, "Incorrect limit of auxio threads");
-    check(max_nonio_threads == 1, "Incorrect limit of nonio threads");
+    check(max_nonio_threads > 1 && max_nonio_threads <=8,
+          "Incorrect limit of nonio threads");
     check(num_shards == 5, "Incorrect number of shards");
     return SUCCESS;
 }
@@ -8739,7 +8741,7 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(statelist.find(worker_1_state)!=statelist.end(),
           "worker_1's state incorrect");
 
-    check(get_int_stat(h, h1, "ep_num_workers") == 10, // cannot spawn less
+    check(get_int_stat(h, h1, "ep_num_workers") == 11, // cannot spawn less
           "Incorrect number of threads spawned");
     return SUCCESS;
 }

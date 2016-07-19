@@ -34,6 +34,8 @@ ExecutorPool *ExecutorPool::instance = NULL;
 static const size_t EP_MIN_NUM_THREADS    = 10;
 static const size_t EP_MIN_READER_THREADS = 4;
 static const size_t EP_MIN_WRITER_THREADS = 4;
+static const size_t EP_MIN_NONIO_THREADS = 2;
+
 
 static const size_t EP_MAX_READER_THREADS = 12;
 static const size_t EP_MAX_WRITER_THREADS = 8;
@@ -54,15 +56,13 @@ size_t ExecutorPool::getNumCPU(void) {
 }
 
 size_t ExecutorPool::getNumNonIO(void) {
-    // 1. compute: ceil of 10% of total threads
-    size_t count = maxGlobalThreads / 10;
-    if (!count || maxGlobalThreads % 10) {
-        count++;
-    }
+    // 1. compute: 30% of total threads
+    size_t count = maxGlobalThreads * 0.3;
+
     // 2. adjust computed value to be within range
-    if (count > EP_MAX_NONIO_THREADS) {
-        count = EP_MAX_NONIO_THREADS;
-    }
+    count = std::min(EP_MAX_NONIO_THREADS,
+                     std::max(EP_MIN_NONIO_THREADS, count));
+
     // 3. pick user's value if specified
     if (maxWorkers[NONIO_TASK_IDX]) {
         count = maxWorkers[NONIO_TASK_IDX];
