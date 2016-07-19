@@ -199,7 +199,8 @@ TEST_F(SubdocMultiLookupTest, InvalidLocationOpcodes) {
         auto cmd = protocol_binary_command(ii);
         // Skip over lookup opcodes
         if ((cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET) ||
-            (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS)) {
+            (cmd == PROTOCOL_BINARY_CMD_SUBDOC_EXISTS) ||
+            (cmd == PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT)) {
             continue;
         }
         request.specs.at(0) = {cmd, SUBDOC_FLAG_NONE, "[0]"};

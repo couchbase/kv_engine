@@ -1204,6 +1204,11 @@ void subdoc_counter_executor(McbpConnection* c, void *packet) {
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
 }
 
+void subdoc_get_count_executor(McbpConnection *c, void *packet) {
+    return subdoc_executor(c, packet,
+                           get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>());
+}
+
 void subdoc_multi_lookup_executor(McbpConnection* c, void *packet) {
     return subdoc_executor(c, packet,
                            get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>());

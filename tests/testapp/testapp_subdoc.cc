@@ -1613,6 +1613,31 @@ TEST_P(McdTestappTest, SubdocArrayInsert_Invalid)
     delete_object("b");
 }
 
+TEST_P(McdTestappTest, SubdocGetCount)
+{
+    // Start with an empty array.
+    store_object("a", "[]", /*JSON*/true, /*compress*/false);
+
+    // Get size. Should be 0
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", ""),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "0");
+
+    // Store it again, giving it some size
+    store_object("a", "[1,2,3]", true, false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", ""),
+                      PROTOCOL_BINARY_RESPONSE_SUCCESS, "3");
+
+    // Check for mismatch
+    store_object("a", "{\"k\":\"v\"}", true, false);
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", "k"),
+                     PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_MISMATCH, "");
+
+    // Check for non-found
+    expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, "a", "n"),
+                     PROTOCOL_BINARY_RESPONSE_SUBDOC_PATH_ENOENT, "");
+    delete_object("a");
+}
+
 void test_subdoc_counter_simple() {
     store_object("a", "{}", /*JSON*/true, /*compress*/false);
 

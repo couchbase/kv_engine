@@ -262,6 +262,7 @@ McbpPrivilegeChains::McbpPrivilegeChains() {
     setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST, require<Privilege::Write>);
     setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT, require<Privilege::Write>);
     setup(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE, require<Privilege::Write>);
+    setup(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, require<Privilege::Read>);
 
     /* Arithmetic commands */
     setup(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER, require<Privilege::Read>);

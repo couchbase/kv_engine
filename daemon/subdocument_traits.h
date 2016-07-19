@@ -191,6 +191,17 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
 }
 
 template <>
+inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>() {
+    return {Subdoc::Command::GET_COUNT,
+            SUBDOC_FLAG_NONE,
+            /*request_has_value*/false,
+            /*allow_empty_path*/true,
+            /*response_has_value*/true,
+            /*is_mutator*/false,
+            SubdocPath::SINGLE};
+}
+
+template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP>() {
     return {Subdoc::Command::INVALID,
             SUBDOC_FLAG_NONE,

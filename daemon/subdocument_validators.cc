@@ -126,6 +126,10 @@ protocol_binary_response_status subdoc_counter_validator(const Cookie& cookie) {
     return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>());
 }
 
+protocol_binary_response_status subdoc_get_count_validator(const Cookie& cookie) {
+    return subdoc_validator(cookie, get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>());
+}
+
 static protocol_binary_response_status
 is_valid_multipath_spec(const char* ptr, const SubdocMultiCmdTraits traits,
                         size_t& spec_len) {

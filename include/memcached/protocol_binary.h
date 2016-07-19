@@ -442,6 +442,9 @@ extern "C"
         PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP = 0xd0,
         PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION = 0xd1,
 
+        /* Subdoc additions for Spock: */
+        PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT = 0xd2,
+
 
         /* Scrub the data */
         PROTOCOL_BINARY_CMD_SCRUB = 0xf0,

@@ -4504,6 +4504,7 @@ std::array<mcbp_package_execute, 0x100>& get_mcbp_executors(void) {
     executors[PROTOCOL_BINARY_CMD_SUBDOC_COUNTER] = subdoc_counter_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP] = subdoc_multi_lookup_executor;
     executors[PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION] = subdoc_multi_mutation_executor;
+    executors[PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT] = subdoc_get_count_executor;
 
     executors[PROTOCOL_BINARY_CMD_CREATE_BUCKET] = create_bucket_executor;
     executors[PROTOCOL_BINARY_CMD_LIST_BUCKETS] = list_bucket_executor;

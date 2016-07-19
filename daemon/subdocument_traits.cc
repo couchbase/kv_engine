@@ -52,6 +52,9 @@ SubdocCmdTraits get_subdoc_cmd_traits(protocol_binary_command cmd) {
     case PROTOCOL_BINARY_CMD_SUBDOC_COUNTER:
         return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>();
 
+    case PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT:
+        return get_traits<PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT>();
+
     default:
         return {Subdoc::Command::INVALID,
                 SUBDOC_FLAG_NONE,

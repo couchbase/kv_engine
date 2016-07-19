@@ -895,6 +895,7 @@ void McbpValidatorChains::initializeMcbpValidatorChains(McbpValidatorChains& cha
     chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER, subdoc_counter_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_LOOKUP, subdoc_multi_lookup_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_MULTI_MUTATION, subdoc_multi_mutation_validator);
+    chains.push_unique(PROTOCOL_BINARY_CMD_SUBDOC_GET_COUNT, subdoc_get_count_validator);
 
     chains.push_unique(PROTOCOL_BINARY_CMD_SETQ, set_replace_validator);
     chains.push_unique(PROTOCOL_BINARY_CMD_SET, set_replace_validator);

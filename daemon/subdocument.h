@@ -37,5 +37,6 @@ void subdoc_array_push_first_executor(McbpConnection *c, void *packet);
 void subdoc_array_insert_executor(McbpConnection * c, void* packet);
 void subdoc_array_add_unique_executor(McbpConnection * c, void* packet);
 void subdoc_counter_executor(McbpConnection *c, void *packet);
+void subdoc_get_count_executor(McbpConnection *c, void *packet);
 void subdoc_multi_lookup_executor(McbpConnection *c, void *packet);
 void subdoc_multi_mutation_executor(McbpConnection *c, void *packet);

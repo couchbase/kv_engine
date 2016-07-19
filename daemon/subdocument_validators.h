@@ -50,5 +50,6 @@ protocol_binary_response_status subdoc_array_push_first_validator(const Cookie& 
 protocol_binary_response_status subdoc_array_insert_validator(const Cookie& cookie);
 protocol_binary_response_status subdoc_array_add_unique_validator(const Cookie& cookie);
 protocol_binary_response_status subdoc_counter_validator(const Cookie& cookie);
+protocol_binary_response_status subdoc_get_count_validator(const Cookie& cookie);
 protocol_binary_response_status subdoc_multi_lookup_validator(const Cookie& cookie);
 protocol_binary_response_status subdoc_multi_mutation_validator(const Cookie& cookie);
