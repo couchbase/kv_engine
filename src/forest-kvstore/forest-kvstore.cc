@@ -1408,6 +1408,8 @@ bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state& vbstate,
 
     hrtime_t start = gethrtime();
 
+    LockHolder lh(writerLock);
+
     if (updateCachedVBState(vbucketId, vbstate) &&
          (options == VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT ||
           options == VBStatePersist::VBSTATE_PERSIST_WITH_COMMIT)) {
@@ -1423,7 +1425,6 @@ bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state& vbstate,
         statDoc.body = const_cast<char *>(stateStr.c_str());
         statDoc.bodylen = stateStr.length();
 
-        LockHolder lh(writerLock);
         fdb_status status = fdb_set(writeVbStateHandle, &statDoc);
 
         if (status != FDB_RESULT_SUCCESS) {
