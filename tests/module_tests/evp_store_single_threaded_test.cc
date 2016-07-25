@@ -172,8 +172,6 @@ TEST_F(SingleThreadedEPStoreTest, MB19428_no_streams_against_dead_vbucket) {
     EXPECT_EQ(1, store->flushVBucket(vbid));
 
     setVBucketStateAndRunPersistTask(vbid, vbucket_state_dead);
-    auto* task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
-        (ExecutorPool::get());
     auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
 
     {
@@ -204,4 +202,51 @@ TEST_F(SingleThreadedEPStoreTest, MB19428_no_streams_against_dead_vbucket) {
         // The streamRequest failed and should not of created anymore tasks.
         EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
     }
+}
+
+/*
+ * Test that TaskQueue::wake results in a sensible ExecutorPool work count
+ * Incorrect counting can result in the run loop spinning for many threads.
+ */
+TEST_F(SingleThreadedEPStoreTest, MB20235_wake_and_work_count) {
+    class TestTask : public GlobalTask {
+    public:
+        TestTask(EventuallyPersistentEngine *e, double s) :
+                 GlobalTask(e, Priority::ActiveStreamCheckpointProcessor, s) {}
+        bool run() {
+            return false;
+        }
+
+        std::string getDescription() {
+            return "Test MB20235";
+        }
+    };
+
+    auto& lpAuxioQ = *task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+
+    // New task with a massive sleep
+    ExTask task = new TestTask(engine.get(), 99999.0);
+    EXPECT_EQ(0, lpAuxioQ.getFutureQueueSize());
+
+    // schedule the task, futureQueue grows
+    task_executor->schedule(task, AUXIO_TASK_IDX);
+    EXPECT_EQ(lpAuxioQ.getReadyQueueSize(), task_executor->getTotReadyTasks());
+    EXPECT_EQ(lpAuxioQ.getReadyQueueSize(),
+              task_executor->getNumReadyTasks(AUXIO_TASK_IDX));
+    EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
+
+    // Wake task, but stays in futureQueue (fetch can now move it)
+    task_executor->wake(task->getId());
+    EXPECT_EQ(lpAuxioQ.getReadyQueueSize(), task_executor->getTotReadyTasks());
+    EXPECT_EQ(lpAuxioQ.getReadyQueueSize(),
+              task_executor->getNumReadyTasks(AUXIO_TASK_IDX));
+    EXPECT_EQ(1, lpAuxioQ.getFutureQueueSize());
+    EXPECT_EQ(0, lpAuxioQ.getReadyQueueSize());
+
+    runNextTask(lpAuxioQ);
+    EXPECT_EQ(lpAuxioQ.getReadyQueueSize(), task_executor->getTotReadyTasks());
+    EXPECT_EQ(lpAuxioQ.getReadyQueueSize(),
+              task_executor->getNumReadyTasks(AUXIO_TASK_IDX));
+    EXPECT_EQ(0, lpAuxioQ.getFutureQueueSize());
+    EXPECT_EQ(0, lpAuxioQ.getReadyQueueSize());
 }

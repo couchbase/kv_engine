@@ -261,29 +261,40 @@ void TaskQueue::_wake(ExTask &task) {
         }
     }
 
-    // Initialise numReady from the updateWaketime call, it returns true if the
-    // task was in futureQueue. Init to 1 if the task was in the queue.
-    size_t numReady = size_t(futureQueue.updateWaketime(task, now));
+    bool futureQueueReady = futureQueue.updateWaketime(task, now);
     task->setState(TASK_RUNNING, TASK_SNOOZED);
 
+    // MB-20235: numReady counts each push to readyQueue only
+    // NB: When MB-18453 is merged from sherlock/watson the readyQueue
+    // push and counting is removed.
+    size_t readyQueueCount = 0;
     while (!notReady.empty()) {
         ExTask tid = notReady.front();
         if (tid->getWaketime() <= now || tid->isdead()) {
             readyQueue.push(tid);
-            numReady++;
+            readyQueueCount++;
         } else {
             futureQueue.push(tid);
         }
         notReady.pop();
     }
 
-    if (numReady) {
-        manager->addWork(numReady, queueType);
-        _doWake_UNLOCKED(numReady);
+    // Increase the executor pool work count for tasks in the readyQueue
+    if (readyQueueCount) {
+        // Delete when MB-18453 is merged
+        manager->addWork(readyQueueCount, queueType);
+    }
+
+    // Account for any readytask in the futureQueue
+    readyQueueCount += size_t(futureQueueReady);
+
+    // Wake up another thread to run the task(s)
+    if (readyQueueCount) {
+        _doWake_UNLOCKED(readyQueueCount);
         TaskQueue *sleepQ = manager->getSleepQ(queueType);
         lh.unlock();
         if (this != sleepQ) {
-            sleepQ->doWake(numReady);
+            sleepQ->doWake(readyQueueCount);
         }
     }
 }
