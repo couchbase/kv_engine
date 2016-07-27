@@ -6874,7 +6874,6 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test failover log behavior", test_failover_log_behavior,
                  test_setup, teardown, NULL, prepare, cleanup),
-
         TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
                  "time_synchronization=enabled_with_drift", prepare, cleanup),
 

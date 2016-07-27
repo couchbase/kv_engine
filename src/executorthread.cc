@@ -156,7 +156,7 @@ void ExecutorThread::run() {
                         currentTask->getDescription().c_str(),
                         uint64_t(currentTask->getId()), uint64_t(new_waketime),
                         uint64_t(currentTask->getWaketime()),
-                        uint64_t(waketime));
+                        uint64_t(waketime.load()));
             }
         }
     }

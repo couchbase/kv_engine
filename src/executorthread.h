@@ -27,6 +27,8 @@
 #include <utility>
 #include <vector>
 
+#include <relaxed_atomic.h>
+
 #include "atomic.h"
 #include "mutex.h"
 #include "objectregistry.h"

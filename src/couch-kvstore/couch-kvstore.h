@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "libcouchstore/couch_db.h"
+#include <relaxed_atomic.h>
 
 #include <map>
 #include <string>
