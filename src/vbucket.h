@@ -588,6 +588,8 @@ private:
     Mutex pendingBGFetchesLock;
     vb_bgfetch_queue_t pendingBGFetches;
 
+    /* snapshotMutex is used to update/read the pair {start, end} atomically,
+       but not if reading a single field. */
     Mutex snapshotMutex;
     uint64_t persisted_snapshot_start;
     uint64_t persisted_snapshot_end;

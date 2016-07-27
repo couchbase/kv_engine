@@ -708,7 +708,8 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("items_sent", getItemsSent(), add_stat, c);
     addStat("items_remaining", getItemsRemaining(), add_stat, c);
     addStat("total_bytes_sent", getTotalBytes(), add_stat, c);
-    addStat("last_sent_time", lastSendTime, add_stat, c);
+    addStat("last_sent_time", lastSendTime, add_stat,
+            c);
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
     addStat("priority", priority.c_str(), add_stat, c);

@@ -967,7 +967,7 @@ protected:
                                    const char* stat_key, int nkey);
     ENGINE_ERROR_CODE doDiskStats(const void *cookie, ADD_STAT add_stat,
                                   const char* stat_key, int nkey);
-    void addSeqnoVbStats_UNLOCKED(const void *cookie, ADD_STAT add_stat,
+    void addSeqnoVbStats(const void *cookie, ADD_STAT add_stat,
                                   const RCPtr<VBucket> &vb);
 
     void addLookupResult(const void *cookie, Item *result) {

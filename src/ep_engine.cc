@@ -4480,13 +4480,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
     return ENGINE_SUCCESS;
 }
 
-void EventuallyPersistentEngine::addSeqnoVbStats_UNLOCKED(const void *cookie,
-                                                          ADD_STAT add_stat,
-                                                          const RCPtr<VBucket> &vb) {
-    /**
-     * ReaderLock is to already be acquired for the vbucket stateLock
-     * before invoking this function.
-     */
+void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
+                                                 ADD_STAT add_stat,
+                                                 const RCPtr<VBucket> &vb) {
+    // MB-19359: An atomic read of vbucket state without acquiring the
+    // reader lock for state should suffice here.
     uint64_t relHighSeqno = vb->getHighSeqno();
     if (vb->getState() != vbucket_state_active) {
         snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
@@ -4543,17 +4541,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
 
         int vbucket = atoi(value.c_str());
         RCPtr<VBucket> vb = getVBucket(vbucket);
-        if (!vb) {
+        if (!vb || vb->getState() == vbucket_state_dead) {
             return ENGINE_NOT_MY_VBUCKET;
         }
 
-        ReaderLockHolder rlh(vb->getStateLock());
-        if (vb->getState() == vbucket_state_dead) {
-            return ENGINE_NOT_MY_VBUCKET;
-        }
-
-
-        addSeqnoVbStats_UNLOCKED(cookie, add_stat, vb);
+        addSeqnoVbStats(cookie, add_stat, vb);
 
         return ENGINE_SUCCESS;
     }
@@ -4562,12 +4554,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
     for (auto vbid : vbuckets) {
         RCPtr<VBucket> vb = getVBucket(vbid);
         if (vb) {
-            ReaderLockHolder rlh(vb->getStateLock());
-            if (vb->getState() == vbucket_state_dead) {
-                continue;
-            }
-
-            addSeqnoVbStats_UNLOCKED(cookie, add_stat, vb);
+            addSeqnoVbStats(cookie, add_stat, vb);
         }
     }
     return ENGINE_SUCCESS;
