@@ -831,9 +831,11 @@ TEST_F(CouchKVStoreErrorInjectionTest, initScanContext_changes_count) {
             .WillOnce(Return(COUCHSTORE_ERROR_READ)).RetiresOnSaturation();
         EXPECT_CALL(ops, pread(_, _, _, _, _)).Times(3).RetiresOnSaturation();
 
+        ScanContext* scanCtx = nullptr;
         try {
-            kvstore->initScanContext(cb, cl, 0, 0, DocumentFilter::ALL_ITEMS,
-                                     ValueFilter::VALUES_DECOMPRESSED);
+            scanCtx = kvstore->initScanContext(cb, cl, 0, 0,
+                                               DocumentFilter::ALL_ITEMS,
+                                               ValueFilter::VALUES_DECOMPRESSED);
             EXPECT_TRUE(false) << "kvstore->initScanContext(cb, cl, 0, 0, "
                                   "DocumentFilter::ALL_ITEMS, "
                                   "ValueFilter::VALUES_DECOMPRESSED); should "
@@ -841,6 +843,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, initScanContext_changes_count) {
         } catch (const std::runtime_error& e) {
             EXPECT_THAT(std::string(e.what()), VCE(COUCHSTORE_ERROR_READ));
         }
+
+        kvstore->destroyScanContext(scanCtx);
     }
 }
 
@@ -867,6 +871,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, scan_changes_since) {
 
         kvstore->scan(scan_context);
     }
+
+    kvstore->destroyScanContext(scan_context);
 }
 
 /**
@@ -893,6 +899,8 @@ TEST_F(CouchKVStoreErrorInjectionTest, recordDbDump_open_doc_with_docinfo) {
 
         kvstore->scan(scan_context);
     }
+
+    kvstore->destroyScanContext(scan_context);
 }
 
 /**
