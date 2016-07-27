@@ -5516,6 +5516,71 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/**
+ * This test demonstrates bucket shutdown when there is a rogue
+ * backfill (whose producer and stream are already closed).
+ */
+static enum test_result test_mb19153(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1) {
+
+    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+
+    // Set max num AUX IO to 0, so no backfill would start
+    // immediately
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_auxio", "0");
+
+    int num_items = 10000;
+
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key-" << j;
+        check(store(h, h1, NULL, OPERATION_SET,
+                    ss.str().c_str(), "data", &i, 0, 0, 0, 0)
+                    == ENGINE_SUCCESS, "Failed to store a value");
+
+        h1->release(h, NULL, i);
+    }
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t flags = DCP_OPEN_PRODUCER;
+    const char *name = "unittest";
+
+    uint32_t opaque = 1;
+    uint64_t start = 0;
+    uint64_t end = num_items;
+
+    // Setup a producer connection
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, ++opaque, 0, flags,
+                         (void*)name, strlen(name)),
+            "Failed dcp Consumer open connection.");
+
+    // Initiate a stream request
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t rollback = 0;
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.stream_req(h, cookie, 0, opaque, 0, start, end,
+                               vb_uuid, 0, 0,
+                               &rollback, mock_dcp_add_failover_log),
+            "Expected success");
+
+    // Disconnect the producer
+    testHarness.destroy_cookie(cookie);
+
+    // Wait for ConnManager to clear out dead connections from dcpConnMap
+    wait_for_stat_to_be(h, h1, "ep_dcp_dead_conn_count", 0, "dcp");
+
+    // Set auxIO threads to 1, so the backfill for the closed producer
+    // is picked up, and begins to run.
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_auxio", "1");
+
+    // Terminate engine
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_dcp";
@@ -5762,6 +5827,8 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("test MB-19153", test_mb19153,
+                 test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

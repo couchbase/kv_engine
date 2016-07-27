@@ -206,9 +206,10 @@ public:
     void scheduleCheckpointProcessorTask(stream_t s);
 
     /*
-        Clears active stream checkpoint processor task's queue.
+        Clears active stream checkpoint processor task's queue,
+        and cancels the task.
     */
-    void clearCheckpointProcessorTaskQueues();
+    void cancelCheckpointProcessorTask();
 
 protected:
 

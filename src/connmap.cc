@@ -1129,7 +1129,7 @@ void DcpConnMap::closeAllStreams_UNLOCKED() {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
         if (producer) {
             producer->closeAllStreams();
-            producer->clearCheckpointProcessorTaskQueues();
+            producer->cancelCheckpointProcessorTask();
         } else {
             static_cast<DcpConsumer*>(itr->second.get())->closeAllStreams();
         }
@@ -1173,7 +1173,7 @@ void DcpConnMap::disconnect_UNLOCKED(const void *cookie) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (conn.get());
         if (producer) {
             producer->closeAllStreams();
-            producer->clearCheckpointProcessorTaskQueues();
+            producer->cancelCheckpointProcessorTask();
         } else {
             // Cancel consumer's processer task before closing all streams
             static_cast<DcpConsumer*>(conn.get())->cancelTask();
