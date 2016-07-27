@@ -2341,6 +2341,7 @@ size_t CouchKVStore::getNumItems(uint16_t vbid, uint64_t min_seq,
     if (errCode == COUCHSTORE_SUCCESS) {
         errCode = couchstore_changes_count(db, min_seq, max_seq, &count);
         if (errCode != COUCHSTORE_SUCCESS) {
+            closeDatabaseHandle(db);
             throw std::runtime_error("CouchKVStore::getNumItems: Failed to "
                 "get changes count for vBucket = " + std::to_string(vbid) +
                 " rev = " + std::to_string(rev) +
