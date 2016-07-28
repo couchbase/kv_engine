@@ -1803,7 +1803,7 @@ void EventuallyPersistentStore::completeBGFetchMulti(uint16_t vbId,
                     if (status == ENGINE_SUCCESS) {
                         v->unlocked_restoreValue(fetchedValue, vb->ht);
                         cb_assert(v->isResident());
-                        ReaderLockHolder(vb->getStateLock());
+                        ReaderLockHolder rlh(vb->getStateLock());
                         if (vb->getState() == vbucket_state_active &&
                             v->getExptime() != fetchedValue->getExptime() &&
                             v->getCas() == fetchedValue->getCas()) {
