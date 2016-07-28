@@ -26,6 +26,8 @@
 #include "mock/mock_dcp.h"
 #include "programs/engine_testapp/mock_server.h"
 
+#include <thread>
+
 // Helper functions ///////////////////////////////////////////////////////////
 
 void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
@@ -5581,6 +5583,81 @@ static enum test_result test_mb19153(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static void mb19982_add_stat(const char *key, const uint16_t klen, const char *val,
+                      const uint32_t vlen, const void *cookie) {
+    // do nothing
+}
+
+/*
+ * This test creates a DCP consumer on a replica VB and then from a second thread
+ * fires get_stats("dcp") whilst the main thread changes VB state from
+ * replica->active->replica (and so on).
+ * MB-19982 idenified a lock inversion between these two functional paths and this
+ * test proves and protects the issue.
+ */
+static enum test_result test_mb19982(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1) {
+
+    // Load up vb0 with num_items
+    int num_items = 1000;
+    int iterations = 1000; // how many stats calls
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    std::string name = "unittest";
+    // Switch to replica
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    // Open consumer connection
+    checkeq(h1->dcp.open(h, cookie, opaque, 0, flags,
+                         (void*)name.c_str(), name.length()),
+            ENGINE_SUCCESS,
+            "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    std::thread thread([h, h1, iterations]() {
+        for (int ii = 0; ii < iterations; ii++) {
+            checkeq(h1->get_stats(h, NULL, "dcp", 3, &mb19982_add_stat),
+                    ENGINE_SUCCESS, "failed get_stats(dcp)");
+        }
+    });
+
+    uint32_t stream_opaque = get_int_stat(h, h1,
+                                          "eq_dcpq:unittest:stream_0_opaque",
+                                          "dcp");
+
+    for (int i = 1; i <= num_items; i++) {
+        std::stringstream ss;
+        ss << "key-" << i;
+        checkeq(h1->dcp.snapshot_marker(h, cookie,
+                                        stream_opaque, 0/*vbid*/,
+                                        num_items, num_items + i, 2),
+                ENGINE_SUCCESS,
+                "Failed to send snapshot marker");
+        checkeq(h1->dcp.mutation(h, cookie, stream_opaque,
+                                 ss.str().c_str(), ss.str().length(),
+                                 "value", 5, i * 3, 0, 0, 0,
+                                 i + num_items, i + num_items,
+                                 0, 0, "", 0, INITIAL_NRU_VALUE),
+                ENGINE_SUCCESS,
+                "Failed to send dcp mutation");
+
+        // And flip VB state (this can have a lock inversion with stats)
+        checkeq(h1->dcp.set_vbucket_state(h, cookie, stream_opaque, 0, vbucket_state_active),
+                ENGINE_SUCCESS, "failed to change to active");
+        checkeq(h1->dcp.set_vbucket_state(h, cookie, stream_opaque, 0, vbucket_state_replica),
+                ENGINE_SUCCESS, "failed to change to replica");
+    }
+
+    thread.join();
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_dcp";
@@ -5829,6 +5906,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, NULL, prepare, cleanup),
         TestCase("test MB-19153", test_mb19153,
                  test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test MB-19982", test_mb19982, test_setup,
+                 teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

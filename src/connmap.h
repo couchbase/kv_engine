@@ -549,8 +549,6 @@ private:
 
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
 
-    void disconnect_UNLOCKED(const void *cookie);
-
     void closeAllStreams_UNLOCKED();
 
     void cancelAllTasks_UNLOCKED();
