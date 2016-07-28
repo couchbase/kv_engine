@@ -258,11 +258,13 @@ protected:
                    uint16_t sID = 0,
                    bool completeBeforeShutdown = true)
         : GlobalTask(e, id, 0, completeBeforeShutdown),
+          priority(Priority::LOW),
           shardID(sID) {}
+
+    Priority priority;
 
 private:
     uint16_t shardID;
-    Priority priority;
 };
 
 class VBSnapshotTaskHigh : public VBSnapshotTask {
@@ -271,7 +273,9 @@ public:
                        uint16_t sID = 0,
                        bool completeBeforeShutdown = true)
         : VBSnapshotTask(e, TaskId::VBSnapshotTaskHigh,
-                         sID, completeBeforeShutdown){}
+                         sID, completeBeforeShutdown) {
+            priority = Priority::HIGH;
+        }
 };
 
 class VBSnapshotTaskLow : public VBSnapshotTask {
@@ -280,7 +284,9 @@ public:
                       uint16_t sID = 0,
                       bool completeBeforeShutdown = true)
         : VBSnapshotTask(e, TaskId::VBSnapshotTaskLow,
-                         sID, completeBeforeShutdown){}
+                         sID, completeBeforeShutdown) {
+            priority = Priority::LOW;
+        }
 };
 
 /**
