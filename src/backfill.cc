@@ -20,6 +20,8 @@
 #include <string>
 #include <vector>
 
+#include <phosphor/phosphor.h>
+
 #include "atomic.h"
 #include "backfill.h"
 #include "ep.h"
@@ -104,6 +106,7 @@ void BackfillDiskCallback::callback(GetValue &gv) {
 }
 
 bool BackfillDiskLoad::run() {
+    TRACE_EVENT0("ep-engine/task", "BackfillDiskload");
     if (engine->getEpStore()->isMemoryUsageTooHigh()) {
         LOG(EXTENSION_LOG_INFO, "VBucket %d backfill task from disk is "
          "temporarily suspended  because the current memory usage is too high",
@@ -235,6 +238,7 @@ bool BackFillVisitor::checkValidity() {
 }
 
 bool BackfillTask::run(void) {
+    TRACE_EVENT0("ep-engine/task", "BackFillTask");
     engine->getEpStore()->visit(bfv, "Backfill task", NONIO_TASK_IDX,
                                 TaskId::BackfillVisitorTask, 1);
     return false;

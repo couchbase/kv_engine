@@ -17,6 +17,8 @@
 
 #include "config.h"
 
+#include <phosphor/phosphor.h>
+
 #include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
 #include "ep.h"
@@ -139,6 +141,7 @@ void ClosedUnrefCheckpointRemoverTask::cursorDroppingIfNeeded(void) {
 }
 
 bool ClosedUnrefCheckpointRemoverTask::run(void) {
+    TRACE_EVENT0("ep-engine/task", "ClosedUnrefCheckpointRemoverTask");
     bool inverse = true;
     if (available.compare_exchange_strong(inverse, false)) {
         cursorDroppingIfNeeded();

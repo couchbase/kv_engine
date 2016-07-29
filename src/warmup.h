@@ -19,16 +19,18 @@
 
 #include "config.h"
 
-#include <atomic>
 #include "ep.h"
 #include "ep_engine.h"
 #include "utility.h"
 
+#include <atomic>
 #include <map>
 #include <ostream>
 #include <string>
 #include <unordered_set>
 #include <vector>
+
+#include <phosphor/phosphor.h>
 
 
 class WarmupState {
@@ -232,6 +234,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupInitialize");
         _warmup->initialize();
         _warmup->removeFromTaskSet(uid);
         return false;
@@ -258,6 +261,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupCreateVBuckets");
         _warmup->createVBuckets(_shardId);
         _warmup->removeFromTaskSet(uid);
         return false;
@@ -285,6 +289,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarpupEstimateDatabaseItemCount");
         _warmup->estimateDatabaseItemCount(_shardId);
         _warmup->removeFromTaskSet(uid);
         return false;
@@ -312,6 +317,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupKeyDump");
         _warmup->keyDumpforShard(_shardId);
         _warmup->removeFromTaskSet(uid);
         return false;
@@ -338,6 +344,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupCheckForAccessLog");
         _warmup->checkForAccessLog();
         _warmup->removeFromTaskSet(uid);
         return false;
@@ -364,6 +371,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupLoadAccessLog");
         _warmup->loadingAccessLog(_shardId);
         _warmup->removeFromTaskSet(uid);
         return false;
@@ -391,6 +399,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupLoadingKVPairs");
         _warmup->loadKVPairsforShard(_shardId);
         _warmup->removeFromTaskSet(uid);
         return false;
@@ -418,6 +427,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupLoadingData");
         _warmup->loadDataforShard(_shardId);
         _warmup->removeFromTaskSet(uid);
         return false;
@@ -444,6 +454,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "WarmupCompletion");
         _warmup->done();
         _warmup->removeFromTaskSet(uid);
         return false;

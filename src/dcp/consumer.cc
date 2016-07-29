@@ -26,6 +26,7 @@
 #include <platform/make_unique.h>
 
 #include <climits>
+#include <phosphor/phosphor.h>
 
 const std::string DcpConsumer::noopCtrlMsg = "enable_noop";
 const std::string DcpConsumer::noopIntervalCtrlMsg = "set_noop_interval";
@@ -50,6 +51,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "Processor");
         DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
         if (consumer->doDisconnect()) {
             return false;
@@ -620,6 +622,7 @@ ENGINE_ERROR_CODE DcpConsumer::step(struct dcp_message_producers* producers) {
 }
 
 bool RollbackTask::run() {
+    TRACE_EVENT0("ep-engine/task", "RollbackTask");
     if (cons->doDisconnect()) {
         return false;
     }

@@ -30,6 +30,8 @@
 #include <string>
 #include <utility>
 
+#include <phosphor/phosphor.h>
+
 
 static const size_t MAX_PERSISTENCE_QUEUE_SIZE = 1000000;
 
@@ -253,6 +255,7 @@ ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
     doEvict(false) { }
 
 bool ItemPager::run(void) {
+    TRACE_EVENT0("ep-engine/task", "ItemPager");
     EventuallyPersistentStore *store = engine->getEpStore();
     double current = static_cast<double>(stats.getTotalMemoryUsed());
     double upper = static_cast<double>(stats.mem_high_wat);
@@ -340,6 +343,7 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
 }
 
 bool ExpiredItemPager::run(void) {
+    TRACE_EVENT0("ep-engine/task", "ExpiredItemPager");
     EventuallyPersistentStore *store = engine->getEpStore();
     bool inverse = true;
     if ((*available).compare_exchange_strong(inverse, false)) {

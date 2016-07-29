@@ -24,6 +24,8 @@
 #include <vector>
 #include <map>
 
+#include <phosphor/phosphor.h>
+
 #include "connmap.h"
 #include "executorthread.h"
 #include "tapconnection.h"
@@ -45,6 +47,7 @@ public:
     }
 
     bool run(void) {
+        TRACE_EVENT0("ep-engine/task", "ConnectionReaperCallback");
         TapProducer *tp = dynamic_cast<TapProducer*>(connection.get());
         if (tp) {
             tp->clearQueues();

@@ -24,6 +24,7 @@ INCLUDE_DIRECTORIES(BEFORE ${CMAKE_INSTALL_PREFIX}/include
                            ${Memcached_SOURCE_DIR}/include
                            ${Couchstore_SOURCE_DIR}/include
                            ${ForestDB_SOURCE_DIR}/include
+                           ${phosphor_SOURCE_DIR}/include
                            ${CMAKE_CURRENT_BINARY_DIR})
 
 INCLUDE_DIRECTORIES(AFTER
@@ -177,7 +178,7 @@ ADD_LIBRARY(ep SHARED
 
 SET_TARGET_PROPERTIES(ep PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep cJSON JSON_checker couchstore forestdb
-  dirutils platform ${LIBEVENT_LIBRARIES})
+  dirutils platform phosphor ${LIBEVENT_LIBRARIES})
 
 # Single executable containing all class-level unit tests involving
 # EventuallyPersistentEngine driven by GoogleTest.
@@ -249,7 +250,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
   $<TARGET_OBJECTS:memory_tracking>
   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
 TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils forestdb gtest JSON_checker mcd_util platform
-                      ${MALLOC_LIBRARIES})
+                      phosphor ${MALLOC_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
@@ -358,7 +359,7 @@ ADD_EXECUTABLE(ep-engine_kvstore_test
   ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE}
   $<TARGET_OBJECTS:couchstore_test_fileops>)
 TARGET_LINK_LIBRARIES(ep-engine_kvstore_test
-                      cJSON JSON_checker couchstore dirutils forestdb gmock gtest platform)
+                      cJSON JSON_checker couchstore dirutils forestdb gmock gtest platform phosphor)
 TARGET_INCLUDE_DIRECTORIES(ep-engine_kvstore_test
         PUBLIC
         ${Couchstore_SOURCE_DIR})

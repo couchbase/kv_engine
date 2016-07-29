@@ -3881,6 +3881,7 @@ public:
                                      0, false),
                           ep(e), cookie(c), add_stat(a) { }
     bool run(void) {
+        TRACE_EVENT0("ep-engine/task", "StatsCheckpointTask");
         StatCheckpointVisitor scv(ep->getEpStore(), cookie, add_stat);
         ep->getEpStore()->visit(scv);
         ep->notifyIOComplete(cookie, ENGINE_SUCCESS);
@@ -6093,6 +6094,7 @@ public:
     }
 
     bool run() {
+        TRACE_EVENT0("ep-engine/task", "FetchAllKeysTask");
         ENGINE_ERROR_CODE err;
         if (engine->getEpStore()->getVBuckets().isBucketCreation(vbid)) {
             // Returning an empty packet with a SUCCESS response as

@@ -24,6 +24,8 @@
 #include <string>
 #include <vector>
 
+#include <phosphor/phosphor.h>
+
 #include "connmap.h"
 #include "executorthread.h"
 #include "tapconnection.h"
@@ -119,6 +121,7 @@ public:
      * closed or to ensure dcp noop messages are sent once a second.
      */
     bool run(void) {
+        TRACE_EVENT0("ep-engine/task", "ConnManager");
         connmap->manageConnections();
         snooze(sleepTime);
         return !engine->getEpStats().isShutdown ||

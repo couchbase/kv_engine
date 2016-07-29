@@ -19,6 +19,8 @@
 
 #include <limits>
 
+#include <phosphor/phosphor.h>
+
 #include "backfill.h"
 #include "tasks.h"
 #include "ep_engine.h"
@@ -674,6 +676,8 @@ public:
     }
 
     bool run(void) {
+        TRACE_EVENT("ep-engine/task", "ResumeCallback",
+                     PHOSPHOR_PTR(conn.get()));
         if (engine.getEpStats().isShutdown) {
             return false;
         }
@@ -952,6 +956,7 @@ bool TapProducer::waitForOpaqueMsgAck() {
 
 
 bool BGFetchCallback::run() {
+    TRACE_EVENT("ep-engine/task", "BGFetchCallback", vbucket, connToken);
     hrtime_t start = gethrtime();
     RememberingCallback<GetValue> gcb;
 

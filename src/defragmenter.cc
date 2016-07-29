@@ -17,6 +17,8 @@
 
 #include "defragmenter.h"
 
+#include <phosphor/phosphor.h>
+
 #include "defragmenter_visitor.h"
 #include "ep_engine.h"
 #include "stored-value.h"
@@ -34,6 +36,7 @@ DefragmenterTask::~DefragmenterTask() {
 }
 
 bool DefragmenterTask::run(void) {
+    TRACE_EVENT0("ep-engine/task", "DefragmenterTask");
     if (engine->getConfiguration().isDefragmenterEnabled()) {
         // Get our visitor. If we didn't finish the previous pass,
         // then resume from where we last were, otherwise create a new visitor and

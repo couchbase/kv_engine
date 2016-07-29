@@ -19,6 +19,8 @@
 
 #include <iostream>
 
+#include <phosphor/phosphor.h>
+
 #include "access_scanner.h"
 #include "ep_engine.h"
 #include "mutation_log.h"
@@ -215,6 +217,8 @@ AccessScanner::AccessScanner(EventuallyPersistentStore &_store, EPStats &st,
 }
 
 bool AccessScanner::run() {
+    TRACE_EVENT0("ep-engine/task", "AccessScanner");
+
     bool inverse = true;
     if (available.compare_exchange_strong(inverse, false)) {
         store.resetAccessScannerTasktime();

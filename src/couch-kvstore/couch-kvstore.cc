@@ -34,6 +34,7 @@
 #include <iostream>
 #include <list>
 #include <map>
+#include <phosphor/phosphor.h>
 #include <platform/checked_snprintf.h>
 #include <string>
 #include <utility>
@@ -787,6 +788,8 @@ bool CouchKVStore::compactDB(compaction_ctx *hook_ctx) {
         throw std::logic_error("CouchKVStore::compactDB: Cannot perform "
                         "on a read-only instance.");
     }
+    TRACE_EVENT("ep-engine/couch-kvstore", "compactDB",
+                this->configuration.getShardId());
 
     couchstore_compact_hook       hook = time_purge_hook;
     couchstore_docinfo_hook      dhook = edit_docinfo_hook;
@@ -1030,6 +1033,9 @@ StorageProperties CouchKVStore::getStorageProperties() {
 }
 
 bool CouchKVStore::commit() {
+    TRACE_EVENT("ep-engine/couch-kvstore", "commit",
+                this->configuration.getShardId());
+
     if (isReadOnly()) {
         throw std::logic_error("CouchKVStore::commit: Not valid on a read-only "
                         "object.");

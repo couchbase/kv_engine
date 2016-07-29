@@ -21,6 +21,8 @@
 
 #include <memory>
 
+#include <phosphor/phosphor.h>
+
 static const double FREQUENCY(60.0);
 
 /**
@@ -39,6 +41,7 @@ public:
 };
 
 bool HashtableResizerTask::run(void) {
+    TRACE_EVENT0("ep-engine/task", "HashtableResizerTask");
     std::shared_ptr<ResizingVisitor> pv(new ResizingVisitor);
     store->visit(pv, "Hashtable resizer", NONIO_TASK_IDX,
             TaskId::HashtableResizerVisitorTask);

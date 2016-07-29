@@ -15,6 +15,7 @@
  *   limitations under the License.
  */
 
+#include <phosphor/phosphor.h>
 #include "config.h"
 #include "ep_engine.h"
 #include "connmap.h"
@@ -50,6 +51,7 @@ private:
 };
 
 bool BackfillManagerTask::run() {
+    TRACE_EVENT0("ep-engine/task", "BackFillManagerTask");
     // Create a new shared_ptr to the manager for the duration of this
     // execution.
     auto manager = weak_manager.lock();

@@ -29,6 +29,8 @@
 #include <utility>
 #include <vector>
 
+#include <phosphor/phosphor.h>
+
 #include "access_scanner.h"
 #include "bgfetcher.h"
 #include "checkpoint_remover.h"
@@ -324,6 +326,7 @@ public:
     }
 
     bool run(void) {
+        TRACE_EVENT("ep-engine/task", "VBucketMemoryDeletionTask", vbid);
         vbucket->notifyAllPendingConnsFailed(e);
         vbucket->ht.clear();
         vbucket.reset();
@@ -349,6 +352,8 @@ public:
     }
 
     bool run(void) {
+        TRACE_EVENT("ep-engine/task", "PendingOpsNotification",
+                     vbucket->getId());
         vbucket->fireAllOps(engine);
         return false;
     }
@@ -1378,6 +1383,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
                                                            vbucket_state_t to,
                                                            bool transfer,
                                                            bool notify_dcp) {
+    TRACE_EVENT("ep-engine/EventuallyPersistentStore", "setVBucketState", vbid);
     // Lock to prevent a race condition between a failed update and add.
     LockHolder lh(vbsetMutex);
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
@@ -3921,6 +3927,7 @@ VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s, TaskId id,
 
 bool VBCBAdaptor::run(void) {
     if (!vbList.empty()) {
+        TRACE_EVENT("ep-engine/task", "VBCBAdaptor", vbList.front());
         currentvb.store(vbList.front());
         RCPtr<VBucket> vb = store->vbMap.getBucket(currentvb);
         if (vb) {
@@ -3960,6 +3967,7 @@ VBucketVisitorTask::VBucketVisitorTask(EventuallyPersistentStore *s,
 
 bool VBucketVisitorTask::run() {
     if (!vbList.empty()) {
+        TRACE_EVENT("ep-engine/task", "VBucketVisitorTask", vbList.front());
         currentvb = vbList.front();
         RCPtr<VBucket> vb = store->vbMap.getBucket(currentvb);
         if (vb) {
