@@ -141,6 +141,7 @@ TARGET_LINK_LIBRARIES(memcached_daemon
                       cJSON
                       JSON_checker
                       subjson
+                      phosphor
                       ${SNAPPY_LIBRARIES}
                       ${MALLOC_LIBRARIES}
                       ${LIBEVENT_CORE_LIB}

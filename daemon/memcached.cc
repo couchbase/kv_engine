@@ -48,6 +48,7 @@
 #include "libevent_locking.h"
 
 #include <platform/strerror.h>
+#include <phosphor/phosphor.h>
 
 #include <signal.h>
 #include <fcntl.h>
@@ -2770,6 +2771,9 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_NOTICE(NULL, "Releasing connection objects");
     destroy_connections();
+
+    LOG_NOTICE(nullptr, "Stopping tracing");
+    phosphor::TraceLog::getInstance().stop();
 
     LOG_NOTICE(NULL, "Shutting down engine map");
     shutdown_engine_map();
