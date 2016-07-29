@@ -22,10 +22,11 @@
 #include "mc_time.h"
 
 #include <exception>
-#include <utilities/protocol2text.h>
+#include <phosphor/phosphor.h>
 #include <platform/checked_snprintf.h>
 #include <platform/strerror.h>
 #include <platform/timeutils.h>
+#include <utilities/protocol2text.h>
 
 /* cJSON uses double for all numbers, so only has 53 bits of precision.
  * Therefore encode 64bit integers as string.
@@ -993,6 +994,7 @@ void McbpConnection::setState(TaskFunction next_state) {
 }
 
 void McbpConnection::runStateMachinery() {
+    TRACE_EVENT("memcached/state_machine", "run", PHOSPHOR_PTR(this));
     if (isTraceEnabled()) {
         do {
             // @todo we should have a TRACE scope!!

@@ -25,6 +25,8 @@
 #include "runtime.h"
 #include "mcaudit.h"
 
+#include <phosphor/phosphor.h>
+
 void McbpStateMachine::setCurrentTask(McbpConnection& connection, TaskFunction task) {
     // Moving to the same state is legal
     if (task == currentTask) {
@@ -150,6 +152,7 @@ static void reset_cmd_handler(McbpConnection *c) {
  *              if we should start processing events for other connections.
  */
 bool conn_ship_log(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_ship_log", PHOSPHOR_PTR(c));
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -206,6 +209,7 @@ bool conn_ship_log(McbpConnection *c) {
 }
 
 bool conn_waiting(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_waiting", PHOSPHOR_PTR(c));
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -219,6 +223,7 @@ bool conn_waiting(McbpConnection *c) {
 }
 
 bool conn_read(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_read", PHOSPHOR_PTR(c));
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -247,6 +252,7 @@ bool conn_read(McbpConnection *c) {
 }
 
 bool conn_parse_cmd(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_parse_cmd", PHOSPHOR_PTR(c));
     if (try_read_mcbp_command(c) == 0) {
         /* wee need more data! */
         c->setState(conn_waiting);
@@ -256,6 +262,7 @@ bool conn_parse_cmd(McbpConnection *c) {
 }
 
 bool conn_new_cmd(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_new_cmd", PHOSPHOR_PTR(c));
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -302,6 +309,7 @@ bool conn_new_cmd(McbpConnection *c) {
 }
 
 bool conn_nread(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_nread", PHOSPHOR_PTR(c));
     if (is_bucket_dying(c)) {
         return true;
     }
@@ -373,6 +381,8 @@ bool conn_nread(McbpConnection *c) {
 }
 
 bool conn_write(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_write",
+                PHOSPHOR_PTR(c), c->write.bytes);
     /*
      * We want to write out a simple response. If we haven't already,
      * assemble it into a msgbuf list (this will be a single-entry
@@ -390,6 +400,7 @@ bool conn_write(McbpConnection *c) {
 }
 
 bool conn_mwrite(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_mwrite", PHOSPHOR_PTR(c));
     bool ret = true;
 
     switch (c->transmit()) {
@@ -428,6 +439,8 @@ bool conn_mwrite(McbpConnection *c) {
 }
 
 bool conn_pending_close(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_pending_close",
+                PHOSPHOR_PTR(c));
     if (!c->isSocketClosed()) {
         throw std::logic_error("conn_pending_close: socketDescriptor must be closed");
     }
@@ -449,6 +462,8 @@ bool conn_pending_close(McbpConnection *c) {
 }
 
 bool conn_immediate_close(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_immediate_close",
+                PHOSPHOR_PTR(c));
     struct listening_port *port_instance;
     if (!c->isSocketClosed()) {
         throw std::logic_error("conn_immediate_close: socketDescriptor must be closed");
@@ -474,6 +489,7 @@ bool conn_immediate_close(McbpConnection *c) {
 }
 
 bool conn_closing(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_closing", PHOSPHOR_PTR(c));
     /* We don't want any network notifications anymore.. */
     c->unregisterEvent();
     safe_close(c->getSocketDescriptor());
@@ -493,11 +509,14 @@ bool conn_closing(McbpConnection *c) {
 /** sentinal state used to represent a 'destroyed' connection which will
  *  actually be freed at the end of the event loop. Always returns false.
  */
-bool conn_destroyed(McbpConnection*) {
+bool conn_destroyed(McbpConnection* c) {
+    TRACE_INSTANT("memcached/statemachine", "conn_destroyed", PHOSPHOR_PTR(c));
     return false;
 }
 
 bool conn_refresh_cbsasl(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_refresh_cbsasl",
+                PHOSPHOR_PTR(c));
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
@@ -525,6 +544,8 @@ bool conn_refresh_cbsasl(McbpConnection *c) {
 }
 
 bool conn_refresh_ssl_certs(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_refresh_ssl_certs",
+                PHOSPHOR_PTR(c));
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
@@ -563,6 +584,7 @@ bool conn_refresh_ssl_certs(McbpConnection *c) {
  *              connection.
  */
 bool conn_flush(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_flush", PHOSPHOR_PTR(c));
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
@@ -582,6 +604,8 @@ bool conn_flush(McbpConnection *c) {
 }
 
 bool conn_audit_configuring(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_audit_configuring",
+                PHOSPHOR_PTR(c));
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
@@ -601,6 +625,8 @@ bool conn_audit_configuring(McbpConnection *c) {
 }
 
 bool conn_create_bucket(McbpConnection* c) {
+    TRACE_EVENT("memcached/statemachine", "conn_create_bucket",
+                PHOSPHOR_PTR(c));
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
@@ -623,6 +649,8 @@ bool conn_create_bucket(McbpConnection* c) {
 }
 
 bool conn_delete_bucket(McbpConnection *c) {
+    TRACE_EVENT("memcached/statemachine", "conn_delete_bucket",
+                PHOSPHOR_PTR(c));
     ENGINE_ERROR_CODE ret = c->getAiostat();
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
@@ -645,6 +673,7 @@ bool conn_delete_bucket(McbpConnection *c) {
 }
 
 bool conn_sasl_auth(McbpConnection* c) {
+    TRACE_EVENT("memcached/statemachine", "conn_sasl_auth", PHOSPHOR_PTR(c));
     c->setAiostat(ENGINE_SUCCESS);
     c->setEwouldblock(false);
 
