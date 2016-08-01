@@ -226,8 +226,11 @@ void store_object(const char *key, const char *value, bool validate = false);
 
 void store_object_with_flags(const char *key, const char *value, uint32_t flags);
 
-/* Attempts to delete the object with the given key */
-void delete_object(const char *key);
+/* Attempts to delete the object with the given key.
+ * @param key key to remove
+ * @param ignore_missing do not fail if key did not exist
+ */
+void delete_object(const char *key, bool ignore_missing = false);
 
 /* Attempts to store an object with a datatype */
 enum test_return store_object_w_datatype(const char *key,

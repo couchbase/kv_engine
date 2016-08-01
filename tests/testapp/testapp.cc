@@ -2671,7 +2671,7 @@ void store_object_with_flags(const char *key, const char *value,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
-void delete_object(const char* key) {
+void delete_object(const char* key, bool ignore_missing) {
     union {
         protocol_binary_request_no_extras request;
         protocol_binary_response_no_extras response;
@@ -2682,6 +2682,11 @@ void delete_object(const char* key) {
                                   NULL, 0);
     safe_send(send.bytes, len, false);
     safe_recv_packet(receive.bytes, sizeof(receive.bytes));
+    if (ignore_missing && receive.response.message.header.response.status ==
+            PROTOCOL_BINARY_RESPONSE_KEY_ENOENT) {
+        /* Ignore. Just using this for cleanup then */
+        return;
+    }
     mcbp_validate_response_header(&receive.response, PROTOCOL_BINARY_CMD_DELETE,
                                   PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
