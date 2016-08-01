@@ -449,6 +449,7 @@ private:
         // Calculate Size
         va_copy(cpy, va);
         buffer.resize(vsnprintf(nullptr, 0, fmt, cpy) + 1);
+        va_end(cpy);
 
         // Write to vector and return as string
         vsnprintf(buffer.data(), buffer.size(), fmt, va);
