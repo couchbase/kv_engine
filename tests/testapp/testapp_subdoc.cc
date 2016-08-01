@@ -385,12 +385,14 @@ void store_object(const std::string& key,
 
 // Ensure the execution of the operation is successful
 #define EXPECT_SD_OK(cmd) EXPECT_PRED_FORMAT1(subdoc_pred_ok, cmd)
+#define ASSERT_SD_OK(cmd) ASSERT_PRED_FORMAT1(subdoc_pred_ok, cmd)
 
 // Ensure the execution of the operation returns an error
 #define EXPECT_SD_ERR(cmd, err) EXPECT_PRED_FORMAT2(subdoc_pred_errcode, cmd, err)
 
 // Ensure the returned value is equal to val
 #define EXPECT_SD_VALEQ(cmd, val) EXPECT_PRED_FORMAT2(subdoc_pred_value, cmd, val)
+#define ASSERT_SD_VALEQ(cmd, val) ASSERT_PRED_FORMAT2(subdoc_pred_value, cmd, val)
 
 // Ensure the path p in the document k is equal to v
 #define EXPECT_SD_GET(k, p, v) EXPECT_SD_VALEQ(\
@@ -1748,6 +1750,51 @@ TEST_P(McdTestappTest, SubdocCASAutoRetry)
     EXPECT_SUBDOC_CMD(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
                                 "a", "key3", "3"),
                       PROTOCOL_BINARY_RESPONSE_ETMPFAIL, "");
+    delete_object("a");
+}
+
+TEST_P(McdTestappTest, SubdocMkdoc_Array)
+{
+    // Create new document (array)
+    ASSERT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST,
+                           "a", "", "0", SUBDOC_FLAG_MKDOC));
+    EXPECT_SD_GET("a", "[0]", "0");
+
+    // Flag doesn't do anything if doc already exists
+    ASSERT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST,
+                           "a", "", "1", SUBDOC_FLAG_MKDOC));
+    EXPECT_SD_GET("a", "[1]", "1");
+
+    delete_object("a");
+}
+
+TEST_P(McdTestappTest, SubdocMkdoc_Dict) {
+    // Create new document (dictionary)
+    ASSERT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                           "a", "foo", "1", SUBDOC_FLAG_MKDOC));
+    EXPECT_SD_GET("a", "foo", "1");
+
+    // Flag doesn't do anything if doc already exists
+    ASSERT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                           "a", "bar", "2", SUBDOC_FLAG_MKDOC));
+    EXPECT_SD_GET("a", "bar", "2");
+
+    // Flag still has MKDIR_P semantics if needed
+    ASSERT_SD_OK(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT,
+                           "a", "nested.path", "3", SUBDOC_FLAG_MKDOC));
+    EXPECT_SD_GET("a", "nested.path", "3");
+
+    delete_object("a");
+}
+
+TEST_P(McdTestappTest, SubdocMkdoc_Counter) {
+    // Counter should also work (with a path) + MKDIR_P
+    ASSERT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                              "a", "counter.path", "42", SUBDOC_FLAG_MKDOC), "42");
+    // Repeat should be OK
+    ASSERT_SD_VALEQ(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_COUNTER,
+                              "a", "counter.path", "42", SUBDOC_FLAG_MKDOC), "84");
+    delete_object("a");
 }
 
 // Test operation of setting document expiry for single-path commands.

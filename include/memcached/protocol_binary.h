@@ -499,7 +499,12 @@ extern "C"
         SUBDOC_FLAG_NONE = 0x0,
 
         /* (Mutation) Should non-existent intermediate paths be created? */
-        SUBDOC_FLAG_MKDIR_P = 0x01
+        SUBDOC_FLAG_MKDIR_P = 0x01,
+
+        /* (Mutation) Create the document if it does not exist. Implies
+         * SUBDOC_FLAG_MKDIR_P.
+         */
+        SUBDOC_FLAG_MKDOC = 0x02
     } protocol_binary_subdoc_flag;
 
     /**

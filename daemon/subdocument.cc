@@ -22,6 +22,7 @@
 #include "connections.h"
 #include "debug_helpers.h"
 #include "mcbp.h"
+#include "subdoc/util.h"
 #include "subdocument_context.h"
 #include "subdocument_traits.h"
 #include "subdocument_validators.h"
@@ -39,7 +40,8 @@
  * Declarations
  */
 
-static bool subdoc_fetch(McbpConnection* c, ENGINE_ERROR_CODE ret, const char* key,
+static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
+                         ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket, uint64_t cas);
 
 static bool subdoc_operate(SubdocCmdContext* context);
@@ -116,12 +118,15 @@ subdoc_create_context(McbpConnection* c, const SubdocCmdTraits traits,
                 value.len -= pathlen;
 
                 context->ops.emplace_back
-                    (SubdocCmdContext::OperationSpec{get_subdoc_cmd_traits(mcbp_cmd),
-                                                     flags, path, value});
+                    (SubdocCmdContext::OperationSpec{traits, flags, path, value});
             } else {
                 context->ops.emplace_back
-                    (SubdocCmdContext::OperationSpec{get_subdoc_cmd_traits(mcbp_cmd),
-                                                     flags, path});
+                    (SubdocCmdContext::OperationSpec{traits, flags, path});
+            }
+
+            if (flags & SUBDOC_FLAG_MKDOC) {
+                context->jroot_type =
+                        Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
             }
 
             if (settings.getVerbose() > 1) {
@@ -168,6 +173,11 @@ subdoc_create_context(McbpConnection* c, const SubdocCmdTraits traits,
                 }
 
                 auto traits = get_subdoc_cmd_traits(binprot_cmd);
+                if ((flags & SUBDOC_FLAG_MKDOC) && context->jroot_type == 0) {
+                    // Determine the root type
+                    context->jroot_type =
+                            Subdoc::Util::get_root_type(traits.command, path.buf, path.len);
+                }
 
                 context->ops.emplace_back
                     (SubdocCmdContext::OperationSpec{traits, flags, path,
@@ -297,7 +307,7 @@ static void subdoc_executor(McbpConnection *c, const void *packet,
         // continue if it returned true, otherwise return from this function
         // (which may result in it being called again later in the EWOULDBLOCK
         // case).
-        if (!subdoc_fetch(c, ret, key, keylen, vbucket, cas)) {
+        if (!subdoc_fetch(c, *context, ret, key, keylen, vbucket, cas)) {
             return;
         }
 
@@ -497,10 +507,11 @@ get_document_for_searching(McbpConnection * c, const item* item,
 // Fetch the item to operate on from the engine.
 // Returns true if the command was successful (and execution should continue),
 // else false.
-static bool subdoc_fetch(McbpConnection* c, ENGINE_ERROR_CODE ret, const char* key,
+static bool subdoc_fetch(McbpConnection* c, SubdocCmdContext& ctx,
+                         ENGINE_ERROR_CODE ret, const char* key,
                          size_t keylen, uint16_t vbucket, uint64_t cas) {
 
-    if (c->getItem() == NULL) {
+    if (c->getItem() == NULL && !ctx.needs_new_doc) {
         item* initial_item;
 
         if (ret == ENGINE_SUCCESS) {
@@ -512,7 +523,27 @@ static bool subdoc_fetch(McbpConnection* c, ENGINE_ERROR_CODE ret, const char* k
             // We have the item; assign to c->item (so we'll start from step 2
             // next time).
             c->setItem(initial_item);
+            ctx.needs_new_doc = false;
             break;
+
+        case ENGINE_KEY_ENOENT:
+            // The item does not exist. Check the current command context to
+            // determine if we should at all write a new document (i.e. pretend
+            // it exists) and defer insert until later.. OR if we should simply
+            // bail.
+
+            if (ctx.jroot_type == JSONSL_T_LIST) {
+                ctx.in_doc = {"[]", 2};
+            } else if (ctx.jroot_type == JSONSL_T_OBJECT) {
+                ctx.in_doc = {"{}", 2};
+            } else {
+                mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(ret));
+                return false;
+            }
+
+            // Indicate that a new document is required:
+            ctx.needs_new_doc = true;
+            return true;
 
         case ENGINE_EWOULDBLOCK:
             c->setEwouldblock(true);
@@ -528,16 +559,7 @@ static bool subdoc_fetch(McbpConnection* c, ENGINE_ERROR_CODE ret, const char* k
         }
     }
 
-    auto* context = dynamic_cast<SubdocCmdContext*>(c->getCommandContext());
-    if (context == nullptr) {
-        LOG_WARNING(c,
-             "subdoc_fetch: Failed to allocate context - closing connection");
-        c->setState(conn_closing);
-        return false;
-    }
-
-
-    if (context->in_doc.buf == nullptr) {
+    if (ctx.in_doc.buf == nullptr) {
         // Retrieve the item_info the engine, and if necessary
         // uncompress it so subjson can parse it.
         uint64_t doc_cas;
@@ -555,9 +577,9 @@ static bool subdoc_fetch(McbpConnection* c, ENGINE_ERROR_CODE ret, const char* k
         }
 
         // Record the input document in the context.
-        context->in_doc = doc;
-        context->in_cas = doc_cas;
-        context->in_flags = doc_flags;
+        ctx.in_doc = doc;
+        ctx.in_cas = doc_cas;
+        ctx.in_flags = doc_flags;
     }
 
     return true;
@@ -817,8 +839,8 @@ ENGINE_ERROR_CODE subdoc_update(SubdocCmdContext* context,
 
     // And finally, store the new document.
     uint64_t new_cas;
-    ret = bucket_store(c, context->out_doc, &new_cas, OPERATION_REPLACE,
-                       vbucket);
+    auto new_op = context->needs_new_doc ? OPERATION_ADD : OPERATION_REPLACE;
+    ret = bucket_store(c, context->out_doc, &new_cas, new_op, vbucket);
     switch (ret) {
     case ENGINE_SUCCESS:
         // Record the UUID / Seqno if MUTATION_SEQNO feature is enabled so

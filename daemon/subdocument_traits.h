@@ -94,7 +94,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_EXISTS>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
     return {Subdoc::Command::DICT_ADD,
-            SUBDOC_FLAG_MKDIR_P,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -105,7 +105,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_DICT_UPSERT>() {
     return {Subdoc::Command::DICT_UPSERT,
-            SUBDOC_FLAG_MKDIR_P,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/false,
@@ -138,7 +138,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_REPLACE>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() {
     return {Subdoc::Command::ARRAY_APPEND,
-            SUBDOC_FLAG_MKDIR_P,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/false,
@@ -149,7 +149,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_LAST>() 
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_PUSH_FIRST>() {
     return {Subdoc::Command::ARRAY_PREPEND,
-            SUBDOC_FLAG_MKDIR_P,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/false,
@@ -171,7 +171,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_INSERT>() {
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>() {
     return {Subdoc::Command::ARRAY_ADD_UNIQUE,
-            SUBDOC_FLAG_MKDIR_P,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
             /*request_has_value*/true,
             /*allow_empty_path*/true,
             /*response_has_value*/false,
@@ -182,7 +182,7 @@ inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_ARRAY_ADD_UNIQUE>()
 template <>
 inline SubdocCmdTraits get_traits<PROTOCOL_BINARY_CMD_SUBDOC_COUNTER>() {
     return {Subdoc::Command::COUNTER,
-            SUBDOC_FLAG_MKDIR_P,
+            SUBDOC_FLAG_MKDIR_P|SUBDOC_FLAG_MKDOC,
             /*request_has_value*/true,
             /*allow_empty_path*/false,
             /*response_has_value*/true,

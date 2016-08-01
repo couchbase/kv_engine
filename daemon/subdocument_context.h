@@ -41,7 +41,10 @@ struct SubdocCmdContext : public CommandContext {
         traits(traits_),
         in_doc({NULL, 0}),
         in_cas(0),
+        in_flags(0),
         executed(false),
+        jroot_type(JSONSL_T_ROOT),
+        needs_new_doc(false),
         out_doc_len(0),
         out_doc(NULL),
         response_val_len(0) { }
@@ -91,6 +94,12 @@ struct SubdocCmdContext : public CommandContext {
     // True if this operation has been successfully executed (via subjson)
     // and we have valid result.
     bool executed;
+
+    // [Mutations only] The type of the root element, if flags & FLAG_MKDOC
+    jsonsl_type_t jroot_type;
+    // [Mutations only] True if the doc does not exist and an insert (rather
+    // than replace) is required.
+    bool needs_new_doc;
 
     // Overall status of the entire command.
     // For single-path commands this is simply the same as the first (and only)
@@ -168,7 +177,7 @@ SubdocCmdContext::OperationSpec::OperationSpec(SubdocCmdTraits traits_,
       path(path_),
       value(value_),
       status(PROTOCOL_BINARY_RESPONSE_EINTERNAL) {
-    if ((flags & SUBDOC_FLAG_MKDIR_P) == SUBDOC_FLAG_MKDIR_P) {
+    if ((flags & (SUBDOC_FLAG_MKDIR_P | SUBDOC_FLAG_MKDOC))) {
         traits.command = Subdoc::Command
                         (traits.command | Subdoc::Command::FLAG_MKDIR_P);
     }
