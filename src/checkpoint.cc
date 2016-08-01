@@ -303,7 +303,6 @@ std::ostream& operator <<(std::ostream& os, const Checkpoint& c) {
 }
 
 CheckpointManager::~CheckpointManager() {
-    LockHolder lh(queueLock);
     std::list<Checkpoint*>::iterator it = checkpointList.begin();
     while(it != checkpointList.end()) {
         delete *it;
