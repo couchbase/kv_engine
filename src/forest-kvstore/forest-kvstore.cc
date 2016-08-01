@@ -138,6 +138,13 @@ ForestKVStore::ForestKVStore(KVStoreConfig &config) :
      */
     fileConfig.compress_document_body = true;
 
+    /* Disable breakpad. The memcached binary already has breakpad
+     * initialized. ForestDB is already part of the memcached
+     * binary and thus doesn't have to be initialized again
+     * for ForestDB.
+     */
+    fileConfig.breakpad_minidump_dir = nullptr;
+
     statCollectingFileOps = getForestStatOps(&st.fsStats);
 
     fileConfig.custom_file_ops = &statCollectingFileOps;
