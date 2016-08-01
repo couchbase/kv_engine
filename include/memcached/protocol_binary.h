@@ -1978,6 +1978,12 @@ extern "C"
      * @}
      */
 #ifdef __cplusplus
+    inline protocol_binary_subdoc_flag operator|(protocol_binary_subdoc_flag a,
+                                                 protocol_binary_subdoc_flag b)
+    {
+        return protocol_binary_subdoc_flag(static_cast<uint8_t>(a)|
+                                           static_cast<uint8_t>(b));
+    }
 }
 #endif
 #endif /* PROTOCOL_BINARY_H */
