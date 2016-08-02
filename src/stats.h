@@ -552,6 +552,9 @@ public:
     //! Histogram of setting vbucket state
     Histogram<hrtime_t> snapshotVbucketHisto;
 
+    //! Histogram of persisting vbucket state
+    Histogram<hrtime_t> persistVBStateHisto;
+
     //! Histogram of mutation log compactor
     Histogram<hrtime_t> mlogCompactorHisto;
 
@@ -635,7 +638,8 @@ public:
         diskDelHisto.reset();
         diskVBDelHisto.reset();
         diskCommitHisto.reset();
-
+        snapshotVbucketHisto.reset();
+        persistVBStateHisto.reset();
         itemAllocSizeHisto.reset();
         dirtyAgeHisto.reset();
         mlogCompactorHisto.reset();

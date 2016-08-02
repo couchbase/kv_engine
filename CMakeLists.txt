@@ -158,7 +158,6 @@ ADD_LIBRARY(ep SHARED
             src/memory_tracker.cc
             src/murmurhash3.cc
             src/mutation_log.cc
-            src/priority.cc
             src/replicationthrottle.cc
             src/sizes.cc
             ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
@@ -226,7 +225,6 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
   src/murmurhash3.cc
   src/mutation_log.cc
   src/objectregistry.cc
-  src/priority.cc
   src/tapconnection.cc
   src/replicationthrottle.cc
   src/stored-value.cc
@@ -317,9 +315,6 @@ ADD_EXECUTABLE(ep-engine_mutex_test
                src/testlogger.cc)
 TARGET_LINK_LIBRARIES(ep-engine_mutex_test gtest gtest_main platform)
 
-ADD_EXECUTABLE(ep-engine_priority_test  tests/module_tests/priority_test.cc src/priority.cc)
-TARGET_LINK_LIBRARIES(ep-engine_priority_test platform)
-
 ADD_EXECUTABLE(ep-engine_ringbuffer_test tests/module_tests/ringbuffer_test.cc)
 TARGET_LINK_LIBRARIES(ep-engine_ringbuffer_test platform)
 
@@ -355,7 +350,6 @@ ADD_TEST(ep-engine_hash_table_test ep-engine_hash_table_test)
 ADD_TEST(ep-engine_hrtime_test ep-engine_hrtime_test)
 ADD_TEST(ep-engine_misc_test ep-engine_misc_test)
 ADD_TEST(ep-engine_mutex_test ep-engine_mutex_test)
-ADD_TEST(ep-engine_priority_test ep-engine_priority_test)
 ADD_TEST(ep-engine_ringbuffer_test ep-engine_ringbuffer_test)
 ADD_TEST(ep-engine_kvstore_test ep-engine_kvstore_test)
 ADD_TEST(ep-engine_defragmenter_test ep-engine_defragmenter_test)

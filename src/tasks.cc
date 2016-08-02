@@ -25,24 +25,35 @@
 
 #include <climits>
 
+#include <type_traits>
+
 static const double VBSTATE_SNAPSHOT_FREQ(300.0);
 static const double WORKLOAD_MONITOR_FREQ(5.0);
 
-GlobalTask::GlobalTask(Taskable& t, const Priority &p,
-           double sleeptime, bool completeBeforeShutdown) :
-      RCValue(), priority(p),
-      blockShutdown(completeBeforeShutdown),
-      state(TASK_RUNNING), taskId(nextTaskId()), engine(NULL), taskable(t) {
+GlobalTask::GlobalTask(Taskable& t,
+                       TaskId taskId,
+                       double sleeptime,
+                       bool completeBeforeShutdown)
+      : RCValue(),
+        blockShutdown(completeBeforeShutdown),
+        state(TASK_RUNNING),
+        uid(nextTaskId()),
+        typeId(taskId),
+        engine(NULL),
+        taskable(t) {
+    priority = getTaskPriority(taskId);
     snooze(sleeptime);
 }
 
-GlobalTask::GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
-           double sleeptime, bool completeBeforeShutdown) :
-      RCValue(), priority(p),
-      blockShutdown(completeBeforeShutdown),
-      state(TASK_RUNNING), taskId(nextTaskId()), engine(e),
-      taskable(e->getTaskable()) {
-    snooze(sleeptime);
+GlobalTask::GlobalTask(EventuallyPersistentEngine *e,
+                       TaskId taskId,
+                       double sleeptime,
+                       bool completeBeforeShutdown)
+      : GlobalTask(e->getTaskable(),
+                   taskId,
+                   sleeptime,
+                   completeBeforeShutdown) {
+    engine = e;
 }
 
 void GlobalTask::snooze(const double secs) {
@@ -61,6 +72,68 @@ void GlobalTask::snooze(const double secs) {
     }
 }
 
+// These static_asserts previously were in priority_test.cc
+static_assert(TaskPriority::MultiBGFetcherTask < TaskPriority::BGFetchCallback,
+              "MultiBGFetcherTask not less than BGFetchCallback");
+
+static_assert(TaskPriority::BGFetchCallback == TaskPriority::VBDeleteTask,
+              "BGFetchCallback not equal VBDeleteTask");
+
+static_assert(TaskPriority::VBStatePersistTaskHigh <
+              TaskPriority::VKeyStatBGFetchTask,
+              "VBStatePersistTaskHigh not less than VKeyStatBGFetchTask");
+
+static_assert(TaskPriority::VKeyStatBGFetchTask < TaskPriority::FlusherTask,
+              "VKeyStatBGFetchTask not less than FlusherTask");
+
+static_assert(TaskPriority::FlusherTask < TaskPriority::ItemPager,
+              "FlusherTask not less than ItemPager");
+
+static_assert(TaskPriority::ItemPager < TaskPriority::BackfillManagerTask,
+              "ItemPager not less than BackfillManagerTask");
+
+/*
+ * Generate a switch statement from tasks.def.h that maps TaskId to a
+ * stringified value of the task's name.
+ */
+const char* GlobalTask::getTaskName(TaskId id) {
+    switch(id) {
+#define TASK(name, prio) case TaskId::name: {return #name;}
+#include "tasks.def.h"
+#undef TASK
+        case TaskId::TASK_COUNT: {
+            throw std::invalid_argument("GlobalTask::getTaskName(TaskId::TASK_COUNT) called.");
+        }
+    }
+    throw std::logic_error("GlobalTask::getTaskName() unknown id " +
+                          std::to_string(static_cast<int>(id)));
+    return nullptr;
+}
+
+/*
+ * Generate a switch statement from tasks.def.h that maps TaskId to priority
+ */
+TaskPriority GlobalTask::getTaskPriority(TaskId id) {
+   switch(id) {
+#define TASK(name, prio) case TaskId::name: {return TaskPriority::name;}
+#include "tasks.def.h"
+#undef TASK
+        case TaskId::TASK_COUNT: {
+            throw std::invalid_argument("GlobalTask::getTaskPriority(TaskId::TASK_COUNT) called.");
+        }
+    }
+    throw std::logic_error("GlobalTask::getTaskPriority() unknown id " +
+                           std::to_string(static_cast<int>(id)));
+    return TaskPriority::PRIORITY_COUNT;
+}
+
+std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)> GlobalTask::allTaskIds = {{
+#define TASK(name, prio) TaskId::name,
+#include "tasks.def.h"
+#undef TASK
+}};
+
+
 bool FlusherTask::run() {
     return flusher->step(this);
 }
@@ -71,21 +144,20 @@ bool VBSnapshotTask::run() {
 }
 
 DaemonVBSnapshotTask::DaemonVBSnapshotTask(EventuallyPersistentEngine *e,
-                                           bool completeBeforeShutdown) :
-    GlobalTask(e, Priority::VBucketPersistLowPriority, VBSTATE_SNAPSHOT_FREQ,
-               completeBeforeShutdown) {
-        desc = "Snapshotting vbucket states";
+                                           bool completeBeforeShutdown)
+    : GlobalTask(e, TaskId::DaemonVBSnapshotTask,
+                 VBSTATE_SNAPSHOT_FREQ, completeBeforeShutdown) {
+    desc = "Snapshotting vbucket states";
 }
 
 bool DaemonVBSnapshotTask::run() {
-    bool ret = engine->getEpStore()->scheduleVBSnapshot(
-               Priority::VBucketPersistLowPriority);
+    bool ret = engine->getEpStore()->scheduleVBSnapshot(VBSnapshotTask::Priority::LOW);
     snooze(VBSTATE_SNAPSHOT_FREQ);
     return ret;
 }
 
 bool VBStatePersistTask::run() {
-    return engine->getEpStore()->persistVBState(priority, vbid);
+    return engine->getEpStore()->persistVBState(vbid);
 }
 
 bool VBDeleteTask::run() {
@@ -101,11 +173,11 @@ bool StatSnap::run() {
     if (runOnce) {
         return false;
     }
-    ExecutorPool::get()->snooze(taskId, 60);
+    ExecutorPool::get()->snooze(uid, 60);
     return true;
 }
 
-bool BgFetcherTask::run() {
+bool MultiBGFetcherTask::run() {
     return bgfetcher->run(this);
 }
 
@@ -120,7 +192,7 @@ bool VKeyStatBGFetchTask::run() {
 }
 
 
-bool BGFetchTask::run() {
+bool SingleBGFetcherTask::run() {
     engine->getEpStore()->completeBGFetch(key, vbucket, cookie, init,
                                           metaFetch);
     return false;
@@ -128,7 +200,7 @@ bool BGFetchTask::run() {
 
 WorkLoadMonitor::WorkLoadMonitor(EventuallyPersistentEngine *e,
                                  bool completeBeforeShutdown) :
-    GlobalTask(e, Priority::WorkLoadMonitorPriority, WORKLOAD_MONITOR_FREQ,
+    GlobalTask(e, TaskId::WorkLoadMonitor, WORKLOAD_MONITOR_FREQ,
                completeBeforeShutdown) {
     prevNumMutations = getNumMutations();
     prevNumGets = getNumGets();

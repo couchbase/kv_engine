@@ -95,8 +95,8 @@ VBucketMap& MockEPStore::getVbMap() {
  */
 class MockGlobalTask : public GlobalTask {
 public:
-    MockGlobalTask(Taskable& t, const Priority &p)
-        : GlobalTask(t, p) {}
+    MockGlobalTask(Taskable& t, TaskId id)
+        : GlobalTask(t, id) {}
 
     bool run() override { return false; }
     std::string getDescription() override { return "MockGlobalTask"; }
@@ -246,7 +246,7 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         MockGlobalTask mockTask(engine->getTaskable(),
-                                Priority::BgFetcherPriority);
+                                TaskId::MultiBGFetcherTask);
         store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
 
         EXPECT_EQ(ENGINE_SUCCESS, do_getKeyStats())

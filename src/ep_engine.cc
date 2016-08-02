@@ -3348,6 +3348,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_vb_snapshot_total",
                     epstats.snapshotVbucketHisto.total(), add_stat, cookie);
 
+    add_casted_stat("ep_persist_vbstate_total",
+                    epstats.persistVBStateHisto.total(), add_stat, cookie);
+
     add_casted_stat("ep_vb_total",
                     activeCountVisitor.getVBucketNumber() +
                     replicaCountVisitor.getVBucketNumber() +
@@ -3885,7 +3888,7 @@ public:
 class StatCheckpointTask : public GlobalTask {
 public:
     StatCheckpointTask(EventuallyPersistentEngine *e, const void *c,
-            ADD_STAT a) : GlobalTask(e, Priority::CheckpointStatsPriority,
+            ADD_STAT a) : GlobalTask(e, TaskId::StatCheckpointTask,
                                      0, false),
                           ep(e), cookie(c), add_stat(a) { }
     bool run(void) {
@@ -4375,6 +4378,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doTimingStats(const void *cookie,
     add_casted_stat("disk_commit", stats.diskCommitHisto, add_stat, cookie);
     add_casted_stat("disk_vbstate_snapshot", stats.snapshotVbucketHisto,
                     add_stat, cookie);
+    add_casted_stat("disk_persist_vbstate", stats.persistVBStateHisto,
+                    add_stat, cookie);
 
     add_casted_stat("item_alloc_sizes", stats.itemAllocSizeHisto,
                     add_stat, cookie);
@@ -4385,9 +4390,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSchedulerStats(const void
                                                                 *cookie,
                                                                 ADD_STAT
                                                                 add_stat) {
-    for (size_t i = 0; i < MAX_TYPE_ID; ++i) {
-        add_casted_stat(Priority::getTypeName(static_cast<type_id_t>(i)),
-                        stats.schedulingHisto[i],
+    for (TaskId id : GlobalTask::allTaskIds) {
+        add_casted_stat(GlobalTask::getTaskName(id),
+                        stats.schedulingHisto[static_cast<int>(id)],
                         add_stat, cookie);
     }
 
@@ -4398,9 +4403,9 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doRunTimeStats(const void
                                                                 *cookie,
                                                                 ADD_STAT
                                                                 add_stat) {
-    for (size_t i = 0; i < MAX_TYPE_ID; ++i) {
-        add_casted_stat(Priority::getTypeName(static_cast<type_id_t>(i)),
-                        stats.taskRuntimeHisto[i],
+    for (TaskId id : GlobalTask::allTaskIds) {
+        add_casted_stat(GlobalTask::getTaskName(id),
+                        stats.taskRuntimeHisto[static_cast<int>(id)],
                         add_stat, cookie);
     }
 
@@ -6101,8 +6106,8 @@ class FetchAllKeysTask : public GlobalTask {
 public:
     FetchAllKeysTask(EventuallyPersistentEngine *e, const void *c,
                      ADD_RESPONSE resp, const std::string &start_key_,
-                     uint16_t vbucket, uint32_t count_, const Priority &p) :
-        GlobalTask(e, p, 0, false), engine(e), cookie(c),
+                     uint16_t vbucket, uint32_t count_) :
+        GlobalTask(e, TaskId::FetchAllKeysTask, 0, false), engine(e), cookie(c),
         response(resp), start_key(start_key_), vbid(vbucket),
         count(count_) { }
 
@@ -6195,8 +6200,7 @@ EventuallyPersistentEngine::getAllKeys(const void* cookie,
     std::string start_key(keyptr, keylen);
 
     ExTask task = new FetchAllKeysTask(this, cookie, response, start_key,
-                                       vbucket, count,
-                                       Priority::BgFetcherPriority);
+                                       vbucket, count);
     ExecutorPool::get()->schedule(task, READER_TASK_IDX);
     return ENGINE_EWOULDBLOCK;
 }
@@ -6506,10 +6510,10 @@ WorkLoadPolicy&  EpEngineTaskable::getWorkLoadPolicy(void) {
     return myEngine->getWorkLoadPolicy();
 }
 
-void EpEngineTaskable::logQTime(type_id_t taskType, hrtime_t enqTime) {
-    myEngine->getEpStore()->logQTime(taskType, enqTime);
+void EpEngineTaskable::logQTime(TaskId id, hrtime_t enqTime) {
+    myEngine->getEpStore()->logQTime(id, enqTime);
 }
 
-void EpEngineTaskable::logRunTime(type_id_t taskType, hrtime_t runTime) {
-    myEngine->getEpStore()->logRunTime(taskType, runTime);
+void EpEngineTaskable::logRunTime(TaskId id, hrtime_t runTime) {
+    myEngine->getEpStore()->logRunTime(id, runTime);
 }

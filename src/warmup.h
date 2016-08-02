@@ -219,10 +219,10 @@ private:
 class WarmupInitialize : public GlobalTask {
 public:
     WarmupInitialize(EventuallyPersistentStore &st,
-                     Warmup *w, const Priority &p) :
-        GlobalTask(&st.getEPEngine(), p, 0, false),
+                     Warmup *w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupInitialize, 0, false),
         _warmup(w) {
-        _warmup->addToTaskSet(taskId);
+        _warmup->addToTaskSet(uid);
     }
 
     std::string getDescription() {
@@ -233,7 +233,7 @@ public:
 
     bool run() {
         _warmup->initialize();
-        _warmup->removeFromTaskSet(taskId);
+        _warmup->removeFromTaskSet(uid);
         return false;
     }
 
@@ -244,11 +244,11 @@ private:
 class WarmupCreateVBuckets : public GlobalTask {
 public:
     WarmupCreateVBuckets(EventuallyPersistentStore &st,
-                         uint16_t sh, Warmup *w, const Priority &p):
-        GlobalTask(&st.getEPEngine(), p, 0, false),
+                         uint16_t sh, Warmup *w):
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupCreateVBuckets, 0, false),
         _shardId(sh),
         _warmup(w) {
-        _warmup->addToTaskSet(taskId);
+        _warmup->addToTaskSet(uid);
     }
 
     std::string getDescription() {
@@ -259,7 +259,7 @@ public:
 
     bool run() {
         _warmup->createVBuckets(_shardId);
-        _warmup->removeFromTaskSet(taskId);
+        _warmup->removeFromTaskSet(uid);
         return false;
     }
 
@@ -271,11 +271,11 @@ private:
 class WarmupEstimateDatabaseItemCount : public GlobalTask {
 public:
     WarmupEstimateDatabaseItemCount(EventuallyPersistentStore &st,
-                                    uint16_t sh, Warmup *w, const Priority &p):
-        GlobalTask(&st.getEPEngine(), p, 0, false),
+                                    uint16_t sh, Warmup *w):
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupEstimateDatabaseItemCount, 0, false),
         _shardId(sh),
         _warmup(w) {
-        _warmup->addToTaskSet(taskId);
+        _warmup->addToTaskSet(uid);
     }
 
     std::string getDescription() {
@@ -286,7 +286,7 @@ public:
 
     bool run() {
         _warmup->estimateDatabaseItemCount(_shardId);
-        _warmup->removeFromTaskSet(taskId);
+        _warmup->removeFromTaskSet(uid);
         return false;
     }
 
@@ -298,11 +298,11 @@ private:
 class WarmupKeyDump : public GlobalTask {
 public:
     WarmupKeyDump(EventuallyPersistentStore &st,
-                  uint16_t sh, Warmup *w, const Priority &p) :
-        GlobalTask(&st.getEPEngine(), p, 0, false),
+                  uint16_t sh, Warmup *w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupKeyDump, 0, false),
         _shardId(sh),
         _warmup(w) {
-        _warmup->addToTaskSet(taskId);
+        _warmup->addToTaskSet(uid);
     }
 
     std::string getDescription() {
@@ -313,7 +313,7 @@ public:
 
     bool run() {
         _warmup->keyDumpforShard(_shardId);
-        _warmup->removeFromTaskSet(taskId);
+        _warmup->removeFromTaskSet(uid);
         return false;
     }
 
@@ -325,10 +325,10 @@ private:
 class WarmupCheckforAccessLog : public GlobalTask {
 public:
     WarmupCheckforAccessLog(EventuallyPersistentStore &st,
-                            Warmup *w, const Priority &p) :
-        GlobalTask(&st.getEPEngine(), p, 0, false),
+                            Warmup *w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupCheckforAccessLog, 0, false),
         _warmup(w) {
-        _warmup->addToTaskSet(taskId);
+        _warmup->addToTaskSet(uid);
     }
 
     std::string getDescription() {
@@ -339,7 +339,7 @@ public:
 
     bool run() {
         _warmup->checkForAccessLog();
-        _warmup->removeFromTaskSet(taskId);
+        _warmup->removeFromTaskSet(uid);
         return false;
     }
 
@@ -350,11 +350,11 @@ private:
 class WarmupLoadAccessLog : public GlobalTask {
 public:
     WarmupLoadAccessLog(EventuallyPersistentStore &st,
-                        uint16_t sh, Warmup *w, const Priority &p) :
-        GlobalTask(&st.getEPEngine(), p, 0, false),
+                        uint16_t sh, Warmup *w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadAccessLog, 0, false),
         _shardId(sh),
         _warmup(w) {
-        _warmup->addToTaskSet(taskId);
+        _warmup->addToTaskSet(uid);
     }
 
     std::string getDescription() {
@@ -365,7 +365,7 @@ public:
 
     bool run() {
         _warmup->loadingAccessLog(_shardId);
-        _warmup->removeFromTaskSet(taskId);
+        _warmup->removeFromTaskSet(uid);
         return false;
     }
 
@@ -377,11 +377,11 @@ private:
 class WarmupLoadingKVPairs : public GlobalTask {
 public:
     WarmupLoadingKVPairs(EventuallyPersistentStore &st,
-                         uint16_t sh, Warmup *w, const Priority &p) :
-        GlobalTask(&st.getEPEngine(), p, 0, false),
+                         uint16_t sh, Warmup *w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingKVPairs, 0, false),
         _shardId(sh),
         _warmup(w) {
-        _warmup->addToTaskSet(taskId);
+        _warmup->addToTaskSet(uid);
     }
 
     std::string getDescription() {
@@ -392,7 +392,7 @@ public:
 
     bool run() {
         _warmup->loadKVPairsforShard(_shardId);
-        _warmup->removeFromTaskSet(taskId);
+        _warmup->removeFromTaskSet(uid);
         return false;
     }
 
@@ -404,11 +404,11 @@ private:
 class WarmupLoadingData : public GlobalTask {
 public:
     WarmupLoadingData(EventuallyPersistentStore &st,
-                      uint16_t sh, Warmup *w, const Priority &p) :
-        GlobalTask(&st.getEPEngine(), p, 0, false),
+                      uint16_t sh, Warmup *w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupLoadingData, 0, false),
         _shardId(sh),
         _warmup(w) {
-        _warmup->addToTaskSet(taskId);
+        _warmup->addToTaskSet(uid);
     }
 
     std::string getDescription() {
@@ -419,7 +419,7 @@ public:
 
     bool run() {
         _warmup->loadDataforShard(_shardId);
-        _warmup->removeFromTaskSet(taskId);
+        _warmup->removeFromTaskSet(uid);
         return false;
     }
 
@@ -431,10 +431,10 @@ private:
 class WarmupCompletion : public GlobalTask {
 public:
     WarmupCompletion(EventuallyPersistentStore &st,
-                     Warmup *w, const Priority &p) :
-        GlobalTask(&st.getEPEngine(), p, 0, false),
+                     Warmup *w) :
+        GlobalTask(&st.getEPEngine(), TaskId::WarmupCompletion, 0, false),
         _warmup(w) {
-        _warmup->addToTaskSet(taskId);
+        _warmup->addToTaskSet(uid);
     }
 
     std::string getDescription() {
@@ -445,7 +445,7 @@ public:
 
     bool run() {
         _warmup->done();
-        _warmup->removeFromTaskSet(taskId);
+        _warmup->removeFromTaskSet(uid);
         return false;
     }
 

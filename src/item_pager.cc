@@ -243,7 +243,7 @@ private:
 };
 
 ItemPager::ItemPager(EventuallyPersistentEngine *e, EPStats &st) :
-    GlobalTask(e, Priority::ItemPagerPriority, 10, false),
+    GlobalTask(e, TaskId::ItemPager, 10, false),
     engine(e),
     stats(st),
     available(new AtomicValue<bool>(true)),
@@ -286,7 +286,7 @@ bool ItemPager::run(void) {
                                                        available, ITEM_PAGER,
                                                        false, bias, &phase));
         store->visit(pv, "Item pager", NONIO_TASK_IDX,
-                    Priority::ItemPagerPriority);
+                     TaskId::ItemPagerVisitor);
     }
 
     snooze(sleepTime);
@@ -296,7 +296,7 @@ bool ItemPager::run(void) {
 ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
                                    EPStats &st, size_t stime,
                                    ssize_t taskTime) :
-    GlobalTask(e, Priority::ItemPagerPriority,
+    GlobalTask(e, TaskId::ExpiredItemPager,
                static_cast<double>(stime), false),
     engine(e),
     stats(st),
@@ -348,7 +348,7 @@ bool ExpiredItemPager::run(void) {
                                                        true, 1, NULL));
         // track spawned tasks for shutdown..
         store->visit(pv, "Expired item remover", NONIO_TASK_IDX,
-                     Priority::ItemPagerPriority, 10);
+                     TaskId::ExpiredItemPagerVisitor, 10);
     }
     snooze(sleepTime);
     updateExpPagerTime(sleepTime);
