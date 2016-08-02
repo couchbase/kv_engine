@@ -655,9 +655,10 @@ public:
         return epstore->deleteVBucket(vbid, c);
     }
 
-    ENGINE_ERROR_CODE compactDB(compaction_ctx c,
+    ENGINE_ERROR_CODE compactDB(uint16_t vbid,
+                                compaction_ctx c,
                                 const void *cookie = NULL) {
-        return epstore->compactDB(c, cookie);
+        return epstore->compactDB(vbid, c, cookie);
     }
 
     bool resetVBucket(uint16_t vbid) {

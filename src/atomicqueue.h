@@ -44,11 +44,17 @@ public:
         }
     }
 
+    /**
+     * True if this queue is empty.
+     */
     bool empty() {
         std::lock_guard<std::mutex> lock(mutex);
         return queue.empty();
     }
 
+    /**
+     * Return the number of queued items.
+     */
     size_t size() {
         std::lock_guard<std::mutex> lock(mutex);
         return queue.size();

@@ -1065,13 +1065,14 @@ extern "C" {
                                     ntohll(req->message.body.purge_before_seq);
         compactreq.drop_deletes     = req->message.body.drop_deletes;
         compactreq.db_file_id       = getDbFileId(e, req);
+        uint16_t vbid = ntohs(req->message.header.request.vbucket);
 
         ENGINE_ERROR_CODE err;
         void* es = e->getEngineSpecific(cookie);
         if (es == NULL) {
             ++stats.pendingCompactions;
             e->storeEngineSpecific(cookie, e);
-            err = e->compactDB(compactreq, cookie);
+            err = e->compactDB(vbid, compactreq, cookie);
         } else {
             e->storeEngineSpecific(cookie, NULL);
             err = ENGINE_SUCCESS;

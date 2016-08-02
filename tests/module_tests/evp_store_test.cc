@@ -69,6 +69,8 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     dcpFlowControlManager_ = new DcpFlowControlManager(*this);
 
     replicationThrottle = new ReplicationThrottle(configuration, stats);
+
+    tapConfig = new TapConfig(*this);
 }
 
 void SynchronousEPEngine::setEPStore(EventuallyPersistentStore* store) {

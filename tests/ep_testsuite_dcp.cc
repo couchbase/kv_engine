@@ -5658,6 +5658,39 @@ static enum test_result test_mb19982(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_set_dcp_param(ENGINE_HANDLE *h,
+                                           ENGINE_HANDLE_V1 *h1)
+{
+    auto func = [h, h1](std::string key, size_t newValue, bool expectedSetParam){
+        std::string statKey = "ep_" + key;
+        size_t param = get_int_stat(h,
+                                    h1,
+                                    statKey.c_str());
+        std::string value = std::to_string(newValue);
+        check(expectedSetParam == set_param(h, h1,
+                                            protocol_binary_engine_param_dcp,
+                                            key.c_str(),
+                                            value.c_str()),
+                "Set param not expected");
+        check(newValue != param,
+              "Forcing failure as nothing will change");
+
+        if (expectedSetParam) {
+            checkeq(newValue,
+                    size_t(get_int_stat(h,
+                                        h1,
+                                        statKey.c_str())),
+                "Incorrect dcp param value after calling set_param");
+        }
+    };
+
+    func("dcp_consumer_process_buffered_messages_yield_limit", 1000, true);
+    func("dcp_consumer_process_buffered_messages_batch_size", 1000, true);
+    func("dcp_consumer_process_buffered_messages_yield_limit", 0, false);
+    func("dcp_consumer_process_buffered_messages_batch_size", 0, false);
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_dcp";
@@ -5908,6 +5941,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test MB-19982", test_mb19982, test_setup,
                  teardown, NULL, prepare, cleanup),
-
+        TestCase("test_set_dcp_param",
+                 test_set_dcp_param, test_setup, teardown, NULL,
+                 prepare, cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

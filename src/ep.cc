@@ -1518,12 +1518,22 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::checkForDBExistence(DBFileId db_fil
     return ENGINE_SUCCESS;
 }
 
-ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(compaction_ctx c,
+ENGINE_ERROR_CODE EventuallyPersistentStore::compactDB(uint16_t vbid,
+                                                       compaction_ctx c,
                                                        const void *cookie) {
     ENGINE_ERROR_CODE errCode = checkForDBExistence(c.db_file_id);
     if (errCode != ENGINE_SUCCESS) {
         return errCode;
     }
+
+    /* Obtain the vbucket so we can get the previous purge seqno */
+    RCPtr<VBucket> vb = vbMap.getBucket(vbid);
+    if (!vb) {
+        return ENGINE_NOT_MY_VBUCKET;
+    }
+
+    /* Update the compaction ctx with the previous purge seqno */
+    c.max_purged_seq = vb->getPurgeSeqno();
 
     LockHolder lh(compactionLock);
     ExTask task = new CompactTask(&engine, c, cookie);
@@ -3580,6 +3590,14 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                 vb->checkpointManager.queueDirty(vb, qi,
                                                                  genBySeqno);
         v->setBySeqno(qi->getBySeqno());
+
+        /* During backfill on a TAP receiver we need to update the snapshot
+           range in the checkpoint. Has to be done here because in case of TAP
+           backfill, above, we use vb->queueBackfillItem() instead of
+           vb->checkpointManager.queueDirty() */
+        if (tapBackfill && genBySeqno) {
+            vb->checkpointManager.resetSnapshotRange();
+        }
 
         if (seqno) {
             *seqno = v->getBySeqno();

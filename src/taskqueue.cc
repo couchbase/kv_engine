@@ -276,16 +276,15 @@ void TaskQueue::_wake(ExTask &task) {
     while (!notReady.empty()) {
         ExTask tid = notReady.front();
         if (tid->getWaketime() <= now || tid->isdead()) {
-            readyQueue.push(tid);
             numReady++;
-        } else {
-            futureQueue.push(tid);
         }
+
+        // MB-18453: Only push to the futureQueue
+        futureQueue.push(tid);
         notReady.pop();
     }
 
     if (numReady) {
-        manager->addWork(numReady, queueType);
         _doWake_UNLOCKED(numReady);
         TaskQueue *sleepQ = manager->getSleepQ(queueType);
         lh.unlock();
