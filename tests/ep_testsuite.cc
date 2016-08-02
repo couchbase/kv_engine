@@ -5585,7 +5585,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
-    check(last_body.size() == sizeof(int64_t),
+    checkeq(sizeof(int64_t), last_body.size(),
             "Bodylen didn't match expected value");
     memcpy(&adjusted_time, last_body.data(), last_body.size());
     adjusted_time = ntohll(adjusted_time);

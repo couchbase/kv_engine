@@ -31,7 +31,7 @@ static void verifyLastMetaData(ItemMetaData imd, uint8_t conflict_res_mode) {
     checkeq(imd.cas, last_meta.cas, "Cas didn't match");
     checkeq(imd.exptime, last_meta.exptime, "Expiration time didn't match");
     checkeq(imd.flags, last_meta.flags, "Flags didn't match");
-    checkeq(conflict_res_mode, last_conflict_resolution_mode,
+    checkeq(conflict_res_mode, last_conflict_resolution_mode.load(),
             "Conflict resolution mode didn't match");
 }
 

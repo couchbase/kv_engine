@@ -340,7 +340,8 @@ ADD_EXECUTABLE(ep-engine_kvstore_test
   ${OBJECTREGISTRY_SOURCE} ${KVSTORE_SOURCE} ${COUCH_KVSTORE_SOURCE}
   ${FOREST_KVSTORE_SOURCE} ${CONFIG_SOURCE})
 TARGET_LINK_LIBRARIES(ep-engine_kvstore_test
-                      cJSON JSON_checker couchstore dirutils forestdb gtest platform)
+                      cJSON JSON_checker couchstore dirutils forestdb
+                      gmock gtest platform)
 
 ADD_TEST(ep-engine_atomic_ptr_test ep-engine_atomic_ptr_test)
 ADD_TEST(ep-engine_atomic_test ep-engine_atomic_test)

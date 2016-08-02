@@ -1028,8 +1028,7 @@ void DcpProducer::scheduleCheckpointProcessorTask(stream_t s) {
         ->schedule(s);
 }
 
-void DcpProducer::cancelCheckpointProcessorTask() {
+void DcpProducer::clearCheckpointProcessorTaskQueues() {
     static_cast<ActiveStreamCheckpointProcessorTask*>(checkpointCreatorTask.get())
         ->clearQueues();
-    ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
 }

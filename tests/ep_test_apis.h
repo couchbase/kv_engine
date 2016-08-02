@@ -72,7 +72,7 @@ extern AtomicValue<uint8_t> last_datatype;
 extern AtomicValue<uint64_t> last_uuid;
 extern AtomicValue<uint64_t> last_seqno;
 extern bool last_deleted_flag;
-extern uint8_t last_conflict_resolution_mode;
+extern AtomicValue<uint8_t> last_conflict_resolution_mode;
 extern ItemMetaData last_meta;
 
 extern uint8_t dcp_last_op;

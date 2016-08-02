@@ -113,7 +113,7 @@ protected:
 class StreamTest : public DCPTest {
 protected:
     void TearDown() {
-        producer->cancelCheckpointProcessorTask();
+        producer->clearCheckpointProcessorTaskQueues();
         // Destroy various engine objects
         vb0.reset();
         stream.reset();

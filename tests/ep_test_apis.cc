@@ -51,7 +51,7 @@ AtomicValue<protocol_binary_response_status> last_status(
 std::string last_key;
 std::string last_body;
 bool last_deleted_flag(false);
-uint8_t last_conflict_resolution_mode(static_cast<uint8_t>(-1));
+AtomicValue<uint8_t> last_conflict_resolution_mode{0xff};
 AtomicValue<uint64_t> last_cas(0);
 AtomicValue<uint8_t> last_datatype(0x00);
 ItemMetaData last_meta;
@@ -1573,35 +1573,4 @@ int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         validate_store_resp(ret, num_items);
     }
     return num_items;
-}
-
-void verify_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                          uint16_t vb_start, uint16_t vb_end) {
-    const int per_vb_resp_size = sizeof(uint16_t) + sizeof(uint64_t);
-    const int high_seqno_offset = sizeof(uint16_t);
-
-    std::string seqno_body = last_body;
-
-    /* Check if the total response length is as expected. We expect 10 bytes
-       (2 for vb_id + 8 for seqno) */
-    checkeq((vb_end - vb_start + 1) * per_vb_resp_size,
-            static_cast<int>(seqno_body.size()), "Failed to get all vb info.");
-    /* Check if the contents are correct */
-    for (uint16_t i = 0; i < (vb_end - vb_start + 1); i++) {
-        /* Check for correct vb_id */
-        checkeq(static_cast<const uint16_t>(vb_start + i),
-                ntohs(*(reinterpret_cast<const uint16_t*>(seqno_body.data() +
-                                                          per_vb_resp_size*i))),
-                "vb_id mismatch");
-        /* Check for correct high_seqno */
-        std::stringstream vb_stat_seqno;
-        vb_stat_seqno << "vb_" << (vb_start + i) << ":high_seqno";
-        uint64_t high_seqno_vb =
-              get_ull_stat(h, h1, vb_stat_seqno.str().c_str(), "vbucket-seqno");
-        checkeq(high_seqno_vb,
-                ntohll(*(reinterpret_cast<const uint64_t*>(seqno_body.data() +
-                                                           per_vb_resp_size*i +
-                                                           high_seqno_offset))),
-                "high_seqno mismatch");
-    }
 }
