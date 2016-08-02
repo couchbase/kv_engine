@@ -446,8 +446,10 @@ private:
     void shutdownForestDb();
     ENGINE_ERROR_CODE readVBState(uint16_t vbId);
     void commitCallback(std::vector<ForestRequest *>& committedReqs);
+    fdb_kvs_handle* getOrCreateKvsHandle(uint16_t vbId, handleType htype);
     fdb_kvs_handle* getKvsHandle(uint16_t vbId, handleType htype);
     std::unique_ptr<ForestKvsHandle> createKvsHandle(uint16_t vbId);
+    fdb_kvs_handle* openKvsHandle(fdb_file_handle& fileHandle, char* kvsName);
     bool save2forestdb();
     void updateFileInfo();
     fdb_filemgr_ops_t getForestStatOps(FileStats* stats);
