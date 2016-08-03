@@ -1748,10 +1748,26 @@ static void* get_extension(extension_type_t type)
     }
 }
 
+static std::condition_variable shutdown_cv;
+static std::mutex shutdown_cv_mutex;
+static bool memcached_can_shutdown = false;
 void shutdown_server(void) {
+
+    std::unique_lock<std::mutex> lk(shutdown_cv_mutex);
+    if (!memcached_can_shutdown) {
+        // log and proceed to wait shutdown
+        LOG_NOTICE(NULL, "shutdown_server waiting for can_shutdown signal");
+        shutdown_cv.wait(lk, []{return memcached_can_shutdown;});
+    }
     memcached_shutdown = true;
     LOG_NOTICE(NULL, "Received shutdown request");
     event_base_loopbreak(main_base);
+}
+
+void enable_shutdown(void) {
+    std::unique_lock<std::mutex> lk(shutdown_cv_mutex);
+    memcached_can_shutdown = true;
+    shutdown_cv.notify_all();
 }
 
 static EXTENSION_LOGGER_DESCRIPTOR* get_logger(void)
@@ -2691,6 +2707,13 @@ extern "C" int memcached_main(int argc, char **argv) {
     thread_init(settings.getNumWorkerThreads(), main_base, dispatch_event_handler);
 
     executorPool.reset(new ExecutorPool(size_t(settings.getNumWorkerThreads())));
+
+    /*
+     * MB-20034.
+     * Now that all threads have been created, e.g. the audit thread, threads
+     * associated with extensions and the workers, we can enable shutdown.
+     */
+    enable_shutdown();
 
     /* Initialise memcached time keeping */
     mc_time_init(main_base);
