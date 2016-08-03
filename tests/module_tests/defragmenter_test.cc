@@ -24,6 +24,7 @@
 #include <iomanip>
 #include <locale>
 #include <platform/cb_malloc.h>
+#include <valgrind/valgrind.h>
 
 
 /**
@@ -152,7 +153,13 @@ std::unique_ptr<VBucket> DefragmenterBenchmarkTest::vbucket;
 
 
 TEST_F(DefragmenterBenchmarkTest, Populate) {
-    size_t populateRate = populateVbucket(*vbucket, 500000);
+    // How many items to create in the VBucket. Use a large number for
+    // normal runs when measuring performance, but a very small number
+    // (enough for functional testing) when running under Valgrind
+    // where there's no sense in measuring performance.
+    const size_t item_count = RUNNING_ON_VALGRIND ? 10
+                                                  : 500000;
+    size_t populateRate = populateVbucket(*vbucket, item_count);
     RecordProperty("items_per_sec", populateRate);
 }
 
