@@ -249,6 +249,27 @@ engine handles and forwards requests to a bucket onto the corresponding engine
 instance.
 
 # Engines (Back-end)
+Engines are built as shared libraries and instead of memcached linking against
+them, it loads them at runtime using dlopen. Generally an engine library exports
+two functions, `create_instance` and `destroy_engine`. A pointer to each of these
+two functions are stored in what is called an 'engine reference' which is stored
+in the engine map.
+
+When memcached is requested to create an instance of an engine (e.g. by
+ns_server), it will call create_instance for the given engine and will be given
+an `ENGINE_HANDLE` in return. The base handle specifies the version of the handle
+it is (currently there is only version 1). memcached can then safely cast this to
+an `ENGINE_HANDLE_V1` which will contain a series of function pointers that
+memcached can use to interact with the engine.
+
+Because of the way engines are implemented they can actually be loaded by any
+application (such as the engine testapp) and controlled directly through the
+engine api.
+
+When an engine instance needs to be cleaned up the `destroy` function on the
+engine handle will be called. When the engine is finally unloaded as memcached
+shuts down the `destroy_engine` function will be called to allow the engine
+to clean up any resources it shares between instances.
 
 ## ep-engine (Couchbase Bucket)
 [ep-engine](http://github.com/couchbase/ep-engine) (Eventually Persistent
