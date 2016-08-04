@@ -159,6 +159,7 @@ bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to enable data traffic");
     free(pkt);
+
     return true;
 }
 

@@ -676,8 +676,8 @@ class BGFetchCallback : public GlobalTask {
 public:
     BGFetchCallback(EventuallyPersistentEngine& e, const std::string &n,
                     const std::string &k, uint16_t vbid, hrtime_t token,
-                    const Priority &p, double sleeptime = 0)
-        : GlobalTask(&e, p, sleeptime, false),
+                    double sleeptime = 0)
+        : GlobalTask(&e, TaskId::BGFetchCallback, sleeptime, false),
           name(n),
           key(k),
           epe(e),

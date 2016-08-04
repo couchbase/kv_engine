@@ -217,7 +217,7 @@ TEST_F(SingleThreadedEPStoreTest, MB20235_wake_and_work_count) {
     class TestTask : public GlobalTask {
     public:
         TestTask(EventuallyPersistentEngine *e, double s) :
-                 GlobalTask(e, Priority::ActiveStreamCheckpointProcessor, s) {}
+                 GlobalTask(e, TaskId::ActiveStreamCheckpointProcessorTask, s) {}
         bool run() {
             return false;
         }

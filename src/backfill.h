@@ -52,9 +52,9 @@ public:
 
     BackfillDiskLoad(const std::string &n, EventuallyPersistentEngine* e,
                      TapConnMap &cm, KVStore *s, uint16_t vbid,
-                     uint64_t start_seqno, hrtime_t token, const Priority &p,
+                     uint64_t start_seqno, hrtime_t token,
                      double sleeptime = 0, bool shutdown = false)
-        : GlobalTask(e, p, sleeptime, shutdown),
+        : GlobalTask(e, TaskId::BackfillDiskLoad, sleeptime, shutdown),
           name(n), engine(e), connMap(cm), store(s), vbucket(vbid),
           startSeqno(start_seqno), connToken(token) {
         ScheduleDiskBackfillTapOperation tapop;
@@ -124,7 +124,7 @@ public:
 
     BackfillTask(EventuallyPersistentEngine *e, TapConnMap &cm, Producer *tc,
                  const VBucketFilter &backfillVBFilter):
-                 GlobalTask(e, Priority::BackfillTaskPriority, 0, false),
+                 GlobalTask(e, TaskId::BackfillTask, 0, false),
       bfv(new BackFillVisitor(e, cm, tc, backfillVBFilter)), engine(e) {}
 
     virtual ~BackfillTask() {}

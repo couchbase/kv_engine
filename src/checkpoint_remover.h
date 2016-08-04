@@ -42,7 +42,7 @@ public:
      */
     ClosedUnrefCheckpointRemoverTask(EventuallyPersistentEngine *e,
                                      EPStats &st, size_t interval) :
-        GlobalTask(e, Priority::CheckpointRemoverPriority, interval, false),
+        GlobalTask(e, TaskId::ClosedUnrefCheckpointRemoverTask, interval, false),
         engine(e), stats(st), sleepTime(interval), available(true) {}
 
     void cursorDroppingIfNeeded(void);

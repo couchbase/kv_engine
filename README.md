@@ -186,8 +186,97 @@ Calling `ObjectRegistry::onSwitchThread(enginePtr)` will save the `enginePtr`
 in thread-local-storage so that subsequent task code can retrieve the pointer
 with `ObjectRegistry::getCurrentEngine()`.
 
+## Tasks
 
+A task is created by creating a sub-class (the `run()` method is the entry point
+of the task) of the `GlobalTask` class and it is scheduled onto one of 4 task
+queue types. Each task should be declared in `src/tasks.defs.h` using the TASK
+macro. Using this macro ensures correct generation of a task-type ID, priority,
+task name and ultimately ensures each task gets its own scheduling statistics.
 
+The recipe is simple.
 
+### Add your task's class name with its priority into `src/tasks.defs.h`
+ * A lower value priority is 'higher'.
+```
+TASK(MyNewTask, 1) // MyNewTask has priority 1.
+```
 
+### Create your class and set its ID using `MY_TASK_ID`.
 
+```
+class MyNewTask : public GlobalTask {
+public:
+    MyNewTask(EventuallyPersistentEngine* e)
+        : GlobalTask(e/*engine/,
+                     MY_TASK_ID(MyNewTask),
+                     0.0/*snooze*/){}
+...
+```
+
+### Define pure-virtual methods in `MyNewTask`
+* run method
+
+The run method is invoked when the task is executed. The method should return
+true if it should be scheduled again. If false is returned, the instance of the
+task is never re-scheduled and will deleted once all references to the instance are
+gone.
+
+```
+bool run() {
+   // Task code here
+   return schedule again?;
+}
+```
+
+* Define the `getDescription` method to aid debugging and statistics.
+```
+std::string getDescription() {
+    return "A brief description of what MyNewTask does";
+}
+```
+
+### Schedule your task to the desired queue.
+```
+ExTask myNewTask = new MyNewTask(&engine);
+myNewTaskId = ExecutorPool::get()->schedule(myNewTask, NONIO_TASK_IDX);
+```
+
+The 4 task queue types are:
+* Readers -  `READER_TASK_IDX`
+ * Tasks that should primarily only read from 'disk'. They generally read from
+the vbucket database files, for example background fetch of a non-resident document.
+* Writers (they are allowed to read too) `WRITER_TASK_IDX`
+ * Tasks that should primarily only write to 'disk'. They generally write to
+the vbucket database files, for example when flushing the write queue.
+* Auxilliary IO `AUXIO_TASK_IDX`
+ * Tasks that read and write 'disk', but not necessarily the vbucket data files.
+* Non IO `NONIO_TASK_IDX`
+ * Tasks that do not perform 'disk' I/O.
+
+### Utilise `snooze`
+
+The snooze value of the task sets when the task should be executed. The initial snooze
+value is set when constructing `GlobalTask`. A value of 0.0 means attempt to execute
+the task as soon as scheduled and 5.0 would be 5 seconds from being scheduled
+(scheduled meaning when `ExecutorPool::get()->schedule(...)` is called).
+
+The `run()` function can also call `snooze(double snoozeAmount)` to set how long
+before the task is rescheduled.
+
+It is **best practice** for most tasks to actually do a sleep forever from their run function:
+
+```
+  snooze(INT_MAX);
+```
+
+Using `INT_MAX` means sleep forever and tasks should always sleep until they have
+real work todo. Tasks **should not periodically poll for work** with a snooze of
+n seconds.
+
+### Utilise `wake()`
+When a task has work todo, some other function should be waking the task using the wake method.
+
+```
+ExecutorPool::get()->wake(myNewTaskId)`
+```

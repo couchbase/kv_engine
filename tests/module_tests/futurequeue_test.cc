@@ -27,16 +27,16 @@ public:
 class TestTask : public GlobalTask {
 public:
     TestTask(EventuallyPersistentEngine* e,
-             const Priority& prio,
+             TaskId id,
              int o = 0)
-      : GlobalTask(e, prio, 0.0, false),
+      : GlobalTask(e, id, 0.0, false),
         order(o) {}
 
     // returning true will also drive the ExecutorPool::reschedule path.
     bool run() { return true; }
 
     std::string getDescription() {
-        return "TestTask " + std::to_string(priority.getPriorityValue());
+        return std::string("TestTask ") + GlobalTask::getTaskName(getTypeId());
     }
 
     int order;
@@ -49,18 +49,18 @@ TEST_F(FutureQueueTest, initAssumptions) {
 
 TEST_F(FutureQueueTest, push1) {
     ExTask hpTask = new TestTask(nullptr,
-                                 Priority::PendingOpsPriority);
+                                 TaskId::PendingOpsNotification);
 
     queue.push(hpTask);
     EXPECT_EQ(1, queue.size());
     EXPECT_FALSE(queue.empty());
 
-    EXPECT_EQ(PENDING_OPS_ID, queue.top()->getTypeId());
+    EXPECT_EQ(TaskId::PendingOpsNotification, queue.top()->getTypeId());
 }
 
 TEST_F(FutureQueueTest, pushn) {
     ExTask hpTask = new TestTask(nullptr,
-                                 Priority::PendingOpsPriority);
+                                 TaskId::PendingOpsNotification);
 
     const int n = 10;
     for (int i = 0; i < n; i++) {
@@ -68,7 +68,7 @@ TEST_F(FutureQueueTest, pushn) {
     }
     EXPECT_EQ(n, queue.size());
     EXPECT_FALSE(queue.empty());
-    EXPECT_EQ(PENDING_OPS_ID, queue.top()->getTypeId());
+    EXPECT_EQ(TaskId::PendingOpsNotification, queue.top()->getTypeId());
 }
 
 /*
@@ -80,7 +80,7 @@ TEST_F(FutureQueueTest, pushOrder) {
     for (int i = 0; i <= n; i++) {
         ExTask hpTask;
         hpTask = new TestTask(nullptr,
-                              Priority::PendingOpsPriority,
+                              TaskId::PendingOpsNotification,
                               i);
         hpTask->updateWaketime(hrtime_t(n - i));
         queue.push(hpTask);
@@ -103,7 +103,7 @@ TEST_F(FutureQueueTest, updateWaketime) {
     for (int i = 0; i <= n; i++) {
         ExTask hpTask;
         hpTask = new TestTask(nullptr,
-                              Priority::PendingOpsPriority,
+                              TaskId::PendingOpsNotification,
                               i);
         hpTask->updateWaketime(hrtime_t((n*2) - i));
         queue.push(hpTask);
@@ -141,7 +141,7 @@ TEST_F(FutureQueueTest, snooze) {
     for (int i = 0; i <= n; i++) {
         ExTask hpTask;
         hpTask = new TestTask(nullptr,
-                              Priority::PendingOpsPriority,
+                              TaskId::PendingOpsNotification,
                               i);
         hpTask->updateWaketime(hrtime_t((n*2) - i));
         queue.push(hpTask);
@@ -173,7 +173,7 @@ TEST_F(FutureQueueTest, snooze) {
  * snooze/wake a task not in the queue, the queue is also empty.
  */
 TEST_F(FutureQueueTest, taskNotInEmptyQueue) {
-    ExTask task = new TestTask(nullptr, Priority::PendingOpsPriority);
+    ExTask task = new TestTask(nullptr, TaskId::PendingOpsNotification);
 
     hrtime_t wake = task->getWaketime();
     queue.snooze(task, 5.0);
@@ -196,17 +196,17 @@ TEST_F(FutureQueueTest, taskNotInEmptyQueue) {
 TEST_F(FutureQueueTest, taskNotInQueue) {
     const int nTasks = 5;
     for (int ii = 1; ii < nTasks; ii++) {
-        ExTask t = new TestTask(nullptr, Priority::PendingOpsPriority);
+        ExTask t = new TestTask(nullptr, TaskId::PendingOpsNotification);
         t->updateWaketime(1+ii);
         queue.push(t);
     }
     // Finally push a task with an obvious ID value of -1
-    ExTask task = new TestTask(nullptr, Priority::PendingOpsPriority, -1);
+    ExTask task = new TestTask(nullptr, TaskId::PendingOpsNotification, -1);
     task->updateWaketime(0);
     queue.push(task);
 
     // Now operate with a new task not in the queue
-    task = new TestTask(nullptr, Priority::PendingOpsPriority);
+    task = new TestTask(nullptr, TaskId::PendingOpsNotification);
     hrtime_t wake = task->getWaketime();
     EXPECT_FALSE(queue.snooze(task, 5.0));
 

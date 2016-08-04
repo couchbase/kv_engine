@@ -25,6 +25,8 @@
 
 #include <climits>
 
+#include <type_traits>
+
 static const double VBSTATE_SNAPSHOT_FREQ(300.0);
 static const double WORKLOAD_MONITOR_FREQ(5.0);
 
@@ -38,15 +40,14 @@ bool VBSnapshotTask::run() {
 }
 
 DaemonVBSnapshotTask::DaemonVBSnapshotTask(EventuallyPersistentEngine *e,
-                                           bool completeBeforeShutdown) :
-    GlobalTask(e, Priority::VBucketPersistLowPriority, VBSTATE_SNAPSHOT_FREQ,
-               completeBeforeShutdown) {
-        desc = "Snapshotting vbucket states";
+                                           bool completeBeforeShutdown)
+    : GlobalTask(e, TaskId::DaemonVBSnapshotTask,
+                 VBSTATE_SNAPSHOT_FREQ, completeBeforeShutdown) {
+    desc = "Snapshotting vbucket states";
 }
 
 bool DaemonVBSnapshotTask::run() {
-    bool ret = engine->getEpStore()->scheduleVBSnapshot(
-               Priority::VBucketPersistLowPriority);
+    bool ret = engine->getEpStore()->scheduleVBSnapshot(VBSnapshotTask::Priority::LOW);
     snooze(VBSTATE_SNAPSHOT_FREQ);
     return ret;
 }
@@ -68,11 +69,11 @@ bool StatSnap::run() {
     if (runOnce) {
         return false;
     }
-    ExecutorPool::get()->snooze(taskId, 60);
+    ExecutorPool::get()->snooze(uid, 60);
     return true;
 }
 
-bool BgFetcherTask::run() {
+bool MultiBGFetcherTask::run() {
     return bgfetcher->run(this);
 }
 
@@ -87,7 +88,7 @@ bool VKeyStatBGFetchTask::run() {
 }
 
 
-bool BGFetchTask::run() {
+bool SingleBGFetcherTask::run() {
     engine->getEpStore()->completeBGFetch(key, vbucket, cookie, init,
                                           metaFetch);
     return false;
@@ -95,7 +96,7 @@ bool BGFetchTask::run() {
 
 WorkLoadMonitor::WorkLoadMonitor(EventuallyPersistentEngine *e,
                                  bool completeBeforeShutdown) :
-    GlobalTask(e, Priority::WorkLoadMonitorPriority, WORKLOAD_MONITOR_FREQ,
+    GlobalTask(e, TaskId::WorkLoadMonitor, WORKLOAD_MONITOR_FREQ,
                completeBeforeShutdown) {
     prevNumMutations = getNumMutations();
     prevNumGets = getNumGets();

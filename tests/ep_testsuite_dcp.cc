@@ -1780,7 +1780,7 @@ static enum test_result test_dcp_producer_backfill_limits(ENGINE_HANDLE *h,
        to run additional 'num_items' during backfill_state_scanning state. */
     uint64_t exp_backfill_task_runs = 4 + num_items;
     checkeq(exp_backfill_task_runs,
-            get_histo_stat(h, h1, "backfill_tasks[AUXIO]", "runtimes",
+            get_histo_stat(h, h1, "BackfillManagerTask", "runtimes",
                            Histo_stat_info::TOTAL_COUNT),
             "backfill_tasks did not run expected number of times");
 
@@ -5433,7 +5433,7 @@ static enum test_result test_dcp_consumer_processer_behavior(ENGINE_HANDLE *h,
           "Expected buffered items for the stream");
     wait_for_stat_to_be_gte(h, h1, "eq_dcpq:unittest:total_backoffs", 1, "dcp");
     checkne(std::string("ALL_PROCESSED"),
-            get_str_stat(h, h1, "eq_dcpq:unittest:processer_task_state", "dcp"),
+            get_str_stat(h, h1, "eq_dcpq:unittest:processor_task_state", "dcp"),
             "Expected Processer's task state not to be ALL_PROCESSED!");
 
     testHarness.destroy_cookie(cookie);

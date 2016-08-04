@@ -37,7 +37,7 @@ class ConnectionReaperCallback : public GlobalTask {
 public:
     ConnectionReaperCallback(EventuallyPersistentEngine &e, ConnMap& cm,
                              connection_t &conn)
-        : GlobalTask(&e, Priority::TapConnectionReaperPriority),
+        : GlobalTask(&e, TaskId::ConnectionReaperCallback),
           connMap(cm), connection(conn) {
         std::stringstream ss;
         ss << "Reaping tap or dcp connection: " << connection->getName();

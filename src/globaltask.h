@@ -17,14 +17,31 @@
 
 #pragma once
 
+#include <array>
+
 #include "atomic.h"
 #include "config.h"
-#include "priority.h"
 
 enum task_state_t {
     TASK_RUNNING,
     TASK_SNOOZED,
     TASK_DEAD
+};
+
+enum class TaskId : int {
+#define TASK(name, prio) name,
+#include "tasks.def.h"
+#undef TASK
+    TASK_COUNT
+};
+
+typedef int queue_priority_t;
+
+enum class TaskPriority : int {
+#define TASK(name, prio) name = prio,
+#include "tasks.def.h"
+#undef TASK
+    PRIORITY_COUNT
 };
 
 class Taskable;
@@ -37,11 +54,15 @@ friend class ExecutorPool;
 friend class ExecutorThread;
 public:
 
-    GlobalTask(Taskable& t, const Priority &p,
-               double sleeptime = 0, bool completeBeforeShutdown = true);
+    GlobalTask(Taskable& t,
+               TaskId taskId,
+               double sleeptime = 0,
+               bool completeBeforeShutdown = true);
 
-    GlobalTask(EventuallyPersistentEngine *e, const Priority &p,
-               double sleeptime = 0, bool completeBeforeShutdown = true);
+    GlobalTask(EventuallyPersistentEngine *e,
+               TaskId taskId,
+               double sleeptime = 0,
+               bool completeBeforeShutdown = true);
 
     /* destructor */
     virtual ~GlobalTask(void) {
@@ -90,14 +111,14 @@ public:
      *
      * @return A unique task id number.
      */
-    size_t getId() const { return taskId; }
+    size_t getId() const { return uid; }
 
     /**
      * Returns the type id of this task.
      *
      * @return A type id of the task.
      */
-    type_id_t getTypeId() { return priority.getTypeId(); }
+    TaskId getTypeId() { return typeId; }
 
     /**
      * Gets the engine that this task was scheduled from
@@ -130,11 +151,33 @@ public:
         atomic_setIfBigger(waketime, to);
     }
 
+    queue_priority_t getQueuePriority() const {
+        return static_cast<queue_priority_t>(priority);
+    }
+
+    /*
+     * Lookup the task name for TaskId id.
+     * The data used is generated from tasks.def.h
+     */
+    static const char* getTaskName(TaskId id);
+
+    /*
+     * Lookup the task priority for TaskId id.
+     * The data used is generated from tasks.def.h
+     */
+    static TaskPriority getTaskPriority(TaskId id);
+
+    /*
+     * A vector of all TaskId generated from tasks.def.h
+     */
+    static std::array<TaskId, static_cast<int>(TaskId::TASK_COUNT)> allTaskIds;
+
 protected:
-    const Priority &priority;
     bool blockShutdown;
     std::atomic<task_state_t> state;
-    const size_t taskId;
+    const size_t uid;
+    TaskId typeId;
+    TaskPriority priority;
     EventuallyPersistentEngine *engine;
     Taskable& taskable;
 
@@ -150,18 +193,20 @@ typedef SingleThreadedRCPtr<GlobalTask> ExTask;
 
 /**
  * Order tasks by their priority and taskId (try to ensure FIFO)
+ * @return true if t2 should have priority over t1
  */
 class CompareByPriority {
 public:
     bool operator()(ExTask &t1, ExTask &t2) {
-        return (t1->priority == t2->priority) ?
-               (t1->taskId   > t2->taskId)    :
-               (t1->priority < t2->priority);
+        return (t1->getQueuePriority() == t2->getQueuePriority()) ?
+               (t1->uid > t2->uid) :
+               (t1->getQueuePriority() > t2->getQueuePriority());
     }
 };
 
 /**
  * Order tasks by their ready date.
+ * @return true if t2 should have priority over t1
  */
 class CompareByDueDate {
 public:

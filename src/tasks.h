@@ -20,10 +20,10 @@
 
 #include "config.h"
 
+#include <array>
 #include <string>
 #include <atomic>
 #include "globaltask.h"
-#include "priority.h"
 #include "kvstore.h"
 
 /**
@@ -32,9 +32,10 @@
 class Flusher;
 class FlusherTask : public GlobalTask {
 public:
-    FlusherTask(EventuallyPersistentEngine *e, Flusher* f, const Priority &p,
-                uint16_t shardid, bool completeBeforeShutdown = true) :
-                GlobalTask(e, p, 0, completeBeforeShutdown), flusher(f) {
+    FlusherTask(EventuallyPersistentEngine *e, Flusher* f, uint16_t shardid,
+                bool completeBeforeShutdown = true)
+        : GlobalTask(e, TaskId::FlusherTask, 0, completeBeforeShutdown),
+          flusher(f) {
         std::stringstream ss;
         ss<<"Running a flusher loop: shard "<<shardid;
         desc = ss.str();
@@ -59,23 +60,51 @@ private:
  */
 class VBSnapshotTask : public GlobalTask {
 public:
-    VBSnapshotTask(EventuallyPersistentEngine *e, const Priority &p,
-                uint16_t sID = 0, bool completeBeforeShutdown = true) :
-                GlobalTask(e, p, 0, completeBeforeShutdown), shardID(sID) {
-        std::stringstream ss;
-        ss<<"Snapshotting vbucket states for the shard: "<<shardID;
-        desc = ss.str();
-    }
+    enum class Priority {
+        HIGH,
+        LOW
+    };
 
     bool run();
 
     std::string getDescription() {
-        return desc;
+        return "Snapshotting vbucket states for the shard: " + std::to_string(shardID);
     }
+
+protected:
+    VBSnapshotTask(EventuallyPersistentEngine *e,
+                   TaskId id,
+                   uint16_t sID = 0,
+                   bool completeBeforeShutdown = true)
+        : GlobalTask(e, id, 0, completeBeforeShutdown),
+          priority(Priority::LOW),
+          shardID(sID) {}
+    Priority priority;
 
 private:
     uint16_t shardID;
-    std::string desc;
+};
+
+class VBSnapshotTaskHigh : public VBSnapshotTask {
+public:
+    VBSnapshotTaskHigh(EventuallyPersistentEngine *e,
+                       uint16_t sID = 0,
+                       bool completeBeforeShutdown = true)
+        : VBSnapshotTask(e, TaskId::VBSnapshotTaskHigh,
+                         sID, completeBeforeShutdown) {
+            priority = Priority::HIGH;
+        }
+};
+
+class VBSnapshotTaskLow : public VBSnapshotTask {
+public:
+    VBSnapshotTaskLow(EventuallyPersistentEngine *e,
+                      uint16_t sID = 0,
+                      bool completeBeforeShutdown = true)
+        : VBSnapshotTask(e, TaskId::VBSnapshotTaskLow,
+                         sID, completeBeforeShutdown) {
+            priority = Priority::LOW;
+        }
 };
 
 /**
@@ -102,23 +131,46 @@ private:
  */
 class VBStatePersistTask : public GlobalTask {
 public:
-    VBStatePersistTask(EventuallyPersistentEngine *e, const Priority &p,
-                       uint16_t vbucket, bool completeBeforeShutdown = true) :
-        GlobalTask(e, p, 0, completeBeforeShutdown), vbid(vbucket) {
-        std::stringstream ss;
-        ss<<"Persisting a vbucket state for vbucket: "<< vbid;
-        desc = ss.str();
-    }
+    enum class Priority {
+        HIGH,
+        LOW
+    };
 
     bool run();
 
     std::string getDescription() {
-        return desc;
+        return "Persisting a vbucket state for vbucket: " + std::to_string(vbid);
+    }
+
+protected:
+    VBStatePersistTask(EventuallyPersistentEngine *e,
+                       TaskId taskId,
+                       uint16_t vbucket,
+                       bool completeBeforeShutdown = true)
+        : GlobalTask(e, taskId, 0, completeBeforeShutdown),
+          vbid(vbucket) {
     }
 
 private:
     uint16_t vbid;
-    std::string desc;
+};
+
+class VBStatePersistTaskHigh : public VBStatePersistTask {
+public:
+    VBStatePersistTaskHigh(EventuallyPersistentEngine *e,
+                           uint16_t vbucket,
+                           bool completeBeforeShutdown = true)
+        : VBStatePersistTask(e, TaskId::VBStatePersistTaskHigh,
+                             vbucket, completeBeforeShutdown) {}
+};
+
+class VBStatePersistTaskLow : public VBStatePersistTask {
+public:
+    VBStatePersistTaskLow(EventuallyPersistentEngine *e,
+                          uint16_t vbucket,
+                          bool completeBeforeShutdown = true)
+        : VBStatePersistTask(e, TaskId::VBStatePersistTaskLow,
+                             vbucket, completeBeforeShutdown) {}
 };
 
 /**
@@ -130,9 +182,9 @@ private:
 class VBDeleteTask : public GlobalTask {
 public:
     VBDeleteTask(EventuallyPersistentEngine *e, uint16_t vbid, const void* c,
-                 const Priority &p, bool completeBeforeShutdown = true) :
-        GlobalTask(e, p, 0, completeBeforeShutdown),
-        vbucketId(vbid), cookie(c) { }
+                 bool completeBeforeShutdown = true)
+        : GlobalTask(e, TaskId::VBDeleteTask, 0, completeBeforeShutdown),
+          vbucketId(vbid), cookie(c) {}
 
     bool run();
 
@@ -152,10 +204,10 @@ private:
  */
 class CompactTask : public GlobalTask {
 public:
-    CompactTask(EventuallyPersistentEngine *e, const Priority &p,
+    CompactTask(EventuallyPersistentEngine *e,
                 compaction_ctx c, const void *ck,
                 bool completeBeforeShutdown = false) :
-                GlobalTask(e, p, 0, completeBeforeShutdown),
+                GlobalTask(e, TaskId::CompactVBucketTask, 0, completeBeforeShutdown),
                            compactCtx(c), cookie(ck) {
         desc = "Compact DB file " + std::to_string(c.db_file_id);
     }
@@ -178,11 +230,10 @@ private:
  */
 class StatSnap : public GlobalTask {
 public:
-    StatSnap(EventuallyPersistentEngine *e, const Priority &p,
-             bool runOneTimeOnly = false, bool sleeptime = 0,
-             bool completeBeforeShutdown = false) :
-        GlobalTask(e, p, sleeptime, completeBeforeShutdown),
-        runOnce(runOneTimeOnly) { }
+    StatSnap(EventuallyPersistentEngine *e, bool runOneTimeOnly = false,
+             bool sleeptime = 0, bool completeBeforeShutdown = false)
+        : GlobalTask(e, TaskId::StatSnap, sleeptime, completeBeforeShutdown),
+          runOnce(runOneTimeOnly) {}
 
     bool run();
 
@@ -197,15 +248,15 @@ private:
 
 /**
  * A task for fetching items from disk.
+ * This task is used if EventuallyPersistentStore::multiBGFetchEnabled is true.
  */
 class BgFetcher;
-class BgFetcherTask : public GlobalTask {
+class MultiBGFetcherTask : public GlobalTask {
 public:
-    BgFetcherTask(EventuallyPersistentEngine *e, BgFetcher *b,
-                  const Priority &p, bool sleeptime = 0,
-                  bool completeBeforeShutdown = false) :
-        GlobalTask(e, p, sleeptime, completeBeforeShutdown),
-        bgfetcher(b) { }
+    MultiBGFetcherTask(EventuallyPersistentEngine *e, BgFetcher *b, bool sleeptime = 0,
+                        bool completeBeforeShutdown = false)
+        : GlobalTask(e, TaskId::MultiBGFetcherTask, sleeptime, completeBeforeShutdown),
+          bgfetcher(b) {}
 
     bool run();
 
@@ -222,8 +273,8 @@ private:
  */
 class FlushAllTask : public GlobalTask {
 public:
-    FlushAllTask(EventuallyPersistentEngine *e, double when) :
-        GlobalTask(e, Priority::FlushAllPriority, when, false) { }
+    FlushAllTask(EventuallyPersistentEngine *e, double when)
+        : GlobalTask(e, TaskId::FlushAllTask, when, false) {}
 
     bool run();
 
@@ -240,11 +291,13 @@ public:
 class VKeyStatBGFetchTask : public GlobalTask {
 public:
     VKeyStatBGFetchTask(EventuallyPersistentEngine *e, const std::string &k,
-                        uint16_t vbid, uint64_t s, const void *c,
-                        const Priority &p, int sleeptime = 0,
-                        bool completeBeforeShutdown = false) :
-        GlobalTask(e, p, sleeptime, completeBeforeShutdown), key(k),
-                   vbucket(vbid), bySeqNum(s), cookie(c) { }
+                        uint16_t vbid, uint64_t s, const void *c, int sleeptime = 0,
+                        bool completeBeforeShutdown = false)
+        : GlobalTask(e, TaskId::VKeyStatBGFetchTask, sleeptime, completeBeforeShutdown),
+          key(k),
+          vbucket(vbid),
+          bySeqNum(s),
+          cookie(c) {}
 
     bool run();
 
@@ -264,16 +317,19 @@ private:
 
 /**
  * A task that performs disk fetches for non-resident get requests.
+ * This task is used if EventuallyPersistentStore::multiBGFetchEnabled is false.
  */
-class BGFetchTask : public GlobalTask {
+class SingleBGFetcherTask : public GlobalTask {
 public:
-    BGFetchTask(EventuallyPersistentEngine *e, const std::string &k,
-            uint16_t vbid, const void *c, bool isMeta,
-            const Priority &p, int sleeptime = 0,
-            bool completeBeforeShutdown = false) :
-        GlobalTask(e, p, sleeptime, completeBeforeShutdown),
-        key(k), vbucket(vbid), cookie(c), metaFetch(isMeta),
-        init(gethrtime()) { }
+    SingleBGFetcherTask(EventuallyPersistentEngine *e, const std::string &k,
+                       uint16_t vbid, const void *c, bool isMeta,
+                       int sleeptime = 0, bool completeBeforeShutdown = false)
+        : GlobalTask(e, TaskId::SingleBGFetcherTask, sleeptime, completeBeforeShutdown),
+          key(k),
+          vbucket(vbid),
+          cookie(c),
+          metaFetch(isMeta),
+          init(gethrtime()) {}
 
     bool run();
 

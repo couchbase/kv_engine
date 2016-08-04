@@ -34,80 +34,76 @@ const std::string DcpConsumer::extMetadataCtrlMsg = "enable_ext_metadata";
 const std::string DcpConsumer::valueCompressionCtrlMsg = "enable_value_compression";
 const std::string DcpConsumer::cursorDroppingCtrlMsg = "supports_cursor_dropping";
 
-class Processer : public GlobalTask {
+class Processor : public GlobalTask {
 public:
-    Processer(EventuallyPersistentEngine* e, connection_t c,
-                const Priority &p, double sleeptime = 1,
-                bool completeBeforeShutdown = true)
-        : GlobalTask(e, p, sleeptime, completeBeforeShutdown), conn(c) {}
+    Processor(EventuallyPersistentEngine* e,
+              connection_t c,
+              double sleeptime = 1,
+              bool completeBeforeShutdown = true)
+        : GlobalTask(e, TaskId::Processor, sleeptime, completeBeforeShutdown),
+          conn(c) {}
 
-    bool run();
+    ~Processor() {
+        DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
+        consumer->taskCancelled();
+    }
 
-    std::string getDescription();
+    bool run() {
+        DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
+        if (consumer->doDisconnect()) {
+            return false;
+        }
 
-    ~Processer();
+        double sleepFor = 0.0;
+        enum process_items_error_t state = consumer->processBufferedItems();
+        switch (state) {
+            case all_processed:
+                sleepFor = INT_MAX;
+                break;
+            case more_to_process:
+                sleepFor = 0.0;
+                break;
+            case cannot_process:
+                sleepFor = 5.0;
+                break;
+        }
+
+        if (consumer->notifiedProcessor(false)) {
+            snooze(0.0);
+            state = more_to_process;
+        } else {
+            snooze(sleepFor);
+            // Check if the processor was notified again,
+            // in which case the task should wake immediately.
+            if (consumer->notifiedProcessor(false)) {
+                snooze(0.0);
+                state = more_to_process;
+            }
+        }
+
+        consumer->setProcessorTaskState(state);
+
+        return true;
+    }
+
+    std::string getDescription() {
+        std::stringstream ss;
+        ss << "Processing buffered items for " << conn->getName();
+        return ss.str();
+    }
 
 private:
     connection_t conn;
 };
-
-bool Processer::run() {
-    DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
-    if (consumer->doDisconnect()) {
-        return false;
-    }
-
-    double sleepFor = 0.0;
-    enum process_items_error_t state = consumer->processBufferedItems();
-    switch (state) {
-        case all_processed:
-            sleepFor = INT_MAX;
-            break;
-        case more_to_process:
-            sleepFor = 0.0;
-            break;
-        case cannot_process:
-            sleepFor = 5.0;
-            break;
-    }
-
-    if (consumer->notifiedProcesser(false)) {
-        snooze(0.0);
-        state = more_to_process;
-    } else {
-        snooze(sleepFor);
-        // Check if the processer was notified again,
-        // in which case the task should wake immediately.
-        if (consumer->notifiedProcesser(false)) {
-            snooze(0.0);
-            state = more_to_process;
-        }
-    }
-
-    consumer->setProcesserTaskState(state);
-
-    return true;
-}
-
-std::string Processer::getDescription() {
-    std::stringstream ss;
-    ss << "Processing buffered items for " << conn->getName();
-    return ss.str();
-}
-
-Processer::~Processer() {
-    DcpConsumer* consumer = static_cast<DcpConsumer*>(conn.get());
-    consumer->taskCancelled();
-}
 
 DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
                          const std::string &name)
     : Consumer(engine, cookie, name),
       lastMessageTime(ep_current_time()),
       opaqueCounter(0),
-      processerTaskId(0),
-      processerTaskState(all_processed),
-      processerNotification(false),
+      processorTaskId(0),
+      processorTaskState(all_processed),
+      processorNotification(false),
       backoffs(0),
       taskAlreadyCancelled(false),
       flowControl(engine, this),
@@ -129,8 +125,8 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
     pendingEnableValueCompression = config.isDcpValueCompressionEnabled();
     pendingSupportCursorDropping = true;
 
-    ExTask task = new Processer(&engine, this, Priority::PendingOpsPriority, 1);
-    processerTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
+    ExTask task = new Processor(&engine, this, 1);
+    processorTaskId = ExecutorPool::get()->schedule(task, NONIO_TASK_IDX);
 }
 
 DcpConsumer::~DcpConsumer() {
@@ -141,7 +137,7 @@ DcpConsumer::~DcpConsumer() {
 void DcpConsumer::cancelTask() {
     bool inverse = false;
     if (taskAlreadyCancelled.compare_exchange_strong(inverse, true)) {
-        ExecutorPool::get()->cancel(processerTaskId);
+        ExecutorPool::get()->cancel(processorTaskId);
     }
 }
 
@@ -681,8 +677,7 @@ ENGINE_ERROR_CODE DcpConsumer::handleResponse(
                 "to rollback seq no. %" PRIu64, logHeader(), vbid, rollbackSeqno);
 
             ExTask task = new RollbackTask(&engine_, opaque, vbid,
-                                           rollbackSeqno, this,
-                                           Priority::TapBgFetcherPriority);
+                                           rollbackSeqno, this);
             ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
             return ENGINE_SUCCESS;
         }
@@ -756,7 +751,7 @@ void DcpConsumer::addStats(ADD_STAT add_stat, const void *c) {
     }
 
     addStat("total_backoffs", backoffs, add_stat, c);
-    addStat("processer_task_state", getProcesserTaskStatusStr(), add_stat, c);
+    addStat("processor_task_state", getProcessorTaskStatusStr(), add_stat, c);
     flowControl.addStats(add_stat, c);
 }
 
@@ -834,22 +829,22 @@ process_items_error_t DcpConsumer::processBufferedItems() {
 
 void DcpConsumer::notifyVbucketReady(uint16_t vbucket) {
     if (vbReady.pushUnique(vbucket) &&
-        notifiedProcesser(true)) {
-        ExecutorPool::get()->wake(processerTaskId);
+        notifiedProcessor(true)) {
+        ExecutorPool::get()->wake(processorTaskId);
     }
 }
 
-bool DcpConsumer::notifiedProcesser(bool to) {
+bool DcpConsumer::notifiedProcessor(bool to) {
     bool inverse = !to;
-    return processerNotification.compare_exchange_strong(inverse, to);
+    return processorNotification.compare_exchange_strong(inverse, to);
 }
 
-void DcpConsumer::setProcesserTaskState(enum process_items_error_t to) {
-    processerTaskState = to;
+void DcpConsumer::setProcessorTaskState(enum process_items_error_t to) {
+    processorTaskState = to;
 }
 
-std::string DcpConsumer::getProcesserTaskStatusStr() {
-    switch (processerTaskState.load()) {
+std::string DcpConsumer::getProcessorTaskStatusStr() {
+    switch (processorTaskState.load()) {
         case all_processed:
             return "ALL_PROCESSED";
         case more_to_process:
@@ -928,7 +923,7 @@ void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
                 RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
                 vb->failovers->replaceFailoverLog(body, bodylen);
                 EventuallyPersistentStore* st = engine_.getEpStore();
-                st->scheduleVBSnapshot(Priority::VBucketPersistHighPriority,
+                st->scheduleVBSnapshot(VBSnapshotTask::Priority::HIGH,
                                 st->getVBuckets().getShardByVbId(vbucket)->getId());
             }
             LOG(EXTENSION_LOG_INFO, "%s (vb %d) Add stream for opaque %" PRIu32
