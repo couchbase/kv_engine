@@ -69,6 +69,12 @@ public:
     void public_initializeEngineCallbacks() {
         return initializeEngineCallbacks();
     }
+
+    /*
+     * Initialize the connmap objects, which creates tasks
+     * so must be done after executorpool is created
+     */
+    void initializeConnmaps();
 };
 
 /* Subclass of EPStore to expose normally non-public members for test

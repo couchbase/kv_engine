@@ -475,8 +475,9 @@ bool TapConnMap::mapped(connection_t &tc) {
 void TapConnMap::shutdownAllConnections() {
     LOG(EXTENSION_LOG_NOTICE, "Shutting down tap connections!");
 
-    connNotifier_->stop();
-
+    if (connNotifier_ != NULL) {
+        connNotifier_->stop();
+    }
 
     LockHolder lh(connsLock);
     std::vector<connection_t> toRelease(all.begin(), all.end());

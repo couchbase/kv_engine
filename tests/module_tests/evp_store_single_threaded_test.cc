@@ -17,10 +17,14 @@
 
 #include "evp_store_test.h"
 
+#include "dcp/dcpconnmap.h"
 #include "fakes/fake_executorpool.h"
 #include "taskqueue.h"
 #include "../mock/mock_dcp_producer.h"
 #include "../mock/mock_dcp_consumer.h"
+#include "programs/engine_testapp/mock_server.h"
+
+#include <thread>
 
 /*
  * A subclass of EventuallyPersistentStoreTest which uses a fake ExecutorPool,
@@ -28,20 +32,12 @@
  * automatically in the background. All tasks must be manually run().
  */
 class SingleThreadedEPStoreTest : public EventuallyPersistentStoreTest {
-    void SetUp() {
-        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
-        EventuallyPersistentStoreTest::SetUp();
-
-        task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
-            (ExecutorPool::get());
-    }
-
     void TearDown() {
         shutdownAndPurgeTasks();
         EventuallyPersistentStoreTest::TearDown();
     }
-protected:
 
+public:
     /*
      * Run the next task from the taskQ
      * The task must match the expectedTaskName parameter
@@ -51,6 +47,7 @@ protected:
 
         // Run the task
         executor.runCurrentTask(expectedTaskName);
+        executor.completeCurrentTask();
     }
 
     /*
@@ -61,6 +58,16 @@ protected:
 
         // Run the task
         executor.runCurrentTask();
+        executor.completeCurrentTask();
+    }
+
+protected:
+    void SetUp() {
+        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+        EventuallyPersistentStoreTest::SetUp();
+
+        task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
+            (ExecutorPool::get());
     }
 
     /*
@@ -83,6 +90,23 @@ protected:
      */
     void shutdownAndPurgeTasks() {
         engine->getEpStats().isShutdown = true;
+        task_executor->cancelAndClearAll();
+
+        for (task_type_t t :
+             {WRITER_TASK_IDX, READER_TASK_IDX, AUXIO_TASK_IDX, NONIO_TASK_IDX}) {
+
+            // Define a lambda to drive all tasks from the queue, if hpTaskQ
+            // is implemented then trivial to add a second call to runTasks.
+            auto runTasks = [=](TaskQueue& queue) {
+                while (queue.getFutureQueueSize() > 0 || queue.getReadyQueueSize() > 0) {
+                    runNextTask(queue);
+                }
+            };
+            runTasks(*task_executor->getLpTaskQ()[t]);
+        }
+    }
+
+    void cancelAndPurgeTasks() {
         task_executor->cancelAll();
 
         for (task_type_t t :
@@ -91,7 +115,7 @@ protected:
             // Define a lambda to drive all tasks from the queue, if hpTaskQ
             // is implemented then trivial to add a second call to runTasks.
             auto runTasks = [=](TaskQueue& queue) {
-                while (queue.getFutureQueueSize() > 0 || queue.getReadyQueueSize()> 0){
+                while (queue.getFutureQueueSize() > 0 || queue.getReadyQueueSize() > 0) {
                     runNextTask(queue);
                 }
             };
@@ -368,4 +392,250 @@ TEST_F(SingleThreadedEPStoreTest, MB18452_yield_dcp_processor) {
 
     // Drop the stream
     consumer->closeStream(/*opaque*/0, vbid);
+}
+
+/*
+ * Background thread used by MB20054_onDeleteItem_during_bucket_deletion
+ */
+static void MB20054_run_backfill_task(EventuallyPersistentEngine* engine,
+                                      CheckedExecutor& backfill,
+                                      SyncObject& backfill_cv,
+                                      SyncObject& destroy_cv,
+                                      TaskQueue* lpAuxioQ) {
+    std::unique_lock<std::mutex> destroy_lh(destroy_cv);
+    ObjectRegistry::onSwitchThread(engine);
+
+    // Run the BackfillManagerTask task to push items to readyQ. In sherlock
+    // upwards this runs multiple times - so should return true.
+    backfill.runCurrentTask("Backfilling items for a DCP Connection");
+
+    // Notify the main thread that it can progress with destroying the
+    // engine [A].
+    {
+        // if we can get the lock, then we know the main thread is waiting
+        std::lock_guard<std::mutex> backfill_lock(backfill_cv);
+        backfill_cv.notify_one(); // move the main thread along
+    }
+
+    // Now wait ourselves for destroy to be completed [B].
+    destroy_cv.wait(destroy_lh);
+
+    // This is the only "hacky" part of the test - we need to somehow
+    // keep the DCPBackfill task 'running' - i.e. not call
+    // completeCurrentTask - until the main thread is in
+    // ExecutorPool::_stopTaskGroup. However we have no way from the test
+    // to properly signal that we are *inside* _stopTaskGroup -
+    // called from EVPStore's destructor.
+    // Best we can do is spin on waiting for the DCPBackfill task to be
+    // set to 'dead' - and only then completeCurrentTask; which will
+    // cancel the task.
+    while (!backfill.getCurrentTask()->isdead()) {
+        // spin.
+    }
+    backfill.completeCurrentTask();
+}
+
+static ENGINE_ERROR_CODE dummy_dcp_add_failover_cb(vbucket_failover_t* entry,
+                                                   size_t nentries,
+                                                   const void *cookie) {
+    return ENGINE_SUCCESS;
+}
+
+// Test performs engine deletion interleaved with tasks so redefine TearDown
+// for this tests needs.
+class MB20054_SingleThreadedEPStoreTest : public SingleThreadedEPStoreTest {
+public:
+    void SetUp() {
+        SingleThreadedEPStoreTest::SetUp();
+        engine->initializeConnmaps();
+    }
+
+    void TearDown() {
+        ExecutorPool::shutdown();
+    }
+};
+
+// Check that if onDeleteItem() is called during bucket deletion, we do not
+// abort due to not having a valid thread-local 'engine' pointer. This
+// has been observed when we have a DCPBackfill task which is deleted during
+// bucket shutdown, which has a non-zero number of Items which are destructed
+// (and call onDeleteItem).
+TEST_F(MB20054_SingleThreadedEPStoreTest, MB20054_onDeleteItem_during_bucket_deletion) {
+
+    // [[1] Set our state to active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Perform one SET, then close it's checkpoint. This means that we no
+    // longer have all sequence numbers in memory checkpoints, forcing the
+    // DCP stream request to go to disk (backfill).
+    store_item(vbid, "key", "value");
+
+    // Force a new checkpoint.
+    RCPtr<VBucket> vb = store->getVbMap().getBucket(vbid);
+    CheckpointManager& ckpt_mgr = vb->checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+    auto lpWriterQ = task_executor->getLpTaskQ()[WRITER_TASK_IDX];
+    EXPECT_EQ(0, lpWriterQ->getFutureQueueSize());
+    EXPECT_EQ(0, lpWriterQ->getReadyQueueSize());
+
+    auto lpAuxioQ = task_executor->getLpTaskQ()[AUXIO_TASK_IDX];
+    EXPECT_EQ(0, lpAuxioQ->getFutureQueueSize());
+    EXPECT_EQ(0, lpAuxioQ->getReadyQueueSize());
+
+    // Directly flush the vbucket, ensuring data is on disk.
+    //  (This would normally also wake up the checkpoint remover task, but
+    //   as that task was never registered with the ExecutorPool in this test
+    //   environment, we need to manually remove the prev checkpoint).
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+
+    bool new_ckpt_created;
+    EXPECT_EQ(1,
+              ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created));
+    vb.reset();
+
+    EXPECT_EQ(0, lpAuxioQ->getFutureQueueSize());
+    EXPECT_EQ(0, lpAuxioQ->getReadyQueueSize());
+
+    // Create a DCP producer, and start a stream request.
+    std::string name("test_producer");
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->dcpOpen(cookie, /*opaque:unused*/{}, /*seqno:unused*/{},
+                              DCP_OPEN_PRODUCER, name.data(), name.size()));
+
+    // Expect to have an ActiveStreamCheckpointProcessorTask, which is
+    // initially snoozed (so we can't run it).
+    EXPECT_EQ(1, lpAuxioQ->getFutureQueueSize());
+    EXPECT_EQ(0, lpAuxioQ->getReadyQueueSize());
+
+    uint64_t rollbackSeqno;
+    // Actual stream request method (EvpDcpStreamReq) is static, so access via
+    // the engine_interface.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->dcp.stream_req(&engine->interface, cookie, /*flags*/0,
+                                     /*opaque*/0, /*vbucket*/vbid,
+                                     /*start_seqno*/0, /*end_seqno*/-1,
+                                     /*vb_uuid*/0xabcd, /*snap_start*/0,
+                                     /*snap_end*/0, &rollbackSeqno,
+                                     dummy_dcp_add_failover_cb));
+
+    // FutureQ should now have an additional DCPBackfill task.
+    EXPECT_EQ(2, lpAuxioQ->getFutureQueueSize());
+    EXPECT_EQ(0, lpAuxioQ->getReadyQueueSize());
+
+    // Create an executor 'thread' to obtain shared ownership of the next
+    // AuxIO task (which should be BackfillManagerTask). As long as this
+    // object has it's currentTask set to BackfillManagerTask, the task
+    // will not be deleted.
+    // Essentially we are simulating a concurrent thread running this task.
+    CheckedExecutor backfill(task_executor, *lpAuxioQ);
+
+    // This is the one action we really need to perform 'concurrently' - delete
+    // the engine while a DCPBackfill task is still running. We spin up a
+    // separate thread which will run the DCPBackfill task
+    // concurrently with destroy - specifically DCPBackfill must start running
+    // (and add items to the readyQ) before destroy(), it must then continue
+    // running (stop after) _stopTaskGroup is invoked.
+    // To achieve this we use a couple of condition variables to synchronise
+    // between the two threads - the timeline needs to look like:
+    //
+    //  auxIO thread:  [------- DCPBackfill ----------]
+    //   main thread:          [destroy()]       [ExecutorPool::_stopTaskGroup]
+    //
+    //  --------------------------------------------------------> time
+    //
+    SyncObject backfill_cv;
+    SyncObject destroy_cv;
+    std::thread concurrent_task_thread;
+
+    {
+        // scope for the backfill lock
+        std::unique_lock<std::mutex> backfill_lh(backfill_cv);
+
+        concurrent_task_thread = std::thread(MB20054_run_backfill_task,
+                                             engine.get(),
+                                             std::ref(backfill),
+                                             std::ref(backfill_cv),
+                                             std::ref(destroy_cv),
+                                             lpAuxioQ);
+        // [A] Wait for DCPBackfill to complete.
+        backfill_cv.wait(backfill_lh);
+    }
+
+    ObjectRegistry::onSwitchThread(engine.get());
+    // 'Destroy' the engine - this doesn't delete the object, just shuts down
+    // connections, marks streams as dead etc.
+    engine->destroy(/*force*/false);
+
+    {
+        // If we can get the lock we know the thread is waiting for destroy.
+        std::lock_guard<std::mutex> lh(destroy_cv);
+        destroy_cv.notify_one(); // move the thread on.
+    }
+
+    // Force all tasks to cancel (so we can shutdown)
+    cancelAndPurgeTasks();
+
+    // Mark the connection as dead for clean shutdown
+    destroy_mock_cookie(cookie);
+    engine->getDcpConnMap().manageConnections();
+
+    // Nullify TLS engine and reset the smart pointer to force destruction.
+    // We need null as the engine to stop ~CheckedExecutor path from trying
+    // to touch the engine
+    ObjectRegistry::onSwitchThread(nullptr);
+    engine.reset();
+    destroy_mock_event_callbacks();
+    concurrent_task_thread.join();
+}
+
+/*
+ * MB-18953 is triggered by the executorpool wake path moving tasks directly
+ * into the readyQueue, thus allowing for high-priority tasks to dominiate
+ * a taskqueue.
+ */
+TEST_F(SingleThreadedEPStoreTest, MB18953_taskWake) {
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+
+    class TestTask : public GlobalTask {
+    public:
+        TestTask(EventuallyPersistentEngine* e, TaskId id)
+          : GlobalTask(e, id, 0.0, false) {}
+
+        // returning true will also drive the ExecutorPool::reschedule path.
+        bool run() { return true; }
+
+        std::string getDescription() {
+            return std::string("TestTask ") + GlobalTask::getTaskName(getTypeId());
+        }
+    };
+
+    ExTask hpTask = new TestTask(engine.get(),
+                                 TaskId::PendingOpsNotification);
+    task_executor->schedule(hpTask, NONIO_TASK_IDX);
+
+    ExTask lpTask = new TestTask(engine.get(),
+                                 TaskId::DefragmenterTask);
+    task_executor->schedule(lpTask, NONIO_TASK_IDX);
+
+    runNextTask(lpNonioQ, "TestTask PendingOpsNotification"); // hptask goes first
+    // Ensure that a wake to the hpTask doesn't mean the lpTask gets ignored
+    lpNonioQ.wake(hpTask);
+
+    // Check 1 task is ready
+    EXPECT_EQ(1, task_executor->getTotReadyTasks());
+    EXPECT_EQ(1, task_executor->getNumReadyTasks(NONIO_TASK_IDX));
+
+    runNextTask(lpNonioQ, "TestTask DefragmenterTask"); // lptask goes second
+
+    // Run the tasks again to check that coming from ::reschedule our
+    // expectations are still met.
+    runNextTask(lpNonioQ, "TestTask PendingOpsNotification"); // hptask goes first
+
+    // Ensure that a wake to the hpTask doesn't mean the lpTask gets ignored
+    lpNonioQ.wake(hpTask);
+
+    // Check 1 task is ready
+    EXPECT_EQ(1, task_executor->getTotReadyTasks());
+    EXPECT_EQ(1, task_executor->getNumReadyTasks(NONIO_TASK_IDX));
+    runNextTask(lpNonioQ, "TestTask DefragmenterTask"); // lptask goes second
 }

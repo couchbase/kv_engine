@@ -84,13 +84,32 @@ public:
     /*
      * Mark all tasks as cancelled and remove the from the locator.
      */
-    void cancelAll() {
-        for (auto& it : taskLocator) {
-            it.second.first->cancel();
-            // And force awake so he is "runnable"
-            it.second.second->wake(it.second.first);
-        }
+    void cancelAndClearAll() {
+        LockHolder lh(tMutex);
+        cancelAll_UNLOCKED();
         taskLocator.clear();
+    }
+
+       /*
+     * Mark all tasks as cancelled and remove the from the locator.
+     */
+    void cancelAll() {
+        LockHolder lh(tMutex);
+        cancelAll_UNLOCKED();
+    }
+
+    /*
+     * Cancel all tasks with a matching name
+     */
+    void cancelByName(std::string name) {
+        LockHolder lh(tMutex);
+        for (auto& it : taskLocator) {
+            if (it.second.first->getDescription() == name) {
+                it.second.first->cancel();
+                // And force awake so he is "runnable"
+                it.second.second->wake(it.second.first);
+            }
+        }
     }
 
     size_t getTotReadyTasks() {
@@ -99,6 +118,14 @@ public:
 
     size_t getNumReadyTasks(task_type_t qType) {
         return numReadyTasks[qType];
+    }
+private:
+    void cancelAll_UNLOCKED() {
+        for (auto& it : taskLocator) {
+            it.second.first->cancel();
+            // And force awake so he is "runnable"
+            it.second.second->wake(it.second.first);
+        }
     }
 };
 
@@ -113,7 +140,8 @@ public:
         : ExecutorThread(manager_, q.getQueueType(), "checked_executor"),
           queue(q),
           preFutureQueueSize(queue.getFutureQueueSize()),
-          preReadyQueueSize(queue.getReadyQueueSize()) {
+          preReadyQueueSize(queue.getReadyQueueSize()),
+          rescheduled(false) {
         if (!queue.fetchNextTask(*this, false)) {
             throw std::logic_error("CheckedExecutor failed fetchNextTask");
         }
@@ -136,16 +164,34 @@ public:
 
     void runCurrentTask(const std::string& expectedTask) {
         EXPECT_EQ(expectedTask, getTaskName());
-        checker(run());
+        run();
     }
 
     void runCurrentTask() {
-        checker(run());
+        run();
+    }
+
+    void completeCurrentTask() {
+        manager->doneWork(curTaskType);
+        if (rescheduled && !currentTask->isdead()) {
+            queue.reschedule(currentTask, curTaskType);
+        } else {
+            manager->cancel(currentTask->getId(), true);
+        }
+
+        if (!currentTask->isdead()) {
+            checker(rescheduled);
+        }
     }
 
     void updateCurrentTime() {
         now = gethrtime();
     }
+
+    ExTask& getCurrentTask() {
+        return currentTask;
+    }
+
 private:
 
     /*
@@ -168,24 +214,16 @@ private:
     }
 
     /*
-     * Run the task and return if it was rescheduled.
+     * Run the task and record if it was rescheduled.
      */
-    bool run() {
-        bool again = currentTask->run();
-        manager->doneWork(curTaskType);
-        if (again && !currentTask->isdead()) {
-            queue.reschedule(currentTask, curTaskType);
-            return true;
-        } else {
-            manager->cancel(currentTask->getId(), true);
-        }
-
-        return false;
+    void run() {
+        rescheduled = currentTask->run();
     }
 
     TaskQueue& queue;
     size_t preFutureQueueSize;
     size_t preReadyQueueSize;
+    bool rescheduled;
 
     /*
      * A function object that runs post task execution for the purpose of

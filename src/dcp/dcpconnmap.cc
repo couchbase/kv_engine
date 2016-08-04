@@ -156,7 +156,9 @@ DcpProducer *DcpConnMap::newProducer(const void* cookie,
 void DcpConnMap::shutdownAllConnections() {
     LOG(EXTENSION_LOG_NOTICE, "Shutting down dcp connections!");
 
-    connNotifier_->stop();
+    if (connNotifier_ != NULL) {
+        connNotifier_->stop();
+    }
 
     {
         LockHolder lh(connsLock);
