@@ -40,6 +40,14 @@ DcpConnMap::DcpConnMap(EventuallyPersistentEngine &e)
     updateMaxActiveSnoozingBackfills(engine.getEpStats().getMaxDataSize());
     minCompressionRatioForProducer.store(
                     engine.getConfiguration().getDcpMinCompressionRatio());
+
+    // Note: these allocations are deleted by ~Configuration
+    engine.getConfiguration().
+        addValueChangedListener("dcp_consumer_process_buffered_messages_yield_limit",
+                                new DcpConfigChangeListener(*this));
+    engine.getConfiguration().
+        addValueChangedListener("dcp_consumer_process_buffered_messages_batch_size",
+                                new DcpConfigChangeListener(*this));
 }
 
 DcpConsumer *DcpConnMap::newConsumer(const void* cookie,
@@ -212,29 +220,36 @@ void DcpConnMap::cancelAllTasks_UNLOCKED() {
 }
 
 void DcpConnMap::disconnect(const void *cookie) {
-    LockHolder lh(connsLock);
-    disconnect_UNLOCKED(cookie);
-}
-
-void DcpConnMap::disconnect_UNLOCKED(const void *cookie) {
-    std::list<connection_t>::iterator iter;
-    for (iter = all.begin(); iter != all.end(); ++iter) {
-        if ((*iter)->getCookie() == cookie) {
-            (*iter)->setDisconnect(true);
-            all.erase(iter);
-            break;
+    // Move the connection matching this cookie from the `all` and map_
+    // data structures (under connsLock).
+    connection_t conn;
+    {
+        LockHolder lh(connsLock);
+        std::list<connection_t>::iterator iter;
+        for (iter = all.begin(); iter != all.end(); ++iter) {
+            if ((*iter)->getCookie() == cookie) {
+                (*iter)->setDisconnect(true);
+                all.erase(iter);
+                break;
+            }
+        }
+        std::map<const void*, connection_t>::iterator itr(map_.find(cookie));
+        if (itr != map_.end()) {
+            conn = itr->second;
+            if (conn.get()) {
+                LOG(EXTENSION_LOG_INFO, "%s Removing connection",
+                    conn->logHeader());
+                map_.erase(itr);
+            }
         }
     }
 
-    std::map<const void*, connection_t>::iterator itr(map_.find(cookie));
-    if (itr != map_.end()) {
-        connection_t conn = itr->second;
-        if (conn.get()) {
-            LOG(EXTENSION_LOG_INFO, "%s Removing connection",
-                conn->logHeader());
-            map_.erase(itr);
-        }
-
+    // Note we shutdown the stream *not* under the connsLock; this is
+    // because as part of closing a DcpConsumer stream we need to
+    // acquire PassiveStream::buffer.bufMutex; and that could deadlock
+    // in EventuallyPersistentStore::setVBucketState, via
+    // PassiveStream::processBufferedMessages.
+    if (conn) {
         DcpProducer* producer = dynamic_cast<DcpProducer*> (conn.get());
         if (producer) {
             producer->closeAllStreams();
@@ -244,7 +259,12 @@ void DcpConnMap::disconnect_UNLOCKED(const void *cookie) {
             static_cast<DcpConsumer*>(conn.get())->cancelTask();
             static_cast<DcpConsumer*>(conn.get())->closeAllStreams();
         }
+    }
 
+    // Finished disconnecting the stream; add it to the
+    // deadConnections list.
+    if (conn) {
+        LockHolder lh(connsLock);
         deadConnections.push_back(conn);
     }
 }
@@ -389,4 +409,42 @@ void DcpConnMap::updateMinCompressionRatioForProducers(float value) {
 
 float DcpConnMap::getMinCompressionRatio() {
     return minCompressionRatioForProducer.load();
+}
+
+DcpConnMap::DcpConfigChangeListener::DcpConfigChangeListener(DcpConnMap& connMap)
+    : myConnMap(connMap){}
+
+void DcpConnMap::DcpConfigChangeListener::sizeValueChanged(const std::string &key,
+                                                           size_t value) {
+    if (key == "dcp_consumer_process_buffered_messages_yield_limit") {
+        myConnMap.consumerYieldConfigChanged(value);
+    } else if (key == "dcp_consumer_process_buffered_messages_batch_size") {
+        myConnMap.consumerBatchSizeConfigChanged(value);
+    }
+}
+
+/*
+ * Find all DcpConsumers and set the yield threshold
+ */
+void DcpConnMap::consumerYieldConfigChanged(size_t newValue) {
+    LockHolder lh(connsLock);
+    for (auto it : all) {
+        DcpConsumer* dcpConsumer = dynamic_cast<DcpConsumer*>(it.get());
+        if (dcpConsumer) {
+            dcpConsumer->setProcessorYieldThreshold(newValue);
+        }
+    }
+}
+
+/*
+ * Find all DcpConsumers and set the processor batchsize
+ */
+void DcpConnMap::consumerBatchSizeConfigChanged(size_t newValue) {
+    LockHolder lh(connsLock);
+    for (auto it : all) {
+        DcpConsumer* dcpConsumer = dynamic_cast<DcpConsumer*>(it.get());
+        if (dcpConsumer) {
+            dcpConsumer->setProcessBufferedMessagesBatchSize(newValue);
+        }
+    }
 }

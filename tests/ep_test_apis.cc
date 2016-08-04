@@ -51,7 +51,7 @@ std::atomic<protocol_binary_response_status> last_status(
 std::string last_key;
 std::string last_body;
 bool last_deleted_flag(false);
-uint8_t last_conflict_resolution_mode(static_cast<uint8_t>(-1));
+std::atomic<uint8_t> last_conflict_resolution_mode(static_cast<uint8_t>(-1));
 std::atomic<uint64_t> last_cas(0);
 std::atomic<uint8_t> last_datatype(0x00);
 ItemMetaData last_meta;

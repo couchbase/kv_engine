@@ -147,13 +147,18 @@ TEST_F(SingleThreadedEPStoreTest, MB19695_doTapVbTakeoverStats) {
 
     // [[2]] Ok, let's see if we can get TAP takeover stats. This will
     // fail with MB-19695.
-    // Dummy callback to passs into the stats function below.
+    // Dummy callback to pass into the stats function below.
     auto dummy_cb = [](const char *key, const uint16_t klen,
                           const char *val, const uint32_t vlen,
                           const void *cookie) {};
     std::string key{"MB19695_doTapVbTakeoverStats"};
     EXPECT_NO_THROW(engine->public_doTapVbTakeoverStats
                     (nullptr, dummy_cb, key, vbid));
+
+    // Also check DCP variant (MB-19815)
+    EXPECT_NO_THROW(engine->public_doDcpVbTakeoverStats
+                    (nullptr, dummy_cb, key, vbid));
+
     // Cleanup - run the 3rd task - VBStatePersistTask.
     runNextTask(lpWriterQ, "Persisting a vbucket state for vbucket: 0");
 }
@@ -249,4 +254,118 @@ TEST_F(SingleThreadedEPStoreTest, MB20235_wake_and_work_count) {
               task_executor->getNumReadyTasks(AUXIO_TASK_IDX));
     EXPECT_EQ(0, lpAuxioQ.getFutureQueueSize());
     EXPECT_EQ(0, lpAuxioQ.getReadyQueueSize());
+}
+
+// Check that in-progress disk backfills (`CouchKVStore::backfill`) are
+// correctly deleted when we delete a bucket. If not then we leak vBucket file
+// descriptors, which can prevent ns_server from cleaning up old vBucket files
+// and consequently re-adding a node to the cluster.
+//
+TEST_F(SingleThreadedEPStoreTest, MB19892_BackfillNotDeleted) {
+    // Make vbucket active.
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_active);
+
+    // Perform one SET, then close it's checkpoint. This means that we no
+    // longer have all sequence numbers in memory checkpoints, forcing the
+    // DCP stream request to go to disk (backfill).
+    store_item(vbid, "key", "value");
+
+    // Force a new checkpoint.
+    auto vb = store->getVbMap().getBucket(vbid);
+    auto& ckpt_mgr = vb->checkpointManager;
+    ckpt_mgr.createNewCheckpoint();
+
+    // Directly flush the vbucket, ensuring data is on disk.
+    //  (This would normally also wake up the checkpoint remover task, but
+    //   as that task was never registered with the ExecutorPool in this test
+    //   environment, we need to manually remove the prev checkpoint).
+    EXPECT_EQ(1, store->flushVBucket(vbid));
+
+    bool new_ckpt_created;
+    EXPECT_EQ(1,
+              ckpt_mgr.removeClosedUnrefCheckpoints(vb, new_ckpt_created));
+
+    // Create a DCP producer, and start a stream request.
+    std::string name{"test_producer"};
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine->dcpOpen(cookie, /*opaque:unused*/{}, /*seqno:unused*/{},
+                              DCP_OPEN_PRODUCER, name.data(), name.size()));
+
+    uint64_t rollbackSeqno;
+    auto dummy_dcp_add_failover_cb = [](vbucket_failover_t* entry,
+                                       size_t nentries, const void *cookie) {
+        return ENGINE_SUCCESS;
+    };
+
+    // Actual stream request method (EvpDcpStreamReq) is static, so access via
+    // the engine_interface.
+    EXPECT_EQ(ENGINE_SUCCESS,
+              engine.get()->dcp.stream_req(
+                      &engine.get()->interface, cookie, /*flags*/0,
+                      /*opaque*/0, /*vbucket*/vbid, /*start_seqno*/0,
+                      /*end_seqno*/-1, /*vb_uuid*/0xabcd, /*snap_start*/0,
+                      /*snap_end*/0, &rollbackSeqno,
+                      dummy_dcp_add_failover_cb));
+}
+
+/*
+ * Test that the DCP processor returns a 'yield' return code when
+ * working on a large enough buffer size.
+ */
+TEST_F(SingleThreadedEPStoreTest, MB18452_yield_dcp_processor) {
+
+    // We need a replica VB
+    setVBucketStateAndRunPersistTask(vbid, vbucket_state_replica);
+
+    // Create a MockDcpConsumer
+    dcp_consumer_t consumer = new MockDcpConsumer(*engine, cookie, "test");
+
+    // Add the stream
+    EXPECT_EQ(ENGINE_SUCCESS,
+              consumer->addStream(/*opaque*/0, vbid, /*flags*/0));
+
+    // The processBufferedItems should yield every "yield * batchSize"
+    // So add '(n * (yield * batchSize)) + 1' messages and we should see
+    // processBufferedMessages return 'more_to_process' 'n' times and then
+    // 'all_processed' once.
+    const int n = 4;
+    const int yield = engine->getConfiguration().getDcpConsumerProcessBufferedMessagesYieldLimit();
+    const int batchSize = engine->getConfiguration().getDcpConsumerProcessBufferedMessagesBatchSize();
+    const int messages = n * (batchSize * yield);
+
+    // Force the stream to buffer rather than process messages immediately
+    const ssize_t queueCap = engine->getEpStats().replicationThrottleWriteQueueCap;
+    engine->getEpStats().replicationThrottleWriteQueueCap = 0;
+
+    // 1. Add the first message, a snapshot marker.
+    consumer->snapshotMarker(/*opaque*/1, vbid, /*startseq*/0,
+                             /*endseq*/messages, /*flags*/0);
+
+    // 2. Now add the rest as mutations.
+    for (int ii = 0; ii <= messages; ii++) {
+        std::string key = "key" + std::to_string(ii);
+        std::string value = "value";
+        consumer->mutation(/*opaque*/1, key.c_str(), key.length(),
+                           value.c_str(), value.length(), /*cas*/0,
+                           vbid, /*flags*/0, /*datatype*/0, /*locktime*/0,
+                           /*bySeqno*/ii, /*revSeqno*/0, /*exptime*/0,
+                           /*nru*/0, /*meta*/nullptr, /*nmeta*/0);
+    }
+
+    // Set the throttle back to the original value
+    engine->getEpStats().replicationThrottleWriteQueueCap = queueCap;
+
+    // Get our target stream ready.
+    static_cast<MockDcpConsumer*>(consumer.get())->public_notifyVbucketReady(vbid);
+
+    // 3. processBufferedItems returns more_to_process n times
+    for (int ii = 0; ii < n; ii++) {
+        EXPECT_EQ(more_to_process, consumer->processBufferedItems());
+    }
+
+    // 4. processBufferedItems returns a final all_processed
+    EXPECT_EQ(all_processed, consumer->processBufferedItems());
+
+    // Drop the stream
+    consumer->closeStream(/*opaque*/0, vbid);
 }

@@ -840,17 +840,18 @@ The following histograms are available from "scheduler" and "runtimes"
 describing the scheduling overhead times and task runtimes incurred by various
 IO and Non-IO tasks respectively:
 
+| READ tasks                  |                                          |
 | bg_fetcher_tasks            | histogram of scheduling overhead/task    |
 |                             | runtimes for background fetch tasks      |
 | bg_fetcher_meta_tasks       | histogram of scheduling overhead/task    |
 |                             | runtimes for background fetch meta tasks |
-| tap_bg_fetcher_tasks        | histogram of scheduling overhead/task    |
-|                             | runtimes for tap background fetch tasks  |
 | vkey_stat_bg_fetcher_tasks  | histogram of scheduling overhead/task    |
 |                             | runtimes for fetching item from disk for |
 |                             | vkey stat tasks                          |
 | warmup_tasks                | histogram of scheduling overhead/task    |
 |                             | runtimes for warmup tasks                |
+|-----------------------------+------------------------------------------|
+| WRITE tasks                 |                                          |
 | vbucket_persist_high_tasks  | histogram of scheduling overhead/task    |
 |                             | runtimes for snapshot vbucket state in   |
 |                             | high priority tasks                      |
@@ -870,8 +871,16 @@ IO and Non-IO tasks respectively:
 |                             | runtimes for stats snapshot tasks        |
 | mutation_log_compactor_tasks| histogram of scheduling overhead/task    |
 |                             | runtimes for access log compaction tasks |
+|-----------------------------+------------------------------------------|
+| AUXIO tasks                 |                                          |
+| tap_bg_fetcher_tasks        | histogram of scheduling overhead/task    |
+|                             | runtimes for tap background fetch tasks  |
 | access_scanner_tasks        | histogram of scheduling overhead/task    |
 |                             | runtimes for access scanner tasks        |
+| backfill_tasks              | histogram of scheduling overhead/task    |
+|                             | runtimes for backfill tasks              |
+|-----------------------------+------------------------------------------|
+| NONIO tasks                 |                                          |
 | conn_notification_tasks     | histogram of scheduling overhead/task    |
 |                             | runtimes for connection notification     |
 |                             | tasks                                    |
@@ -884,8 +893,6 @@ IO and Non-IO tasks respectively:
 |                             | runtimes for checkpoint stats tasks      |
 | item_pager_tasks            | histogram of scheduling overhead/task    |
 |                             | runtimes for item pager tasks            |
-| backfill_tasks              | histogram of scheduling overhead/task    |
-|                             | runtimes for backfill tasks              |
 | tap_resume_tasks            | histogram of scheduling overhead/task    |
 |                             | runtimes for resume suspended tap        |
 |                             | connection tasks                         |

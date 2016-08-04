@@ -49,6 +49,8 @@ def set_param(mc, type, key, val):
         engine_param = memcacheConstants.ENGINE_PARAM_FLUSH
     elif type == 'tap_param':
         engine_param = memcacheConstants.ENGINE_PARAM_TAP
+    elif type == 'dcp_param':
+        engine_param = memcacheConstants.ENGINE_PARAM_DCP
     else:
         print 'Error: Bad parameter %s' % type
 
@@ -237,6 +239,16 @@ Available params for "set":
                                        at which we throttle replication input
     replication_throttle_threshold   - Percentage of memory in use to throttle
                                        replication streams.
+
+  Available params for "set dcp_param":
+    dcp_consumer_process_buffered_messages_yield_limit - The threshold at which
+                                                         the Consumer will yield
+                                                         when processing items.
+
+    dcp_consumer_process_buffered_messages_batch_size - The number of items the
+                                                        DCP processor will consume
+                                                        in a single batch.
+
     """)
 
     c.addCommand('drain', drain, "drain")

@@ -166,14 +166,14 @@ DcpProducer::DcpProducer(EventuallyPersistentEngine &e, const void *cookie,
         supportsCursorDropping = true;
     }
 
-    backfillMgr = new BackfillManager(&engine_);
+    backfillMgr.reset(new BackfillManager(&engine_));
 
     checkpointCreatorTask = new ActiveStreamCheckpointProcessorTask(e);
     ExecutorPool::get()->schedule(checkpointCreatorTask, AUXIO_TASK_IDX);
 }
 
 DcpProducer::~DcpProducer() {
-    backfillMgr->terminate();
+    backfillMgr.reset();
     delete rejectResp;
 
     ExecutorPool::get()->cancel(checkpointCreatorTask->getId());
@@ -206,18 +206,12 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_TMPFAIL;
     }
 
-    if (flags & DCP_ADD_STREAM_FLAG_LATEST) {
-        end_seqno = vb->getHighSeqno();
-    }
-
-    if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
-        end_seqno = engine_.getEpStore()->getLastPersistedSeqno(vbucket);
-    }
-
     if (!notifyOnly && start_seqno > end_seqno) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
             "the start seqno (%" PRIu64 ") is larger than the end seqno "
-            "(%" PRIu64 ")", logHeader(), vbucket, start_seqno, end_seqno);
+            "(%" PRIu64 "); "
+            "Incorrect params passed by the DCP client",
+            logHeader(), vbucket, start_seqno, end_seqno);
         return ENGINE_ERANGE;
     }
 
@@ -279,6 +273,37 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Couldn't add failover log to "
             "stream request due to error %d", logHeader(), vbucket, rv);
         return rv;
+    }
+
+    if (flags & DCP_ADD_STREAM_FLAG_LATEST) {
+        end_seqno = vb->getHighSeqno();
+    }
+
+    if (flags & DCP_ADD_STREAM_FLAG_DISKONLY) {
+        end_seqno = engine_.getEpStore()->getLastPersistedSeqno(vbucket);
+    }
+
+    if (!notifyOnly && start_seqno > end_seqno) {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+            "the start seqno (%" PRIu64 ") is larger than the end seqno (%"
+            PRIu64 "), stream request flags %d, vb_uuid %" PRIu64
+            ", snapStartSeqno %" PRIu64 ", snapEndSeqno %" PRIu64
+            "; should have rolled back instead",
+            logHeader(), vbucket, start_seqno, end_seqno, flags, vbucket_uuid,
+            snap_start_seqno, snap_end_seqno);
+        return ENGINE_ERANGE;
+    }
+
+    if (!notifyOnly && start_seqno > static_cast<uint64_t>(vb->getHighSeqno()))
+    {
+        LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
+            "the start seqno (%" PRIu64 ") is larger than the vb highSeqno (%"
+            PRId64 "), stream request flags is %d, vb_uuid %" PRIu64
+            ", snapStartSeqno %" PRIu64 ", snapEndSeqno %" PRIu64
+            "; should have rolled back instead",
+            logHeader(), vbucket, start_seqno, vb->getHighSeqno(), flags,
+            vbucket_uuid, snap_start_seqno, snap_end_seqno);
+        return ENGINE_ERANGE;
     }
 
     stream_t s;
@@ -687,7 +712,8 @@ void DcpProducer::addStats(ADD_STAT add_stat, const void *c) {
     addStat("items_sent", getItemsSent(), add_stat, c);
     addStat("items_remaining", getItemsRemaining(), add_stat, c);
     addStat("total_bytes_sent", getTotalBytes(), add_stat, c);
-    addStat("last_sent_time", lastSendTime, add_stat, c);
+    addStat("last_sent_time", lastSendTime, add_stat,
+            c);
     addStat("noop_enabled", noopCtx.enabled, add_stat, c);
     addStat("noop_wait", noopCtx.pendingRecv, add_stat, c);
     addStat("priority", priority.c_str(), add_stat, c);
@@ -800,6 +826,17 @@ void DcpProducer::closeAllStreams() {
     for (const auto vbid: vbvector) {
          engine_.getDcpConnMap().removeVBConnByVBId(conn, vbid);
     }
+
+    // Destroy the backfillManager. (BackfillManager task also
+    // may hold a weak reference to it while running, but that is
+    // guaranteed to decay and free the BackfillManager once it
+    // completes run().
+    // This will terminate any tasks and delete any backfills
+    // associated with this Producer.  This is necessary as if we
+    // don't, then the RCPtr references which exist between
+    // DcpProducer and ActiveStream result in us leaking DcpProducer
+    // objects (and Couchstore vBucket files, via DCPBackfill task).
+    backfillMgr.reset();
 }
 
 const char* DcpProducer::getType() const {

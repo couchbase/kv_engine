@@ -49,10 +49,6 @@ typedef SingleThreadedRCPtr<Stream> stream_t;
 class PassiveStream;
 typedef RCPtr<PassiveStream> passive_stream_t;
 
-// Implementation defined in dcp/backfill-manager.h
-class BackfillManager;
-typedef RCPtr<BackfillManager> backfill_manager_t;
-
 /**
  * DcpReadyQueue is a std::queue wrapper for managing a
  * queue of vbuckets that are ready for a DCP producer/consumer to process.

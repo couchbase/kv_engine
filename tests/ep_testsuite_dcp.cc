@@ -26,6 +26,8 @@
 #include "mock/mock_dcp.h"
 #include "programs/engine_testapp/mock_server.h"
 
+#include <thread>
+
 // Helper functions ///////////////////////////////////////////////////////////
 
 void dcp_step(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const void* cookie) {
@@ -1778,7 +1780,7 @@ static enum test_result test_dcp_producer_backfill_limits(ENGINE_HANDLE *h,
        to run additional 'num_items' during backfill_state_scanning state. */
     uint64_t exp_backfill_task_runs = 4 + num_items;
     checkeq(exp_backfill_task_runs,
-            get_histo_stat(h, h1, "backfill_tasks", "runtimes",
+            get_histo_stat(h, h1, "backfill_tasks[AUXIO]", "runtimes",
                            Histo_stat_info::TOTAL_COUNT),
             "backfill_tasks did not run expected number of times");
 
@@ -2807,7 +2809,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     }
 
     dcp_step(h, h1, cookie);
-    cb_assert(dcp_last_op = PROTOCOL_BINARY_CMD_DCP_CONTROL);
+    cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_CONTROL);
     cb_assert(dcp_last_key.compare("supports_cursor_dropping") == 0);
     cb_assert(dcp_last_opaque != opaque);
 
@@ -5012,7 +5014,7 @@ static enum test_result test_dcp_early_termination(ENGINE_HANDLE* h,
 
 static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
                                               ENGINE_HANDLE_V1 *h1) {
-    const int num_items = 50, num_testcases = 12;
+    const int num_items = 50;
     uint64_t end_seqno = num_items + 1000;
     uint32_t high_seqno = 0;
 
@@ -5033,6 +5035,7 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
     uint64_t uuid = get_ull_stat(h, h1, "vb_0:1:id", "failovers");
 
     typedef struct dcp_params {
+        uint32_t flags;
         uint64_t vb_uuid;
         uint64_t start_seqno;
         uint64_t snap_start_seqno;
@@ -5041,49 +5044,60 @@ static enum test_result test_failover_log_dcp(ENGINE_HANDLE *h,
         ENGINE_ERROR_CODE exp_err_code;
     } dcp_params_t;
 
-    dcp_params_t params[num_testcases] =
+    dcp_params_t params[] =
     {   /* Do not expect rollback when start_seqno is 0 */
-        {uuid, 0, 0, 0, 0, ENGINE_SUCCESS},
+        {0, uuid, 0, 0, 0, 0, ENGINE_SUCCESS},
         /* Do not expect rollback when start_seqno is 0 and vb_uuid mismatch */
-        {0xBAD, 0, 0, 0, 0, ENGINE_SUCCESS},
+        {0, 0xBAD, 0, 0, 0, 0, ENGINE_SUCCESS},
         /* Don't expect rollback when you already have all items in the snapshot
            (that is, start == snap_end) and upper >= snap_end */
-        {uuid, high_seqno, 0, high_seqno, 0, ENGINE_SUCCESS},
-        {uuid, high_seqno - 1, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
+        {0, uuid, high_seqno, 0, high_seqno, 0, ENGINE_SUCCESS},
+        {0, uuid, high_seqno - 1, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
         /* Do not expect rollback when you have no items in the snapshot
          (that is, start == snap_start) and upper >= snap_end */
-        {uuid, high_seqno - 10, high_seqno - 10, high_seqno, 0, ENGINE_SUCCESS},
-        {uuid, high_seqno - 10, high_seqno - 10, high_seqno - 1, 0,
+        {0, uuid, high_seqno - 10, high_seqno - 10, high_seqno, 0, ENGINE_SUCCESS},
+        {0, uuid, high_seqno - 10, high_seqno - 10, high_seqno - 1, 0,
          ENGINE_SUCCESS},
         /* Do not expect rollback when you are in middle of a snapshot (that is,
            snap_start < start < snap_end) and upper >= snap_end */
-        {uuid, 10, 0, high_seqno, 0, ENGINE_SUCCESS},
-        {uuid, 10, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
+        {0, uuid, 10, 0, high_seqno, 0, ENGINE_SUCCESS},
+        {0, uuid, 10, 0, high_seqno - 1, 0, ENGINE_SUCCESS},
         /* Expect rollback when you are in middle of a snapshot (that is,
            snap_start < start < snap_end) and upper < snap_end. Rollback to
            snap_start if snap_start < upper */
-        {uuid, 20, 10, high_seqno + 1, 10, ENGINE_ROLLBACK},
+        {0, uuid, 20, 10, high_seqno + 1, 10, ENGINE_ROLLBACK},
         /* Expect rollback when upper < snap_start_seqno. Rollback to upper */
-        {uuid, high_seqno + 20, high_seqno + 10, high_seqno + 30, high_seqno,
+        {0, uuid, high_seqno + 20, high_seqno + 10, high_seqno + 30, high_seqno,
          ENGINE_ROLLBACK},
-        {uuid, high_seqno + 10, high_seqno + 10, high_seqno + 10, high_seqno,
+        {0, uuid, high_seqno + 10, high_seqno + 10, high_seqno + 10, high_seqno,
          ENGINE_ROLLBACK},
         /* vb_uuid not found in failover table, rollback to zero */
-        {0xBAD, 10, 0, high_seqno, 0, ENGINE_ROLLBACK},
+        {0, 0xBAD, 10, 0, high_seqno, 0, ENGINE_ROLLBACK},
+
+        /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_LATEST
+           set - expect rollback */
+        {DCP_ADD_STREAM_FLAG_LATEST, uuid, high_seqno + 1, high_seqno + 1,
+         high_seqno + 1, high_seqno, ENGINE_ROLLBACK},
+
+        /* start_seqno > vb_high_seqno and DCP_ADD_STREAM_FLAG_DISKONLY
+           set - expect rollback */
+        {DCP_ADD_STREAM_FLAG_DISKONLY, uuid, high_seqno + 1, high_seqno + 1,
+         high_seqno + 1, high_seqno, ENGINE_ROLLBACK},
+
         /* Add new test case here */
     };
 
-    for (int i = 0; i < num_testcases; i++)
-    {
+    for (const auto& testcase : params) {
         DcpStreamCtx ctx;
-        ctx.vb_uuid = params[i].vb_uuid;
-        ctx.seqno = {params[i].start_seqno, end_seqno};
-        ctx.snapshot = {params[i].snap_start_seqno, params[i].snap_end_seqno};
-        ctx.exp_err = params[i].exp_err_code;
-        ctx.exp_rollback = params[i].exp_rollback;
+        ctx.flags = testcase.flags;
+        ctx.vb_uuid = testcase.vb_uuid;
+        ctx.seqno = {testcase.start_seqno, end_seqno};
+        ctx.snapshot = {testcase.snap_start_seqno, testcase.snap_end_seqno};
+        ctx.exp_err = testcase.exp_err_code;
+        ctx.exp_rollback = testcase.exp_rollback;
 
         const void *cookie = testHarness.create_cookie();
-        std::string conn_name("unittest" + std::to_string(i));
+        std::string conn_name("test_failover_log_dcp");
         TestDcpConsumer tdc(conn_name.c_str(), cookie);
         tdc.addStreamCtx(ctx);
 
@@ -5505,6 +5519,146 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/**
+ * This test demonstrates bucket shutdown when there is a rogue
+ * backfill (whose producer and stream are already closed).
+ */
+static enum test_result test_mb19153(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1) {
+
+    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+
+    // Set max num AUX IO to 0, so no backfill would start
+    // immediately
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_auxio", "0");
+
+    int num_items = 10000;
+
+    for (int j = 0; j < num_items; ++j) {
+        item *i = NULL;
+        std::stringstream ss;
+        ss << "key-" << j;
+        check(store(h, h1, NULL, OPERATION_SET,
+                    ss.str().c_str(), "data", &i, 0, 0, 0, 0)
+                    == ENGINE_SUCCESS, "Failed to store a value");
+
+        h1->release(h, NULL, i);
+    }
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t flags = DCP_OPEN_PRODUCER;
+    const char *name = "unittest";
+
+    uint32_t opaque = 1;
+    uint64_t start = 0;
+    uint64_t end = num_items;
+
+    // Setup a producer connection
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.open(h, cookie, ++opaque, 0, flags,
+                         (void*)name, strlen(name)),
+            "Failed dcp Consumer open connection.");
+
+    // Initiate a stream request
+    uint64_t vb_uuid = get_ull_stat(h, h1, "vb_0:0:id", "failovers");
+    uint64_t rollback = 0;
+    checkeq(ENGINE_SUCCESS,
+            h1->dcp.stream_req(h, cookie, 0, opaque, 0, start, end,
+                               vb_uuid, 0, 0,
+                               &rollback, mock_dcp_add_failover_log),
+            "Expected success");
+
+    // Disconnect the producer
+    testHarness.destroy_cookie(cookie);
+
+    // Wait for ConnManager to clear out dead connections from dcpConnMap
+    wait_for_stat_to_be(h, h1, "ep_dcp_dead_conn_count", 0, "dcp");
+
+    // Set auxIO threads to 1, so the backfill for the closed producer
+    // is picked up, and begins to run.
+    set_param(h, h1, protocol_binary_engine_param_flush,
+              "max_num_auxio", "1");
+
+    // Terminate engine
+    return SUCCESS;
+}
+
+static void mb19982_add_stat(const char *key, const uint16_t klen, const char *val,
+                      const uint32_t vlen, const void *cookie) {
+    // do nothing
+}
+
+/*
+ * This test creates a DCP consumer on a replica VB and then from a second thread
+ * fires get_stats("dcp") whilst the main thread changes VB state from
+ * replica->active->replica (and so on).
+ * MB-19982 idenified a lock inversion between these two functional paths and this
+ * test proves and protects the issue.
+ */
+static enum test_result test_mb19982(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1) {
+
+    // Load up vb0 with num_items
+    int num_items = 1000;
+    int iterations = 1000; // how many stats calls
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t opaque = 0xFFFF0000;
+    uint32_t flags = 0;
+    std::string name = "unittest";
+    // Switch to replica
+    check(set_vbucket_state(h, h1, 0, vbucket_state_replica),
+          "Failed to set vbucket state.");
+
+    // Open consumer connection
+    checkeq(h1->dcp.open(h, cookie, opaque, 0, flags,
+                         (void*)name.c_str(), name.length()),
+            ENGINE_SUCCESS,
+            "Failed dcp Consumer open connection.");
+
+    add_stream_for_consumer(h, h1, cookie, opaque++, 0, 0,
+                            PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+    std::thread thread([h, h1, iterations]() {
+        for (int ii = 0; ii < iterations; ii++) {
+            checkeq(h1->get_stats(h, NULL, "dcp", 3, &mb19982_add_stat),
+                    ENGINE_SUCCESS, "failed get_stats(dcp)");
+        }
+    });
+
+    uint32_t stream_opaque = get_int_stat(h, h1,
+                                          "eq_dcpq:unittest:stream_0_opaque",
+                                          "dcp");
+
+    for (int i = 1; i <= num_items; i++) {
+        std::stringstream ss;
+        ss << "key-" << i;
+        checkeq(h1->dcp.snapshot_marker(h, cookie,
+                                        stream_opaque, 0/*vbid*/,
+                                        num_items, num_items + i, 2),
+                ENGINE_SUCCESS,
+                "Failed to send snapshot marker");
+        checkeq(h1->dcp.mutation(h, cookie, stream_opaque,
+                                 ss.str().c_str(), ss.str().length(),
+                                 "value", 5, i * 3, 0, 0, 0,
+                                 i + num_items, i + num_items,
+                                 0, 0, "", 0, INITIAL_NRU_VALUE),
+                ENGINE_SUCCESS,
+                "Failed to send dcp mutation");
+
+        // And flip VB state (this can have a lock inversion with stats)
+        checkeq(h1->dcp.set_vbucket_state(h, cookie, stream_opaque, 0, vbucket_state_active),
+                ENGINE_SUCCESS, "failed to change to active");
+        checkeq(h1->dcp.set_vbucket_state(h, cookie, stream_opaque, 0, vbucket_state_replica),
+                ENGINE_SUCCESS, "failed to change to replica");
+    }
+
+    thread.join();
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite_dcp";
@@ -5750,6 +5904,10 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, "max_size=1048576",
                  prepare, cleanup),
         TestCase("test get all vb seqnos", test_get_all_vb_seqnos, test_setup,
+                 teardown, NULL, prepare, cleanup),
+        TestCase("test MB-19153", test_mb19153,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("test MB-19982", test_mb19982, test_setup,
                  teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)

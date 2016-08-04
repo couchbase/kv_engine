@@ -189,7 +189,6 @@ TEST_F(HashTableTest, ReverseDeletions) {
 }
 
 TEST_F(HashTableTest, ForwardDeletions) {
-    alarm(20);
     size_t initialSize = global_stats.currentSize.load();
     HashTable h(global_stats, 5, 1);
     ASSERT_EQ(5, h.getSize());
@@ -637,6 +636,5 @@ int main(int argc, char **argv) {
 
     global_stats.setMaxDataSize(64*1024*1024);
     HashTable::setDefaultNumBuckets(3);
-
     return RUN_ALL_TESTS();
 }

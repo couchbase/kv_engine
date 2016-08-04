@@ -42,7 +42,6 @@ static const char* snapshotTypeToString(snapshot_type_t type) {
 }
 
 const uint64_t Stream::dcpMaxSeqno = std::numeric_limits<uint64_t>::max();
-const size_t PassiveStream::batchSize = 10;
 
 Stream::Stream(const std::string &name, uint32_t flags, uint32_t opaque,
                uint16_t vb, uint64_t start_seqno, uint64_t end_seqno,
@@ -636,21 +635,14 @@ void ActiveStream::addTakeoverStats(ADD_STAT add_stat, const void *cookie) {
                 vb->checkpointManager.getNumItemsForCursor(name_) : 0;
 
     size_t del_items = 0;
-    const VBucketMap &vbMap = engine->getEpStore()->getVBuckets();
-
-    /* Get stats from KV Store only when the vbucket database
-     * file has already been created or not being deleted.
-     */
-    if (!vbMap.isBucketCreation(vb_) && !vbMap.isBucketDeletion(vb_)) {
-        try {
-            del_items = engine->getEpStore()->getRWUnderlying(vb_)->
+    try {
+        del_items = engine->getEpStore()->getRWUnderlying(vb_)->
                                                         getNumPersistedDeletes(vb_);
-        } catch (std::runtime_error& e) {
-            producer->getLogger().log(EXTENSION_LOG_WARNING,
-                "ActiveStream:addTakeoverStats: exception while getting num persisted "
-                "deletes for vbucket:%" PRIu16 " - treating as 0 deletes. "
-                "Details: %s", vb_, e.what());
-        }
+    } catch (std::runtime_error& e) {
+        producer->getLogger().log(EXTENSION_LOG_WARNING,
+            "ActiveStream:addTakeoverStats: exception while getting num persisted "
+            "deletes for vbucket:%" PRIu16 " - treating as 0 deletes. "
+            "Details: %s", vb_, e.what());
     }
 
     if (end_seqno_ < curChkSeqno) {
@@ -1484,8 +1476,6 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         return ENGINE_EINVAL;
     }
 
-    LockHolder lh(buffer.bufMutex);
-
     if (state_ == STREAM_DEAD) {
         delete resp;
         return ENGINE_KEY_ENOENT;
@@ -1543,7 +1533,9 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         }
     }
 
-    if (engine->getReplicationThrottle().shouldProcess() && !buffer.items) {
+    LockHolder lh(buffer.bufMutex);
+    if (engine->getReplicationThrottle().shouldProcess() && buffer.messages.empty()) {
+        lh.unlock();
         /* Process the response here itself rather than buffering it */
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         switch (resp->getEvent()) {
@@ -1567,33 +1559,36 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
                 }
                 break;
             default:
-                abort();
+                // Above switch should've returned DISCONNECT, throw an exception
+                throw std::logic_error("PassiveStream::messageReceived: (vb " +
+                                       std::to_string(vb_) +
+                                       ") received unknown message type " +
+                                       std::to_string(resp->getEvent()));
         }
         if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
             delete resp;
             return ret;
         }
+    } else {
+        buffer.messages.push(resp);
+        buffer.bytes += resp->getMessageSize();
     }
-
-    buffer.messages.push(resp);
-    buffer.items++;
-    buffer.bytes += resp->getMessageSize();
 
     return ENGINE_TMPFAIL;
 }
 
-process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed_bytes) {
+process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed_bytes,
+                                                             size_t batchSize) {
     LockHolder lh(buffer.bufMutex);
     uint32_t count = 0;
     uint32_t message_bytes = 0;
     uint32_t total_bytes_processed = 0;
     bool failed = false;
-
     if (buffer.messages.empty()) {
         return all_processed;
     }
 
-    while (count < PassiveStream::batchSize && !buffer.messages.empty()) {
+    while (count < batchSize && !buffer.messages.empty()) {
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         /* If the stream is in dead state we should not process any remaining
            items in the buffer, we should rather clear them */
@@ -1627,7 +1622,12 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
                 }
                 break;
             default:
-                abort();
+                consumer->getLogger().log(EXTENSION_LOG_WARNING,
+                                          "PassiveStream::processBufferedMessages:"
+                                          "(vb %" PRIu16 ") PassiveStream failing "
+                                          "unknown message type %d",
+                                          vb_, response->getEvent());
+                failed = true;
         }
 
         if (ret == ENGINE_TMPFAIL || ret == ENGINE_ENOMEM) {
@@ -1637,7 +1637,6 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
 
         delete response;
         buffer.messages.pop();
-        buffer.items--;
         buffer.bytes -= message_bytes;
         count++;
         if (ret != ENGINE_ERANGE) {
@@ -1841,7 +1840,7 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
         char buf[bsize];
         checked_snprintf(buf, bsize, "%s:stream_%d_buffer_items", name_.c_str(),
                          vb_);
-        add_casted_stat(buf, buffer.items, add_stat, c);
+        add_casted_stat(buf, buffer.messages.size(), add_stat, c);
         checked_snprintf(buf, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(),
                          vb_);
         add_casted_stat(buf, buffer.bytes, add_stat, c);
@@ -1897,7 +1896,6 @@ uint32_t PassiveStream::clearBuffer_UNLOCKED() {
     }
 
     buffer.bytes = 0;
-    buffer.items = 0;
     return unackedBytes;
 }
 

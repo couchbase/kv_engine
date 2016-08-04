@@ -477,7 +477,7 @@ public:
                               uint32_t opaque,
                               uint32_t seqno,
                               uint32_t flags,
-                              void *stream_name,
+                              const void *stream_name,
                               uint16_t nname);
 
     ENGINE_ERROR_CODE dcpAddStream(const void* cookie,
@@ -800,7 +800,7 @@ public:
      * Explicitly trigger the AccessScanner task. Provided to facilitate
      * testing.
      */
-    void runAccessScannerTask(void);
+    bool runAccessScannerTask(void);
 
     /*
      * Explicitly trigger the VbStatePersist task. Provided to facilitate
@@ -958,7 +958,7 @@ protected:
                                    const char* stat_key, int nkey);
     ENGINE_ERROR_CODE doDiskStats(const void *cookie, ADD_STAT add_stat,
                                   const char* stat_key, int nkey);
-    void addSeqnoVbStats_UNLOCKED(const void *cookie, ADD_STAT add_stat,
+    void addSeqnoVbStats(const void *cookie, ADD_STAT add_stat,
                                   const RCPtr<VBucket> &vb);
 
     void addLookupResult(const void *cookie, Item *result) {
@@ -995,6 +995,10 @@ protected:
     // Get the current tap connection for this cookie.
     // If this method returns NULL, you should return TAP_DISCONNECT
     TapProducer* getTapProducer(const void *cookie);
+
+    // Initialize all required callbacks of this engine with the underlying
+    // server.
+    void initializeEngineCallbacks();
 
     SERVER_HANDLE_V1 *serverApi;
     EventuallyPersistentStore *epstore;

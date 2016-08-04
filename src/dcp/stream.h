@@ -463,7 +463,8 @@ public:
 
     ~PassiveStream();
 
-    process_items_error_t processBufferedMessages(uint32_t &processed_bytes);
+    process_items_error_t processBufferedMessages(uint32_t &processed_bytes,
+                                                  size_t batchSize);
 
     DcpResponse* next();
 
@@ -509,9 +510,8 @@ protected:
     bool cur_snapshot_ack;
 
     struct Buffer {
-        Buffer() : bytes(0), items(0) {}
+        Buffer() : bytes(0) {}
         size_t bytes;
-        size_t items;
         /* Lock ordering w.r.t to streamMutex:
            First acquire bufMutex and then streamMutex */
         std::mutex bufMutex;

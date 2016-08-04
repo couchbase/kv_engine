@@ -875,7 +875,7 @@ public:
 
     void runDefragmenterTask();
 
-    void runAccessScannerTask();
+    bool runAccessScannerTask();
 
     void runVbStatePersistTask(int vbid);
 
