@@ -2,8 +2,8 @@
 
 # Script to show which commit(s) are not yet merged between our release branches.
 
-import subprocess
 from __future__ import print_function
+import subprocess
 
 class bcolors:
     HEADER = '\033[36m'
