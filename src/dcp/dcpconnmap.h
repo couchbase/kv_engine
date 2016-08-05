@@ -137,8 +137,6 @@ protected:
      */
     void consumerBatchSizeConfigChanged(size_t newValue);
 
-private:
-
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
 
     void closeAllStreams_UNLOCKED();
