@@ -127,6 +127,14 @@ public:
      */
     void notifyConsumerIfNecessary(bool schedule);
 
+    void setProcessorYieldThreshold(size_t newValue) {
+        processBufferedMessagesYieldThreshold = newValue;
+    }
+
+    void setProcessBufferedMessagesBatchSize(size_t newValue) {
+        processBufferedMessagesBatchSize = newValue;
+    }
+
 protected:
     /**
      * Records when the consumer last received a message from producer.
@@ -169,6 +177,17 @@ protected:
 
     void notifyVbucketReady(uint16_t vbucket);
 
+    /**
+     * Drain the stream of bufferedItems
+     * The function will stop draining
+     *  - if there's no more data - all_processed
+     *  - if the replication throttle says no more - cannot_process
+     *  - if there's an error, e.g. ETMPFAIL/ENOMEM - cannot_process
+     *  - if we hit the yieldThreshold - more_to_process
+     */
+    process_items_error_t drainStreamsBufferedItems(SingleThreadedRCPtr<PassiveStream>& stream,
+                                                    size_t yieldThreshold);
+
     uint64_t opaqueCounter;
     size_t processerTaskId;
     std::atomic<enum process_items_error_t> processerTaskState;
@@ -198,6 +217,20 @@ protected:
     std::atomic<bool> taskAlreadyCancelled;
 
     FlowControl flowControl;
+
+       /**
+     * An upper bound on how many times drainStreamsBufferedItems will
+     * call into processBufferedMessages before returning and triggering
+     * Processor to yield. Initialised from the configuration
+     *  'dcp_consumer_process_buffered_messages_yield_limit'
+     */
+    size_t processBufferedMessagesYieldThreshold;
+
+    /**
+     * An upper bound on how many items a single consumer stream will process
+     * in one call of stream->processBufferedMessages()
+     */
+    size_t processBufferedMessagesBatchSize;
 
     static const std::string noopCtrlMsg;
     static const std::string noopIntervalCtrlMsg;

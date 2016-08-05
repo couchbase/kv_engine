@@ -57,29 +57,29 @@ bool Processer::run() {
         return false;
     }
 
-    double sleepFor = 0;
+    double sleepFor = 0.0;
     enum process_items_error_t state = consumer->processBufferedItems();
     switch (state) {
-    case all_processed:
-        sleepFor = INT_MAX;
-        break;
-    case more_to_process:
-        sleepFor = 0;
-        break;
-    case cannot_process:
-        sleepFor = 5;
-        break;
+        case all_processed:
+            sleepFor = INT_MAX;
+            break;
+        case more_to_process:
+            sleepFor = 0.0;
+            break;
+        case cannot_process:
+            sleepFor = 5.0;
+            break;
     }
 
     if (consumer->notifiedProcesser(false)) {
-        snooze(0);
+        snooze(0.0);
         state = more_to_process;
     } else {
         snooze(sleepFor);
         // Check if the processer was notified again,
         // in which case the task should wake immediately.
         if (consumer->notifiedProcesser(false)) {
-            snooze(0);
+            snooze(0.0);
             state = more_to_process;
         }
     }
@@ -110,8 +110,11 @@ DcpConsumer::DcpConsumer(EventuallyPersistentEngine &engine, const void *cookie,
       processerNotification(false),
       backoffs(0),
       taskAlreadyCancelled(false),
-      flowControl(engine, this)
-{
+      flowControl(engine, this),
+      processBufferedMessagesYieldThreshold(engine.getConfiguration().
+                                                getDcpConsumerProcessBufferedMessagesYieldLimit()),
+      processBufferedMessagesBatchSize(engine.getConfiguration().
+                                            getDcpConsumerProcessBufferedMessagesBatchSize()) {
     Configuration& config = engine.getConfiguration();
     setSupportAck(false);
     setLogHeader("DCP (Consumer) " + getName() + " -");
@@ -761,6 +764,41 @@ void DcpConsumer::aggregateQueueStats(ConnCounter& aggregator) {
     aggregator.conn_queueBackoff += backoffs;
 }
 
+
+process_items_error_t DcpConsumer::drainStreamsBufferedItems(SingleThreadedRCPtr<PassiveStream>& stream,
+                                                             size_t yieldThreshold) {
+    process_items_error_t rval = all_processed;
+    uint32_t bytesProcessed = 0;
+    size_t iterations = 0;
+    do {
+        if (!engine_.getReplicationThrottle().shouldProcess()) {
+            backoffs++;
+            vbReady.pushUnique(stream->getVBucket());
+            return cannot_process;
+        }
+
+        bytesProcessed = 0;
+        rval = stream->processBufferedMessages(bytesProcessed,
+                                               processBufferedMessagesBatchSize);
+        flowControl.incrFreedBytes(bytesProcessed);
+
+        // Notifying memcached on clearing items for flow control
+        notifyConsumerIfNecessary(false/*schedule*/);
+
+        iterations++;
+    } while (bytesProcessed > 0 &&
+             rval == all_processed &&
+             iterations <= yieldThreshold);
+
+    // The stream may not be done yet so must go back in the ready queue
+    if (bytesProcessed > 0) {
+        vbReady.pushUnique(stream->getVBucket());
+        rval = more_to_process; // Return more_to_process to force a snooze(0.0)
+    }
+
+    return rval;
+}
+
 process_items_error_t DcpConsumer::processBufferedItems() {
     process_items_error_t process_ret = all_processed;
     uint16_t vbucket = 0;
@@ -771,22 +809,8 @@ process_items_error_t DcpConsumer::processBufferedItems() {
             continue;
         }
 
-        uint32_t bytes_processed;
-        do {
-            if (!engine_.getReplicationThrottle().shouldProcess()) {
-                backoffs++;
-                vbReady.pushUnique(vbucket);
-                return cannot_process;
-            }
-
-            bytes_processed = 0;
-            process_ret = stream->processBufferedMessages(bytes_processed);
-            flowControl.incrFreedBytes(bytes_processed);
-
-            // Notifying memcached on clearing items for flow control
-            notifyConsumerIfNecessary(false/*schedule*/);
-
-        } while (bytes_processed > 0 && process_ret != cannot_process);
+        process_ret = drainStreamsBufferedItems(stream,
+                                                processBufferedMessagesYieldThreshold);
 
         if (process_ret == all_processed) {
             return more_to_process;
@@ -795,8 +819,8 @@ process_items_error_t DcpConsumer::processBufferedItems() {
         if (process_ret == cannot_process) {
             // If items for current vbucket weren't processed,
             // re-add current vbucket
-            if (vbReady.size()) {
-                // If there are more vbuckets in queue, do not sleep.
+            if (vbReady.size() > 0) {
+                // If there are more vbuckets in queue, sleep(0).
                 process_ret = more_to_process;
             }
             vbReady.pushUnique(vbucket);

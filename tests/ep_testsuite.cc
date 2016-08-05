@@ -41,7 +41,6 @@
 #include "ep_testsuite_common.h"
 #include "locks.h"
 #include <libcouchstore/couch_db.h>
-
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <JSON_checker.h>
@@ -2796,6 +2795,16 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
         config.replace(found, oldparam.size(), newparam);
     }
 
+    /* We do not want the access scanner task to be running while we initiate it
+       explicitly below. Hence set the alog_task_time to about 1 ~ 2 hours
+       from now */
+    time_t now = time(nullptr);
+    struct tm* tm_now = gmtime(&now);
+
+    set_param(h, h1, protocol_binary_engine_param_flush, "alog_task_time",
+              (std::to_string(tm_now->tm_hour + 2)).c_str());
+    wait_for_stat_to_be(h, h1, "ep_alog_task_time", tm_now->tm_hour + 2);
+
     testHarness.reload_engine(&h, &h1,
                               testHarness.engine_path,
                               config.c_str(),
@@ -2806,6 +2815,10 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
             h1->get_stats(h, NULL, NULL, 0, add_stats),
             "Failed to get stats.");
     name = vals.find("ep_alog_path")->second;
+
+    /* Check access scanner is enabled */
+    checkeq(true, get_bool_stat(h, h1, "ep_access_scanner_enabled"),
+            "Access scanner task not enabled by default. Check test config");
 
     const int num_shards = get_int_stat(h, h1, "ep_workload:num_shards",
                                         "workload");
@@ -2858,8 +2871,8 @@ static enum test_result test_access_scanner(ENGINE_HANDLE *h,
         check(set_param(h, h1, protocol_binary_engine_param_flush,
                         "access_scanner_run", "true"),
               "Failed to trigger access scanner");
-        wait_for_stat_to_be(h, h1, "ep_num_access_scanner_runs",
-                            alog_runs + num_shards);
+        wait_for_stat_to_be_gte(h, h1, "ep_num_access_scanner_runs",
+                                alog_runs + num_shards);
     }
 
     /* This time since resident ratio is < 90% access log should be generated */
@@ -5615,7 +5628,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
-    check(last_body.size() == sizeof(int64_t),
+    checkeq(sizeof(int64_t), last_body.size(),
             "Bodylen didn't match expected value");
     memcpy(&adjusted_time, last_body.data(), last_body.size());
     adjusted_time = ntohll(adjusted_time);
@@ -6135,7 +6148,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:last_persisted_snap_start",
                 "vb_0:purge_seqno",
                 "vb_0:uuid"
-
             }
         },
         {"prev-vbucket",
@@ -6237,6 +6249,8 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "ep_dcp_min_compression_ratio",
                 "ep_dcp_noop_interval",
                 "ep_dcp_producer_snapshot_marker_yield_limit",
+                "ep_dcp_consumer_process_buffered_messages_yield_limit",
+                "ep_dcp_consumer_process_buffered_messages_batch_size",
                 "ep_dcp_scan_byte_limit",
                 "ep_dcp_scan_item_limit",
                 "ep_dcp_takeover_max_time",
@@ -6929,7 +6943,6 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test failover log behavior", test_failover_log_behavior,
                  test_setup, teardown, NULL, prepare, cleanup),
-
         TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
                  "time_synchronization=enabled_with_drift", prepare, cleanup),
 
@@ -6940,7 +6953,7 @@ BaseTestCase testsuite_testcases[] = {
                  test_mb17517_tap_with_locked_key, test_setup, teardown, NULL,
                  prepare, cleanup),
 
-         TestCase("test_mb19635_upgrade_from_25x",
+        TestCase("test_mb19635_upgrade_from_25x",
                  test_mb19635_upgrade_from_25x, test_setup, teardown, NULL,
                  prepare, cleanup),
 

@@ -15,6 +15,33 @@
  *   limitations under the License.
  */
 
+/**
+ * The BackfillManager is responsible for multiple DCP backfill
+ * operations owned by a single DCP connection.
+ * It consists of two main classes:
+ *
+ * - BackfillManager, which acts as the main interface for adding new
+ *    streams.
+ * - BackfillManagerTask, which runs on a background AUXIO thread and
+ *    performs most of the actual backfilling operations.
+ *
+ * One main purpose of the BackfillManager is to impose a limit on the
+ * in-memory buffer space a streams' backfills consume - often
+ * ep-engine can read data from disk faster than the client connection
+ * can consume it, and so without any limits we could exhaust the
+ * bucket quota and cause Items to be evicted from the HashTable,
+ * which is Bad. At a high level, these limits are based on giving
+ * each DCP connection a maximum amount of buffer space, and pausing
+ * backfills if the buffer limit is reached. When the buffers are
+ * sufficiently drained (by sending to the client), backfilling can be
+ * resumed.
+ *
+ * Significant configuration parameters affecting backfill:
+ * - dcp_scan_byte_limit
+ * - dcp_scan_item_limit
+ * - dcp_backfill_byte_limit
+ */
+
 #ifndef SRC_DCP_BACKFILL_MANAGER_H_
 #define SRC_DCP_BACKFILL_MANAGER_H_ 1
 
@@ -26,13 +53,11 @@
 
 class EventuallyPersistentEngine;
 
-class BackfillManager : public RCValue {
+class BackfillManager : public std::enable_shared_from_this<BackfillManager> {
 public:
     BackfillManager(EventuallyPersistentEngine* e);
 
     ~BackfillManager();
-
-    void terminate();
 
     void addStats(connection_t conn, ADD_STAT add_stat, const void *c);
 
@@ -42,6 +67,8 @@ public:
 
     void bytesSent(uint32_t bytes);
 
+    // Called by the managerTask to acutally perform backfilling & manage
+    // backfills between the different queues.
     backfill_status_t backfill();
 
     void wakeUpTask();

@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "libcouchstore/couch_db.h"
+#include <relaxed_atomic.h>
 
 #include <map>
 #include <memory>
@@ -62,6 +63,17 @@ public:
     CouchRequest(const Item &it, uint64_t rev, MutationRequestCallback &cb,
                  bool del);
 
+    virtual ~CouchRequest() {}
+
+    /**
+     * Get the vbucket id of a document to be persisted
+     *
+     * @return vbucket id of a document
+     */
+    uint16_t getVBucketId(void) {
+        return vbucketId;
+    }
+
     /**
      * Get the revision number of the vbucket database file
      * where the document is persisted
@@ -103,7 +115,25 @@ public:
         return dbDocInfo.rev_meta.size + dbDocInfo.size;
     }
 
-private :
+    /**
+     * Return true if the document to be persisted is for DELETE
+     *
+     * @return true if the document to be persisted is for DELETE
+     */
+    bool isDelete() {
+        return deleteItem;
+    };
+
+    /**
+     * Get the key of a document to be persisted
+     *
+     * @return key of a document to be persisted
+     */
+    const std::string& getKey(void) const {
+        return key;
+    }
+
+protected:
     value_t value;
     uint8_t meta[COUCHSTORE_METADATA_SIZE];
     uint64_t fileRevNum;
@@ -386,7 +416,7 @@ protected:
      */
     DbInfo getDbInfo(uint16_t vbid);
 
-private:
+protected:
     bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
                          VBStatePersist options, bool reset=false);
 

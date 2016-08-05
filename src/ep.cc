@@ -1685,7 +1685,7 @@ bool EventuallyPersistentStore::doCompact(compaction_ctx *ctx,
      * as the database file is being compacted. If not, a lock needs to
      * be held in order to serialize access to the database file between
      * the writer and compactor threads
-     */ 
+     */
     if (concWriteCompact == false) {
         RCPtr<VBucket> vb = getVBucket(vbid);
         if (!vb) {
@@ -4147,8 +4147,8 @@ void EventuallyPersistentStore::runDefragmenterTask() {
     defragmenterTask->run();
 }
 
-void EventuallyPersistentStore::runAccessScannerTask() {
-    ExecutorPool::get()->wake(accessScanner.task);
+bool EventuallyPersistentStore::runAccessScannerTask() {
+    return ExecutorPool::get()->wake(accessScanner.task);
 }
 
 void EventuallyPersistentStore::runVbStatePersistTask(int vbid) {

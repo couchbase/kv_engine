@@ -28,14 +28,17 @@
 
 #include "bgfetcher.h"
 #include "checkpoint.h"
+#include "../mock/mock_dcp_producer.h"
+#include "checkpoint_remover.h"
 #include "dcp/dcpconnmap.h"
+#include "dcp/flow-control-manager.h"
 #include "ep_engine.h"
 #include "flusher.h"
+#include "replicationthrottle.h"
 #include "tapconnmap.h"
 
 #include "programs/engine_testapp/mock_server.h"
 #include <platform/dirutils.h>
-
 #include <thread>
 
 SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
@@ -63,6 +66,10 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
 
     // checkpointConfig is needed by CheckpointManager (via EPStore).
     checkpointConfig = new CheckpointConfig(*this);
+
+    dcpFlowControlManager_ = new DcpFlowControlManager(*this);
+
+    replicationThrottle = new ReplicationThrottle(configuration, stats);
 }
 
 void SynchronousEPEngine::setEPStore(EventuallyPersistentStore* store) {
@@ -71,7 +78,15 @@ void SynchronousEPEngine::setEPStore(EventuallyPersistentStore* store) {
 }
 
 MockEPStore::MockEPStore(EventuallyPersistentEngine &theEngine)
-    : EventuallyPersistentStore(theEngine) {}
+    : EventuallyPersistentStore(theEngine) {
+    // Perform a limited set of setup (normally done by EPStore::initialize) -
+    // enough such that objects which are assumed to exist are present.
+
+    // Create the closed checkpoint removed task. Note we do _not_ schedule
+    // it, unlike EPStore::initialize
+    chkTask = new ClosedUnrefCheckpointRemoverTask
+            (&engine, stats, theEngine.getConfiguration().getChkRemoverStime());
+}
 
 VBucketMap& MockEPStore::getVbMap() {
     return vbMap;
@@ -95,11 +110,22 @@ void EventuallyPersistentStoreTest::SetUp() {
     // from a previous run.
     CouchbaseDirectoryUtilities::rmrf(test_dbname);
 
-    engine.reset(new SynchronousEPEngine(config_string));
+    // Add dbname to config string.
+    std::string config = config_string;
+    if (config.size() > 0) {
+        config += ";";
+    }
+    config += "dbname=" + std::string(test_dbname);
+
+    engine.reset(new SynchronousEPEngine(config));
     ObjectRegistry::onSwitchThread(engine.get());
 
     store = new MockEPStore(*engine);
     engine->setEPStore(store);
+
+    // Ensure that EPEngine is hold about necessary server callbacks
+    // (client disconnect, bucket delete).
+    engine->public_initializeEngineCallbacks();
 
     // Need to initialize ep_real_time and friends.
     initialize_time_functions(get_mock_server_api()->core);
@@ -110,6 +136,7 @@ void EventuallyPersistentStoreTest::SetUp() {
 void EventuallyPersistentStoreTest::TearDown() {
     destroy_mock_cookie(cookie);
     destroy_mock_event_callbacks();
+    engine->getDcpConnMap().manageConnections();
     ObjectRegistry::onSwitchThread(nullptr);
     engine.reset();
 

@@ -28,6 +28,8 @@
 #include <utility>
 #include <vector>
 
+#include <relaxed_atomic.h>
+
 #include "objectregistry.h"
 #include "tasks.h"
 #include "task_type.h"

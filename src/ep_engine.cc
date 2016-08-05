@@ -531,7 +531,9 @@ extern "C" {
                 e->getConfiguration().setDcpMinCompressionRatio(
                         std::stof(valz));
             } else if (strcmp(keyz, "access_scanner_run") == 0) {
-                e->runAccessScannerTask();
+                if (!(e->runAccessScannerTask())) {
+                    rv = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
+                }
             } else if (strcmp(keyz, "vb_state_persist_run") == 0) {
                 e->runVbStatePersistTask(std::stoi(valz));
             } else {
@@ -559,6 +561,36 @@ extern "C" {
         // exceptions thrown by the configuration::set<param>() methods
         } catch(std::exception& error) {
             msg = error.what();
+            rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
+        }
+
+        return rv;
+    }
+
+    static protocol_binary_response_status setDcpParam(
+                                                    EventuallyPersistentEngine *e,
+                                                    const char *keyz,
+                                                    const char *valz,
+                                                    std::string& msg) {
+        protocol_binary_response_status rv = PROTOCOL_BINARY_RESPONSE_SUCCESS;
+        try {
+
+            if (strcmp(keyz, "dcp_consumer_process_buffered_messages_yield_limit") == 0) {
+                size_t v = atoi(valz);
+                checkNumeric(valz);
+                validate(v, size_t(1), std::numeric_limits<size_t>::max());
+                e->getConfiguration().setDcpConsumerProcessBufferedMessagesYieldLimit(v);
+            } else if (strcmp(keyz, "dcp_consumer_process_buffered_messages_batch_size") == 0) {
+                size_t v = atoi(valz);
+                checkNumeric(valz);
+                validate(v, size_t(1), std::numeric_limits<size_t>::max());
+                e->getConfiguration().setDcpConsumerProcessBufferedMessagesBatchSize(v);
+            } else {
+                msg = "Unknown config param";
+                rv = PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
+            }
+        } catch (std::runtime_error& ex) {
+            msg = "Value out of range.";
             rv = PROTOCOL_BINARY_RESPONSE_EINVAL;
         }
 
@@ -761,7 +793,7 @@ extern "C" {
         const char *valuep = keyp + keylen;
         vallen -= (keylen + extlen);
 
-        char keyz[32];
+        char keyz[128];
         char valz[512];
 
         // Read the key.
@@ -791,6 +823,9 @@ extern "C" {
             break;
         case protocol_binary_engine_param_checkpoint:
             rv = setCheckpointParam(e, keyz, valz, msg);
+            break;
+        case protocol_binary_engine_param_dcp:
+            rv = setDcpParam(e, keyz, valz, msg);
             break;
         default:
             rv = PROTOCOL_BINARY_RESPONSE_UNKNOWN_COMMAND;
@@ -2119,11 +2154,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::initialize(const char* config) {
 
     epstore = new EventuallyPersistentStore(*this);
 
-    // Register the ON_DISCONNECT callback
-    registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
-
-    // Register the ON_DELETE_BUCKET callback
-    registerEngineCallback(ON_DELETE_BUCKET, EvpHandleDeleteBucket, this);
+    initializeEngineCallbacks();
 
     // Complete the initialization of the ep-store
     if (!epstore->initialize()) {
@@ -2956,6 +2987,13 @@ TapProducer* EventuallyPersistentEngine::getTapProducer(const void *cookie) {
         return NULL;
     }
     return rv;
+}
+
+void EventuallyPersistentEngine::initializeEngineCallbacks() {
+    // Register the ON_DISCONNECT callback
+    registerEngineCallback(ON_DISCONNECT, EvpHandleDisconnect, this);
+    // Register the ON_DELETE_BUCKET callback
+    registerEngineCallback(ON_DELETE_BUCKET, EvpHandleDeleteBucket, this);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::processTapAck(const void *cookie,
@@ -4422,13 +4460,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doWorkloadStats(const void
     return ENGINE_SUCCESS;
 }
 
-void EventuallyPersistentEngine::addSeqnoVbStats_UNLOCKED(const void *cookie,
-                                                          ADD_STAT add_stat,
-                                                          const RCPtr<VBucket> &vb) {
-    /**
-     * ReaderLock is to already be acquired for the vbucket stateLock
-     * before invoking this function.
-     */
+void EventuallyPersistentEngine::addSeqnoVbStats(const void *cookie,
+                                                 ADD_STAT add_stat,
+                                                 const RCPtr<VBucket> &vb) {
+    // MB-19359: An atomic read of vbucket state without acquiring the
+    // reader lock for state should suffice here.
     uint64_t relHighSeqno = vb->getHighSeqno();
     if (vb->getState() != vbucket_state_active) {
         snapshot_info_t info = vb->checkpointManager.getSnapshotInfo();
@@ -4485,17 +4521,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
 
         int vbucket = atoi(value.c_str());
         RCPtr<VBucket> vb = getVBucket(vbucket);
-        if (!vb) {
+        if (!vb || vb->getState() == vbucket_state_dead) {
             return ENGINE_NOT_MY_VBUCKET;
         }
 
-        ReaderLockHolder rlh(vb->getStateLock());
-        if (vb->getState() == vbucket_state_dead) {
-            return ENGINE_NOT_MY_VBUCKET;
-        }
-
-
-        addSeqnoVbStats_UNLOCKED(cookie, add_stat, vb);
+        addSeqnoVbStats(cookie, add_stat, vb);
 
         return ENGINE_SUCCESS;
     }
@@ -4504,12 +4534,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doSeqnoStats(const void *cookie,
     for (auto vbid : vbuckets) {
         RCPtr<VBucket> vb = getVBucket(vbid);
         if (vb) {
-            ReaderLockHolder rlh(vb->getStateLock());
-            if (vb->getState() == vbucket_state_dead) {
-                continue;
-            }
-
-            addSeqnoVbStats_UNLOCKED(cookie, add_stat, vb);
+            addSeqnoVbStats(cookie, add_stat, vb);
         }
     }
     return ENGINE_SUCCESS;
@@ -4581,8 +4606,8 @@ void EventuallyPersistentEngine::runDefragmenterTask(void) {
     epstore->runDefragmenterTask();
 }
 
-void EventuallyPersistentEngine::runAccessScannerTask(void) {
-    epstore->runAccessScannerTask();
+bool EventuallyPersistentEngine::runAccessScannerTask(void) {
+    return epstore->runAccessScannerTask();
 }
 
 void EventuallyPersistentEngine::runVbStatePersistTask(int vbid) {
@@ -5732,21 +5757,14 @@ EventuallyPersistentEngine::doDcpVbTakeoverStats(const void *cookie,
         size_t vb_items = vb->getNumItems(epstore->getItemEvictionPolicy());
 
         size_t del_items = 0;
-        const VBucketMap &vbMap = epstore->getVBuckets();
-
-        /* Get stats from KV Store only when the vbucket database
-         * file has already been created.
-         */
-        if (!vbMap.isBucketCreation(vbid) && !vbMap.isBucketDeletion(vbid)) {
-            try {
-                del_items = epstore->getRWUnderlying(vbid)->
+        try {
+            del_items = epstore->getRWUnderlying(vbid)->
                                            getNumPersistedDeletes(vbid);
-            } catch (std::runtime_error& e) {
-                LOG(EXTENSION_LOG_WARNING,
-                    "doDcpVbTakeoverStats: exception while getting num "
-                    "persisted deletes for vbucket:%" PRIu16 " - treating as 0 "
-                    "deletes. Details: %s", vbid, e.what());
-            }
+        } catch (std::runtime_error& e) {
+            LOG(EXTENSION_LOG_WARNING,
+                "doDcpVbTakeoverStats: exception while getting num "
+                "persisted deletes for vbucket:%" PRIu16 " - treating as 0 "
+                "deletes. Details: %s", vbid, e.what());
         }
         size_t chk_items = vb_items > 0 ?
                            vb->checkpointManager.getNumOpenChkItems() : 0;
@@ -5779,22 +5797,16 @@ EventuallyPersistentEngine::doTapVbTakeoverStats(const void *cookie,
     std::string tapName("eq_tapq:");
     tapName.append(key);
     size_t vb_items = vb->getNumItems(epstore->getItemEvictionPolicy());
-    const VBucketMap &vbMap = epstore->getVBuckets();
-    size_t del_items = 0;
 
-    /* Get stats from KV Store only when the vbucket database
-     * file has already been created.
-     */
-    if (!vbMap.isBucketCreation(vbid) && !vbMap.isBucketDeletion(vbid)) {
-        try {
-            del_items = epstore->getRWUnderlying(vbid)->
-                                           getNumPersistedDeletes(vbid);
-        } catch (std::runtime_error& e) {
-            LOG(EXTENSION_LOG_WARNING,
-                "doTapVbTakeoverStats: exception while getting num persisted "
-                "deletes for vbucket:%" PRIu16 " - treating as 0 deletes. "
-                "Details: %s", vbid, e.what());
-        }
+    size_t del_items = 0;
+    try {
+        del_items = epstore->getRWUnderlying(vbid)->
+                getNumPersistedDeletes(vbid);
+    } catch (std::runtime_error& e) {
+        LOG(EXTENSION_LOG_WARNING,
+            "doTapVbTakeoverStats: exception while getting num persisted "
+            "deletes for vbucket:%" PRIu16 " - treating as 0 deletes. "
+            "Details: %s", vbid, e.what());
     }
 
     add_casted_stat("name", tapName, add_stat, cookie);
@@ -6250,7 +6262,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,
                                                        uint32_t opaque,
                                                        uint32_t seqno,
                                                        uint32_t flags,
-                                                       void *stream_name,
+                                                       const void *stream_name,
                                                        uint16_t nname)
 {
     (void) opaque;
