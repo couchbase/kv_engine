@@ -4,16 +4,18 @@
 
 from __future__ import print_function
 import subprocess
+import sys
 
 class bcolors:
-    HEADER = '\033[36m'
-    OKBLUE = '\033[34m'
-    OKGREEN = '\033[32m'
-    WARNING = '\033[33m'
-    FAIL = '\033[31m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+    """Define ANSI color codes, if we're running under a TTY."""
+    if sys.stdout.isatty():
+        HEADER = '\033[36m'
+        WARNING = '\033[33m'
+        ENDC = '\033[0m'
+    else:
+        HEADER = ''
+        WARNING = ''
+        ENDC = ''
 
 # Set of branches to check for unmerged patches. Ordered by ancestory;
 # i.e. the oldest supported branch to the newest, which is the order
@@ -23,15 +25,20 @@ branches = ['couchbase/3.0.x',
             'couchbase/watson',
             'couchbase/master']
 
+total_unmerged = 0
 for downstream, upstream in zip(branches, branches[1:]):
-    print((bcolors.HEADER +
-           "Commits in '{}' not present in '{}':" +
-           bcolors.ENDC).format(downstream, upstream))
     commits = subprocess.check_output(['git', 'cherry', '-v',
                                        upstream, downstream])
-    print(commits)
-
     count = len(commits.splitlines())
+    total_unmerged += count
     if count > 0:
-        print ((bcolors.WARNING +
-                "{} commits outstanding" + bcolors.ENDC).format(count))
+        print((bcolors.HEADER +
+               "{} commits in '{}' not present in '{}':" +
+               bcolors.ENDC).format(count, downstream, upstream))
+        print(commits)
+
+if total_unmerged:
+    print((bcolors.WARNING + "Total of {} commits outstanding" +
+           bcolors.ENDC).format(total_unmerged))
+
+sys.exit(total_unmerged)
