@@ -209,9 +209,16 @@ extern "C" {
                                     const int nkey,
                                     uint16_t vbucket)
     {
+        get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                                           HONOR_STATES |
+                                                           TRACK_REFERENCE |
+                                                           DELETE_TEMP |
+                                                           HIDE_LOCKED_CAS |
+                                                           TRACK_STATISTICS);
+
         ENGINE_ERROR_CODE err_code = getHandle(handle)->get(cookie, itm, key,
                                                             nkey, vbucket,
-                                                            TRACK_STATISTICS);
+                                                            options);
         releaseHandle(handle);
         return err_code;
     }
@@ -2301,7 +2308,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
     case OPERATION_PREPEND: {
         bool locked = false;
         do {
-            get_options_t options = NONE;
+            get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                                               HONOR_STATES |
+                                                               TRACK_REFERENCE |
+                                                               DELETE_TEMP |
+                                                               HIDE_LOCKED_CAS);
             if ((ret = get(cookie, &i, it->getKey().c_str(),
                            it->getNKey(), vbucket,
                            options)) == ENGINE_SUCCESS) {

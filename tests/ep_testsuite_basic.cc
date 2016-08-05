@@ -1433,6 +1433,26 @@ static enum test_result test_incr_miss(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return SUCCESS;
 }
 
+
+// The following test requires a configuration where the bloom filter is
+// disabled.  If the bloom filter is enabled it can check to see if the item
+// exists and therefore avoids creating a temporary item.
+
+static enum test_result test_incr_mb20425(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    uint64_t result = 0;
+    item *i = NULL;
+
+    checkeq(ENGINE_SUCCESS,
+            h1->arithmetic(h, NULL, "key", 3, true, true, 1, 1, 0, &i,
+                           PROTOCOL_BINARY_RAW_BYTES, &result, 0),
+            "Failed arithmetic operation");
+    h1->release(h, NULL, i);
+    checkeq(uint64_t(1), result,
+            "Failed to set initial value in arithmetic operation");
+    return SUCCESS;
+}
+
 static enum test_result test_incr(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     const void *cookie = testHarness.create_cookie();
     testHarness.set_datatype_support(cookie, true);
@@ -2574,6 +2594,8 @@ BaseTestCase testsuite_testcases[] = {
                  NULL, prepare, cleanup),
         TestCase("incr miss", test_incr_miss, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("incr (MB-20425)", test_incr_mb20425, test_setup,
+                 teardown, "bfilter_enabled=false", prepare, cleanup),
         TestCase("incr", test_incr, test_setup, teardown, NULL,
                  prepare, cleanup),
         TestCase("incr with default", test_incr_default,

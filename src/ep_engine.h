@@ -301,17 +301,8 @@ public:
     {
         BlockTimer timer(&stats.getCmdHisto);
         std::string k(static_cast<const char*>(key), nkey);
-        // Todo: The default_options are not correct.  Instead we should just use
-        // the options parameter, which is passed in.  However this will be done
-        // in a separate patch.  This patch is just removing the use of
-        // default parameters.
-        get_options_t default_options = static_cast<get_options_t>(QUEUE_BG_FETCH |
-                                                                   HONOR_STATES |
-                                                                   TRACK_REFERENCE |
-                                                                   DELETE_TEMP |
-                                                                   HIDE_LOCKED_CAS);
 
-        GetValue gv(epstore->get(k, vbucket, cookie, default_options));
+        GetValue gv(epstore->get(k, vbucket, cookie, options));
         ENGINE_ERROR_CODE ret = gv.getStatus();
 
         if (ret == ENGINE_SUCCESS) {
@@ -378,7 +369,9 @@ public:
             0 : ep_abs_time(ep_reltime(exptime));
 
         get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
-                                    TRACK_REFERENCE | HONOR_STATES);
+                                                           HONOR_STATES |
+                                                           TRACK_REFERENCE |
+                                                           HIDE_LOCKED_CAS);
 
         ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket, options);
         if (ret == ENGINE_SUCCESS) {
