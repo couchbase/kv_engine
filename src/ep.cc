@@ -314,7 +314,7 @@ public:
     VBucketMemoryDeletionTask(EventuallyPersistentEngine &eng,
                               RCPtr<VBucket> &vb, double delay) :
                               GlobalTask(&eng,
-                              Priority::VBMemoryDeletionPriority, delay, true),
+                              TaskId::VBucketMemoryDeletionTask, delay, true),
                               e(eng), vbucket(vb), vbid(vb->getId()) { }
 
     std::string getDescription() {
@@ -339,7 +339,7 @@ private:
 class PendingOpsNotification : public GlobalTask {
 public:
     PendingOpsNotification(EventuallyPersistentEngine &e, RCPtr<VBucket> &vb) :
-        GlobalTask(&e, Priority::PendingOpsPriority, 0, false),
+        GlobalTask(&e, TaskId::PendingOpsNotification, 0, false),
         engine(e), vbucket(vb) { }
 
     std::string getDescription() {
@@ -382,10 +382,11 @@ EventuallyPersistentStore::EventuallyPersistentStore(
         accessLog.push_back(shardlog);
     }
 
-    stats.schedulingHisto = new Histogram<hrtime_t>[MAX_TYPE_ID];
-    stats.taskRuntimeHisto = new Histogram<hrtime_t>[MAX_TYPE_ID];
 
-    for (size_t i = 0; i < MAX_TYPE_ID; i++) {
+    stats.schedulingHisto = new Histogram<hrtime_t>[GlobalTask::allTaskIds.size()];
+    stats.taskRuntimeHisto = new Histogram<hrtime_t>[GlobalTask::allTaskIds.size()];
+
+    for (size_t i = 0; i < GlobalTask::allTaskIds.size(); i++) {
         stats.schedulingHisto[i].reset();
         stats.taskRuntimeHisto[i].reset();
     }
@@ -1228,7 +1229,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
     return ret;
 }
 
-void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
+void EventuallyPersistentStore::snapshotVBuckets(VBSnapshotTask::Priority prio,
                                                  uint16_t shardId) {
 
     class VBucketStateVisitor : public VBucketVisitor {
@@ -1263,7 +1264,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     };
 
     KVShard *shard = vbMap.shards[shardId];
-    if (priority == Priority::VBucketPersistLowPriority) {
+    if (prio == VBSnapshotTask::Priority::LOW) {
         shard->setLowPriorityVbSnapshotFlag(false);
     } else {
         shard->setHighPriorityVbSnapshotFlag(false);
@@ -1304,7 +1305,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
             persistOption = VBStatePersist::VBSTATE_PERSIST_WITHOUT_COMMIT;
         }
 
-        if (priority == Priority::VBucketPersistHighPriority) {
+        if (prio == VBSnapshotTask::Priority::HIGH) {
             if (vbMap.setBucketCreation(iter->first, false)) {
                 LOG(EXTENSION_LOG_INFO, "VBucket %d created", iter->first);
             }
@@ -1312,7 +1313,7 @@ void EventuallyPersistentStore::snapshotVBuckets(const Priority &priority,
     }
 
     if (!success) {
-        scheduleVBSnapshot(priority, shard->getId());
+        scheduleVBSnapshot(prio, shard->getId());
     } else {
         stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
     }
@@ -1427,7 +1428,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
             ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
         }
-        scheduleVBStatePersist(Priority::VBucketPersistLowPriority, vbid);
+        scheduleVBStatePersist(VBStatePersistTask::Priority::LOW, vbid);
     } else if (vbid < vbMap.getSize()) {
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
@@ -1456,20 +1457,20 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vbMap.setPersistenceSeqno(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
         lh.unlock();
-        scheduleVBStatePersist(Priority::VBucketPersistHighPriority, vbid);
+        scheduleVBStatePersist(VBStatePersistTask::Priority::HIGH, vbid);
     } else {
         return ENGINE_ERANGE;
     }
     return ENGINE_SUCCESS;
 }
 
-bool EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
+bool EventuallyPersistentStore::scheduleVBSnapshot(VBSnapshotTask::Priority prio) {
     KVShard *shard = NULL;
-    if (p == Priority::VBucketPersistHighPriority) {
+    if (prio == VBSnapshotTask::Priority::HIGH) {
         for (size_t i = 0; i < vbMap.shards.size(); ++i) {
             shard = vbMap.shards[i];
             if (shard->setHighPriorityVbSnapshotFlag(true)) {
-                ExTask task = new VBSnapshotTask(&engine, p, i, true);
+                ExTask task = new VBSnapshotTaskHigh(&engine, i, true);
                 ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
             }
         }
@@ -1477,7 +1478,7 @@ bool EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
         for (size_t i = 0; i < vbMap.shards.size(); ++i) {
             shard = vbMap.shards[i];
             if (shard->setLowPriorityVbSnapshotFlag(true)) {
-                ExTask task = new VBSnapshotTask(&engine, p, i, true);
+                ExTask task = new VBSnapshotTaskLow(&engine, i, true);
                 ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
             }
         }
@@ -1488,31 +1489,34 @@ bool EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p) {
     return true;
 }
 
-void EventuallyPersistentStore::scheduleVBSnapshot(const Priority &p,
+void EventuallyPersistentStore::scheduleVBSnapshot(VBSnapshotTask::Priority prio,
                                                    uint16_t shardId,
                                                    bool force) {
     KVShard *shard = vbMap.shards[shardId];
-    if (p == Priority::VBucketPersistHighPriority) {
+    if (prio == VBSnapshotTask::Priority::HIGH) {
         if (force || shard->setHighPriorityVbSnapshotFlag(true)) {
-            ExTask task = new VBSnapshotTask(&engine, p, shardId, true);
+            ExTask task = new VBSnapshotTaskHigh(&engine, shardId, true);
             ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
         }
     } else {
         if (force || shard->setLowPriorityVbSnapshotFlag(true)) {
-            ExTask task = new VBSnapshotTask(&engine, p, shardId, true);
+            ExTask task = new VBSnapshotTaskLow(&engine, shardId, true);
             ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
         }
     }
 }
 
-void EventuallyPersistentStore::scheduleVBStatePersist(const Priority &priority,
+void EventuallyPersistentStore::scheduleVBStatePersist(VBStatePersistTask::Priority priority,
                                                        uint16_t vbid,
                                                        bool force) {
     bool inverse = false;
     if (force ||
         schedule_vbstate_persist[vbid].compare_exchange_strong(inverse, true)) {
-        ExTask task = new VBStatePersistTask(&engine, priority, vbid, true);
-        ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
+        if (priority == VBStatePersistTask::Priority::HIGH) {
+            ExecutorPool::get()->schedule(new VBStatePersistTaskHigh(&engine, vbid, true), WRITER_TASK_IDX);
+        } else {
+            ExecutorPool::get()->schedule(new VBStatePersistTaskLow(&engine, vbid, true), WRITER_TASK_IDX);
+        }
     }
 }
 
@@ -1555,8 +1559,7 @@ void EventuallyPersistentStore::scheduleVBDeletion(RCPtr<VBucket> &vb,
     ExecutorPool::get()->schedule(delTask, NONIO_TASK_IDX);
 
     if (vbMap.setBucketDeletion(vb->getId(), true)) {
-        ExTask task = new VBDeleteTask(&engine, vb->getId(), cookie,
-                                       Priority::VBucketDeletionPriority);
+        ExTask task = new VBDeleteTask(&engine, vb->getId(), cookie);
         ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
     }
 }
@@ -1611,8 +1614,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::scheduleCompaction(compaction_ctx c
     }
 
     LockHolder lh(compactionLock);
-    ExTask task = new CompactTask(&engine, Priority::CompactorPriority,
-                                  c, cookie);
+    ExTask task = new CompactTask(&engine, c, cookie);
     compactionTasks.push_back(std::make_pair(c.db_file_id, task));
     if (compactionTasks.size() > 1) {
         if ((stats.diskQueueSize > compactionWriteQueueCap &&
@@ -1931,10 +1933,8 @@ void EventuallyPersistentStore::bgFetch(const std::string &key,
         stats.maxRemainingBgJobs = std::max(stats.maxRemainingBgJobs,
                                             bgFetchQueue.load());
         ExecutorPool* iom = ExecutorPool::get();
-        ExTask task = new BGFetchTask(&engine, key, vbucket, cookie,
-                                      isMeta,
-                                      Priority::BgFetcherGetMetaPriority,
-                                      bgFetchDelay, false);
+        ExTask task = new SingleBGFetcherTask(&engine, key, vbucket, cookie,
+                                              isMeta, bgFetchDelay, false);
         iom->schedule(task, READER_TASK_IDX);
         LOG(EXTENSION_LOG_DEBUG, "Queued a background fetch, now at %" PRIu64,
             uint64_t(bgFetchQueue.load()));
@@ -2386,7 +2386,6 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
         ExecutorPool* iom = ExecutorPool::get();
         ExTask task = new VKeyStatBGFetchTask(&engine, key, vbucket,
                                            v->getBySeqno(), cookie,
-                                           Priority::VKeyStatBgFetcherPriority,
                                            bgFetchDelay, false);
         iom->schedule(task, READER_TASK_IDX);
         return ENGINE_EWOULDBLOCK;
@@ -2411,7 +2410,6 @@ EventuallyPersistentStore::statsVKey(const std::string &key,
                     ExecutorPool* iom = ExecutorPool::get();
                     ExTask task = new VKeyStatBGFetchTask(&engine, key,
                                                           vbucket, -1, cookie,
-                                           Priority::VKeyStatBgFetcherPriority,
                                                           bgFetchDelay, false);
                     iom->schedule(task, READER_TASK_IDX);
                 }
@@ -3502,7 +3500,7 @@ std::vector<vbucket_state *> EventuallyPersistentStore::loadVBucketState()
 
 void EventuallyPersistentStore::warmupCompleted() {
     // Run the vbucket state snapshot job once after the warmup
-    scheduleVBSnapshot(Priority::VBucketPersistHighPriority);
+    scheduleVBSnapshot(VBSnapshotTask::Priority::HIGH);
 
     if (engine.getConfiguration().getAlogPath().length() > 0) {
 
@@ -3532,7 +3530,7 @@ void EventuallyPersistentStore::warmupCompleted() {
     // right after warmup. Subsequent snapshot tasks will be scheduled every
     // 60 sec by default.
     ExecutorPool *iom = ExecutorPool::get();
-    ExTask task = new StatSnap(&engine, Priority::StatSnapPriority, 0, false);
+    ExTask task = new StatSnap(&engine, 0, false);
     statsSnapshotTaskId = iom->schedule(task, WRITER_TASK_IDX);
 }
 
@@ -3772,7 +3770,6 @@ void EventuallyPersistentStore::enableAccessScannerTask() {
         accessScanner.sleeptime = alogSleepTime * 60;
         if (accessScanner.sleeptime != 0) {
             ExTask task = new AccessScanner(*this, stats,
-                                            Priority::AccessScannerPriority,
                                             accessScanner.sleeptime, true);
             accessScanner.task = ExecutorPool::get()->schedule(task,
                                                                AUXIO_TASK_IDX);
@@ -3809,7 +3806,6 @@ void EventuallyPersistentStore::setAccessScannerSleeptime(size_t val,
         accessScanner.sleeptime = val * 60;
         if (accessScanner.sleeptime != 0) {
             ExTask task = new AccessScanner(*this, stats,
-                                            Priority::AccessScannerPriority,
                                             accessScanner.sleeptime,
                                             useStartTime);
             accessScanner.task = ExecutorPool::get()->schedule(task,
@@ -3826,7 +3822,6 @@ void EventuallyPersistentStore::resetAccessScannerStartTime() {
             ExecutorPool::get()->cancel(accessScanner.task);
             // re-schedule task according to the new task start hour
             ExTask task = new AccessScanner(*this, stats,
-                                            Priority::AccessScannerPriority,
                                             accessScanner.sleeptime, true);
             accessScanner.task = ExecutorPool::get()->schedule(task,
                                                                AUXIO_TASK_IDX);
@@ -3892,10 +3887,10 @@ EventuallyPersistentStore::endPosition() const
     return EventuallyPersistentStore::Position(vbMap.getSize());
 }
 
-VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s,
+VBCBAdaptor::VBCBAdaptor(EventuallyPersistentStore *s, TaskId id,
                          std::shared_ptr<VBucketVisitor> v,
-                         const char *l, const Priority &p, double sleep) :
-    GlobalTask(&s->getEPEngine(), p, 0, false), store(s),
+                         const char *l, double sleep) :
+    GlobalTask(&s->getEPEngine(), id, 0, false), store(s),
     visitor(v), label(l), sleepTime(sleep), currentvb(0)
 {
     const VBucketFilter &vbFilter = visitor->getVBucketFilter();
@@ -3933,12 +3928,10 @@ bool VBCBAdaptor::run(void) {
 VBucketVisitorTask::VBucketVisitorTask(EventuallyPersistentStore *s,
                                        std::shared_ptr<VBucketVisitor> v,
                                        uint16_t sh, const char *l,
-                                       double sleep, bool shutdown):
-    GlobalTask(&(s->getEPEngine()), Priority::AccessScannerPriority,
-               0, shutdown),
-    store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0),
-    shardID(sh)
-{
+                                       double sleep, bool shutdown)
+    : GlobalTask(&(s->getEPEngine()), TaskId::VBucketVisitorTask, 0, shutdown),
+      store(s), visitor(v), label(l), sleepTime(sleep), currentvb(0),
+      shardID(sh) {
     const VBucketFilter &vbFilter = visitor->getVBucketFilter();
     for (auto vbid : store->vbMap.getShard(shardID)->getVBuckets()) {
         RCPtr<VBucket> vb = store->vbMap.getBucket(vbid);
@@ -3979,7 +3972,7 @@ void EventuallyPersistentStore::resetUnderlyingStats(void)
         shard->getROUnderlying()->resetStats();
     }
 
-    for (size_t i = 0; i < MAX_TYPE_ID; i++) {
+    for (size_t i = 0; i < GlobalTask::allTaskIds.size(); i++) {
         stats.schedulingHisto[i].reset();
         stats.taskRuntimeHisto[i].reset();
     }
@@ -4152,7 +4145,7 @@ bool EventuallyPersistentStore::runAccessScannerTask() {
 }
 
 void EventuallyPersistentStore::runVbStatePersistTask(int vbid) {
-    scheduleVBStatePersist(Priority::VBucketPersistLowPriority, vbid);
+    scheduleVBStatePersist(VBStatePersistTask::Priority::LOW, vbid);
 }
 
 void EventuallyPersistentStore::setCursorDroppingLowerUpperThresholds(

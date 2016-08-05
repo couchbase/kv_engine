@@ -27,10 +27,12 @@ static const size_t sleepTime = 1;
 
 class BackfillManagerTask : public GlobalTask {
 public:
-    BackfillManagerTask(EventuallyPersistentEngine* e, std::weak_ptr<BackfillManager> mgr,
-                        const Priority &p, double sleeptime = 0,
+    BackfillManagerTask(EventuallyPersistentEngine* e,
+                        std::weak_ptr<BackfillManager> mgr,
+                        double sleeptime = 0,
                         bool completeBeforeShutdown = false)
-        : GlobalTask(e, p, sleeptime, completeBeforeShutdown),
+        : GlobalTask(e, TaskId::BackfillManagerTask,
+                     sleeptime, completeBeforeShutdown),
           weak_manager(mgr) {}
 
     bool run();
@@ -149,8 +151,7 @@ void BackfillManager::schedule(stream_t stream, uint64_t start, uint64_t end) {
         return;
     }
 
-    managerTask.reset(new BackfillManagerTask(engine, shared_from_this(),
-                                              Priority::BackfillTaskPriority));
+    managerTask.reset(new BackfillManagerTask(engine, shared_from_this()));
     ExecutorPool::get()->schedule(managerTask, AUXIO_TASK_IDX);
 }
 

@@ -40,7 +40,7 @@ const double ConnNotifier::DEFAULT_MIN_STIME = 1.0;
 class ConnNotifierCallback : public GlobalTask {
 public:
     ConnNotifierCallback(EventuallyPersistentEngine *e, ConnNotifier *notifier)
-    : GlobalTask(e, Priority::TapConnNotificationPriority),
+    : GlobalTask(e, TaskId::ConnNotifierCallback),
       connNotifier(notifier) { }
 
     bool run(void) {
@@ -106,7 +106,7 @@ bool ConnNotifier::notifyConnections() {
 class ConnManager : public GlobalTask {
 public:
     ConnManager(EventuallyPersistentEngine *e, ConnMap *cmap)
-        : GlobalTask(e, Priority::TapConnMgrPriority, MIN_SLEEP_TIME, true),
+        : GlobalTask(e, TaskId::ConnManager, MIN_SLEEP_TIME, true),
           engine(e), connmap(cmap) { }
 
     bool run(void) {

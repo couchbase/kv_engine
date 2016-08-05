@@ -96,8 +96,8 @@ VBucketMap& MockEPStore::getVbMap() {
  */
 class MockGlobalTask : public GlobalTask {
 public:
-    MockGlobalTask(Taskable& t, const Priority &p)
-        : GlobalTask(t, p) {}
+    MockGlobalTask(Taskable& t, TaskId id)
+        : GlobalTask(t, id) {}
 
     bool run() override { return false; }
     std::string getDescription() override { return "MockGlobalTask"; }
@@ -283,7 +283,7 @@ TEST_P(EPStoreEvictionTest, GetKeyStatsEjected) {
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         MockGlobalTask mockTask(engine->getTaskable(),
-                                Priority::BgFetcherPriority);
+                                TaskId::MultiBGFetcherTask);
         store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
 
         EXPECT_EQ(ENGINE_SUCCESS, do_getKeyStats())
@@ -366,7 +366,7 @@ TEST_P(EPStoreEvictionTest, ReplaceEExists) {
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         MockGlobalTask mockTask(engine->getTaskable(),
-                                Priority::BgFetcherPriority);
+                                TaskId::MultiBGFetcherTask);
         store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
 
         EXPECT_EQ(ENGINE_SUCCESS, do_replace())
@@ -428,7 +428,7 @@ TEST_P(EPStoreEvictionTest, SetEExists) {
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         MockGlobalTask mockTask(engine->getTaskable(),
-                                Priority::BgFetcherPriority);
+                                TaskId::MultiBGFetcherTask);
         store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
 
         EXPECT_EQ(ENGINE_SUCCESS, store->set(item, cookie))
@@ -490,7 +490,7 @@ TEST_P(EPStoreEvictionTest, AddEExists) {
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         MockGlobalTask mockTask(engine->getTaskable(),
-                                Priority::BgFetcherPriority);
+                                TaskId::MultiBGFetcherTask);
         store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
 
         EXPECT_EQ(ENGINE_NOT_STORED, do_add())
@@ -584,7 +584,7 @@ TEST_P(EPStoreEvictionTest, SetWithMeta_ReplaceNonResident) {
         // Manually run the BGFetcher task; to fetch the two outstanding
         // requests (for the same key).
         MockGlobalTask mockTask(engine->getTaskable(),
-                                Priority::BgFetcherPriority);
+                                TaskId::MultiBGFetcherTask);
         store->getVBucket(vbid)->getShard()->getBgFetcher()->run(&mockTask);
 
         EXPECT_EQ(ENGINE_SUCCESS, do_setWithMeta())

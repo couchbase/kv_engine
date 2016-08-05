@@ -23,7 +23,7 @@
 
 DefragmenterTask::DefragmenterTask(EventuallyPersistentEngine* e,
                                    EPStats& stats_)
-  : GlobalTask(e, Priority::DefragmenterTaskPriority, false),
+  : GlobalTask(e, TaskId::DefragmenterTask, false),
     stats(stats_),
     epstore_position(engine->getEpStore()->startPosition()),
     visitor(NULL) {
@@ -119,8 +119,8 @@ bool DefragmenterTask::run(void) {
 }
 
 void DefragmenterTask::stop(void) {
-    if (taskId) {
-        ExecutorPool::get()->cancel(taskId);
+    if (uid) {
+        ExecutorPool::get()->cancel(uid);
     }
 }
 

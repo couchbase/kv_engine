@@ -132,7 +132,7 @@ void Flusher::initialize() {
 void Flusher::schedule_UNLOCKED() {
     ExecutorPool* iom = ExecutorPool::get();
     ExTask task = new FlusherTask(ObjectRegistry::getCurrentEngine(),
-                                  this, Priority::FlusherPriority,
+                                  this,
                                   shard->getId());
     this->setTaskId(task->getId());
     iom->schedule(task, WRITER_TASK_IDX);

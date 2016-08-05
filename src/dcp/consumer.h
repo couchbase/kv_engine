@@ -111,11 +111,11 @@ public:
 
     void taskCancelled();
 
-    bool notifiedProcesser(bool to);
+    bool notifiedProcessor(bool to);
 
-    void setProcesserTaskState(enum process_items_error_t to);
+    void setProcessorTaskState(enum process_items_error_t to);
 
-    std::string getProcesserTaskStatusStr();
+    std::string getProcessorTaskStatusStr();
 
     /**
      * Check if the enough bytes have been removed from the
@@ -189,11 +189,11 @@ protected:
                                                     size_t yieldThreshold);
 
     uint64_t opaqueCounter;
-    size_t processerTaskId;
-    std::atomic<enum process_items_error_t> processerTaskState;
+    size_t processorTaskId;
+    std::atomic<enum process_items_error_t> processorTaskState;
 
     DcpReadyQueue vbReady;
-    std::atomic<bool> processerNotification;
+    std::atomic<bool> processorNotification;
 
     std::mutex readyMutex;
     std::list<uint16_t> ready;
@@ -249,9 +249,8 @@ class RollbackTask : public GlobalTask {
 public:
     RollbackTask(EventuallyPersistentEngine* e,
                  uint32_t opaque_, uint16_t vbid_,
-                 uint64_t rollbackSeqno_, dcp_consumer_t conn,
-                 const Priority &p):
-        GlobalTask(e, p, 0, false), engine(e),
+                 uint64_t rollbackSeqno_, dcp_consumer_t conn):
+        GlobalTask(e, TaskId::RollbackTask, 0, false), engine(e),
         opaque(opaque_), vbid(vbid_), rollbackSeqno(rollbackSeqno_),
         cons(conn) { }
 
