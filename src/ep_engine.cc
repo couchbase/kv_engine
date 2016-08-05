@@ -2301,8 +2301,10 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
     case OPERATION_PREPEND: {
         bool locked = false;
         do {
+            get_options_t options = NONE;
             if ((ret = get(cookie, &i, it->getKey().c_str(),
-                           it->getNKey(), vbucket)) == ENGINE_SUCCESS) {
+                           it->getNKey(), vbucket,
+                           options)) == ENGINE_SUCCESS) {
                 Item *old = reinterpret_cast<Item *>(i);
                 locked = old->getCas() == uint64_t(-1);
 

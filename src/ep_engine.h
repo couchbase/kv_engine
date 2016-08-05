@@ -297,12 +297,21 @@ public:
                           const void* key,
                           const int nkey,
                           uint16_t vbucket,
-                          get_options_t options = NONE)
+                          get_options_t options)
     {
         BlockTimer timer(&stats.getCmdHisto);
         std::string k(static_cast<const char*>(key), nkey);
+        // Todo: The default_options are not correct.  Instead we should just use
+        // the options parameter, which is passed in.  However this will be done
+        // in a separate patch.  This patch is just removing the use of
+        // default parameters.
+        get_options_t default_options = static_cast<get_options_t>(QUEUE_BG_FETCH |
+                                                                   HONOR_STATES |
+                                                                   TRACK_REFERENCE |
+                                                                   DELETE_TEMP |
+                                                                   HIDE_LOCKED_CAS);
 
-        GetValue gv(epstore->get(k, vbucket, cookie));
+        GetValue gv(epstore->get(k, vbucket, cookie, default_options));
         ENGINE_ERROR_CODE ret = gv.getStatus();
 
         if (ret == ENGINE_SUCCESS) {
