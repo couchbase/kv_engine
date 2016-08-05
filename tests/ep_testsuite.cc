@@ -3180,12 +3180,14 @@ static enum test_result test_workload_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     // MB-12279: limiting max writers to 4 for DGM bgfetch performance
     checkeq(4, num_write_threads, "Incorrect number of writers");
     checkeq(1, num_auxio_threads, "Incorrect number of auxio threads");
-    checkeq(1, num_nonio_threads, "Incorrect number of nonio threads");
+    check(num_nonio_threads > 1 && num_nonio_threads <= 8,
+          "Incorrect number of nonio threads");
     checkeq(4, max_read_threads, "Incorrect limit of readers");
     // MB-12279: limiting max writers to 4 for DGM bgfetch performance
     checkeq(4, max_write_threads, "Incorrect limit of writers");
     checkeq(1, max_auxio_threads, "Incorrect limit of auxio threads");
-    checkeq(1, max_nonio_threads, "Incorrect limit of nonio threads");
+    check(max_nonio_threads > 1 && max_nonio_threads <=8,
+          "Incorrect limit of nonio threads");
     checkeq(5, num_shards, "Incorrect number of shards");
     return SUCCESS;
 }
@@ -3287,7 +3289,7 @@ static enum test_result test_worker_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     check(statelist.find(worker_1_state)!=statelist.end(),
           "worker_1's state incorrect");
 
-    checkeq(10, get_int_stat(h, h1, "ep_num_workers"), // cannot spawn less
+    checkeq(11, get_int_stat(h, h1, "ep_num_workers"), // cannot spawn less
             "Incorrect number of threads spawned");
     return SUCCESS;
 }
@@ -6521,6 +6523,64 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
+/* This test case checks the purge seqno validity when no items are actually
+   purged in a compaction call */
+static enum test_result test_vbucket_compact_no_purge(ENGINE_HANDLE *h,
+                                                      ENGINE_HANDLE_V1 *h1) {
+    const int num_items = 2;
+    const char* key[num_items] = {"k1", "k2"};
+    const char* value = "somevalue";
+
+    /* Write 2 keys */
+    for (int count = 0; count < num_items; count++){
+        checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET, key[count],
+                                      value, NULL, 0, 0, 0),
+                "Error setting.");
+    }
+
+    /* Delete one key */
+    checkeq(ENGINE_SUCCESS, del(h, h1, key[0], 0, 0),
+            "Failed remove with value.");
+
+    /* Store a dummy item since we do not purge the item with highest seqno */
+    checkeq(ENGINE_SUCCESS,
+            store(h, h1, NULL, OPERATION_SET, "dummy_key", value, NULL,
+                  0, 0, 0),
+            "Error setting.");
+    wait_for_flusher_to_settle(h, h1);
+
+    /* Compact once */
+    int exp_purge_seqno = get_int_stat(h, h1, "vb_0:high_seqno",
+                                       "vbucket-seqno") - 1;
+    compact_db(h, h1, 0, 2,
+               get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"), 1, 1);
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    checkeq(exp_purge_seqno,
+            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            "purge_seqno didn't match expected value");
+
+    /* Compact again, this time we don't expect to purge any items */
+    compact_db(h, h1, 0, 2,
+               get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno"), 1, 1);
+    wait_for_stat_to_be(h, h1, "ep_pending_compactions", 0);
+    checkeq(exp_purge_seqno,
+            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            "purge_seqno didn't match expected value after another compaction");
+
+    /* Reload the engine */
+    testHarness.reload_engine(&h, &h1,
+                              testHarness.engine_path,
+                              testHarness.get_current_testcase()->cfg,
+                              true, false);
+    wait_for_warmup_complete(h, h1);
+
+    /* Purge seqno should not change after reload */
+    checkeq(exp_purge_seqno,
+            get_int_stat(h, h1, "vb_0:purge_seqno", "vbucket-seqno"),
+            "purge_seqno didn't match expected value after reload");
+    return SUCCESS;
+}
+
 // Test manifest //////////////////////////////////////////////////////////////
 
 const char *default_dbname = "./ep_testsuite";
@@ -6962,6 +7022,7 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test_MB-19687_variable", test_mb19687_variable, test_setup, teardown, NULL,
                  prepare, cleanup),
-
+        TestCase("test vbucket compact no purge", test_vbucket_compact_no_purge,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

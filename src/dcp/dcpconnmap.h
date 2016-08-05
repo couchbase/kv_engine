@@ -74,6 +74,11 @@ public:
 
     void shutdownAllConnections();
 
+    bool isDeadConnectionsEmpty() {
+        LockHolder lh(connsLock);
+        return deadConnections.empty();
+    }
+
     /**
      * Handles the slow stream with the specified name.
      * Returns true if the stream dropped its cursors on the

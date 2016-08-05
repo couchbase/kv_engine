@@ -70,11 +70,18 @@ SynchronousEPEngine::SynchronousEPEngine(const std::string& extra_config)
     dcpFlowControlManager_ = new DcpFlowControlManager(*this);
 
     replicationThrottle = new ReplicationThrottle(configuration, stats);
+
+    tapConfig = new TapConfig(*this);
 }
 
 void SynchronousEPEngine::setEPStore(EventuallyPersistentStore* store) {
     cb_assert(epstore == nullptr);
     epstore = store;
+}
+
+void SynchronousEPEngine::initializeConnmaps() {
+    dcpConnMap_->initialize(DCP_CONN_NOTIFIER);
+    tapConnMap->initialize(TAP_CONN_NOTIFIER);
 }
 
 MockEPStore::MockEPStore(EventuallyPersistentEngine &theEngine)

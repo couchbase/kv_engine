@@ -558,10 +558,11 @@ public:
     /**
      * Triggers compaction of a database file
      *
+     * @param vbid The vbucket being compacted
      * @param c The context for compaction of a DB file
      * @param ck cookie used to notify connection of operation completion
      */
-    ENGINE_ERROR_CODE scheduleCompaction(compaction_ctx c, const void *ck);
+    ENGINE_ERROR_CODE scheduleCompaction(uint16_t vbid, compaction_ctx c, const void *ck);
 
     /**
      * Compaction of a database file

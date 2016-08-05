@@ -1354,6 +1354,70 @@ static enum test_result test_est_vb_move(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+/* Tests if checkpoint snapshot/highseqno are updated correctly after TAP a
+ conusmer receives items in backfill phase from a TAP producer (MB-20182) */
+static enum test_result test_tap_rcvr_backfill(ENGINE_HANDLE *h,
+                                               ENGINE_HANDLE_V1 *h1) {
+    uint16_t vbid = 1;
+
+    check(set_vbucket_state(h, h1, vbid, vbucket_state_replica),
+          "Failed to set vbucket state to replica");
+
+    const void *cookie = testHarness.create_cookie();
+    uint32_t cc = htonl(TAP_OPAQUE_ENABLE_CHECKPOINT_SYNC);
+    checkeq(ENGINE_SUCCESS, h1->tap_notify(h, cookie, &cc, sizeof(uint32_t),
+                                           1, 0, TAP_OPAQUE, 1, "", 0, 828, 0,
+                                           1, PROTOCOL_BINARY_RAW_BYTES,
+                                           nullptr, 0, vbid),
+            "Failed to enable checkpoint in tap.");
+
+    /* Start TAP backfill */
+    cc = htonl(TAP_OPAQUE_INITIAL_VBUCKET_STREAM);
+    checkeq(ENGINE_SUCCESS, h1->tap_notify(h, cookie, &cc, sizeof(uint32_t),
+                                           1, 0, TAP_OPAQUE, 1, "", 0, 828, 0,
+                                           1, PROTOCOL_BINARY_RAW_BYTES,
+                                           nullptr, 0, vbid),
+            "Failed to set tap backfill phase.");
+
+    /* Write 2 items on replica via TAP connection */
+    const int num_items = 2;
+    for (int i = 0; i < num_items; ++i) {
+        /* eng_specific should be > TapEngineSpecific::sizeRevSeqno(8) */
+        uint8_t eng_specific[9] = {0};
+        std::string value("value");
+        checkeq(ENGINE_SUCCESS, h1->tap_notify(h, cookie, eng_specific,
+                                               sizeof(eng_specific), 1, 0,
+                                               TAP_MUTATION, 1, "key", 3, 828,
+                                               0, 1, PROTOCOL_BINARY_RAW_BYTES,
+                                               value.c_str(), value.length(),
+                                               vbid),
+                "Failed to send tap muation");
+    }
+
+    /* Check if 2 items are correctly written on replica vb */
+    std::string abs_high_stat_str("vb_" + std::to_string(vbid) +
+                                  ":abs_high_seqno");
+    checkeq(num_items,
+            get_int_stat(h, h1, abs_high_stat_str.c_str(), "vbucket-seqno"),
+            "items not written on replica vb correctly");
+
+    /* close the TAP backfill */
+    cc = htonl(TAP_OPAQUE_CLOSE_BACKFILL);
+    checkeq(ENGINE_SUCCESS, h1->tap_notify(h, cookie, &cc, sizeof(uint32_t),
+                                           1, 0, TAP_OPAQUE, 1, "", 0, 828, 0,
+                                           1, PROTOCOL_BINARY_RAW_BYTES,
+                                           nullptr, 0, vbid),
+            "Failed to close tap backfill phase.");
+
+    /* Check if the snapshot end seqno is updated correctly on replica vb */
+    std::string high_stat_str("vb_" + std::to_string(vbid) + ":high_seqno");
+    checkeq(num_items,
+            get_int_stat(h, h1, high_stat_str.c_str(), "vbucket-seqno"),
+            "snapshot numbers not updated correctly after TAP backfill");
+
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
 
 // Test manifest //////////////////////////////////////////////////////////////
 
@@ -1429,6 +1493,8 @@ BaseTestCase testsuite_testcases[] = {
                  teardown, "max_size=1048576", prepare, cleanup),
 
         TestCase("test estimate vb move", test_est_vb_move,
+                 test_setup, teardown, NULL, prepare, cleanup),
+        TestCase("tap receiver backfill", test_tap_rcvr_backfill,
                  test_setup, teardown, NULL, prepare, cleanup),
 
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
