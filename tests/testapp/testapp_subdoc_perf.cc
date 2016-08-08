@@ -57,8 +57,7 @@ static void subdoc_perf_test_array(protocol_binary_command cmd,
     store_object("list", "[]");
 
     for (size_t i = 0; i < iterations; i++) {
-        expect_subdoc_cmd(SubdocCmd(cmd, "list", "", std::to_string(i)),
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        subdoc_verify_cmd(SubdocCmd(cmd, "list", "", std::to_string(i)));
     }
 
     delete_object("list");
@@ -117,9 +116,8 @@ TEST_F(SubdocPerfTest, Array5k_RemoveFirst) {
     store_object("list", list.c_str());
 
     for (size_t i = 0; i < iterations; i++) {
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
-                                    "list", "[0]"),
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        subdoc_verify_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                                    "list", "[0]"));
     }
     delete_object("list");
 }
@@ -131,9 +129,8 @@ TEST_F(SubdocPerfTest, Array5k_RemoveLast) {
     store_object("list", list.c_str());
 
     for (size_t i = 0; i < iterations; i++) {
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
-                                    "list", "[-1]"),
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        subdoc_verify_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                                    "list", "[-1]"));
     }
     delete_object("list");
 }
@@ -145,9 +142,8 @@ TEST_F(SubdocPerfTest, Array5k_ReplaceFirst) {
     store_object("list", list.c_str());
 
     for (size_t i = 0; i < iterations; i++) {
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
-                                    "list", "[0]", "1"),
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        subdoc_verify_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                                    "list", "[0]", "1"));
     }
     delete_object("list");
 }
@@ -159,9 +155,8 @@ TEST_F(SubdocPerfTest, Array5k_ReplaceMiddle) {
 
     std::string path(std::string("[") + std::to_string(iterations / 2) + "]");
     for (size_t i = 0; i < iterations; i++) {
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
-                                    "list", path, "1"),
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        subdoc_verify_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                                    "list", path, "1"));
     }
     delete_object("list");
 }
@@ -172,9 +167,8 @@ TEST_F(SubdocPerfTest, Array5k_ReplaceLast) {
     store_object("list", list, /*JSON*/true, /*compress*/false);
 
     for (size_t i = 0; i < iterations; i++) {
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
-                                    "list", "[-1]", "1"),
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        subdoc_verify_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_REPLACE,
+                                    "list", "[-1]", "1"));
     }
     delete_object("list");
 }
@@ -186,9 +180,8 @@ TEST_F(SubdocPerfTest, Dict5k_Add) {
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
         std::string value("\"value_" + std::to_string(i) + '"');
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
-                                    "dict", key, value),
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        subdoc_verify_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DICT_ADD,
+                                    "dict", key, value));
     }
 
     delete_object("dict");
@@ -221,9 +214,8 @@ TEST_F(SubdocPerfTest, Dict5k_Remove) {
 
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
-                                    "dict", key),
-                          PROTOCOL_BINARY_RESPONSE_SUCCESS, "");
+        subdoc_verify_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_DELETE,
+                                    "dict", key));
     }
     delete_object("dict");
 }
@@ -235,7 +227,7 @@ static void subdoc_perf_test_dict(protocol_binary_command cmd,
     for (size_t i = 0; i < iterations; i++) {
         std::string key(std::to_string(i));
         std::string value("\"value_" + std::to_string(i) + '"');
-        expect_subdoc_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
+        subdoc_verify_cmd(SubdocCmd(PROTOCOL_BINARY_CMD_SUBDOC_GET, "dict",
                                     key),
                           PROTOCOL_BINARY_RESPONSE_SUCCESS, value);
     }
