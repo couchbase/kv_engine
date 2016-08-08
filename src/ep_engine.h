@@ -288,12 +288,12 @@ public:
                           const void* key,
                           const int nkey,
                           uint16_t vbucket,
-                          get_options_t options = NONE)
+                          get_options_t options)
     {
         BlockTimer timer(&stats.getCmdHisto);
         std::string k(static_cast<const char*>(key), nkey);
 
-        GetValue gv(epstore->get(k, vbucket, cookie));
+        GetValue gv(epstore->get(k, vbucket, cookie, options));
         ENGINE_ERROR_CODE ret = gv.getStatus();
 
         if (ret == ENGINE_SUCCESS) {
@@ -360,7 +360,9 @@ public:
             0 : ep_abs_time(ep_reltime(exptime));
 
         get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
-                                    TRACK_REFERENCE | HONOR_STATES);
+                                                           HONOR_STATES |
+                                                           TRACK_REFERENCE |
+                                                           HIDE_LOCKED_CAS);
 
         ENGINE_ERROR_CODE ret = get(cookie, &it, key, nkey, vbucket, options);
         if (ret == ENGINE_SUCCESS) {

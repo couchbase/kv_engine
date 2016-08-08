@@ -256,13 +256,7 @@ public:
      * @return a GetValue representing the result of the request
      */
     GetValue get(const std::string &key, uint16_t vbucket,
-                 const void *cookie,
-                 get_options_t options = static_cast<get_options_t>(
-                                                        QUEUE_BG_FETCH |
-                                                        HONOR_STATES |
-                                                        TRACK_REFERENCE |
-                                                        DELETE_TEMP |
-                                                        HIDE_LOCKED_CAS)) {
+                 const void *cookie, get_options_t options) {
         return getInternal(key, vbucket, cookie, vbucket_state_active,
                            options);
     }
