@@ -15,9 +15,9 @@
  *   limitations under the License.
  */
 
-#include "evp_store_test.h"
-
 #include "dcp/dcpconnmap.h"
+#include "evp_store_test.h"
+#include "evp_store_single_threaded_test.h"
 #include "fakes/fake_executorpool.h"
 #include "taskqueue.h"
 #include "../mock/mock_dcp_producer.h"
@@ -26,55 +26,40 @@
 
 #include <thread>
 
-/*
- * A subclass of EventuallyPersistentStoreTest which uses a fake ExecutorPool,
- * which will not spawn ExecutorThreads and hence not run any tasks
- * automatically in the background. All tasks must be manually run().
- */
-class SingleThreadedEPStoreTest : public EventuallyPersistentStoreTest {
-    void TearDown() {
-        shutdownAndPurgeTasks();
-        EventuallyPersistentStoreTest::TearDown();
-    }
+hrtime_t SingleThreadedEPStoreTest::runNextTask(TaskQueue& taskQ,
+                                                    const std::string&
+                                                    expectedTaskName) {
+    CheckedExecutor executor(task_executor, taskQ);
 
-public:
-    /*
-     * Run the next task from the taskQ
-     * The task must match the expectedTaskName parameter
-     */
-    hrtime_t runNextTask(TaskQueue& taskQ, const std::string& expectedTaskName) {
-        CheckedExecutor executor(task_executor, taskQ);
+    // Run the task
+    executor.runCurrentTask(expectedTaskName);
+    return executor.completeCurrentTask();
+}
 
-        // Run the task
-        executor.runCurrentTask(expectedTaskName);
-        return executor.completeCurrentTask();
-    }
+hrtime_t SingleThreadedEPStoreTest::runNextTask(TaskQueue& taskQ) {
+    CheckedExecutor executor(task_executor, taskQ);
 
-    /*
-     * Run the next task from the taskQ
-     */
-    hrtime_t runNextTask(TaskQueue& taskQ) {
-        CheckedExecutor executor(task_executor, taskQ);
+    // Run the task
+    executor.runCurrentTask();
+    return executor.completeCurrentTask();
+}
 
-        // Run the task
-        executor.runCurrentTask();
-        return executor.completeCurrentTask();
-    }
+void SingleThreadedEPStoreTest::SetUp() {
+    SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
+    EventuallyPersistentStoreTest::SetUp();
 
-protected:
-    void SetUp() {
-        SingleThreadedExecutorPool::replaceExecutorPoolWithFake();
-        EventuallyPersistentStoreTest::SetUp();
+    task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
+    (ExecutorPool::get());
+}
 
-        task_executor = reinterpret_cast<SingleThreadedExecutorPool*>
-            (ExecutorPool::get());
-    }
+void SingleThreadedEPStoreTest::TearDown() {
+    shutdownAndPurgeTasks();
+    EventuallyPersistentStoreTest::TearDown();
+}
 
-    /*
-     * Change the vbucket state and run the VBStatePeristTask
-     * On return the state will be changed and the task completed.
-     */
-    void setVBucketStateAndRunPersistTask(uint16_t vbid, vbucket_state_t newState) {
+void SingleThreadedEPStoreTest::setVBucketStateAndRunPersistTask(uint16_t vbid,
+                                                                 vbucket_state_t
+                                                                 newState) {
         auto& lpWriterQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
 
         // Change state - this should add 1 VBStatePersistTask to the WRITER queue.
@@ -85,55 +70,39 @@ protected:
                                + std::to_string(vbid));
     }
 
-    /*
-     * Set the stats isShutdown and attempt to drive all tasks to cancel
-     */
-    void shutdownAndPurgeTasks() {
-        engine->getEpStats().isShutdown = true;
-        task_executor->cancelAndClearAll();
+void SingleThreadedEPStoreTest::shutdownAndPurgeTasks() {
+    engine->getEpStats().isShutdown = true;
+    task_executor->cancelAndClearAll();
 
-        for (task_type_t t :
-             {WRITER_TASK_IDX, READER_TASK_IDX, AUXIO_TASK_IDX, NONIO_TASK_IDX}) {
+    for (task_type_t t :
+         {WRITER_TASK_IDX, READER_TASK_IDX, AUXIO_TASK_IDX, NONIO_TASK_IDX}) {
 
-            // Define a lambda to drive all tasks from the queue, if hpTaskQ
-            // is implemented then trivial to add a second call to runTasks.
-            auto runTasks = [=](TaskQueue& queue) {
-                while (queue.getFutureQueueSize() > 0 || queue.getReadyQueueSize() > 0) {
-                    runNextTask(queue);
-                }
-            };
-            runTasks(*task_executor->getLpTaskQ()[t]);
-        }
+        // Define a lambda to drive all tasks from the queue, if hpTaskQ
+        // is implemented then trivial to add a second call to runTasks.
+        auto runTasks = [=](TaskQueue& queue) {
+            while (queue.getFutureQueueSize() > 0 || queue.getReadyQueueSize() > 0) {
+                runNextTask(queue);
+            }
+        };
+        runTasks(*task_executor->getLpTaskQ()[t]);
     }
+}
 
-    void cancelAndPurgeTasks() {
-        task_executor->cancelAll();
+void SingleThreadedEPStoreTest::cancelAndPurgeTasks() {
+    task_executor->cancelAll();
+    for (task_type_t t :
+        {WRITER_TASK_IDX, READER_TASK_IDX, AUXIO_TASK_IDX, NONIO_TASK_IDX}) {
 
-        for (task_type_t t :
-             {WRITER_TASK_IDX, READER_TASK_IDX, AUXIO_TASK_IDX, NONIO_TASK_IDX}) {
-
-            // Define a lambda to drive all tasks from the queue, if hpTaskQ
-            // is implemented then trivial to add a second call to runTasks.
-            auto runTasks = [=](TaskQueue& queue) {
-                while (queue.getFutureQueueSize() > 0 || queue.getReadyQueueSize() > 0) {
-                    runNextTask(queue);
-                }
-            };
-            runTasks(*task_executor->getLpTaskQ()[t]);
-        }
+        // Define a lambda to drive all tasks from the queue, if hpTaskQ
+        // is implemented then trivial to add a second call to runTasks.
+        auto runTasks = [=](TaskQueue& queue) {
+            while (queue.getFutureQueueSize() > 0 || queue.getReadyQueueSize() > 0) {
+                runNextTask(queue);
+            }
+        };
+        runTasks(*task_executor->getLpTaskQ()[t]);
     }
-
-    /*
-     * Fake callback emulating dcp_add_failover_log
-     */
-    static ENGINE_ERROR_CODE fakeDcpAddFailoverLog(vbucket_failover_t* entry,
-                                                   size_t nentries,
-                                                   const void *cookie) {
-        return ENGINE_SUCCESS;
-    }
-
-    SingleThreadedExecutorPool* task_executor;
-};
+}
 
 /* Regression / reproducer test for MB-19695 - an exception is thrown
  * (and connection disconnected) if a couchstore file hasn't been re-created
