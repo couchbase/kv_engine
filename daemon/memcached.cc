@@ -2095,6 +2095,9 @@ void DestroyBucketThread::destroy() {
         return;
     }
 
+    LOG_NOTICE(connection, "%s Delete bucket [%s]. Notifying all registered "
+            "ON_DELETE_BUCKET callbacks", connection_id.c_str(), name.c_str());
+
     perform_callbacks(ON_DELETE_BUCKET, nullptr, &all_buckets[idx]);
 
     LOG_NOTICE(connection, "%s Delete bucket [%s]. Wait for clients to disconnect",
