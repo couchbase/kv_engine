@@ -6362,8 +6362,8 @@ void EventuallyPersistentEngine::handleDisconnect(const void *cookie) {
 }
 
 void EventuallyPersistentEngine::handleDeleteBucket(const void *cookie) {
-    LOG(EXTENSION_LOG_NOTICE, "Shutting down TAP,DCP connections for bucket "
-        "whose cookie is: %p", cookie);
+    LOG(EXTENSION_LOG_NOTICE, "Shutting down all TAP & DCP connections in "
+            "preparation for bucket deletion.");
     tapConnMap->shutdownAllConnections();
     dcpConnMap_->shutdownAllConnections();
 }
