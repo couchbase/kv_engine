@@ -1193,17 +1193,35 @@ void McbpConnection::maybeLogSlowCommand(
         timings *= 1000 * 1000; // convert from ms to ns
 
         const char* opcode = memcached_opcode_2_text(cmd);
-        if (opcode == NULL) {
-            LOG_WARNING(NULL, "%u: Slow 0x%0X operation on connection: %s (%s)",
-                        getId(), cmd,
-                        Couchbase::hrtime2text(timings).c_str(),
-                        getDescription().c_str());
-        } else {
-            LOG_WARNING(NULL, "%u: Slow %s operation on connection: %s (%s)",
-                        getId(), opcode,
-                        Couchbase::hrtime2text(timings).c_str(),
-                        getDescription().c_str());
+        char opcode_s[16];
+        std::string details;
+
+        if (opcode == nullptr) {
+            checked_snprintf(opcode_s, sizeof(opcode_s), "0x%X", cmd);
+            opcode = opcode_s;
         }
+
+        if (cmd == PROTOCOL_BINARY_CMD_STAT) {
+            // Log which stat command took a long time
+            details.append(", key: ");
+            auto key = getKey();
+
+            if (strncmp(key.buf, "key ",
+                        std::min(key.len, static_cast<size_t>(4LU))) == 0) {
+                // stat key username1324423e; truncate the actual item key
+                details.append("key <TRUNCATED>");
+            } else if (key.len > 0) {
+                details.append(key.buf, key.len);
+            } else {
+                // requests all stats
+                details.append("<EMPTY>");
+            }
+        }
+
+        LOG_WARNING(NULL, "%u: Slow %s operation on connection: %s (%s)%s",
+                    getId(), opcode,
+                    Couchbase::hrtime2text(timings).c_str(),
+                    getDescription().c_str(), details.c_str());
     }
 }
 

@@ -20,6 +20,7 @@
 
 #include "config.h"
 
+#include "buffer.h"
 #include "dynamic_buffer.h"
 #include "log_macros.h"
 #include "net_buf.h"
@@ -280,6 +281,18 @@ public:
 
     void setCmd(uint8_t cmd) {
         McbpConnection::cmd = cmd;
+    }
+
+    /**
+     * Return the key of the currently processing command.
+     * @return the buffer to the key.
+     */
+    const_sized_buffer getKey() const {
+        auto *pkt = reinterpret_cast<const char *>(getPacket(cookie));
+        const_sized_buffer ret;
+        ret.len = binary_header.request.keylen;
+        ret.buf = pkt + sizeof binary_header.bytes + binary_header.request.extlen;
+        return ret;
     }
 
     const protocol_binary_request_header& getBinaryHeader() const {
