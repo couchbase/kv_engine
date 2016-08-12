@@ -246,9 +246,10 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
   ${KVSTORE_SOURCE}
   ${COUCH_KVSTORE_SOURCE}
   ${FOREST_KVSTORE_SOURCE}
-  ${Memcached_SOURCE_DIR}/daemon/alloc_hooks_dummy.cc
+  $<TARGET_OBJECTS:memory_tracking>
   ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc)
-TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils forestdb gtest JSON_checker mcd_util platform)
+TARGET_LINK_LIBRARIES(ep-engine_ep_unit_tests couchstore cJSON dirutils forestdb gtest JSON_checker mcd_util platform
+                      ${MALLOC_LIBRARIES})
 
 ADD_EXECUTABLE(ep-engine_atomic_ptr_test
   tests/module_tests/atomic_ptr_test.cc
