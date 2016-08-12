@@ -58,8 +58,6 @@
 #include "warmup.h"
 #include "string_utils.h"
 
-static AtomicValue<ALLOCATOR_HOOKS_API*> hooksApi;
-
 // The global logger instance, used by LOG() when components don't specify
 // their own more specific logger.
 static Logger global_logger;
@@ -1852,10 +1850,9 @@ extern "C" {
             return ENGINE_ENOTSUP;
         }
 
-        hooksApi.store(api->alloc_hooks, std::memory_order_relaxed);
         Logger::setLoggerAPI(api->log);
 
-        MemoryTracker::getInstance();
+        MemoryTracker::getInstance(*api->alloc_hooks);
         ObjectRegistry::initialize(api->alloc_hooks->get_allocation_size);
 
         AtomicValue<size_t>* inital_tracking = new AtomicValue<size_t>();
@@ -1963,9 +1960,6 @@ void LOG(EXTENSION_LOG_LEVEL severity, const char *fmt, ...) {
     va_end(va);
 }
 
-ALLOCATOR_HOOKS_API *getHooksApi(void) {
-    return hooksApi.load(std::memory_order_relaxed);
-}
 
 EventuallyPersistentEngine::EventuallyPersistentEngine(
                                     GET_SERVER_API get_server_api) :
@@ -3705,10 +3699,11 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doMemoryStats(const void *cookie,
     add_casted_stat("ep_item_num", stats.numItem, add_stat, cookie);
 
     std::map<std::string, size_t> alloc_stats;
-    MemoryTracker::getInstance()->getAllocatorStats(alloc_stats);
-    std::map<std::string, size_t>::iterator it = alloc_stats.begin();
-    for (; it != alloc_stats.end(); ++it) {
-        add_casted_stat(it->first.c_str(), it->second, add_stat, cookie);
+    MemoryTracker::getInstance(*getServerApiFunc()->alloc_hooks)->
+        getAllocatorStats(alloc_stats);
+
+    for (const auto& it : alloc_stats) {
+        add_casted_stat(it.first.c_str(), it.second, add_stat, cookie);
     }
 
     return ENGINE_SUCCESS;
@@ -4758,7 +4753,8 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getStats(const void* cookie,
         rv = ENGINE_SUCCESS;
     } else if (nkey == 9 && strncmp(stat_key, "allocator", 9) ==0) {
         char buffer[64 * 1024];
-        MemoryTracker::getInstance()->getDetailedStats(buffer, sizeof(buffer));
+        MemoryTracker::getInstance(*getServerApiFunc()->alloc_hooks)->
+                getDetailedStats(buffer, sizeof(buffer));
         add_casted_stat("detailed", buffer, add_stat, cookie);
         rv = ENGINE_SUCCESS;
     } else if (nkey == 6 && strncmp(stat_key, "config", 6) == 0) {

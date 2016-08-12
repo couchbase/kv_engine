@@ -1,6 +1,7 @@
 #include "config.h"
 
 #include "memory_tracker.h"
+#include "mock_hooks_api.h"
 
 #include <thread>
 
@@ -18,9 +19,12 @@ TEST(MemoryTracker, SingletonIsThreadSafe_MB18940) {
     MemoryTracker* instance1;
     MemoryTracker* instance2;
 
+    auto alloc_hooks = *getHooksApi();
+
     // Lambda which returns (via reference param) the result of getInstance().
-    auto get_instance =
-            [](MemoryTracker*& t) { t = MemoryTracker::getInstance(); };
+    auto get_instance = [alloc_hooks](MemoryTracker*& t) {
+        t = MemoryTracker::getInstance(alloc_hooks);
+    };
 
     // Spin up two threads to both call getInstance (and hence attempt to
     // create the singleton).

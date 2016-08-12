@@ -18,6 +18,7 @@
 #include "defragmenter_visitor.h"
 
 #include "daemon/alloc_hooks.h"
+#include "programs/engine_testapp/mock_server.h"
 
 #include <gtest/gtest.h>
 #include <iomanip>
@@ -227,7 +228,7 @@ TEST(DefragmenterTest, DISABLED_MappedMemory) {
 #endif
 
     // Instantiate memory tracker (singleton created on-demand).
-    (void)MemoryTracker::getInstance();
+    (void)MemoryTracker::getInstance(*get_mock_server_api()->alloc_hooks);
 
     // Setup object registry. As we do not create a full ep-engine, we
     // use the "initial_tracking" for all memory tracking".

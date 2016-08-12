@@ -47,7 +47,7 @@ void MemoryTracker::statsThreadMainLoop(void* arg) {
     }
 }
 
-MemoryTracker* MemoryTracker::getInstance() {
+MemoryTracker* MemoryTracker::getInstance(const ALLOCATOR_HOOKS_API& hooks_api_) {
     MemoryTracker* tmp = instance.load();
     if (tmp == nullptr) {
         // Double-checked locking if instance is null - ensure two threads
@@ -55,8 +55,15 @@ MemoryTracker* MemoryTracker::getInstance() {
         std::lock_guard<std::mutex> lock(instance_mutex);
         tmp = instance.load();
         if (tmp == nullptr) {
-            tmp = new MemoryTracker();
+            // Note that object construction and hook attaching is
+            // split. The issue is that until the constructor
+            // completes (and {instance} is assigned) it is not
+            // possible to 'service' any memory allocator callbacks -
+            // as the New/Delete hooks need to read {instance}.hooks_api
+            tmp = new MemoryTracker(hooks_api_);
             instance.store(tmp);
+
+            instance.load()->connectHooks();
         }
     }
     return tmp;
@@ -71,56 +78,62 @@ void MemoryTracker::destroyInstance() {
     }
 }
 
-extern "C" {
-    static void NewHook(const void* ptr, size_t) {
-        if (ptr != NULL) {
-            void* p = const_cast<void*>(ptr);
-            size_t alloc = getHooksApi()->get_allocation_size(p);
-            ObjectRegistry::memoryAllocated(alloc);
-        }
-    }
-
-    static void DeleteHook(const void* ptr) {
-        if (ptr != NULL) {
-            void* p = const_cast<void*>(ptr);
-            size_t alloc = getHooksApi()->get_allocation_size(p);
-            ObjectRegistry::memoryDeallocated(alloc);
-        }
+void MemoryTracker::NewHook(const void* ptr, size_t) {
+    if (ptr != NULL) {
+        const auto* tracker = MemoryTracker::instance.load();
+        void* p = const_cast<void*>(ptr);
+        size_t alloc = tracker->hooks_api.get_allocation_size(p);
+        ObjectRegistry::memoryAllocated(alloc);
     }
 }
 
-MemoryTracker::MemoryTracker() {
+void MemoryTracker::DeleteHook(const void* ptr) {
+    if (ptr != NULL) {
+        const auto* tracker = MemoryTracker::instance.load();
+        void* p = const_cast<void*>(ptr);
+        size_t alloc = tracker->hooks_api.get_allocation_size(p);
+        ObjectRegistry::memoryDeallocated(alloc);
+    }
+}
+
+MemoryTracker::MemoryTracker(const ALLOCATOR_HOOKS_API& hooks_api_)
+    : hooks_api(hooks_api_) {
+    // Just create the object, actual hook registration happens
+    // once we have a concrete object constructed.
+}
+
+void MemoryTracker::connectHooks() {
     if (getenv("EP_NO_MEMACCOUNT") != NULL) {
         LOG(EXTENSION_LOG_NOTICE, "Memory allocation tracking disabled");
         return;
     }
-    stats.ext_stats_size = getHooksApi()->get_extra_stats_size();
+    stats.ext_stats_size = hooks_api.get_extra_stats_size();
     stats.ext_stats = new allocator_ext_stat[stats.ext_stats_size]();
 
-    if (getHooksApi()->add_new_hook(&NewHook)) {
+    if (hooks_api.add_new_hook(&NewHook)) {
         LOG(EXTENSION_LOG_DEBUG, "Registered add hook");
-        if (getHooksApi()->add_delete_hook(&DeleteHook)) {
+        if (hooks_api.add_delete_hook(&DeleteHook)) {
             LOG(EXTENSION_LOG_DEBUG, "Registered delete hook");
             std::cout.flush();
             tracking = true;
             updateStats();
             if (cb_create_named_thread(&statsThreadId,
                                        statsThreadMainLoop,
-                                           this, 0, "mc:mem stats") != 0) {
+                                       this, 0, "mc:mem stats") != 0) {
                 throw std::runtime_error(
-                                      "Error creating thread to update stats");
+                        "Error creating thread to update stats");
             }
             return;
         }
         std::cout.flush();
-        getHooksApi()->remove_new_hook(&NewHook);
+        hooks_api.remove_new_hook(&NewHook);
     }
     LOG(EXTENSION_LOG_WARNING, "Failed to register allocator hooks");
 }
 
 MemoryTracker::~MemoryTracker() {
-    getHooksApi()->remove_new_hook(&NewHook);
-    getHooksApi()->remove_delete_hook(&DeleteHook);
+    hooks_api.remove_new_hook(&NewHook);
+    hooks_api.remove_delete_hook(&DeleteHook);
     if (tracking) {
         tracking = false;
         shutdown_cv.notify_all();
@@ -154,11 +167,11 @@ void MemoryTracker::getAllocatorStats(std::map<std::string, size_t>
 }
 
 void MemoryTracker::getDetailedStats(char* buffer, int size) {
-    getHooksApi()->get_detailed_stats(buffer, size);
+    hooks_api.get_detailed_stats(buffer, size);
 }
 
 void MemoryTracker::updateStats() {
-    getHooksApi()->get_allocator_stats(&stats);
+    hooks_api.get_allocator_stats(&stats);
 }
 
 size_t MemoryTracker::getFragmentation() {

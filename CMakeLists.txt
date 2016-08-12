@@ -383,9 +383,10 @@ ADD_EXECUTABLE(ep-engine_defragmenter_test
                src/vbucket.cc
                ${OBJECTREGISTRY_SOURCE}
                ${Memcached_SOURCE_DIR}/utilities/extension_loggers.c
+               ${Memcached_SOURCE_DIR}/programs/engine_testapp/mock_server.cc
                $<TARGET_OBJECTS:memory_tracking>)
 TARGET_LINK_LIBRARIES(ep-engine_defragmenter_test
-                      cJSON gtest platform ${MALLOC_LIBRARIES}
+                      cJSON gtest mcd_util platform ${MALLOC_LIBRARIES}
                       ${SNAPPY_LIBRARIES})
 
 ADD_LIBRARY(ep_testsuite SHARED
