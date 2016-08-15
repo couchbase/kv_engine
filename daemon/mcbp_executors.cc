@@ -4063,7 +4063,7 @@ static void ioctl_set_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
     const char* key = (const char*)(req->bytes + sizeof(req->bytes));
     size_t keylen = ntohs(req->message.header.request.keylen);
-    size_t vallen = ntohl(req->message.header.request.bodylen);
+    size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
     const char* value = key + keylen;
 
     ENGINE_ERROR_CODE status = ioctl_set_property(c, key, keylen, value,
