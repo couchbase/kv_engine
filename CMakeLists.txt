@@ -98,8 +98,7 @@ INCLUDE_DIRECTORIES(BEFORE
                     ${subjson_SOURCE_DIR})
 
 INCLUDE_DIRECTORIES(AFTER
-                    ${gtest_SOURCE_DIR}/include
-                    ${phosphor_SOURCE_DIR}/include)
+                    ${gtest_SOURCE_DIR}/include)
 
 IF (MEMORY_ALLOCATOR)
     INCLUDE_DIRECTORIES(AFTER ${MALLOC_INCLUDE_DIR})

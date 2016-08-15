@@ -14,7 +14,6 @@ eventually persistent engine -
 * [CBSASL](cbsasl/CBSASL.md)
 * [Audit](auditd/README.md)
 * [Error Handling Best Practices](docs/ErrorHandling.md)
-* [Event Tracing / Phosphor](docs/Tracing.md)
 
 # Protocols
 
