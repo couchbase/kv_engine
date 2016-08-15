@@ -212,7 +212,7 @@ void EventuallyPersistentStoreTest::evict_key(uint16_t vbid,
     const char* msg;
     size_t msg_size{sizeof(msg)};
     EXPECT_EQ(ENGINE_SUCCESS, store->evictKey(key, vbid, &msg, &msg_size));
-    EXPECT_EQ("Ejected.", msg);
+    EXPECT_STREQ("Ejected.", msg);
 }
 
 class EPStoreEvictionTest : public EventuallyPersistentStoreTest,
