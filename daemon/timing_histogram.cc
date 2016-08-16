@@ -19,6 +19,7 @@
 
 #include <platform/platform.h>
 #include <atomic>
+#include <functional>
 #include <sstream>
 #include <string>
 #include <cJSON.h>
@@ -32,17 +33,39 @@ TimingHistogram::TimingHistogram(const TimingHistogram &other) {
     *this = other;
 }
 
-template <typename T>
-static void copy(T&dst, const T&src) {
-    dst.store(src.load(std::memory_order_relaxed),
-              std::memory_order_relaxed);
+template <template <typename ...Args> class F>
+void TimingHistogram::arith_op(TimingHistogram& a, const TimingHistogram& b) {
+    a.ns = F<uint32_t>()(a.ns, b.ns);
+
+    size_t idx;
+    size_t len = a.usec.size();
+    for (idx = 0; idx < len; ++idx) {
+        a.usec[idx] = F<uint32_t>()(a.usec[idx], b.usec[idx]);
+    }
+
+    len = a.msec.size();
+    for (idx = 0; idx < len; ++idx) {
+        a.msec[idx] = F<uint32_t>()(a.msec[idx], b.msec[idx]);
+    }
+
+    len = a.halfsec.size();
+    for (idx = 0; idx < len; ++idx) {
+        a.halfsec[idx] = F<uint32_t>()(a.halfsec[idx], b.halfsec[idx]);
+    }
+
+    len = a.wayout.size();
+    for (idx = 0; idx < len; ++idx) {
+        a.wayout[idx] = F<uint32_t>()(a.wayout[idx], b.wayout[idx]);
+    }
+    a.total = F<uint64_t>()(a.total, b.total);
 }
 
 template <typename T>
-static void fetch_add(T& dst, const T& src) {
-    dst.fetch_add(src.load(std::memory_order_relaxed),
-                  std::memory_order_relaxed);
-}
+struct identity {
+    T operator() (const T& a, const T& b) {
+        return b;
+    }
+};
 
 /**
  * This isn't completely accurate, but it's only called whenever we're
@@ -50,32 +73,8 @@ static void fetch_add(T& dst, const T& src) {
  * sure that "total" is in 100% sync with all of the samples.. We
  * don't care <em>THAT</em> much for being accurate..
  */
-TimingHistogram& TimingHistogram::operator=(const TimingHistogram&other) {
-    copy(ns, other.ns);
-
-    size_t idx;
-    size_t len = usec.size();
-    for (idx = 0; idx < len; ++idx) {
-        copy(usec[idx], other.usec[idx]);
-    }
-
-    len = msec.size();
-    for (idx = 0; idx < len; ++idx) {
-        copy(msec[idx], other.msec[idx]);
-    }
-
-    len = halfsec.size();
-    for (idx = 0; idx < len; ++idx) {
-        copy(halfsec[idx], other.halfsec[idx]);
-    }
-
-    len = wayout.size();
-    for (idx = 0; idx < len; ++idx) {
-        copy(wayout[idx], other.wayout[idx]);
-    }
-
-    copy(total, other.total);
-
+TimingHistogram& TimingHistogram::operator=(const TimingHistogram& other) {
+    TimingHistogram::arith_op<identity>(*this, other);
     return *this;
 }
 
@@ -84,44 +83,25 @@ TimingHistogram& TimingHistogram::operator=(const TimingHistogram&other) {
  * called whenever we're grabbing the stats.
  */
 TimingHistogram& TimingHistogram::operator+=(const TimingHistogram& other) {
-    fetch_add(ns, other.ns);
-
-    for (size_t idx = 0; idx < usec.size(); ++idx) {
-        fetch_add(usec[idx], other.usec[idx]);
-    }
-
-    for (size_t idx = 0; idx < msec.size(); ++idx) {
-        fetch_add(msec[idx], other.msec[idx]);
-    }
-
-    for (size_t idx = 0; idx < halfsec.size(); ++idx) {
-        fetch_add(halfsec[idx], other.halfsec[idx]);
-    }
-
-    for (size_t idx = 0; idx < wayout.size(); ++idx) {
-        fetch_add(wayout[idx], other.wayout[idx]);
-    }
-
-    fetch_add(total, other.total);
-
+    TimingHistogram::arith_op<std::plus>(*this, other);
     return *this;
 }
 
 void TimingHistogram::reset(void) {
-    ns.store(0, std::memory_order_relaxed);
-    for(auto& us: usec) {
-        us.store(0, std::memory_order_relaxed);
+    ns = 0;
+    for (auto& us : usec) {
+        us.reset();
     }
-    for(auto& ms: msec) {
-        ms.store(0, std::memory_order_relaxed);
+    for (auto& ms : msec) {
+        ms.reset();
     }
-    for(auto& hs: halfsec) {
-        hs.store(0, std::memory_order_relaxed);
+    for (auto& hs : halfsec) {
+        hs.reset();
     }
     for (auto& wo: wayout) {
-        wo.store(0, std::memory_order_relaxed);
+        wo.reset();
     }
-    total.store(0, std::memory_order_relaxed);
+    total.reset();
 }
 
 void TimingHistogram::add(const hrtime_t nsec) {
@@ -130,29 +110,29 @@ void TimingHistogram::add(const hrtime_t nsec) {
     hrtime_t hs = ms / 500;
 
     if (us == 0) {
-        ns.fetch_add(1, std::memory_order_relaxed);
+        ns++;
     } else if (us < 1000) {
-        usec[us / 10].fetch_add(1, std::memory_order_relaxed);
+        usec[us / 10]++;
     } else if (ms < 50) {
-        msec[ms].fetch_add(1, std::memory_order_relaxed);
+        msec[ms]++;
     } else if (hs < 10) {
-        halfsec[hs].fetch_add(1, std::memory_order_relaxed);
+        halfsec[hs]++;
     } else {
         // [5-9], [10-19], [20-39], [40-79], [80-inf].
         hrtime_t sec = hs / 2;
         if (sec < 10) {
-            wayout[0].fetch_add(1, std::memory_order_relaxed);
+            wayout[0]++;
         } else if (sec < 20) {
-            wayout[1].fetch_add(1, std::memory_order_relaxed);
+            wayout[1]++;
         } else if (sec < 40) {
-            wayout[2].fetch_add(1, std::memory_order_relaxed);
+            wayout[2]++;
         } else if (sec < 80) {
-            wayout[3].fetch_add(1, std::memory_order_relaxed);
+            wayout[3]++;
         } else {
-            wayout[4].fetch_add(1, std::memory_order_relaxed);
+            wayout[4]++;
         }
     }
-    total.fetch_add(1, std::memory_order_relaxed);
+    total++;
 }
 
 std::string TimingHistogram::to_string(void) {
@@ -167,7 +147,7 @@ std::string TimingHistogram::to_string(void) {
 
     cJSON *array = cJSON_CreateArray();
     for (auto &us : usec) {
-        cJSON *obj = cJSON_CreateNumber(us.load(std::memory_order_relaxed));
+        cJSON *obj = cJSON_CreateNumber(us);
         cJSON_AddItemToArray(array, obj);
     }
     cJSON_AddItemToObject(root, "us", array);
@@ -183,7 +163,7 @@ std::string TimingHistogram::to_string(void) {
 
     array = cJSON_CreateArray();
     for (auto &hs : halfsec) {
-        cJSON *obj = cJSON_CreateNumber(hs.load(std::memory_order_relaxed));
+        cJSON *obj = cJSON_CreateNumber(hs);
         cJSON_AddItemToArray(array, obj);
     }
     cJSON_AddItemToObject(root, "500ms", array);
@@ -206,33 +186,33 @@ std::string TimingHistogram::to_string(void) {
 /* get functions of Timings class */
 
 uint32_t TimingHistogram::get_ns() {
-    return ns.load(std::memory_order_relaxed);
+    return ns;
 }
 
 uint32_t TimingHistogram::get_usec(const uint8_t index) {
-    return usec[index].load(std::memory_order_relaxed);
+    return usec[index];
 }
 
 uint32_t TimingHistogram::get_msec(const uint8_t index) {
-    return msec[index].load(std::memory_order_relaxed);
+    return msec[index];
 }
 
 uint32_t TimingHistogram::get_halfsec(const uint8_t index) {
-    return halfsec[index].load(std::memory_order_relaxed);
+    return halfsec[index];
 }
 
 uint32_t TimingHistogram::get_wayout(const uint8_t index) {
-    return wayout[index].load(std::memory_order_relaxed);
+    return wayout[index];
 }
 
 uint32_t TimingHistogram::aggregate_wayout() {
     uint32_t ret = 0;
     for (auto &wo : wayout) {
-        ret += wo.load(std::memory_order_relaxed);
+        ret += wo;
     }
     return ret;
 }
 
 uint32_t TimingHistogram::get_total() {
-    return total.load(std::memory_order_relaxed);
+    return total;
 }

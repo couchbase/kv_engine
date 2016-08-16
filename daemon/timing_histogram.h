@@ -18,7 +18,7 @@
 
 #include <platform/platform.h>
 #include <array>
-#include <atomic>
+#include <relaxed_atomic.h>
 #include <string>
 
 /** Records timings of some event, accumulating them in a histogram.
@@ -52,15 +52,22 @@ public:
     uint32_t aggregate_wayout();
 
 private:
+    // This helper is used for operator overloads. It is supplied a
+    // class such as std::plus, std::minus; with the first argument (of
+    // the class's function) being the current value and the second being
+    // the new value.
+    template <template <typename ...Args> class F>
+    static void arith_op(TimingHistogram& dst, const TimingHistogram& src);
+
     /* We collect timings for <=1 us */
-    std::atomic<uint32_t> ns;
+    Couchbase::RelaxedAtomic<uint32_t> ns;
     /* We collect timings per 10usec */
-    std::array<std::atomic<uint32_t>, 100> usec;
+    std::array<Couchbase::RelaxedAtomic<uint32_t>, 100> usec;
     /* we collect timings from 0-49 ms (entry 0 is never used!) */
-    std::array<std::atomic<uint32_t>, 50> msec;
-    std::array<std::atomic<uint32_t>, 10> halfsec;
+    std::array<Couchbase::RelaxedAtomic<uint32_t>, 50> msec;
+    std::array<Couchbase::RelaxedAtomic<uint32_t>, 10> halfsec;
     // wayout use the following buckets:
     // [5-9], [10-19], [20-39], [40-79], [80-inf].
-    std::array<std::atomic<uint32_t>, 5> wayout;
-    std::atomic<uint64_t> total;
+    std::array<Couchbase::RelaxedAtomic<uint32_t>, 5> wayout;
+    Couchbase::RelaxedAtomic<uint64_t> total;
 };
