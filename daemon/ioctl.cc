@@ -56,6 +56,10 @@ ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
 #if defined(HAVE_TCMALLOC)
     } else if (request_key == "tcmalloc.aggressive_memory_decommit") {
 
+        if (vallen > IOCTL_VAL_LENGTH) {
+            return ENGINE_EINVAL;
+        }
+
         /* null-terminate value */
         char val_buffer[IOCTL_VAL_LENGTH + 1]; /* +1 for terminating '\0' */
         long int intval;
