@@ -257,11 +257,26 @@ void KVStore::addStats(ADD_STAT add_stat, const void *c) {
             st.fsStatsCompaction.totalBytesWritten, add_stat, c);
 }
 
-void KVStore::addTimingStats(const std::string &prefix,
-                             ADD_STAT add_stat, const void *c) {
+void KVStore::addTimingStats(ADD_STAT add_stat, const void *c) {
+
+    /* We don't support any timing stats for read-only instances
+     * at this point.
+     */
     if (isReadOnly()) {
         return;
     }
+
+    uint16_t shardId = configuration.getShardId();
+    std::stringstream prefixStream;
+
+    if (isReadOnly()) {
+        prefixStream << "ro_" << shardId;
+    } else {
+        prefixStream << "rw_" << shardId;
+    }
+
+    const std::string& prefix = prefixStream.str();
+
     addStat(prefix, "commit",      st.commitHisto,      add_stat, c);
     addStat(prefix, "compact",     st.compactHisto,     add_stat, c);
     addStat(prefix, "snapshot",    st.snapshotHisto,    add_stat, c);

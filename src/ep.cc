@@ -4018,16 +4018,13 @@ void EventuallyPersistentStore::addKVStoreStats(ADD_STAT add_stat,
 void EventuallyPersistentStore::addKVStoreTimingStats(ADD_STAT add_stat,
                                                       const void* cookie) {
     for (size_t i = 0; i < vbMap.shards.size(); i++) {
-        std::stringstream rwPrefix;
-        std::stringstream roPrefix;
-        rwPrefix << "rw_" << i;
-        roPrefix << "ro_" << i;
-        vbMap.shards[i]->getRWUnderlying()->addTimingStats(rwPrefix.str(),
-                                                           add_stat,
-                                                           cookie);
-        vbMap.shards[i]->getROUnderlying()->addTimingStats(roPrefix.str(),
-                                                           add_stat,
-                                                           cookie);
+        std::set<KVStore*> underlyingSet;
+        underlyingSet.insert(vbMap.shards[i]->getRWUnderlying());
+        underlyingSet.insert(vbMap.shards[i]->getROUnderlying());
+
+        for (auto* store : underlyingSet) {
+            store->addTimingStats(add_stat, cookie);
+        }
     }
 }
 
