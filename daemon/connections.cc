@@ -295,7 +295,7 @@ void conn_close(McbpConnection *c) {
 
     auto thread = c->getThread();
     if (thread == nullptr) {
-        std::logic_error("conn_close: unable to obtain non-NULL thread from connection");
+        throw std::logic_error("conn_close: unable to obtain non-NULL thread from connection");
     }
     /* remove from pending-io list */
     if (settings.getVerbose() > 1 && list_contains(thread->pending_io, c)) {
@@ -307,7 +307,7 @@ void conn_close(McbpConnection *c) {
     conn_cleanup(c);
 
     if (c->getThread() != nullptr) {
-        std::logic_error("conn_close: failed to disassociate connection from thread");
+        throw std::logic_error("conn_close: failed to disassociate connection from thread");
     }
     c->setState(conn_destroyed);
 }

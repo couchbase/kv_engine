@@ -574,7 +574,7 @@ public:
             }
 
             t[ii].wayout += timings[ii].wayout;
-            if (t[ii].wayout < t[ii].wayout) {
+            if (t[ii].max < t[ii].wayout) {
                 t[ii].max = t[ii].wayout;
             }
         }
