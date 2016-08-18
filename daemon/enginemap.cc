@@ -22,6 +22,7 @@
 #include <string.h>
 #include <sstream>
 #include <iostream>
+#include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 
 class Engine {
@@ -108,7 +109,7 @@ bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
                                            logger);
                 ENGINE_HANDLE *h;
                 if (!engine->createInstance(nullptr, &h)) {
-                    *msg = strdup("Failed to create instance of crash engine");
+                    *msg = cb_strdup("Failed to create instance of crash engine");
                     return false;
                 }
                 reinterpret_cast<ENGINE_HANDLE_V1*>(h)->initialize(h, nullptr);
@@ -122,7 +123,7 @@ bool initialize_engine_map(char **msg, EXTENSION_LOGGER_DESCRIPTOR *logger)
                                                        logger);
         }
     } catch (const std::string &str) {
-        *msg = strdup(str.c_str());
+        *msg = cb_strdup(str.c_str());
         return false;
     }
 

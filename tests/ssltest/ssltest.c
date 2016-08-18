@@ -3,6 +3,7 @@
 
 #include <memcached/protocol_binary.h>
 #include <memcached/openssl.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 
 #include <getopt.h>
@@ -21,7 +22,7 @@ static void *get_response(BIO *bio, protocol_binary_response_no_extras *res) {
     if (vallen == 0) {
         return NULL;
     } else {
-        void *buffer = malloc(vallen);
+        void *buffer = cb_malloc(vallen);
         cb_assert(buffer != NULL);
         ensure_recv(bio, buffer, vallen);
         return buffer;
@@ -54,7 +55,7 @@ static void store(BIO *bio,
     }
 
     payload = get_response(bio, &response);
-    free(payload);
+    cb_free(payload);
     cb_assert(ntohs(response.message.header.response.status) == PROTOCOL_BINARY_RESPONSE_SUCCESS);
 }
 
@@ -90,7 +91,7 @@ static char * fetch(BIO *bio,
 static void do_ssl_test(BIO *bio)
 {
     uint32_t datalen = 512*1024;
-    void *data = malloc(datalen);
+    void *data = cb_malloc(datalen);
     char *rcv = NULL;
     const char *key = "Hello World";
     int ii;
@@ -100,7 +101,7 @@ static void do_ssl_test(BIO *bio)
         store(bio, key, (uint16_t)strlen(key), data, datalen);
         rcv = fetch(bio, key, (uint16_t)strlen(key));
         cb_assert(memcmp(data, rcv + 4, datalen) == 0);
-        free(rcv);
+        cb_free(rcv);
     }
 }
 

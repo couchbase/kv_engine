@@ -21,6 +21,7 @@
 #include "config_parse.h"
 #include "connections.h"
 #include "runtime.h"
+#include <platform/cb_malloc.h>
 #include "settings.h"
 #include "ssl_utils.h"
 
@@ -59,13 +60,13 @@ static bool get_absolute_file(const char *file, const char **value,
 #endif
 
     if (file[0] == '/') {
-        *value = strdup(file);
+        *value = cb_strdup(file);
         return true;
     }
 
 #ifdef WIN32
     if (file[0] == '\\' || isDrive(file)) {
-        *value = _strdup(file);
+        *value = cb_strdup(file);
         return true;
     }
 
@@ -88,7 +89,7 @@ static bool get_absolute_file(const char *file, const char **value,
             "issues/browse/MB-10305 to convert from \"%s\" to \"%s\"\n",
             file, buffer);
 
-    *value = strdup(buffer);
+    *value = cb_strdup(buffer);
     return true;
 }
 
@@ -171,7 +172,7 @@ static bool get_bool_value(cJSON *i, const char *key, bool *value,
 /* Gets a string value from the specified JSON object. Returns true, and sets
  * value to the string value on success; else returns false and sets
  * error_msg to a string describing the error.
- * Caller is responsible for free()ing *value.
+ * Caller is responsible for cb_free()ing *value.
  * @param i JSON object.
  * @param value the pointer to store the string value into if return value is
  *              true.
@@ -184,7 +185,7 @@ static bool get_string_value(cJSON *i, const char* key, const char **value,
                              char **error_msg) {
     switch (i->type) {
     case cJSON_String:
-        *value = strdup(i->valuestring);
+        *value = cb_strdup(i->valuestring);
         return true;
     default:
         {
@@ -223,7 +224,7 @@ static bool get_protocol_value(cJSON *i, const char *key,
         ret = false;
     }
 
-    free((void*)string);
+    cb_free((void*)string);
     return ret;
 }
 
@@ -254,7 +255,7 @@ static bool get_file_value(cJSON *i, const char *key, const char **value,
  * @param settings The settings object to update.
  * @param error_msg If return false is false, message describing why the
  *                  attribute was incorrect. Note caller is responsible for
- *                  free()ing this.
+ *                  cb_free()ing this.
  * @return true if attribute was successfully parsed, else false and error_msg
  *         is set to a string describing the error.
  */
@@ -269,11 +270,11 @@ static bool get_admin(cJSON *o, struct settings *settings, char **error_msg) {
     if (!get_string_value(o, o->string, &ptr, error_msg)) {
         return false;
     }
-    free((char*)settings->admin);
+    cb_free((char*)settings->admin);
     if (strlen(ptr) == 0) {
         settings->disable_admin = true;
         settings->admin = NULL;
-        free((char*)ptr);
+        cb_free((char*)ptr);
     } else {
         settings->disable_admin = false;
         settings->admin = ptr;
@@ -341,7 +342,7 @@ static bool get_ssl_cipher_list(cJSON *o, struct settings *settings, char **erro
 
     if (strlen(ptr) == 0) {
         settings->ssl_cipher_list = NULL;
-        free((void*)ptr);
+        cb_free((void*)ptr);
     } else {
         settings->ssl_cipher_list = ptr;
     }
@@ -359,7 +360,7 @@ static bool get_ssl_minimum_protocol(cJSON* o, struct settings* settings,
 
     if (strlen(ptr) == 0) {
         settings->ssl_minimum_protocol = nullptr;
-        free((void*)ptr);
+        cb_free((void*)ptr);
     } else {
         settings->ssl_minimum_protocol = ptr;
     }
@@ -510,7 +511,7 @@ static bool get_extensions(cJSON *o, struct settings *settings,
     cJSON *e = o->child;
     int ii = 0;
 
-    settings->pending_extensions = reinterpret_cast<struct extension_settings *>(calloc(settings->num_pending_extensions,
+    settings->pending_extensions = reinterpret_cast<struct extension_settings *>(cb_calloc(settings->num_pending_extensions,
         sizeof(struct extension_settings)));
 
     while (e != NULL) {
@@ -723,7 +724,7 @@ static bool get_interfaces(cJSON *o, struct settings *settings,
     cJSON *c = o->child;
     int ii = 0;
 
-    settings->interfaces = reinterpret_cast<struct interface*>(calloc(total, sizeof(struct interface)));
+    settings->interfaces = reinterpret_cast<struct interface*>(cb_calloc(total, sizeof(struct interface)));
     settings->num_interfaces = total;
     while (c != NULL) {
         if (!handle_interface(ii, c, settings->interfaces, error_msg)) {
@@ -893,8 +894,8 @@ static bool parse_breakpad(cJSON *o, struct settings *settings,
         }
     }
     if (error) {
-        free((char*)minidump_dir);
-        free((char*)content_str);
+        cb_free((char*)minidump_dir);
+        cb_free((char*)content_str);
         return false;
     }
 
@@ -904,8 +905,8 @@ static bool parse_breakpad(cJSON *o, struct settings *settings,
         if (minidump_dir == NULL) {
             do_asprintf(error_msg,
                         "breakpad.enabled==true but minidump_dir not specified.\n");
-            free((char*)minidump_dir);
-            free((char*)content_str);
+            cb_free((char*)minidump_dir);
+            cb_free((char*)content_str);
             return false;
         }
     }
@@ -920,10 +921,10 @@ static bool parse_breakpad(cJSON *o, struct settings *settings,
             error = true;
         }
         /* String converted to enum, no longer needed. */
-        free((char*)content_str);
+        cb_free((char*)content_str);
     }
     if (error) {
-        free((char*)minidump_dir);
+        cb_free((char*)minidump_dir);
         return false;
     }
 
@@ -937,7 +938,7 @@ static bool parse_breakpad(cJSON *o, struct settings *settings,
     /* Empty string (as opposed to NULL string) used here to simplify compare
        logic when checking for differences in breakpad config. */
     settings->breakpad.minidump_dir = minidump_dir ? minidump_dir
-                                                   : strdup("");
+                                                   : cb_strdup("");
     settings->breakpad.content = content;
     settings->has.breakpad = true;
     return true;
@@ -1374,19 +1375,19 @@ static void dyna_reconfig_iface_ssl(const struct interface *new_if,
     if (cur_if->ssl.cert != NULL && strcmp(new_if->ssl.cert,
                                            cur_if->ssl.cert) != 0) {
         const char *old_cert = cur_if->ssl.cert;
-        cur_if->ssl.cert = strdup(new_if->ssl.cert);
+        cur_if->ssl.cert = cb_strdup(new_if->ssl.cert);
         LOG_NOTICE(NULL, "Changed ssl.cert for interface %s:%hu from %s to %s",
                    cur_if->host, cur_if->port, old_cert, cur_if->ssl.cert);
-        free((char*)old_cert);
+        cb_free((char*)old_cert);
     }
 
     if (cur_if->ssl.key != NULL && strcmp(new_if->ssl.key,
                                            cur_if->ssl.key) != 0) {
         const char *old_key = cur_if->ssl.key;
-        cur_if->ssl.key = strdup(new_if->ssl.key);
+        cur_if->ssl.key = cb_strdup(new_if->ssl.key);
         LOG_NOTICE(NULL, "Changed ssl.key for interface %s:%hu from %s to %s",
                    cur_if->host, cur_if->port, old_key, cur_if->ssl.key);
-        free((char*)old_key);
+        cb_free((char*)old_key);
     }
 }
 
@@ -1493,11 +1494,11 @@ static void dyna_reconfig_breakpad(const struct settings *new_settings) {
                    settings.breakpad.minidump_dir) != 0) {
             reconfig = true;
             const char* old_dir = settings.breakpad.minidump_dir;
-            settings.breakpad.minidump_dir = strdup(new_settings->breakpad.minidump_dir);
+            settings.breakpad.minidump_dir = cb_strdup(new_settings->breakpad.minidump_dir);
             LOG_NOTICE(NULL,
                 "Changed breakpad.minidump_dir from %s to %s", old_dir,
                 settings.breakpad.minidump_dir);
-            free((char*)old_dir);
+            cb_free((char*)old_dir);
         }
 
         if (new_settings->breakpad.content != settings.breakpad.content) {
@@ -1518,7 +1519,7 @@ static void dyna_reconfig_breakpad(const struct settings *new_settings) {
 static void dyna_reconfig_ssl_cipher_list(const struct settings *new_settings) {
     if (new_settings->has.ssl_cipher_list) {
         set_ssl_cipher_list(new_settings->ssl_cipher_list);
-        free((void*)settings.ssl_cipher_list);
+        cb_free((void*)settings.ssl_cipher_list);
         settings.ssl_cipher_list = new_settings->ssl_cipher_list;
         settings.has.ssl_cipher_list = true;
     }
@@ -1527,7 +1528,7 @@ static void dyna_reconfig_ssl_cipher_list(const struct settings *new_settings) {
 static void dyna_reconfig_ssl_minimum_protocol(const struct settings *ns) {
     if (ns->has.ssl_minimum_protocol) {
         set_ssl_protocol_mask(ns->ssl_minimum_protocol);
-        free((void*)settings.ssl_minimum_protocol);
+        cb_free((void*)settings.ssl_minimum_protocol);
         settings.ssl_minimum_protocol = ns->ssl_minimum_protocol;
         settings.has.ssl_minimum_protocol = true;
     }
@@ -1730,7 +1731,7 @@ void reload_config_file(void) {
         for (ii = 0; ii < cJSON_GetArraySize(errors); ii++) {
             char* json = cJSON_Print(cJSON_GetArrayItem(errors, ii));
             LOG_WARNING(NULL, "\t%s", json);
-            free(json);
+            cb_free(json);
         }
     }
     free_settings(&new_settings);
@@ -1740,24 +1741,24 @@ void reload_config_file(void) {
 /* Frees all dynamic memory associated with the given settings struct */
 void free_settings(struct settings* s) {
     int ii;
-    free((char*)s->admin);
+    cb_free((char*)s->admin);
     for (ii = 0; ii < s->num_interfaces; ii++) {
-        free((char*)s->interfaces[ii].host);
-        free((char*)s->interfaces[ii].ssl.key);
-        free((char*)s->interfaces[ii].ssl.cert);
+        cb_free((char*)s->interfaces[ii].host);
+        cb_free((char*)s->interfaces[ii].ssl.key);
+        cb_free((char*)s->interfaces[ii].ssl.cert);
     }
-    free(s->interfaces);
+    cb_free(s->interfaces);
     for (ii = 0; ii < s->num_pending_extensions; ii++) {
-        free((char*)s->pending_extensions[ii].soname);
-        free((char*)s->pending_extensions[ii].config);
+        cb_free((char*)s->pending_extensions[ii].soname);
+        cb_free((char*)s->pending_extensions[ii].config);
     }
-    free(s->pending_extensions);
-    free((char*)s->rbac_file);
+    cb_free(s->pending_extensions);
+    cb_free((char*)s->rbac_file);
     cJSON_Free((char*)s->config);
-    free((char*)s->root);
-    free((char*)s->breakpad.minidump_dir);
-    free((char*)s->ssl_cipher_list);
-    free((char*)s->ssl_minimum_protocol);
-    free((char*)s->audit_file);
-    free((char*)s->sasl_mechanisms);
+    cb_free((char*)s->root);
+    cb_free((char*)s->breakpad.minidump_dir);
+    cb_free((char*)s->ssl_cipher_list);
+    cb_free((char*)s->ssl_minimum_protocol);
+    cb_free((char*)s->audit_file);
+    cb_free((char*)s->sasl_mechanisms);
 }

@@ -16,6 +16,7 @@
 
 #include <daemon/alloc_hooks.h>
 #include <memcached/extension_loggers.h>
+#include <platform/cb_malloc.h>
 
 struct mock_engine {
     ENGINE_HANDLE_V1 me;
@@ -55,12 +56,12 @@ static void alarm_handler(int sig) {
  * appropriate calls to Valgrind to inform it of allocations / frees.
  */
 void* operator new(std::size_t count ) {
-    return malloc(count);
+    return cb_malloc(count);
 }
 
 void operator delete(void* ptr ) noexcept
 {
-  free(ptr);
+  cb_free(ptr);
 }
 #endif // HAVE_JEMALLOC
 
@@ -927,7 +928,7 @@ static void stop_your_engine() {
 }
 
 static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
-    struct mock_engine* mock_engine = (struct mock_engine*)calloc(1, sizeof(struct mock_engine));
+    struct mock_engine* mock_engine = (struct mock_engine*)cb_calloc(1, sizeof(struct mock_engine));
     ENGINE_HANDLE* handle = NULL;
 
     if (create_engine_instance(engine_ref, &get_mock_server_api, logger_descriptor, &handle)) {
@@ -988,21 +989,21 @@ static ENGINE_HANDLE_V1* create_bucket(bool initialize, const char* cfg) {
         if (initialize) {
             if(!init_engine_instance(handle, cfg, logger_descriptor)) {
                 fprintf(stderr, "Failed to init engine with config %s.\n", cfg);
-                free(mock_engine);
+                cb_free(mock_engine);
                 return NULL;
             }
         }
 
         return &mock_engine->me;
     } else {
-        free(mock_engine);
+        cb_free(mock_engine);
         return NULL;
     }
 }
 
 static void destroy_bucket(ENGINE_HANDLE* handle, ENGINE_HANDLE_V1* handle_v1, bool force) {
     handle_v1->destroy(handle, force);
-    free(handle_v1);
+    cb_free(handle_v1);
 }
 
 //
@@ -1046,12 +1047,12 @@ static size_t get_mapped_bytes(void) {
     ALLOCATOR_HOOKS_API* alloc_hooks = get_mock_server_api()->alloc_hooks;
     stats.ext_stats_size = alloc_hooks->get_extra_stats_size();
     stats.ext_stats = reinterpret_cast<allocator_ext_stat*>
-        (calloc(stats.ext_stats_size, sizeof(allocator_ext_stat)));
+        (cb_calloc(stats.ext_stats_size, sizeof(allocator_ext_stat)));
 
     alloc_hooks->get_allocator_stats(&stats);
     mapped_bytes = stats.heap_size - stats.free_mapped_size
                    - stats.free_unmapped_size;
-    free(stats.ext_stats);
+    cb_free(stats.ext_stats);
     return mapped_bytes;
 }
 
@@ -1293,7 +1294,7 @@ static void teardown_testsuite(cb_dlhandle_t handle, const char* test_suite) {
     char *errmsg = NULL;
     void* symbol = cb_dlsym(handle, "teardown_suite", &errmsg);
     if (symbol == NULL) {
-        free(errmsg);
+        cb_free(errmsg);
     } else {
         my_teardown_suite.voidptr = symbol;
         if (!(*my_teardown_suite.teardown_suite)()) {
@@ -1454,7 +1455,7 @@ int main(int argc, char **argv) {
     if (handle == NULL) {
         fprintf(stderr, "Failed to load testsuite %s: %s\n", test_suite,
                 errmsg);
-        free(errmsg);
+        cb_free(errmsg);
         return 1;
     }
 
@@ -1462,7 +1463,7 @@ int main(int argc, char **argv) {
     symbol = cb_dlsym(handle, "get_tests", &errmsg);
     if (symbol == NULL) {
         fprintf(stderr, "Could not find get_tests function in testsuite %s: %s\n", test_suite, errmsg);
-        free(errmsg);
+        cb_free(errmsg);
         return 1;
     }
     my_get_test.voidptr = symbol;
@@ -1507,7 +1508,7 @@ int main(int argc, char **argv) {
 
     symbol = cb_dlsym(handle, "setup_suite", &errmsg);
     if (symbol == NULL) {
-        free(errmsg);
+        cb_free(errmsg);
     } else {
         my_setup_suite.voidptr = symbol;
         if (!(*my_setup_suite.setup_suite)(&harness)) {

@@ -47,6 +47,7 @@
 #include "greenstack.h"
 #include "mcbpdestroybuckettask.h"
 
+#include <platform/cb_malloc.h>
 #include <platform/strerror.h>
 
 #include <signal.h>
@@ -457,7 +458,7 @@ static void settings_init(void) {
     settings.require_init = false;
     // (we need entry 0 in the list to represent "no bucket")
     settings.max_buckets = COUCHBASE_MAX_NUM_BUCKETS + 1;
-    settings.admin = strdup("_admin");
+    settings.admin = cb_strdup("_admin");
     settings.dedupe_nmvb_maps.store(false);
 
     char *tmp = getenv("MEMCACHED_TOP_KEYS");
@@ -495,7 +496,7 @@ static void update_settings_from_config(void)
 
         FILE *fp = fopen(fname.c_str(), "r");
         if (fp != NULL) {
-            settings.rbac_file = strdup(fname.c_str());
+            settings.rbac_file = cb_strdup(fname.c_str());
             fclose(fp);
         }
     }
@@ -2220,7 +2221,7 @@ bool load_extension(const char *soname, const char *config) {
     if (handle == NULL) {
         LOG_WARNING(NULL, "Failed to open library \"%s\": %s\n",
                     soname, error_msg);
-        free(error_msg);
+        cb_free(error_msg);
         return false;
     }
 
@@ -2230,7 +2231,7 @@ bool load_extension(const char *soname, const char *config) {
                     "Could not find symbol \"memcached_extensions_"
                         "initialize\" in %s: %s\n",
                     soname, error_msg);
-        free(error_msg);
+        cb_free(error_msg);
         return false;
     }
     funky.voidptr = symbol;

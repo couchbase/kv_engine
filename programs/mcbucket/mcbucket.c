@@ -32,6 +32,7 @@
 
 #include <memcached/protocol_binary.h>
 #include <memcached/openssl.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 
 #include <getopt.h>
@@ -74,7 +75,7 @@ static int read_response(BIO *bio) {
     if (valuelen == 0) {
         payload = 0;
     } else {
-        payload = malloc(valuelen + 1);
+        payload = cb_malloc(valuelen + 1);
         if (payload == NULL) {
             fprintf(stderr, "Failed to allocate memory for response\n");
             exit(EXIT_FAILURE);
@@ -92,7 +93,7 @@ static int read_response(BIO *bio) {
         if (strcmp(payload, memcached_status_2_text(status)) != 0) {
             fprintf(stdout, "%s\n", payload);
         }
-        free(payload);
+        cb_free(payload);
     }
 
     return (status == PROTOCOL_BINARY_RESPONSE_SUCCESS) ? 0 : 1;

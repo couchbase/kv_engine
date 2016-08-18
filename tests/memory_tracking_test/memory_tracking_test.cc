@@ -19,6 +19,7 @@
 
 #include <atomic>
 #include <cstring>
+#include <platform/cb_malloc.h>
 #include <string>
 
 #include "daemon/alloc_hooks.h"
@@ -70,14 +71,14 @@ extern "C" {
         delete []p;
         cb_assert(alloc_size == 0);
 
-        // Test malloc() / free() /////////////////////////////////////////////
-        p = static_cast<char*>(malloc(sizeof(char) * 10));
+        // Test cb_malloc() / cb_free() /////////////////////////////////////////////
+        p = static_cast<char*>(cb_malloc(sizeof(char) * 10));
         cb_assert(alloc_size >= 10);
-        free(p);
+        cb_free(p);
         cb_assert(alloc_size == 0);
 
-        // Test realloc() /////////////////////////////////////////////////////
-        p = static_cast<char*>(malloc(1));
+        // Test cb_realloc() /////////////////////////////////////////////////////
+        p = static_cast<char*>(cb_malloc(1));
         cb_assert(alloc_size >= 1);
 
         // Allocator may round up allocation sizes; so it's hard to
@@ -85,31 +86,31 @@ extern "C" {
         // we just increase by a "large" amount and check at least half that
         // increment.
         size_t prev_size = alloc_size;
-        p = static_cast<char*>(realloc(p, sizeof(char) * 100));
+        p = static_cast<char*>(cb_realloc(p, sizeof(char) * 100));
         cb_assert(alloc_size >= (prev_size + 50));
 
         prev_size = alloc_size;
-        p = static_cast<char*>(realloc(p, 1));
+        p = static_cast<char*>(cb_realloc(p, 1));
         cb_assert(alloc_size < prev_size);
 
         prev_size = alloc_size;
-        char* q = static_cast<char*>(realloc(NULL, 10));
+        char* q = static_cast<char*>(cb_realloc(NULL, 10));
         cb_assert(alloc_size >= prev_size + 10);
 
-        free(p);
-        free(q);
+        cb_free(p);
+        cb_free(q);
         cb_assert(alloc_size == 0);
 
-        // Test calloc() //////////////////////////////////////////////////////
-        p = static_cast<char*>(calloc(sizeof(char), 20));
+        // Test cb_calloc() //////////////////////////////////////////////////////
+        p = static_cast<char*>(cb_calloc(sizeof(char), 20));
         cb_assert(alloc_size >= 20);
-        free(p);
+        cb_free(p);
         cb_assert(alloc_size == 0);
 
-        // Test indirect use of malloc() via strdup() /////////////////////////
-        p = strdup("random string");
+        // Test indirect use of cb_malloc() via cb_strdup() /////////////////////////
+        p = cb_strdup("random string");
         cb_assert(alloc_size >= sizeof("random string"));
-        free(p);
+        cb_free(p);
         cb_assert(alloc_size == 0);
 
         // Test memory allocations performed from another shared library loaded

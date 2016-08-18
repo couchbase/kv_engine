@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include "basic_engine_testsuite.h"
 
@@ -611,7 +612,7 @@ static enum test_result aggregate_stats_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 
 static protocol_binary_response_header *last_response;
 
 static void release_last_response(void) {
-    free(last_response);
+    cb_free(last_response);
     last_response = NULL;
 }
 
@@ -626,7 +627,7 @@ static bool response_handler(const void* key, uint16_t keylen,
 
     cb_assert(last_response == NULL);
     last_response = static_cast<protocol_binary_response_header*>
-                    (malloc(sizeof(*last_response) + keylen + extlen + bodylen));
+                    (cb_malloc(sizeof(*last_response) + keylen + extlen + bodylen));
     if (last_response == NULL) {
         return false;
     }

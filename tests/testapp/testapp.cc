@@ -26,6 +26,7 @@
 #include <memcached/config_parser.h>
 #include <cbsasl/cbsasl.h>
 #include "extensions/protocol/testapp_extension.h"
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <fstream>
 #include <platform/dirutils.h>
@@ -80,7 +81,7 @@ static bool embedded_memcached_server;
  *
  * (These must be static as putenv() essentially 'takes ownership' of
  * the provided array, so it is unsafe to use an automatic variable.
- * However, if we use the result of malloc() (i.e. the heap) then
+ * However, if we use the result of cb_malloc() (i.e. the heap) then
  * memory leak checkers (e.g. Valgrind) will report the memory as
  * leaked as it's impossible to free it).
  */
@@ -2001,7 +2002,7 @@ std::atomic<bool> hickup_thread_running;
 
 static void binary_hickup_recv_verification_thread(void *arg) {
     protocol_binary_response_no_extras *response =
-            reinterpret_cast<protocol_binary_response_no_extras*>(malloc(65*1024));
+            reinterpret_cast<protocol_binary_response_no_extras*>(cb_malloc(65*1024));
     if (response != NULL) {
         while (safe_recv_packet(response, 65*1024)) {
             /* Just validate the packet format */
@@ -2009,7 +2010,7 @@ static void binary_hickup_recv_verification_thread(void *arg) {
                                           response->message.header.response.opcode,
                                           response->message.header.response.status);
         }
-        free(response);
+        cb_free(response);
     }
     hickup_thread_running = false;
     allow_closed_read = false;
@@ -3011,13 +3012,13 @@ TEST_P(McdTestappTest, DatatypeJSONWithoutSupport) {
 
 /* Compress the specified document, storing the compressed result in the
  * {deflated}.
- * Caller is responsible for free()ing deflated when no longer needed.
+ * Caller is responsible for cb_free()ing deflated when no longer needed.
  */
 size_t compress_document(const char* data, size_t datalen, char** deflated) {
 
     // Calculate maximum compressed length and allocate a buffer of that size.
     size_t deflated_len = snappy_max_compressed_length(datalen);
-    *deflated = (char*)malloc(deflated_len);
+    *deflated = (char*)cb_malloc(deflated_len);
 
     snappy_status status = snappy_compress(data, datalen, *deflated,
                                            &deflated_len);
@@ -3044,7 +3045,7 @@ TEST_P(McdTestappTest, DatatypeCompressed) {
     get_object_w_datatype("mycompressed", inflated, inflated_len,
                           true, false, true);
 
-    free(deflated);
+    cb_free(deflated);
 }
 
 TEST_P(McdTestappTest, DatatypeCompressedJSON) {
@@ -3066,7 +3067,7 @@ TEST_P(McdTestappTest, DatatypeCompressedJSON) {
     get_object_w_datatype("mycompressedjson", inflated, inflated_len,
                           true, true, true);
 
-    free(deflated);
+    cb_free(deflated);
 }
 
 TEST_P(McdTestappTest, DatatypeInvalid) {
@@ -3823,7 +3824,7 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
     sasl_callbacks[3].context = NULL;
 
     context.username = username;
-    context.secret = reinterpret_cast<cbsasl_secret_t*>(calloc(1, 100));
+    context.secret = reinterpret_cast<cbsasl_secret_t*>(cb_calloc(1, 100));
     memcpy(context.secret->data, password, strlen(password));
     context.secret->len = (unsigned long)strlen(password);
 
@@ -3884,7 +3885,7 @@ uint16_t TestappTest::sasl_auth(const char *username, const char *password) {
                                       PROTOCOL_BINARY_CMD_SASL_AUTH,
                                       buffer.response.message.header.response.status);
     }
-    free(context.secret);
+    cb_free(context.secret);
     cbsasl_dispose(&client);
 
     return buffer.response.message.header.response.status;

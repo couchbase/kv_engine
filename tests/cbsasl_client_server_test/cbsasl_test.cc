@@ -21,6 +21,7 @@
 #include <string.h>
 #include <array>
 #include <cbsasl/cbcrypto.h>
+#include <platform/cb_malloc.h>
 
 const char* cbpwfile = "cbsasl_test.pw";
 
@@ -130,7 +131,7 @@ protected:
         sasl_callbacks[ii].context = nullptr;
 
         client_context.username = "mikewied";
-        client_context.secret = (cbsasl_secret_t*)calloc(1, 100);
+        client_context.secret = (cbsasl_secret_t*)cb_calloc(1, 100);
         memcpy(client_context.secret->data, "mikepw", 6);
         client_context.secret->len = 6;
         client_context.nonce = "fyko+d2lbbFgONRv9qkxdawL";
@@ -178,7 +179,7 @@ protected:
         err = cbsasl_server_start(server.get(), chosenmech, data, len,
                                   &serverdata, &serverlen);
         if (err == CBSASL_OK) {
-            free(client_context.secret);
+            cb_free(client_context.secret);
             return;
         }
 
@@ -204,7 +205,7 @@ protected:
 
         EXPECT_EQ(CBSASL_OK, err);
 
-        free(client_context.secret);
+        cb_free(client_context.secret);
     }
 
 protected:

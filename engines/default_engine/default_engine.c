@@ -13,6 +13,7 @@
 #include "default_engine_internal.h"
 #include "memcached/util.h"
 #include "memcached/config_parser.h"
+#include <platform/cb_malloc.h>
 #include "engines/default_engine.h"
 #include "engine_manager.h"
 
@@ -244,7 +245,7 @@ void destroy_engine_instance(struct default_engine* engine) {
         /* Destory the slabs cache */
         slabs_destroy(engine);
 
-        free(engine->config.uuid);
+        cb_free(engine->config.uuid);
 
         /* Clean up the mutexes */
         cb_mutex_destroy(&engine->items.lock);

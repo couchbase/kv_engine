@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include <memcached/engine.h>
+#include <platform/cb_malloc.h>
 
 #include "suite_stubs.h"
 
@@ -149,7 +150,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
 
-    buf = malloc(info.value[0].iov_len + 1);
+    buf = cb_malloc(info.value[0].iov_len + 1);
     memcpy(buf, info.value[0].iov_base, info.value[0].iov_len);
     buf[info.value[0].iov_len] = 0x00;
     cb_assert(info.nvalue == 1);
@@ -165,7 +166,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     }
 
     h1->release(h, NULL, i);
-    free(buf);
+    cb_free(buf);
 }
 
 void assertNotExists(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {

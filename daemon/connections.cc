@@ -24,6 +24,7 @@
 #include <cJSON.h>
 #include <list>
 #include <algorithm>
+#include <platform/cb_malloc.h>
 
 /*
  * Free list management for connections.
@@ -542,7 +543,7 @@ static BufferLoan conn_loan_single_buffer(McbpConnection *c, struct net_buf *thr
         return BufferLoan::Loaned;
     } else {
         /* Need to allocate a new buffer. */
-        conn_buf->buf = reinterpret_cast<char*>(malloc(DATA_BUFFER_SIZE));
+        conn_buf->buf = reinterpret_cast<char*>(cb_malloc(DATA_BUFFER_SIZE));
         if (conn_buf->buf == NULL) {
             /* Unable to alloc a buffer for the thread. Not much we can do here
              * other than terminate the current connection.
@@ -579,7 +580,7 @@ static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
             /* Give back to thread. */
             *thread_buf = *conn_buf;
         } else {
-            free(conn_buf->buf);
+            cb_free(conn_buf->buf);
         }
         conn_buf->buf = conn_buf->curr = NULL;
         conn_buf->size = 0;

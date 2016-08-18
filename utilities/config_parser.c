@@ -10,6 +10,7 @@
 
 #include <memcached/config_parser.h>
 #include <memcached/util.h>
+#include <platform/cb_malloc.h>
 
 static int read_config_file(const char *fname, struct config_item items[],
                             FILE *error);
@@ -158,7 +159,7 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
                }
                break;
             case DT_STRING:
-               *items[ii].value.dt_string = strdup(value);
+               *items[ii].value.dt_string = cb_strdup(value);
                items[ii].found = true;
                break;
             case DT_BOOL:

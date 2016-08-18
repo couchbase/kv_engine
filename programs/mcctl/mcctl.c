@@ -23,6 +23,7 @@
 
 #include <memcached/protocol_binary.h>
 #include <memcached/openssl.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 
 #include <getopt.h>
@@ -47,7 +48,7 @@ static char *allocate(size_t size)
     if (size == 0) {
         return NULL;
     } else {
-        char *ret = malloc(size + 1);
+        char *ret = cb_malloc(size + 1);
         if (ret == NULL) {
             fprintf(stderr, "Failed to allocate %lu bytes of memory\n",
                     (unsigned long)size);
@@ -137,8 +138,8 @@ static int get_verbosity(BIO *bio)
                 fprintf(stderr, "%s\n", st.value);
             }
         }
-        free(st.key);
-        free(st.value);
+        cb_free(st.key);
+        cb_free(st.value);
     } while (st.key != NULL);
 
     return EXIT_SUCCESS;
@@ -189,13 +190,13 @@ static int set_verbosity(BIO *bio, const char* value)
     if (response.message.header.response.bodylen != 0) {
         char *buffer = NULL;
         uint32_t valuelen = ntohl(response.message.header.response.bodylen);
-        buffer = malloc(valuelen);
+        buffer = cb_malloc(valuelen);
         if (buffer == NULL) {
             fprintf(stderr, "Failed to allocate memory for set response\n");
             exit(EXIT_FAILURE);
         }
         ensure_recv(bio, buffer, valuelen);
-        free(buffer);
+        cb_free(buffer);
     }
 
     protocol_binary_response_status status;
@@ -248,7 +249,7 @@ static int ioctl_set(BIO *bio, const char *property, const char* value)
     ensure_recv(bio, &response, sizeof(response.bytes));
     if (response.message.header.response.bodylen != 0) {
         valuelen = ntohl(response.message.header.response.bodylen);
-        buffer = malloc(valuelen);
+        buffer = cb_malloc(valuelen);
         if (buffer == NULL) {
             fprintf(stderr, "Failed to allocate memory for set response\n");
             exit(EXIT_FAILURE);
@@ -268,7 +269,7 @@ static int ioctl_set(BIO *bio, const char *property, const char* value)
         fwrite(buffer, valuelen, 1, stdout);
         fputs("\n", stdout);
         fflush(stdout);
-        free(buffer);
+        cb_free(buffer);
     }
     return result;
 }
@@ -307,7 +308,7 @@ static int ioctl_get(BIO *bio, const char *property)
     ensure_recv(bio, &response, sizeof(response.bytes));
     if (response.message.header.response.bodylen != 0) {
         valuelen = ntohl(response.message.header.response.bodylen);
-        buffer = malloc(valuelen);
+        buffer = cb_malloc(valuelen);
         if (buffer == NULL) {
             fprintf(stderr, "Failed to allocate memory for get response\n");
             exit(EXIT_FAILURE);
@@ -327,7 +328,7 @@ static int ioctl_get(BIO *bio, const char *property)
         fwrite(buffer, valuelen, 1, stdout);
         fputs("\n", stdout);
         fflush(stdout);
-        free(buffer);
+        cb_free(buffer);
     }
     return result;
 }

@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <platform/crc32c.h>
 
@@ -23,16 +24,16 @@ static struct assoc* global_assoc = NULL;
 /* assoc factory. returns one new assoc or NULL if out-of-memory */
 static struct assoc* assoc_consruct(int hashpower) {
     struct assoc* new_assoc = NULL;
-    new_assoc = calloc(1, sizeof(struct assoc));
+    new_assoc = cb_calloc(1, sizeof(struct assoc));
     if (new_assoc) {
         new_assoc->hashpower = hashpower;
         cb_mutex_initialize(&new_assoc->lock);
-        new_assoc->primary_hashtable = calloc(hashsize(hashpower),
+        new_assoc->primary_hashtable = cb_calloc(hashsize(hashpower),
                                               sizeof(hash_item*));
 
         if (new_assoc->primary_hashtable == NULL) {
             /* rollback and return NULL */
-            free(new_assoc);
+            cb_free(new_assoc);
             new_assoc = NULL;
         }
     }
@@ -57,8 +58,8 @@ void assoc_destroy() {
         while (global_assoc->expanding) {
             usleep(250);
         }
-        free(global_assoc->primary_hashtable);
-        free(global_assoc);
+        cb_free(global_assoc->primary_hashtable);
+        cb_free(global_assoc);
         global_assoc = NULL;
     }
 }
@@ -137,7 +138,7 @@ static void assoc_maintenance_thread(void *arg);
 static void assoc_expand(struct default_engine *engine) {
     engine->assoc->old_hashtable = engine->assoc->primary_hashtable;
 
-    engine->assoc->primary_hashtable = calloc(hashsize(engine->assoc->hashpower + 1),
+    engine->assoc->primary_hashtable = cb_calloc(hashsize(engine->assoc->hashpower + 1),
                                              sizeof(hash_item *));
     if (engine->assoc->primary_hashtable) {
         int ret = 0;
@@ -157,7 +158,7 @@ static void assoc_expand(struct default_engine *engine) {
                         "Can't create thread: %s\n", strerror(ret));
             engine->assoc->hashpower--;
             engine->assoc->expanding = false;
-            free(engine->assoc->primary_hashtable);
+            cb_free(engine->assoc->primary_hashtable);
             engine->assoc->primary_hashtable = engine->assoc->old_hashtable;
         }
     } else {
@@ -248,7 +249,7 @@ static void assoc_maintenance_thread(void *arg) {
             engine->assoc->expand_bucket++;
             if (engine->assoc->expand_bucket == hashsize(engine->assoc->hashpower - 1)) {
                 engine->assoc->expanding = false;
-                free(engine->assoc->old_hashtable);
+                cb_free(engine->assoc->old_hashtable);
                 if (engine->config.verbose > 1) {
                     EXTENSION_LOGGER_DESCRIPTOR *logger;
                     logger = (void*)engine->server.extension->get_extension(EXTENSION_LOGGER);

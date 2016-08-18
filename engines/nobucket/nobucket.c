@@ -22,6 +22,7 @@
 #include "config.h"
 #include "nobucket.h"
 
+#include <platform/cb_malloc.h>
 #include <stdlib.h>
 
 struct engine {
@@ -54,7 +55,7 @@ static ENGINE_ERROR_CODE initialize(ENGINE_HANDLE* handle,
 static void destroy(ENGINE_HANDLE* handle, const bool force)
 {
     (void)force;
-    free(handle);
+    cb_free(handle);
 }
 
 static ENGINE_ERROR_CODE item_allocate(ENGINE_HANDLE* handle,
@@ -358,7 +359,7 @@ static ENGINE_HANDLE_V1 *create(void)
 {
     struct engine *engine;
 
-    if ((engine = calloc(1, sizeof(*engine))) == NULL) {
+    if ((engine = cb_calloc(1, sizeof(*engine))) == NULL) {
         return NULL;
     }
 

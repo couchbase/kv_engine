@@ -20,6 +20,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <thread>
 
@@ -200,7 +201,7 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
 }
 
 std::string generate_temp_file(const char* pattern) {
-    char* file_pattern = strdup(pattern);
+    char* file_pattern = cb_strdup(pattern);
     if (file_pattern == nullptr) {
         throw std::bad_alloc();
     }
@@ -212,7 +213,7 @@ std::string generate_temp_file(const char* pattern) {
     }
 
     std::string ret(file_pattern);
-    free(file_pattern);
+    cb_free(file_pattern);
 
     return ret;
 }

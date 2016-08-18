@@ -71,7 +71,7 @@ struct SubdocCmdContext : public CommandContext {
     // b). The connections' DynamicBuffer if the JSON document had to be
     //     decompressed.
     // c). {intermediate_result} member of this object.
-    // Either way, it should /not/ be free()d.
+    // Either way, it should /not/ be cb_free()d.
     // TODO: Remove (b), and just use intermediate result.
     const_sized_buffer in_doc;
 

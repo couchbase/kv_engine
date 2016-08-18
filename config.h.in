@@ -47,7 +47,6 @@ typedef HANDLE pid_t;
 #define strtoll(a, b, c) _strtoi64(a, b, c)
 /* to stop the stupid compiler to whine about this.. */
 #ifndef __cplusplus
-#define strdup(a) _strdup(a)
 #define putenv(a) _putenv(a)
 #endif
 

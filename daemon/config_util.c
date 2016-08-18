@@ -2,6 +2,7 @@
 #include "config.h"
 
 #include <cJSON.h>
+#include <platform/cb_malloc.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <errno.h>
@@ -82,7 +83,7 @@ static void *config_malloc(size_t size) {
     if (getenv("CONFIG_TEST_MOCK_MALLOC_FAILURE") != NULL) {
         return NULL;
     } else {
-        return malloc(size);
+        return cb_malloc(size);
     }
 }
 
@@ -112,7 +113,7 @@ config_error_t config_load_file(const char *file, cJSON **json)
     }
 
     if (spool(fp, data, st.st_size) == -1) {
-        free(data);
+        cb_free(data);
         fclose(fp);
         return CONFIG_IO_ERROR;
     }
@@ -125,7 +126,7 @@ config_error_t config_load_file(const char *file, cJSON **json)
         *json = cJSON_Parse(data);
     }
 
-    free(data);
+    cb_free(data);
     if (*json == NULL) {
         return CONFIG_PARSE_ERROR;
     }

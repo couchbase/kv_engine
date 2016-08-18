@@ -5,6 +5,7 @@
  */
 
 #include <daemon/config_parse.cc>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 
 #include <vector>
@@ -63,7 +64,7 @@ static std::string get_temp_dir(void) {
 }
 
 /* Generates a temporary filename, and creates a file of that name.
- * Caller is responsible for free()ing the string and unlink()ing the file
+ * Caller is responsible for cb_free()ing the string and unlink()ing the file
  * after use.
  */
 static char* generate_temp_file(void) {
@@ -86,7 +87,7 @@ static char* generate_temp_file(void) {
         return NULL;
     }
 
-    return strdup(templ);
+    return cb_strdup(templ);
 }
 
 /* helper to convert dynamic JSON config to char*, validate and then free it */
@@ -279,7 +280,7 @@ static void teardown_dynamic(struct test_ctx *ctx) {
     cJSON_Delete(ctx->dynamic);
     cJSON_Delete(ctx->config);
     unlink(ctx->ssl_file);
-    free(ctx->ssl_file);
+    cb_free(ctx->ssl_file);
 }
 
 
@@ -585,7 +586,7 @@ static void test_dynamic_interfaces_ssl(struct test_ctx *ctx) {
     /* Change SSH cert */
     cJSON_ReplaceItemInObject(ssl, "cert", cJSON_CreateString(new_file));
     cb_assert(validate_dynamic_JSON_changes(ctx));
-    free(new_file);
+    cb_free(new_file);
 }
 
 static void test_dynamic_extensions_count(struct test_ctx *ctx) {
