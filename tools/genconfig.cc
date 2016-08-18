@@ -155,7 +155,7 @@ static string getEnumValidatorCode(const std::string &key, cJSON *o) {
         }
         char *value = cJSON_Print(p);
         ss << "\n\t\t->add(" << value << ")";
-        free(value);
+        cJSON_Free(value);
     }
     return ss.str();
 }

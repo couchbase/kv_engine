@@ -398,7 +398,7 @@ ENGINE_ERROR_CODE ForestKVStore::readVBState(uint16_t vbId) {
             if (failover_json) {
                 char* json = cJSON_PrintUnformatted(failover_json);
                 failovers.assign(json);
-                free(json);
+                cJSON_Free(json);
             }
         }
 
