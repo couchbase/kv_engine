@@ -273,7 +273,7 @@ static void do_slabs_free(struct default_engine *engine, void *ptr, const size_t
     if (id < POWER_SMALLEST || id > engine->slabs.power_largest)
         return;
 
-    MEMCACHED_SLABS_FREE(size, id, ptr);
+    MEMCACHED_SLABS_DEALLOCATE(size, id, ptr);
     p = &engine->slabs.slabclass[id];
 
 #ifdef USE_SYSTEM_MALLOC
