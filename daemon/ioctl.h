@@ -25,26 +25,21 @@
 
 #include "memcached.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* Attempts to read the given property.
- * If the property could be read, return ENGINE_SUCCESS and writes the value
- * into address pointed to by {value}.
+ * If the property could be read, return ENGINE_SUCCESS and writes
+ * the value into `value`
  * Otherwise returns a status code indicating why the read failed.
  */
-ENGINE_ERROR_CODE ioctl_get_property(const char* key, size_t keylen,
-                                     size_t* value);
+ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
+                                     const std::string& key,
+                                     std::string& value);
 
-/* Attempts to set property {key,keylen} to the value {value,vallen}.
+/* Attempts to set property `key` to the value `value`.
  * If the property could be written, return ENGINE_SUCCESS.
  * Otherwise returns a status code indicating why the write failed.
  */
-ENGINE_ERROR_CODE ioctl_set_property(Connection * c, const char* key, size_t keylen,
-                                     const char* value, size_t vallen);
-#ifdef __cplusplus
-} /* extern "C" */
-#endif
+ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
+                                     const std::string& key,
+                                     const std::string& value);
 
 #endif /* DAEMON_IOCTL_H */

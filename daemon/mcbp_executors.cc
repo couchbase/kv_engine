@@ -4057,18 +4057,20 @@ static void init_complete_executor(McbpConnection* c, void* packet) {
 
 static void ioctl_get_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
-    const char* key = (const char*)(req->bytes + sizeof(req->bytes));
-    size_t keylen = ntohs(req->message.header.request.keylen);
-    size_t value;
 
-    ENGINE_ERROR_CODE status = ioctl_get_property(key, keylen, &value);
+    const char* key_ptr = reinterpret_cast<const char*>(
+        req->bytes + sizeof(req->bytes));
+    size_t keylen = ntohs(req->message.header.request.keylen);
+    const std::string key(key_ptr, keylen);
+
+    std::string value;
+
+    ENGINE_ERROR_CODE status = ioctl_get_property(c, key, value);
 
     if (status == ENGINE_SUCCESS) {
-        char res_buffer[16];
         try {
-            auto length = checked_snprintf(res_buffer, sizeof(res_buffer), "%ld", value);
-            if (mcbp_response_handler(NULL, 0, NULL, 0, res_buffer,
-                                      uint32_t(length),
+            if (mcbp_response_handler(NULL, 0, NULL, 0,
+                                      value.data(), value.size(),
                                       PROTOCOL_BINARY_RAW_BYTES,
                                       PROTOCOL_BINARY_RESPONSE_SUCCESS, 0,
                                       c->getCookie())) {
@@ -4088,13 +4090,18 @@ static void ioctl_get_executor(McbpConnection* c, void* packet) {
 
 static void ioctl_set_executor(McbpConnection* c, void* packet) {
     auto* req = reinterpret_cast<protocol_binary_request_ioctl_set*>(packet);
-    const char* key = (const char*)(req->bytes + sizeof(req->bytes));
-    size_t keylen = ntohs(req->message.header.request.keylen);
-    size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
-    const char* value = key + keylen;
 
-    ENGINE_ERROR_CODE status = ioctl_set_property(c, key, keylen, value,
-                                                  vallen);
+    const char* key_ptr = reinterpret_cast<const char*>(
+        req->bytes + sizeof(req->bytes));
+    size_t keylen = ntohs(req->message.header.request.keylen);
+    const std::string key(key_ptr, keylen);
+
+    const char* val_ptr = key_ptr + keylen;
+    size_t vallen = ntohl(req->message.header.request.bodylen) - keylen;
+    const std::string value(val_ptr, vallen);
+
+
+    ENGINE_ERROR_CODE status = ioctl_set_property(c, key, value);
 
     mcbp_write_packet(c, engine_error_2_mcbp_protocol_error(status));
 }

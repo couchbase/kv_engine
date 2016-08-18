@@ -25,64 +25,101 @@
  * Implement ioctl-style memcached commands (ioctl_get / ioctl_set).
  */
 
-ENGINE_ERROR_CODE ioctl_get_property(const char* key, size_t keylen,
-                                     size_t* value)
-{
-#if defined(HAVE_TCMALLOC)
-    if (strncmp("tcmalloc.aggressive_memory_decommit", key, keylen) == 0 &&
-        keylen == strlen("tcmalloc.aggressive_memory_decommit")) {
-        if (mc_get_allocator_property("tcmalloc.aggressive_memory_decommit",
-                                      value)) {
-            return ENGINE_SUCCESS;
-        } else {
-            return ENGINE_EINVAL;
-        }
-    } else
-#endif /* HAVE_TCMALLOC */
-    {
+/**
+ * Function interface for ioctl_get callbacks
+ */
+using GetCallbackFunc = std::function<ENGINE_ERROR_CODE(
+        Connection* c,
+        std::string& value)>;
+
+/**
+ * Callback for getting the TCMalloc aggressive decommit value
+ */
+static ENGINE_ERROR_CODE getTCMallocAggrMemoryDecommit(
+        Connection* c,
+        std::string& value) {
+
+    size_t int_value;
+    if (mc_get_allocator_property("tcmalloc.aggressive_memory_decommit",
+                                  &int_value)) {
+        value = std::to_string(int_value);
+        return ENGINE_SUCCESS;
+    } else {
         return ENGINE_EINVAL;
     }
 }
 
-ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
-                                     const char* key, size_t keylen,
-                                     const char* value, size_t vallen) {
-    std::string request_key(key, keylen);
+/**
+ * Function interface for ioctl_set callbacks
+ */
+using SetCallbackFunc = std::function<ENGINE_ERROR_CODE(
+        Connection* c,
+        const std::string& value)>;
 
-    if (request_key == "release_free_memory") {
-        mc_release_free_memory();
-        LOG_NOTICE(c, "%u: IOCTL_SET: release_free_memory called", c->getId());
+/**
+ * Callback for calling allocator specific memory release
+ */
+static ENGINE_ERROR_CODE setReleaseFreeMemory(
+        Connection* c,
+        const std::string& value) {
+
+    mc_release_free_memory();
+    LOG_NOTICE(c, "%u: IOCTL_SET: release_free_memory called", c->getId());
+    return ENGINE_SUCCESS;
+}
+
+/**
+ * Callback for setting the TCMalloc aggressive decommit value
+ */
+static ENGINE_ERROR_CODE setTCMallocAggrMemoryDecommit(
+        Connection* c,
+        const std::string& value) {
+
+    size_t intval;
+    try {
+        intval = std::stol(value);
+    } catch (const std::exception&) {
+        return ENGINE_EINVAL;
+    }
+
+    if (mc_set_allocator_property("tcmalloc.aggressive_memory_decommit",
+                                  intval)) {
+        LOG_NOTICE(c,
+            "%u: IOCTL_SET: 'tcmalloc.aggressive_memory_decommit' set to %ld",
+            c->getId(), intval);
         return ENGINE_SUCCESS;
-#if defined(HAVE_TCMALLOC)
-    } else if (request_key == "tcmalloc.aggressive_memory_decommit") {
-
-        if (vallen > IOCTL_VAL_LENGTH) {
-            return ENGINE_EINVAL;
-        }
-
-        /* null-terminate value */
-        char val_buffer[IOCTL_VAL_LENGTH + 1]; /* +1 for terminating '\0' */
-        long int intval;
-
-        memcpy(val_buffer, value, vallen);
-        val_buffer[vallen] = '\0';
-        errno = 0;
-        intval = strtol(val_buffer, NULL, 10);
-
-        if (errno == 0 && mc_set_allocator_property("tcmalloc.aggressive_memory_decommit",
-                                                    intval)) {
-            LOG_NOTICE(c,
-                "%u: IOCTL_SET: 'tcmalloc.aggressive_memory_decommit' set to %ld",
-                c->getId(), intval);
-            return ENGINE_SUCCESS;
-        } else {
-            return ENGINE_EINVAL;
-        }
-#endif /* HAVE_TCMALLOC */
-    } else if (request_key.find("trace.connection.") == 0) {
-        return apply_connection_trace_mask(request_key,
-                                           std::string(value, vallen));
     } else {
         return ENGINE_EINVAL;
     }
+}
+
+ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
+                                     const std::string& key,
+                                     std::string& value) {
+
+    const std::unordered_map<std::string, GetCallbackFunc> props {
+        {"tcmalloc.aggressive_memory_decommit", getTCMallocAggrMemoryDecommit},
+    };
+
+    auto entry = props.find(key);
+    if (entry != props.end()) {
+        return entry->second(c, value);
+    }
+    return ENGINE_EINVAL;
+}
+
+ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
+                                     const std::string& key,
+                                     const std::string& value) {
+
+    const std::unordered_map<std::string, SetCallbackFunc> props {
+        {"tcmalloc.aggressive_memory_decommit", setTCMallocAggrMemoryDecommit},
+        {"release_free_memory", setReleaseFreeMemory},
+    };
+
+    auto entry = props.find(key);
+    if (entry != props.end()) {
+        return entry->second(c, value);
+    }
+    return ENGINE_EINVAL;
 }

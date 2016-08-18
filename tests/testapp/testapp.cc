@@ -2131,7 +2131,7 @@ TEST_P(McdTestappTest, IOCTL_TCMallocAggrDecommit) {
 
     /* tcmalloc.aggressive_memory_decommit should return zero or one. */
     char cmd[] = "tcmalloc.aggressive_memory_decommit";
-    size_t value;
+    int value;
     size_t len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                   PROTOCOL_BINARY_CMD_IOCTL_GET, cmd,
                                   strlen(cmd),
@@ -2152,8 +2152,8 @@ TEST_P(McdTestappTest, IOCTL_TCMallocAggrDecommit) {
        the value reads correctly. */
     {
         char value_buf[16];
-        size_t new_value = 1 - value; /* flip between 1 <-> 0 */
-        snprintf(value_buf, sizeof(value_buf), "%zd", new_value);
+        int new_value = 1 - value; /* flip between 1 <-> 0 */
+        snprintf(value_buf, sizeof(value_buf), "%d", new_value);
 
         len = mcbp_raw_command(buffer.bytes, sizeof(buffer.bytes),
                                PROTOCOL_BINARY_CMD_IOCTL_SET, cmd, strlen(cmd),
