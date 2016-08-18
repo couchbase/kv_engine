@@ -1936,6 +1936,10 @@ extern "C" {
     static int ffs_fdatasync(fdb_fileops_handle fops_handle);
     static int ffs_fsync(fdb_fileops_handle fops_handle);
     static void ffs_get_errno_str(fdb_fileops_handle fops_handle, char *buf, size_t size);
+    static void* ffs_mmap(fdb_fileops_handle fops_handle,
+                          size_t length, void **aux);
+    static int ffs_munmap(fdb_fileops_handle fops_handle,
+                          void *addr, size_t length, void *aux);
 
     static int ffs_aio_init(fdb_fileops_handle fops_handle, struct async_io_handle *aio_handle);
     static int ffs_aio_prep_read(fdb_fileops_handle fops_handle,
@@ -1967,6 +1971,8 @@ fdb_filemgr_ops_t ForestKVStore::getForestStatOps(FileStats* stats) {
         ffs_fdatasync,
         ffs_fsync,
         ffs_get_errno_str,
+        ffs_mmap,
+        ffs_munmap,
         ffs_aio_init,
         ffs_aio_prep_read,
         ffs_aio_submit,
@@ -2106,6 +2112,24 @@ extern "C" {
         if (fsf) {
             fsf->orig_ops->get_errno_str(fsf->orig_handle, buf, size);
         }
+    }
+
+    static void* ffs_mmap(fdb_fileops_handle fops_handle,
+                          size_t length, void **aux) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        if (fsf) {
+            return fsf->orig_ops->mmap(fsf->orig_handle, length, aux);
+        }
+        return nullptr;
+    }
+
+    static int ffs_munmap(fdb_fileops_handle fops_handle,
+                          void *addr, size_t length, void *aux) {
+        ForestStatFile *fsf = reinterpret_cast<ForestStatFile *>(fops_handle);
+        if (fsf) {
+            return fsf->orig_ops->munmap(fsf->orig_handle, addr, length, aux);
+        }
+        return FDB_RESULT_INVALID_ARGS;
     }
 
     static int ffs_aio_init(fdb_fileops_handle fops_handle,
