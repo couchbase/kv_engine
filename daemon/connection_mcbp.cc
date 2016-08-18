@@ -1302,11 +1302,11 @@ void McbpConnection::initateShutdown() {
 
 void McbpConnection::signalIfIdle(bool logbusy, int workerthread) {
     auto state = getState();
-    if (state == conn_read ||
-        state == conn_nread ||
-        state == conn_waiting ||
-        state == conn_new_cmd ||
-        state == conn_ship_log) {
+    if (!isEwouldblock() && (state == conn_read ||
+                             state == conn_nread ||
+                             state == conn_waiting ||
+                             state == conn_new_cmd ||
+                             state == conn_ship_log)) {
         /*
          * set write access to ensure it's handled (error logged in
          * updateEvent().

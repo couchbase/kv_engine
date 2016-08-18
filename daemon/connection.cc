@@ -66,7 +66,6 @@ Connection::Connection(SOCKET sfd, event_base* b)
       thread(nullptr),
       parent_port(0),
       auth_context(nullptr),
-      bucketIndex(0),
       bucketEngine(nullptr),
       peername("unknown"),
       sockname("unknown"),
@@ -74,6 +73,7 @@ Connection::Connection(SOCKET sfd, event_base* b)
       clustermap_revno(-2),
       trace_enabled(false) {
     MEMCACHED_CONN_CREATE(this);
+    bucketIndex.store(0);
 }
 
 Connection::Connection(SOCKET sock,
@@ -248,7 +248,7 @@ cJSON* Connection::toJSON() const {
         cJSON_AddStringToObject(obj, "peername", getPeername().c_str());
         cJSON_AddStringToObject(obj, "sockname", getSockname().c_str());
         cJSON_AddNumberToObject(obj, "parent_port", parent_port);
-        cJSON_AddNumberToObject(obj, "bucket_index", bucketIndex);
+        cJSON_AddNumberToObject(obj, "bucket_index", getBucketIndex());
         json_add_bool_to_object(obj, "admin", isAdmin());
         if (authenticated) {
             cJSON_AddStringToObject(obj, "username", username.c_str());

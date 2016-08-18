@@ -15,12 +15,12 @@
  *   limitations under the License.
  */
 #include "testapp_bucket.h"
-#include <protocol/connection/client_greenstack_connection.h>
 
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <platform/dirutils.h>
 #include <thread>
 
 INSTANTIATE_TEST_CASE_P(TransportProtocols,
@@ -197,6 +197,98 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
     bucket_deleted = true;
     cv.notify_one();
     watchdog.join();
+}
+
+std::string generate_temp_file(const char* pattern) {
+    char* file_pattern = strdup(pattern);
+    if (file_pattern == nullptr) {
+        throw std::bad_alloc();
+    }
+
+    if (cb_mktemp(file_pattern) == nullptr) {
+        throw std::runtime_error(
+            std::string("Failed to create temporary file with pattern: ") +
+            std::string(pattern));
+    }
+
+    std::string ret(file_pattern);
+    free(file_pattern);
+
+    return ret;
+}
+
+// Regression test for MB-19981 - if a bucket delete is attempted while there
+// is connection in the conn_nread state.  And that connection is currently
+// blocked waiting for a response from the server; the connection will not
+// have an event registered in libevent.  Therefore a call to updateEvent
+// will fail.
+
+// Note before the fix, if the event_active function call is removed from the
+// signalIfIdle function the test will hang.  The reason the test works with
+// the event_active function call in place is that the event_active function
+// can be invoked regardless of whether the event is registered
+// (i.e. in a pending state) or not.
+
+TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
+    auto& conn = getConnection();
+    conn.createBucket("bucket", "default_engine.so",
+                      Greenstack::BucketType::EWouldBlock);
+    auto second_conn = conn.clone();
+    second_conn->selectBucket("bucket");
+    auto connection = conn.clone();
+
+    auto cwd = get_working_current_directory();
+    auto testfile = cwd + "/" + generate_temp_file("lockfile.XXXXXX");
+
+
+    // Configure so that the engine will return ENGINE_EWOULDBLOCK and
+    // not process any operation given to it.  This means the connection
+    // will remain in a blocked state.
+    second_conn->configureEwouldBlockEngine(EWBEngineMode::BlockMonitorFile,
+                                            ENGINE_EWOULDBLOCK /* unused */,
+                                            0,
+                                            testfile);
+
+    Frame frame = second_conn->encodeCmdGet("dummy_key_where_never_return", 0);
+
+    // Send the get operation, however we will not get a response from the
+    // engine, and so it will block indefinately.
+    second_conn->sendFrame(frame);
+    std::thread resume{
+        [&connection, &testfile]() {
+            connection->authenticate("_admin", "password", "PLAIN");
+            // wait until we've started to delete the bucket
+            bool deleting = false;
+            while (!deleting) {
+                usleep(10);  // Avoid busy-wait ;-)
+                auto details = connection->stats("bucket_details");
+                auto* obj = cJSON_GetObjectItem(details.get(), "bucket details");
+                unique_cJSON_ptr buckets(cJSON_Parse(obj->valuestring));
+                for (auto* b = buckets->child->child; b != nullptr; b = b->next) {
+                    auto *name = cJSON_GetObjectItem(b, "name");
+                    if (name != nullptr) {
+                        if (std::string(name->valuestring) == "bucket") {
+                            auto *state = cJSON_GetObjectItem(b, "state");
+                            if (std::string(state->valuestring) == "destroying") {
+                                deleting = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // resume the connection
+            CouchbaseDirectoryUtilities::rmrf(testfile);
+
+        }
+    };
+
+    // On a different connection we now instruct the bucket to be deleted.
+    // The connection that is currently blocked needs to be sent a fake
+    // event to allow the connection to be closed.
+    conn.deleteBucket("bucket");
+
+    resume.join();
 }
 
 // Strictly speaking this test /should/ work on Windows, however the
