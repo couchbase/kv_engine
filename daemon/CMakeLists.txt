@@ -125,7 +125,9 @@ ADD_LIBRARY(memcached_daemon STATIC
                timings.cc
                timings.h
                topkeys.cc
-               topkeys.h)
+               topkeys.h
+               tracing.cc
+               tracing.h)
 
 ADD_DEPENDENCIES(memcached_daemon generate_audit_descriptors)
 

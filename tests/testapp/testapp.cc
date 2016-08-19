@@ -2168,6 +2168,147 @@ TEST_P(McdTestappTest, IOCTL_TCMallocAggrDecommit) {
 }
 #endif /* defined(HAVE_TCMALLOC) */
 
+TEST_P(McdTestappTest, IOCTL_Tracing) {
+    union {
+        protocol_binary_request_no_extras request;
+        protocol_binary_response_no_extras response;
+        char bytes[1024];
+    } buffer;
+
+
+    {
+        char cmd[] = "trace.status";
+        size_t len = mcbp_raw_command(
+                buffer.bytes, sizeof(buffer.bytes),
+                PROTOCOL_BINARY_CMD_IOCTL_GET,
+                cmd, strlen(cmd),
+                nullptr, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_IOCTL_GET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+        std::string result(buffer.bytes + sizeof(buffer.response),
+                           buffer.response.message.header.response.bodylen);
+
+        // Someone else might have turned tracing on/off so check for both
+        EXPECT_TRUE(result == "enabled" || result == "disabled");
+    }
+
+    {
+        char cmd[] = "trace.config";
+        char config[] = "buffer-mode:ring;buffer-size:2000000;"
+                        "enabled-categories:*;";
+        size_t len = mcbp_raw_command(
+                buffer.bytes, sizeof(buffer.bytes),
+                PROTOCOL_BINARY_CMD_IOCTL_SET,
+                cmd, strlen(cmd),
+                config, strlen(config));
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_IOCTL_SET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    {
+        char cmd[] = "trace.start";
+        size_t len = mcbp_raw_command(
+                buffer.bytes, sizeof(buffer.bytes),
+                PROTOCOL_BINARY_CMD_IOCTL_SET,
+                cmd, strlen(cmd),
+                nullptr, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_IOCTL_SET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    {
+        char cmd[] = "trace.status";
+        size_t len = mcbp_raw_command(
+                buffer.bytes, sizeof(buffer.bytes),
+                PROTOCOL_BINARY_CMD_IOCTL_GET,
+                cmd, strlen(cmd),
+                nullptr, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_IOCTL_GET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+        std::string result(buffer.bytes + sizeof(buffer.response),
+                           buffer.response.message.header.response.bodylen);
+
+        // Someone else might have turned tracing on/off so check for both
+        EXPECT_EQ("enabled", result);
+    }
+
+    {
+        char cmd[] = "trace.stop";
+        size_t len = mcbp_raw_command(
+                buffer.bytes, sizeof(buffer.bytes),
+                PROTOCOL_BINARY_CMD_IOCTL_SET,
+                cmd, strlen(cmd),
+                nullptr, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_IOCTL_SET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    }
+
+    {
+        char cmd[] = "trace.status";
+        size_t len = mcbp_raw_command(
+                buffer.bytes, sizeof(buffer.bytes),
+                PROTOCOL_BINARY_CMD_IOCTL_GET,
+                cmd, strlen(cmd),
+                nullptr, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_IOCTL_GET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+        std::string result(buffer.bytes + sizeof(buffer.response),
+                           buffer.response.message.header.response.bodylen);
+
+        // Someone else might have turned tracing on/off so check for both
+        EXPECT_EQ("disabled", result);
+    }
+
+    {
+        char cmd[] = "trace.config";
+        size_t len = mcbp_raw_command(
+                buffer.bytes, sizeof(buffer.bytes),
+                PROTOCOL_BINARY_CMD_IOCTL_GET,
+                cmd, strlen(cmd),
+                nullptr, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_IOCTL_GET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+        std::string result(buffer.bytes + sizeof(buffer.response),
+                           buffer.response.message.header.response.bodylen);
+
+        // Someone else might have turned tracing on/off so check for both
+        EXPECT_EQ("buffer-mode:ring;buffer-size:2000000;"
+                  "enabled-categories:*;disabled-categories:", result);
+    }
+}
+
 TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {
     union {
         protocol_binary_request_no_extras request;

@@ -21,6 +21,7 @@
 #include "alloc_hooks.h"
 #include "connections.h"
 #include "utilities/string_utilities.h"
+#include "tracing.h"
 
 /*
  * Implement ioctl-style memcached commands (ioctl_get / ioctl_set).
@@ -111,6 +112,8 @@ ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
                                      std::string& value) {
     const std::unordered_map<std::string, GetCallbackFunc> props {
         {"tcmalloc.aggressive_memory_decommit", getTCMallocAggrMemoryDecommit},
+        {"trace.config", ioctlGetTracingConfig},
+        {"trace.status", ioctlGetTracingStatus},
     };
 
     std::pair<std::string, StrToStrMap> request;
@@ -134,7 +137,10 @@ ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
     const std::unordered_map<std::string, SetCallbackFunc> props {
         {"tcmalloc.aggressive_memory_decommit", setTCMallocAggrMemoryDecommit},
         {"release_free_memory", setReleaseFreeMemory},
-        {"trace.connection", setTraceConnection}
+        {"trace.connection", setTraceConnection},
+        {"trace.config", ioctlSetTracingConfig},
+        {"trace.start", ioctlSetTracingStart},
+        {"trace.stop", ioctlSetTracingStop},
     };
 
     std::pair<std::string, StrToStrMap> request;
