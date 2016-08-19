@@ -100,6 +100,24 @@ const char* getBucketName(const Connection* c) {
     return all_buckets[c->getBucketIndex()].name;
 }
 
+void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg) {
+    cb_mutex_enter(&buckets_lock);
+    for (Bucket& bucket : all_buckets) {
+        bool do_break = false;
+        cb_mutex_enter(&bucket.mutex);
+        if (bucket.state == BucketState::Ready) {
+            if (!fn(bucket, arg)) {
+                do_break = true;
+            }
+        }
+        cb_mutex_exit(&bucket.mutex);
+        if (do_break) {
+            break;
+        }
+    }
+    cb_mutex_exit(&buckets_lock);
+}
+
 protocol_binary_response_status Bucket::validateMcbpCommand(
                                                 const Connection* c,
                                                 protocol_binary_command command,

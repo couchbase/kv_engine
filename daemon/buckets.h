@@ -210,6 +210,17 @@ extern const char* getBucketName(const Connection* c);
  */
 extern std::vector<Bucket> all_buckets;
 
+/**
+ * Call a function on each ready bucket.
+ * @param fn Function to call for each bucket. Should return false if iteration
+ * should stop.
+ * @param arg argument passed to each invocation
+ * @note Buckets which are not yet in a ready state will not be passed to
+ * the function.
+ *
+ */
+void bucketsForEach(std::function<bool(Bucket&, void*)> fn, void *arg);
+
 cJSON *get_bucket_details(int idx);
 
 /**
