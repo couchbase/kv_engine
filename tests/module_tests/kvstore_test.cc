@@ -173,6 +173,7 @@ public:
 
     void callback(GetValue &result) {
         cb(result);
+        delete result.getValue();
     }
 
 protected:

@@ -645,7 +645,7 @@ void ForestKVStore::getWithHeader(void* handle, const std::string& key,
 
     hrtime_t start = gethrtime();
     RememberingCallback<GetValue> *rc =
-                       static_cast<RememberingCallback<GetValue> *>(&cb);
+                       dynamic_cast<RememberingCallback<GetValue> *>(&cb);
     bool getMetaOnly = rc && rc->val.isPartial();
     GetValue rv;
     fdb_status status;
