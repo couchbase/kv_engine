@@ -915,7 +915,6 @@ McbpConnection::McbpConnection(SOCKET sfd, event_base *b)
     memset(&event, 0, sizeof(event));
     memset(&read, 0, sizeof(read));
     memset(&write, 0, sizeof(write));
-    memset(&ssl, 0, sizeof(ssl));
     msglist.reserve(MSG_LIST_INITIAL);
 
     if (!initializeEvent()) {
@@ -964,7 +963,6 @@ McbpConnection::McbpConnection(SOCKET sfd,
     memset(&event, 0, sizeof(event));
     memset(&read, 0, sizeof(read));
     memset(&write, 0, sizeof(write));
-    memset(&ssl, 0, sizeof(ssl));
     msglist.reserve(MSG_LIST_INITIAL);
 
     if (ifc.ssl.enabled) {
