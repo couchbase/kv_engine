@@ -159,6 +159,11 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
                }
                break;
             case DT_STRING:
+               // MB-20598: free the dt_string as in case of a duplicate config entry we
+               // would leak when overwriting with the next strdup.
+               if (items[ii].found) {
+                   cb_free(*items[ii].value.dt_string);
+               }
                *items[ii].value.dt_string = cb_strdup(value);
                items[ii].found = true;
                break;
