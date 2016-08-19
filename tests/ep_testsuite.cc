@@ -5750,7 +5750,7 @@ static enum test_result test_mb17517_tap_with_locked_key(ENGINE_HANDLE *h,
                         "Got CAS of -1 in TAP_MUTATION\n");
                 return FAIL;
             }
-
+            h1->release(h, NULL, it);
             testHarness.lock_cookie(cookie);
             break;
         }

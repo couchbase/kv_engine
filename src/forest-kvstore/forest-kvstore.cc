@@ -512,7 +512,7 @@ void ForestKVStore::getWithHeader(void *dbHandle, const std::string &key,
                                   bool fetchDelete) {
     fdb_file_handle *dbFileHandle = (fdb_file_handle *)dbHandle;
     RememberingCallback<GetValue> *rc =
-                       static_cast<RememberingCallback<GetValue> *>(&cb);
+                       dynamic_cast<RememberingCallback<GetValue> *>(&cb);
     bool getMetaOnly = rc && rc->val.isPartial();
     GetValue rv;
     fdb_kvs_handle *kvsHandle = NULL;
