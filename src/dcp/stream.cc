@@ -1569,10 +1569,11 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
             delete resp;
             return ret;
         }
-    } else {
-        buffer.messages.push(resp);
-        buffer.bytes += resp->getMessageSize();
+        lh.lock();
     }
+
+    buffer.messages.push(resp);
+    buffer.bytes += resp->getMessageSize();
 
     return ENGINE_TMPFAIL;
 }

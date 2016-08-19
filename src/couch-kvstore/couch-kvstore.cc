@@ -643,7 +643,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
     // Examine the metadata of the doc
     auto documentMetaData = MetaDataFactory::createMetaData((*info)->rev_meta);
     // Allocate latest metadata
-    auto metadata = MetaDataFactory::createMetaData();
+    std::unique_ptr<MetaData> metadata;
     if (documentMetaData->getVersionInitialisedFrom() == MetaData::Version::V0) {
         // Metadata doesn't have flex_meta_code, datatype and
         // conflict_resolution_mode, provision space for
@@ -668,8 +668,11 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
             datatype = PROTOCOL_BINARY_DATATYPE_JSON;
         }
 
+        // Now create a blank latest metadata.
+        metadata = MetaDataFactory::createMetaData();
         // Copy the metadata this will pull accross available V0 fields.
         *metadata = *documentMetaData;
+
         // Setup flex code and datatype
         metadata->setFlexCode();
         metadata->setDataType(datatype);
@@ -677,21 +680,38 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
         metadata->setConfResMode(revision_seqno);
     } else if (documentMetaData->getVersionInitialisedFrom() == MetaData::Version::V1) {
         // Metadata doesn't have conflict_resolution_mode,
+        // Now create a blank latest metadata.
+        metadata = MetaDataFactory::createMetaData();
 
         // Copy the metadata (this will copy all but conf-mode);
         *metadata = *documentMetaData;
 
         // Set the conflict resmode
         metadata->setConfResMode(revision_seqno);
+    } else {
+        // The metadata in the document is V2 and needs no changes.
+        return 0;
     }
 
-    DocInfo* docInfo = new DocInfo();
+    // the docInfo pointer includes the DocInfo and the data it points to.
+    // this must be a pointer which free() can deallocate
+    char* buffer = static_cast<char*>(calloc(1, sizeof(DocInfo) +
+                             (*info)->id.size +
+                             MetaData::getMetaDataSize(MetaData::Version::V2)));
 
-    // Copy the current DocInfo (db_seq/rev_seq etc..)
+
+    DocInfo* docInfo = reinterpret_cast<DocInfo*>(buffer);
+
+    // Deep-copy the incoming DocInfo, then we'll fix the pointers/buffer data
     *docInfo = **info;
 
+    // Correct the id buffer
+    docInfo->id.buf = buffer + sizeof(DocInfo);
+    std::memcpy(docInfo->id.buf, (*info)->id.buf, docInfo->id.size);
+
+    // Correct the rev_meta pointer and fill it in.
     docInfo->rev_meta.size = MetaData::getMetaDataSize(MetaData::Version::V2);
-    docInfo->rev_meta.buf = new char[docInfo->rev_meta.size];
+    docInfo->rev_meta.buf = buffer + sizeof(DocInfo) + docInfo->id.size;
     metadata->copyToBuf(docInfo->rev_meta);
 
     // Free the orginal

@@ -158,6 +158,7 @@ void DcpConnMap::shutdownAllConnections() {
 
     if (connNotifier_ != NULL) {
         connNotifier_->stop();
+        manageConnections();
     }
 
     {
