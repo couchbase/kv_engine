@@ -20,6 +20,7 @@
 #include "config.h"
 #include "alloc_hooks.h"
 #include "connections.h"
+#include "utilities/string_utilities.h"
 
 /*
  * Implement ioctl-style memcached commands (ioctl_get / ioctl_set).
@@ -30,15 +31,15 @@
  */
 using GetCallbackFunc = std::function<ENGINE_ERROR_CODE(
         Connection* c,
+        const StrToStrMap& arguments,
         std::string& value)>;
 
 /**
  * Callback for getting the TCMalloc aggressive decommit value
  */
-static ENGINE_ERROR_CODE getTCMallocAggrMemoryDecommit(
-        Connection* c,
-        std::string& value) {
-
+static ENGINE_ERROR_CODE getTCMallocAggrMemoryDecommit(Connection* c,
+                                                       const StrToStrMap&,
+                                                       std::string& value) {
     size_t int_value;
     if (mc_get_allocator_property("tcmalloc.aggressive_memory_decommit",
                                   &int_value)) {
@@ -54,15 +55,15 @@ static ENGINE_ERROR_CODE getTCMallocAggrMemoryDecommit(
  */
 using SetCallbackFunc = std::function<ENGINE_ERROR_CODE(
         Connection* c,
+        const StrToStrMap& arguments,
         const std::string& value)>;
 
 /**
  * Callback for calling allocator specific memory release
  */
-static ENGINE_ERROR_CODE setReleaseFreeMemory(
-        Connection* c,
-        const std::string& value) {
-
+static ENGINE_ERROR_CODE setReleaseFreeMemory(Connection* c,
+                                              const StrToStrMap&,
+                                              const std::string& value) {
     mc_release_free_memory();
     LOG_NOTICE(c, "%u: IOCTL_SET: release_free_memory called", c->getId());
     return ENGINE_SUCCESS;
@@ -71,10 +72,9 @@ static ENGINE_ERROR_CODE setReleaseFreeMemory(
 /**
  * Callback for setting the TCMalloc aggressive decommit value
  */
-static ENGINE_ERROR_CODE setTCMallocAggrMemoryDecommit(
-        Connection* c,
-        const std::string& value) {
-
+static ENGINE_ERROR_CODE setTCMallocAggrMemoryDecommit(Connection* c,
+                                                       const StrToStrMap&,
+                                                       const std::string& value) {
     size_t intval;
     try {
         intval = std::stol(value);
@@ -93,17 +93,37 @@ static ENGINE_ERROR_CODE setTCMallocAggrMemoryDecommit(
     }
 }
 
+/**
+ * Callback for setting the trace status of a specific connection
+ */
+static ENGINE_ERROR_CODE setTraceConnection(Connection* c,
+                                            const StrToStrMap& arguments,
+                                            const std::string& value) {
+    auto id = arguments.find("id");
+    if (id == arguments.end()) {
+        return ENGINE_EINVAL;
+    }
+    return apply_connection_trace_mask(id->second, value);
+}
+
 ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
                                      const std::string& key,
                                      std::string& value) {
-
     const std::unordered_map<std::string, GetCallbackFunc> props {
         {"tcmalloc.aggressive_memory_decommit", getTCMallocAggrMemoryDecommit},
     };
 
-    auto entry = props.find(key);
+    std::pair<std::string, StrToStrMap> request;
+
+    try {
+        request = decode_query(key);
+    } catch (const std::invalid_argument&) {
+        return ENGINE_EINVAL;
+    }
+
+    auto entry = props.find(request.first);
     if (entry != props.end()) {
-        return entry->second(c, value);
+        return entry->second(c, request.second, value);
     }
     return ENGINE_EINVAL;
 }
@@ -111,15 +131,23 @@ ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
 ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
                                      const std::string& key,
                                      const std::string& value) {
-
     const std::unordered_map<std::string, SetCallbackFunc> props {
         {"tcmalloc.aggressive_memory_decommit", setTCMallocAggrMemoryDecommit},
         {"release_free_memory", setReleaseFreeMemory},
+        {"trace.connection", setTraceConnection}
     };
 
-    auto entry = props.find(key);
+    std::pair<std::string, StrToStrMap> request;
+
+    try {
+        request = decode_query(key);
+    } catch (const std::invalid_argument&) {
+        return ENGINE_EINVAL;
+    }
+
+    auto entry = props.find(request.first);
     if (entry != props.end()) {
-        return entry->second(c, value);
+        return entry->second(c, request.second, value);
     }
     return ENGINE_EINVAL;
 }

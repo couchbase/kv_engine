@@ -593,15 +593,8 @@ static void conn_return_single_buffer(Connection *c, struct net_buf *thread_buf,
     }
 }
 
-ENGINE_ERROR_CODE apply_connection_trace_mask(const std::string& key,
+ENGINE_ERROR_CODE apply_connection_trace_mask(const std::string& connid,
                                               const std::string& mask) {
-    const std::string prefix("trace.connection.");
-    std::string connid = key.substr(prefix.length());
-    auto idx = connid.find('.');
-    if (idx != std::string::npos) {
-        connid.resize(idx);
-    }
-
     uint32_t id;
     try {
         id = static_cast<uint32_t>(std::stoi(connid));

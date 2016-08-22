@@ -23,8 +23,10 @@
 
 #include <memcached/util.h>
 #include <memcached/config_parser.h>
+#include "string_utilities.h"
 
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 
 #define TMP_TEMPLATE "testapp_tmp_file.XXXXXXX"
 
@@ -146,6 +148,84 @@ TEST(StringTest, safe_strtof) {
 
     EXPECT_TRUE(safe_strtof("123.00", &val));
     EXPECT_EQ(123.00f, val);
+}
+
+TEST(StringTest, split_string) {
+    using namespace testing;
+
+    EXPECT_THAT(split_string("123:456", ":"), ElementsAre("123", "456"));
+    EXPECT_THAT(split_string("123::456", ":"), ElementsAre("123", "", "456"));
+    EXPECT_THAT(split_string("123:456:", ":"), ElementsAre("123", "456", ""));
+    EXPECT_THAT(split_string("123:456:789", ":", 1),
+                ElementsAre("123", "456:789"));
+    EXPECT_THAT(split_string("123:456:789", ":", 2),
+                ElementsAre("123", "456", "789"));
+    EXPECT_THAT(split_string("123::456", ":", 1),
+                ElementsAre("123", ":456"));
+    EXPECT_THAT(split_string(":", ":", 2),
+                ElementsAre("", ""));
+    EXPECT_THAT(split_string(":abcd", ":", 200),
+                ElementsAre("", "abcd"));
+    EXPECT_THAT(split_string("Hello, World!", ", ", 200),
+                ElementsAre("Hello", "World!"));
+    EXPECT_THAT(split_string("Hello<BOOM>World<BOOM>!", "<BOOM>", 200),
+                ElementsAre("Hello", "World", "!"));
+    EXPECT_THAT(split_string("Hello<BOOM>World<BOOM>!", "<BOOM>", 1),
+                ElementsAre("Hello", "World<BOOM>!"));
+}
+
+TEST(StringTest, percent_decode) {
+    // Test every character from 0x00->0xFF that they can be converted to
+    // percent encoded strings and back again
+    for (int i = 0; i < 255; ++i) {
+        std::stringstream s, t;
+        s << "%" << std::setfill('0') << std::setw(2) << std::hex << i;
+        t << static_cast<char>(i);
+        EXPECT_EQ(t.str(), percent_decode(s.str()));
+    }
+
+    EXPECT_EQ("abcdef!abcdef", percent_decode("abcdef%21abcdef"));
+    EXPECT_EQ("!", percent_decode("%21"));
+    EXPECT_EQ("!!", percent_decode("%21%21"));
+    EXPECT_EQ("%21", percent_decode("%25%32%31"));
+
+    EXPECT_THROW(percent_decode("%"), std::invalid_argument);
+    EXPECT_THROW(percent_decode("%%"), std::invalid_argument);
+    EXPECT_THROW(percent_decode("%3"), std::invalid_argument);
+    EXPECT_THROW(percent_decode("%%%"), std::invalid_argument);
+    EXPECT_THROW(percent_decode("%GG"), std::invalid_argument);
+}
+
+TEST(StringTest, decode_query) {
+    using namespace testing;
+    std::pair<std::string, StrToStrMap> request;
+
+    request = decode_query("key?arg=val&arg2=val2&arg3=val?=");
+    EXPECT_EQ("key", request.first);
+    EXPECT_THAT(request.second, UnorderedElementsAre(Pair("arg", "val"),
+                                                     Pair("arg2", "val2"),
+                                                     Pair("arg3", "val?=")));
+
+    request = decode_query("key");
+    EXPECT_EQ("key", request.first);
+    EXPECT_THAT(request.second, UnorderedElementsAre());
+
+    request = decode_query("key?");
+    EXPECT_EQ("key", request.first);
+    EXPECT_THAT(request.second, UnorderedElementsAre());
+
+    request = decode_query("key\?\?=?");
+    EXPECT_EQ("key", request.first);
+    EXPECT_THAT(request.second, UnorderedElementsAre(Pair("?", "?")));
+
+    request = decode_query("key?%25=%26&%26=%25");
+    EXPECT_EQ("key", request.first);
+    EXPECT_THAT(request.second, UnorderedElementsAre(Pair("%", "&"),
+                                                     Pair("&", "%")));
+
+    EXPECT_THROW(decode_query("key?=&a=b"), std::invalid_argument);
+    EXPECT_THROW(decode_query("key?a&a=b"), std::invalid_argument);
+
 }
 
 static char* trim(char* ptr) {

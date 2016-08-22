@@ -13,9 +13,10 @@ INSTALL(TARGETS mcd_util
 
 ADD_EXECUTABLE(utilities_testapp
                config_parser.c
+               string_utilities.cc
                util.c
                util_test.cc)
-TARGET_LINK_LIBRARIES(utilities_testapp gtest gtest_main platform)
+TARGET_LINK_LIBRARIES(utilities_testapp gtest gtest_main gmock platform)
 ADD_TEST(NAME memcached-utilities-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
          COMMAND utilities_testapp)
