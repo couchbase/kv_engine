@@ -19,45 +19,65 @@
 #include "client_connection.h"
 #include <libgreenstack/Greenstack.h>
 
-class GreenstackError : public ConnectionError {
+inline std::string formatGreenstackExceptionMsg(const std::string& prefix,
+                                                Greenstack::Status reason) {
+    // Format the error message
+    std::string errormessage(prefix);
+    errormessage.append(": ");
+    errormessage.append(Greenstack::to_string(reason));
+    errormessage.append(" (");
+    errormessage.append(std::to_string(uint16_t(reason)));
+    errormessage.append(")");
+    return errormessage;
+}
+
+class GreenstackConnectionError : public ConnectionError {
 public:
-    explicit GreenstackError(const char* what_arg, Greenstack::Status stat)
-        : ConnectionError(what_arg, Protocol::Greenstack, uint16_t(stat)),
-          status(stat) {
+    explicit GreenstackConnectionError(const char* prefix,
+                                       Greenstack::Status reason_)
+        : ConnectionError(formatGreenstackExceptionMsg(prefix,
+                                                       reason_).c_str()),
+          reason(reason_) {
     }
 
-    explicit GreenstackError(const std::string& what_arg,
-                             Greenstack::Status stat)
-        : ConnectionError(what_arg, Protocol::Greenstack, uint16_t(stat)),
-          status(stat) {
+    explicit GreenstackConnectionError(const std::string& prefix,
+                                       Greenstack::Status reason_)
+        : GreenstackConnectionError(prefix.c_str(), reason_) {
     }
 
-    Greenstack::Status getStatus() const {
-        return status;
+    uint16_t getReason() const override {
+        return static_cast<uint16_t>(reason);
     }
 
-#ifdef WIN32
-#define NOEXCEPT
-#else
-#define NOEXCEPT noexcept
-#endif
+    Protocol getProtocol() const override {
+        return Protocol::Greenstack;
+    }
 
-    virtual const char* what() const NOEXCEPT override {
-        std::string msg(std::runtime_error::what());
-        msg.append(" ");
-        msg.append(Greenstack::to_string(status));
+    bool isInvalidArguments() const override {
+        return reason == Greenstack::Status::InvalidArguments;
+    }
 
-        return msg.c_str();
+    bool isAlreadyExists() const override {
+        return reason == Greenstack::Status::AlreadyExists;
+    }
+
+    bool isNotFound() const override {
+        return reason == Greenstack::Status::NotFound;
+    }
+
+    bool isNotStored() const override {
+        return reason == Greenstack::Status::NotStored;
     }
 
 private:
-    Greenstack::Status status;
+    Greenstack::Status reason;
 };
 
 class MemcachedGreenstackConnection : public MemcachedConnection {
 public:
-    MemcachedGreenstackConnection(in_port_t port, sa_family_t family, bool ssl)
-        : MemcachedConnection(port, family, ssl, Protocol::Greenstack) { }
+    MemcachedGreenstackConnection(const std::string& host, in_port_t port,
+                                  sa_family_t family, bool ssl)
+        : MemcachedConnection(host, port, family, ssl, Protocol::Greenstack) {}
 
     virtual std::string to_string() override;
 
@@ -66,7 +86,6 @@ public:
     virtual void authenticate(const std::string& username,
                               const std::string& password,
                               const std::string& mech) override;
-
 
     virtual void createBucket(const std::string& name,
                               const std::string& config,
@@ -93,35 +112,21 @@ public:
 
     virtual unique_cJSON_ptr stats(const std::string& subcommand) override;
 
+    virtual void reloadAuditConfiguration() override;
+
     virtual void recvFrame(Frame& frame) override;
 
-    /**
-     * Run Hello to the server and identify ourself with the userAgent,
-     * userAgentVersion and comment.
-     *
-     * @throws std::runtime_error if an error occurs
-     */
-    void hello(const std::string& userAgent,
-               const std::string& userAgentVersion,
-               const std::string& comment);
-
-
-    /**
-     * Get the servers SASL mechanisms. This is only valid after running a
-     * successful HELLO
-     */
-    const std::string& getSaslMechanisms() const {
-        return saslMechanisms;
-    }
+    virtual void hello(const std::string& userAgent,
+                       const std::string& userAgentVersion,
+                       const std::string& comment) override;
 
 
     virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
                                             ENGINE_ERROR_CODE err_code,
-                                            uint32_t value) override;
+                                            uint32_t value,
+                                            const std::string& key) override;
 
 protected:
     Greenstack::UniqueMessagePtr recvMessage();
-
-    std::string saslMechanisms;
 
 };

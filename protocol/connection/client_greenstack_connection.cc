@@ -69,7 +69,9 @@ typedef std::unique_ptr<Greenstack::Message> UniqueMessagePtr;
 
 std::unique_ptr<MemcachedConnection> MemcachedGreenstackConnection::clone() {
     return std::unique_ptr<MemcachedConnection>(
-            new MemcachedGreenstackConnection(this->port, this->family,
+            new MemcachedGreenstackConnection(this->host,
+                                              this->port,
+                                              this->family,
                                               this->ssl));
 }
 
@@ -223,8 +225,8 @@ void MemcachedGreenstackConnection::hello(const std::string& userAgent,
         throw std::runtime_error("Received message was not hello response");
     }
     if (msg->getStatus() != Greenstack::Status::Success) {
-        throw GreenstackError("Received hello response with ",
-                              msg->getStatus());
+        throw GreenstackConnectionError("Received hello response with ",
+                                        msg->getStatus());
     }
 
     saslMechanisms.assign(msg->getSaslMechanisms());
@@ -254,7 +256,7 @@ void MemcachedGreenstackConnection::createBucket(const std::string& name,
         std::string error("Create bucket [");
         error.append(name);
         error.append("] failed");
-        throw GreenstackError(error, msg->getStatus());
+        throw GreenstackConnectionError(error, msg->getStatus());
     }
 }
 
@@ -275,8 +277,8 @@ void MemcachedGreenstackConnection::deleteBucket(const std::string& name) {
     }
 
     if (msg->getStatus() != Greenstack::Status::Success) {
-        throw GreenstackError("Delete bucket [" + name + "] failed",
-                              msg->getStatus());
+        throw GreenstackConnectionError("Delete bucket [" + name + "] failed",
+                                        msg->getStatus());
     }
 }
 
@@ -302,8 +304,8 @@ std::vector<std::string> MemcachedGreenstackConnection::listBuckets() {
     }
 
     if (msg->getStatus() != Greenstack::Status::Success) {
-        throw GreenstackError("Failed to list buckets",
-                              msg->getStatus());
+        throw GreenstackConnectionError("Failed to list buckets",
+                                        msg->getStatus());
     }
 
     return msg->getBuckets();
@@ -341,8 +343,8 @@ Document MemcachedGreenstackConnection::get(const std::string& id,
 
         return ret;
     } else {
-        throw GreenstackError("Get document [" + id + "] failed",
-                              msg->getStatus());
+        throw GreenstackConnectionError("Get document [" + id + "] failed",
+                                        msg->getStatus());
     }
 }
 
@@ -413,8 +415,8 @@ MutationInfo MemcachedGreenstackConnection::mutate(const Document& doc,
         return ret;
     }
 
-    throw GreenstackError("Mutate [" + doc.info.id + "] failed",
-                          msg->getStatus());
+    throw GreenstackConnectionError("Mutate [" + doc.info.id + "] failed",
+                                    msg->getStatus());
 }
 
 Greenstack::UniqueMessagePtr MemcachedGreenstackConnection::recvMessage() {
@@ -429,6 +431,11 @@ unique_cJSON_ptr MemcachedGreenstackConnection::stats(const std::string& subcomm
 }
 
 void MemcachedGreenstackConnection::configureEwouldBlockEngine(
-    const EWBEngineMode& mode, ENGINE_ERROR_CODE err_code, uint32_t value) {
+    const EWBEngineMode& mode, ENGINE_ERROR_CODE err_code, uint32_t value,
+    const std::string& key) {
+    throw std::runtime_error("Not implemented for Greenstack");
+}
+
+void MemcachedGreenstackConnection::reloadAuditConfiguration() {
     throw std::runtime_error("Not implemented for Greenstack");
 }

@@ -26,9 +26,11 @@
 #include <memcached/openssl.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/types.h>
+#include <platform/dynamic.h>
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <utilities/protocol2text.h>
 
 enum class Protocol : uint8_t {
     Memcached,
@@ -78,90 +80,22 @@ public:
 
 class ConnectionError : public std::runtime_error {
 public:
-    explicit ConnectionError(const char* what_arg, const Protocol& protocol_,
-                             uint16_t reason_)
-        : std::runtime_error(what_arg),
-          protocol(protocol_),
-          reason(reason_) {
-
+    explicit ConnectionError(const char* what_arg)
+        : std::runtime_error(what_arg) {
+        // Empty
     }
 
-    explicit ConnectionError(const std::string what_arg,
-                             const Protocol& protocol_, uint16_t reason_)
-        : std::runtime_error(what_arg),
-          protocol(protocol_),
-          reason(reason_) {
+    virtual uint16_t getReason() const = 0;
 
-    }
+    virtual Protocol getProtocol() const = 0;
 
-#ifdef WIN32
-#define NOEXCEPT
-#else
-#define NOEXCEPT noexcept
-#endif
+    virtual bool isInvalidArguments() const = 0;
 
-    virtual const char* what() const NOEXCEPT override {
-        std::string msg(std::runtime_error::what());
-        msg.append(" ");
-        msg.append(std::to_string(reason));
-        return msg.c_str();
-    }
+    virtual bool isAlreadyExists() const = 0;
 
-    uint16_t getReason() const {
-        return reason;
-    }
+    virtual bool isNotFound() const = 0;
 
-    Protocol getProtocol() const {
-        return protocol;
-    }
-
-    bool isInvalidArguments() const {
-        if (protocol == Protocol::Memcached) {
-            return reason == PROTOCOL_BINARY_RESPONSE_EINVAL;
-        } else {
-            return reason == uint16_t(Greenstack::Status::InvalidArguments);
-        }
-    }
-
-    bool isAlreadyExists() const {
-        if (protocol == Protocol::Memcached) {
-            return reason == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS;
-        } else {
-            return reason == uint16_t(Greenstack::Status::AlreadyExists);
-        }
-    }
-
-    bool isNotFound() const {
-        if (protocol == Protocol::Memcached) {
-            return reason == PROTOCOL_BINARY_RESPONSE_KEY_ENOENT;
-        } else {
-            return reason == uint16_t(Greenstack::Status::NotFound);
-        }
-    }
-
-    bool isNotStored() const {
-        if (protocol == Protocol::Memcached) {
-            return reason == PROTOCOL_BINARY_RESPONSE_NOT_STORED;
-        } else {
-            return reason == uint16_t(Greenstack::Status::NotStored);
-        }
-    }
-
-    bool isAccessDenied() const {
-        if (protocol == Protocol::Memcached) {
-#ifdef USE_EXTENDED_ERROR_CODES
-            return reason == PROTOCOL_BINARY_RESPONSE_EACCESS;
-#else
-            return false;
-#endif
-        } else {
-            return reason == uint16_t(Greenstack::Status::NoAccess);
-        }
-    }
-
-private:
-    Protocol protocol;
-    uint16_t reason;
+    virtual bool isNotStored() const = 0;
 };
 
 /**
@@ -210,8 +144,7 @@ public:
 
     virtual void setSynchronous(bool enable) {
         if (!enable) {
-            throw ConnectionError("Not implemented", Protocol::Memcached,
-                                  PROTOCOL_BINARY_RESPONSE_EINVAL);
+            std::runtime_error("MemcachedConnection::setSynchronous: Not implemented");
         }
     }
 
@@ -300,6 +233,11 @@ public:
     virtual unique_cJSON_ptr stats(const std::string& subcommand) = 0;
 
     /**
+     * Instruct the audit daemon to reload the configuration
+     */
+    virtual void reloadAuditConfiguration() = 0;
+
+    /**
      * Sent the given frame over this connection
      *
      * @param frame the frame to send to the server
@@ -342,10 +280,43 @@ public:
      */
     virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
                                             ENGINE_ERROR_CODE err_code = ENGINE_EWOULDBLOCK,
-                                            uint32_t value = 0) = 0;
+                                            uint32_t value = 0,
+                                            const std::string& key = "") = 0;
+
+
+    /**
+     * Identify ourself to the server and fetch the available SASL mechanisms
+     * (available by calling `getSaslMechanisms()`
+     *
+     * @throws std::runtime_error if an error occurs
+     */
+    virtual void hello(const std::string& userAgent,
+                       const std::string& userAgentVersion,
+                       const std::string& comment) = 0;
+
+
+    /**
+     * Get the servers SASL mechanisms. This is only valid after running a
+     * successful `hello()`
+     */
+    const std::string& getSaslMechanisms() const {
+        return saslMechanisms;
+    }
 
 protected:
-    MemcachedConnection(in_port_t port, sa_family_t family, bool ssl,
+    /**
+     * Create a new instance of the MemcachedConnection
+     *
+     * @param host the hostname to connect to (empty == localhost)
+     * @param port the port number to connect to
+     * @param family the socket family to connect as (AF_INET, AF_INET6
+     *               or use AF_UNSPEC to just pick one)
+     * @param ssl connect over SSL or not
+     * @param protocol the protocol the implementation is using
+     * @return
+     */
+    MemcachedConnection(const std::string& host, in_port_t port,
+                        sa_family_t family, bool ssl,
                         const Protocol& protocol);
 
     void close();
@@ -362,6 +333,7 @@ protected:
 
     void sendFrameSsl(const Frame& frame);
 
+    std::string host;
     in_port_t port;
     sa_family_t family;
     bool ssl;
@@ -370,6 +342,7 @@ protected:
     BIO* bio;
     SOCKET sock;
     bool synchronous;
+    std::string saslMechanisms;
 };
 
 class ConnectionMap {
