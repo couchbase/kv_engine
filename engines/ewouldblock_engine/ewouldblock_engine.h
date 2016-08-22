@@ -68,9 +68,9 @@ enum class EWBEngineMode : uint32_t {
     Random = 1,
 
     // The first call to a given function from each connection will return
-    // {inject_error}, with the next (and subsequent) calls to he *same*
+    // {inject_error}, with the next (and subsequent) calls to the *same*
     // function operating normally. Calling a different function will reset
-    // back to failing again.  In other words, return {inject_error} iif the
+    // back to failing again.  In other words, return {inject_error} if the
     // previous function was not this one.
     First = 2,
 
@@ -84,5 +84,29 @@ enum class EWBEngineMode : uint32_t {
 
     // Increment the cluster map sequence number. Value and inject_error is
     // ignored for this opcode
-    IncrementClusterMapRevno = 5
+    IncrementClusterMapRevno = 5,
+
+    // Make a single call into engine and return {inject_error}.  In addition
+    // do not add the operation to the processing queue and so a
+    // notify_io_complete is never sent.
+    No_Notify = 6,
+
+    // Suspend a cookie with the provided id and return ENGINE_EWOULDBLOCK.
+    // The connection must be resumed with a call to Resume
+    Suspend = 7,
+
+    // Resume a cookie with the provided id
+    Resume = 8,
+
+    // Next time the connection invokes a call we'll start monitoring a file
+    // for existence, and when the file goes away we'll notify the connection
+    // with the {inject_error}.
+    // The file to monitor is specified in the key for the packet.
+    // This seems like an odd interface to have, but it is needed to be able
+    // to test what happens with clients that is working inside the engine
+    // while a bucket is deleted. Given that we're not instructing the
+    // ewouldblock engine on a special channel there is no way to send
+    // commmands to the engine whlie it is being deleted ;-)
+    BlockMonitorFile = 9
+
 };

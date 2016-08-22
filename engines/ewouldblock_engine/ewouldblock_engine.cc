@@ -71,15 +71,10 @@
 #include <string>
 
 #include <memcached/engine.h>
+#include <memcached/extension.h>
+#include <platform/dirutils.h>
+#include <platform/thread.h>
 #include "utilities/engine_loader.h"
-
-// Shared state between the main thread of execution and the background
-// thread processing pending io ops.
-static std::mutex mutex;
-static std::condition_variable condvar;
-static std::queue<const void*> pending_io_ops;
-std::atomic<bool> stop_notification_thread;
-
 
 /* Public API declaration ****************************************************/
 
@@ -91,6 +86,55 @@ extern "C" {
     MEMCACHED_PUBLIC_API
     void destroy_engine(void);
 }
+
+
+class EWB_Engine;
+
+class NotificationThread : public Couchbase::Thread {
+public:
+    NotificationThread(EWB_Engine& engine_)
+        : Thread("ewb:pendingQ"),
+          engine(engine_) {}
+
+protected:
+    virtual void run() override;
+
+protected:
+    EWB_Engine& engine;
+};
+
+/**
+ * The BlockMonitorThread represents the thread that is
+ * monitoring the "lock" file. Once the file is no longer
+ * there it will resume the client specified with the given
+ * id.
+ */
+class BlockMonitorThread : public Couchbase::Thread {
+public:
+    BlockMonitorThread(EWB_Engine& engine_,
+                       uint32_t id_,
+                       const std::string file_)
+        : Thread("BlockMonitorThread"),
+          engine(engine_),
+          id(id_),
+          file(file_) {}
+
+    /**
+     * Wait for the underlying thread to reach the zombie state
+     * (== terminated, but not reaped)
+     */
+    ~BlockMonitorThread() {
+        waitForState(Couchbase::ThreadState::Zombie);
+    }
+
+protected:
+    virtual void run() override;
+
+private:
+    EWB_Engine& engine;
+    const uint32_t id;
+    const std::string file;
+};
 
 /** ewouldblock_engine class */
 class EWB_Engine : public ENGINE_HANDLE_V1 {
@@ -118,13 +162,21 @@ public:
      */
     bool should_inject_error(Cmd cmd, const void* cookie,
                              ENGINE_ERROR_CODE& err) {
+
+        if (is_connection_suspended(cookie)) {
+            err = ENGINE_EWOULDBLOCK;
+            return true;
+        }
+
         std::lock_guard<std::mutex> guard(cookie_map_mutex);
-        auto& state = cookie_map[cookie];
-        if (state == nullptr) {
+
+        auto iter = connection_map.find(cookie);
+        if (iter == connection_map.end()) {
             return false;
         }
 
-        const bool inject = state->should_inject_error(cmd, err);
+        const bool inject = iter->second->should_inject_error(cmd, err);
+        const bool add_to_pending_io_ops = iter->second->add_to_pending_io_ops();
 
         if (inject) {
             auto logger = gsa()->log->get_logger();
@@ -132,15 +184,11 @@ public:
                         "EWB_Engine: injecting error:%d for cmd:%s",
                         err, to_string(cmd));
 
-            if (err == ENGINE_EWOULDBLOCK) {
+            if (err == ENGINE_EWOULDBLOCK && add_to_pending_io_ops) {
                 // The server expects that if EWOULDBLOCK is returned then the
                 // server should be notified in the future when the operation is
                 // ready - so add this op to the pending IO queue.
-                {
-                    std::lock_guard<std::mutex> guard(mutex);
-                    pending_io_ops.push(cookie);
-                }
-                condvar.notify_one();
+                schedule_notification(iter->first);
             }
         }
 
@@ -345,13 +393,16 @@ public:
                                              protocol_binary_request_header *request,
                                              ADD_RESPONSE response) {
         EWB_Engine* ewb = to_engine(handle);
+
         if (request->request.opcode == PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL) {
-            request_ewouldblock_ctl* req =
-                    reinterpret_cast<request_ewouldblock_ctl*>(request);
+            auto logger = ewb->gsa()->log->get_logger();
+            auto* req = reinterpret_cast<request_ewouldblock_ctl*>(request);
             const EWBEngineMode mode = static_cast<EWBEngineMode>(ntohl(req->message.body.mode));
             const uint32_t value = ntohl(req->message.body.value);
             const ENGINE_ERROR_CODE injected_error =
                     static_cast<ENGINE_ERROR_CODE>(ntohl(req->message.body.inject_error));
+            const std::string key((char*)req->bytes + sizeof(req->bytes),
+                                  ntohs(req->message.header.request.keylen));
 
             std::shared_ptr<FaultInjectMode> new_mode = nullptr;
 
@@ -373,6 +424,10 @@ public:
                     new_mode = std::make_shared<ErrSequence>(injected_error, value);
                     break;
 
+                case EWBEngineMode::No_Notify:
+                    new_mode = std::make_shared<ErrOnNoNotify>(injected_error);
+                    break;
+
                 case EWBEngineMode::CasMismatch:
                     new_mode = std::make_shared<CASMismatch>(value);
                     break;
@@ -384,11 +439,17 @@ public:
                              PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
                     return ENGINE_SUCCESS;
 
-                default:
-                    break;
+                case EWBEngineMode::BlockMonitorFile:
+                    return ewb->handleBlockMonitorFile(cookie, value, key,
+                                                       response);
+
+                case EWBEngineMode::Suspend:
+                    return ewb->handleSuspend(cookie, value, response);
+
+                case EWBEngineMode::Resume:
+                    return ewb->handleResume(cookie, value, response);
             }
 
-            auto logger = ewb->gsa()->log->get_logger();
             if (new_mode == nullptr) {
                 logger->log(EXTENSION_LOG_WARNING, NULL,
                             "EWB_Engine::unknown_command(): "
@@ -407,8 +468,8 @@ public:
 
                     {
                         std::lock_guard<std::mutex> guard(ewb->cookie_map_mutex);
-                        ewb->cookie_map.erase(cookie);
-                        ewb->cookie_map[cookie] = new_mode;
+                        ewb->connection_map.erase(cookie);
+                        ewb->connection_map.emplace(cookie, new_mode);
                     }
 
                     response(nullptr, 0, nullptr, 0, nullptr, 0,
@@ -504,10 +565,64 @@ public:
 
     std::atomic_int clustermap_revno;
 
-private:
+    /**
+     * The method responsible for pushing all of the notify_io_complete
+     * to the frontend. It is run by notify_io_thread and not intended to
+     * be called by anyone else!.
+     */
+    void process_notifications();
+    std::unique_ptr<Couchbase::Thread> notify_io_thread;
 
-    // Handle of the notification thread.
-    cb_thread_t notification_thread;
+protected:
+    /**
+     * Handle the control message for block monitor file
+     *
+     * @param cookie The cookie executing the operation
+     * @param id The identifier used to represent the cookie
+     * @param file The file to monitor
+     * @param response callback used to send a response to the client
+     * @return The standard engine error codes
+     */
+    ENGINE_ERROR_CODE handleBlockMonitorFile(const void* cookie,
+                                             uint32_t id,
+                                             const std::string& file,
+                                             ADD_RESPONSE response);
+
+    /**
+     * Handle the control message for suspend
+     *
+     * @param cookie The cookie executing the operation
+     * @param id The identifier used to represent the cookie to resume
+     *           (the use of a different id is to allow resume to
+     *           be sent on a different connection)
+     * @param response callback used to send a response to the client
+     * @return The standard engine error codes
+     */
+    ENGINE_ERROR_CODE handleSuspend(const void* cookie,
+                                    uint32_t id,
+                                    ADD_RESPONSE response);
+
+    /**
+     * Handle the control message for resume
+     *
+     * @param cookie The cookie executing the operation
+     * @param id The identifier representing the connection to resume
+     * @param response callback used to send a response to the client
+     * @return The standard engine error codes
+     */
+    ENGINE_ERROR_CODE handleResume(const void* cookie,
+                                   uint32_t id,
+                                   ADD_RESPONSE response);
+
+private:
+    // Shared state between the main thread of execution and the background
+    // thread processing pending io ops.
+    std::mutex mutex;
+    std::condition_variable condvar;
+    std::queue<const void*> pending_io_ops;
+
+    std::atomic<bool> stop_notification_thread;
+
 
 
     /* DCP iterator static methods *******************************************/
@@ -535,6 +650,9 @@ private:
         FaultInjectMode(ENGINE_ERROR_CODE injected_error_)
           : injected_error(injected_error_) {}
 
+        virtual bool add_to_pending_io_ops() {
+            return true;
+        }
         virtual bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) = 0;
 
         virtual std::string to_string() const = 0;
@@ -660,6 +778,35 @@ private:
         uint32_t pos;
     };
 
+    class ErrOnNoNotify : public FaultInjectMode {
+        public:
+            ErrOnNoNotify(ENGINE_ERROR_CODE injected_error_)
+              : FaultInjectMode(injected_error_),
+                issued_return_error(false) {}
+
+            bool add_to_pending_io_ops() {return false;}
+            bool should_inject_error(Cmd cmd, ENGINE_ERROR_CODE& err) {
+                if (!issued_return_error) {
+                    issued_return_error = true;
+                    err = injected_error;
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+
+            std::string to_string() const {
+                return std::string("ErrOnNoNotify") +
+                       " inject_error=" + std::to_string(injected_error) +
+                       " issued_return_error=" +
+                       std::to_string(issued_return_error);
+            }
+
+        private:
+            // Record of whether have yet issued return error.
+            bool issued_return_error;
+        };
+
     class CASMismatch : public FaultInjectMode {
     public:
         CASMismatch(uint32_t count_)
@@ -686,7 +833,7 @@ private:
     };
 
     // Map of connections (aka cookies) to their current mode.
-    std::map<const void*, std::shared_ptr<FaultInjectMode> > cookie_map;
+    std::map<const void*, std::shared_ptr<FaultInjectMode> > connection_map;
     // Mutex for above map.
     std::mutex cookie_map_mutex;
 
@@ -697,27 +844,79 @@ private:
         std::string key;
         std::string value;
     } dcp_mutation_item;
-};
 
-void process_pending_queue(void* arg) {
-    SERVER_HANDLE_V1* server = reinterpret_cast<SERVER_HANDLE_V1*>(arg);
-    std::unique_lock<std::mutex> lk(mutex);
-    while (!stop_notification_thread) {
-        condvar.wait(lk,
-                     []{return (stop_notification_thread || !pending_io_ops.empty());});
-        while (!pending_io_ops.empty()) {
-            const void* cookie = pending_io_ops.front();
-            pending_io_ops.pop();
-            lk.unlock();
-            server->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
-            lk.lock();
+
+    friend class BlockMonitorThread;
+    std::map<uint32_t, const void*> suspended_map;
+    std::mutex suspended_map_mutex;
+
+    bool suspend(const void* cookie, uint32_t id) {
+        {
+            std::lock_guard<std::mutex> guard(suspended_map_mutex);
+            auto iter = suspended_map.find(id);
+            if (iter == suspended_map.cend()) {
+                suspended_map[id] = cookie;
+                return true;
+            }
         }
+
+        return false;
     }
-}
+
+    bool resume(uint32_t id) {
+        const void* cookie = nullptr;
+        {
+            std::lock_guard<std::mutex> guard(suspended_map_mutex);
+            auto iter = suspended_map.find(id);
+            if (iter == suspended_map.cend()) {
+                return false;
+            }
+            cookie = iter->second;
+            suspended_map.erase(iter);
+        }
+
+
+        schedule_notification(cookie);
+        return true;
+    }
+
+    bool is_connection_suspended(const void* cookie) {
+        std::lock_guard<std::mutex> guard(suspended_map_mutex);
+        for (const auto c : suspended_map) {
+            if (c.second == cookie) {
+                auto logger = gsa()->log->get_logger();
+                logger->log(EXTENSION_LOG_NOTICE, nullptr,
+                            "Connection %p with id %u should be suspended for engine %p",
+                           c.second, c.first, this);
+
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void schedule_notification(const void* cookie) {
+        {
+            std::lock_guard<std::mutex> guard(mutex);
+            pending_io_ops.push(cookie);
+        }
+        auto logger = gsa()->log->get_logger();
+        logger->log(EXTENSION_LOG_WARNING, nullptr,
+                    "EWB_Engine: connection %p should be resumed for engine %p", cookie, this);
+
+        condvar.notify_one();
+    }
+
+    // Vector to keep track of the threads we've started to ensure
+    // we don't leak memory ;-)
+    std::mutex threads_mutex;
+    std::vector<std::unique_ptr<Couchbase::Thread> > threads;
+};
 
 EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
   : gsa(gsa_),
-    real_engine(NULL)
+    real_engine(NULL),
+    notify_io_thread(new NotificationThread(*this))
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = get_info;
@@ -755,20 +954,15 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 
     clustermap_revno = 1;
 
-    // Spin up a background thread to perform IO notifications.
-    if (cb_create_named_thread(&notification_thread, &process_pending_queue,
-                               gsa(), 0, "ewb:pendingQ") != 0)
-    {
-        throw std::runtime_error("Error creating 'ewb:pendingQ' thread");
-    }
+    stop_notification_thread.store(false);
+    notify_io_thread->start();
 }
 
 EWB_Engine::~EWB_Engine() {
     free(real_engine_ref);
     stop_notification_thread = true;
     condvar.notify_all();
-    cb_join_thread(notification_thread);
-
+    notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);
 }
 
 ENGINE_ERROR_CODE EWB_Engine::dcp_step(ENGINE_HANDLE* handle, const void* cookie,
@@ -858,4 +1052,128 @@ const char* EWB_Engine::to_string(const Cmd cmd) {
     } else {
         return names[int(cmd)];
     }
+}
+
+void EWB_Engine::process_notifications() {
+    SERVER_HANDLE_V1* server = gsa();
+    auto logger = server->log->get_logger();
+    logger->log(EXTENSION_LOG_DEBUG, nullptr,
+                "EWB_Engine: notification thread running for engine %p", this);
+    std::unique_lock<std::mutex> lk(mutex);
+    while (!stop_notification_thread) {
+        condvar.wait(lk);
+        while (!pending_io_ops.empty()) {
+            const void* cookie = pending_io_ops.front();
+            pending_io_ops.pop();
+            lk.unlock();
+            logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: notify %p");
+            server->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
+            lk.lock();
+        }
+    }
+
+    logger->log(EXTENSION_LOG_DEBUG, nullptr,
+                "EWB_Engine: notification thread stopping for engine %p", this);
+}
+
+void NotificationThread::run() {
+    setRunning();
+    engine.process_notifications();
+}
+
+ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(const void* cookie,
+                                                     uint32_t id,
+                                                     const std::string& file,
+                                                     ADD_RESPONSE response) {
+    auto logger = gsa()->log->get_logger();
+
+    if (file.empty()) {
+        return ENGINE_EINVAL;
+    }
+
+    if (!CouchbaseDirectoryUtilities::isFile(file)) {
+        return ENGINE_KEY_ENOENT;
+    }
+
+    if (!suspend(cookie, id)) {
+        logger->log(EXTENSION_LOG_WARNING, nullptr,
+                    "EWB_Engine::unknown_command(): Id %u already registered",
+                    id);
+        return ENGINE_KEY_EEXISTS;
+    }
+
+    std::unique_ptr<Couchbase::Thread> thread(
+        new BlockMonitorThread(*this, id, file));
+    thread->start();
+    std::lock_guard<std::mutex> guard(threads_mutex);
+    threads.emplace_back(thread.release());
+
+    logger->log(EXTENSION_LOG_DEBUG, nullptr,
+                "Registered connection %p (engine %p) as %u to be"
+                    " suspended. Monitor file %s", cookie, this, id,
+                file.c_str());
+
+    response(nullptr, 0, nullptr, 0, nullptr, 0,
+             PROTOCOL_BINARY_RAW_BYTES,
+             PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE EWB_Engine::handleSuspend(const void* cookie,
+                                            uint32_t id,
+                                            ADD_RESPONSE response) {
+    auto logger = gsa()->log->get_logger();
+
+    if (suspend(cookie, id)) {
+        logger->log(EXTENSION_LOG_DEBUG, nullptr,
+                    "Registered connection %p as %u to be suspended", cookie,
+                    id);
+        response(nullptr, 0, nullptr, 0, nullptr, 0,
+                 PROTOCOL_BINARY_RAW_BYTES,
+                 PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
+        return ENGINE_SUCCESS;
+    } else {
+        logger->log(EXTENSION_LOG_WARNING, nullptr,
+                    "EWB_Engine::unknown_command(): Id %u already registered",
+                    id);
+        return ENGINE_KEY_EEXISTS;
+    }
+}
+
+ENGINE_ERROR_CODE EWB_Engine::handleResume(const void* cookie, uint32_t id,
+                                           ADD_RESPONSE response) {
+    auto logger = gsa()->log->get_logger();
+
+    if (resume(id)) {
+        logger->log(EXTENSION_LOG_DEBUG, nullptr,
+                    "Connection with id %d will be resumed", id);
+        response(nullptr, 0, nullptr, 0, nullptr, 0,
+                 PROTOCOL_BINARY_RAW_BYTES,
+                 PROTOCOL_BINARY_RESPONSE_SUCCESS, /*cas*/0, cookie);
+        return ENGINE_SUCCESS;
+    } else {
+        logger->log(EXTENSION_LOG_WARNING, nullptr,
+                    "EWB_Engine::unknown_command(): No "
+                        "connection registered with id %d",
+                    id);
+        return ENGINE_EINVAL;
+    }
+}
+
+void BlockMonitorThread::run() {
+    setRunning();
+
+    auto logger = engine.gsa()->log->get_logger();
+    logger->log(EXTENSION_LOG_DEBUG, nullptr,
+                "Block monitor for file %s started", file.c_str());
+
+    // @todo Use the file monitoring API's to avoid this "busy" loop
+    while (CouchbaseDirectoryUtilities::isFile(file)) {
+        usleep(100);
+    }
+
+    logger->log(EXTENSION_LOG_DEBUG, nullptr,
+                "Block monitor for file %s stopping (file is gone)",
+                file.c_str());
+    engine.resume(id);
 }
