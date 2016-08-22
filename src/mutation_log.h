@@ -568,8 +568,8 @@ typedef std::pair<uint64_t, uint8_t> mutation_log_event_t;
  */
 typedef bool (*mlCallback)(void*, uint16_t, const std::string &);
 typedef bool (*mlCallbackWithQueue)(uint16_t,
-                    std::vector<std::pair<std::string, uint64_t> > &,
-                    void *arg);
+                                    std::vector<std::string> &,
+                                    void *arg);
 
 /**
  * Type for mutation log leftovers.
@@ -632,9 +632,7 @@ private:
     EventuallyPersistentEngine *engine;
     std::set<uint16_t> vbid_set;
 
-    std::unordered_map<uint16_t,
-                       std::unordered_map<std::string, uint64_t> > committed;
-    std::unordered_map<uint16_t,
-                       std::unordered_map<std::string, mutation_log_event_t> > loading;
+    std::unordered_map<uint16_t, std::set<std::string>> committed;
+    std::unordered_map<uint16_t, std::set<std::string>> loading;
     size_t itemsSeen[MUTATION_LOG_TYPES];
 };

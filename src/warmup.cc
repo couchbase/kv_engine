@@ -45,23 +45,20 @@ struct WarmupCookie {
 };
 
 static bool batchWarmupCallback(uint16_t vbId,
-                                std::vector<std::pair<std::string,
-                                uint64_t> > &fetches,
+                                std::vector<std::string>& fetches,
                                 void *arg)
 {
     WarmupCookie *c = static_cast<WarmupCookie *>(arg);
 
     if (!c->epstore->maybeEnableTraffic()) {
         vb_bgfetch_queue_t items2fetch;
-        std::vector<std::pair<std::string, uint64_t> >::iterator itm =
-                                                              fetches.begin();
-        for (; itm != fetches.end(); itm++) {
+        for (auto& key : fetches) {
             // ignore duplicate keys, if any in access log
-            if (items2fetch.find((*itm).first) != items2fetch.end()) {
+            if (items2fetch.find(key) != items2fetch.end()) {
                 continue;
             }
             VBucketBGFetchItem *fit = new VBucketBGFetchItem(NULL, false);
-            vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[(*itm).first];
+            vb_bgfetch_item_ctx_t& bg_itm_ctx = items2fetch[key];
             bg_itm_ctx.isMetaOnly = false;
             bg_itm_ctx.bgfetched_list.push_back(fit);
         }
