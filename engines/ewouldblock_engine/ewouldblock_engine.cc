@@ -71,15 +71,8 @@
 #include <string>
 
 #include <memcached/engine.h>
+#include <platform/thread.h>
 #include "utilities/engine_loader.h"
-
-// Shared state between the main thread of execution and the background
-// thread processing pending io ops.
-static std::mutex mutex;
-static std::condition_variable condvar;
-static std::queue<const void*> pending_io_ops;
-std::atomic<bool> stop_notification_thread;
-
 
 /* Public API declaration ****************************************************/
 
@@ -91,6 +84,23 @@ extern "C" {
     MEMCACHED_PUBLIC_API
     void destroy_engine(void);
 }
+
+
+class EWB_Engine;
+
+class NotificationThread : public Couchbase::Thread {
+public:
+    NotificationThread(EWB_Engine& engine_)
+        : Thread("ewb:pendingQ"),
+          engine(engine_) {}
+
+protected:
+    virtual void run() override;
+
+protected:
+    EWB_Engine& engine;
+};
+
 
 /** ewouldblock_engine class */
 class EWB_Engine : public ENGINE_HANDLE_V1 {
@@ -517,10 +527,25 @@ public:
 
     std::atomic_int clustermap_revno;
 
-private:
+    /**
+     * The method responsible for pushing all of the notify_io_complete
+     * to the frontend. It is run by notify_io_thread and not intended to
+     * be called by anyone else!.
+     */
+    void process_notifications();
+    std::unique_ptr<Couchbase::Thread> notify_io_thread;
 
-    // Handle of the notification thread.
-    cb_thread_t notification_thread;
+
+
+private:
+    // Shared state between the main thread of execution and the background
+    // thread processing pending io ops.
+    std::mutex mutex;
+    std::condition_variable condvar;
+    std::queue<const void*> pending_io_ops;
+
+    std::atomic<bool> stop_notification_thread;
+
 
 
     /* DCP iterator static methods *******************************************/
@@ -744,25 +769,10 @@ private:
     } dcp_mutation_item;
 };
 
-void process_pending_queue(void* arg) {
-    SERVER_HANDLE_V1* server = reinterpret_cast<SERVER_HANDLE_V1*>(arg);
-    std::unique_lock<std::mutex> lk(mutex);
-    while (!stop_notification_thread) {
-        condvar.wait(lk,
-                     []{return (stop_notification_thread || !pending_io_ops.empty());});
-        while (!pending_io_ops.empty()) {
-            const void* cookie = pending_io_ops.front();
-            pending_io_ops.pop();
-            lk.unlock();
-            server->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
-            lk.lock();
-        }
-    }
-}
-
 EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
   : gsa(gsa_),
-    real_engine(NULL)
+    real_engine(NULL),
+    notify_io_thread(new NotificationThread(*this))
 {
     interface.interface = 1;
     ENGINE_HANDLE_V1::get_info = get_info;
@@ -802,20 +812,15 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 
     get_connection_id = gsa()->cookie->get_connection_id;
 
-    // Spin up a background thread to perform IO notifications.
-    if (cb_create_named_thread(&notification_thread, &process_pending_queue,
-                               gsa(), 0, "ewb:pendingQ") != 0)
-    {
-        throw std::runtime_error("Error creating 'ewb:pendingQ' thread");
-    }
+    stop_notification_thread.store(false);
+    notify_io_thread->start();
 }
 
 EWB_Engine::~EWB_Engine() {
     free(real_engine_ref);
     stop_notification_thread = true;
     condvar.notify_all();
-    cb_join_thread(notification_thread);
-
+    notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);
 }
 
 ENGINE_ERROR_CODE EWB_Engine::dcp_step(ENGINE_HANDLE* handle, const void* cookie,
@@ -905,4 +910,31 @@ const char* EWB_Engine::to_string(const Cmd cmd) {
     } else {
         return names[int(cmd)];
     }
+}
+
+void EWB_Engine::process_notifications() {
+    SERVER_HANDLE_V1* server = gsa();
+    auto logger = server->log->get_logger();
+    logger->log(EXTENSION_LOG_NOTICE, nullptr,
+                "EWB_Engine: notification thread running for engine %p", this);
+    std::unique_lock<std::mutex> lk(mutex);
+    while (!stop_notification_thread) {
+        condvar.wait(lk);
+        while (!pending_io_ops.empty()) {
+            const void* cookie = pending_io_ops.front();
+            pending_io_ops.pop();
+            lk.unlock();
+            logger->log(EXTENSION_LOG_DEBUG, nullptr, "EWB_Engine: notify %p");
+            server->cookie->notify_io_complete(cookie, ENGINE_SUCCESS);
+            lk.lock();
+        }
+    }
+
+    logger->log(EXTENSION_LOG_NOTICE, nullptr,
+                "EWB_Engine: notification thread stopping for engine %p", this);
+}
+
+void NotificationThread::run() {
+    setRunning();
+    engine.process_notifications();
 }
