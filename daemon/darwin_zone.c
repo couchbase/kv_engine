@@ -166,12 +166,39 @@ zone_force_unlock(malloc_zone_t *zone)
     // do nothing
 }
 
+static malloc_zone_t *get_default_zone()
+{
+    malloc_zone_t **zones = NULL;
+    unsigned int num_zones = 0;
+
+    /*
+     * On OSX 10.12, malloc_default_zone returns a special zone that is not
+     * present in the list of registered zones. That zone uses a "lite zone"
+     * if one is present (apparently enabled when malloc stack logging is
+     * enabled), or the first registered zone otherwise. In practice this
+     * means unless malloc stack logging is enabled, the first registered
+     * zone is the default.
+     * So get the list of zones to get the first one, instead of relying on
+     * malloc_default_zone.
+     */
+    if (KERN_SUCCESS != malloc_get_all_zones(0, NULL, (vm_address_t**) &zones,
+                                             &num_zones)) {
+        /* Reset the value in case the failure happened after it was set. */
+        num_zones = 0;
+    }
+
+    if (num_zones)
+        return zones[0];
+
+    return malloc_default_zone();
+}
+
 /* Actually register the wrapper zone */
 void register_wrapper_zone(malloc_new_hook_t* new_hook_,
                            malloc_delete_hook_t* delete_hook_) {
 
     // Get current default zone. This is what all requests will be forwarded to
-    default_zone = malloc_default_zone();
+    default_zone = get_default_zone();
     new_hook = new_hook_;
     delete_hook = delete_hook_;
 
@@ -204,7 +231,7 @@ void register_wrapper_zone(malloc_new_hook_t* new_hook_,
     malloc_zone_register(&zone);
 
     do {
-        malloc_zone_t *cur_default_zone = malloc_default_zone();
+        malloc_zone_t *cur_default_zone = get_default_zone();
         /*
          * Unregister and reregister the default zone.  On OSX >= 10.6,
          * unregistering takes the last registered zone and places it
@@ -215,5 +242,5 @@ void register_wrapper_zone(malloc_new_hook_t* new_hook_,
          */
         malloc_zone_unregister(cur_default_zone);
         malloc_zone_register(cur_default_zone);
-    } while (malloc_default_zone() != &zone);
+    } while (get_default_zone() != &zone);
 }
