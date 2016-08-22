@@ -101,8 +101,6 @@ TEST_F(MutationLogTest, Unconfigured) {
     ml.open();
     ASSERT_FALSE(ml.isEnabled());
     ml.newItem(3, "somekey", 931);
-    ml.delItem(3, "somekey");
-    ml.deleteAll(3);
     ml.commit1();
     ml.commit2();
     ml.flush();
@@ -197,18 +195,15 @@ TEST_F(MutationLogTest, Logging) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
         ml.commit1();
         ml.commit2();
         ml.newItem(3, "key2", 3);
-        ml.delItem(3, "key1");
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_DEL]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
         EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
         EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
     }
@@ -223,16 +218,14 @@ TEST_F(MutationLogTest, Logging) {
 
         EXPECT_TRUE(h.load());
 
-        EXPECT_EQ(3, h.getItemsSeen()[ML_NEW]);
-        EXPECT_EQ(1, h.getItemsSeen()[ML_DEL]);
+        EXPECT_EQ(2, h.getItemsSeen()[ML_NEW]);
         EXPECT_EQ(2, h.getItemsSeen()[ML_COMMIT1]);
         EXPECT_EQ(2, h.getItemsSeen()[ML_COMMIT2]);
 
         // Check stat copying
         ml.resetCounts(h.getItemsSeen());
 
-        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_DEL]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
         EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
         EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
 
@@ -250,83 +243,6 @@ TEST_F(MutationLogTest, Logging) {
     }
 }
 
-TEST_F(MutationLogTest, DelAll) {
-    remove(tmp_log_filename.c_str());
-
-    {
-        MutationLog ml(tmp_log_filename.c_str());
-        ml.open();
-
-        ml.newItem(3, "key1", 1);
-        ml.newItem(2, "key1", 2);
-        ml.commit1();
-        ml.commit2();
-        ml.newItem(3, "key2", 3);
-        ml.deleteAll(3);
-        ml.commit1();
-        ml.commit2();
-        // Remaining:   2:key1
-
-        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(0, ml.itemsLogged[ML_DEL]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_DEL_ALL]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
-    }
-
-    {
-        MutationLog ml(tmp_log_filename.c_str());
-        ml.open();
-        MutationLogHarvester h(ml);
-        h.setVBucket(1);
-        h.setVBucket(2);
-        h.setVBucket(3);
-
-        EXPECT_TRUE(h.load());
-
-        EXPECT_EQ(3, h.getItemsSeen()[ML_NEW]);
-        EXPECT_EQ(1, h.getItemsSeen()[ML_DEL_ALL]);
-        EXPECT_EQ(2, h.getItemsSeen()[ML_COMMIT1]);
-        EXPECT_EQ(2, h.getItemsSeen()[ML_COMMIT2]);
-
-        // Check stat copying
-        ml.resetCounts(h.getItemsSeen());
-
-        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_DEL_ALL]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
-        EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
-
-        // See if we got what we expect.
-        std::map<std::string, uint64_t> maps[4];
-        h.apply(&maps, loaderFun);
-
-        EXPECT_EQ(0, maps[0].size());
-        EXPECT_EQ(0, maps[1].size());
-        EXPECT_EQ(1, maps[2].size());
-        EXPECT_EQ(0, maps[3].size());
-
-        EXPECT_NE(maps[2].end(), maps[2].find("key1"));
-    }
-}
-
-static bool leftover_compare(mutation_log_uncommitted_t a,
-                             mutation_log_uncommitted_t b) {
-    if (a.vbucket != b.vbucket) {
-        return a.vbucket < b.vbucket;
-    }
-
-    if (a.key != b.key) {
-        return a.key < b.key;
-    }
-
-    if (a.type != b.type) {
-        return a.type < b.type;
-    }
-
-    return false;
-}
-
 TEST_F(MutationLogTest, LoggingDirty) {
     remove(tmp_log_filename.c_str());
 
@@ -338,14 +254,12 @@ TEST_F(MutationLogTest, LoggingDirty) {
         ml.newItem(2, "key1", 2);
         ml.commit1();
         ml.commit2();
-        // These two will be dropped from the normal loading path
+        // This will be dropped from the normal loading path
         // because there's no commit.
         ml.newItem(3, "key2", 3);
-        ml.delItem(3, "key1");
         // Remaining:   3:key1, 2:key1
 
         EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_DEL]);
         EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
         EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
     }
@@ -361,7 +275,6 @@ TEST_F(MutationLogTest, LoggingDirty) {
         EXPECT_FALSE(h.load());
 
         EXPECT_EQ(3, h.getItemsSeen()[ML_NEW]);
-        EXPECT_EQ(1, h.getItemsSeen()[ML_DEL]);
         EXPECT_EQ(1, h.getItemsSeen()[ML_COMMIT1]);
         EXPECT_EQ(1, h.getItemsSeen()[ML_COMMIT2]);
 
@@ -369,7 +282,6 @@ TEST_F(MutationLogTest, LoggingDirty) {
         ml.resetCounts(h.getItemsSeen());
 
         EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_DEL]);
         EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
         EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
 
@@ -386,18 +298,6 @@ TEST_F(MutationLogTest, LoggingDirty) {
         EXPECT_NE(maps[3].end(), maps[3].find("key1"));
         EXPECT_EQ(maps[3].end(), maps[3].find("key2"));
 
-        // Check the leftovers
-        std::vector<mutation_log_uncommitted_t> leftovers;
-        h.getUncommitted(leftovers);
-        std::sort(leftovers.begin(), leftovers.end(), leftover_compare);
-        EXPECT_EQ(2, leftovers.size());
-        EXPECT_EQ(3, leftovers[0].vbucket);
-        EXPECT_EQ("key1", leftovers[0].key);
-        EXPECT_EQ(ML_DEL, leftovers[0].type);
-        EXPECT_EQ(3, leftovers[1].vbucket);
-        EXPECT_EQ("key2", leftovers[1].key);
-        EXPECT_EQ(ML_NEW, leftovers[1].type);
-        EXPECT_EQ(3, leftovers[1].rowid);
     }
 }
 
@@ -408,18 +308,15 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
         ml.commit1();
         ml.commit2();
         ml.newItem(3, "key2", 3);
-        ml.delItem(3, "key1");
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_DEL]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
         EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
         EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
     }
@@ -445,7 +342,6 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
         EXPECT_THROW(h.load(), MutationLog::CRCReadException);
 
         EXPECT_EQ(0, h.getItemsSeen()[ML_NEW]);
-        EXPECT_EQ(0, h.getItemsSeen()[ML_DEL]);
         EXPECT_EQ(0, h.getItemsSeen()[ML_COMMIT1]);
         EXPECT_EQ(0, h.getItemsSeen()[ML_COMMIT2]);
 
@@ -453,7 +349,6 @@ TEST_F(MutationLogTest, LoggingBadCRC) {
         ml.resetCounts(h.getItemsSeen());
 
         EXPECT_EQ(0, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(0, ml.itemsLogged[ML_DEL]);
         EXPECT_EQ(0, ml.itemsLogged[ML_COMMIT1]);
         EXPECT_EQ(0, ml.itemsLogged[ML_COMMIT2]);
 
@@ -478,18 +373,15 @@ TEST_F(MutationLogTest, LoggingShortRead) {
         MutationLog ml(tmp_log_filename.c_str());
         ml.open();
 
-        ml.newItem(3, "key1", 1);
         ml.newItem(2, "key1", 2);
         ml.commit1();
         ml.commit2();
         ml.newItem(3, "key2", 3);
-        ml.delItem(3, "key1");
         ml.commit1();
         ml.commit2();
         // Remaining:   3:key2, 2:key1
 
-        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
-        EXPECT_EQ(1, ml.itemsLogged[ML_DEL]);
+        EXPECT_EQ(2, ml.itemsLogged[ML_NEW]);
         EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT1]);
         EXPECT_EQ(2, ml.itemsLogged[ML_COMMIT2]);
     }

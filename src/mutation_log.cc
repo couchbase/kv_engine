@@ -305,24 +305,6 @@ void MutationLog::newItem(uint16_t vbucket, const std::string &key,
     }
 }
 
-void MutationLog::delItem(uint16_t vbucket, const std::string &key) {
-    if (isEnabled()) {
-        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
-                                                           0, ML_DEL, vbucket,
-                                                           key);
-        writeEntry(mle);
-    }
-}
-
-void MutationLog::deleteAll(uint16_t vbucket) {
-    if (isEnabled()) {
-        MutationLogEntry *mle = MutationLogEntry::newEntry(entryBuffer.get(),
-                                                           0, ML_DEL_ALL,
-                                                           vbucket, "");
-        writeEntry(mle);
-    }
-}
-
 void MutationLog::sync() {
     if (!isOpen()) {
         throw std::logic_error("MutationLog::sync: Not valid on a closed log");
@@ -739,12 +721,6 @@ static const char* logType(uint8_t t) {
     case ML_NEW:
         return "new";
         break;
-    case ML_DEL:
-        return "del";
-        break;
-    case ML_DEL_ALL:
-        return "delall";
-        break;
     case ML_COMMIT1:
         return "commit1";
         break;
@@ -899,8 +875,6 @@ bool MutationLogHarvester::load() {
         clean = false;
 
         switch (le->type()) {
-        case ML_DEL:
-            // FALLTHROUGH
         case ML_NEW:
             if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
                 loading[le->vbucket()][le->key()] =
@@ -909,10 +883,6 @@ bool MutationLogHarvester::load() {
             break;
         case ML_COMMIT2: {
             clean = true;
-            for (const uint16_t vb :shouldClear) {
-                committed[vb].clear();
-            }
-            shouldClear.clear();
 
             for (const uint16_t vb : vbid_set) {
                 for (auto& copyit2 : loading[vb]) {
@@ -922,9 +892,6 @@ bool MutationLogHarvester::load() {
                     switch (t.second) {
                     case ML_NEW:
                         committed[vb][copyit2.first] = t.first;
-                        break;
-                    case ML_DEL:
-                        committed[vb].erase(copyit2.first);
                         break;
                     default:
                         abort();
@@ -936,12 +903,6 @@ bool MutationLogHarvester::load() {
             break;
         case ML_COMMIT1:
             // nothing in particular
-            break;
-        case ML_DEL_ALL:
-            if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
-                loading[le->vbucket()].clear();
-                shouldClear.insert(le->vbucket());
-            }
             break;
         default:
             abort();
@@ -986,25 +947,6 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
             return;
         }
         fetches.clear();
-    }
-}
-
-void MutationLogHarvester::getUncommitted(
-                             std::vector<mutation_log_uncommitted_t> &uitems) {
-
-    for (const uint16_t vb : vbid_set) {
-        mutation_log_uncommitted_t leftover;
-        leftover.vbucket = vb;
-
-        for (const auto& copyit2 : loading[vb]) {
-
-            const mutation_log_event_t& t = copyit2.second;
-            leftover.key = copyit2.first;
-            leftover.rowid = t.first;
-            leftover.type = static_cast<mutation_log_type_t>(t.second);
-
-            uitems.push_back(leftover);
-        }
     }
 }
 

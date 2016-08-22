@@ -17,6 +17,27 @@
 
 #pragma once
 
+/**
+ * 'Mutation' Log
+ *
+ * The MutationLog is used to maintain a log of mutations which have occurred
+ * in one or more vbuckets. It only records the additions or removals of keys,
+ * and then only the key of the item (no value).
+ *
+ * The original intent of this class was to record a log in parallel with the
+ * normal couchstore snapshots, see docs/klog.org, however this has not been
+ * used since MB-7590 (March 2013).
+ *
+ * The current use of MutationLog is for the access.log. This is a slightly
+ * different use-case - periodically (default daily) the AccessScanner walks
+ * each vBucket's HashTable and records the set of keys currently resident.
+ * This doesn't make use of the MutationLog's commit functionality - its simply
+ * a list of keys which were resident. When we later come to read the Access log
+ * during warmup there's no guarantee that the keys listed still exist - the
+ * contents of the Access log is essentially just a hint / suggestion.
+ *
+ */
+
 #include "config.h"
 
 #include <array>
@@ -172,7 +193,11 @@ private:
 };
 
 enum mutation_log_type_t {
-    ML_NEW, ML_DEL, ML_DEL_ALL, ML_COMMIT1, ML_COMMIT2
+    ML_NEW = 0,
+    /* removed: ML_DEL = 1 */
+    /* removed: ML_DEL_ALL = 2 */
+    ML_COMMIT1 = 3,
+    ML_COMMIT2 = 4
 };
 
 #define MUTATION_LOG_TYPES 5
@@ -321,10 +346,6 @@ public:
     ~MutationLog();
 
     void newItem(uint16_t vbucket, const std::string &key, uint64_t rowid);
-
-    void delItem(uint16_t vbucket, const std::string &key);
-
-    void deleteAll(uint16_t vbucket);
 
     void commit1();
 
@@ -604,11 +625,6 @@ public:
     size_t *getItemsSeen() {
         return itemsSeen;
     }
-
-    /**
-     * Get the list of uncommitted keys and stuff from the log.
-     */
-    void getUncommitted(std::vector<mutation_log_uncommitted_t> &uitems);
 
 private:
 
