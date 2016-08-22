@@ -17,18 +17,68 @@
 
 #include "config.h"
 
-#include <signal.h>
-
 #include <algorithm>
+#include <fcntl.h>
 #include <map>
+#include <platform/strerror.h>
 #include <set>
 #include <stdexcept>
+#include <sys/stat.h>
 #include <vector>
 
 #include "assert.h"
 #include "mutation_log.h"
 
-#define TMP_LOG_FILE "/tmp/mlt_test.log"
+#define TMP_LOG_FILE "mlt_test.log"
+
+// Windows doesn't have a truncate() function, implement one.
+#if defined(WIN32)
+int truncate(const char *path, off_t length) {
+    LARGE_INTEGER distance;
+    distance.u.HighPart = 0;
+    distance.u.LowPart = length;
+
+    HANDLE fh = CreateFile(path, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL);
+    if (fh == INVALID_HANDLE_VALUE) {
+        fprintf(stderr, "truncate: CreateFile failed with error: %s\n",
+                cb_strerror().c_str());
+        abort();
+    }
+
+    cb_assert(SetFilePointerEx(fh, distance, NULL, FILE_BEGIN) != 0);
+    cb_assert(SetEndOfFile(fh) != 0);
+
+    CloseHandle(fh);
+    return 0;
+}
+#endif
+
+// Bitfield of available file permissions.
+namespace FilePerms {
+    const int None = 0;
+#if defined(WIN32)
+    const int Read = _S_IREAD;
+    const int Write = _S_IWRITE;
+#else
+    const int Read = S_IRUSR;
+    const int Write = S_IWUSR;
+#endif
+}
+
+/*
+ * Sets the read/write permissions on the given file (in a cross-platform way).
+ */
+static void set_file_perms(const char* path, /*FilePerms*/int perms) {
+#if defined(WIN32)
+    if (_chmod(path, perms) != 0) {
+#else
+    if (chmod(path, perms) != 0) {
+#endif
+        std::cerr << "set_file_perms: chmod failed: " << cb_strerror() << std::endl;
+        abort();
+    }
+}
+
 
 static void testUnconfigured() {
     MutationLog ml("");
@@ -113,10 +163,11 @@ static void testSyncSet() {
     cb_assert(ml.getFlushConfig() == FLUSH_COMMIT_1);
 }
 
-static void loaderFun(void *arg, uint16_t vb,
-                      const std::string &k, uint64_t rowid) {
-    std::map<std::string, uint64_t> *maps = reinterpret_cast<std::map<std::string, uint64_t> *>(arg);
-    maps[vb][k] = rowid;
+static bool loaderFun(void *arg, uint16_t vb,
+                      const std::string &k) {
+    std::set<std::string>* sets = reinterpret_cast<std::set<std::string> *>(arg);
+    sets[vb].insert(k);
+    return true;
 }
 
 static void testLogging() {
@@ -360,13 +411,14 @@ static void testLoggingBadCRC() {
     }
 
     // Break the log
-    int file = open(TMP_LOG_FILE, O_RDWR, 0666);
+    int file = open(TMP_LOG_FILE, O_RDWR, FilePerms::Read | FilePerms::Write);
     cb_assert(lseek(file, 5000, SEEK_SET) == 5000);
     uint8_t b;
     cb_assert(read(file, &b, sizeof(b)) == 1);
     cb_assert(lseek(file, 5000, SEEK_SET) == 5000);
     b = ~b;
     cb_assert(write(file, &b, sizeof(b)) == 1);
+    close(file);
 
     {
         MutationLog ml(TMP_LOG_FILE);
@@ -455,16 +507,13 @@ static void testLoggingShortRead() {
     }
 
     // Break the log harder (can't read even the initial block)
+    // This should succeed as open() will call reset() to give us a usable
+    // mutation log.
     cb_assert(truncate(TMP_LOG_FILE, 4000) == 0);
 
     {
         MutationLog ml(TMP_LOG_FILE);
-        try {
-            ml.open();
-            abort();
-        } catch(MutationLog::ShortReadException &e) {
-            // expected
-        }
+        ml.open();
     }
 
     remove(TMP_LOG_FILE);
@@ -472,6 +521,7 @@ static void testLoggingShortRead() {
 
 static void testYUNOOPEN() {
     int file = open(TMP_LOG_FILE, O_CREAT|O_RDWR, 0);
+    set_file_perms(TMP_LOG_FILE, FilePerms::None);
     cb_assert(file >= 0);
     close(file);
     MutationLog ml(TMP_LOG_FILE);
@@ -479,13 +529,19 @@ static void testYUNOOPEN() {
         ml.open();
         abort();
     } catch(MutationLog::ReadException &e) {
-        std::string exp("Unable to open log file: Permission denied");
+        const std::string exp("Unable to open log file:");
         // This is kind of a soft assertion.  The actual text may vary.
-        if (e.what() != exp) {
+        if (exp.compare(0, exp.size(), e.what(), exp.size()) != 0) {
             std::cerr << "Expected ``" << exp << "'', got: " << e.what() << std::endl;
         }
     }
-    cb_assert(remove(TMP_LOG_FILE) == 0);
+
+    // Restore permissions to be able to delete file.
+    set_file_perms(TMP_LOG_FILE, FilePerms::Read | FilePerms::Write);
+    if (remove(TMP_LOG_FILE) != 0)
+    {
+        std::cerr << "testYUNOOPEN: remove failed: " << cb_strerror() << std::endl;
+    }
 }
 
 // @todo
@@ -519,6 +575,7 @@ static void testReadOnly() {
 }
 
 int main(int, char **) {
+    remove(TMP_LOG_FILE);
     testReadOnly();
     testUnconfigured();
     testSyncSet();

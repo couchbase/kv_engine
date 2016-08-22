@@ -15,31 +15,20 @@
  *   limitations under the License.
  */
 
-#ifndef SRC_MUTATION_LOG_H_
-#define SRC_MUTATION_LOG_H_ 1
+#pragma once
 
 #include "config.h"
 
-#include <fcntl.h>
-
 #include <array>
-#include <algorithm>
-#include <cstdio>
-#include <exception>
-#include <functional>
-#include <iterator>
-#include <limits>
-#include <numeric>
-#include <set>
+#include <cstring>
+#include <memory>
 #include <string>
-#include <utility>
+#include <unordered_map>
 #include <vector>
 
 #include "atomic.h"
 #include <platform/histogram.h>
-#include <platform/strerror.h>
 #include "utility.h"
-#include "common.h"
 
 #define ML_BUFLEN (128 * 1024 * 1024)
 
@@ -633,5 +622,3 @@ private:
                        std::unordered_map<std::string, mutation_log_event_t> > loading;
     size_t itemsSeen[MUTATION_LOG_TYPES];
 };
-
-#endif  // SRC_MUTATION_LOG_H_

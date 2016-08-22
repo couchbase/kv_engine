@@ -17,10 +17,11 @@
 
 #include "config.h"
 
-#include <sys/stat.h>
-
 #include <algorithm>
+#include <fcntl.h>
+#include <platform/strerror.h>
 #include <string>
+#include <sys/stat.h>
 #include <system_error>
 #include <utility>
 
