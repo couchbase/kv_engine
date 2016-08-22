@@ -603,21 +603,25 @@ unique_cJSON_ptr MemcachedBinprotConnection::stats(const std::string& subcommand
 }
 
 void MemcachedBinprotConnection::configureEwouldBlockEngine(
-    const EWBEngineMode& mode, ENGINE_ERROR_CODE err_code, uint32_t value) {
+    const EWBEngineMode& mode, ENGINE_ERROR_CODE err_code, uint32_t value,
+    const std::string& key) {
 
     request_ewouldblock_ctl request;
     memset(request.bytes, 0, sizeof(request.bytes));
     request.message.header.request.magic = 0x80;
     request.message.header.request.opcode = PROTOCOL_BINARY_CMD_EWOULDBLOCK_CTL;
     request.message.header.request.extlen = 12;
-    request.message.header.request.bodylen = htonl(12);
+    request.message.header.request.keylen = ntohs((short)key.size());
+    request.message.header.request.bodylen = htonl(12 + key.size());
     request.message.body.inject_error = htonl(err_code);
     request.message.body.mode = htonl(static_cast<uint32_t>(mode));
     request.message.body.value = htonl(value);
 
     Frame frame;
-    frame.payload.resize(sizeof(request.bytes));
+    frame.payload.resize(sizeof(request.bytes) + key.size());
     memcpy(frame.payload.data(), request.bytes, frame.payload.size());
+    memcpy(frame.payload.data() + sizeof(request.bytes), key.data(),
+           key.size());
     sendFrame(frame);
 
     recvFrame(frame);

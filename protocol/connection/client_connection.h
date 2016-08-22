@@ -282,7 +282,8 @@ public:
      */
     virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
                                             ENGINE_ERROR_CODE err_code = ENGINE_EWOULDBLOCK,
-                                            uint32_t value = 0) = 0;
+                                            uint32_t value = 0,
+                                            const std::string& key = "") = 0;
 
 
     /**

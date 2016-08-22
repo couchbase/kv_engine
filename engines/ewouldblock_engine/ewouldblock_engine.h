@@ -89,5 +89,24 @@ enum class EWBEngineMode : uint32_t {
     // Make a single call into engine and return {inject_error}.  In addition
     // do not add the operation to the processing queue and so a
     // notify_io_complete is never sent.
-    No_Notify = 6
+    No_Notify = 6,
+
+    // Suspend a cookie with the provided id and return ENGINE_EWOULDBLOCK.
+    // The connection must be resumed with a call to Resume
+    Suspend = 7,
+
+    // Resume a cookie with the provided id
+    Resume = 8,
+
+    // Next time the connection invokes a call we'll start monitoring a file
+    // for existence, and when the file goes away we'll notify the connection
+    // with the {inject_error}.
+    // The file to monitor is specified in the key for the packet.
+    // This seems like an odd interface to have, but it is needed to be able
+    // to test what happens with clients that is working inside the engine
+    // while a bucket is deleted. Given that we're not instructing the
+    // ewouldblock engine on a special channel there is no way to send
+    // commmands to the engine whlie it is being deleted ;-)
+    BlockMonitorFile = 9
+
 };

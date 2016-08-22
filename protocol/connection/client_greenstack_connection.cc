@@ -431,7 +431,8 @@ unique_cJSON_ptr MemcachedGreenstackConnection::stats(const std::string& subcomm
 }
 
 void MemcachedGreenstackConnection::configureEwouldBlockEngine(
-    const EWBEngineMode& mode, ENGINE_ERROR_CODE err_code, uint32_t value) {
+    const EWBEngineMode& mode, ENGINE_ERROR_CODE err_code, uint32_t value,
+    const std::string& key) {
     throw std::runtime_error("Not implemented for Greenstack");
 }
 

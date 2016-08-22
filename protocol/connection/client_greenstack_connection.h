@@ -127,7 +127,8 @@ public:
 
     virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
                                             ENGINE_ERROR_CODE err_code,
-                                            uint32_t value) override;
+                                            uint32_t value,
+                                            const std::string& key) override;
 
 protected:
     Greenstack::UniqueMessagePtr recvMessage();

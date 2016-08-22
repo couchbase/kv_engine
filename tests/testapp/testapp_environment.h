@@ -101,7 +101,6 @@ public:
         return cwd;
     }
 
-protected:
     /**
      * Generate a temporary file based on a certain pattern by utilizing
      * mkfile.
