@@ -415,6 +415,24 @@ TEST(ConfigParserTest, A) {
     EXPECT_EQ(1024u * 1024u * 1024u, size_val);
     items[1].found = false;
 
+    std::vector<std::pair<std::string, int> >suffixes = {{"k", 1024},
+                                                         {"m", 1024*1024},
+                                                         {"g", 1024*1024*1024},
+                                                         {"K", 1024},
+                                                         {"M", 1024*1024},
+                                                         {"G", 1024*1024*1024}};
+    // Check negative and positive input
+    for (ssize_t test_val : {-1000, -1, 0, 1, 1000}) {
+        for (auto suffix : suffixes) {
+            std::string config = "ssize_t=" +
+                                 std::to_string(test_val) + suffix.first;
+            ASSERT_EQ(0, parse_config(config.c_str(), items, error));
+            EXPECT_TRUE(items[2].found);
+            EXPECT_EQ(suffix.second * test_val, ssize_val);
+            items[2].found = false;
+        }
+    }
+
     ASSERT_NE(cb_mktemp(cfgfile), nullptr);
     cfg = fopen(cfgfile, "w");
     ASSERT_NE(cfg, nullptr);
