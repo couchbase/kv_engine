@@ -925,6 +925,39 @@ bool MutationLogHarvester::load() {
     return clean;
 }
 
+MutationLog::iterator MutationLogHarvester::loadBatch(
+        const MutationLog::iterator& start, size_t limit) {
+    if (limit == 0) {
+        limit = std::numeric_limits<size_t>::max();
+    }
+    auto it = start;
+    size_t count = 0;
+    committed.clear();
+    for (; it != mlog.end() && count < limit; ++it) {
+        const auto* le = *it;
+        ++itemsSeen[le->type()];
+
+        switch (le->type()) {
+        case ML_NEW:
+            if (vbid_set.find(le->vbucket()) != vbid_set.end()) {
+                committed[le->vbucket()].emplace(le->key());
+                count++;
+            }
+            break;
+
+        case ML_COMMIT2:
+            // We ignore COMMIT2 for Access log, was only relevent to the
+            // 'proper' mutation log.
+            break;
+
+        default:
+            // Just ignore anything else also.
+            break;
+        }
+    }
+    return it;
+}
+
 void MutationLogHarvester::apply(void *arg, mlCallback mlc) {
     for (const uint16_t vb : vbid_set) {
         for (const auto& key : committed[vb]) {

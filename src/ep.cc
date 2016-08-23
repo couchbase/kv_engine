@@ -396,7 +396,7 @@ EventuallyPersistentStore::EventuallyPersistentStore(
         eviction_policy = FULL_EVICTION;
     }
 
-    warmupTask = new Warmup(*this);
+    warmupTask = new Warmup(*this, config);
 }
 
 bool EventuallyPersistentStore::initialize() {

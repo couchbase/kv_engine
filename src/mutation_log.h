@@ -611,6 +611,20 @@ public:
     bool load();
 
     /**
+     * Load a batch of entries from the file, starting from the given iterator.
+     * Loaded entries are inserted into `committed`, which is cleared at the
+     * start of each call.
+     *
+     * @param start Iterator of where to start loading from.
+     * @param limit Limit of now many entries should be loaded. Zero means no
+     *              limit.
+     * @return iterator of where to resume in the log (if the end was not
+     *         reached), or MutationLog::iterator::end().
+     */
+    MutationLog::iterator loadBatch(const MutationLog::iterator& start,
+                                        size_t limit);
+
+    /**
      * Apply the processed log entries through the given function.
      */
     void apply(void *arg, mlCallback mlc);

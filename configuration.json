@@ -688,13 +688,13 @@
             "type": "bool"
         },
         "warmup_batch_size": {
-            "default": "1000",
+            "default": "10000",
             "descr": "The size of each batch loaded during warmup.",
             "dynamic": false,
             "type": "size_t",
             "validator": {
                 "range": {
-                    "max": 10000,
+                    "max": 100000000,
                     "min": 1
                 }
             }
