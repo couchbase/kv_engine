@@ -1533,9 +1533,13 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         }
     }
 
-    LockHolder lh(buffer.bufMutex);
-    if (engine->getReplicationThrottle().shouldProcess() && buffer.messages.empty()) {
-        lh.unlock();
+    bool bufferIsEmpty = false;
+    {
+        LockHolder lh(buffer.bufMutex);
+        bufferIsEmpty = buffer.messages.empty();
+    }
+
+    if (engine->getReplicationThrottle().shouldProcess() && bufferIsEmpty) {
         /* Process the response here itself rather than buffering it */
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         switch (resp->getEvent()) {
@@ -1569,12 +1573,16 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
             delete resp;
             return ret;
         }
-        lh.lock();
     }
 
-    buffer.messages.push(resp);
-    buffer.bytes += resp->getMessageSize();
-
+    // The stream can transition to dead during the period bufMutex was dropped
+    if (state_.load() != STREAM_DEAD) {
+        LockHolder lh(buffer.bufMutex);
+        buffer.messages.push(resp);
+        buffer.bytes += resp->getMessageSize();
+    } else {
+        delete resp;
+    }
     return ENGINE_TMPFAIL;
 }
 
