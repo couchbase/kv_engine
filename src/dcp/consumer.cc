@@ -23,6 +23,7 @@
 #include "dcp/dcpconnmap.h"
 #include "dcp/stream.h"
 #include "dcp/response.h"
+#include <platform/make_unique.h>
 
 #include <climits>
 
@@ -247,14 +248,13 @@ ENGINE_ERROR_CODE DcpConsumer::streamEnd(uint32_t opaque, uint16_t vbucket,
         LOG(EXTENSION_LOG_INFO, "%s (vb %d) End stream received with reason %d",
             logHeader(), vbucket, flags);
 
-        StreamEndResponse* response;
         try {
-            response = new StreamEndResponse(opaque, flags, vbucket);
+            err = stream->messageReceived(make_unique<StreamEndResponse>(opaque,
+                                                                         flags,
+                                                                         vbucket));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }
-
-        err = stream->messageReceived(response);
 
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);
@@ -316,15 +316,15 @@ ENGINE_ERROR_CODE DcpConsumer::mutation(uint32_t opaque, const void* key,
             }
         }
 
-        MutationResponse* response;
         try {
-            response = new MutationResponse(item, opaque, emd);
+            err = stream->messageReceived(make_unique<MutationResponse>(item,
+                                                                        opaque,
+                                                                        emd));
         } catch (const std::bad_alloc&) {
             delete emd;
             return ENGINE_ENOMEM;
         }
 
-        err = stream->messageReceived(response);
 
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);
@@ -380,15 +380,14 @@ ENGINE_ERROR_CODE DcpConsumer::deletion(uint32_t opaque, const void* key,
             }
         }
 
-        MutationResponse* response;
         try {
-            response = new MutationResponse(item, opaque, emd);
+            err = stream->messageReceived(make_unique<MutationResponse>(item,
+                                                                        opaque,
+                                                                        emd));
         } catch (const std::bad_alloc&) {
             delete emd;
             return ENGINE_ENOMEM;
         }
-
-        err = stream->messageReceived(response);
 
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);
@@ -437,15 +436,17 @@ ENGINE_ERROR_CODE DcpConsumer::snapshotMarker(uint32_t opaque,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     auto stream = findStream(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        SnapshotMarker* response;
         try {
-            response = new SnapshotMarker(opaque, vbucket, start_seqno,
-                                          end_seqno, flags);
+            err = stream->messageReceived(make_unique<SnapshotMarker>(opaque,
+                                                                      vbucket,
+                                                                      start_seqno,
+                                                                      end_seqno,
+                                                                      flags));
+
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }
 
-        err = stream->messageReceived(response);
 
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);
@@ -488,14 +489,13 @@ ENGINE_ERROR_CODE DcpConsumer::setVBucketState(uint32_t opaque,
     ENGINE_ERROR_CODE err = ENGINE_KEY_ENOENT;
     auto stream = findStream(vbucket);
     if (stream && stream->getOpaque() == opaque && stream->isActive()) {
-        SetVBucketState* response;
         try {
-            response = new SetVBucketState(opaque, vbucket, state);
+            err = stream->messageReceived(make_unique<SetVBucketState>(opaque,
+                                                                       vbucket,
+                                                                       state));
         } catch (const std::bad_alloc&) {
             return ENGINE_ENOMEM;
         }
-
-        err = stream->messageReceived(response);
 
         if (err == ENGINE_TMPFAIL) {
             notifyVbucketReady(vbucket);

@@ -31,6 +31,8 @@
 #include "dcp/stream.h"
 #include "replicationthrottle.h"
 
+#include <memory>
+
 static const char* snapshotTypeToString(snapshot_type_t type) {
     static const char * const snapshotTypes[] = { "none", "disk", "memory" };
     if (type < none || type > memory) {
@@ -1399,7 +1401,7 @@ uint32_t PassiveStream::setDead(end_stream_status_t status) {
     /* Hold buffer lock so that we clear out all items before we set the stream
        to dead state. We do not want to add any new message to the buffer or
        process any items in the buffer once we set the stream state to dead. */
-    LockHolder lh(buffer.bufMutex);
+    std::lock_guard<std::mutex> lg(buffer.bufMutex);
     uint32_t unackedBytes = clearBuffer_UNLOCKED();
     bool killed = false;
 
@@ -1471,23 +1473,22 @@ void PassiveStream::reconnectStream(RCPtr<VBucket> &vb,
     }
 }
 
-ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
-    if(nullptr == resp) {
+ENGINE_ERROR_CODE PassiveStream::messageReceived(std::unique_ptr<DcpResponse> dcpResponse) {
+    if (!dcpResponse) {
         return ENGINE_EINVAL;
     }
 
     if (state_ == STREAM_DEAD) {
-        delete resp;
         return ENGINE_KEY_ENOENT;
     }
 
-    switch (resp->getEvent()) {
+    switch (dcpResponse->getEvent()) {
         case DCP_MUTATION:
         case DCP_DELETION:
         case DCP_EXPIRATION:
         {
-            MutationResponse* m = static_cast<MutationResponse*>(resp);
-            uint64_t bySeqno = m->getBySeqno();
+            uint64_t bySeqno =
+                static_cast<MutationResponse*>(dcpResponse.get())->getBySeqno();
             if (bySeqno <= last_seqno.load()) {
                 consumer->getLogger().log(EXTENSION_LOG_WARNING,
                     "(vb %d) Erroneous (out of sequence) mutation received, "
@@ -1495,7 +1496,6 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
                     "greater than last received seqno (%" PRIu64 "); "
                     "Dropping mutation!",
                     vb_, opaque_, bySeqno, last_seqno.load());
-                delete m;
                 return ENGINE_ERANGE;
             }
             last_seqno.store(bySeqno);
@@ -1503,7 +1503,7 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         }
         case DCP_SNAPSHOT_MARKER:
         {
-            SnapshotMarker* s = static_cast<SnapshotMarker*>(resp);
+            auto s = static_cast<SnapshotMarker*>(dcpResponse.get());
             uint64_t snapStart = s->getStartSeqno();
             uint64_t snapEnd = s->getEndSeqno();
             if (snapStart < last_seqno.load() && snapEnd <= last_seqno.load()) {
@@ -1513,7 +1513,6 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
                     "(%" PRIu64 "), and end (%" PRIu64 ") are less than last "
                     "received seqno (%" PRIu64 "); Dropping marker!",
                     vb_, opaque_, snapStart, snapEnd, last_seqno.load());
-                delete s;
                 return ENGINE_ERANGE;
             }
             break;
@@ -1528,33 +1527,27 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
         {
             consumer->getLogger().log(EXTENSION_LOG_WARNING,
                 "(vb %d) Unknown DCP op received: %d; Disconnecting connection..",
-                vb_, resp->getEvent());
+                vb_, dcpResponse->getEvent());
             return ENGINE_DISCONNECT;
         }
     }
 
-    bool bufferIsEmpty = false;
-    {
-        LockHolder lh(buffer.bufMutex);
-        bufferIsEmpty = buffer.messages.empty();
-    }
-
-    if (engine->getReplicationThrottle().shouldProcess() && bufferIsEmpty) {
+    if (engine->getReplicationThrottle().shouldProcess() && buffer.empty()) {
         /* Process the response here itself rather than buffering it */
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
-        switch (resp->getEvent()) {
+        switch (dcpResponse->getEvent()) {
             case DCP_MUTATION:
-                ret = processMutation(static_cast<MutationResponse*>(resp));
+                ret = processMutation(static_cast<MutationResponse*>(dcpResponse.get()));
                 break;
             case DCP_DELETION:
             case DCP_EXPIRATION:
-                ret = processDeletion(static_cast<MutationResponse*>(resp));
+                ret = processDeletion(static_cast<MutationResponse*>(dcpResponse.get()));
                 break;
             case DCP_SNAPSHOT_MARKER:
-                processMarker(static_cast<SnapshotMarker*>(resp));
+                processMarker(static_cast<SnapshotMarker*>(dcpResponse.get()));
                 break;
             case DCP_SET_VBUCKET:
-                processSetVBucketState(static_cast<SetVBucketState*>(resp));
+                processSetVBucketState(static_cast<SetVBucketState*>(dcpResponse.get()));
                 break;
             case DCP_STREAM_END:
                 {
@@ -1567,36 +1560,27 @@ ENGINE_ERROR_CODE PassiveStream::messageReceived(DcpResponse* resp) {
                 throw std::logic_error("PassiveStream::messageReceived: (vb " +
                                        std::to_string(vb_) +
                                        ") received unknown message type " +
-                                       std::to_string(resp->getEvent()));
+                                       std::to_string(dcpResponse->getEvent()));
         }
         if (ret != ENGINE_TMPFAIL && ret != ENGINE_ENOMEM) {
-            delete resp;
             return ret;
         }
     }
 
-    // The stream can transition to dead during the period bufMutex was dropped
+    // Only buffer if the stream is not dead
     if (state_.load() != STREAM_DEAD) {
-        LockHolder lh(buffer.bufMutex);
-        buffer.messages.push(resp);
-        buffer.bytes += resp->getMessageSize();
-    } else {
-        delete resp;
+        buffer.push(std::move(dcpResponse));
     }
     return ENGINE_TMPFAIL;
 }
 
 process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed_bytes,
                                                              size_t batchSize) {
-    LockHolder lh(buffer.bufMutex);
+    std::unique_lock<std::mutex> lh(buffer.bufMutex);
     uint32_t count = 0;
     uint32_t message_bytes = 0;
     uint32_t total_bytes_processed = 0;
     bool failed = false;
-    if (buffer.messages.empty()) {
-        return all_processed;
-    }
-
     while (count < batchSize && !buffer.messages.empty()) {
         ENGINE_ERROR_CODE ret = ENGINE_SUCCESS;
         /* If the stream is in dead state we should not process any remaining
@@ -1607,22 +1591,27 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
             return all_processed;
         }
 
-        DcpResponse *response = buffer.messages.front();
+        std::unique_ptr<DcpResponse> response = buffer.pop_front(lh);
+
+        // Release bufMutex whilst we attempt to process the message
+        // a lock inversion exists with connManager if we hold this.
+        lh.unlock();
+
         message_bytes = response->getMessageSize();
 
         switch (response->getEvent()) {
             case DCP_MUTATION:
-                ret = processMutation(static_cast<MutationResponse*>(response));
+                ret = processMutation(static_cast<MutationResponse*>(response.get()));
                 break;
             case DCP_DELETION:
             case DCP_EXPIRATION:
-                ret = processDeletion(static_cast<MutationResponse*>(response));
+                ret = processDeletion(static_cast<MutationResponse*>(response.get()));
                 break;
             case DCP_SNAPSHOT_MARKER:
-                processMarker(static_cast<SnapshotMarker*>(response));
+                processMarker(static_cast<SnapshotMarker*>(response.get()));
                 break;
             case DCP_SET_VBUCKET:
-                processSetVBucketState(static_cast<SetVBucketState*>(response));
+                processSetVBucketState(static_cast<SetVBucketState*>(response.get()));
                 break;
             case DCP_STREAM_END:
                 {
@@ -1633,20 +1622,28 @@ process_items_error_t PassiveStream::processBufferedMessages(uint32_t& processed
             default:
                 consumer->getLogger().log(EXTENSION_LOG_WARNING,
                                           "PassiveStream::processBufferedMessages:"
-                                          "(vb %" PRIu16 ") PassiveStream failing "
+                                          "(vb %" PRIu16 ") PassiveStream ignoring "
                                           "unknown message type %d",
                                           vb_, response->getEvent());
-                failed = true;
+                continue;
         }
 
         if (ret == ENGINE_TMPFAIL || ret == ENGINE_ENOMEM) {
             failed = true;
+        }
+
+        // Re-acquire bufMutex so that
+        // 1) we can update the buffer
+        // 2) safely re-check the while conditional statement
+        lh.lock();
+
+        // If we failed and the stream is not dead, stash the DcpResponse at the
+        // front of the queue and break the loop.
+        if (failed && state_.load() != STREAM_DEAD) {
+            buffer.push_front(std::move(response), lh);
             break;
         }
 
-        delete response;
-        buffer.messages.pop();
-        buffer.bytes -= message_bytes;
         count++;
         if (ret != ENGINE_ERANGE) {
             total_bytes_processed += message_bytes;
@@ -1847,12 +1844,19 @@ void PassiveStream::addStats(ADD_STAT add_stat, const void *c) {
     try {
         const int bsize = 1024;
         char buf[bsize];
+        size_t bufferItems = 0;
+        size_t bufferBytes = 0;
+        {
+            std::lock_guard<std::mutex> lg(buffer.bufMutex);
+            bufferItems = buffer.messages.size();
+            bufferBytes = buffer.bytes;
+        }
         checked_snprintf(buf, bsize, "%s:stream_%d_buffer_items", name_.c_str(),
                          vb_);
-        add_casted_stat(buf, buffer.messages.size(), add_stat, c);
+        add_casted_stat(buf, bufferItems, add_stat, c);
         checked_snprintf(buf, bsize, "%s:stream_%d_buffer_bytes", name_.c_str(),
                          vb_);
-        add_casted_stat(buf, buffer.bytes, add_stat, c);
+        add_casted_stat(buf, bufferBytes, add_stat, c);
         checked_snprintf(buf, bsize, "%s:stream_%d_items_ready", name_.c_str(),
                          vb_);
         add_casted_stat(buf, itemsReady.load() ? "true" : "false", add_stat, c);
@@ -1897,13 +1901,7 @@ DcpResponse* PassiveStream::next() {
 
 uint32_t PassiveStream::clearBuffer_UNLOCKED() {
     uint32_t unackedBytes = buffer.bytes;
-
-    while (!buffer.messages.empty()) {
-        DcpResponse* resp = buffer.messages.front();
-        buffer.messages.pop();
-        delete resp;
-    }
-
+    buffer.messages.clear();
     buffer.bytes = 0;
     return unackedBytes;
 }

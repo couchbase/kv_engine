@@ -476,7 +476,7 @@ public:
     void reconnectStream(RCPtr<VBucket> &vb, uint32_t new_opaque,
                          uint64_t start_seqno);
 
-    ENGINE_ERROR_CODE messageReceived(DcpResponse* response);
+    ENGINE_ERROR_CODE messageReceived(std::unique_ptr<DcpResponse> response);
 
     void addStats(ADD_STAT add_stat, const void *c);
 
@@ -484,7 +484,7 @@ public:
 
 protected:
 
-    bool transitionState(stream_state_t newState);
+     bool transitionState(stream_state_t newState);
 
     ENGINE_ERROR_CODE processMutation(MutationResponse* mutation);
 
@@ -512,11 +512,42 @@ protected:
 
     struct Buffer {
         Buffer() : bytes(0) {}
+
+        bool empty() const {
+            LockHolder lh(bufMutex);
+            return messages.empty();
+        }
+
+        void push(std::unique_ptr<DcpResponse> message) {
+            std::lock_guard<std::mutex> lg(bufMutex);
+            bytes += message->getMessageSize();
+            messages.push_back(std::move(message));
+        }
+
+        /*
+         * Caller must of locked bufMutex and pass as lh (not asserted)
+         */
+        std::unique_ptr<DcpResponse> pop_front(std::unique_lock<std::mutex>& lh) {
+            std::unique_ptr<DcpResponse> rval(std::move(messages.front()));
+            messages.pop_front();
+            bytes -= rval->getMessageSize();
+            return rval;
+        }
+
+        /*
+         * Caller must of locked bufMutex and pass as lh (not asserted)
+         */
+        void push_front(std::unique_ptr<DcpResponse> message,
+                        std::unique_lock<std::mutex>& lh) {
+            bytes += message->getMessageSize();
+            messages.push_front(std::move(message));
+        }
+
         size_t bytes;
         /* Lock ordering w.r.t to streamMutex:
            First acquire bufMutex and then streamMutex */
-        std::mutex bufMutex;
-        std::queue<DcpResponse*> messages;
+        mutable std::mutex bufMutex;
+        std::deque<std::unique_ptr<DcpResponse> > messages;
     } buffer;
 };
 

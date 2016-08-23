@@ -5942,6 +5942,8 @@ BaseTestCase testsuite_testcases[] = {
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test MB-19982", test_mb19982, test_setup,
                  teardown, NULL, prepare, cleanup),
+        TestCase("test MB-19982 (buffer input)", test_mb19982, test_setup,
+                 teardown, "replication_throttle_cap_pcnt=0;replication_throttle_queue_cap=0", prepare, cleanup),
         TestCase("test_set_dcp_param",
                  test_set_dcp_param, test_setup, teardown, NULL,
                  prepare, cleanup),
