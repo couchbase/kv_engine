@@ -914,23 +914,26 @@ void MutationLogHarvester::apply(void *arg, mlCallbackWithQueue mlc) {
         throw std::logic_error("MutationLogHarvester::apply: Cannot apply "
                 "when engine is NULL");
     }
-    std::vector<std::string> fetches;
     for (const uint16_t vb : vbid_set) {
         RCPtr<VBucket> vbucket = engine->getEpStore()->getVBucket(vb);
         if (!vbucket) {
             continue;
         }
-        for (const auto& key : committed[vb]) {
-            // Check item is a valid StoredValue in the HashTable before
-            // adding to fetches
-            if ((vbucket->ht.find(key, false) != nullptr)) {
-                fetches.push_back(key);
+
+        // Remove any items which are no longer valid in the VBucket.
+        for (auto it = committed[vb].begin(); it != committed[vb].end(); ) {
+            if ((vbucket->ht.find(*it, false) == nullptr)) {
+                it = committed[vb].erase(it);
+            }
+            else {
+                ++it;
             }
         }
-        if (!mlc(vb, fetches, arg)) {
+
+        if (!mlc(vb, committed[vb], arg)) {
             return;
         }
-        fetches.clear();
+        committed[vb].clear();
     }
 }
 
