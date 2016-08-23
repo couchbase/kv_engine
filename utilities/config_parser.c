@@ -119,12 +119,12 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
 
             switch (items[ii].datatype) {
             case DT_SIZE:
+            case DT_SSIZE:
                {
                   char *sfx = "kmgt";
                   int multiplier = 1;
                   int m = 1;
                   char *p;
-                  uint64_t val;
 
                   for (p = sfx; *p != '\0'; ++p) {
                      char *ptr = strchr(value, *p);
@@ -139,11 +139,22 @@ int parse_config(const char *str, struct config_item *items, FILE *error) {
                      }
                   }
 
-                  if (safe_strtoull(value, &val)) {
-                     *items[ii].value.dt_size = (size_t)(val * multiplier);
-                     items[ii].found = true;
+                  if (items[ii].datatype == DT_SIZE) {
+                     uint64_t val;
+                     if (safe_strtoull(value, &val)) {
+                        *items[ii].value.dt_size = (size_t)(val * multiplier);
+                        items[ii].found = true;
+                     } else {
+                        ret = -1;
+                     }
                   } else {
-                     ret = -1;
+                     int64_t val;
+                     if (safe_strtoll(value, &val)) {
+                        *items[ii].value.dt_size = (size_t)(val * multiplier);
+                        items[ii].found = true;
+                     } else {
+                        ret = -1;
+                     }
                   }
                }
                break;
