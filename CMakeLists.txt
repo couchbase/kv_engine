@@ -453,6 +453,7 @@ ADD_LIBRARY(ep_testsuite SHARED
 SET_TARGET_PROPERTIES(ep_testsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite couchstore dirutils JSON_checker platform
                       ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_basic SHARED
    tests/ep_testsuite_basic.cc
@@ -464,6 +465,7 @@ ADD_LIBRARY(ep_testsuite_basic SHARED
 )
 SET_TARGET_PROPERTIES(ep_testsuite_basic PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite_basic JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+ADD_DEPENDENCIES(ep_testsuite engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_dcp SHARED
 tests/ep_testsuite_dcp.cc
@@ -475,6 +477,7 @@ tests/mock/mock_dcp.cc
 )
 SET_TARGET_PROPERTIES(ep_testsuite_dcp PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite_dcp JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+ADD_DEPENDENCIES(ep_testsuite_dcp engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_tap SHARED
    tests/ep_testsuite_common.cc
@@ -483,6 +486,7 @@ ADD_LIBRARY(ep_testsuite_tap SHARED
    src/ext_meta_parser.cc)
 SET_TARGET_PROPERTIES(ep_testsuite_tap PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite_tap JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+ADD_DEPENDENCIES(ep_testsuite_tap engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_checkpoint SHARED
    tests/ep_testsuite_common.cc
@@ -491,6 +495,7 @@ ADD_LIBRARY(ep_testsuite_checkpoint SHARED
    src/ext_meta_parser.cc)
 SET_TARGET_PROPERTIES(ep_testsuite_checkpoint PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite_checkpoint JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+ADD_DEPENDENCIES(ep_testsuite_checkpoint engine_testapp)
 
 ADD_LIBRARY(ep_testsuite_xdcr SHARED
    tests/ep_testsuite_common.cc
@@ -499,6 +504,7 @@ ADD_LIBRARY(ep_testsuite_xdcr SHARED
    src/ext_meta_parser.cc)
 SET_TARGET_PROPERTIES(ep_testsuite_xdcr PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_testsuite_xdcr JSON_checker dirutils platform ${LIBEVENT_LIBRARIES} ${SNAPPY_LIBRARIES})
+ADD_DEPENDENCIES(ep_testsuite_xdcr engine_testapp)
 
 ADD_LIBRARY(ep_perfsuite SHARED
    tests/ep_perfsuite.cc
@@ -508,6 +514,7 @@ ADD_LIBRARY(ep_perfsuite SHARED
    tests/mock/mock_dcp.cc)
 SET_TARGET_PROPERTIES(ep_perfsuite PROPERTIES PREFIX "")
 TARGET_LINK_LIBRARIES(ep_perfsuite dirutils platform)
+ADD_DEPENDENCIES(ep_perfsuite engine_testapp)
 
 #ADD_CUSTOM_COMMAND(OUTPUT
 #                     ${CMAKE_CURRENT_BINARY_DIR}/generated_suite_0.c
