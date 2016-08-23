@@ -421,6 +421,43 @@ TEST_F(MutationLogTest, YUNOOPEN) {
     set_file_perms(FilePerms::Read | FilePerms::Write);
 }
 
+// Test that the MutationLog::iterator class obeys expected iterator behaviour.
+TEST_F(MutationLogTest, Iterator) {
+    // Create a simple mutation log to work on.
+    {
+        MutationLog ml(tmp_log_filename.c_str());
+        ml.open();
+        ml.newItem(0, "key1", 0);
+        ml.newItem(0, "key2", 1);
+        ml.newItem(0, "key3", 2);
+        ml.commit1();
+        ml.commit2();
+
+        EXPECT_EQ(3, ml.itemsLogged[ML_NEW]);
+        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT1]);
+        EXPECT_EQ(1, ml.itemsLogged[ML_COMMIT2]);
+    }
+
+    // Now check the iterators.
+    MutationLog ml(tmp_log_filename.c_str());
+    ml.open();
+
+    // Can copy-construct.
+    auto iter = ml.begin();
+    EXPECT_EQ(ml.begin(), iter);
+
+    // Can copy-assign.
+    iter = ml.end();
+    EXPECT_EQ(ml.end(), iter);
+
+    // Can advance the correct number.
+    size_t count = 0;
+    for (auto iter2 = ml.begin(); iter2 != ml.end(); ++iter2) {
+        count++;
+    }
+    EXPECT_EQ(5, count);
+}
+
 // @todo
 //   Test Read Only log
 //   Test close / open / close / open

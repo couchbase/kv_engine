@@ -469,6 +469,8 @@ public:
 
         iterator(const iterator& mit);
 
+        iterator& operator=(const iterator& other);
+
         ~iterator();
 
         iterator& operator++();
@@ -483,13 +485,13 @@ public:
 
         friend class MutationLog;
 
-        iterator(const MutationLog& l, bool e=false);
+        iterator(const MutationLog* l, bool e=false);
 
         void nextBlock();
         size_t bufferBytesRemaining();
         void prepItem();
 
-        const MutationLog& log;
+        const MutationLog* log;
         std::unique_ptr<uint8_t[]> entryBuf;
         std::unique_ptr<uint8_t[]> buf;
         uint8_t           *p;
@@ -502,7 +504,7 @@ public:
      * An iterator pointing to the beginning of the log file.
      */
     iterator begin() {
-        iterator it(iterator(*this));
+        iterator it(iterator(this));
         it.nextBlock();
         return it;
     }
@@ -511,7 +513,7 @@ public:
      * An iterator pointing at the end of the log file.
      */
     iterator end() {
-        return iterator(*this, true);
+        return iterator(this, true);
     }
 
     //! Items logged by type.

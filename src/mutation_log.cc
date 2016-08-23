@@ -735,12 +735,12 @@ static const char* logType(uint8_t t) {
 // Mutation log iterator
 // ----------------------------------------------------------------------
 
-MutationLog::iterator::iterator(const MutationLog& l, bool e)
+MutationLog::iterator::iterator(const MutationLog* l, bool e)
   : log(l),
     entryBuf(),
     buf(),
     p(nullptr),
-    offset(l.header().blockSize() * l.header().blockCount()),
+    offset(l->header().blockSize() * l->header().blockCount()),
     items(0),
     isEnd(e)
 {
@@ -756,8 +756,8 @@ MutationLog::iterator::iterator(const MutationLog::iterator& mit)
     isEnd(mit.isEnd)
 {
     if (mit.buf != NULL) {
-        buf.reset(new uint8_t[log.header().blockSize()]());
-        memcpy(buf.get(), mit.buf.get(), log.header().blockSize());
+        buf.reset(new uint8_t[log->header().blockSize()]());
+        memcpy(buf.get(), mit.buf.get(), log->header().blockSize());
         p = buf.get() + (mit.p - mit.buf.get());
     }
 
@@ -765,6 +765,32 @@ MutationLog::iterator::iterator(const MutationLog::iterator& mit)
         entryBuf.reset(new uint8_t[LOG_ENTRY_BUF_SIZE]());
         memcpy(entryBuf.get(), mit.entryBuf.get(), LOG_ENTRY_BUF_SIZE);
     }
+}
+
+MutationLog::iterator& MutationLog::iterator::operator=(const MutationLog::iterator& other)
+{
+    log = other.log;
+    if (other.buf != nullptr) {
+        buf.reset(new uint8_t[log->header().blockSize()]());
+        memcpy(buf.get(), other.buf.get(), log->header().blockSize());
+        p = buf.get() + (other.p - other.buf.get());
+    } else {
+        buf = nullptr;
+        p = nullptr;
+    }
+
+    if (other.entryBuf != nullptr) {
+        entryBuf.reset(new uint8_t[LOG_ENTRY_BUF_SIZE]());
+        memcpy(entryBuf.get(), other.entryBuf.get(), LOG_ENTRY_BUF_SIZE);
+    } else {
+        entryBuf = nullptr;
+    }
+
+    offset = other.offset;
+    items = other.items;
+    isEnd = other.isEnd;
+
+    return *this;
 }
 
 MutationLog::iterator::~iterator() {
@@ -792,7 +818,7 @@ MutationLog::iterator& MutationLog::iterator::operator++() {
 }
 
 bool MutationLog::iterator::operator==(const MutationLog::iterator& rhs) const {
-    return log.fd() == rhs.log.fd()
+    return log->fd() == rhs.log->fd()
         && (
             (isEnd == rhs.isEnd)
             || (offset == rhs.offset
@@ -812,34 +838,34 @@ const MutationLogEntry* MutationLog::iterator::operator*() {
 }
 
 size_t MutationLog::iterator::bufferBytesRemaining() {
-    return log.header().blockSize() - (p - buf.get());
+    return log->header().blockSize() - (p - buf.get());
 }
 
 void MutationLog::iterator::nextBlock() {
-    if (log.isEnabled() && !log.isOpen()) {
+    if (log->isEnabled() && !log->isOpen()) {
         throw std::logic_error("MutationLog::iterator::nextBlock: "
                 "log is enabled and not open");
     }
 
     if (buf == NULL) {
-        buf.reset(new uint8_t[log.header().blockSize()]());
+        buf.reset(new uint8_t[log->header().blockSize()]());
     }
     p = buf.get();
 
-    ssize_t bytesread = pread(log.fd(), buf.get(), log.header().blockSize(),
+    ssize_t bytesread = pread(log->fd(), buf.get(), log->header().blockSize(),
                               offset);
     if (bytesread < 1) {
         isEnd = true;
         return;
     }
-    if (bytesread != (ssize_t)(log.header().blockSize())) {
+    if (bytesread != (ssize_t)(log->header().blockSize())) {
         LOG(EXTENSION_LOG_WARNING, "FATAL: too few bytes read in access log"
-                "'%s': %s", log.getLogFile().c_str(), strerror(errno));
+                "'%s': %s", log->getLogFile().c_str(), strerror(errno));
         throw ShortReadException();
     }
     offset += bytesread;
 
-    uint32_t crc32(crc32buf(buf.get() + 2, log.header().blockSize() - 2));
+    uint32_t crc32(crc32buf(buf.get() + 2, log->header().blockSize() - 2));
     uint16_t computed_crc16(crc32 & 0xffff);
     uint16_t retrieved_crc16;
     memcpy(&retrieved_crc16, buf.get(), sizeof(retrieved_crc16));
