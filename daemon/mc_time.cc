@@ -58,6 +58,7 @@ static struct event_base* main_ev_base = NULL;
 static void mc_time_clock_event_handler(evutil_socket_t fd, short which, void *arg);
 static void mc_time_clock_tick(void);
 static void mc_time_init_epoch(void);
+static void mc_gather_timing_samples(void);
 
 /*
  * Init internal state and start the timer event callback.
@@ -172,6 +173,9 @@ static void mc_time_clock_tick(void) {
     /* calculate our monotonic uptime */
     memcached_uptime = (rel_time_t)(cb_get_monotonic_seconds() - memcached_monotonic_start);
 
+    /* Collect samples */
+    mc_gather_timing_samples();
+
     /*
       every 'memcached_check_system_time' seconds, keep an eye on the
       system clock.
@@ -206,4 +210,11 @@ static void mc_time_clock_tick(void) {
         previous_time_valid = true;
         previous_time = timeofday;
     }
+}
+
+static void mc_gather_timing_samples(void) {
+    bucketsForEach([](Bucket& bucket, void *) -> bool {
+        bucket.timings.sample(std::chrono::seconds(1));
+        return true;
+    }, nullptr);
 }

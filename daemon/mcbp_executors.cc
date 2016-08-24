@@ -362,6 +362,19 @@ static ENGINE_ERROR_CODE server_stats(ADD_STAT add_stat_callback,
                  thread_stats.iovused_high_watermark);
         add_stat(cookie, add_stat_callback, "msgused_high_watermark",
                  thread_stats.msgused_high_watermark);
+
+        auto lookup_latency = timings.get_interval_lookup_latency();
+        add_stat(cookie, add_stat_callback, "cmd_lookup_10s_count",
+                 lookup_latency.count);
+        add_stat(cookie, add_stat_callback, "cmd_lookup_10s_duration_us",
+                 lookup_latency.duration_ns / 1000);
+
+        auto mutation_latency = timings.get_interval_mutation_latency();
+        add_stat(cookie, add_stat_callback, "cmd_mutation_10s_count",
+                 mutation_latency.count);
+        add_stat(cookie, add_stat_callback, "cmd_mutation_10s_duration_us",
+                 mutation_latency.duration_ns / 1000);
+
     } catch (std::bad_alloc&) {
         return ENGINE_ENOMEM;
     }

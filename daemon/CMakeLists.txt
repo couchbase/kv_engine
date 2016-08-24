@@ -128,6 +128,8 @@ ADD_LIBRARY(memcached_daemon STATIC
                thread.cc
                timing_histogram.cc
                timing_histogram.h
+               timing_interval.cc
+               timing_interval.h
                timings.cc
                timings.h
                topkeys.cc
