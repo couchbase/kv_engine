@@ -19,6 +19,7 @@
 #include "tracing.h"
 
 #include <phosphor/phosphor.h>
+#include <phosphor/tools/export.h>
 #include <mutex>
 
 // TODO: MB-20640 The default config should be configurable from memcached.json
@@ -39,6 +40,23 @@ ENGINE_ERROR_CODE ioctlGetTracingConfig(Connection*,
                                         std::string& value) {
     std::lock_guard<std::mutex> lh(configMutex);
     value = lastConfig.toString();
+    return ENGINE_SUCCESS;
+}
+
+ENGINE_ERROR_CODE ioctlGetTracingDump(Connection*,
+                                      const StrToStrMap&,
+                                      std::string& value) {
+    std::lock_guard<phosphor::TraceLog> lh(PHOSPHOR_INSTANCE);
+    if (PHOSPHOR_INSTANCE.isEnabled()) {
+        PHOSPHOR_INSTANCE.stop(lh);
+    }
+
+    phosphor::TraceContext context = PHOSPHOR_INSTANCE.getTraceContext(lh);
+    if (!context.trace_buffer) {
+        return ENGINE_EINVAL;
+    }
+    value = phosphor::tools::JSONExport(context).read();
+
     return ENGINE_SUCCESS;
 }
 

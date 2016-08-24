@@ -114,6 +114,7 @@ ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
         {"tcmalloc.aggressive_memory_decommit", getTCMallocAggrMemoryDecommit},
         {"trace.config", ioctlGetTracingConfig},
         {"trace.status", ioctlGetTracingStatus},
+        {"trace.dump", ioctlGetTracingDump},
     };
 
     std::pair<std::string, StrToStrMap> request;

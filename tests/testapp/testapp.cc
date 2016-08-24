@@ -2287,6 +2287,35 @@ TEST_P(McdTestappTest, IOCTL_Tracing) {
     }
 
     {
+        char cmd[] = "trace.dump";
+        size_t len = mcbp_raw_command(
+                buffer.bytes, sizeof(buffer.bytes),
+                PROTOCOL_BINARY_CMD_IOCTL_GET,
+                cmd, strlen(cmd),
+                nullptr, 0);
+
+        safe_send(buffer.bytes, len, false);
+        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
+        mcbp_validate_response_header(&buffer.response,
+                                      PROTOCOL_BINARY_CMD_IOCTL_GET,
+                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+
+        std::string result(buffer.bytes + sizeof(buffer.response),
+                           buffer.response.message.header.response.bodylen);
+
+        // Difficult to tell what's been written to the buffer so just check
+        // that it's valid JSON and that the traceEvents array is present
+        unique_cJSON_ptr json = unique_cJSON_ptr(cJSON_Parse(result.c_str()));
+        EXPECT_NE(nullptr, json);
+        EXPECT_EQ(cJSON_Object, json->type);
+
+        auto* events = cJSON_GetObjectItem(json.get(), "traceEvents");
+        EXPECT_NE(nullptr, events);
+        EXPECT_EQ(cJSON_Array, events->type);
+
+    }
+
+    {
         char cmd[] = "trace.config";
         size_t len = mcbp_raw_command(
                 buffer.bytes, sizeof(buffer.bytes),

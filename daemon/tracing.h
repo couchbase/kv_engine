@@ -42,6 +42,14 @@ ENGINE_ERROR_CODE ioctlGetTracingConfig(Connection* c,
                                         std::string& value);
 
 /**
+ * IOCTL Get callback to dump the last trace
+ * @param[out] value The dumped trace
+ */
+ENGINE_ERROR_CODE ioctlGetTracingDump(Connection*,
+                                      const StrToStrMap&,
+                                      std::string& value);
+
+/**
  * IOCTL Set callback to set the tracing config to use when it starts
  * @param value The Phosphor trace config string to start tracing with
  */

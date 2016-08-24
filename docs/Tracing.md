@@ -25,18 +25,45 @@ This will run the memcached Get/Set tests and dump a file in the form
 exits. This json file can then be loaded into the Google chrome trace viewer
 (chrome://tracing).
 
-There are several semi-colon (';') separated options that the environment
-variable accepts:
+The environment variable accepts any string-form tracing config as described
+below.
+
+Tracing can also be controlled via the IOCTL MCBP commands - the easiest way
+to do this is with the mcctl executable:
+
+    $ ./mcctl -h localhost:11210 get trace.status
+    enabled
+
+- `get trace.status`: Returns the current tracing status, either 'enabled' or
+'disabled'
+- `get trace.config`: Returns the current tracing config
+- `get trace.dump`: Dumps the trace buffer over the network (Also stops tracing
+if it is currently running)
+- `set trace.config`: Sets the tracing config
+- `set trace.start`: Starts tracing
+- `set trace.stop`: Stops tracing
+
+## Tracing Config
+There are several semi-colon (';') separated options that can be used as part of
+a tracing config.
 
 - save-on-stop: Save to a file when tracing stops, accepts %p (pid) and %d
-(timestamp) placeholders.
+(timestamp) placeholders for the given filename.
 - buffer-mode: Accepts one of 'ring' or 'fixed' for a buffer which either
 overwrites itself when full or stops tracing when full.
 - buffer-size: The size of the trace buffer in bytes to be created
 - enabled-categories: A comma-separated list of categories to be enabled. This
 supports basic globbing '*' and '?'.
 - disabled-categories: A comma-separated list of categories to be explicitly
-disabled (This mask is applied after the enabled-categories mask).
+disabled (This mask is applied after the enabled-categories mask), also supports
+globbing.
+
+Example Config:
+
+    buffer-mode:ring;buffer-size:20000000;enabled-categories:memcached/*;disabled-categories:memcached/state_machine
+
+This particular config would create a 20MB ring buffer, with all memcached
+categories enabled except for the memcached 'state_machine' category.
 
 ## Tracing Categories
 
