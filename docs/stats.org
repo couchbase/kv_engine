@@ -73,7 +73,7 @@ For introductory information on stats within Couchbase, start with the
 |                                    | a vbucket                              |
 | ep_pending_compactions             | Number of pending vbucket compactions  |
 | ep_rollback_count                  | Number of rollbacks on consumer        |
-| ep_flush_duration_total            | Cumulative seconds spent flushing      |
+| ep_flush_duration_total            | Cumulative milliseconds spent flushing |
 | ep_flush_all                       | True if disk flush_all is scheduled    |
 | ep_num_ops_get_meta                | Number of getMeta operations           |
 | ep_num_ops_set_meta                | Number of setWithMeta operations       |

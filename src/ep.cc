@@ -3219,7 +3219,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
     }
 
     int items_flushed = 0;
-    rel_time_t flush_start = ep_current_time();
+    hrtime_t flush_start = gethrtime();
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
@@ -3318,14 +3318,13 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                 commit(shard->getId());
             }
 
-            hrtime_t end = gethrtime();
-            uint64_t trans_time = (end - flush_start) / 1000000;
+            hrtime_t flush_end = gethrtime();
+            uint64_t trans_time = (flush_end - flush_start) / 1000000;
 
             lastTransTimePerItem.store((items_flushed == 0) ? 0 :
                                        static_cast<double>(trans_time) /
                                        static_cast<double>(items_flushed));
-            stats.cumulativeFlushTime.fetch_add(ep_current_time()
-                                                - flush_start);
+            stats.cumulativeFlushTime.fetch_add(trans_time);
             stats.flusher_todo.store(0);
             if (vb->rejectQueue.empty()) {
                 vb->setPersistedSnapshot(range.start, range.end);
