@@ -827,11 +827,12 @@ static void perf_tap_client(struct Handle_args *ha) {
                         info.nkey) == 0) {
                 done = true;
             }
-
+            ha->h1->release(ha->h, NULL, item);
             testHarness.lock_cookie(cookie);
             break;
 
         case TAP_DELETION:
+            ha->h1->release(ha->h, NULL, item);
             break;
 
         case TAP_OPAQUE:
