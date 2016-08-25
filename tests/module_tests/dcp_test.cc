@@ -668,6 +668,27 @@ TEST_F(ConnectionTest, test_consumer_add_stream) {
     destroy_mock_cookie(cookie);
 }
 
+// Regression test for MB 20645 - ensure that a call to addStats after a
+// connection has been disconnected (and closeAllStreams called) doesn't crash.
+TEST_F(ConnectionTest, test_mb20645_stats_after_closeAllStreams) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
+    const void *cookie = create_mock_cookie();
+    // Create a new Dcp producer
+    dcp_producer_t producer = connMap.newProducer(cookie, "test_producer",
+                                    /*notifyOnly*/false);
+
+    // Disconnect the producer connection
+    connMap.disconnect(cookie);
+
+    // Try to read stats. Shouldn't crash.
+    producer->addStats([](const char *key, const uint16_t klen,
+                          const char *val, const uint32_t vlen,
+                          const void *cookie) {}, nullptr);
+
+    destroy_mock_cookie(cookie);
+}
+
 class NotifyTest : public DCPTest {
 protected:
     void SetUp() {
