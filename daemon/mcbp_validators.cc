@@ -602,7 +602,7 @@ static protocol_binary_response_status ioctl_set_validator(const Cookie& cookie)
 {
     auto req = static_cast<protocol_binary_request_ioctl_set*>(McbpConnection::getPacket(cookie));
     uint16_t klen = ntohs(req->message.header.request.keylen);
-    size_t vallen = ntohl(req->message.header.request.bodylen);
+    size_t vallen = ntohl(req->message.header.request.bodylen) - klen;
 
     if (req->message.header.request.magic != PROTOCOL_BINARY_REQ ||
         req->message.header.request.extlen != 0 ||

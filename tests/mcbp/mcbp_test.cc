@@ -987,6 +987,10 @@ namespace BinaryProtocolValidator {
         request.message.header.request.bodylen = htonl(IOCTL_VAL_LENGTH + 11);
         EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate());
     }
+    TEST_F(IoctlSetValidatorTest, ValidBody) {
+        request.message.header.request.bodylen = htonl(IOCTL_VAL_LENGTH + 10);
+        EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_SUCCESS, validate());
+    }
 
     // test AUDIT_PUT
     class AuditPutValidatorTest : public ValidatorTest {
