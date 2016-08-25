@@ -210,7 +210,6 @@ TEST_P(BucketTest, MB19756TestDeleteWhileClientConnected) {
 // the event_active function call in place is that the event_active function
 // can be invoked regardless of whether the event is registered
 // (i.e. in a pending state) or not.
-
 TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
     auto& conn = getConnection();
     conn.createBucket("bucket", "default_engine.so",
@@ -221,7 +220,6 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
 
     auto cwd = mcd_env->getCurrentWorkingDirectory();
     auto testfile = cwd + "/" + mcd_env->generateTempFile("lockfile.XXXXXX");
-
 
     // Configure so that the engine will return ENGINE_EWOULDBLOCK and
     // not process any operation given to it.  This means the connection
@@ -236,7 +234,6 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
     // Send the get operation, however we will not get a response from the
     // engine, and so it will block indefinately.
     second_conn->sendFrame(frame);
-
     std::thread resume{
         [&connection, &testfile]() {
             // wait until we've started to delete the bucket
@@ -261,7 +258,6 @@ TEST_P(BucketTest, MB19981TestDeleteWhileClientConnectedAndEWouldBlocked) {
 
             // resume the connection
             CouchbaseDirectoryUtilities::rmrf(testfile);
-
         }
     };
 
