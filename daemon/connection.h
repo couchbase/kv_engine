@@ -263,11 +263,11 @@ public:
     PrivilegeAccess checkPrivilege(const Privilege& privilege) const;
 
     int getBucketIndex() const {
-        return bucketIndex;
+        return bucketIndex.load(std::memory_order_relaxed);
     }
 
     void setBucketIndex(int bucketIndex) {
-        Connection::bucketIndex = bucketIndex;
+        Connection::bucketIndex.store(bucketIndex, std::memory_order_relaxed);
     }
 
     ENGINE_HANDLE_V1* getBucketEngine() const {
@@ -375,7 +375,7 @@ protected:
     /**
      * The index of the connected bucket
      */
-    int bucketIndex;
+    std::atomic_int bucketIndex;
 
     /**
      * The engine interface for the connected bucket
