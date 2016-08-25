@@ -619,7 +619,7 @@ void MemcachedBinprotConnection::configureEwouldBlockEngine(
 
     Frame frame;
     frame.payload.resize(sizeof(request.bytes) + key.size());
-    memcpy(frame.payload.data(), request.bytes, frame.payload.size());
+    memcpy(frame.payload.data(), request.bytes, sizeof(request.bytes));
     memcpy(frame.payload.data() + sizeof(request.bytes), key.data(),
            key.size());
     sendFrame(frame);
