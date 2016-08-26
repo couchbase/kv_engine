@@ -6454,6 +6454,26 @@ static enum test_result test_mb19687_variable(ENGINE_HANDLE* h,
     return SUCCESS;
 }
 
+static enum test_result test_mb20697(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1) {
+    checkeq(ENGINE_SUCCESS,
+            h1->get_stats(h, NULL, NULL, 0, add_stats),
+            "Failed to get stats.");
+
+    std::string dbname = vals["ep_dbname"];
+
+    /* Nuke the database directory to simulate the commit failure */
+    rmdb(dbname.c_str());
+
+    checkeq(ENGINE_SUCCESS, store(h, h1, NULL, OPERATION_SET,"key", "somevalue",
+                                  NULL, 0, 0, 0), "store should have succeeded");
+
+    /* Ensure that this results in commit failure and the stat gets incremented */
+    wait_for_stat_change(h, h1, "ep_item_commit_failed", 0);
+
+    return SUCCESS;
+}
+
 /* This test case checks the purge seqno validity when no items are actually
    purged in a compaction call */
 static enum test_result test_vbucket_compact_no_purge(ENGINE_HANDLE *h,
@@ -6955,5 +6975,8 @@ BaseTestCase testsuite_testcases[] = {
                  prepare, cleanup),
         TestCase("test vbucket compact no purge", test_vbucket_compact_no_purge,
                  test_setup, teardown, NULL, prepare, cleanup),
+
+        TestCase("test_MB-20697", test_mb20697, test_setup, teardown, NULL, prepare,
+                 cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };

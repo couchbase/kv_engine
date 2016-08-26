@@ -1757,6 +1757,7 @@ bool CouchKVStore::commit2couchstore(Callback<kvstats_ctx> *cb) {
                                           docinfos, pendingCommitCnt,
                                           kvctx);
     if (errCode) {
+        success = false;
         LOG(EXTENSION_LOG_WARNING,
             "Commit failed, cannot save CouchDB docs "
             "for vbucket = %d rev = %" PRIu64, vbucket2flush, fileRev);
