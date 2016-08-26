@@ -17,6 +17,9 @@
 #include "config.h"
 #include <cbsasl/cbcrypto.h>
 
+#include <memory>
+#include <platform/base64.h>
+#include <openssl/evp.h>
 #include <stdexcept>
 
 #ifdef __APPLE__
@@ -27,7 +30,6 @@
 
 #else
 
-#include <openssl/evp.h>
 #include <openssl/hmac.h>
 #include <openssl/sha.h>
 #include <openssl/md5.h>
@@ -382,4 +384,213 @@ std::vector<uint8_t> Couchbase::Crypto::digest(const Algorithm algorithm,
     throw std::invalid_argument(
         "Couchbase::Crypto::digest: Unknown Algorithm" +
         std::to_string((int)algorithm));
+}
+
+namespace Couchbase {
+    namespace Crypto {
+        static const EVP_CIPHER* getCipher(const Cipher& cipher,
+                                           const std::vector<uint8_t>& key,
+                                           const std::vector<uint8_t>& iv) {
+            const EVP_CIPHER* cip = nullptr;
+
+            switch (cipher) {
+            case Couchbase::Crypto::Cipher::AES_256_cbc:
+                cip = EVP_aes_256_cbc();
+                break;
+            }
+
+            if (cip == nullptr) {
+                throw std::invalid_argument(
+                    "Couchbase::Crypto::getCipher: Unknown Cipher " +
+                    std::to_string(int(cipher)));
+            }
+
+            if (int(key.size()) != EVP_CIPHER_key_length(cip)) {
+                throw std::invalid_argument(
+                    "Couchbase::Crypto::getCipher: Cipher requires a key "
+                        "length of " +
+                    std::to_string(EVP_CIPHER_key_length(cip)) +
+                    " provided key with length " + std::to_string(key.size()));
+            }
+
+            if (int(iv.size()) != EVP_CIPHER_iv_length(cip)) {
+                throw std::invalid_argument(
+                    "Couchbase::Crypto::getCipher: Cipher requires a iv "
+                        "length of " +
+                    std::to_string(EVP_CIPHER_iv_length(cip)) +
+                    " provided iv with length " + std::to_string(iv.size()));
+            }
+
+            return cip;
+        }
+
+        /**
+         * decode the META information for the encryption bits.
+         *
+         * @param meta the input json data (not const to avoid all of the const
+         *             casts, and this is a private helper function not visible
+         *             outside this file
+         * @param cipher the cipher to use (out)
+         * @param key the key to use (out)
+         * @param iv the iv to use (out)
+         */
+        static void decodeJsonMeta(cJSON* meta,
+                                   Cipher& cipher,
+                                   std::vector<uint8_t>& key,
+                                   std::vector<uint8_t>& iv) {
+
+            auto* obj = cJSON_GetObjectItem(meta, "cipher");
+            if (obj == nullptr) {
+                throw std::runtime_error(
+                    "Couchbase::Crypto::decodeJsonMeta: cipher not specified");
+            }
+
+            cipher = Crypto::to_cipher(obj->valuestring);
+            obj = cJSON_GetObjectItem(meta, "key");
+            if (obj == nullptr) {
+                throw std::runtime_error(
+                    "Couchbase::Crypto::decodeJsonMeta: key not specified");
+            }
+
+            auto str = Base64::decode(obj->valuestring);
+            key.resize(str.size());
+            memcpy(key.data(), str.data(), key.size());
+
+            obj = cJSON_GetObjectItem(meta, "iv");
+            if (obj == nullptr) {
+                throw std::runtime_error(
+                    "Couchbase::Crypto::decodeJsonMeta: iv not specified");
+            }
+
+            str = Base64::decode(obj->valuestring);
+            iv.resize(str.size());
+            memcpy(iv.data(), str.data(), iv.size());
+        }
+    }
+}
+
+// helper class for use with std::unique_ptr in managing cJSON* objects.
+struct EVP_CIPHER_CTX_Deleter {
+    void operator()(EVP_CIPHER_CTX* ctx) {
+        if (ctx != nullptr) {
+            EVP_CIPHER_CTX_free(ctx);
+        }
+    }
+};
+
+using unique_EVP_CIPHER_CTX_ptr = std::unique_ptr<EVP_CIPHER_CTX,
+                                                  EVP_CIPHER_CTX_Deleter>;
+
+
+std::vector<uint8_t> Couchbase::Crypto::encrypt(const Cipher& cipher,
+                                                const std::vector<uint8_t>& key,
+                                                const std::vector<uint8_t>& iv,
+                                                const uint8_t* data,
+                                                size_t length) {
+    unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
+
+    auto* cip = getCipher(cipher, key, iv);
+    if (EVP_EncryptInit_ex(ctx.get(), cip, nullptr, key.data(),
+                           iv.data()) != 1) {
+        throw std::runtime_error(
+            "Couchbase::Crypto::encrypt: EVP_EncryptInit_ex failed");
+    }
+
+    std::vector<uint8_t> ret(length + EVP_CIPHER_block_size(cip));
+    int len1 = int(ret.size());
+
+    if (EVP_EncryptUpdate(ctx.get(), ret.data(), &len1, data,
+                          int(length)) != 1) {
+        throw std::runtime_error(
+            "Couchbase::Crypto::encrypt: EVP_EncryptUpdate failed");
+    }
+
+    int len2 = int(ret.size()) - len1;
+    if (EVP_EncryptFinal_ex(ctx.get(), ret.data() + len1, &len2) != 1) {
+        throw std::runtime_error(
+            "Couchbase::Crypto::encrypt: EVP_EncryptFinal_ex failed");
+    }
+
+    // Resize the destination to the sum of the two length fields
+    ret.resize(size_t(len1) + size_t(len2));
+    return ret;
+}
+
+std::vector<uint8_t> Couchbase::Crypto::encrypt(const Cipher& cipher,
+                                                const std::vector<uint8_t>& key,
+                                                const std::vector<uint8_t>& iv,
+                                                const std::vector<uint8_t>& data) {
+    return encrypt(cipher, key, iv, data.data(), data.size());
+}
+
+std::vector<uint8_t> Couchbase::Crypto::encrypt(const cJSON* json,
+                                                const uint8_t* data,
+                                                size_t length) {
+    Cipher cipher;
+    std::vector<uint8_t> key;
+    std::vector<uint8_t> iv;
+
+    decodeJsonMeta(const_cast<cJSON*>(json), cipher, key, iv);
+    return encrypt(cipher, key, iv, data, length);
+}
+
+std::vector<uint8_t> Couchbase::Crypto::decrypt(const Cipher& cipher,
+                                                const std::vector<uint8_t>& key,
+                                                const std::vector<uint8_t>& iv,
+                                                const uint8_t* data,
+                                                size_t length) {
+    unique_EVP_CIPHER_CTX_ptr ctx(EVP_CIPHER_CTX_new());
+    auto* cip = getCipher(cipher, key, iv);
+
+    if (EVP_DecryptInit_ex(ctx.get(), cip, nullptr, key.data(),
+                           iv.data()) != 1) {
+        throw std::runtime_error(
+            "Couchbase::Crypto::decrypt: EVP_DecryptInit_ex failed");
+    }
+
+    std::vector<uint8_t> ret(length);
+    int len1 = int(ret.size());
+
+    if (EVP_DecryptUpdate(ctx.get(), ret.data(), &len1, data,
+                          int(length)) != 1) {
+        throw std::runtime_error(
+            "Couchbase::Crypto::decrypt: EVP_DecryptUpdate failed");
+    }
+
+    int len2 = int(length) - len1;
+    if (EVP_DecryptFinal_ex(ctx.get(), ret.data() + len1, &len2) != 1) {
+        throw std::runtime_error(
+            "Couchbase::Crypto::decrypt: EVP_DecryptFinal_ex failed");
+    }
+
+    // Resize the destination to the sum of the two length fields
+    ret.resize(size_t(len1) + size_t(len2));
+    return ret;
+}
+
+std::vector<uint8_t> Couchbase::Crypto::decrypt(const Cipher& cipher,
+                                                const std::vector<uint8_t>& key,
+                                                const std::vector<uint8_t>& iv,
+                                                const std::vector<uint8_t>& data) {
+    return decrypt(cipher, key, iv, data.data(), data.size());
+}
+
+Couchbase::Crypto::Cipher Couchbase::Crypto::to_cipher(const std::string& str) {
+
+    if (str == "AES_256_cbc") {
+        return Cipher::AES_256_cbc;
+    }
+
+    throw std::invalid_argument("to_cipher: Unknown cipher: " + str);
+}
+
+std::vector<uint8_t> Couchbase::Crypto::decrypt(const cJSON* json,
+                                                const uint8_t* data,
+                                                size_t length) {
+    Cipher cipher;
+    std::vector<uint8_t> key;
+    std::vector<uint8_t> iv;
+
+    decodeJsonMeta(const_cast<cJSON*>(json), cipher, key, iv);
+    return decrypt(cipher, key, iv, data, length);
 }
