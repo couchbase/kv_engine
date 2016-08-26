@@ -16,16 +16,19 @@
 
 #include <gtest/gtest.h>
 
-#include <platform/platform.h>
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-
+#include <cbsasl/cbcrypto.h>
 #include <cbsasl/cbsasl.h>
 #include <cbsasl/password_database.h>
-
+#include <cbsasl/pwconv.h>
 #include <cbsasl/user.h>
+#include <openssl/evp.h>
 #include <platform/base64.h>
+#include <platform/checked_snprintf.h>
+#include <platform/dirutils.h>
+#include <platform/platform.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 class PasswordMetaTest : public ::testing::Test {
 public:
@@ -315,4 +318,84 @@ TEST_F(PasswordDatabaseTest, CreateFromJsonDatabaseExtraLabel) {
     EXPECT_THROW(
         Couchbase::PasswordDatabase db("{ \"users\": [], \"foo\", 2 }", false),
         std::runtime_error);
+}
+
+static char environment[1024];
+
+class EncryptedDatabaseTest : public ::testing::Test {
+public:
+
+    virtual void SetUp() override {
+        unique_cJSON_ptr meta(cJSON_CreateObject());
+        cJSON_AddStringToObject(meta.get(), "cipher", "AES_256_cbc");
+        std::string blob;
+        blob.resize(EVP_CIPHER_key_length(EVP_aes_256_cbc()));
+        for (auto &a : blob) {
+            a = (char)rand();
+        }
+        cJSON_AddStringToObject(meta.get(), "key",
+                                Couchbase::Base64::encode(blob).c_str());
+        blob.resize(EVP_CIPHER_iv_length(EVP_aes_256_cbc()));
+        for (auto &a : blob) {
+            a = (char)rand();
+        }
+        cJSON_AddStringToObject(meta.get(), "iv",
+                                Couchbase::Base64::encode(blob).c_str());
+
+        std::string envstr = to_string(meta);
+
+        // Add the file to the exec environment
+        checked_snprintf(environment, sizeof(environment),
+                         "COUCHBASE_CBSASL_SECRETS=%s", envstr.c_str());
+
+        filename = generateTempFile("./cryptfile.XXXXXX");
+    }
+
+    virtual void TearDown() override {
+#ifdef _MSC_VER
+        checked_snprintf(environment, sizeof(environment),
+                         "COUCHBASE_CBSASL_SECRETS=");
+        putenv(environment);
+#else
+        unsetenv("COUCHBASE_CBSASL_SECRETS");
+#endif
+        EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(filename));
+    }
+
+protected:
+    std::string filename;
+
+    std::string generateTempFile(const char* pattern) {
+        char* file_pattern = strdup(pattern);
+        if (file_pattern == nullptr) {
+            throw std::bad_alloc();
+        }
+
+        if (cb_mktemp(file_pattern) == nullptr) {
+            throw std::runtime_error(
+                std::string("Failed to create temporary file with pattern: ") +
+                std::string(pattern));
+        }
+
+        std::string ret(file_pattern);
+        free(file_pattern);
+
+        return ret;
+    }
+};
+
+TEST_F(EncryptedDatabaseTest, WriteReadFilePlain) {
+    EXPECT_EQ(nullptr, getenv("COUCHBASE_CBSASL_SECRETS"));
+    const std::string input{"All work and no play makes Jack a dull boy"};
+    cbsasl_write_password_file(filename, input);
+    auto content = cbsasl_read_password_file(filename);
+    EXPECT_EQ(input, content);
+}
+
+TEST_F(EncryptedDatabaseTest, WriteReadFileEncrypted) {
+    putenv(environment);
+    const std::string input{"All work and no play makes Jack a dull boy"};
+    cbsasl_write_password_file(filename, input);
+    auto content = cbsasl_read_password_file(filename);
+    EXPECT_EQ(input, content);
 }
