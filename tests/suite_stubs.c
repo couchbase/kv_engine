@@ -20,6 +20,7 @@
 #include <arpa/inet.h>
 
 #include <memcached/engine.h>
+#include <platform/cb_malloc.h>
 
 #include "suite_stubs.h"
 #include "ep-engine/command_ids.h"
@@ -205,7 +206,7 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
     info.nvalue = 1;
     h1->get_item_info(h, NULL, i, &info);
 
-    buf = malloc(info.value[0].iov_len + 1);
+    buf = cb_malloc(info.value[0].iov_len + 1);
     cb_assert(buf != NULL);
     memcpy(buf, info.value[0].iov_base, info.value[0].iov_len);
     buf[sizeof(buf) - 1] = 0x00;
@@ -227,12 +228,12 @@ void checkValue(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* exp) {
         fprintf(stderr, "Expected ``%s'', got ``%s''\n", exp, buf);
         abort();
     }
-    free(buf);
+    cb_free(buf);
 }
 
 static protocol_binary_request_header* create_packet(uint8_t opcode,
                                                      const char *val) {
-    char *pkt_raw = calloc(1,
+    char *pkt_raw = cb_calloc(1,
                            sizeof(protocol_binary_request_header)
                            + strlen(key)
                            + strlen(val));
@@ -258,7 +259,7 @@ void getLock(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
         fprintf(stderr, "Failed to issue getl request.\n");
         abort();
     }
-    free (pkt);
+    cb_free(pkt);
 
     hasError = last_status != 0;
 }
@@ -311,7 +312,7 @@ engine_test_t* get_tests(void) {
         }
     }
 
-    rv = calloc(num_tests+1, sizeof(engine_test_t));
+    rv = cb_calloc(num_tests+1, sizeof(engine_test_t));
     cb_assert(rv);
 
     for (i = 0; i < NSEGS; ++i) {

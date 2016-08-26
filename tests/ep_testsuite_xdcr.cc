@@ -24,6 +24,8 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 
+#include <platform/cb_malloc.h>
+
 // Helper functions ///////////////////////////////////////////////////////////
 
 static void verifyLastMetaData(ItemMetaData imd, uint8_t conflict_res_mode) {
@@ -1591,7 +1593,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     checkeq(sizeof(int64_t), last_body.size(),
@@ -1604,7 +1606,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     checkeq(sizeof(int64_t), last_body.size(),
@@ -1634,7 +1636,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
             NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     checkeq(sizeof(int64_t), last_body.size(),
@@ -1661,7 +1663,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
             NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     checkeq(sizeof(int64_t), last_body.size(),
@@ -1690,7 +1692,7 @@ static enum test_result test_adjusted_time_apis(ENGINE_HANDLE *h,
     h1->unknown_command(h, NULL, request, add_response);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
             "Expected invalid response");
-    free(request);
+    cb_free(request);
     delete[] ext;
 
     return SUCCESS;
@@ -1704,7 +1706,7 @@ static enum test_result test_adjusted_time_negative_tests(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 1, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
             "Expected not my vbucket");
 
@@ -1712,7 +1714,7 @@ static enum test_result test_adjusted_time_negative_tests(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, last_status.load(),
             "Expected not supported response");
 
@@ -1731,7 +1733,7 @@ static enum test_result test_adjusted_time_negative_tests(ENGINE_HANDLE *h,
     h1->unknown_command(h, NULL, request, add_response);
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
             "Expected not my vbucket");
-    free(request);
+    cb_free(request);
 
     /* SET_DRIFT_COUNTER_STATE when time_synchronization is "disabled" */
     request = createPacket(PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE,
@@ -1739,7 +1741,7 @@ static enum test_result test_adjusted_time_negative_tests(ENGINE_HANDLE *h,
     h1->unknown_command(h, NULL, request, add_response);
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, last_status.load(),
             "Expected not supported");
-    free(request);
+    cb_free(request);
     delete[] ext;
 
     return SUCCESS;

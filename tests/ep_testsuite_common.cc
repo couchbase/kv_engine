@@ -31,6 +31,7 @@
 #include <sys/wait.h>
 #endif
 
+#include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 
 const char *dbname_env = NULL;
@@ -115,12 +116,12 @@ engine_test_t* BaseTestCase::getTest() {
         nm.append(" (couchstore)");
     }
 
-    ret->name = strdup(nm.c_str());
+    ret->name = cb_strdup(nm.c_str());
     std::string config = ss.str();
     if (config.length() == 0) {
         ret->cfg = 0;
     } else {
-        ret->cfg = strdup(config.c_str());
+        ret->cfg = cb_strdup(config.c_str());
     }
 
     return ret;
@@ -158,7 +159,7 @@ bool test_setup(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *pkt = createPacket(PROTOCOL_BINARY_CMD_ENABLE_TRAFFIC);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to enable data traffic");
-    free(pkt);
+    cb_free(pkt);
 
     return true;
 }
@@ -258,7 +259,7 @@ engine_test_t* get_tests(void) {
     }
 
     if (oneTestIdx == -1) {
-        testcases = static_cast<engine_test_t*>(calloc(num + 1, sizeof(engine_test_t)));
+        testcases = static_cast<engine_test_t*>(cb_calloc(num + 1, sizeof(engine_test_t)));
 
         int ii = 0;
         for (int jj = 0; jj < num; ++jj) {
@@ -268,7 +269,7 @@ engine_test_t* get_tests(void) {
             }
         }
     } else {
-        testcases = static_cast<engine_test_t*>(calloc(1 + 1, sizeof(engine_test_t)));
+        testcases = static_cast<engine_test_t*>(cb_calloc(1 + 1, sizeof(engine_test_t)));
 
         engine_test_t *r = testsuite_testcases[oneTestIdx].getTest();
         if (r != 0) {
@@ -289,10 +290,10 @@ bool setup_suite(struct test_harness *th) {
 MEMCACHED_PUBLIC_API
 bool teardown_suite() {
     for (int i = 0; testcases[i].name != nullptr; i++) {
-        free((char*)testcases[i].name);
-        free((char*)testcases[i].cfg);
+        cb_free((char*)testcases[i].name);
+        cb_free((char*)testcases[i].cfg);
     }
-    free(testcases);
+    cb_free(testcases);
     testcases = NULL;
     return true;
 }

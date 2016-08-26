@@ -24,6 +24,7 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 
+#include <platform/cb_malloc.h>
 #include <platform/cbassert.h>
 #include <JSON_checker.h>
 
@@ -1586,7 +1587,7 @@ static enum test_result test_touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed to call touch");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
             "Testing invalid arguments");
-    free(request);
+    cb_free(request);
 
     // Try to touch an unknown item...
     touch(h, h1, "mykey", 0, (time(NULL) + 10));
@@ -1701,7 +1702,7 @@ static enum test_result test_gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed to call gat");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
             "Testing invalid arguments");
-    free(request);
+    cb_free(request);
 
     // Try to gat an unknown item...
     gat(h, h1, "mykey", 0, 10);
@@ -1763,7 +1764,7 @@ static enum test_result test_gatq(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
             "Failed to call gatq");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL,
             last_status.load(), "Testing invalid arguments");
-    free(request);
+    cb_free(request);
 
     // Try to gatq an unknown item...
     last_status = static_cast<protocol_binary_response_status>(0xffff);

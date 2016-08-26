@@ -30,6 +30,7 @@
 #include <fstream>
 #include <iostream>
 #include <limits>
+#include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <string>
 #include <vector>
@@ -5516,7 +5517,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
         delete itm;
         ++stats.numOpsGetMetaOnSetWithMeta;
         if (!startTimeC) {
-            startTimeC = malloc(sizeof(hrtime_t));
+            startTimeC = cb_malloc(sizeof(hrtime_t));
             memcpy(startTimeC, &startTime, sizeof(hrtime_t));
             storeEngineSpecific(cookie, startTimeC);
         }
@@ -5533,7 +5534,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
     }
 
     if (startTimeC) {
-        free(startTimeC);
+        cb_free(startTimeC);
         startTimeC = NULL;
         storeEngineSpecific(cookie, startTimeC);
     }
@@ -6077,19 +6078,19 @@ public:
     AllKeysCallback() {
         length = 0;
         buffersize = (avgKeySize + sizeof(uint16_t)) * expNumKeys;
-        buffer = (char *) malloc(buffersize);
+        buffer = (char *) cb_malloc(buffersize);
     }
 
     ~AllKeysCallback() {
-        free(buffer);
+        cb_free(buffer);
     }
 
     void callback(uint16_t& len, char*& buf) {
         if (length + len + sizeof(uint16_t) > buffersize) {
             buffersize *= 2;
-            char *temp = (char *) malloc (buffersize);
+            char *temp = (char *) cb_malloc(buffersize);
             memcpy (temp, buffer, length);
-            free (buffer);
+            cb_free(buffer);
             buffer = temp;
         }
         len = htons(len);

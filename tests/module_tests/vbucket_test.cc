@@ -20,6 +20,7 @@
 #include <signal.h>
 
 #include <algorithm>
+#include <platform/cb_malloc.h>
 #include <vector>
 
 #include "configuration.h"
@@ -210,7 +211,7 @@ static void testGetVBucketsByState(void) {
 
 int main(int argc, char **argv) {
     (void)argc; (void)argv;
-    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+    putenv(cb_strdup("ALLOW_NO_STATS_UPDATE=yeah"));
 
     HashTable::setDefaultNumBuckets(5);
     HashTable::setDefaultNumLocks(1);

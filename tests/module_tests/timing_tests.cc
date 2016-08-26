@@ -18,6 +18,7 @@
 
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+#include <platform/cb_malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -173,7 +174,7 @@ static test_result test_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     char key[24];
     char *data;
-    data = static_cast<char *>(malloc(sizeof(char) * size));
+    data = static_cast<char *>(cb_malloc(sizeof(char) * size));
     cb_assert(data);
 
     for (size_t i = 0; i < (sizeof(char) * size); ++i) {
@@ -188,7 +189,7 @@ static test_result test_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
                            size, 9713, &it, 0, 0) == ENGINE_SUCCESS,
                   "store failure");
     }
-    free(data);
+    cb_free(data);
     wait_for_flusher_to_settle(h, h1);
 
     std::cout << total << " at " << size << " - "

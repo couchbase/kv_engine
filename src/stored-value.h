@@ -23,6 +23,8 @@
 #include "item_pager.h"
 #include "utility.h"
 
+#include <platform/cb_malloc.h>
+
 // Forward declaration for StoredValue
 class HashTable;
 class StoredValueFactory;
@@ -840,7 +842,7 @@ public:
     {
         size = HashTable::getNumBuckets(s);
         n_locks = HashTable::getNumLocks(l);
-        values = static_cast<StoredValue**>(calloc(size, sizeof(StoredValue*)));
+        values = static_cast<StoredValue**>(cb_calloc(size, sizeof(StoredValue*)));
         mutexes = new Mutex[n_locks];
         activeState = true;
     }
@@ -856,7 +858,7 @@ public:
 #endif
         }
         delete []mutexes;
-        free(values);
+        cb_free(values);
         values = NULL;
     }
 

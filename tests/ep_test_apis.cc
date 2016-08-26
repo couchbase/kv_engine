@@ -20,6 +20,7 @@
 #include "ep_testsuite_common.h"
 
 #include <memcached/util.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <stdlib.h>
 #include <string.h>
@@ -312,7 +313,7 @@ protocol_binary_request_header* createPacket(uint8_t opcode,
                                              uint16_t nmeta) {
     char *pkt_raw;
     uint32_t headerlen = sizeof(protocol_binary_request_header);
-    pkt_raw = static_cast<char*>(calloc(1, headerlen + extlen + keylen + vallen + nmeta));
+    pkt_raw = static_cast<char*>(cb_calloc(1, headerlen + extlen + keylen + vallen + nmeta));
     cb_assert(pkt_raw);
     protocol_binary_request_header *req =
         (protocol_binary_request_header*)pkt_raw;
@@ -362,7 +363,7 @@ void set_drift_counter_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     h1->unknown_command(h, NULL, request, add_response);
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
             "Expected success for CMD_SET_DRIFT_COUNTER_STATE");
-    free(request);
+    cb_free(request);
     delete[] ext;
 }
 
@@ -406,7 +407,7 @@ void add_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     }
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
-    free(pkt);
+    cb_free(pkt);
     delete[] ext;
 }
 
@@ -429,14 +430,14 @@ void changeVBFilter(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, std::string name,
                        name.length(), value.str().data(), value.str().length());
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to change the TAP VB filter.");
-    free(request);
+    cb_free(request);
 }
 
 void createCheckpoint(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     protocol_binary_request_header *request = createPacket(PROTOCOL_BINARY_CMD_CREATE_CHECKPOINT);
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to create a new checkpoint.");
-    free(request);
+    cb_free(request);
 }
 
 ENGINE_ERROR_CODE del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
@@ -487,7 +488,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     }
     check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
           "Expected to be able to delete with meta");
-    free(pkt);
+    cb_free(pkt);
     delete[] ext;
 }
 
@@ -502,7 +503,7 @@ void evict_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to evict key.");
 
-    free(pkt);
+    cb_free(pkt);
     if (expectError) {
         check(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS,
               "Expected exists when evicting key.");
@@ -544,7 +545,7 @@ ENGINE_ERROR_CODE checkpointPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     request = createPacket(PROTOCOL_BINARY_CMD_CHECKPOINT_PERSISTENCE, vb, 0, NULL, 0, NULL, 0,
                            (const char *)&checkpoint_id, sizeof(uint64_t));
     ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     return rv;
 }
 
@@ -557,7 +558,7 @@ ENGINE_ERROR_CODE seqnoPersistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         createPacket(PROTOCOL_BINARY_CMD_SEQNO_PERSISTENCE, vbucket, 0, buffer, 8);
 
     ENGINE_ERROR_CODE rv = h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     return rv;
 }
 
@@ -572,7 +573,7 @@ void gat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call gat");
-    free(request);
+    cb_free(request);
 }
 
 bool get_item_info(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, item_info *info,
@@ -616,7 +617,7 @@ void getl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call getl");
-    free(request);
+    cb_free(request);
 }
 
 bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
@@ -635,7 +636,7 @@ bool get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, req,
                                                 add_response_get_meta);
     check(ret == ENGINE_SUCCESS, "Expected get_meta call to be successful");
-    free(req);
+    cb_free(req);
     if (last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS) {
         return true;
     }
@@ -659,7 +660,7 @@ void observe(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                            value.str().data(), value.str().length());
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Observe call failed");
-    free(request);
+    cb_free(request);
 }
 
 void observe_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -673,7 +674,7 @@ void observe_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                            NULL, 0, data.str().data(), data.str().length());
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Observe_seqno call failed");
-    free(request);
+    cb_free(request);
 }
 
 void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
@@ -682,7 +683,7 @@ void get_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_REPLICA, vbid, 0, NULL, 0, key, strlen(key));
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
                               "Get Replica Failed");
-    free(pkt);
+    cb_free(pkt);
 }
 
 protocol_binary_request_header* prepare_get_replica(ENGINE_HANDLE *h,
@@ -716,11 +717,11 @@ bool set_param(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, protocol_binary_engine_pa
                        strlen(param), val, strlen(val));
 
     if (h1->unknown_command(h, NULL, pkt, add_response) != ENGINE_SUCCESS) {
-        free(pkt);
+        cb_free(pkt);
         return false;
     }
 
-    free(pkt);
+    cb_free(pkt);
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -736,7 +737,7 @@ bool set_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         return false;
     }
 
-    free(pkt);
+    cb_free(pkt);
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -755,7 +756,7 @@ bool get_all_vb_seqnos(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     check(h1->unknown_command(h, cookie, pkt, add_response) ==
           ENGINE_SUCCESS, "Error in getting all vb info");
 
-    free(pkt);
+    cb_free(pkt);
     return last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS;
 }
 
@@ -833,7 +834,7 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
 
     check(h1->unknown_command(h, cookie, pkt, add_response_set_del_meta) == ENGINE_SUCCESS,
           "Expected to be able to store with meta");
-    free(pkt);
+    cb_free(pkt);
     delete[] ext;
 }
 
@@ -851,7 +852,7 @@ void return_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
                        vallen, datatype);
     check(h1->unknown_command(h, cookie, pkt, add_response_ret_meta)
               == ENGINE_SUCCESS, "Expected to be able to store ret meta");
-    free(pkt);
+    cb_free(pkt);
 }
 
 void set_ret_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
@@ -883,7 +884,7 @@ void disable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to send data traffic command to the server");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to disable data traffic");
-    free(pkt);
+    cb_free(pkt);
 }
 
 void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -892,7 +893,7 @@ void enable_traffic(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to send data traffic command to the server");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Failed to enable data traffic");
-    free(pkt);
+    cb_free(pkt);
 }
 
 void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -901,7 +902,7 @@ void start_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Error starting persistence.");
-    free(pkt);
+    cb_free(pkt);
 }
 
 void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -918,7 +919,7 @@ void stop_persistence(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Failed to stop persistence.");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS,
           "Error stopping persistence.");
-    free(pkt);
+    cb_free(pkt);
 }
 
 ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -996,7 +997,7 @@ void touch(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call touch");
-    free(request);
+    cb_free(request);
 }
 
 void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
@@ -1007,7 +1008,7 @@ void unl(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char* key,
 
     check(h1->unknown_command(h, NULL, request, add_response) == ENGINE_SUCCESS,
           "Failed to call unl");
-    free(request);
+    cb_free(request);
 }
 
 void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -1029,7 +1030,7 @@ void compact_db(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                      NULL, 0);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request compact vbucket");
-    free(pkt);
+    cb_free(pkt);
 }
 
 void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
@@ -1040,7 +1041,7 @@ void vbucketDelete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
                      args, argslen);
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Failed to request delete bucket");
-    free(pkt);
+    cb_free(pkt);
 }
 
 ENGINE_ERROR_CODE verify_key(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -1081,7 +1082,7 @@ bool verify_vbucket_state(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, uint16_t vb,
     pkt = createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, vb, 0);
 
     ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
-    free(pkt);
+    cb_free(pkt);
     if (errcode != ENGINE_SUCCESS) {
         if (!mute) {
             fprintf(stderr, "Error code when getting vbucket %d\n", errcode);
@@ -1483,7 +1484,7 @@ void set_degraded_mode(ENGINE_HANDLE *h,
     }
 
     ENGINE_ERROR_CODE errcode = h1->unknown_command(h, NULL, pkt, add_response);
-    free(pkt);
+    cb_free(pkt);
     if (errcode != ENGINE_SUCCESS) {
         std::cerr << "Failed to set degraded mode to " << enable
                   << ". api call return engine code: " << errcode << std::endl;

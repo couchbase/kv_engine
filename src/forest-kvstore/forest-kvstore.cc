@@ -20,6 +20,7 @@
 #include "common.h"
 
 #include <sys/stat.h>
+#include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <vbucket.h>
 #include <JSON_checker.h>
@@ -923,8 +924,8 @@ ForestKVStore::getAllKeys(uint16_t vbid, std::string &start_key, uint32_t count,
                   fdb_error_msg(status));
     }
 
-    rdoc->key = malloc(MAX_KEY_LENGTH);
-    rdoc->meta = malloc(FORESTDB_METADATA_SIZE);
+    rdoc->key = cb_malloc(MAX_KEY_LENGTH);
+    rdoc->meta = cb_malloc(FORESTDB_METADATA_SIZE);
 
     for (uint32_t curr_count = 0; curr_count < count; curr_count++) {
         status = fdb_iterator_get_metaonly(fdb_iter, &rdoc);
@@ -1229,8 +1230,8 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          return scan_failed;
      }
      // Pre-allocate key and meta data as their max sizes are known.
-     rdoc->key = malloc(MAX_KEY_LENGTH);
-     rdoc->meta = malloc(FORESTDB_METADATA_SIZE);
+     rdoc->key = cb_malloc(MAX_KEY_LENGTH);
+     rdoc->meta = cb_malloc(FORESTDB_METADATA_SIZE);
      // Document body will be allocated by fdb_iterator_get API below.
      rdoc->body = NULL;
      do {
@@ -1257,7 +1258,7 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          cl->callback(lookup);
          if (cl->getStatus() == ENGINE_KEY_EEXISTS) {
              ctx->lastReadSeqno = static_cast<uint64_t>(rdoc->seqnum);
-             free(rdoc->body);
+             cb_free(rdoc->body);
              rdoc->body = NULL;
              continue;
          } else if (cl->getStatus() == ENGINE_ENOMEM) {
@@ -1311,7 +1312,7 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);
          cb->callback(rv);
 
-         free(rdoc->body);
+         cb_free(rdoc->body);
          rdoc->body = NULL;
 
          if (cb->getStatus() == ENGINE_ENOMEM) {
@@ -1450,8 +1451,8 @@ RollbackResult ForestKVStore::rollback(uint16_t vbid, uint64_t rollbackSeqno,
    std::vector<std::string> rollbackKeys;
    fdb_doc *rdoc = NULL;
    fdb_doc_create(&rdoc, NULL, 0, NULL, 0, NULL, 0);
-   rdoc->key = malloc(MAX_KEY_LENGTH);
-   rdoc->meta = malloc(FORESTDB_METADATA_SIZE);
+   rdoc->key = cb_malloc(MAX_KEY_LENGTH);
+   rdoc->meta = cb_malloc(FORESTDB_METADATA_SIZE);
    do {
        status = fdb_iterator_get_metaonly(fdb_iter, &rdoc);
        if (status != FDB_RESULT_SUCCESS) {
