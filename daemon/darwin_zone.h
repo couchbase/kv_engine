@@ -24,7 +24,7 @@
 #ifndef DARWIN_ZONE_H_
 #define DARWIN_ZONE_H_
 
-#include "alloc_hooks.h"
+#include "alloc_hooks_types.h"
 
 #ifdef __cplusplus
 extern "C" {

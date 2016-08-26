@@ -31,7 +31,7 @@ ENGINE_ERROR_CODE ioctl_get_property(const char* key, size_t keylen,
 #if defined(HAVE_TCMALLOC)
     if (strncmp("tcmalloc.aggressive_memory_decommit", key, keylen) == 0 &&
         keylen == strlen("tcmalloc.aggressive_memory_decommit")) {
-        if (mc_get_allocator_property("tcmalloc.aggressive_memory_decommit",
+        if (AllocHooks::get_allocator_property("tcmalloc.aggressive_memory_decommit",
                                       value)) {
             return ENGINE_SUCCESS;
         } else {
@@ -50,7 +50,7 @@ ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
     std::string request_key(key, keylen);
 
     if (request_key == "release_free_memory") {
-        mc_release_free_memory();
+        AllocHooks::release_free_memory();
         LOG_NOTICE(c, "%u: IOCTL_SET: release_free_memory called", c->getId());
         return ENGINE_SUCCESS;
 #if defined(HAVE_TCMALLOC)
@@ -69,7 +69,7 @@ ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
         errno = 0;
         intval = strtol(val_buffer, NULL, 10);
 
-        if (errno == 0 && mc_set_allocator_property("tcmalloc.aggressive_memory_decommit",
+        if (errno == 0 && AllocHooks::set_allocator_property("tcmalloc.aggressive_memory_decommit",
                                                     intval)) {
             LOG_NOTICE(c,
                 "%u: IOCTL_SET: 'tcmalloc.aggressive_memory_decommit' set to %ld",

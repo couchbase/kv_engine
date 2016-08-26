@@ -21,58 +21,60 @@
  */
 
 #include "config.h"
-#include "alloc_hooks.h"
-#include <stdbool.h>
 
-void init_alloc_hooks() {
+#include "alloc_hooks_dummy.h"
+
+#include <memcached/extension_loggers.h>
+
+void DummyAllocHooks::initialize() {
     get_stderr_logger()->log(EXTENSION_LOG_NOTICE, NULL,
                              "This version of Couchbase is built without "
                              "allocator hooks for accurate memory tracking");
 }
 
-bool mc_add_new_hook(void (* hook)(const void* ptr, size_t size)) {
+bool DummyAllocHooks::add_new_hook(void (* hook)(const void* ptr, size_t size)) {
     return false;
 }
 
-bool mc_remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
+bool DummyAllocHooks::remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
     return false;
 }
 
-bool mc_add_delete_hook(void (* hook)(const void* ptr)) {
+bool DummyAllocHooks::add_delete_hook(void (* hook)(const void* ptr)) {
     return false;
 }
 
-bool mc_remove_delete_hook(void (* hook)(const void* ptr)) {
+bool DummyAllocHooks::remove_delete_hook(void (* hook)(const void* ptr)) {
     return false;
 }
 
-int mc_get_extra_stats_size() {
+int DummyAllocHooks::get_extra_stats_size() {
     return 0;
 }
 
-void mc_get_allocator_stats(allocator_stats* stats) {
+void DummyAllocHooks::get_allocator_stats(allocator_stats* stats) {
 }
 
-size_t mc_get_allocation_size(const void* ptr) {
+size_t DummyAllocHooks::get_allocation_size(const void* ptr) {
     return 0;
 }
 
-void mc_get_detailed_stats(char* buffer, int size) {
+void DummyAllocHooks::get_detailed_stats(char* buffer, int size) {
     // empty
 }
 
-void mc_release_free_memory() {
+void DummyAllocHooks::release_free_memory() {
     // empty
 }
 
-bool mc_enable_thread_cache(bool enable) {
+bool DummyAllocHooks::enable_thread_cache(bool enable) {
     return true;
 }
 
-bool mc_get_allocator_property(const char* name, size_t* value) {
+bool DummyAllocHooks::get_allocator_property(const char* name, size_t* value) {
     return false;
 }
 
-bool mc_set_allocator_property(const char* name, size_t value) {
+bool DummyAllocHooks::set_allocator_property(const char* name, size_t value) {
     return false;
 }

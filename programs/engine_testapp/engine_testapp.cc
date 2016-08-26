@@ -15,6 +15,7 @@
 #include "mock_server.h"
 
 #include <daemon/alloc_hooks.h>
+#include <memcached/extension_loggers.h>
 
 struct mock_engine {
     ENGINE_HANDLE_V1 me;
@@ -1340,7 +1341,7 @@ int main(int argc, char **argv) {
 
     cb_initialize_sockets();
 
-    init_alloc_hooks();
+    AllocHooks::initialize();
 
     memset(&my_get_test, 0, sizeof(my_get_test));
     memset(&my_setup_suite, 0, sizeof(my_setup_suite));

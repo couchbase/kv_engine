@@ -1743,16 +1743,16 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         callback_api.register_callback = register_callback;
         callback_api.perform_callbacks = perform_callbacks;
 
-        hooks_api.add_new_hook = mc_add_new_hook;
-        hooks_api.remove_new_hook = mc_remove_new_hook;
-        hooks_api.add_delete_hook = mc_add_delete_hook;
-        hooks_api.remove_delete_hook = mc_remove_delete_hook;
-        hooks_api.get_extra_stats_size = mc_get_extra_stats_size;
-        hooks_api.get_allocator_stats = mc_get_allocator_stats;
-        hooks_api.get_allocation_size = mc_get_allocation_size;
-        hooks_api.get_detailed_stats = mc_get_detailed_stats;
-        hooks_api.release_free_memory = mc_release_free_memory;
-        hooks_api.enable_thread_cache = mc_enable_thread_cache;
+        hooks_api.add_new_hook = AllocHooks::add_new_hook;
+        hooks_api.remove_new_hook = AllocHooks::remove_new_hook;
+        hooks_api.add_delete_hook = AllocHooks::add_delete_hook;
+        hooks_api.remove_delete_hook = AllocHooks::remove_delete_hook;
+        hooks_api.get_extra_stats_size = AllocHooks::get_extra_stats_size;
+        hooks_api.get_allocator_stats = AllocHooks::get_allocator_stats;
+        hooks_api.get_allocation_size = AllocHooks::get_allocation_size;
+        hooks_api.get_detailed_stats = AllocHooks::get_detailed_stats;
+        hooks_api.release_free_memory = AllocHooks::release_free_memory;
+        hooks_api.enable_thread_cache = AllocHooks::enable_thread_cache;
 
         rv.interface = 1;
         rv.core = &core_api;
@@ -2502,7 +2502,7 @@ extern "C" int memcached_main(int argc, char **argv) {
     /* Initialize the socket subsystem */
     cb_initialize_sockets();
 
-    init_alloc_hooks();
+    AllocHooks::initialize();
 
     /* init settings */
     settings_init();

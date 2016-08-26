@@ -34,14 +34,14 @@ extern "C" {
     static void NewHook(const void* ptr, size_t) {
         if (ptr != NULL) {
             void* p = const_cast<void*>(ptr);
-            alloc_size += mc_get_allocation_size(p);
+            alloc_size += AllocHooks::get_allocation_size(p);
         }
     }
 
     static void DeleteHook(const void* ptr) {
         if (ptr != NULL) {
             void* p = const_cast<void*>(ptr);
-            alloc_size -= mc_get_allocation_size(p);
+            alloc_size -= AllocHooks::get_allocation_size(p);
         }
     }
 
@@ -120,17 +120,17 @@ extern "C" {
 }
 
 int main(void) {
-   init_alloc_hooks();
+    AllocHooks::initialize();
 
-   mc_add_new_hook(NewHook);
-   mc_add_delete_hook(DeleteHook);
+   AllocHooks::add_new_hook(NewHook);
+   AllocHooks::add_delete_hook(DeleteHook);
 
    cb_thread_t tid;
    cb_assert(cb_create_thread(&tid, TestThread, 0, 0) == 0);
    cb_assert(cb_join_thread(tid) == 0);
 
-   mc_remove_new_hook(NewHook);
-   mc_remove_delete_hook(DeleteHook);
+   AllocHooks::remove_new_hook(NewHook);
+   AllocHooks::remove_delete_hook(DeleteHook);
 
    return 0;
 }
