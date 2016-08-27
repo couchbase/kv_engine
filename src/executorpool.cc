@@ -274,6 +274,10 @@ void ExecutorPool::doneWork(task_type_t &curTaskType) {
         // Record that a thread is done working on a particular queue type
         LOG(EXTENSION_LOG_DEBUG, "Done with Task Type %d capacity = %d",
                 curTaskType, curWorkers[curTaskType].load());
+        if (!curWorkers[curTaskType].load()) {
+            throw std::logic_error("ExecutorPool::doneWork: underflow in "
+                "queue " + std::to_string(curTaskType));
+        }
         curWorkers[curTaskType]--;
         curTaskType = NO_TASK_TYPE;
     }

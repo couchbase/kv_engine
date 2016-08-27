@@ -171,10 +171,11 @@ public:
         run();
     }
 
-    void completeCurrentTask() {
+    hrtime_t completeCurrentTask() {
+        hrtime_t min_waketime = 0;
         manager->doneWork(curTaskType);
         if (rescheduled && !currentTask->isdead()) {
-            queue.reschedule(currentTask, curTaskType);
+            min_waketime = queue.reschedule(currentTask);
         } else {
             manager->cancel(currentTask->getId(), true);
         }
@@ -182,6 +183,7 @@ public:
         if (!currentTask->isdead()) {
             checker(rescheduled);
         }
+        return min_waketime;
     }
 
     void updateCurrentTime() {

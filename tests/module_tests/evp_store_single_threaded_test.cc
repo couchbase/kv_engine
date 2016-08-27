@@ -42,23 +42,23 @@ public:
      * Run the next task from the taskQ
      * The task must match the expectedTaskName parameter
      */
-    void runNextTask(TaskQueue& taskQ, const std::string& expectedTaskName) {
+    hrtime_t runNextTask(TaskQueue& taskQ, const std::string& expectedTaskName) {
         CheckedExecutor executor(task_executor, taskQ);
 
         // Run the task
         executor.runCurrentTask(expectedTaskName);
-        executor.completeCurrentTask();
+        return executor.completeCurrentTask();
     }
 
     /*
      * Run the next task from the taskQ
      */
-    void runNextTask(TaskQueue& taskQ) {
+    hrtime_t runNextTask(TaskQueue& taskQ) {
         CheckedExecutor executor(task_executor, taskQ);
 
         // Run the task
         executor.runCurrentTask();
-        executor.completeCurrentTask();
+        return executor.completeCurrentTask();
     }
 
 protected:
@@ -638,4 +638,37 @@ TEST_F(SingleThreadedEPStoreTest, MB18953_taskWake) {
     EXPECT_EQ(1, task_executor->getTotReadyTasks());
     EXPECT_EQ(1, task_executor->getNumReadyTasks(NONIO_TASK_IDX));
     runNextTask(lpNonioQ, "TestTask DefragmenterTask"); // lptask goes second
+}
+
+/*
+ * MB-20735 waketime is not correctly picked up on reschedule
+ */
+TEST_F(SingleThreadedEPStoreTest, MB20735_rescheduleWaketime) {
+    auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
+
+    class TestTask : public GlobalTask {
+    public:
+        TestTask(EventuallyPersistentEngine* e, TaskId id)
+          : GlobalTask(e, id, 0.0, false) {}
+
+        bool run() {
+            snooze(0.1); // snooze for 100milliseconds only
+            // Rescheduled to run 100 milliseconds later..
+            return true;
+        }
+
+        std::string getDescription() {
+            return std::string("TestTask ") + GlobalTask::getTaskName(getTypeId());
+        }
+    };
+
+    TestTask *task = new TestTask(engine.get(),
+                                 TaskId::PendingOpsNotification);
+    ExTask hpTask = task;
+    task_executor->schedule(hpTask, NONIO_TASK_IDX);
+
+    hrtime_t waketime = runNextTask(lpNonioQ,
+                                    "TestTask PendingOpsNotification");
+    EXPECT_EQ(waketime, task->getWaketime()) <<
+                           "Rescheduled to much later time!";
 }
