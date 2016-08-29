@@ -3281,6 +3281,7 @@ private:
                                          queuedItem->getVBucketId(),
                                          &StoredValue::reDirty);
         vbucket->rejectQueue.push(queuedItem);
+        ++vbucket->opsReject;
     }
 
     const queued_item queuedItem;
