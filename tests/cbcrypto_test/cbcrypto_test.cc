@@ -280,7 +280,7 @@ TEST(HMAC_SHA1, Test5) {
                                  0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c,
                                  0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c,
                                  0x0c, 0x0c}};
-    std::string data{{"Test With Truncation"}};
+    std::string data{"Test With Truncation"};
     std::vector<uint8_t> digest{{0x4c, 0x1a, 0x03, 0x42, 0x4b, 0x55,
                                     0xe0, 0x7f, 0xe7, 0xf2, 0x7b, 0xe1,
                                     0xd5, 0x8b, 0xb9, 0x32, 0x4a, 0x9a,
@@ -295,7 +295,7 @@ TEST(HMAC_SHA1, Test5) {
 TEST(HMAC_SHA1, Test6) {
     std::vector<uint8_t> key(80);
     memset(key.data(), 0xaa, key.size());
-    std::string data{{"Test Using Larger Than Block-Size Key - Hash Key First"}};
+    std::string data{"Test Using Larger Than Block-Size Key - Hash Key First"};
     std::vector<uint8_t> digest{{0xaa, 0x4a, 0xe5, 0xe1, 0x52, 0x72,
                                     0xd0, 0x0e, 0x95, 0x70, 0x56, 0x37,
                                     0xce, 0x8a, 0x3b, 0x55, 0xed, 0x40,
@@ -310,8 +310,8 @@ TEST(HMAC_SHA1, Test6) {
 TEST(HMAC_SHA1, Test7) {
     std::vector<uint8_t> key(80);
     memset(key.data(), 0xaa, key.size());
-    std::string data{{"Test Using Larger Than Block-Size Key and Larger "
-                          "Than One Block-Size Data"}};
+    std::string data{"Test Using Larger Than Block-Size Key and Larger "
+                          "Than One Block-Size Data"};
     ASSERT_EQ(73, data.size());
     std::vector<uint8_t> digest{{0xe8, 0xe9, 0x9d, 0x0f, 0x45, 0x23,
                                     0x7d, 0x78, 0x6d, 0x6b, 0xba, 0xa7,
@@ -327,8 +327,8 @@ TEST(HMAC_SHA1, Test7) {
 TEST(HMAC_SHA1, Test6_1) {
     std::vector<uint8_t> key(80);
     memset(key.data(), 0xaa, key.size());
-    std::string data{{"Test Using Larger Than Block-Size Key - Hash Key"
-                          " First"}};
+    std::string data{"Test Using Larger Than Block-Size Key - Hash Key"
+                          " First"};
     ASSERT_EQ(54, data.size());
     std::vector<uint8_t> digest{{0xaa, 0x4a, 0xe5, 0xe1, 0x52, 0x72,
                                     0xd0, 0x0e, 0x95, 0x70, 0x56, 0x37,
@@ -345,8 +345,8 @@ TEST(HMAC_SHA1, Test6_1) {
 TEST(HMAC_SHA1, Test7_1) {
     std::vector<uint8_t> key(80);
     memset(key.data(), 0xaa, key.size());
-    std::string data{{"Test Using Larger Than Block-Size Key and Larger"
-                          " Than One Block-Size Data"}};
+    std::string data{"Test Using Larger Than Block-Size Key and Larger"
+                          " Than One Block-Size Data"};
     ASSERT_EQ(73, data.size());
     std::vector<uint8_t> digest{{0xe8, 0xe9, 0x9d, 0x0f, 0x45, 0x23,
                                     0x7d, 0x78, 0x6d, 0x6b, 0xba, 0xa7,
