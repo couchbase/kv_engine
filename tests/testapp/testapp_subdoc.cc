@@ -51,32 +51,24 @@ void SubdocCmd::encode(std::vector<char>& buf) const
     ASSERT_LT(path.size(), std::numeric_limits<uint16_t>::max()) << "Path too long";
 
     protocol_binary_request_subdocument request;
+    memset(&request, 0, sizeof(request));
 
     // Expiry (optional) is encoded in extras. Only include if non-zero or
     // if explicit encoding of zero was requested.
-    bool include_expiry = (expiry != 0 || has_expiry);
-    size_t encoded_expiry_len = include_expiry ? sizeof(uint32_t) : 0;
-
-    memset(&request, 0, sizeof(request));
+    const bool include_expiry = (expiry != 0 || has_expiry);
 
     // Populate the header.
-    protocol_binary_request_header* const header = &request.message.header;
-    header->request.magic = PROTOCOL_BINARY_REQ;
-    header->request.opcode = cmd;
-    header->request.keylen = htons(key.size());
-    header->request.extlen = sizeof(uint16_t) + sizeof(uint8_t) +
-                             encoded_expiry_len;
-    header->request.datatype = PROTOCOL_BINARY_RAW_BYTES;
-    header->request.vbucket = 0;
-    header->request.bodylen = htonl(header->request.extlen + key.size() +
-                                    path.size() + value.size());
-    header->request.opaque = 0xdeadbeef;
-    header->request.cas = cas;
+    const size_t extlen = sizeof(uint16_t) + // Path length
+            1 + // flags
+            (include_expiry ? sizeof(uint32_t) : 0);
+
+    fillHeader(request.message.header, path.size() + value.size(), extlen);
 
     // Add extras: pathlen, flags, optional expiry
     request.message.extras.pathlen = htons(path.size());
     request.message.extras.subdoc_flags = flags;
-    buf.insert(buf.end(), request.bytes, &request.bytes[0] + sizeof request.bytes);
+    buf.insert(buf.end(),
+               request.bytes, &request.bytes[0] + sizeof(request.bytes));
 
     if (include_expiry) {
         // As expiry is optional (and immediately follows subdoc_flags,
@@ -105,10 +97,8 @@ static void recv_subdoc_response(const SubdocCmd& cmd,
                                  protocol_binary_response_status err,
                                  SubdocSingleResponse& resp)
 {
-    resp.clear();
     std::vector<char> buf;
-    buf.resize(1024);
-    if (!safe_recv_packet(buf.data(), buf.size())) {
+    if (!safe_recv_packet(buf)) {
         ADD_FAILURE() << "Failed to recv subdoc response";
         return;
     }
@@ -116,10 +106,7 @@ static void recv_subdoc_response(const SubdocCmd& cmd,
     protocol_binary_response_no_extras tempResponse;
     memcpy(&tempResponse, buf.data(), sizeof tempResponse);
     mcbp_validate_response_header(&tempResponse, cmd.getOp(), err);
-
     // safe_recv_packet does ntohl already!
-    buf.resize(sizeof (protocol_binary_response_header) +
-               tempResponse.message.header.response.bodylen);
     resp.assign(std::move(buf));
 }
 

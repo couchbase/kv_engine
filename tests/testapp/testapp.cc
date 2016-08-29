@@ -991,6 +991,12 @@ void safe_send(const void* buf, size_t len, bool hickup)
     } while (offset < len);
 }
 
+void safe_send(const TestCmd& cmd, bool hickup) {
+    std::vector<char> buf;
+    cmd.encode(buf);
+    safe_send(buf.data(), buf.size(), hickup);
+}
+
 static bool safe_recv(void *buf, size_t len) {
     size_t offset = 0;
     if (len == 0) {
@@ -1019,32 +1025,91 @@ static bool safe_recv(void *buf, size_t len) {
     return true;
 }
 
+/**
+ * Internal function which receives a packet. The type parameter should have
+ * these three functions:
+ * - resize(n) ->: ensure the buffer has a total capacity for at least n bytes.
+ *   This function will usually be called once for the header size (i.e. 24)
+ *   and then another time for the total packet size (i.e. 24 + bodylen).
+ * - data() -> char*: get the entire buffer
+ * - size() -> size_t: get the current size of the buffer
+ *
+ * @param info an object conforming to the above.
+ *
+ * Once the function has completed, it will return true if no read errors
+ * occurred. The actual size of the packet can be determined by parsing the
+ * packet header.
+ *
+ * See StaticBufInfo which is an implementation that uses a fixed buffer.
+ * std::vector naturally conforms to the interface.
+ */
+template <typename T>
+bool safe_recv_packetT(T& info) {
+    info.resize(sizeof(protocol_binary_response_header));
+    auto *header = reinterpret_cast<protocol_binary_response_header*>(info.data());
+
+    if (!safe_recv(header, sizeof(*header))) {
+        return false;
+    }
+
+    header->response.keylen = ntohs(header->response.keylen);
+    header->response.status = ntohs(header->response.status);
+    auto bodylen = header->response.bodylen = ntohl(header->response.bodylen);
+
+    // Set response to NULL, because the underlying buffer may change.
+    header = nullptr;
+
+    info.resize(sizeof(*header) + bodylen);
+    return safe_recv(info.data() + sizeof(*header), bodylen);
+}
+
+struct StaticBufInfo {
+    StaticBufInfo(void *buf_, size_t len_)
+        : buf(reinterpret_cast<char*>(buf_)), len(len_) {
+    }
+    size_t size(size_t) const { return len; }
+    char *data() { return buf; }
+
+    void resize(size_t n) {
+        if (n > len) {
+            throw std::runtime_error("Cannot enlarge buffer!");
+        }
+    }
+
+    char *buf;
+    const size_t len;
+};
+
 bool safe_recv_packet(void *buf, size_t size) {
-    protocol_binary_response_no_extras *response =
-            reinterpret_cast<protocol_binary_response_no_extras*>(buf);
-    size_t len;
+    StaticBufInfo info(buf, size);
+    return safe_recv_packetT(info);
+}
 
-    cb_assert(size >= sizeof(*response));
-    if (!safe_recv(response, sizeof(*response))) {
+bool safe_recv_packet(std::vector<char>& buf) {
+    return safe_recv_packetT(buf);
+}
+
+bool safe_recv_packet(TestResponse& resp) {
+    resp.clear();
+
+    std::vector<char> buf;
+    if (!safe_recv_packet(buf)) {
         return false;
     }
-    response->message.header.response.keylen = ntohs(response->message.header.response.keylen);
-    response->message.header.response.status = ntohs(response->message.header.response.status);
-    response->message.header.response.bodylen = ntohl(response->message.header.response.bodylen);
-
-    len = sizeof(*response);
-    char* ptr = reinterpret_cast<char*>(buf);
-    ptr += len;
-    EXPECT_GE(size, sizeof(*response) + response->message.header.response.bodylen);
-    if (::testing::Test::HasFailure()) {
-        return false;
-    }
-
-    if (!safe_recv(ptr, response->message.header.response.bodylen)) {
-        return false;
-    }
-
+    resp.assign(std::move(buf));
     return true;
+}
+
+bool safe_do_command(const TestCmd& cmd, TestResponse& resp, uint16_t status) {
+    safe_send(cmd, false);
+    if (!safe_recv_packet(resp)) {
+        return false;
+    }
+
+    protocol_binary_response_no_extras mcresp;
+    mcresp.message.header = resp.getHeader();
+    mcbp_validate_response_header(&mcresp, cmd.getOp(), status);
+    return !::testing::Test::HasFailure();
 }
 
 // Configues the ewouldblock_engine to use the given mode; value
