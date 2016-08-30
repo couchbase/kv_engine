@@ -898,6 +898,9 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
                   "exp_pager_enabled", "false");
     }
 
+    checkeq(0, get_int_stat(h, h1, "vb_0:persistence:num_visits",
+                            "checkpoint"), "Cursor moved before item load");
+
     for (int i = 0; i < 50; i++) {
         item *itm = NULL;
         std::stringstream ss;
@@ -913,6 +916,8 @@ static enum test_result test_expiration_on_compaction(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
     checkeq(50, get_int_stat(h, h1, "curr_items"),
             "Unexpected number of items on database");
+    check(0 < get_int_stat(h, h1, "vb_0:persistence:num_visits", "checkpoint"),
+          "Cursor not moved even after flusher runs");
 
     testHarness.time_travel(15);
 
@@ -6175,6 +6180,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:persisted_checkpoint_id",
                 "vb_0:persistence:cursor_checkpoint_id",
                 "vb_0:persistence:cursor_seqno",
+                "vb_0:persistence:num_visits",
                 "vb_0:state"
             }
         },
@@ -6191,6 +6197,7 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:persisted_checkpoint_id",
                 "vb_0:persistence:cursor_checkpoint_id",
                 "vb_0:persistence:cursor_seqno",
+                "vb_0:persistence:num_visits",
                 "vb_0:state"
             }
         },

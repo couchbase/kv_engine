@@ -124,7 +124,7 @@ public:
                      size_t os,
                      bool beginningOnChkCollapse,
                      MustSendCheckpointEnd needsCheckpointEndMetaItem) :
-        name(n), currentCheckpoint(checkpoint), currentPos(pos),
+        name(n), currentCheckpoint(checkpoint), currentPos(pos), numVisits(0),
         offset(os), fromBeginningOnChkCollapse(beginningOnChkCollapse),
         sendCheckpointEndMetaItem(needsCheckpointEndMetaItem) { }
 
@@ -132,7 +132,8 @@ public:
     // that std::atomic implicitly deleted the assignment operator
     CheckpointCursor(const CheckpointCursor &other) :
         name(other.name), currentCheckpoint(other.currentCheckpoint),
-        currentPos(other.currentPos), offset(other.offset.load()),
+        currentPos(other.currentPos), numVisits(other.numVisits.load()),
+        offset(other.offset.load()),
         fromBeginningOnChkCollapse(other.fromBeginningOnChkCollapse),
         sendCheckpointEndMetaItem(other.sendCheckpointEndMetaItem) { }
 
@@ -140,6 +141,7 @@ public:
         name.assign(other.name);
         currentCheckpoint = other.currentCheckpoint;
         currentPos = other.currentPos;
+        numVisits = other.numVisits.load();
         offset.store(other.offset.load());
         fromBeginningOnChkCollapse = other.fromBeginningOnChkCollapse;
         sendCheckpointEndMetaItem = other.sendCheckpointEndMetaItem;
@@ -159,6 +161,9 @@ private:
     std::string                      name;
     std::list<Checkpoint*>::iterator currentCheckpoint;
     CheckpointQueue::iterator currentPos;
+
+    // Number of times a cursor has been moved or processed.
+    std::atomic<size_t>              numVisits;
 
     // The offset (in terms of items) this cursor is from the start of the
     // cursors' current checkpoint. Used to calculate how many items this

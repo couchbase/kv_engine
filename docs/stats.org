@@ -971,6 +971,8 @@ each stat name.
 |                                  | name 'cursor_name' is pointing now        |
 | cursor_name:cursor_seqno         | The seqno at which the cursor             |
 |                                  | 'cursor_name' is pointing now             |
+| cursor_name:num_visits           | Number of times a batch of items have been|
+|                                  | drained from a checkpoint of 'cursor_name'|
 | open_checkpoint_id               | ID of the current open checkpoint         |
 | num_conn_cursors                 | Number of referencing dcp/tap cursors     |
 | num_checkpoint_items             | Number of total items in a checkpoint     |

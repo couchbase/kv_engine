@@ -1070,6 +1070,8 @@ snapshot_range_t CheckpointManager::getAllItemsForCursor(
         range.end = (*it->second.currentCheckpoint)->getSnapshotEndSeqno();
     }
 
+    it->second.numVisits++;
+
     return range;
 }
 
@@ -1789,7 +1791,6 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
                          vbucketId);
         add_casted_stat(buf, getNumItemsForCursor_UNLOCKED(pCursorName),
                         add_stat, cookie);
-
         checked_snprintf(buf, sizeof(buf), "vb_%d:mem_usage", vbucketId);
         add_casted_stat(buf, getMemoryUsage_UNLOCKED(), add_stat, cookie);
 
@@ -1804,6 +1805,11 @@ void CheckpointManager::addStats(ADD_STAT add_stat, const void *cookie) {
                              vbucketId,
                              cur_it->first.c_str());
             add_casted_stat(buf, (*(cur_it->second.currentPos))->getBySeqno(),
+                            add_stat, cookie);
+            checked_snprintf(buf, sizeof(buf), "vb_%d:%s:num_visits",
+                             vbucketId,
+                             cur_it->first.c_str());
+            add_casted_stat(buf, cur_it->second.numVisits.load(),
                             add_stat, cookie);
         }
     } catch (std::exception& error) {
