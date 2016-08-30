@@ -922,6 +922,7 @@ private:
 EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
   : gsa(gsa_),
     real_engine(NULL),
+    real_engine_ref(nullptr),
     notify_io_thread(new NotificationThread(*this))
 {
     interface.interface = 1;
