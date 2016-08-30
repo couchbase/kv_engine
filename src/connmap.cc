@@ -1132,6 +1132,10 @@ void DcpConnMap::closeAllStreams_UNLOCKED() {
         if (producer) {
             producer->closeAllStreams();
             producer->clearCheckpointProcessorTaskQueues();
+            // The producer may be in EWOULDBLOCK (if it's idle), therefore
+            // notify him to ensure the front-end connection can close the TCP
+            // connection.
+            producer->notifyPaused(/*schedule*/false);
         } else {
             static_cast<DcpConsumer*>(itr->second.get())->closeAllStreams();
         }
