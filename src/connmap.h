@@ -229,7 +229,8 @@ protected:
     // ConnHandler objects is guarded by {releaseLock}.
     Mutex                                    connsLock;
 
-    std::map<const void*, connection_t>      map_;
+    using CookieToConnectionMap = std::map<const void*, connection_t>;
+    CookieToConnectionMap map_;
     std::list<connection_t>                  all;
 
     SpinLock *vbConnLocks;
@@ -547,9 +548,15 @@ protected:
 
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
 
-    void closeAllStreams_UNLOCKED();
+    /*
+     * Closes all streams associated with each connection in `map`.
+     */
+    static void closeStreams(CookieToConnectionMap& map);
 
-    void cancelAllTasks_UNLOCKED();
+    /*
+     * Cancels all tasks assocuated with each connection in `map`.
+     */
+    static void cancelTasks(CookieToConnectionMap& map);
 
     SpinLock numBackfillsLock;
     /* Db file memory */

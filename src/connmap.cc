@@ -1087,11 +1087,20 @@ void DcpConnMap::shutdownAllConnections() {
         connNotifier_->stop();
     }
 
+    // Take a copy of the connection map (under lock), then using the
+    // copy iterate across cloing all streams and cancelling any
+    // tasks.
+    // We do this so we don't hold the connsLock when calling
+    // notifyPaused() on producer streams, as that would create a lock
+    // cycle between connLock, worker thread lock and releaseLock.
+    CookieToConnectionMap mapCopy;
     {
         LockHolder lh(connsLock);
-        closeAllStreams_UNLOCKED();
-        cancelAllTasks_UNLOCKED();
+        mapCopy = map_;
     }
+
+    closeStreams(mapCopy);
+    cancelTasks(mapCopy);
 }
 
 void DcpConnMap::vbucketStateChanged(uint16_t vbucket, vbucket_state_t state,
@@ -1125,10 +1134,9 @@ bool DcpConnMap::handleSlowStream(uint16_t vbid,
     return false;
 }
 
-void DcpConnMap::closeAllStreams_UNLOCKED() {
-    std::map<const void*, connection_t>::iterator itr = map_.begin();
-    for (; itr != map_.end(); ++itr) {
-        DcpProducer* producer = dynamic_cast<DcpProducer*> (itr->second.get());
+void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
+    for (auto itr : map) {
+        DcpProducer* producer = dynamic_cast<DcpProducer*> (itr.second.get());
         if (producer) {
             producer->closeAllStreams();
             producer->clearCheckpointProcessorTaskQueues();
@@ -1137,15 +1145,14 @@ void DcpConnMap::closeAllStreams_UNLOCKED() {
             // connection.
             producer->notifyPaused(/*schedule*/false);
         } else {
-            static_cast<DcpConsumer*>(itr->second.get())->closeAllStreams();
+            static_cast<DcpConsumer*>(itr.second.get())->closeAllStreams();
         }
     }
 }
 
-void DcpConnMap::cancelAllTasks_UNLOCKED() {
-    std::map<const void*, connection_t>::iterator itr = map_.begin();
-    for (; itr != map_.end(); ++itr) {
-        DcpConsumer* consumer = dynamic_cast<DcpConsumer*> (itr->second.get());
+void DcpConnMap::cancelTasks(CookieToConnectionMap& map) {
+    for (auto itr : map) {
+        DcpConsumer* consumer = dynamic_cast<DcpConsumer*> (itr.second.get());
         if (consumer) {
             consumer->cancelTask();
         }
