@@ -2240,7 +2240,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
 
     if (v) {
         stats.numOpsGetMeta++;
-
         if (v->isTempInitialItem()) { // Need bg meta fetch.
             bgFetch(key, vbucket, cookie, true);
             return ENGINE_EWOULDBLOCK;
@@ -2277,6 +2276,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::getMetaData(
         if (vb->maybeKeyExistsInFilter(key)) {
             return addTempItemForBgFetch(lh, bucket_num, key, vb, cookie, true);
         } else {
+            stats.numOpsGetMeta++;
             return ENGINE_KEY_ENOENT;
         }
     }

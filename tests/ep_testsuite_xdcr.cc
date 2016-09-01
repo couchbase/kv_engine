@@ -128,7 +128,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     wait_for_flusher_to_settle(h, h1);
 
     // check the stat
-    size_t temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
+    int temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 0, "Expect zero getMeta ops");
 
     check(get_meta(h, h1, key), "Expected to get meta");
@@ -140,7 +140,7 @@ static enum test_result test_get_meta_deleted(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
 
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 1, "Expect one getMeta op");
+    checkeq(1, temp, "Expect one getMeta op");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -160,7 +160,7 @@ static enum test_result test_get_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_HANDL
             "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    checkeq(0, temp, "Expect zero getMeta ops, thanks to bloom filters");
+    checkeq(1, temp, "Expect one getMeta ops");
 
     return SUCCESS;
 }
@@ -201,7 +201,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             h1->get(h, NULL, &i, key1, strlen(key1), 0), "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 2, "Expect more getMeta ops");
+    checkeq(2, temp, "Expect more getMeta ops");
 
     // test get_meta followed by get for a nonexistent key. should fail.
     check(!get_meta(h, h1, key2), "Expected get meta to return false");
@@ -211,7 +211,7 @@ static enum test_result test_get_meta_with_get(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             h1->get(h, NULL, &i, key2, strlen(key2), 0), "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    checkeq(2, temp, "No extra getMeta ops, thanks to bloom filters");
+    checkeq(3, temp, "Expected one extra getMeta ops");
 
     return SUCCESS;
 }
@@ -280,8 +280,8 @@ static enum test_result test_get_meta_with_set(ENGINE_HANDLE *h, ENGINE_HANDLE_V
             store(h, h1, NULL, OPERATION_SET, key2, "someothervalue", &i),
             "Failed set.");
     // check the stat again
-    checkeq(2, get_int_stat(h, h1, "ep_num_ops_get_meta"),
-            "Unexpected getMeta ops, considering bloom filter assist");
+    checkeq(3, get_int_stat(h, h1, "ep_num_ops_get_meta"),
+            "Expected one extra getMeta ops");
 
     h1->release(h, NULL, i);
     return SUCCESS;
@@ -318,7 +318,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, key1, 0, 0), "Expected enoent");
     // check the stat
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    check(temp == 2, "Expect more getMeta op");
+    checkeq(2, temp, "Expect more getMeta op");
 
     // test get_meta followed by delete for a nonexistent key. should fail.
     check(!get_meta(h, h1, key2), "Expected get meta to return false");
@@ -326,7 +326,7 @@ static enum test_result test_get_meta_with_delete(ENGINE_HANDLE *h, ENGINE_HANDL
     checkeq(ENGINE_KEY_ENOENT, del(h, h1, key2, 0, 0), "Expected enoent");
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
-    checkeq(2, temp, "Bloom filter did not assist!");
+    checkeq(3, temp, "Expected one extra getMeta ops");
 
     return SUCCESS;
 }
