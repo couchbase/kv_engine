@@ -19,9 +19,7 @@
 
 #include <atomic>
 #include <cstring>
-#if defined(HAVE_MEMALIGN)
-#include <malloc.h>
-#endif
+#include <string>
 
 #include "daemon/alloc_hooks.h"
 
@@ -30,6 +28,17 @@ std::atomic_size_t alloc_size;
 // Test pointer in global scope to prevent compiler optimizing malloc/free away
 // via DCE.
 char* p;
+
+// Helper function to lookup a symbol in a plugin and return a correctly-typed
+// function pointer.
+template <typename T>
+T get_plugin_symbol(cb_dlhandle_t handle, const char* symbol_name) {
+    char* errmsg;
+    T symbol = reinterpret_cast<T>(cb_dlsym(handle, symbol_name, &errmsg));
+    cb_assert(symbol != nullptr);
+    return symbol;
+}
+
 
 extern "C" {
     static void NewHook(const void* ptr, size_t) {
@@ -103,20 +112,53 @@ extern "C" {
         free(p);
         cb_assert(alloc_size == 0);
 
-#if defined(HAVE_MEMALIGN)
-        // Test memalign //////////////////////////////////////////////////////
-        p = static_cast<char*>(memalign(16, 64));
-        cb_assert(alloc_size >= 64);
-        free(p);
+        // Test memory allocations performed from another shared library loaded
+        // at runtime.
+        char* errmsg = nullptr;
+        cb_dlhandle_t plugin = cb_dlopen("memcached_memory_tracking_plugin",
+                                         &errmsg);
+        cb_assert(plugin != nullptr);
+
+        // dlopen()ing a plugin can allocate memory. Reset alloc_size.
+        alloc_size = 0;
+
+        typedef void* (*plugin_malloc_t)(size_t);
+        auto plugin_malloc =
+            get_plugin_symbol<plugin_malloc_t>(plugin, "plugin_malloc");
+        p = static_cast<char*>(plugin_malloc(100));
+        cb_assert(alloc_size >= 100);
+
+        typedef void (*plugin_free_t)(void*);
+        auto plugin_free =
+            get_plugin_symbol<plugin_free_t>(plugin, "plugin_free");
+        plugin_free(p);
         cb_assert(alloc_size == 0);
 
-        // Test posix_memalign ////////////////////////////////////////////////
-        void* ptr;
-        cb_assert(posix_memalign(&ptr, 16, 64) == 0);
-        cb_assert(alloc_size >= 64);
-        free(ptr);
+        typedef char* (*plugin_new_char_t)(size_t);
+        auto plugin_new_char =
+            get_plugin_symbol<plugin_new_char_t>(plugin, "plugin_new_char_array");
+        p = plugin_new_char(200);
+        cb_assert(alloc_size >= 200);
+
+        typedef void (*plugin_delete_array_t)(char*);
+        auto plugin_delete_char =
+            get_plugin_symbol<plugin_delete_array_t>(plugin, "plugin_delete_array");
+        plugin_delete_char(p);
         cb_assert(alloc_size == 0);
-#endif
+
+        typedef std::string* (*plugin_new_string_t)(const char*);
+        auto plugin_new_string =
+            get_plugin_symbol<plugin_new_string_t>(plugin, "plugin_new_string");
+        auto* string = plugin_new_string("duplicate_string");
+        cb_assert(alloc_size > 16);
+
+        typedef void(*plugin_delete_string_t)(std::string* ptr);
+        auto plugin_delete_string =
+            get_plugin_symbol<plugin_delete_string_t>(plugin, "plugin_delete_string");
+        plugin_delete_string(string);
+        cb_assert(alloc_size == 0);
+
+        cb_dlclose(plugin);
     }
 }
 
