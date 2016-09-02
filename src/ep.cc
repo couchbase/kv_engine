@@ -3245,8 +3245,10 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
         const std::string cursor(CheckpointManager::pCursorName);
         vb->getBackfillItems(items);
 
+        hrtime_t _begin_ = gethrtime();
         snapshot_range_t range;
         range = vb->checkpointManager.getAllItemsForCursor(cursor, items);
+        stats.persistenceCursorGetItemsHisto.add((gethrtime() - _begin_) / 1000);
 
         if (!items.empty()) {
             while (!rwUnderlying->begin()) {

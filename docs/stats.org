@@ -803,38 +803,42 @@ this:
 The following histograms are available from "timings" in the above
 form to describe when time was spent doing various things:
 
-| bg_wait               | bg fetches waiting in the dispatcher queue     |
-| bg_load               | bg fetches waiting for disk                    |
-| set_with_meta         | set_with_meta latencies                        |
-| access_scanner        | access scanner run times                       |
-| checkpoint_remover    | checkpoint remover run times                   |
-| item_pager            | item pager run times                           |
-| expiry_pager          | expiry pager run times                         |
-| bg_tap_wait           | tap bg fetches waiting in the dispatcher queue |
-| bg_tap_load           | tap bg fetches waiting for disk                |
-| pending_ops           | client connections blocked for operations      |
-|                       | in pending vbuckets                            |
-| storage_age           | Analogous to ep_storage_age in main stats      |
-| data_age              | Analogous to ep_data_age in main stats         |
-| get_cmd               | servicing get requests                         |
-| arith_cmd             | servicing incr/decr requests                   |
-| get_stats_cmd         | servicing get_stats requests                   |
-| get_vb_cmd            | servicing vbucket status requests              |
-| set_vb_cmd            | servicing vbucket set state commands           |
-| del_vb_cmd            | servicing vbucket deletion commands            |
-| chk_persistence_cmd   | waiting for checkpoint persistence             |
-| tap_vb_set            | servicing tap vbucket set state commands       |
-| tap_vb_reset          | servicing tap vbucket reset commands           |
-| tap_mutation          | servicing tap mutations                        |
-| notify_io             | waking blocked connections                     |
-| paged_out_time        | time (in seconds) objects are non-resident     |
-| disk_insert           | waiting for disk to store a new item           |
-| disk_update           | waiting for disk to modify an existing item    |
-| disk_del              | waiting for disk to delete an item             |
-| disk_vb_del           | waiting for disk to delete a vbucket           |
-| disk_commit           | waiting for a commit after a batch of updates  |
-| disk_vbstate_snapshot | Time spent persisting vbucket state changes    |
-| item_alloc_sizes      | Item allocation size counters (in bytes)       |
+| bg_wait                         | bg fetches waiting in the dispatcher queue     |
+| bg_load                         | bg fetches waiting for disk                    |
+| set_with_meta                   | set_with_meta latencies                        |
+| access_scanner                  | access scanner run times                       |
+| checkpoint_remover              | checkpoint remover run times                   |
+| item_pager                      | item pager run times                           |
+| expiry_pager                    | expiry pager run times                         |
+| bg_tap_wait                     | tap bg fetches waiting in the dispatcher queue |
+| bg_tap_load                     | tap bg fetches waiting for disk                |
+| pending_ops                     | client connections blocked for operations      |
+|                                 | in pending vbuckets                            |
+| storage_age                     | Analogous to ep_storage_age in main stats      |
+| data_age                        | Analogous to ep_data_age in main stats         |
+| get_cmd                         | servicing get requests                         |
+| arith_cmd                       | servicing incr/decr requests                   |
+| get_stats_cmd                   | servicing get_stats requests                   |
+| get_vb_cmd                      | servicing vbucket status requests              |
+| set_vb_cmd                      | servicing vbucket set state commands           |
+| del_vb_cmd                      | servicing vbucket deletion commands            |
+| chk_persistence_cmd             | waiting for checkpoint persistence             |
+| tap_vb_set                      | servicing tap vbucket set state commands       |
+| tap_vb_reset                    | servicing tap vbucket reset commands           |
+| tap_mutation                    | servicing tap mutations                        |
+| notify_io                       | waking blocked connections                     |
+| paged_out_time                  | time (in seconds) objects are non-resident     |
+| disk_insert                     | waiting for disk to store a new item           |
+| disk_update                     | waiting for disk to modify an existing item    |
+| disk_del                        | waiting for disk to delete an item             |
+| disk_vb_del                     | waiting for disk to delete a vbucket           |
+| disk_commit                     | waiting for a commit after a batch of updates  |
+| disk_vbstate_snapshot           | Time spent persisting vbucket state changes    |
+| item_alloc_sizes                | Item allocation size counters (in bytes)       |
+| persistence_cursor_get_all_items| Time spent in fetching all items by            |
+|                                 | persistence cursor from checkpoint queues      |
+| dcp_cursors_get_all_items       | Time spent in fetching all items by all dcp    |
+|                                 | cursors from checkpoint queues                 |
 
 The following histograms are available from "scheduler" and "runtimes"
 describing the scheduling overhead times and task runtimes incurred by various
@@ -1269,6 +1273,8 @@ Reset Histograms:
 | get_vb_cmd                        |
 | notify_io                         |
 | pending_ops                       |
+| persistence_cursor_get_all_items  |
+| dcp_cursors_get_all_items         |
 | set_vb_cmd                        |
 | storage_age                       |
 | tap_mutation                      |

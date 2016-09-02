@@ -772,7 +772,11 @@ void ActiveStream::getOutstandingItems(RCPtr<VBucket> &vb,
     // Commencing item processing - set guard flag.
     chkptItemsExtractionInProgress.store(true);
 
+    hrtime_t _begin_ = gethrtime();
     vb->checkpointManager.getAllItemsForCursor(name_, items);
+    engine->getEpStats().dcpCursorsGetItemsHisto.add(
+                                            (gethrtime() - _begin_) / 1000);
+
     if (vb->checkpointManager.getNumCheckpoints() > 1) {
         engine->getEpStore()->wakeUpCheckpointRemover();
     }

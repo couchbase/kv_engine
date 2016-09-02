@@ -566,6 +566,10 @@ public:
     // ! Histogram of various task run times
     Histogram<hrtime_t> *taskRuntimeHisto;
 
+    //! Checkpoint Cursor histograms
+    Histogram<hrtime_t> persistenceCursorGetItemsHisto;
+    Histogram<hrtime_t> dcpCursorsGetItemsHisto;
+
     //! Reset all stats to reasonable values.
     void reset() {
         tooYoung.store(0);
@@ -643,6 +647,8 @@ public:
         dirtyAgeHisto.reset();
         mlogCompactorHisto.reset();
         getMultiHisto.reset();
+        persistenceCursorGetItemsHisto.reset();
+        dcpCursorsGetItemsHisto.reset();
     }
 
     // Used by stats logging infrastructure.
