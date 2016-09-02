@@ -29,6 +29,7 @@
 
 #include <gperftools/malloc_extension_c.h>
 #include <gperftools/malloc_hook_c.h>
+#include <platform/cb_malloc.h>
 
 void TCMallocHooks::initialize() {
     // TCMalloc's aggressive decommit setting has a significant performance
@@ -41,20 +42,20 @@ void TCMallocHooks::initialize() {
     }
 }
 
-bool TCMallocHooks::add_new_hook(void (* hook)(const void* ptr, size_t size)) {
-    return MallocHook_AddNewHook(hook) ? true : false;
+bool TCMallocHooks::add_new_hook(void(*hook)(const void* ptr, size_t size)) {
+    return cb_add_new_hook(hook);
 }
 
-bool TCMallocHooks::remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
-    return MallocHook_RemoveNewHook(hook) ? true : false;
+bool TCMallocHooks::remove_new_hook(void(*hook)(const void* ptr, size_t size)) {
+    return cb_remove_new_hook(hook);
 }
 
-bool TCMallocHooks::add_delete_hook(void (* hook)(const void* ptr)) {
-    return MallocHook_AddDeleteHook(hook) ? true : false;
+bool TCMallocHooks::add_delete_hook(void(*hook)(const void* ptr)) {
+    return cb_add_delete_hook(hook);
 }
 
-bool TCMallocHooks::remove_delete_hook(void (* hook)(const void* ptr)) {
-    return MallocHook_RemoveDeleteHook(hook) ? true : false;
+bool TCMallocHooks::remove_delete_hook(void(*hook)(const void* ptr)) {
+    return cb_remove_delete_hook(hook);
 }
 
 int TCMallocHooks::get_extra_stats_size() {
