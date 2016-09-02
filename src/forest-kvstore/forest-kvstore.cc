@@ -1098,8 +1098,10 @@ fdb_kvs_handle* ForestKVStore::getOrCreateKvsHandle(uint16_t vbucketId, handleTy
         sprintf(kvsName, "partition%d", vbucketId);
         if (htype == handleType::READER) {
             kvsHandle = openKvsHandle(*readDBFileHandle, kvsName);
+            readHandleMap[vbucketId] = kvsHandle;
         } else {
             kvsHandle = openKvsHandle(*writeDBFileHandle, kvsName);
+            writeHandleMap[vbucketId] = kvsHandle;
         }
     }
 
