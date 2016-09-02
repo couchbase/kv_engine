@@ -162,7 +162,8 @@ protected:
     // ConnHandler objects is guarded by {releaseLock}.
     std::mutex                                    connsLock;
 
-    std::map<const void*, connection_t>      map_;
+    using CookieToConnectionMap = std::map<const void*, connection_t>;
+    CookieToConnectionMap map_;
     std::list<connection_t>                  all;
 
     SpinLock *vbConnLocks;

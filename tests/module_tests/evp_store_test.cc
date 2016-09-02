@@ -215,6 +215,46 @@ void EventuallyPersistentStoreTest::evict_key(uint16_t vbid,
     EXPECT_STREQ("Ejected.", msg);
 }
 
+// Verify that when handling a bucket delete with open DCP
+// connections, we don't deadlock when notifying the front-end
+// connection.
+// This is a potential issue because notify_IO_complete
+// needs to lock the worker thread mutex the connection is assigned
+// to, to update the event list for that connection, which the worker
+// thread itself will have locked while it is running. Normally
+// deadlock is avoided by using a background thread (ConnNotifier),
+// which only calls notify_IO_complete and isnt' involved with any
+// other mutexes, however we cannot use that task as it gets shut down
+// during shutdownAllConnections.
+// This test requires ThreadSanitizer or similar to validate;
+// there's no guarantee we'll actually deadlock on any given run.
+TEST_F(EventuallyPersistentStoreTest, test_mb20751_deadlock_on_disconnect_delete) {
+
+    // Create a new Dcp producer, reserving its cookie.
+    get_mock_server_api()->cookie->reserve(cookie);
+    dcp_producer_t producer = engine->getDcpConnMap().newProducer(
+        cookie, "mb_20716r", /*notifyOnly*/false);
+
+    // Check preconditions.
+    EXPECT_TRUE(producer->isPaused());
+
+    // 1. To check that there's no potential data-race with the
+    //    concurrent connection disconnect on another thread
+    //    (simulating a front-end thread).
+    std::thread frontend_thread_handling_disconnect{[this](){
+            // Frontend thread always runs with the cookie locked, so
+            // lock here to match.
+            lock_mock_cookie(cookie);
+            engine->handleDisconnect(cookie);
+            unlock_mock_cookie(cookie);
+        }};
+
+    // 2. Trigger a bucket deletion.
+    engine->handleDeleteBucket(cookie);
+
+    frontend_thread_handling_disconnect.join();
+}
+
 class EPStoreEvictionTest : public EventuallyPersistentStoreTest,
                              public ::testing::WithParamInterface<std::string> {
     void SetUp() override {

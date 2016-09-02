@@ -139,9 +139,15 @@ protected:
 
     bool isPassiveStreamConnected_UNLOCKED(uint16_t vbucket);
 
-    void closeAllStreams_UNLOCKED();
+    /*
+     * Closes all streams associated with each connection in `map`.
+     */
+    static void closeStreams(CookieToConnectionMap& map);
 
-    void cancelAllTasks_UNLOCKED();
+    /*
+     * Cancels all tasks assocuated with each connection in `map`.
+     */
+    static void cancelTasks(CookieToConnectionMap& map);
 
     SpinLock numBackfillsLock;
     /* Db file memory */
