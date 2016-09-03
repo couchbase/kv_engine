@@ -5758,7 +5758,8 @@ EventuallyPersistentEngine::handleTrafficControlCmd(const void *cookie,
             // engine is still warming up, do not turn on data traffic yet
             msg << "Persistent engine is still warming up!";
             status = PROTOCOL_BINARY_RESPONSE_ETMPFAIL;
-        } else if (epstore->isWarmupOOMFailure()) {
+        } else if (configuration.isFailpartialwarmup() &&
+                   epstore->isWarmupOOMFailure()) {
             // engine has completed warm up, but data traffic cannot be
             // turned on due to an OOM failure
             msg << "Data traffic to persistent engine cannot be enabled"

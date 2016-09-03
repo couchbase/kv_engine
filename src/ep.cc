@@ -419,13 +419,6 @@ bool EventuallyPersistentStore::initialize() {
 
     warmupTask->start();
 
-    if (config.isFailpartialwarmup() && stats.warmOOM > 0) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Warmup failed to load %d records due to OOM, exiting.\n",
-            static_cast<unsigned int>(stats.warmOOM));
-        return false;
-    }
-
     itmpTask = new ItemPager(&engine, stats);
     ExecutorPool::get()->schedule(itmpTask, NONIO_TASK_IDX);
 
