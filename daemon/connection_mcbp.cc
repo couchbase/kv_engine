@@ -353,6 +353,23 @@ int McbpConnection::sendmsg(struct msghdr* m) {
 }
 
 McbpConnection::TransmitResult McbpConnection::transmit() {
+    if (ssl.isEnabled()) {
+        // We use OpenSSL to write data into a buffer before we send it
+        // over the wire... Lets go ahead and drain that BIO pipe before
+        // we may do anything else.
+        ssl.drainBioSendPipe(socketDescriptor);
+        if (ssl.morePendingOutput()) {
+            if (ssl.hasError() || !updateEvent(EV_WRITE | EV_PERSIST)) {
+                setState(conn_closing);
+                return TransmitResult::HardError;
+            }
+            return TransmitResult::SoftError;
+        }
+
+        // The output buffer is completely drained (well, put in the kernel
+        // buffer to send to the client). Go ahead and send more data
+    }
+
     while (msgcurr < msglist.size() &&
            msglist[msgcurr].msg_iovlen == 0) {
         /* Finished writing the current msg; advance to the next. */
@@ -387,6 +404,18 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
             if (m->msg_iov->iov_len == 0) {
                msgcurr++;
                if (msgcurr == msglist.size()) {
+                   // We sent the final chunk of data.. In our SSL connections
+                   // we might however have data spooled in the SSL buffers
+                   // which needs to be drained before we may consider the
+                   // transmission complete (note that our sendmsg tried
+                   // to drain the buffers before returning).
+                   if (ssl.isEnabled() && ssl.morePendingOutput()) {
+                       if (ssl.hasError() || !updateEvent(EV_WRITE | EV_PERSIST)) {
+                           setState(conn_closing);
+                           return TransmitResult::HardError;
+                       }
+                       return TransmitResult::SoftError;
+                   }
                    return TransmitResult::Complete;
                }
             }
@@ -424,17 +453,6 @@ McbpConnection::TransmitResult McbpConnection::transmit() {
         setState(conn_closing);
         return TransmitResult::HardError;
     } else {
-        if (ssl.isEnabled()) {
-            ssl.drainBioSendPipe(socketDescriptor);
-            if (ssl.morePendingOutput()) {
-                if (!updateEvent(EV_WRITE | EV_PERSIST)) {
-                    setState(conn_closing);
-                    return TransmitResult::HardError;
-                }
-                return TransmitResult::SoftError;
-            }
-        }
-
         return TransmitResult::Complete;
     }
 }
@@ -729,6 +747,8 @@ void SslContext::drainBioSendPipe(SOCKET sfd) {
             } else {
                 if (n == -1) {
                     if (!is_blocking(GetLastNetworkError())) {
+                        log_socket_error(EXTENSION_LOG_WARNING, this,
+                                         "Failed to write, and not due to blocking: %s");
                         error = true;
                     }
                 }
