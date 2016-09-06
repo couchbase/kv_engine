@@ -327,6 +327,7 @@ information about a given command.
 | 0xcf | Subdoc counter |
 | 0xd0 | Subdoc multi lookup |
 | 0xd1 | Subdoc multi mutation |
+| 0xd2 | Subdoc get count |
 | 0xf0 | Scrub |
 | 0xf1 | Isasl refresh |
 | 0xf2 | Ssl certs refresh |
