@@ -3628,17 +3628,29 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     // we want to be able to graph these over time, and hence need to expose
     // to ns_sever at the top-level.
     size_t value = 0;
-    if (epstore->getKVStoreStat("io_total_read_bytes", value)) {
+    if (epstore->getKVStoreStat("io_total_read_bytes", value,
+                                EventuallyPersistentStore::KVSOption::BOTH)) {
         add_casted_stat("ep_io_total_read_bytes",  value, add_stat, cookie);
     }
-    if (epstore->getKVStoreStat("io_total_write_bytes", value)) {
+    if (epstore->getKVStoreStat("io_total_write_bytes", value,
+                                EventuallyPersistentStore::KVSOption::BOTH)) {
         add_casted_stat("ep_io_total_write_bytes",  value, add_stat, cookie);
     }
-    if (epstore->getKVStoreStat("io_compaction_read_bytes", value)) {
+    if (epstore->getKVStoreStat("io_compaction_read_bytes", value,
+                                EventuallyPersistentStore::KVSOption::BOTH)) {
         add_casted_stat("ep_io_compaction_read_bytes",  value, add_stat, cookie);
     }
-    if (epstore->getKVStoreStat("io_compaction_write_bytes", value)) {
+    if (epstore->getKVStoreStat("io_compaction_write_bytes", value,
+                                EventuallyPersistentStore::KVSOption::BOTH)) {
         add_casted_stat("ep_io_compaction_write_bytes",  value, add_stat, cookie);
+    }
+    if (epstore->getKVStoreStat("Block_cache_hits", value,
+                                EventuallyPersistentStore::KVSOption::RW)) {
+        add_casted_stat("ep_block_cache_hits", value, add_stat, cookie);
+    }
+    if (epstore->getKVStoreStat("Block_cache_misses", value,
+                                EventuallyPersistentStore::KVSOption::RW)) {
+        add_casted_stat("ep_block_cache_misses", value, add_stat, cookie);
     }
 
     return ENGINE_SUCCESS;

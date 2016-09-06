@@ -836,15 +836,27 @@ public:
 
     void addKVStoreTimingStats(ADD_STAT add_stat, const void* cookie);
 
+    /**
+     * The following options will be used to identify
+     * the kind of KVStores to be considered for stat collection.
+     */
+    enum class KVSOption {
+        RO,          // RO KVStore
+        RW,          // RW KVStore
+        BOTH         // Both KVStores
+    };
+
     /* Given a named KVStore statistic, return the value of that statistic,
      * accumulated across any shards.
      *
      * @param name The name of the statistic
      * @param[out] value The value of the statistic.
+     * @param option the KVStore to read stats from.
      * @return True if the statistic was successfully returned via {value},
      *              else false.
      */
-    bool getKVStoreStat(const char* name, size_t& value);
+    bool getKVStoreStat(const char* name, size_t& value,
+                        KVSOption option);
 
     void resetUnderlyingStats(void);
     KVStore *getOneROUnderlying(void);

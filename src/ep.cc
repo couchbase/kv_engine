@@ -4037,21 +4037,25 @@ void EventuallyPersistentStore::addKVStoreTimingStats(ADD_STAT add_stat,
     }
 }
 
-bool EventuallyPersistentStore::getKVStoreStat(const char* name, size_t& value) {
+bool EventuallyPersistentStore::getKVStoreStat(const char* name, size_t& value,
+                                               KVSOption option) {
     value = 0;
     bool success = true;
     for (auto* shard : vbMap.shards) {
         size_t per_shard_value;
 
-        success &= shard->getROUnderlying()->getStat(name, per_shard_value);
-        value += per_shard_value;
+        if (option == KVSOption::RO || option == KVSOption::BOTH) {
+            success &= shard->getROUnderlying()->getStat(name, per_shard_value);
+            value += per_shard_value;
+        }
 
-        success &= shard->getRWUnderlying()->getStat(name, per_shard_value);
-        value += per_shard_value;
+        if (option == KVSOption::RW || option == KVSOption::BOTH) {
+            success &= shard->getRWUnderlying()->getStat(name, per_shard_value);
+            value += per_shard_value;
+        }
     }
     return success;
 }
-
 
 KVStore *EventuallyPersistentStore::getOneROUnderlying(void) {
     return vbMap.shards[EP_PRIMARY_SHARD]->getROUnderlying();

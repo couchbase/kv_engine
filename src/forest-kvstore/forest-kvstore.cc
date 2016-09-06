@@ -1108,6 +1108,45 @@ fdb_kvs_handle* ForestKVStore::getOrCreateKvsHandle(uint16_t vbucketId, handleTy
     return kvsHandle;
 }
 
+fdb_kvs_handle* ForestKVStore::getOneRWKvsHandle() {
+
+    std::unordered_map<uint16_t, fdb_kvs_handle*>::iterator it;
+    it = writeHandleMap.begin();
+    if (it == writeHandleMap.end()) {
+        return nullptr;
+    } else {
+        return it->second;
+    }
+}
+
+struct stats_cb_ctx {
+    std::map<std::string, uint64_t> stats;
+};
+
+void statsCallback(fdb_kvs_handle* handle, const char* stat,
+                   uint64_t value, void *ctx) {
+    stats_cb_ctx *statsCtx = static_cast<stats_cb_ctx*>(ctx);
+    statsCtx->stats[stat] = value;
+}
+
+bool ForestKVStore::getStat(const char* name, size_t& value) {
+    fdb_kvs_handle* handle = getOneRWKvsHandle();
+    if (!handle) {
+        return false;
+    }
+
+    stats_cb_ctx ctx;
+    fdb_status status = fdb_fetch_handle_stats(handle, statsCallback, &ctx);
+    if (status == FDB_RESULT_SUCCESS) {
+        if (ctx.stats.find(name) != ctx.stats.end()) {
+            value = static_cast<size_t>(ctx.stats[name]);
+            return true;
+        }
+    }
+
+    return false;
+}
+
 static int8_t getMutationStatus(fdb_status errCode) {
     switch(errCode) {
         case FDB_RESULT_SUCCESS:

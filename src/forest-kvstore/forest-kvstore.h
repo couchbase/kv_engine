@@ -402,6 +402,8 @@ class ForestKVStore : public KVStore
 
     void destroyScanContext(ScanContext* ctx) override;
 
+    bool getStat(const char* name, size_t& value) override;
+
 private:
     bool intransaction;
     const std::string dbname;
@@ -448,6 +450,7 @@ private:
     void commitCallback(std::vector<ForestRequest *>& committedReqs);
     fdb_kvs_handle* getOrCreateKvsHandle(uint16_t vbId, handleType htype);
     fdb_kvs_handle* getKvsHandle(uint16_t vbId, handleType htype);
+    fdb_kvs_handle* getOneRWKvsHandle();
     std::unique_ptr<ForestKvsHandle> createKvsHandle(uint16_t vbId);
     fdb_kvs_handle* openKvsHandle(fdb_file_handle& fileHandle, char* kvsName);
     bool save2forestdb();
