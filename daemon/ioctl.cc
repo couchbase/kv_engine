@@ -107,15 +107,16 @@ static ENGINE_ERROR_CODE setTraceConnection(Connection* c,
     return apply_connection_trace_mask(id->second, value);
 }
 
+static const std::unordered_map<std::string, GetCallbackFunc> ioctl_get_map {
+    {"tcmalloc.aggressive_memory_decommit", getTCMallocAggrMemoryDecommit},
+    {"trace.config", ioctlGetTracingConfig},
+    {"trace.status", ioctlGetTracingStatus},
+    {"trace.dump", ioctlGetTracingDump},
+};
+
 ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
                                      const std::string& key,
                                      std::string& value) {
-    const std::unordered_map<std::string, GetCallbackFunc> props {
-        {"tcmalloc.aggressive_memory_decommit", getTCMallocAggrMemoryDecommit},
-        {"trace.config", ioctlGetTracingConfig},
-        {"trace.status", ioctlGetTracingStatus},
-        {"trace.dump", ioctlGetTracingDump},
-    };
 
     std::pair<std::string, StrToStrMap> request;
 
@@ -125,24 +126,26 @@ ENGINE_ERROR_CODE ioctl_get_property(Connection* c,
         return ENGINE_EINVAL;
     }
 
-    auto entry = props.find(request.first);
-    if (entry != props.end()) {
+    auto entry = ioctl_get_map.find(request.first);
+    if (entry != ioctl_get_map.end()) {
         return entry->second(c, request.second, value);
     }
     return ENGINE_EINVAL;
 }
 
+
+static const std::unordered_map<std::string, SetCallbackFunc> ioctl_set_map {
+    {"tcmalloc.aggressive_memory_decommit", setTCMallocAggrMemoryDecommit},
+    {"release_free_memory", setReleaseFreeMemory},
+    {"trace.connection", setTraceConnection},
+    {"trace.config", ioctlSetTracingConfig},
+    {"trace.start", ioctlSetTracingStart},
+    {"trace.stop", ioctlSetTracingStop},
+};
+
 ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
                                      const std::string& key,
                                      const std::string& value) {
-    const std::unordered_map<std::string, SetCallbackFunc> props {
-        {"tcmalloc.aggressive_memory_decommit", setTCMallocAggrMemoryDecommit},
-        {"release_free_memory", setReleaseFreeMemory},
-        {"trace.connection", setTraceConnection},
-        {"trace.config", ioctlSetTracingConfig},
-        {"trace.start", ioctlSetTracingStart},
-        {"trace.stop", ioctlSetTracingStop},
-    };
 
     std::pair<std::string, StrToStrMap> request;
 
@@ -152,8 +155,8 @@ ENGINE_ERROR_CODE ioctl_set_property(Connection* c,
         return ENGINE_EINVAL;
     }
 
-    auto entry = props.find(request.first);
-    if (entry != props.end()) {
+    auto entry = ioctl_set_map.find(request.first);
+    if (entry != ioctl_set_map.end()) {
         return entry->second(c, request.second, value);
     }
     return ENGINE_EINVAL;
