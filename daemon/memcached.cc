@@ -39,6 +39,7 @@
 #include "subdocument.h"
 #include "enginemap.h"
 #include "buckets.h"
+#include "parent_monitor.h"
 #include "topkeys.h"
 #include "stats.h"
 #include "mcbp_executors.h"
@@ -2409,54 +2410,24 @@ void log_errcode_error(EXTENSION_LOG_LEVEL severity,
     settings.extensions.logger->log(severity, cookie, prefix, errmsg.c_str());
 }
 
-#ifdef WIN32
-static void parent_monitor_thread(void *arg) {
-    HANDLE parent = arg;
-    WaitForSingleObject(parent, INFINITE);
-    ExitProcess(EXIT_FAILURE);
-}
+std::unique_ptr<ParentMonitor> parent_monitor;
 
-static void setup_parent_monitor(void) {
+static void setup_parent_monitor() {
     char *env = getenv("MEMCACHED_PARENT_MONITOR");
     if (env != NULL) {
-        HANDLE handle = OpenProcess(SYNCHRONIZE, FALSE, atoi(env));
-        if (handle == INVALID_HANDLE_VALUE) {
-            FATAL_ERROR(EXIT_FAILURE,
-                        "Failed to open parent process: %s",
-                        cb_strerror(GetLastError()).c_str());
-        }
-        cb_create_thread(NULL, parent_monitor_thread, handle, 1);
+        parent_monitor.reset(new ParentMonitor(std::stoi(env)));
     }
 }
 
+static void shutdown_parent_monitor() {
+    parent_monitor.reset();
+}
+
+#ifdef WIN32
 static void set_max_filehandles(void) {
     /* EMPTY */
 }
-
 #else
-static void parent_monitor_thread(void *arg) {
-    pid_t pid = atoi(reinterpret_cast<char*>(arg));
-    while (true) {
-        sleep(1);
-        if (kill(pid, 0) == -1 && errno == ESRCH) {
-            _exit(1);
-        }
-    }
-}
-
-static void setup_parent_monitor(void) {
-    char *env = getenv("MEMCACHED_PARENT_MONITOR");
-    if (env != NULL) {
-        cb_thread_t t;
-        if (cb_create_named_thread(&t, parent_monitor_thread, env, 1,
-                                   "mc:parent_mon") != 0) {
-            FATAL_ERROR(EXIT_FAILURE,
-                        "Failed to open parent process: %s",
-                        cb_strerror(GetLastError()).c_str());
-        }
-    }
-}
-
 static void set_max_filehandles(void) {
     struct rlimit rlim;
 
@@ -2743,6 +2714,9 @@ extern "C" int memcached_main(int argc, char **argv) {
 
     LOG_NOTICE(NULL, "Initiating graceful shutdown.");
     delete_all_buckets();
+
+    LOG_NOTICE(NULL, "Shutting down parent monitor");
+    shutdown_parent_monitor();
 
     LOG_NOTICE(NULL, "Shutting down audit daemon");
     /* Close down the audit daemon cleanly */

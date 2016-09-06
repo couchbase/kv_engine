@@ -97,6 +97,8 @@ ADD_LIBRARY(memcached_daemon STATIC
                memcached_openssl.cc
                memcached_openssl.h
                net_buf.h
+               parent_monitor.cc
+               parent_monitor.h
                runtime.cc
                runtime.h
                sasl_tasks.cc
