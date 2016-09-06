@@ -114,7 +114,7 @@ public:
     BlockMonitorThread(EWB_Engine& engine_,
                        uint32_t id_,
                        const std::string file_)
-        : Thread("BlockMonitorThread"),
+        : Thread("ewb:BlockMon"),
           engine(engine_),
           id(id_),
           file(file_) {}
@@ -1106,16 +1106,23 @@ ENGINE_ERROR_CODE EWB_Engine::handleBlockMonitorFile(const void* cookie,
 
     if (!suspend(cookie, id)) {
         logger->log(EXTENSION_LOG_WARNING, nullptr,
-                    "EWB_Engine::unknown_command(): Id %u already registered",
-                    id);
+                    "EWB_Engine::handleBlockMonitorFile(): "
+                    "Id %u already registered", id);
         return ENGINE_KEY_EEXISTS;
     }
 
-    std::unique_ptr<Couchbase::Thread> thread(
-        new BlockMonitorThread(*this, id, file));
-    thread->start();
-    std::lock_guard<std::mutex> guard(threads_mutex);
-    threads.emplace_back(thread.release());
+    try {
+        std::unique_ptr<Couchbase::Thread> thread(
+                new BlockMonitorThread(*this, id, file));
+        thread->start();
+        std::lock_guard<std::mutex> guard(threads_mutex);
+        threads.emplace_back(thread.release());
+    } catch (std::exception& e) {
+        logger->log(EXTENSION_LOG_WARNING, nullptr,
+                    "EWB_Engine::handleBlockMonitorFile(): Failed to create "
+                    "block monitor thread: %s", e.what());
+        return ENGINE_FAILED;
+    }
 
     logger->log(EXTENSION_LOG_DEBUG, nullptr,
                 "Registered connection %p (engine %p) as %u to be"
@@ -1143,7 +1150,7 @@ ENGINE_ERROR_CODE EWB_Engine::handleSuspend(const void* cookie,
         return ENGINE_SUCCESS;
     } else {
         logger->log(EXTENSION_LOG_WARNING, nullptr,
-                    "EWB_Engine::unknown_command(): Id %u already registered",
+                    "EWB_Engine::handleSuspend(): Id %u already registered",
                     id);
         return ENGINE_KEY_EEXISTS;
     }
