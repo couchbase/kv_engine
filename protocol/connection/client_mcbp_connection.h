@@ -134,6 +134,10 @@ public:
 
     void setMutationSeqnoSupport(bool enable);
 
+    virtual std::string ioctl_get(const std::string& key) override;
+
+    virtual void ioctl_set(const std::string& key,
+                           const std::string& value) override;
 
     virtual void configureEwouldBlockEngine(const EWBEngineMode& mode,
                                             ENGINE_ERROR_CODE err_code,

@@ -733,3 +733,37 @@ void MemcachedBinprotConnection::setFeatures(const std::string& agent,
         }
     }
 }
+
+std::string MemcachedBinprotConnection::ioctl_get(const std::string& key) {
+    Frame frame;
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_IOCTL_GET, {}, key, {});
+
+    sendFrame(frame);
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw BinprotConnectionError("ioctl_get \"" + key + "\" failed.",
+                                     rsp->message.header.response.status);
+    }
+
+    return std::string{(const char*)(rsp + 1),
+                       rsp->message.header.response.bodylen};
+}
+
+void MemcachedBinprotConnection::ioctl_set(const std::string& key,
+                                           const std::string& value) {
+    Frame frame;
+    std::vector<uint8_t> val(value.size());
+    memcpy(val.data(), value.data(), value.size());
+    mcbp_raw_command(frame, PROTOCOL_BINARY_CMD_IOCTL_SET, {}, key, val);
+
+    sendFrame(frame);
+    recvFrame(frame);
+    auto* rsp = reinterpret_cast<protocol_binary_response_no_extras*>(frame.payload.data());
+    if (rsp->message.header.response.status !=
+        PROTOCOL_BINARY_RESPONSE_SUCCESS) {
+        throw BinprotConnectionError("ioctl_set \"" + key + "\" failed.",
+                                     rsp->message.header.response.status);
+    }
+}

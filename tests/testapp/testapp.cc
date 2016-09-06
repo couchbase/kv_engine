@@ -2169,173 +2169,53 @@ TEST_P(McdTestappTest, IOCTL_TCMallocAggrDecommit) {
 #endif /* defined(HAVE_TCMALLOC) */
 
 TEST_P(McdTestappTest, IOCTL_Tracing) {
-    union {
-        protocol_binary_request_no_extras request;
-        protocol_binary_response_no_extras response;
-        char bytes[1024];
-    } buffer;
+    auto& conn = connectionMap.getConnection(Protocol::Memcached,
+                                             current_phase == phase_ssl,
+                                             AF_INET);
+    conn.authenticate("_admin", "password", "PLAIN");
 
+    // Disable trace so that we start from a known status
+    conn.ioctl_set("trace.stop", {});
 
-    {
-        char cmd[] = "trace.status";
-        size_t len = mcbp_raw_command(
-                buffer.bytes, sizeof(buffer.bytes),
-                PROTOCOL_BINARY_CMD_IOCTL_GET,
-                cmd, strlen(cmd),
-                nullptr, 0);
+    // Ensure that trace isn't running
+    auto value = conn.ioctl_get("trace.status");
+    EXPECT_EQ("disabled", value);
 
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_GET,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
+    // Specify config
+    const std::string config{"buffer-mode:ring;buffer-size:2000000;"
+                                 "enabled-categories:*"};
+    conn.ioctl_set("trace.config", config);
 
-        std::string result(buffer.bytes + sizeof(buffer.response),
-                           buffer.response.message.header.response.bodylen);
+    // Try to read it back and check that setting the config worked
+    // Phosphor rebuilds the string and adds the disabled categories
+    EXPECT_EQ(config + ";disabled-categories:", conn.ioctl_get("trace.config"));
 
-        // Someone else might have turned tracing on/off so check for both
-        EXPECT_TRUE(result == "enabled" || result == "disabled");
-    }
+    // Start the trace
+    conn.ioctl_set("trace.start", {});
 
-    {
-        char cmd[] = "trace.config";
-        char config[] = "buffer-mode:ring;buffer-size:2000000;"
-                        "enabled-categories:*;";
-        size_t len = mcbp_raw_command(
-                buffer.bytes, sizeof(buffer.bytes),
-                PROTOCOL_BINARY_CMD_IOCTL_SET,
-                cmd, strlen(cmd),
-                config, strlen(config));
+    // Ensure that it's running
+    value = conn.ioctl_get("trace.status");
+    EXPECT_EQ("enabled", value);
 
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_SET,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    }
+    // Stop the tracing
+    conn.ioctl_set("trace.stop", {});
 
-    {
-        char cmd[] = "trace.start";
-        size_t len = mcbp_raw_command(
-                buffer.bytes, sizeof(buffer.bytes),
-                PROTOCOL_BINARY_CMD_IOCTL_SET,
-                cmd, strlen(cmd),
-                nullptr, 0);
+    // Ensure that it stopped
+    value = conn.ioctl_get("trace.status");
+    EXPECT_EQ("disabled", value);
 
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_SET,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    }
+    // get the data
+    auto dump = conn.ioctl_get("trace.dump");
 
-    {
-        char cmd[] = "trace.status";
-        size_t len = mcbp_raw_command(
-                buffer.bytes, sizeof(buffer.bytes),
-                PROTOCOL_BINARY_CMD_IOCTL_GET,
-                cmd, strlen(cmd),
-                nullptr, 0);
+    // Difficult to tell what's been written to the buffer so just check
+    // that it's valid JSON and that the traceEvents array is present
+    unique_cJSON_ptr json = unique_cJSON_ptr(cJSON_Parse(dump.c_str()));
+    EXPECT_NE(nullptr, json);
+    EXPECT_EQ(cJSON_Object, json->type);
 
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_GET,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        std::string result(buffer.bytes + sizeof(buffer.response),
-                           buffer.response.message.header.response.bodylen);
-
-        // Someone else might have turned tracing on/off so check for both
-        EXPECT_EQ("enabled", result);
-    }
-
-    {
-        char cmd[] = "trace.stop";
-        size_t len = mcbp_raw_command(
-                buffer.bytes, sizeof(buffer.bytes),
-                PROTOCOL_BINARY_CMD_IOCTL_SET,
-                cmd, strlen(cmd),
-                nullptr, 0);
-
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_SET,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-    }
-
-    {
-        char cmd[] = "trace.status";
-        size_t len = mcbp_raw_command(
-                buffer.bytes, sizeof(buffer.bytes),
-                PROTOCOL_BINARY_CMD_IOCTL_GET,
-                cmd, strlen(cmd),
-                nullptr, 0);
-
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_GET,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        std::string result(buffer.bytes + sizeof(buffer.response),
-                           buffer.response.message.header.response.bodylen);
-
-        // Someone else might have turned tracing on/off so check for both
-        EXPECT_EQ("disabled", result);
-    }
-
-    {
-        char cmd[] = "trace.dump";
-        size_t len = mcbp_raw_command(
-                buffer.bytes, sizeof(buffer.bytes),
-                PROTOCOL_BINARY_CMD_IOCTL_GET,
-                cmd, strlen(cmd),
-                nullptr, 0);
-
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_GET,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        std::string result(buffer.bytes + sizeof(buffer.response),
-                           buffer.response.message.header.response.bodylen);
-
-        // Difficult to tell what's been written to the buffer so just check
-        // that it's valid JSON and that the traceEvents array is present
-        unique_cJSON_ptr json = unique_cJSON_ptr(cJSON_Parse(result.c_str()));
-        EXPECT_NE(nullptr, json);
-        EXPECT_EQ(cJSON_Object, json->type);
-
-        auto* events = cJSON_GetObjectItem(json.get(), "traceEvents");
-        EXPECT_NE(nullptr, events);
-        EXPECT_EQ(cJSON_Array, events->type);
-
-    }
-
-    {
-        char cmd[] = "trace.config";
-        size_t len = mcbp_raw_command(
-                buffer.bytes, sizeof(buffer.bytes),
-                PROTOCOL_BINARY_CMD_IOCTL_GET,
-                cmd, strlen(cmd),
-                nullptr, 0);
-
-        safe_send(buffer.bytes, len, false);
-        safe_recv_packet(buffer.bytes, sizeof(buffer.bytes));
-        mcbp_validate_response_header(&buffer.response,
-                                      PROTOCOL_BINARY_CMD_IOCTL_GET,
-                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
-
-        std::string result(buffer.bytes + sizeof(buffer.response),
-                           buffer.response.message.header.response.bodylen);
-
-        // Someone else might have turned tracing on/off so check for both
-        EXPECT_EQ("buffer-mode:ring;buffer-size:2000000;"
-                  "enabled-categories:*;disabled-categories:", result);
-    }
+    auto* events = cJSON_GetObjectItem(json.get(), "traceEvents");
+    EXPECT_NE(nullptr, events);
+    EXPECT_EQ(cJSON_Array, events->type);
 }
 
 TEST_P(McdTestappTest, Config_ValidateCurrentConfig) {

@@ -305,6 +305,27 @@ public:
         return saslMechanisms;
     }
 
+    /**
+     * Request the IOCTL value from the server
+     *
+     * @param key the IOCTL to request
+     * @return A textual representation of the key
+     */
+    virtual std::string ioctl_get(const std::string& key) {
+        throw std::invalid_argument("Not implemented");
+    }
+
+    /**
+     * Perform an IOCTL on the server
+     *
+     * @param key the IOCTL to set
+     * @param value the value to specify for the given key
+     */
+    virtual void ioctl_set(const std::string& key,
+                           const std::string& value) {
+        throw std::invalid_argument("Not implemented");
+    }
+
 protected:
     /**
      * Create a new instance of the MemcachedConnection
