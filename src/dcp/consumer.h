@@ -135,6 +135,14 @@ public:
         processBufferedMessagesBatchSize = newValue;
     }
 
+    /* Notifies the frontend that this (paused) connection should be
+     * re-considered for work.
+     * @param schedule If true, schedule the notification on a background
+     *                 thread for the ConnNotifier to pick, else notify
+     *                 synchronously on this thread.
+     */
+    void notifyPaused(bool schedule);
+
 protected:
     /**
      * Records when the consumer last received a message from producer.
