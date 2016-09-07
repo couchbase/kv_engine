@@ -85,13 +85,14 @@ public:
     virtual void complete() {
         update();
 
-        if (log != NULL) {
+        if (log == nullptr) {
+            updateStateFinalizer(false);
+        } else {
             size_t num_items = log->itemsLogged[ML_NEW];
             log->commit1();
             log->commit2();
             delete log;
             log = NULL;
-            ++stats.alogRuns;
             stats.alogRuntime.store(ep_real_time() - startTime);
             stats.alogNumItems.store(num_items);
             stats.accessScannerHisto.add((gethrtime() - taskStart) / 1000);
@@ -100,7 +101,7 @@ public:
                 LOG(EXTENSION_LOG_NOTICE, "The new access log file is empty. "
                     "Delete it without replacing the current access log...");
                 remove(next.c_str());
-                updateStateFinalizer();
+                updateStateFinalizer(true);
                 return;
             }
 
@@ -108,7 +109,7 @@ public:
                 LOG(EXTENSION_LOG_WARNING, "Failed to remove access log file "
                     "'%s': %s", prev.c_str(), strerror(errno));
                 remove(next.c_str());
-                updateStateFinalizer();
+                updateStateFinalizer(true);
                 return;
             }
             LOG(EXTENSION_LOG_NOTICE, "Removed old access log file: '%s'",
@@ -119,7 +120,7 @@ public:
                     "from '%s' to '%s': %s", name.c_str(), prev.c_str(),
                     strerror(errno));
                 remove(next.c_str());
-                updateStateFinalizer();
+                updateStateFinalizer(true);
                 return;
             }
             LOG(EXTENSION_LOG_NOTICE, "Renamed access log file from '%s' to "
@@ -129,22 +130,33 @@ public:
                     "from '%s' to '%s': %s", next.c_str(), name.c_str(),
                     strerror(errno));
                 remove(next.c_str());
-                updateStateFinalizer();
+                updateStateFinalizer(true);
                 return;
             }
             LOG(EXTENSION_LOG_NOTICE, "New access log file '%s' created with "
                 "%" PRIu64 " keys", name.c_str(),
                 static_cast<uint64_t>(num_items));
+            updateStateFinalizer(true);
         }
-
-        updateStateFinalizer();
     }
 
 private:
-    void updateStateFinalizer() {
+    /**
+     * Finalizer method called at the end of completing a visit.
+     * @param created_log: Did we successfully create a MutationLog object on
+     * this run?
+     */
+    void updateStateFinalizer(bool created_log) {
         if (++(as.completedCount) == store.getVBuckets().getNumShards()) {
             bool inverse = false;
             stateFinalizer.compare_exchange_strong(inverse, true);
+        }
+        if (created_log) {
+            // Successfully created an access log - increment stat.
+            // Done after the new file created
+            // to aid in testing - once the stat has the new value the access.log
+            // file can be safely checked.
+            ++stats.alogRuns;
         }
     }
 
