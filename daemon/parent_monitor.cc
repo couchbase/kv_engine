@@ -1,19 +1,34 @@
+/* -*- Mode: C++; tab-width: 4; c-basic-offset: 4; indent-tabs-mode: nil -*- */
+/*
+ *     Copyright 2016 Couchbase, Inc
+ *
+ *   Licensed under the Apache License, Version 2.0 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *       http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
 #include "parent_monitor.h"
 
 #include "memcached.h"
+#include <iostream>
 #include <platform/strerror.h>
 
-ParentMonitor::ParentMonitor(int parent_id) {
+ParentMonitor::ParentMonitor(int parent_id) : parent_pid(parent_id) {
     active = true;
 #ifdef WIN32
-    parent = OpenProcess(SYNCHRONIZE, FALSE, parent_id);
-    if (parent == INVALID_HANDLE_VALUE) {
+    handle = OpenProcess(SYNCHRONIZE, FALSE, parent_id);
+    if (handle == INVALID_HANDLE_VALUE) {
         FATAL_ERROR(EXIT_FAILURE,
                     "Failed to open parent process: %s",
                     cb_strerror(GetLastError()).c_str());
     }
-#else
-    parent = parent_id;
 #endif
     if (cb_create_named_thread(&thread,
                                ParentMonitor::thread_main,
@@ -45,12 +60,17 @@ void ParentMonitor::thread_main(void* arg) {
         } else {
             // Check our parent.
 #ifdef WIN32
-            if (WAIT_TIMEOUT != WaitForSingleObject(monitor->parent,
-                                                    0)) {
+            if (WaitForSingleObject(monitor->handle, 0) != WAIT_TIMEOUT) {
+                std::cerr << "Parent process " << monitor->parent_pid
+                          << " died. Exiting" << std::endl;
+                std::cerr.flush();
                 ExitProcess(EXIT_FAILURE);
             }
 #else
-            if (kill(monitor->parent, 0) == -1 && errno == ESRCH) {
+            if (kill(monitor->parent_pid, 0) == -1 && errno == ESRCH) {
+                std::cerr << "Parent process " << monitor->parent_pid
+                          << " died. Exiting" << std::endl;
+                std::cerr.flush();
                 _exit(1);
             }
 #endif

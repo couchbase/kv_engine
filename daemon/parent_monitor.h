@@ -46,10 +46,10 @@ protected:
     std::mutex mutex;
     std::condition_variable shutdown_cv;
     std::atomic<bool> active;
+    const cb_pid_t parent_pid;
+
 #ifdef WIN32
-    HANDLE parent;
-#else
-    pid_t parent;
+    HANDLE handle;
 #endif
 };
 
