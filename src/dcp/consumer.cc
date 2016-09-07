@@ -908,7 +908,7 @@ void DcpConsumer::notifyStreamReady(uint16_t vbucket) {
     ready.push_back(vbucket);
     lh.unlock();
 
-    engine_.getDcpConnMap().notifyPausedConnection(this, true);
+    notifyPaused(/*schedule*/true);
 }
 
 void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body,
@@ -1121,7 +1121,7 @@ void DcpConsumer::notifyConsumerIfNecessary(bool schedule) {
          * the memcached as it would cause delay in buffer ack being
          * sent out to the producer.
          */
-        engine_.getDcpConnMap().notifyPausedConnection(this, schedule);
+        notifyPaused(schedule);
     }
 }
 
@@ -1132,4 +1132,8 @@ SingleThreadedRCPtr<PassiveStream> DcpConsumer::findStream(uint16_t vbid) {
     } else {
         return SingleThreadedRCPtr<PassiveStream>();
     }
+}
+
+void DcpConsumer::notifyPaused(bool schedule) {
+    engine_.getDcpConnMap().notifyPausedConnection(this, schedule);
 }
