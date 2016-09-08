@@ -421,6 +421,8 @@ int main(int argc, char** argv) {
     // Set number of hashtable locks equal to current JSON config default.
     HashTable::setDefaultNumLocks(47);
 
+    init_alloc_hooks();
+
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

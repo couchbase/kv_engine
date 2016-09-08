@@ -368,16 +368,15 @@ bool Configuration::parseConfiguration(const char *str,
     // And add support for config files...
     config.push_back(new ConfigItem("config_file", DT_CONFIGFILE));
 
-    struct config_item *items = (struct config_item*)calloc(config.size() + 1,
-            sizeof(struct config_item));
-    int nelem = config.size();
+    const int nelem = config.size();
+    std::vector<config_item> items(nelem + 1);
     for (int ii = 0; ii < nelem; ++ii) {
         items[ii].key = config[ii]->key;
         items[ii].datatype = config[ii]->datatype;
         items[ii].value.dt_string = config[ii]->value.dt_string;
     }
 
-    bool ret = sapi->core->parse_config(str, items, stderr) == 0;
+    bool ret = sapi->core->parse_config(str, items.data(), stderr) == 0;
     for (int ii = 0; ii < nelem; ++ii) {
         if (items[ii].found) {
             if (ret) {
@@ -409,8 +408,6 @@ bool Configuration::parseConfiguration(const char *str,
         }
     }
 
-    // release allocated memory..
-    free(items);
     std::vector<ConfigItem *>::iterator ii;
     for (ii = config.begin(); ii != config.end(); ++ii) {
         delete *ii;
