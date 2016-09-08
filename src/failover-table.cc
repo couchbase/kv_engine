@@ -215,7 +215,7 @@ void FailoverTable::cacheTableJSON() {
     }
     char* json = cJSON_PrintUnformatted(list);
     cachedTableJSON = json;
-    free(json);
+    cJSON_Free(json);
     cJSON_Delete(list);
 }
 

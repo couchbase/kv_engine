@@ -2053,7 +2053,7 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
             if (failover_json) {
                 char* json = cJSON_PrintUnformatted(failover_json);
                 failovers.assign(json);
-                free(json);
+                cJSON_Free(json);
             }
         }
         cJSON_Delete(jsonObj);

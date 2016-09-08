@@ -51,7 +51,7 @@ static ostream& operator <<(ostream &out, cJSON *json)
     }
 
     out << '"';
-    free(data);
+    cJSON_Free(data);
     return out;
 }
 
