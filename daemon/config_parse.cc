@@ -1753,7 +1753,7 @@ void free_settings(struct settings* s) {
     }
     free(s->pending_extensions);
     free((char*)s->rbac_file);
-    free((char*)s->config);
+    cJSON_Free((char*)s->config);
     free((char*)s->root);
     free((char*)s->breakpad.minidump_dir);
     free((char*)s->ssl_cipher_list);

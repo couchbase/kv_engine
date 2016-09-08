@@ -94,7 +94,7 @@ static bool validate_dynamic_JSON_changes(struct test_ctx* ctx) {
     char* dynamic_string = cJSON_Print(ctx->dynamic);
     bool result = validate_proposed_config_changes(dynamic_string,
                                                    ctx->errors);
-    free(dynamic_string);
+    cJSON_Free(dynamic_string);
     return result;
 }
 
@@ -689,7 +689,7 @@ static void test_invalid_root(struct test_ctx *ctx) {
 static void teardown_invalid_root(struct test_ctx *ctx) {
     free(error_msg);
     cJSON_Delete(ctx->config);
-    free((void*)settings.config);
+    cJSON_Free((char*)settings.config);
 }
 
 static void setup_max_packet_size(struct test_ctx *ctx) {
@@ -706,7 +706,7 @@ static void test_max_packet_size(struct test_ctx *ctx) {
 
 static void teardown_max_packet_size(struct test_ctx *ctx) {
     cJSON_Delete(ctx->config);
-    free((void*)settings.config);
+    cJSON_Free((char*)settings.config);
 }
 
 static void test_dynamic_ssl_cipher_list_1(struct test_ctx *ctx) {

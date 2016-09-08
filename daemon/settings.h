@@ -201,7 +201,8 @@ struct settings {
         EXTENSION_BINARY_PROTOCOL_DESCRIPTOR *binary;
     } extensions;
 
-    const char *config;      /* The configuration specified by -C (json) */
+    const char *config;      /* The configuration specified by -C (json).
+                                Free with cJSON_Free() */
     /* @todo fix config of this! (not dynamic as of now), I guess
      * @todo I should just move into a C++ file and stick it in
      * @todo std::list
