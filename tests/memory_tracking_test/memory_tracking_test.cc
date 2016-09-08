@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include <atomic>
+#include <cstring>
 #if defined(HAVE_MEMALIGN)
 #include <malloc.h>
 #endif
