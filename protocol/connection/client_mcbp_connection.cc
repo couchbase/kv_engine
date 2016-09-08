@@ -144,28 +144,36 @@ void MemcachedBinprotConnection::recvFrame(Frame& frame) {
     MemcachedConnection::read(frame, 24);
 
     // Following the header is the full payload specified in the field
-    // bodylen.
-    uint32_t bodylen;
+    // bodylen. Luckily for us the bodylen is located at the same offset in
+    // both a request and a response message..
+    auto* req = reinterpret_cast<protocol_binary_request_header*>(frame.payload.data());
+    const uint32_t bodylen = ntohl(req->request.bodylen);
+    const uint8_t magic = frame.payload.at(0);
+    const uint8_t REQUEST = uint8_t(PROTOCOL_BINARY_REQ);
+    const uint8_t RESPONSE = uint8_t(PROTOCOL_BINARY_RES);
 
-    // fixup the header:
-    if (frame.payload.at(0) == uint8_t(PROTOCOL_BINARY_REQ)) {
-        auto* packet = reinterpret_cast<protocol_binary_request_header*>(frame.payload.data());
-
-        packet->request.keylen = ntohs(packet->request.keylen);
-        bodylen = packet->request.bodylen = ntohl(packet->request.bodylen);
-    } else if (frame.payload.at(0) == uint8_t(PROTOCOL_BINARY_RES)) {
-        auto* packet = reinterpret_cast<protocol_binary_response_header*>(frame.payload.data());
-
-        packet->response.keylen = ntohs(packet->response.keylen);
-        bodylen = packet->response.bodylen = ntohl(packet->response.bodylen);
-        packet->response.status = ntohs(packet->response.status);
-    } else {
-        throw std::runtime_error("Invalid magic received");
+    if (magic != REQUEST && magic != RESPONSE) {
+        throw std::runtime_error("Invalid magic received: " +
+                                 std::to_string(magic));
     }
-    MemcachedConnection::read(frame, bodylen);
 
+    MemcachedConnection::read(frame, bodylen);
     if (packet_dump) {
         Couchbase::MCBP::dump(frame.payload.data(), std::cerr);
+    }
+
+    // fixup the length bits in the header to be in host local order:
+    if (magic == REQUEST) {
+        // The underlying buffer may hage been reallocated as part of read
+        req = reinterpret_cast<protocol_binary_request_header*>(frame.payload.data());
+        req->request.keylen = ntohs(req->request.keylen);
+        req->request.bodylen = bodylen;
+    } else {
+        // The underlying buffer may hage been reallocated as part of read
+        auto* res = reinterpret_cast<protocol_binary_response_header*>(frame.payload.data());
+        res->response.keylen = ntohs(res->response.keylen);
+        res->response.bodylen = bodylen;
+        res->response.status = ntohs(res->response.status);
     }
 }
 
