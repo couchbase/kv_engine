@@ -133,8 +133,6 @@ public:
 
     size_t getNumWorkersStat(void) { return threadQ.size(); }
 
-    size_t getNumCPU(void);
-
     size_t getNumReaders(void);
 
     size_t getNumWriters(void);
