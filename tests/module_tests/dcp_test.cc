@@ -741,6 +741,63 @@ TEST_F(ConnectionTest, test_mb20716_connmap_notify_on_delete) {
     destroy_mock_cookie(cookie);
 }
 
+// Consumer variant of above test.
+TEST_F(ConnectionTest, test_mb20716_connmap_notify_on_delete_consumer) {
+    MockDcpConnMap connMap(*engine);
+    connMap.initialize(DCP_CONN_NOTIFIER);
+    const void *cookie = create_mock_cookie();
+    // Create a new Dcp producer
+    dcp_consumer_t consumer = connMap.newConsumer(cookie,
+                                                  "mb_20716_consumer");
+
+    // Move consumer into paused state (aka EWOULDBLOCK).
+    std::unique_ptr<dcp_message_producers> producers(
+            get_dcp_producers(handle, engine_v1));
+    ENGINE_ERROR_CODE result;
+    do {
+        result = consumer->step(producers.get());
+    } while (result == ENGINE_WANT_MORE);
+    EXPECT_EQ(ENGINE_SUCCESS, result);
+
+    // Check preconditions.
+    EXPECT_TRUE(consumer->isPaused());
+
+    // Hook into notify_io_complete.
+    // We (ab)use the engine_specific API to pass a pointer to a count of
+    // how many times notify_io_complete has been called.
+    size_t notify_count = 0;
+    SERVER_COOKIE_API* scapi = get_mock_server_api()->cookie;
+    scapi->store_engine_specific(cookie, &notify_count);
+    auto orig_notify_io_complete = scapi->notify_io_complete;
+    scapi->notify_io_complete = [](const void *cookie,
+                                   ENGINE_ERROR_CODE status) {
+        auto* notify_ptr = reinterpret_cast<size_t*>(
+                get_mock_server_api()->cookie->get_engine_specific(cookie));
+        (*notify_ptr)++;
+    };
+
+    // 0. Should start with no notifications.
+    ASSERT_EQ(0, notify_count);
+
+    // 1. Check that the periodic connNotifier (notifyAllPausedConnections)
+    // isn't sufficient to notify (it shouldn't be, as our connection has
+    // no notification pending).
+    connMap.notifyAllPausedConnections();
+    ASSERT_EQ(0, notify_count);
+
+    // 2. Simulate a bucket deletion.
+    connMap.shutdownAllConnections();
+
+    // Can also get a second notify as part of manageConnections being called
+    // in shutdownAllConnections().
+    EXPECT_GE(notify_count, 1)
+        << "expected at least one notify after shutting down all connections";
+
+    // Restore notify_io_complete callback.
+    scapi->notify_io_complete = orig_notify_io_complete;
+    destroy_mock_cookie(cookie);
+}
+
 class NotifyTest : public DCPTest {
 protected:
     void SetUp() {

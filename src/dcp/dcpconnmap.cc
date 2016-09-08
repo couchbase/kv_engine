@@ -219,7 +219,14 @@ void DcpConnMap::closeStreams(CookieToConnectionMap& map) {
             // connection.
             producer->notifyPaused(/*schedule*/false);
         } else {
-            static_cast<DcpConsumer*>(itr.second.get())->closeAllStreams();
+            auto* consumer = dynamic_cast<DcpConsumer*>(itr.second.get());
+            if (consumer) {
+                consumer->closeAllStreams();
+                // The consumer may be in EWOULDBLOCK (if it's idle), therefore
+                // notify him to ensure the front-end connection can close the
+                // TCP connection.
+                consumer->notifyPaused(/*schedule*/false);
+            }
         }
     }
 }
