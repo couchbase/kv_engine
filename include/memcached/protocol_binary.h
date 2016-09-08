@@ -1394,6 +1394,13 @@ extern "C"
                  * the mutations. Value of the item is not streamed.
                  */
 #define DCP_ADD_STREAM_FLAG_NO_VALUE 8
+                /**
+                 * Indicate the server to add stream only if the vbucket
+                 * is active.
+                 * If the vbucket is not active, the stream request fails with
+                 * error ENGINE_NOT_MY_VBUCKET
+                 */
+#define DCP_ADD_STREAM_ACTIVE_VB_ONLY 16
                 uint32_t flags;
             } body;
         } message;
