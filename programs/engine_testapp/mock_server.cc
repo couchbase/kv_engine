@@ -492,6 +492,9 @@ int get_number_of_mock_cookie_references(const void *cookie) {
     if (cookie == nullptr) {
         return -1;
     }
+    cb_mutex_enter(&(ref_mutex));
     struct mock_connstruct *c = (struct mock_connstruct *)cookie;
-    return c->references;
+    int numberOfReferences = c->references;
+    cb_mutex_exit(&(ref_mutex));
+    return numberOfReferences;
 }
