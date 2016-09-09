@@ -96,8 +96,8 @@ MemoryTracker::MemoryTracker() {
         return;
     }
     stats.ext_stats_size = getHooksApi()->get_extra_stats_size();
-    stats.ext_stats = (allocator_ext_stat*) calloc(stats.ext_stats_size,
-                                                   sizeof(allocator_ext_stat));
+    stats.ext_stats = new allocator_ext_stat[stats.ext_stats_size]();
+
     if (getHooksApi()->add_new_hook(&NewHook)) {
         LOG(EXTENSION_LOG_DEBUG, "Registered add hook");
         if (getHooksApi()->add_delete_hook(&DeleteHook)) {
@@ -125,7 +125,7 @@ MemoryTracker::~MemoryTracker() {
         shutdown_cv.notify_all();
         cb_join_thread(statsThreadId);
     }
-    free(stats.ext_stats);
+    delete[] stats.ext_stats;
     instance = NULL;
 }
 
