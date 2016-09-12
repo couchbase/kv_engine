@@ -204,6 +204,13 @@ ENGINE_ERROR_CODE DcpProducer::streamRequest(uint32_t flags,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    if ((flags & DCP_ADD_STREAM_ACTIVE_VB_ONLY) &&
+        (vb->getState() != vbucket_state_active)) {
+        LOG(EXTENSION_LOG_NOTICE, "%s (vb %d) Stream request failed because "
+            "the vbucket is in %s state, only active vbuckets were requested",
+            logHeader(), vbucket, vb->toString(vb->getState()));
+        return ENGINE_NOT_MY_VBUCKET;
+    }
     if (vb->checkpointManager.getOpenCheckpointId() == 0) {
         LOG(EXTENSION_LOG_WARNING, "%s (vb %d) Stream request failed because "
             "this vbucket is in backfill state", logHeader(), vbucket);

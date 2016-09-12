@@ -672,3 +672,47 @@ TEST_F(SingleThreadedEPStoreTest, MB20735_rescheduleWaketime) {
     EXPECT_EQ(waketime, task->getWaketime()) <<
                            "Rescheduled to much later time!";
 }
+
+/*
+ * Tests that we stream from only active vbuckets for DCP clients with that
+ * preference
+ */
+TEST_F(SingleThreadedEPStoreTest, stream_from_active_vbucket_only) {
+    std::map<vbucket_state_t, bool> states;
+    states[vbucket_state_active] = true; /* Positive test case */
+    states[vbucket_state_replica] = false; /* Negative test case */
+    states[vbucket_state_pending] = false; /* Negative test case */
+    states[vbucket_state_dead] = false; /* Negative test case */
+
+    for (auto& it : states) {
+        setVBucketStateAndRunPersistTask(vbid, it.first);
+
+        /* Create a Mock Dcp producer */
+        dcp_producer_t producer = new MockDcpProducer(*engine,
+                                                      cookie,
+                                                      "test_producer",
+                                                      /*notifyOnly*/false);
+
+        /* Try to open stream on replica vb with
+           DCP_ADD_STREAM_ACTIVE_VB_ONLY flag */
+        uint64_t rollbackSeqno;
+        auto err = producer->streamRequest(/*flags*/
+                                           DCP_ADD_STREAM_ACTIVE_VB_ONLY,
+                                           /*opaque*/0,
+                                           /*vbucket*/vbid,
+                                           /*start_seqno*/0,
+                                           /*end_seqno*/-1,
+                                           /*vb_uuid*/0xabcd,
+                                           /*snap_start*/0,
+                                           /*snap_end*/0,
+                                           &rollbackSeqno,
+                                           SingleThreadedEPStoreTest::fakeDcpAddFailoverLog);
+
+        if (it.second) {
+            EXPECT_EQ(ENGINE_SUCCESS, err) << "Unexpected error code";
+            producer->closeStream(/*opaque*/0, /*vbucket*/vbid);
+        } else {
+            EXPECT_EQ(ENGINE_NOT_MY_VBUCKET, err) << "Unexpected error code";
+        }
+    }
+}
