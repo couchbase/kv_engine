@@ -190,8 +190,11 @@ protected:
 class McdEnvironment : public ::testing::Environment {
 public:
 
-    virtual void SetUp();
-    virtual void TearDown();
+    McdEnvironment();
+    virtual ~McdEnvironment();
+
+    void SetUp() override;
+    void TearDown() override;
 
     const char* getRbacFilename() const {
         return rbac_file_name.c_str();

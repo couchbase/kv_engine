@@ -4448,6 +4448,20 @@ INSTANTIATE_TEST_CASE_P(Transport,
                         ::testing::Values(Transport::Plain, Transport::SSL),
                         ::testing::PrintToStringParamName());
 
+/* We have to use the contructor / destructor to init/shutdown
+ * OpenSSL, as the SetUp/TearDown methods only get called if at least
+ * one Test is run; and we *need* to call shutdown_openssl() to
+ * correctly free all memory allocated by OpenSSL's shared_library
+ * constructor.
+ */
+McdEnvironment::McdEnvironment() {
+    initialize_openssl();
+}
+
+McdEnvironment::~McdEnvironment() {
+    shutdown_openssl();
+}
+
 void McdEnvironment::SetUp() {
     // Create an rbac config file for use for all tests
     cJSON *rbac = generate_rbac_config();
@@ -4494,8 +4508,6 @@ void McdEnvironment::TearDown() {
 
     // Cleanup isasl file
     EXPECT_NE(-1, remove(isasl_file_name.c_str()));
-
-    shutdown_openssl();
 }
 
 char McdEnvironment::isasl_env_var[256];
@@ -4508,7 +4520,6 @@ cb_thread_t TestappTest::memcached_server_thread;
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
-    initialize_openssl();
 
 #ifndef WIN32
     /*
