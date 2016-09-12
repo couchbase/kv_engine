@@ -65,6 +65,10 @@ public:
         return reason == Greenstack::Status::NotFound;
     }
 
+    bool isNotMyVbucket() const override {
+        return reason == Greenstack::Status::NotMyVBucket;
+    }
+
     bool isNotStored() const override {
         return reason == Greenstack::Status::NotStored;
     }

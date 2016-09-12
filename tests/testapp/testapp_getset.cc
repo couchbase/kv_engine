@@ -348,3 +348,21 @@ TEST_P(GetSetTest, TestPerpendCasMismatch) {
     doc.value[0] = 'a';
     EXPECT_EQ(doc.value, stored.value);
 }
+
+TEST_P(GetSetTest, TestIllegalVbucket) {
+    auto& conn = getConnection();
+
+    // A memcached bucket only use vbucket 0
+    conn.createBucket("bucket", "", Greenstack::BucketType::Memcached);
+
+    try {
+        auto second_conn = conn.clone();
+        second_conn->selectBucket("bucket");
+        second_conn->get("TestGetMiss", 1);
+        FAIL() << "Expected TestGetMiss to throw an exception";
+    } catch (ConnectionError& error) {
+        EXPECT_TRUE(error.isNotMyVbucket()) << error.what();
+    }
+
+    conn.deleteBucket("bucket");
+}
