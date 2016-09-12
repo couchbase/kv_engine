@@ -811,24 +811,21 @@ protocol_binary_response_status EventuallyPersistentStore::evictKey(
                                                         const std::string &key,
                                                         uint16_t vbucket,
                                                         const char **msg,
-                                                        size_t *msg_size,
-                                                        bool force) {
+                                                        size_t *msg_size) {
     RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb || (vb->getState() != vbucket_state_active && !force)) {
+    if (!vb || (vb->getState() != vbucket_state_active)) {
         return PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET;
     }
 
     int bucket_num(0);
     LockHolder lh = vb->ht.getLockedBucket(key, &bucket_num);
-    StoredValue *v = fetchValidValue(vb, key, bucket_num, force, false);
+    StoredValue *v = fetchValidValue(vb, key, bucket_num, /*wantDeleted*/ false,
+                                     /*trackReference*/ false);
 
     protocol_binary_response_status rv(PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     *msg_size = 0;
     if (v) {
-        if (force)  {
-            v->markClean();
-        }
         if (v->isResident()) {
             if (vb->ht.unlocked_ejectItem(v, eviction_policy)) {
                 *msg = "Ejected.";

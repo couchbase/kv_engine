@@ -364,8 +364,7 @@ public:
     protocol_binary_response_status evictKey(const std::string &key,
                                              uint16_t vbucket,
                                              const char **msg,
-                                             size_t *msg_size,
-                                             bool force=false);
+                                             size_t *msg_size);
 
     /**
      * delete an item in the store.
