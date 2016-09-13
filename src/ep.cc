@@ -2803,8 +2803,8 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
                                                         const void *cookie,
                                                         bool force,
                                                         ItemMetaData *itemMeta,
-                                                        mutation_descr_t *mutInfo,
-                                                        bool tapBackfill)
+                                                        mutation_descr_t
+                                                        *mutInfo)
 {
     RCPtr<VBucket> vb = getVBucket(vbucket);
     if (!vb || (vb->getState() == vbucket_state_dead && !force)) {
@@ -2922,12 +2922,12 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteItem(const std::string &key,
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
         if (v) {
-            queueDirty(vb, v, &lh, NULL, tapBackfill);
+            queueDirty(vb, v, &lh, NULL, /*tapBackfill*/false);
         }
         break;
     case WAS_DIRTY:
     case WAS_CLEAN:
-        queueDirty(vb, v, &lh, &seqno, tapBackfill);
+        queueDirty(vb, v, &lh, &seqno, /*tapBackfill*/false);
         mutInfo->seqno = seqno;
         mutInfo->vbucket_uuid = vb->failovers->getLatestUUID();
         break;
