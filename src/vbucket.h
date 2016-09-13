@@ -467,6 +467,12 @@ public:
         return rollbackItemCount.load(std::memory_order_relaxed);
     }
 
+    // Return the persistence checkpoint ID
+    uint64_t getPersistenceCheckpointId() const;
+
+    // Set the persistence checkpoint ID to the given value.
+    void setPersistenceCheckpointId(uint64_t checkpointId);
+
     static const vbucket_state_t ACTIVE;
     static const vbucket_state_t REPLICA;
     static const vbucket_state_t PENDING;
@@ -555,6 +561,8 @@ private:
 
     HLC hlc;
     std::string statPrefix;
+    // The persistence checkpoint ID for this vbucket.
+    AtomicValue<uint64_t> persistenceCheckpointId;
 
     static size_t chkFlushTimeout;
 

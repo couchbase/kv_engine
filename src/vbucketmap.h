@@ -82,7 +82,6 @@ private:
     std::vector<KVShard*> shards;
     AtomicValue<bool> *bucketDeletion;
     AtomicValue<bool> *bucketCreation;
-    AtomicValue<uint64_t> *persistenceCheckpointIds;
     AtomicValue<uint64_t> *persistenceSeqnos;
     const id_type size;
 

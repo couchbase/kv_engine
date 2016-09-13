@@ -431,6 +431,15 @@ size_t VBucket::getNumNonResidentItems(item_eviction_policy_t policy) {
     }
 }
 
+
+uint64_t VBucket::getPersistenceCheckpointId() const {
+    return persistenceCheckpointId.load();
+}
+
+void VBucket::setPersistenceCheckpointId(uint64_t checkpointId) {
+    persistenceCheckpointId.store(checkpointId);
+}
+
 bool VBucket::isResidentRatioUnderThreshold(float threshold,
                                             item_eviction_policy_t policy) {
     if (policy != FULL_EVICTION) {
