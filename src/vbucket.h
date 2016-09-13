@@ -22,6 +22,7 @@
 
 #include "bloomfilter.h"
 #include "checkpoint.h"
+#include "ep_types.h"
 #include "failover-table.h"
 #include "kvstore.h"
 #include "stored-value.h"
@@ -303,9 +304,10 @@ public:
         LockHolder lh(backfill.mutex);
         return backfill.items.size();
     }
-    bool queueBackfillItem(queued_item& qi, bool genSeqno) {
+    bool queueBackfillItem(queued_item& qi,
+                           const GenerateBySeqno generateBySeqno) {
         LockHolder lh(backfill.mutex);
-        if (genSeqno) {
+        if (GenerateBySeqno::Yes == generateBySeqno) {
             qi->setBySeqno(checkpointManager.nextBySeqno());
         } else {
             checkpointManager.setBySeqno(qi->getBySeqno());

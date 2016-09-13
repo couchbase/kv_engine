@@ -964,8 +964,9 @@ std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
     return cursorsToDrop;
 }
 
-bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
-                                   bool genSeqno) {
+bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
+                                   queued_item& qi,
+                                   const GenerateBySeqno generateBySeqno) {
     LockHolder lh(queueLock);
     if (!vb) {
         throw std::invalid_argument("CheckpointManager::queueDirty: vb must "
@@ -993,7 +994,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
                     ") is not active. This is not expected. vb:" +
                     std::to_string(vb->getId()) +
                     " lastBySeqno:" + std::to_string(lastBySeqno) +
-                    " genSeqno:" + std::to_string(genSeqno));
+                    " genSeqno:" + to_string(generateBySeqno));
         }
     }
 
@@ -1004,7 +1005,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
                 ") is not OPEN");
     }
 
-    if (genSeqno) {
+    if (GenerateBySeqno::Yes == generateBySeqno) {
         qi->setBySeqno(++lastBySeqno);
         checkpointList.back()->setSnapshotEndSeqno(lastBySeqno);
     } else {
@@ -1020,7 +1021,7 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb, queued_item& qi,
                 " snapshotStart:" + std::to_string(st) +
                 " lastBySeqno:" + std::to_string(lastBySeqno) +
                 " snapshotEnd:" + std::to_string(en) +
-                " genSeqno:" + (genSeqno ? "True" : "False"));
+                " genSeqno:" + to_string(generateBySeqno));
     }
 
     queue_dirty_t result = checkpointList.back()->queueDirty(qi, this);

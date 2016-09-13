@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "atomic.h"
+#include "ep_types.h"
 #include "item.h"
 #include "locks.h"
 #include "stats.h"
@@ -541,12 +542,14 @@ public:
 
     /**
      * Queue an item to be written to persistent layer.
-     * @param item the item to be persisted.
      * @param vbucket the vbucket that a new item is pushed into.
-     * @param bySeqno the sequence number assigned to this mutation
+     * @param qi item to be persisted.
+     * @param generateBySeqno yes/no generate the seqno for the item
      * @return true if an item queued increases the size of persistence queue by 1.
      */
-    bool queueDirty(const RCPtr<VBucket> &vb, queued_item& qi, bool genSeqno);
+    bool queueDirty(const RCPtr<VBucket> &vb,
+                    queued_item& qi,
+                    const GenerateBySeqno generateBySeqno);
 
     /**
      * Return the next item to be sent to a given connection
