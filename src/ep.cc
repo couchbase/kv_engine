@@ -684,7 +684,7 @@ StoredValue *EventuallyPersistentStore::fetchValidValue(RCPtr<VBucket> &vb,
                 incExpirationStat(vb, EXP_BY_ACCESS);
                 vb->ht.unlocked_softDelete(v, 0, eviction_policy);
                 v->setCas(vb->nextHLCCas());
-                queueDirty(vb, v, NULL, NULL, false, true);
+                queueDirty(vb, v, NULL, NULL, false);
             }
             return wantDeleted ? v : NULL;
         }
@@ -1123,7 +1123,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
                                       emd->getConflictResMode()));
         }
         vb->setMaxCas(v->getCas());
-        queueDirty(vb, v, &lh, NULL,true, true, genBySeqno, false);
+        queueDirty(vb, v, &lh, NULL, true, genBySeqno, false);
         break;
     case INVALID_VBUCKET:
         ret = ENGINE_NOT_MY_VBUCKET;
@@ -2396,7 +2396,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
                                             emd->getConflictResMode()));
         }
         vb->setMaxCas(v->getCas());
-        queueDirty(vb, v, &lh, seqno, false, true, genBySeqno, false);
+        queueDirty(vb, v, &lh, seqno, false, genBySeqno, false);
         break;
     case NOT_FOUND:
         ret = ENGINE_KEY_ENOENT;
@@ -3081,7 +3081,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                                          emd->getConflictResMode()));
         }
         vb->setMaxCas(v->getCas());
-        queueDirty(vb, v, &lh, seqno, tapBackfill, true, genBySeqno, false);
+        queueDirty(vb, v, &lh, seqno, tapBackfill, genBySeqno, false);
         break;
     case NEED_BG_FETCH:
         lh.unlock();
@@ -3568,7 +3568,6 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
                                            LockHolder *plh,
                                            uint64_t *seqno,
                                            bool tapBackfill,
-                                           bool notifyReplicator,
                                            bool genBySeqno,
                                            bool setConflictMode) {
     if (vb) {
@@ -3614,7 +3613,7 @@ void EventuallyPersistentStore::queueDirty(RCPtr<VBucket> &vb,
             shard->getFlusher()->notifyFlushEvent();
 
         }
-        if (!tapBackfill && notifyReplicator) {
+        if (!tapBackfill) {
             engine.getTapConnMap().notifyVBConnections(vb->getId());
             engine.getDcpConnMap().notifyVBConnections(vb->getId(),
                                                        qi->getBySeqno());
