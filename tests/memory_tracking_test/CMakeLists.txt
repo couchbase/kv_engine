@@ -16,4 +16,8 @@ IF (NOT MEMORY_ALLOCATOR STREQUAL "system")
               memory_tracking_plugin.cc)
   TARGET_LINK_LIBRARIES(memcached_memory_tracking_plugin platform)
   SET_TARGET_PROPERTIES(memcached_memory_tracking_plugin PROPERTIES PREFIX "")
+  IF(APPLE)
+    SET_TARGET_PROPERTIES(memcached_memory_tracking_plugin PROPERTIES
+      SUFFIX ".dylib")
+  ENDIF(APPLE)
 ENDIF (NOT MEMORY_ALLOCATOR STREQUAL "system")
