@@ -1421,11 +1421,12 @@ void EventuallyPersistentStore::scheduleVBSnapshot(VBSnapshotTask::Priority prio
 }
 
 void EventuallyPersistentStore::scheduleVBStatePersist(VBStatePersistTask::Priority priority,
-                                                       uint16_t vbid,
-                                                       bool force) {
+                                                       uint16_t vbid) {
+
+
     bool inverse = false;
-    if (force ||
-        schedule_vbstate_persist[vbid].compare_exchange_strong(inverse, true)) {
+    if (schedule_vbstate_persist[vbid].compare_exchange_strong(inverse, true)) {
+
         if (priority == VBStatePersistTask::Priority::HIGH) {
             ExecutorPool::get()->schedule(new VBStatePersistTaskHigh(&engine, vbid, true), WRITER_TASK_IDX);
         } else {

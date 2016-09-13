@@ -703,8 +703,8 @@ public:
     /**
      * Schedule a vbstate persistence task for a given vbucket.
      */
-    void scheduleVBStatePersist(VBStatePersistTask::Priority prio, uint16_t vbid,
-                                bool force = false);
+    void scheduleVBStatePersist(VBStatePersistTask::Priority prio,
+                                uint16_t vbid);
 
     /**
      * Persist a vbucket's state.
