@@ -147,6 +147,14 @@ class FailoverTable {
 
     void replaceFailoverLog(uint8_t* bytes, uint32_t length);
 
+    /**
+     * Returns total number of entries in the failover table. These entries
+     * represent a branch
+     *
+     * @return total number of entries
+     */
+    size_t getNumEntries() const;
+
  private:
 
     bool loadFromJSON(cJSON *json);

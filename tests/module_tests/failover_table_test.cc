@@ -247,6 +247,45 @@ static void test_pop_5_failover_log() {
     cb_assert(rollback_seqno == 0);
 }
 
+static void test_add_entry() {
+    /* Capacity of max 10 entries */
+    const int max_entries = 10;
+    FailoverTable table(max_entries);
+
+    /* Add 4 entries with increasing order of seqno */
+    const int low_seqno = 100, step = 100;
+    for (int i = 0; i < (max_entries/2); ++i) {
+        table.createEntry(low_seqno + i * step);
+    }
+
+    /* We must have all the entries we added + one default entry with seqno == 0
+       that was added when we created failover table */
+    cb_assert((max_entries/2 + 1) == table.getNumEntries());
+
+    /* Add an entry such that low_seqno < seqno < low_seqno + step.
+       Now the table must have only 3 entries: 0, low_seqno, seqno */
+    table.createEntry(low_seqno + step - 1);
+    cb_assert(3 == table.getNumEntries());
+}
+
+static void test_max_capacity() {
+    /* Capacity of max 5 entries */
+    const int max_entries = 5;
+    FailoverTable table(max_entries);
+
+    const int low_seqno = 100, step = 100;
+    for (int i = 0; i < max_entries + 2; ++i) {
+        table.createEntry(low_seqno + i * step);
+    }
+    const int max_seqno = low_seqno + (max_entries + 1) * step;
+
+    /* Expect to have only max num of entries */
+    cb_assert(max_entries == table.getNumEntries());
+
+    /* The table must remove entries in FIFO */
+    cb_assert(table.getLatestEntry().by_seqno == max_seqno);
+}
+
 int main(int argc, char **argv) {
     (void)argc;
     (void)argv;
@@ -256,5 +295,7 @@ int main(int argc, char **argv) {
     test_pop_5_failover_log();
     test_5_failover_largeseqno_log();
     test_edgetests_failover_log();
+    test_add_entry();
+    test_max_capacity();
     return 0;
 }
