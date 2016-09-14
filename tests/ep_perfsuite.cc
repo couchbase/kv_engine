@@ -38,6 +38,7 @@
 #include <algorithm>
 #include <iterator>
 #include <fstream>
+#include <thread>
 
 #include "ep_testsuite_common.h"
 #include "ep_test_apis.h"
@@ -712,22 +713,23 @@ std::vector<std::string> genVectorOfValues(Doc_format type,
     return vals;
 }
 
-static void perf_load_client(ENGINE_HANDLE *h,
-                             ENGINE_HANDLE_V1 *h1,
+/* Function which loads documents into a bucket */
+static void perf_load_client(ENGINE_HANDLE* h,
+                             ENGINE_HANDLE_V1* h1,
                              uint16_t vbid,
                              int count,
                              Doc_format typeOfData,
                              std::vector<hrtime_t> &insertTimes) {
-
-    item *it = NULL;
     std::vector<std::string> keys;
-    std::vector<std::string> vals;
     for (int i = 0; i < count; ++i) {
         keys.push_back("key" + std::to_string(i));
     }
-    vals = genVectorOfValues(typeOfData, count, ITERATIONS);
+
+    std::vector<std::string> vals =
+            genVectorOfValues(typeOfData, count, ITERATIONS);
 
     for (int i = 0; i < count; ++i) {
+        item *it = nullptr;
         checkeq(storeCasVb11(h, h1, NULL, OPERATION_SET, keys[i].c_str(),
                              vals[i].data(), vals[i].size(), /*flags*/9258,
                              &it, 0, vbid),
@@ -742,26 +744,35 @@ static void perf_load_client(ENGINE_HANDLE *h,
     wait_for_flusher_to_settle(h, h1);
 }
 
-static void perf_dcp_client(struct Handle_args *ha) {
+/*
+ * Function which implements a DCP client sinking mutations from an ep-engine
+ * DCP Producer (i.e. simulating the replica side of a DCP pairing).
+ */
+static void perf_dcp_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+                            int itemCount, const std::string& name,
+                            uint32_t opaque, uint16_t vbid,
+                            bool retrieveCompressed,
+                            std::vector<hrtime_t>& recv_timings,
+                            std::vector<size_t>& bytes_received) {
     const void *cookie = testHarness.create_cookie();
 
-    std::string uuid("vb_" + std::to_string(ha->vb) + ":0:id");
-    uint64_t vb_uuid = get_ull_stat(ha->h, ha->h1, uuid.c_str(), "failovers");
-    uint32_t streamOpaque = ha->opaque;
+    std::string uuid("vb_" + std::to_string(vbid) + ":0:id");
+    uint64_t vb_uuid = get_ull_stat(h, h1, uuid.c_str(), "failovers");
+    uint32_t streamOpaque = opaque;
 
-    checkeq(ha->h1->dcp.open(ha->h, cookie, ++streamOpaque, 0, DCP_OPEN_PRODUCER,
-                             (void*)ha->name.c_str(), ha->name.length()),
+    checkeq(h1->dcp.open(h, cookie, ++streamOpaque, 0, DCP_OPEN_PRODUCER,
+                             (void*)name.c_str(), name.length()),
             ENGINE_SUCCESS,
             "Failed dcp producer open connection");
 
-    checkeq(ha->h1->dcp.control(ha->h, cookie, ++streamOpaque,
+    checkeq(h1->dcp.control(h, cookie, ++streamOpaque,
                                 "connection_buffer_size",
                                 strlen("connection_buffer_size"), "1024", 4),
             ENGINE_SUCCESS,
             "Failed to establish connection buffer");
 
-    if (ha->retrieveCompressed) {
-        checkeq(ha->h1->dcp.control(ha->h, cookie, ++streamOpaque,
+    if (retrieveCompressed) {
+        checkeq(h1->dcp.control(h, cookie, ++streamOpaque,
                                     "enable_value_compression",
                                     strlen("enable_value_compression"), "true", 4),
                 ENGINE_SUCCESS,
@@ -771,14 +782,14 @@ static void perf_dcp_client(struct Handle_args *ha) {
     // We create a stream from 0 to MAX(seqno), and then rely on encountering the
     // sentinal document to know when to finish.
     uint64_t rollback = 0;
-    checkeq(ha->h1->dcp.stream_req(ha->h, cookie, 0, streamOpaque,
-                                   ha->vb, 0, std::numeric_limits<uint64_t>::max(),
+    checkeq(h1->dcp.stream_req(h, cookie, 0, streamOpaque,
+                                   vbid, 0, std::numeric_limits<uint64_t>::max(),
                                    vb_uuid, 0, 0, &rollback,
                                    mock_dcp_add_failover_log),
             ENGINE_SUCCESS,
             "Failed to initiate stream request");
 
-    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(ha->h, ha->h1));
+    std::unique_ptr<dcp_message_producers> producers(get_dcp_producers(h, h1));
 
     bool done = false;
     uint32_t bytes_read = 0;
@@ -788,12 +799,12 @@ static void perf_dcp_client(struct Handle_args *ha) {
     do {
         if (bytes_read > 512) {
             checkeq(ENGINE_SUCCESS,
-                    ha->h1->dcp.buffer_acknowledgement(ha->h, cookie, ++streamOpaque,
-                                                       ha->vb, bytes_read),
+                    h1->dcp.buffer_acknowledgement(h, cookie, ++streamOpaque,
+                                                   vbid, bytes_read),
                     "Failed to acknowledge buffer");
             bytes_read = 0;
         }
-        ENGINE_ERROR_CODE err = ha->h1->dcp.step(ha->h, cookie, producers.get());
+        ENGINE_ERROR_CODE err = h1->dcp.step(h, cookie, producers.get());
         switch (err) {
         case ENGINE_SUCCESS:
             // No data currently available - wait to be notified when
@@ -812,11 +823,11 @@ static void perf_dcp_client(struct Handle_args *ha) {
                         done = true;
                         break;
                     }
-                    ha->timings.push_back(gethrtime());
-                    ha->bytes_received.push_back(dcp_last_value.length());
+                    recv_timings.push_back(gethrtime());
+                    bytes_received.push_back(dcp_last_value.length());
                     bytes_read += dcp_last_packet_size;
                     if (pending_marker_ack && dcp_last_byseqno == marker_end) {
-                        sendDcpAck(ha->h, ha->h1, cookie,
+                        sendDcpAck(h, h1, cookie,
                                    PROTOCOL_BINARY_CMD_DCP_SNAPSHOT_MARKER,
                                    PROTOCOL_BINARY_RESPONSE_SUCCESS,
                                    dcp_last_opaque);
@@ -831,6 +842,7 @@ static void perf_dcp_client(struct Handle_args *ha) {
                     }
                     bytes_read += dcp_last_packet_size;
                     break;
+
                 case 0:
                     /* Consider case where no messages were ready on the last
                      * step call so we will just ignore this case. Note that we
@@ -854,17 +866,17 @@ static void perf_dcp_client(struct Handle_args *ha) {
     testHarness.destroy_cookie(cookie);
 }
 
-static void perf_tap_client(struct Handle_args *ha) {
+static void perf_tap_client(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+                            int itemCount, const std::string& name) {
     const void *cookie = testHarness.create_cookie();
 
     testHarness.lock_cookie(cookie);
-    std::string name("perf_tap_client");
     uint64_t backfill_age = htonll(0);
-    TAP_ITERATOR iter = ha->h1->get_tap_iterator(ha->h, cookie, name.c_str(),
-                                                 name.size(),
-                                                 TAP_CONNECT_FLAG_BACKFILL,
-                                                 &backfill_age,
-                                                 sizeof(backfill_age));
+    TAP_ITERATOR iter = h1->get_tap_iterator(h, cookie, name.c_str(),
+                                             name.size(),
+                                             TAP_CONNECT_FLAG_BACKFILL,
+                                             &backfill_age,
+                                             sizeof(backfill_age));
     check(iter != NULL, "Failed to create a tap iterator");
 
     bool done = false;
@@ -877,7 +889,7 @@ static void perf_tap_client(struct Handle_args *ha) {
         uint16_t flags;
         uint32_t seqno;
         uint16_t vbucket;
-        tap_event_t event = iter(ha->h, cookie, &item, &engine, &nengine,
+        tap_event_t event = iter(h, cookie, &item, &engine, &nengine,
                                  &ttl, &flags, &seqno, &vbucket);
 
         switch (event) {
@@ -887,19 +899,19 @@ static void perf_tap_client(struct Handle_args *ha) {
             // Check for sentinal
             item_info info;
             info.nvalue = 1;
-            check(ha->h1->get_item_info(ha->h, NULL, item, &info),
+            check(h1->get_item_info(h, NULL, item, &info),
                   "Failed to get item info for TAP mutation");
 
             if (strncmp(SENTINAL_KEY, reinterpret_cast<const char*>(info.key),
                         info.nkey) == 0) {
                 done = true;
             }
-            ha->h1->release(ha->h, NULL, item);
+            h1->release(h, NULL, item);
             testHarness.lock_cookie(cookie);
             break;
 
         case TAP_DELETION:
-            ha->h1->release(ha->h, NULL, item);
+            h1->release(h, NULL, item);
             break;
 
         case TAP_OPAQUE:
@@ -920,28 +932,6 @@ static void perf_tap_client(struct Handle_args *ha) {
     testHarness.destroy_cookie(cookie);
 }
 
-extern "C" {
-    static void load_thread(void *args) {
-        struct Handle_args *ha = static_cast<Handle_args *>(args);
-        perf_load_client(ha->h,
-                         ha->h1,
-                         ha->vb,
-                         ha->itemCount,
-                         ha->typeOfData,
-                         ha->timings);
-    }
-
-    static void dcp_client_thread(void *args) {
-        struct Handle_args *ha = static_cast<Handle_args *>(args);
-        perf_dcp_client(ha);
-    }
-
-    static void tap_client_thread(void *args) {
-        struct Handle_args *ha = static_cast<Handle_args *>(args);
-        perf_tap_client(ha);
-    }
-}
-
 struct Ret_vals {
     Ret_vals(struct Handle_args _ha, size_t n) :
         ha(_ha)
@@ -953,6 +943,50 @@ struct Ret_vals {
     std::vector<hrtime_t> timings;
     std::vector<size_t> received;
 };
+
+/*
+ * Performs a single DCP latency / bandwidth test with the given parameters.
+ * Returns vectors of item timings and recived bytes.
+ */
+static std::pair<std::vector<hrtime_t>,
+                 std::vector<size_t>>
+single_dcp_latency_bw_test(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                           uint16_t vb, size_t item_count,
+                           Doc_format typeOfData, const std::string& name,
+                           uint32_t opaque, bool retrieveCompressed) {
+    std::vector<size_t> received;
+
+    check(set_vbucket_state(h, h1, vb, vbucket_state_active),
+            "Failed set_vbucket_state for vbucket");
+    wait_for_flusher_to_settle(h, h1);
+
+    std::vector<hrtime_t> insert_times;
+
+    std::thread load_thread{perf_load_client, h, h1, vb, item_count,
+                            typeOfData, std::ref(insert_times)};
+
+    std::vector<hrtime_t> recv_times;
+    std::thread dcp_thread{perf_dcp_client, h, h1, item_count, name,
+                           opaque, vb, retrieveCompressed,
+                           std::ref(recv_times), std::ref(received)};
+    load_thread.join();
+    dcp_thread.join();
+
+    std::vector<hrtime_t> timings;
+    for (size_t j = 0; j < insert_times.size(); ++j) {
+        if (insert_times[j] < recv_times[j]) {
+            timings.push_back(recv_times[j] - insert_times[j]);
+        } else {
+            // Since there is no network overhead at all, it is seen
+            // that sometimes the DCP client actually received the
+            // mutation before the store from the load client returned
+            // a SUCCESS.
+            timings.push_back(0);
+        }
+    }
+
+    return {timings, received};
+}
 
 static enum test_result perf_dcp_latency_and_bandwidth(ENGINE_HANDLE *h,
                                                        ENGINE_HANDLE_V1 *h1,
@@ -966,50 +1000,18 @@ static enum test_result perf_dcp_latency_and_bandwidth(ENGINE_HANDLE *h,
     std::vector<struct Ret_vals> iterations;
 
     // For Loader & DCP client to get documents as is from vbucket 0
-    struct Handle_args ha1(h, h1, item_count, typeOfData, "As_is",
-                           0xFFFFFF00, 0, false);
-    struct Ret_vals rv1(ha1, item_count);
-    iterations.push_back(rv1);
+    auto as_is_results =
+            single_dcp_latency_bw_test(h, h1, /*vb*/0, item_count, typeOfData,
+                                       "As_is", /*opaque*/0xFFFFFF00, false);
+    all_timings.push_back({"As_is", &as_is_results.first});
+    all_sizes.push_back({"As_s", &as_is_results.second});
 
     // For Loader & DCP client to get documents compressed from vbucket 1
-    struct Handle_args ha2(h, h1, item_count, typeOfData, "Compress",
-                           0xFF000000, 1, true);
-    struct Ret_vals rv2(ha2, item_count);
-    iterations.push_back(rv2);
-
-    for (size_t i = 0; i < iterations.size(); ++i) {
-        std::vector<hrtime_t> timings;
-        cb_thread_t loader_thread, dcp_thread;
-        struct Handle_args load_ha(iterations[i].ha);
-        struct Handle_args dcp_ha(iterations[i].ha);
-
-        check(set_vbucket_state(h, h1, load_ha.vb, vbucket_state_active),
-                "Failed set_vbucket_state for vbucket");
-        wait_for_flusher_to_settle(h, h1);
-
-        cb_assert(cb_create_thread(&loader_thread, load_thread, &load_ha, 0) == 0);
-        cb_assert(cb_create_thread(&dcp_thread, dcp_client_thread, &dcp_ha, 0) == 0);
-        cb_assert(cb_join_thread(loader_thread) == 0);
-        cb_assert(cb_join_thread(dcp_thread) == 0);
-
-        cb_assert(load_ha.timings.size() == dcp_ha.timings.size());
-
-        for (size_t j = 0; j < load_ha.timings.size(); ++j) {
-            if (load_ha.timings[j] < dcp_ha.timings[j]) {
-                timings.push_back(dcp_ha.timings[j] - load_ha.timings[j]);
-            } else {
-                // Since there is no network overhead at all, it is seen
-                // that sometimes the DCP client actually received the
-                // mutation before the store from the load client returned
-                // a SUCCESS.
-                timings.push_back(0);
-            }
-        }
-        iterations[i].timings = timings;
-        iterations[i].received = dcp_ha.bytes_received;
-        all_timings.push_back(std::make_pair(dcp_ha.name, &iterations[i].timings));
-        all_sizes.push_back(std::make_pair(dcp_ha.name, &iterations[i].received));
-    }
+    auto compress_results =
+            single_dcp_latency_bw_test(h, h1, /*vb*/1, item_count, typeOfData,
+                                      "Compress", /*opaque*/0xFF000000, true);
+    all_timings.push_back({"Compress", &compress_results.first});
+    all_sizes.push_back({"Compress", &compress_results.second});
 
     printf("\n\n");
 
@@ -1063,20 +1065,22 @@ static enum test_result perf_latency_dcp_impact(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Spin up a DCP replication background thread, then start the normal
     // latency test.
-    cb_thread_t dcp_thread;
     const size_t num_docs = ITERATIONS;
     // Perform 3 DCP-visible operations - add, replace, delete:
     const size_t num_dcp_ops = num_docs * 3;
 
-    Handle_args dcp_args(h, h1, num_dcp_ops, /*unused*/Doc_format::JSON_PADDED,
-                         "DCP",  /*opaque*/0x1, 0, /*compressed*/false);
-    cb_assert(cb_create_thread(&dcp_thread, dcp_client_thread, &dcp_args,
-                               0) == 0);
+    // Don't actually care about send times & bytes for this test.
+    std::vector<hrtime_t> ignored_send_times;
+    std::vector<size_t> ignored_send_bytes;
+    std::thread dcp_thread{perf_dcp_client, h, h1, num_dcp_ops, "DCP",
+                           /*opaque*/0x1, /*vb*/0, /*compressed*/false,
+                           std::ref(ignored_send_times),
+                           std::ref(ignored_send_bytes)};
 
     enum test_result result = perf_latency(h, h1, "With background DCP",
                                            num_docs);
 
-    cb_join_thread(dcp_thread);
+    dcp_thread.join();
 
     return result;
 }
@@ -1085,20 +1089,16 @@ static enum test_result perf_latency_tap_impact(ENGINE_HANDLE *h,
                                                 ENGINE_HANDLE_V1 *h1) {
     // Spin up a TAP replication background thread, then start the normal
     // latency test.
-    cb_thread_t tap_thread;
     const size_t num_docs = ITERATIONS;
     // Perform 3 TAP-visible operations - add, replace, delete:
     const size_t num_ops = num_docs * 3;
 
-    Handle_args tap_args(h, h1, num_ops, /*unused*/Doc_format::JSON_PADDED,
-                         "TAP",  /*opaque*/0x1, 0, /*compressed*/false);
-    cb_assert(cb_create_thread(&tap_thread, tap_client_thread, &tap_args,
-                               0) == 0);
+    std::thread tap_thread{perf_tap_client, h, h1, num_ops, "TAP"};
 
     enum test_result result = perf_latency(h, h1, "With background TAP",
                                            num_docs);
 
-    cb_join_thread(tap_thread);
+    tap_thread.join();
 
     return result;
 }
