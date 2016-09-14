@@ -49,6 +49,7 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
 #include <JSON_checker.h>
 
 #ifdef linux
@@ -6474,6 +6475,10 @@ static enum test_result test_mb20697(ENGINE_HANDLE *h,
 
     /* Ensure that this results in commit failure and the stat gets incremented */
     wait_for_stat_change(h, h1, "ep_item_commit_failed", 0);
+
+    // Restore the database directory so the flusher can complete (otherwise
+    // the writer thread can loop forever and we cannot shutdown cleanly.
+    CouchbaseDirectoryUtilities::mkdirp(dbname);
 
     return SUCCESS;
 }
