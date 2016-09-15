@@ -6647,6 +6647,25 @@ bool update_event(conn *c, const int new_flags) {
 static enum transmit_result transmit(conn *c) {
     cb_assert(c != NULL);
 
+
+    if (c->ssl.enabled) {
+        // We use OpenSSL to write data into a buffer before we send it
+        // over the wire... Lets go ahead and drain that BIO pipe before
+        // we may do anything else.
+        drain_bio_send_pipe(c);
+        if (c->ssl.out.total) {
+            if (c->ssl.error || (!update_event(c, EV_WRITE | EV_PERSIST))) {
+                conn_set_state(c, conn_closing);
+                return TRANSMIT_HARD_ERROR;
+            }
+
+            return TRANSMIT_SOFT_ERROR;
+        }
+
+        // The output buffer is completely drained (well, put in the kernel
+        // buffer to send to the client). Go ahead and send more data
+    }
+
     while (c->msgcurr < c->msgused &&
            c->msglist[c->msgcurr].msg_iovlen == 0) {
         /* Finished writing the current msg; advance to the next. */
@@ -6685,6 +6704,26 @@ static enum transmit_result transmit(conn *c) {
                 m->msg_iov->iov_base = (void*)((unsigned char*)m->msg_iov->iov_base + res);
                 m->msg_iov->iov_len -= res;
             }
+
+            if (m->msg_iov->iov_len == 0) {
+                c->msgcurr++;
+                if (c->msgcurr < c->msgused) {
+                    // We sent the final chunk of data.. In our SSL connections
+                    // we might however have data spooled in the SSL buffers
+                    // which needs to be drained before we may consider the
+                    // transmission complete (note that our sendmsg tried
+                    // to drain the buffers before returning).
+                    if (c->ssl.enabled && c->ssl.out.total) {
+                        if (c->ssl.error || (!update_event(c, EV_WRITE | EV_PERSIST))) {
+                            conn_set_state(c, conn_closing);
+                            return TRANSMIT_HARD_ERROR;
+                        }
+                        return TRANSMIT_SOFT_ERROR;
+                    }
+                    return TRANSMIT_COMPLETE;
+                }
+            }
+
             return TRANSMIT_INCOMPLETE;
         }
 
@@ -6718,17 +6757,6 @@ static enum transmit_result transmit(conn *c) {
         conn_set_state(c, conn_closing);
         return TRANSMIT_HARD_ERROR;
     } else {
-        if (c->ssl.enabled) {
-            drain_bio_send_pipe(c);
-            if (c->ssl.out.total) {
-                if (!update_event(c, EV_WRITE | EV_PERSIST)) {
-                    conn_set_state(c, conn_closing);
-                    return TRANSMIT_HARD_ERROR;
-                }
-                return TRANSMIT_SOFT_ERROR;
-            }
-        }
-
         return TRANSMIT_COMPLETE;
     }
 }
