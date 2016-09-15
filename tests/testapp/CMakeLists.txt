@@ -1,32 +1,41 @@
-ADD_EXECUTABLE(memcached_testapp
-               ${Memcached_SOURCE_DIR}/daemon/ssl_utils.cc
-               ${Memcached_SOURCE_DIR}/daemon/ssl_utils.h
-               ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
-               testapp.cc
-               testapp.h
-               testapp_audit.cc
-               testapp_binprot.cc
-               testapp_binprot.h
-               testapp_bucket.cc
-               testapp_bucket.h
-               testapp_client_test.cc
-               testapp_client_test.h
-               testapp_environment.cc
-               testapp_environment.h
-               testapp_getset.cc
-               testapp_greenstack.cc
-               testapp_greenstack.h
-               testapp_require_init.cc
-               testapp_sasl.cc
-               testapp_sasl.h
-               testapp_shutdown.cc
-               testapp_ssl_utils.cc
-               testapp_stats.cc
-               testapp_stats.h
-               testapp_subdoc.cc
-               testapp_subdoc_multipath.cc
-               testapp_subdoc_perf.cc
-               testapp_timeout.cc)
+list(APPEND TESTAPP_SOURCES
+     ${Memcached_SOURCE_DIR}/daemon/ssl_utils.cc
+     ${Memcached_SOURCE_DIR}/daemon/ssl_utils.h
+     ${Memcached_SOURCE_DIR}/utilities/subdoc_encoder.cc
+     testapp.cc
+     testapp.h
+     testapp_audit.cc
+     testapp_binprot.cc
+     testapp_binprot.h
+     testapp_bucket.cc
+     testapp_bucket.h
+     testapp_client_test.cc
+     testapp_client_test.h
+     testapp_environment.cc
+     testapp_environment.h
+     testapp_getset.cc
+     testapp_greenstack.cc
+     testapp_greenstack.h
+     testapp_require_init.cc
+     testapp_sasl.cc
+     testapp_sasl.h
+     testapp_shutdown.cc
+     testapp_ssl_utils.cc
+     testapp_stats.cc
+     testapp_stats.h
+     testapp_subdoc.cc
+     testapp_subdoc_multipath.cc
+     testapp_subdoc_perf.cc
+     testapp_timeout.cc)
+
+if (NOT WIN32)
+    list(APPEND TESTAPP_SOURCES
+         saslauthd_mock.cc
+         saslauthd_mock.h
+         testapp_saslauthd.cc)
+endif (NOT WIN32)
+
+ADD_EXECUTABLE(memcached_testapp ${TESTAPP_SOURCES})
 
 ADD_DEPENDENCIES(memcached_testapp blackhole_logger default_engine
                  ewouldblock_engine memcached nobucket testapp_extension)

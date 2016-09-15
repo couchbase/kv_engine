@@ -18,6 +18,33 @@
 #include "cbsasl/util.h"
 #include <cstring>
 #include <platform/base64.h>
+#include <stdexcept>
+
+static const bool have_saslauthd = getenv("CBAUTH_SOCKPATH") != nullptr;
+
+#ifdef WIN32
+static cbsasl_error_t check(cbsasl_conn_t* conn,
+                            const std::string& username,
+                            const std::string &passwd) {
+    throw std::runtime_error("check: saslauthd is not supported on Windows");
+}
+#else
+#include "saslauthd.h"
+static cbsasl_error_t check(cbsasl_conn_t* conn,
+                            const std::string& username,
+                            const std::string &passwd) {
+    try {
+        static const char* socketfile = getenv("CBAUTH_SOCKPATH");
+        Saslauthd saslauthd(socketfile);
+        return saslauthd.check(username, passwd);
+    } catch (const std::exception& e) {
+        cbsasl_log(conn, cbsasl_loglevel_t::Error,
+                   "Failed to validate [" + username + "] through saslauthd: " +
+                   e.what());
+        return CBSASL_FAIL;
+    }
+}
+#endif
 
 cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
                                          const char* input,
@@ -65,22 +92,33 @@ cbsasl_error_t PlainServerBackend::start(cbsasl_conn_t* conn,
     }
 
     conn->server->username.assign(username);
-
     Couchbase::User user;
     if (!find_user(username, user)) {
         return CBSASL_NOUSER;
     }
 
-    std::string userpw(password, pwlen);
-    cbsasl_error_t ret;
-    if (try_auth(Mechanism::PLAIN, user, userpw, ret) ||
-        try_auth(Mechanism::SCRAM_SHA1, user, userpw, ret) ||
-        try_auth(Mechanism::SCRAM_SHA256, user, userpw, ret) ||
-        try_auth(Mechanism::SCRAM_SHA512, user, userpw, ret)) {
-        return ret;
+    const std::string userpw(password, pwlen);
+    if (user.isInternal()) {
+        cbsasl_error_t ret;
+        if (try_auth(Mechanism::PLAIN, user, userpw, ret) ||
+            try_auth(Mechanism::SCRAM_SHA1, user, userpw, ret) ||
+            try_auth(Mechanism::SCRAM_SHA256, user, userpw, ret) ||
+            try_auth(Mechanism::SCRAM_SHA512, user, userpw, ret)) {
+            return ret;
+        }
+
+        return CBSASL_PWERR;
     }
 
-    return CBSASL_PWERR;
+    if (have_saslauthd) {
+        return check(conn, username, userpw);
+    } else {
+        cbsasl_log(conn, cbsasl_loglevel_t::Error,
+                   std::string{"Authentication failure. User ["} + username +
+                   "] is defined as an external user, but saslauthd is not "
+                       "configured");
+        return CBSASL_FAIL;
+    }
 }
 
 static std::vector<uint8_t> string2vector(const std::string& str) {

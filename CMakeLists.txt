@@ -209,6 +209,12 @@ LIST(APPEND CBSASL_SOURCES
      ${Memcached_SOURCE_DIR}/cbsasl/user.h
      ${Memcached_SOURCE_DIR}/cbsasl/util.h)
 
+if (NOT WIN32)
+    list(APPEND CBSASL_SOURCES
+         ${Memcached_SOURCE_DIR}/cbsasl/plain/saslauthd.cc
+         ${Memcached_SOURCE_DIR}/cbsasl/plain/saslauthd.h)
+endif (NOT WIN32)
+
 ADD_SUBDIRECTORY(etc)
 ADD_SUBDIRECTORY(cbsasl)
 ADD_SUBDIRECTORY(time)
