@@ -17,11 +17,15 @@
 #ifndef AUDITCONFIG_H
 #define AUDITCONFIG_H
 
-#include <inttypes.h>
-#include <string>
-#include <vector>
+#include <atomic>
 #include <cJSON.h>
 #include <cJSON_utils.h>
+#include <inttypes.h>
+#include <mutex>
+#include <string>
+#include <vector>
+
+#include <relaxed_atomic.h>
 
 class AuditConfig {
 public:
@@ -50,10 +54,7 @@ public:
      *
      * @todo refactor the logic to
      */
-    void initialize_config(const cJSON *json) {
-        AuditConfig other(json);
-        *this = other;
-    }
+    void initialize_config(const cJSON *json);
 
     // methods to access the private parts
     bool is_auditd_enabled(void) const;
@@ -65,9 +66,9 @@ public:
     void set_buffered(bool enable);
     bool is_buffered(void) const;
     void set_log_directory(const std::string &directory);
-    const std::string &get_log_directory(void) const;
+    std::string get_log_directory(void) const;
     void set_descriptors_path(const std::string &directory);
-    const std::string &get_descriptors_path(void) const;
+    std::string get_descriptors_path(void) const;
     bool is_event_sync(uint32_t id);
     bool is_event_disabled(uint32_t id);
 
@@ -110,18 +111,26 @@ protected:
     void set_sync(cJSON *array);
     void set_disabled(cJSON *array);
 
-    bool auditd_enabled;
-    uint32_t rotate_interval;
-    size_t rotate_size;
-    bool buffered;
+    Couchbase::RelaxedAtomic<bool> auditd_enabled;
+    Couchbase::RelaxedAtomic<uint32_t> rotate_interval;
+    Couchbase::RelaxedAtomic<size_t> rotate_size;
+    Couchbase::RelaxedAtomic<bool> buffered;
+
+    mutable std::mutex log_path_mutex;
     std::string log_path;
+
+    mutable std::mutex descriptor_path_mutex;
     std::string descriptors_path;
+
+    std::mutex sync_mutex;
     std::vector<uint32_t> sync;
+
+    std::mutex disabled_mutex;
     std::vector<uint32_t> disabled;
 
-    uint32_t min_file_rotation_time;
-    uint32_t max_file_rotation_time;
-    size_t max_rotate_file_size;
+    Couchbase::RelaxedAtomic<uint32_t> min_file_rotation_time;
+    Couchbase::RelaxedAtomic<uint32_t> max_file_rotation_time;
+    Couchbase::RelaxedAtomic<size_t> max_rotate_file_size;
 };
 
 #endif
