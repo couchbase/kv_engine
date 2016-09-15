@@ -127,6 +127,7 @@ typedef int SOCKET;
 #define MEMCACHED_VERSION "${MEMCACHED_VERSION}"
 #define PRODUCT_VERSION "${PRODUCT_VERSION}"
 #define DESTINATION_ROOT "${CMAKE_INSTALL_PREFIX}"
+#define SOURCE_ROOT "${Memcached_SOURCE_DIR}"
 
 /* We don't use assert() for two main reasons:
  * 1) It's disabled on non-debug builds, which we don't want.

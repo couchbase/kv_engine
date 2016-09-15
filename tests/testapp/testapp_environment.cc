@@ -50,28 +50,13 @@ void McdEnvironment::SetUp() {
 }
 
 void McdEnvironment::SetupIsaslPw() {
-    // Create an isasl file for all tests.
-    isasl_file_name = "isasl." + std::to_string(cb_getpid()) +
-                      "." + std::to_string(time(NULL)) + ".pw";
-
-    // write out user/passwords
-    std::ofstream isasl(isasl_file_name,
-                        std::ofstream::out | std::ofstream::trunc);
-    ASSERT_TRUE(isasl.is_open());
-    isasl << "_admin password " << std::endl;
-    for (int ii = 0; ii < COUCHBASE_MAX_NUM_BUCKETS; ++ii) {
-        std::stringstream line;
-        line << "mybucket_" << std::setfill('0') << std::setw(3) << ii;
-        line << " mybucket_" << std::setfill('0') << std::setw(3) << ii
-             << std::endl;
-        isasl << line.rdbuf();
-    }
-    isasl << "bucket-1 1S|=,%#x1" << std::endl;
-    isasl << "bucket-2 secret" << std::endl;
+    isasl_file_name = SOURCE_ROOT;
+    isasl_file_name.append("/tests/testapp/cbsaslpw.json");
+    std::replace(isasl_file_name.begin(), isasl_file_name.end(), '\\', '/');
 
     // Add the file to the exec environment
-    snprintf(isasl_env_var, sizeof(isasl_env_var),
-             "ISASL_PWFILE=%s", isasl_file_name.c_str());
+    snprintf(isasl_env_var, sizeof(isasl_env_var), "CBSASL_PWFILE=%s",
+             isasl_file_name.c_str());
     putenv(isasl_env_var);
 }
 
@@ -114,9 +99,6 @@ void McdEnvironment::TearDown() {
     if (!audit_log_dir.empty()) {
         EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(audit_log_dir));
     }
-
-    // Cleanup isasl file
-    EXPECT_NE(-1, remove(isasl_file_name.c_str()));
 
     shutdown_openssl();
 }
