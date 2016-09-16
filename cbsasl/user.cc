@@ -47,8 +47,7 @@ void generateSalt(std::vector<uint8_t>& bytes, std::string& salt) {
 
 Couchbase::User::User(const std::string& unm, const std::string& passwd)
     : username(unm),
-      dummy(false),
-      internal(true) {
+      dummy(false) {
 
     struct {
         Crypto::Algorithm algoritm;
@@ -77,8 +76,7 @@ Couchbase::User::User(const std::string& unm, const std::string& passwd)
 }
 
 Couchbase::User::User(cJSON* obj)
-    : dummy(false),
-      internal(true) {
+    : dummy(false) {
     if (obj == nullptr) {
         throw std::runtime_error("Couchbase::User::User: obj cannot be null");
     }
@@ -91,16 +89,6 @@ Couchbase::User::User(cJSON* obj)
         std::string label(o->string);
         if (label == "n") {
             username.assign(o->valuestring);
-        } else if (label == "internal") {
-            if (o->type == cJSON_True) {
-                internal = true;
-            } else if (o->type == cJSON_False) {
-                internal = false;
-            } else {
-                throw std::runtime_error("Couchbase::User::User: Invalid object"
-                                             " type for \"internal\". Must be "
-                                             "true or false");
-            }
         } else if (label == "sha512") {
             PasswordMetaData pd(o);
             password[Mechanism::SCRAM_SHA512] = pd;
@@ -272,7 +260,6 @@ unique_cJSON_ptr Couchbase::User::to_json() const {
     auto* ret = cJSON_CreateObject();
 
     cJSON_AddStringToObject(ret, "n", username.c_str());
-    cJSON_AddBoolToObject(ret, "internal", internal);
     for (auto& e : password) {
         auto* obj = e.second.to_json();
         switch (e.first) {

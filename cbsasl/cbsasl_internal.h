@@ -317,3 +317,10 @@ void cbsasl_set_hmac_iteration_count(cbsasl_getopt_fn getopt_fn, void* context);
  * @param context the user provided context
  */
 void cbsasl_set_available_mechanisms(cbsasl_getopt_fn getopt_fn, void* context);
+
+/**
+ * Are we using saslauthd or not
+ *
+ * @return true if saslauthd is configured, false otherwise
+ */
+bool cbsasl_use_saslauthd();

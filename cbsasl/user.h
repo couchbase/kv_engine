@@ -114,7 +114,7 @@ namespace Couchbase {
          * to look up the user (to respond with the SALT and iteration
          * count).
          */
-        User() : dummy(true), internal(true) {
+        User() : dummy(true) {
 
         }
 
@@ -134,7 +134,6 @@ namespace Couchbase {
          *
          *       {
          *            "n" : "username",
-         *            "internal" : true,
          *            "sha512" : {
          *                "h" : "base64 encoded sha512 hash of the password",
          *                "s" : "base64 encoded salt",
@@ -187,16 +186,6 @@ namespace Couchbase {
         }
 
         /**
-         * Is this user internally defined, or should we check
-         * an external source for the username/password combo
-         *
-         * @return true if this user is to be checked with our internal db
-         */
-        bool isInternal() const {
-            return internal;
-        }
-
-        /**
          * Get the password metadata used for the requested mechanism
          *
          * @param mech the mechanism to retrieve the metadata for
@@ -225,6 +214,5 @@ namespace Couchbase {
         std::string username;
 
         bool dummy;
-        bool internal;
     };
 }

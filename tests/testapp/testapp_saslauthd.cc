@@ -54,53 +54,43 @@ INSTANTIATE_TEST_CASE_P(TransportProtocols,
                      ),
     ::testing::PrintToStringParamName());
 
-TEST_P(SaslauthdTest, OnlyPlainAllowed) {
-    MemcachedConnection& conn = getConnection();
-    conn.hello("testapp", "v1.0", "test plain");
-    EXPECT_EQ("PLAIN", conn.getSaslMechanisms());
-}
-
 TEST_P(SaslauthdTest, TestSuccessfulSaslauthd) {
     MemcachedConnection& conn = getConnection();
-    std::atomic_bool exception;
-    exception = false;
-
-    std::thread saslauthd{[&exception]() {
-        try {
-            authdMock->processOne();
-        } catch (...) {
-            exception.store(true);
-        }
+    std::thread saslauthd{[]() {
+        EXPECT_NO_THROW(authdMock->processOne());
     }};
 
     conn.authenticate("superman", "<3LoisLane<3", "PLAIN");
     saslauthd.join();
-    EXPECT_FALSE(exception.load());
 }
 
 TEST_P(SaslauthdTest, TestIncorrectSaslauthd) {
     MemcachedConnection& conn = getConnection();
-    std::atomic_bool exception;
-    exception = false;
 
-    std::thread saslauthd{[&exception]() {
-        try {
-            authdMock->processOne();
-        } catch (...) {
-            exception.store(true);
-        }
+    std::thread saslauthd{[]() {
+        EXPECT_NO_THROW(authdMock->processOne());
     }};
 
     EXPECT_THROW(conn.authenticate("superman", "Lane<3", "PLAIN"),
                  std::runtime_error);
 
     saslauthd.join();
-    EXPECT_FALSE(exception.load());
 }
 
 TEST_P(SaslauthdTest, TestUnknownUser) {
     MemcachedConnection& conn = getConnection();
 
+    std::thread saslauthd{[]() {
+        EXPECT_NO_THROW(authdMock->processOne());
+    }};
+
     EXPECT_THROW(conn.authenticate("godzilla", "Lane<3", "PLAIN"),
+                 std::runtime_error);
+    saslauthd.join();
+}
+
+TEST_P(SaslauthdTest, TestKnownSaslauthdUnknownMech) {
+    MemcachedConnection& conn = getConnection();
+    EXPECT_THROW(conn.authenticate("superman", "<3LoisLane<3", "SCRAM-SHA1"),
                  std::runtime_error);
 }

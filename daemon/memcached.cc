@@ -2514,12 +2514,6 @@ static int sasl_getopt_callback(void*, const char*,
             return CBSASL_OK;
         }
     } else if (key == "sasl mechanisms") {
-        if (getenv("CBAUTH_SOCKPATH") != nullptr) {
-            // The server is using cbauth, disable everything except PLAIN auth
-            *result = "PLAIN";
-            *len = 5;
-            return CBSASL_OK;
-        }
         const auto& value = settings.getSaslMechanisms();
         if (!value.empty()) {
             *result = value.data();

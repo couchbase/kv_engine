@@ -37,3 +37,9 @@ void cbsasl_hex_encode(char* dest, const char* src, size_t srclen) {
         dest[ii * 2 + 1] = hexchar[src[ii] & 0xF];
     }
 }
+
+static const bool use_saslauthd{getenv("CBAUTH_SOCKPATH") != nullptr};
+
+bool cbsasl_use_saslauthd() {
+    return use_saslauthd;
+}

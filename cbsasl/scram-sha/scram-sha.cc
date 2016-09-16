@@ -464,10 +464,16 @@ cbsasl_error_t ScramShaServerBackend::step(cbsasl_conn_t* conn,
 
 
     // Generate the server signature
-    auto serverSignature = getServerSignature();
 
     std::stringstream out;
-    addAttribute(out, 'v', serverSignature, false);
+
+    if (user.isDummy() && cbsasl_use_saslauthd()) {
+        addAttribute(out, 'e', "scram-not-supported-for-ldap-users", false);
+    } else {
+        auto serverSignature = getServerSignature();
+        addAttribute(out, 'v', serverSignature, false);
+    }
+
     server_final_message = out.str();
     (*output) = server_final_message.data();
     (*outputlen) = server_final_message.length();
