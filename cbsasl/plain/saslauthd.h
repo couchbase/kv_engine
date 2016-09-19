@@ -93,15 +93,28 @@ protected:
     void sendRequest(const std::vector<uint8_t>& data);
 
     /**
-     * Read the (entire) response from the socket. saslauth will close the
-     * connection when it is done transmitting the result, and this method
-     * reads everything until the socket is closed.
+     * Read the response from the socket. saslauth will close the
+     * connection when it is done transmitting the result. The format
+     * for the response message is:
+     *
+     * [length]text
+     *
+     * length is two bytes in network byte order
      *
      * @return The entire message returned from saslauthd
      * @throws std::system_error if a socket error occurs
      */
     std::string readResponse();
 
+    /**
+     * Fill the provided buffer with data received from the network
+     *
+     * @param bytes the buffer to fill
+     * @throws std::system_error if a socket error occurs
+     *         std::runtime_error if the other end close the socket
+     *
+     */
+    void fillBufferFromNetwork(std::vector<uint8_t>& bytes);
     /**
      * The socket used in the communication with saslauthd
      */

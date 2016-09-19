@@ -38,7 +38,12 @@ SaslauthdMock::SaslauthdMock()
     un.sun_family = AF_UNIX;
     strcpy(un.sun_path, sockfile.c_str());
 
-    std::remove(sockfile.c_str());
+    if (std::remove(sockfile.c_str()) == -1 && errno != ENOENT) {
+        std::string msg{"SaslauthdMock::SaslauthdMock(): Failed to "
+                            "remove socket file " + sockfile};
+        throw std::system_error(errno, std::system_category(), msg);
+    }
+
     if (bind(sock, reinterpret_cast<struct sockaddr*>(&un), sizeof(un)) == -1) {
         std::string msg{"SaslauthdMock::SaslauthdMock(): Failed to "
                             "bind socket " + sockfile};
@@ -116,20 +121,47 @@ void SaslauthdMock::processOne() {
     std::string realm = readString(client);
 
     if (service != "couchbase") {
-        std::string response{"NO invalid service"};
-        send(client, response.data(), response.size(), 0);
+        sendResult(client, "NO invalid service");
         close(client);
     } else if (!realm.empty()) {
-        std::string response{"NO unknown realm"};
-        send(client, response.data(), response.size(), 0);
+        sendResult(client, "NO unknown realm");
         close(client);
     } else if (username == "superman" && passwd == "<3LoisLane<3") {
-        std::string response{"OK welcome \"_admin\""};
-        send(client, response.data(), response.size(), 0);
+        sendResult(client, "OK welcome \"_admin\"");
         close(client);
     } else {
-        std::string response{"NO I don't like you"};
-        send(client, response.data(), response.size(), 0);
+        sendResult(client, "NO I don't like you");
         close(client);
     }
+}
+
+void SaslauthdMock::sendResult(int client, const std::string& msg) {
+    uint16_t len = msg.size();
+    uint16_t length = ntohs(len);
+    std::vector<uint8_t> bytes(2);
+    memcpy(bytes.data(), &length, sizeof(length));
+    retrySend(client, bytes);
+    bytes.resize(msg.size());
+    memcpy(bytes.data(), msg.data(), msg.size());
+    retrySend(client, bytes);
+}
+
+#include <iostream>
+void SaslauthdMock::retrySend(int client, const std::vector<uint8_t>& bytes) {
+    size_t offset = 0;
+    do {
+        auto nw = send(client, bytes.data() + offset,
+                       bytes.size() - offset, 0);
+
+        if (nw == -1) {
+            throw std::system_error(errno, std::system_category(),
+                                    "SaslauthdMock::retrySend(): Failed to "
+                                        "send data to saslauthd");
+        } else {
+            offset += size_t(nw);
+            if (offset == bytes.size()) {
+                return;
+            }
+        }
+    } while (true);
 }

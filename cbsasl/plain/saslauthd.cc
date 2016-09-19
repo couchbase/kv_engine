@@ -29,7 +29,7 @@ Saslauthd::Saslauthd(const std::string& socketfile)
 
     struct sockaddr_un un = {0};
     un.sun_family = AF_UNIX;
-    if (socketfile.size() - 1 >= sizeof(un.sun_path)) {
+    if (socketfile.size() + 1 >= sizeof(un.sun_path)) {
         throw std::runtime_error("Saslauthd::Saslauthd(): CBAUTH_SOCKPATH does"
                                      " not fit in sockaddr_un");
     }
@@ -99,25 +99,33 @@ void Saslauthd::encode_and_append_string(std::vector<uint8_t>& data,
 }
 
 std::string Saslauthd::readResponse() {
-    std::vector<uint8_t> response(1024);
+    std::vector<uint8_t> response(2);
+    fillBufferFromNetwork(response);
+    uint16_t len;
+    memcpy(&len, response.data(), sizeof(len));
+    len = ntohs(len);
+    response.resize(len);
+    fillBufferFromNetwork(response);
+
+    return std::string{reinterpret_cast<char*>(response.data()), len};
+}
+
+void Saslauthd::fillBufferFromNetwork(std::vector<uint8_t>& bytes) {
     size_t offset = 0;
     do {
-        auto nr = recv(sock, response.data() + offset,
-                       response.size() - offset, 0);
+        auto nr = recv(sock, bytes.data() + offset,
+                       bytes.size() - offset, 0);
         if (nr == -1) {
             throw std::system_error(errno, std::system_category(),
                                     "Saslauthd::readResponse(): Failed to "
                                         "receive data from saslauthd");
         } else if (nr == 0) {
-            return std::string{reinterpret_cast<char*>(response.data()),
-                               offset};
+            throw std::underflow_error("Saslauthd::fillBufferFromNetwork(): The other"
+                                           "end closed the connection");
         } else {
             offset += size_t(nr);
-            if (offset == response.size()) {
-                throw std::logic_error(
-                    "Saslauthd::readResponse(): saslauthd is sending an"
-                        " insanely amount of data in the response. aborting");
-
+            if (offset == bytes.size()) {
+                return;
             }
         }
     } while (true);

@@ -17,6 +17,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #ifdef WIN32
 #error "This file should not be included on windows"
@@ -38,6 +39,9 @@ public:
     }
 
 protected:
+    void sendResult(int client, const std::string& msg);
+    void retrySend(int client, const std::vector<uint8_t>& bytes);
+
     int sock;
 
     /**

@@ -34,6 +34,11 @@ public:
     static void SetUpTestCase() {
         authdMock.reset(new SaslauthdMock);
         std::string env{"CBAUTH_SOCKPATH=" + authdMock->getSockfile() };
+        if (env.size() + 1 > sizeof(cbauth_env_var)) {
+            throw std::overflow_error("SaslauthdTest::SetUpTestCase: "
+                                          "buffer for socket path is too"
+                                          " small");
+        }
         strcpy(cbauth_env_var, env.c_str());
         putenv(cbauth_env_var);
         TestappClientTest::SetUpTestCase();
