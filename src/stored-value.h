@@ -23,6 +23,8 @@
 #include "item_pager.h"
 #include "utility.h"
 
+#include <platform/cb_malloc.h>
+
 // Forward declaration for StoredValue
 class HashTable;
 class StoredValueFactory;

@@ -20,6 +20,7 @@
 #include "common.h"
 
 #include <sys/stat.h>
+#include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <vbucket.h>
 #include <JSON_checker.h>
@@ -1279,8 +1280,8 @@ ForestKVStore::getAllKeys(uint16_t vbid, std::string& start_key, uint32_t count,
                   fdb_error_msg(status));
     }
 
-    rdoc->key = malloc(MAX_KEY_LENGTH);
-    rdoc->meta = malloc(FORESTDB_METADATA_SIZE);
+    rdoc->key = cb_malloc(MAX_KEY_LENGTH);
+    rdoc->meta = cb_malloc(FORESTDB_METADATA_SIZE);
 
     for (uint32_t curr_count = 0; curr_count < count; curr_count++) {
         status = fdb_iterator_get_metaonly(fdb_iter, &rdoc);

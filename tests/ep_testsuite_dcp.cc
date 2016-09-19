@@ -26,6 +26,7 @@
 #include "mock/mock_dcp.h"
 #include "programs/engine_testapp/mock_server.h"
 
+#include <platform/cb_malloc.h>
 #include <thread>
 
 // Helper functions ///////////////////////////////////////////////////////////
@@ -2841,7 +2842,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     size_t pkt_len = headerlen + bodylen;
 
     protocol_binary_response_header* pkt =
-        (protocol_binary_response_header*)malloc(pkt_len);
+        (protocol_binary_response_header*)cb_malloc(pkt_len);
     memset(pkt->bytes, '\0', pkt_len);
     pkt->response.magic = PROTOCOL_BINARY_RES;
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -2867,7 +2868,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
             h1->dcp.response_handler(h, cookie, pkt),
             "Expected success");
     dcp_step(h, h1, cookie);
-    free (pkt);
+    cb_free(pkt);
 
     if (response == PROTOCOL_BINARY_RESPONSE_ROLLBACK) {
         return stream_opaque;
@@ -2878,7 +2879,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         verify_curr_items(h, h1, 0, "Wrong amount of items");
 
         protocol_binary_response_header* pkt =
-            (protocol_binary_response_header*)malloc(pkt_len);
+            (protocol_binary_response_header*)cb_malloc(pkt_len);
         memset(pkt->bytes, '\0', 40);
         pkt->response.magic = PROTOCOL_BINARY_RES;
         pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -2899,7 +2900,7 @@ static uint32_t add_stream_for_consumer(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
         cb_assert(dcp_last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
         cb_assert(dcp_last_stream_opaque == stream_opaque);
-        free(pkt);
+        cb_free(pkt);
     } else {
         cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
         cb_assert(dcp_last_status == response);
@@ -3384,7 +3385,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
 
     uint64_t rollbackSeqno = htonll(40);
     protocol_binary_response_header* pkt =
-        (protocol_binary_response_header*)malloc(32);
+        (protocol_binary_response_header*)cb_malloc(32);
     memset(pkt->bytes, '\0', 32);
     pkt->response.magic = PROTOCOL_BINARY_RES;
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -3403,13 +3404,13 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
     } while (dcp_last_op != PROTOCOL_BINARY_CMD_DCP_STREAM_REQ);
 
     stream_opaque = dcp_last_opaque;
-    free(pkt);
+    cb_free(pkt);
 
     // Send success
 
     uint64_t vb_uuid = htonll(123456789);
     uint64_t by_seqno = 0;
-    pkt = (protocol_binary_response_header*)malloc(40);
+    pkt = (protocol_binary_response_header*)cb_malloc(40);
     memset(pkt->bytes, '\0', 40);
     pkt->response.magic = PROTOCOL_BINARY_RES;
     pkt->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -3423,7 +3424,7 @@ static enum test_result test_chk_manager_rollback(ENGINE_HANDLE *h,
             h1->dcp.response_handler(h, cookie, pkt),
             "Expected success");
     dcp_step(h, h1, cookie);
-    free(pkt);
+    cb_free(pkt);
 
     int items = get_int_stat(h, h1, "curr_items_tot");
     int seqno = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
@@ -3482,7 +3483,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     uint32_t bodylen = sizeof(uint64_t);
     uint64_t rollbackSeqno = htonll(5);
     protocol_binary_response_header *pkt1 =
-        (protocol_binary_response_header*)malloc(headerlen + bodylen);
+        (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
     memset(pkt1->bytes, '\0', headerlen + bodylen);
     pkt1->response.magic = PROTOCOL_BINARY_RES;
     pkt1->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -3503,7 +3504,7 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
 
     bodylen = 2 *sizeof(uint64_t);
     protocol_binary_response_header* pkt2 =
-        (protocol_binary_response_header*)malloc(headerlen + bodylen);
+        (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
     memset(pkt2->bytes, '\0', headerlen + bodylen);
     pkt2->response.magic = PROTOCOL_BINARY_RES;
     pkt2->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -3522,8 +3523,8 @@ static enum test_result test_fullrollback_for_consumer(ENGINE_HANDLE *h,
     dcp_step(h, h1, cookie);
     cb_assert(dcp_last_op == PROTOCOL_BINARY_CMD_DCP_ADD_STREAM);
 
-    free(pkt1);
-    free(pkt2);
+    cb_free(pkt1);
+    cb_free(pkt2);
 
     //Verify that all items have been removed from consumer
     wait_for_flusher_to_settle(h, h1);
@@ -3592,7 +3593,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
     uint32_t bodylen = sizeof(uint64_t);
     uint64_t rollbackSeqno = htonll(100);
     protocol_binary_response_header *pkt1 =
-        (protocol_binary_response_header*)malloc(headerlen + bodylen);
+        (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
     memset(pkt1->bytes, '\0', headerlen + bodylen);
     pkt1->response.magic = PROTOCOL_BINARY_RES;
     pkt1->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -3610,7 +3611,7 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
 
     bodylen = 2 * sizeof(uint64_t);
     protocol_binary_response_header* pkt2 =
-        (protocol_binary_response_header*)malloc(headerlen + bodylen);
+        (protocol_binary_response_header*)cb_malloc(headerlen + bodylen);
     memset(pkt2->bytes, '\0', headerlen + bodylen);
     pkt2->response.magic = PROTOCOL_BINARY_RES;
     pkt2->response.opcode = PROTOCOL_BINARY_CMD_DCP_STREAM_REQ;
@@ -3627,8 +3628,8 @@ static enum test_result test_partialrollback_for_consumer(ENGINE_HANDLE *h,
             "Expected success");
     dcp_step(h, h1, cookie);
 
-    free(pkt1);
-    free(pkt2);
+    cb_free(pkt1);
+    cb_free(pkt2);
 
     //?Verify that 10 items plus 10 updates have been removed from consumer
     wait_for_flusher_to_settle(h, h1);
@@ -4038,7 +4039,7 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
 
     std::string key("key");
     uint32_t dataLen = 100;
-    char *data = static_cast<char *>(malloc(dataLen));
+    char *data = static_cast<char *>(cb_malloc(dataLen));
     memset(data, 'x', dataLen);
 
     uint8_t cas = 0x1;
@@ -4105,7 +4106,7 @@ static enum test_result test_dcp_consumer_mutate(ENGINE_HANDLE *h,
     check_key_value(h, h1, "key", data, dataLen);
 
     testHarness.destroy_cookie(cookie);
-    free(data);
+    cb_free(data);
 
     return SUCCESS;
 }
@@ -4138,7 +4139,7 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
                                      PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     uint32_t dataLen = 100;
-    char *data = static_cast<char *>(malloc(dataLen));
+    char *data = static_cast<char *>(cb_malloc(dataLen));
     memset(data, 'x', dataLen);
 
     uint8_t cas = 0x1;
@@ -4179,14 +4180,14 @@ static enum test_result test_dcp_consumer_mutate_with_time_sync(
     check_key_value(h, h1, "key", data, dataLen);
 
     testHarness.destroy_cookie(cookie);
-    free(data);
+    cb_free(data);
 
     protocol_binary_request_header *request;
     int64_t adjusted_time2;
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     checkeq(last_body.size(), sizeof(int64_t),
@@ -4335,7 +4336,7 @@ static enum test_result test_dcp_consumer_delete_with_time_sync(
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     checkeq(sizeof(int64_t), last_body.size(),
@@ -5526,7 +5527,7 @@ static enum test_result test_get_all_vb_seqnos(ENGINE_HANDLE *h,
 static enum test_result test_mb19153(ENGINE_HANDLE *h,
                                      ENGINE_HANDLE_V1 *h1) {
 
-    putenv(strdup("ALLOW_NO_STATS_UPDATE=yeah"));
+    putenv(cb_strdup("ALLOW_NO_STATS_UPDATE=yeah"));
 
     // Set max num AUX IO to 0, so no backfill would start
     // immediately

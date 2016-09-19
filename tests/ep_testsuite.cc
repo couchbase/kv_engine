@@ -43,6 +43,7 @@
 #include <libcouchstore/couch_db.h>
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
+#include <platform/cb_malloc.h>
 #include <JSON_checker.h>
 
 #ifdef linux
@@ -230,7 +231,7 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS,
             last_status.load(),
             "Failed to stop persistence!");
-    free(pkt);
+    cb_free(pkt);
 
     std::vector<std::string>::iterator itr;
     for (itr = keys.begin(); itr != keys.end(); ++itr) {
@@ -255,7 +256,7 @@ static int checkCurrItemsAfterShutdown(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
             "CMD_START_PERSISTENCE failed!");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Failed to start persistence!");
-    free(pkt);
+    cb_free(pkt);
 
     // shutdown engine force and restart
     testHarness.reload_engine(&h, &h1,
@@ -1135,7 +1136,7 @@ static enum test_result test_get_replica_active_state(ENGINE_HANDLE *h,
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
             "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
 
-    free(pkt);
+    cb_free(pkt);
     return SUCCESS;
 }
 
@@ -1150,7 +1151,7 @@ static enum test_result test_get_replica_pending_state(ENGINE_HANDLE *h,
             h1->unknown_command(h, cookie, pkt, add_response),
             "Should have returned error for pending state");
     testHarness.destroy_cookie(cookie);
-    free(pkt);
+    cb_free(pkt);
     return SUCCESS;
 }
 
@@ -1164,7 +1165,7 @@ static enum test_result test_get_replica_dead_state(ENGINE_HANDLE *h,
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
             "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
 
-    free(pkt);
+    cb_free(pkt);
     return SUCCESS;
 }
 
@@ -1180,7 +1181,7 @@ static enum test_result test_get_replica(ENGINE_HANDLE *h,
     checkeq(std::string("replicadata"), last_body,
             "Should have returned identical value");
 
-    free(pkt);
+    cb_free(pkt);
     return SUCCESS;
 }
 
@@ -1216,7 +1217,7 @@ static enum test_result test_get_replica_invalid_key(ENGINE_HANDLE *h,
             "Get Replica Failed");
     checkeq(PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET, last_status.load(),
             "Expected PROTOCOL_BINARY_RESPONSE_NOT_MY_VBUCKET response.");
-    free(pkt);
+    cb_free(pkt);
     return SUCCESS;
 }
 
@@ -2685,7 +2686,7 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             h1->unknown_command(h, NULL, pkt, add_response),
             "SET_VBUCKET command failed");
-    free(pkt);
+    cb_free(pkt);
     cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_KEY_EEXISTS);
 
     cas = 0x0102030405060708;
@@ -2693,7 +2694,7 @@ static enum test_result test_session_cas_validation(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             h1->unknown_command(h, NULL, pkt, add_response),
             "SET_VBUCKET command failed");
-    free(pkt);
+    cb_free(pkt);
     cb_assert(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS);
 
     return SUCCESS;
@@ -3115,7 +3116,7 @@ static enum test_result test_warmup_oom(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) 
             "Failed to send data traffic command to the services");
     checkeq(PROTOCOL_BINARY_RESPONSE_ENOMEM, last_status.load(),
             "Data traffic command should have failed with enomem");
-    free(pkt);
+    cb_free(pkt);
 
     return SUCCESS;
 }
@@ -3309,13 +3310,13 @@ static enum test_result test_cluster_config(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     checkeq(ENGINE_SUCCESS,
             h1->unknown_command(h, NULL, pkt1, add_response),
             "Failed to set cluster configuration");
-    free(pkt1);
+    cb_free(pkt1);
 
     protocol_binary_request_header *pkt2 =
         createPacket(PROTOCOL_BINARY_CMD_GET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, NULL, 0);
     checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt2, add_response),
             "Failed to get cluster configuration");
-    free(pkt2);
+    cb_free(pkt2);
     if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
                           sizeof(var)) != 0) {
         return FAIL;
@@ -3331,14 +3332,14 @@ static enum test_result test_not_my_vbucket_with_cluster_config(ENGINE_HANDLE *h
         createPacket(PROTOCOL_BINARY_CMD_SET_CLUSTER_CONFIG, 1, 0, NULL, 0, NULL, 0, (char*)&var, 8);
     checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt1, add_response),
             "Failed to set cluster configuration");
-    free(pkt1);
+    cb_free(pkt1);
 
     protocol_binary_request_header *pkt2 =
         createPacket(PROTOCOL_BINARY_CMD_GET_VBUCKET, 1, 0, NULL, 0, NULL, 0, NULL, 0);
     ENGINE_ERROR_CODE ret = h1->unknown_command(h, NULL, pkt2,
                                                 add_response);
     checkeq(ENGINE_SUCCESS, ret, "Should've received not_my_vbucket/cluster config");
-    free(pkt2);
+    cb_free(pkt2);
     if (last_body.compare(0, sizeof(var), reinterpret_cast<char*>(&var),
                           sizeof(var)) != 0) {
         return FAIL;
@@ -3392,7 +3393,7 @@ static enum test_result test_all_keys_api(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
 
     checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt1, add_response),
             "Failed to get all_keys, sort: ascending");
-    free(pkt1);
+    cb_free(pkt1);
 
     /* Check the keys. */
     size_t offset = 0;
@@ -3432,7 +3433,7 @@ static enum test_result test_all_keys_api_during_bucket_creation(
 
     ENGINE_ERROR_CODE err = h1->unknown_command(h, NULL, pkt1,
                                                 add_response);
-    free(pkt1);
+    cb_free(pkt1);
     start_persistence(h, h1);
 
     checkeq(ENGINE_SUCCESS, err,
@@ -3576,7 +3577,7 @@ static enum test_result test_value_eviction(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
         checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "expected the success for evicting a non-existent key with full eviction");
     }
-    free(pkt);
+    cb_free(pkt);
 
     h1->reset_stats(h, NULL);
     checkeq(0, get_int_stat(h, h1, "ep_num_value_ejects"),
@@ -4166,7 +4167,7 @@ static enum test_result test_observe_seqno_error(ENGINE_HANDLE *h,
                            invalid_data.str().length());
     h1->unknown_command(h, NULL, request, add_response);
 
-    free(request);
+    cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_KEY_ENOENT, last_status.load(),
           "Expected vb uuid not found");
 
@@ -4476,14 +4477,14 @@ static enum test_result test_observe_errors(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     check(h1->unknown_command(h, NULL, pkt, add_response) == ENGINE_SUCCESS,
           "Observe failed.");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected invalid");
-    free(pkt);
+    cb_free(pkt);
 
     pkt = createPacket(PROTOCOL_BINARY_CMD_OBSERVE, 0, 0, NULL, 0, NULL, 0, "0000", 4);
     checkeq(ENGINE_SUCCESS,
             h1->unknown_command(h, NULL, pkt, add_response),
             "Observe failed.");
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(), "Expected invalid");
-    free(pkt);
+    cb_free(pkt);
 
     return SUCCESS;
 }
@@ -4501,7 +4502,7 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
             "Failed to send data traffic command to the server");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Faile to disable data traffic");
-    free(pkt);
+    cb_free(pkt);
 
     checkeq(ENGINE_TMPFAIL,
             store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm),
@@ -4514,7 +4515,7 @@ static enum test_result test_control_data_traffic(ENGINE_HANDLE *h, ENGINE_HANDL
             "Failed to send data traffic command to the server");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
           "Faile to enable data traffic");
-    free(pkt);
+    cb_free(pkt);
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, "key", "value2", &itm),
@@ -4771,7 +4772,7 @@ static enum test_result test_set_ret_meta_error(ENGINE_HANDLE *h,
                        "key", 3, "val", 3);
     checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt, add_response),
             "Expected to be able to store ret meta");
-    free(pkt);
+    cb_free(pkt);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected set returing meta to succeed");
 
@@ -4855,7 +4856,7 @@ static enum test_result test_add_ret_meta_error(ENGINE_HANDLE *h,
                        "key", 3, "val", 3);
     checkeq(ENGINE_SUCCESS, h1->unknown_command(h, NULL, pkt, add_response),
           "Expected to be able to add ret meta");
-    free(pkt);
+    cb_free(pkt);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected add returing meta to succeed");
 
@@ -4974,7 +4975,7 @@ static enum test_result test_del_ret_meta_error(ENGINE_HANDLE *h,
     checkeq(ENGINE_SUCCESS,
             h1->unknown_command(h, NULL, pkt, add_response),
             "Expected to be able to del ret meta");
-    free(pkt);
+    cb_free(pkt);
     checkeq(PROTOCOL_BINARY_RESPONSE_EINVAL, last_status.load(),
           "Expected add returing meta to succeed");
 
@@ -5632,7 +5633,7 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
                            NULL, 0, NULL, 0);
     h1->unknown_command(h, NULL, request, add_response);
-    free(request);
+    cb_free(request);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
             "Expected Success");
     checkeq(sizeof(int64_t), last_body.size(),

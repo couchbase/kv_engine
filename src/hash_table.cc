@@ -56,7 +56,7 @@ HashTable::HashTable(EPStats &st, size_t s, size_t l)
 {
     size = HashTable::getNumBuckets(s);
     n_locks = HashTable::getNumLocks(l);
-    values = static_cast<StoredValue**>(calloc(size, sizeof(StoredValue*)));
+    values = static_cast<StoredValue**>(cb_calloc(size, sizeof(StoredValue*)));
     mutexes = new std::mutex[n_locks];
     activeState = true;
 }
@@ -72,7 +72,7 @@ HashTable::~HashTable() {
 #endif
     }
     delete []mutexes;
-    free(values);
+    cb_free(values);
     values = NULL;
 }
 
@@ -180,7 +180,7 @@ void HashTable::resize(size_t newSize) {
     }
 
     // Get a place for the new items.
-    StoredValue **newValues = static_cast<StoredValue**>(calloc(newSize,
+    StoredValue **newValues = static_cast<StoredValue**>(cb_calloc(newSize,
                                                         sizeof(StoredValue*)));
     // If we can't allocate memory, don't move stuff around.
     if (!newValues) {
@@ -208,7 +208,7 @@ void HashTable::resize(size_t newSize) {
     }
 
     // values still points to the old (now empty) table.
-    free(values);
+    cb_free(values);
     values = newValues;
 
     stats.memOverhead.fetch_add(memorySize());

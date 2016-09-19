@@ -16,6 +16,7 @@
  */
 
 #include "config.h"
+#include <platform/cb_malloc.h>
 
 #include "stored-value.h"
 

@@ -18,6 +18,7 @@
 #include "config.h"
 
 #include <gtest/gtest.h>
+#include <platform/cb_malloc.h>
 
 #include "bgfetcher.h"
 #include "item.h"

@@ -23,6 +23,8 @@
 #include <sstream>
 #include <vector>
 
+#include <platform/cb_malloc.h>
+
 #include "configuration.h"
 
 #ifdef AUTOCONF_BUILD
@@ -266,12 +268,12 @@ void Configuration::setParameter(const std::string &key, const char *value) {
 
     if (attributes.find(key) != attributes.end() && attributes[key].datatype
             == DT_STRING) {
-        free((void*)attributes[key].val.v_string);
+        cb_free((void*)attributes[key].val.v_string);
     }
     attributes[key].datatype = DT_STRING;
     attributes[key].val.v_string = NULL;
     if (value != NULL) {
-        attributes[key].val.v_string = strdup(value);
+        attributes[key].val.v_string = cb_strdup(value);
     }
 
     std::vector<ValueChangedListener*> copy(attributes[key].changeListener);
@@ -403,7 +405,7 @@ bool Configuration::parseConfiguration(const char *str,
             }
 
             if (items[ii].datatype == DT_STRING) {
-                free(*items[ii].value.dt_string);
+                cb_free(*items[ii].value.dt_string);
             }
         }
     }
@@ -427,7 +429,7 @@ Configuration::~Configuration() {
 
         delete iter->second.validator;
         if (iter->second.datatype == DT_STRING) {
-            free((void*)iter->second.val.v_string);
+            cb_free((void*)iter->second.val.v_string);
         }
     }
 }

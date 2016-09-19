@@ -24,6 +24,8 @@
 #include "ep_test_apis.h"
 #include "ep_testsuite_common.h"
 
+#include <platform/cb_malloc.h>
+
 // Helper functions ///////////////////////////////////////////////////////////
 
 static enum test_result verify_item(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
@@ -738,7 +740,7 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     filtermap[2] = 0;
 
     uint16_t numOfVBs = htons(2); // Start with vbuckets 0 and 1
-    char *userdata = static_cast<char*>(calloc(1, 28));
+    char *userdata = static_cast<char*>(cb_calloc(1, 28));
     char *ptr = userdata;
     memcpy(ptr, &numOfVBs, sizeof(uint16_t));
     ptr += sizeof(uint16_t);
@@ -857,7 +859,7 @@ static enum test_result test_tap_filter_stream(ENGINE_HANDLE *h, ENGINE_HANDLE_V
     checkeq(0,
             get_int_stat(h, h1, "eq_tapq:tap_client_thread:qlen", "tap"),
             "queue should be empty");
-    free(userdata);
+    cb_free(userdata);
 
     return SUCCESS;
 }

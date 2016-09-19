@@ -35,6 +35,7 @@
 #include <list>
 #include <map>
 #include <phosphor/phosphor.h>
+#include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <string>
 #include <utility>
@@ -655,11 +656,11 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
                 (*info)->content_meta) {
             size_t uncompr_len;
             snappy_uncompressed_length(item->buf, item->size, &uncompr_len);
-            char *dbuf = (char *) malloc(uncompr_len);
+            char *dbuf = (char *) cb_malloc(uncompr_len);
             snappy_uncompress(item->buf, item->size, dbuf, &uncompr_len);
             data = (const unsigned char*)dbuf;
             ret = checkUTF8JSON(data, uncompr_len);
-            free(dbuf);
+            cb_free(dbuf);
         } else {
             data = (const unsigned char*)item->buf;
             ret = checkUTF8JSON(data, item->size);
@@ -695,8 +696,8 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
     }
 
     // the docInfo pointer includes the DocInfo and the data it points to.
-    // this must be a pointer which free() can deallocate
-    char* buffer = static_cast<char*>(calloc(1, sizeof(DocInfo) +
+    // this must be a pointer which cb_free() can deallocate
+    char* buffer = static_cast<char*>(cb_calloc(1, sizeof(DocInfo) +
                              (*info)->id.size +
                              MetaData::getMetaDataSize(MetaData::Version::V2)));
 
