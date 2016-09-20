@@ -20,109 +20,24 @@
 
 #include "memcached/visibility.h"
 #include <memcached/extension_loggers.h>
+#include <platform/cb_malloc.h>
+
 
 /* Irrespective of how jemalloc was configured on this platform,
 * don't rename je_FOO to FOO.
 */
 #define JEMALLOC_NO_RENAME
 #include <jemalloc/jemalloc.h>
-#if defined(WIN32)
-#    error Memory tracking not supported with jemalloc on Windows.
-#elif defined(__APPLE__)
-/* memory tracking implemented using custom malloc zone: */
-#    include "darwin_zone.h"
-#else
-/* assume some other *ix-style OS which permits malloc/free symbol interposing. */
-#    define INTERPOSE_MALLOC 1
-#endif
 
 #if defined(HAVE_MEMALIGN)
 #include <malloc.h>
 #endif
-
-/******************************************************************************
- * jemalloc memory tracking support.
- * jemalloc (unlike TCmalloc) has no builtin support for this, so instead we
- * use our own malloc wrapper functions which will check for the presence of
- * registered hooks and call if necessary.
- *
- *****************************************************************************/
 
 /* jemalloc checks for this symbol, and it's contents for the config to use. */
 const char* je_malloc_conf =
     /* Use just one arena, instead of the default based on number of CPUs.
        Helps to minimize heap fragmentation. */
     "narenas:1";
-
-static malloc_new_hook_t new_hook = NULL;
-static malloc_delete_hook_t delete_hook = NULL;
-
-#if defined(INTERPOSE_MALLOC)
-
-static inline void invoke_new_hook(void* ptr, size_t size) {
-    if (new_hook != NULL) {
-        new_hook(ptr, size);
-    }
-}
-
-static inline void invoke_delete_hook(void* ptr) {
-    if (delete_hook != NULL) {
-        delete_hook(ptr);
-    }
-}
-
-extern "C" {
-
-#if defined(__sun) || defined(__FreeBSD__)
-#define throwspec
-#else
-#define throwspec throw()
-#endif
-
-MEMCACHED_PUBLIC_API void* malloc(size_t size) throwspec {
-    void* ptr = je_malloc(size);
-    invoke_new_hook(ptr, size);
-    return ptr;
-}
-
-MEMCACHED_PUBLIC_API void* calloc(size_t nmemb, size_t size) throwspec {
-    void* ptr = je_calloc(nmemb, size);
-    invoke_new_hook(ptr, nmemb * size);
-    return ptr;
-}
-
-MEMCACHED_PUBLIC_API void* realloc(void* ptr, size_t size) throwspec {
-    invoke_delete_hook(ptr);
-    void* result = je_realloc(ptr, size);
-    invoke_new_hook(result, size);
-    return result;
-}
-
-MEMCACHED_PUBLIC_API void free(void* ptr) throwspec {
-    invoke_delete_hook(ptr);
-    je_free(ptr);
-}
-
-#if defined(HAVE_MEMALIGN)
-MEMCACHED_PUBLIC_API void *memalign(size_t alignment, size_t size) throwspec {
-    void* result = je_memalign(alignment, size);
-    invoke_new_hook(result, size);
-    return result;
-}
-#endif
-
-MEMCACHED_PUBLIC_API int posix_memalign(void **memptr, size_t alignment,
-                                        size_t size) throwspec {
-    int result = je_posix_memalign(memptr, alignment, size);
-    invoke_new_hook(*memptr, size);
-    return result;
-}
-
-#undef throwspec
-
-} // extern "C"
-
-#endif /* INTERPOSE_MALLOC */
 
 static int jemalloc_get_stats_prop(const char* property, size_t* value) {
     size_t size = sizeof(*value);
@@ -165,46 +80,23 @@ static void write_cb(void* opaque, const char* msg) {
 }
 
 void JemallocHooks::initialize() {
-#if defined(__APPLE__)
-    // Register our wrapper malloc zone to allow us to track mem_used
-    register_wrapper_zone(&new_hook, &delete_hook);
-#endif
+    // No initialization required.
 }
 
 bool JemallocHooks::add_new_hook(void (* hook)(const void* ptr, size_t size)) {
-    if (new_hook == NULL) {
-        new_hook = hook;
-        return true;
-    } else {
-        return false;
-    }
+    return cb_add_new_hook(hook);
 }
 
 bool JemallocHooks::remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
-    if (new_hook == hook) {
-        new_hook = NULL;
-        return true;
-    } else {
-        return false;
-    }
+    return cb_remove_new_hook(hook);
 }
 
 bool JemallocHooks::add_delete_hook(void (* hook)(const void* ptr)) {
-    if (delete_hook == NULL) {
-        delete_hook = hook;
-        return true;
-    } else {
-        return false;
-    }
+    return cb_add_delete_hook(hook);
 }
 
 bool JemallocHooks::remove_delete_hook(void (* hook)(const void* ptr)) {
-    if (delete_hook == hook) {
-        delete_hook = NULL;
-        return true;
-    } else {
-        return false;
-    }
+    return cb_remove_delete_hook(hook);
 }
 
 int JemallocHooks::get_extra_stats_size() {
