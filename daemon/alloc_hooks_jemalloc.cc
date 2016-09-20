@@ -19,6 +19,7 @@
 #include <stdbool.h>
 
 #include "memcached/visibility.h"
+#include <memcached/extension_loggers.h>
 
 /* Irrespective of how jemalloc was configured on this platform,
 * don't rename je_FOO to FOO.
@@ -163,14 +164,14 @@ static void write_cb(void* opaque, const char* msg) {
     st->remaining -= len;
 }
 
-void init_alloc_hooks() {
+void JemallocHooks::initialize() {
 #if defined(__APPLE__)
     // Register our wrapper malloc zone to allow us to track mem_used
     register_wrapper_zone(&new_hook, &delete_hook);
 #endif
 }
 
-bool mc_add_new_hook(void (* hook)(const void* ptr, size_t size)) {
+bool JemallocHooks::add_new_hook(void (* hook)(const void* ptr, size_t size)) {
     if (new_hook == NULL) {
         new_hook = hook;
         return true;
@@ -179,7 +180,7 @@ bool mc_add_new_hook(void (* hook)(const void* ptr, size_t size)) {
     }
 }
 
-bool mc_remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
+bool JemallocHooks::remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
     if (new_hook == hook) {
         new_hook = NULL;
         return true;
@@ -188,7 +189,7 @@ bool mc_remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
     }
 }
 
-bool mc_add_delete_hook(void (* hook)(const void* ptr)) {
+bool JemallocHooks::add_delete_hook(void (* hook)(const void* ptr)) {
     if (delete_hook == NULL) {
         delete_hook = hook;
         return true;
@@ -197,7 +198,7 @@ bool mc_add_delete_hook(void (* hook)(const void* ptr)) {
     }
 }
 
-bool mc_remove_delete_hook(void (* hook)(const void* ptr)) {
+bool JemallocHooks::remove_delete_hook(void (* hook)(const void* ptr)) {
     if (delete_hook == hook) {
         delete_hook = NULL;
         return true;
@@ -206,11 +207,11 @@ bool mc_remove_delete_hook(void (* hook)(const void* ptr)) {
     }
 }
 
-int mc_get_extra_stats_size() {
+int JemallocHooks::get_extra_stats_size() {
     return 0;
 }
 
-void mc_get_allocator_stats(allocator_stats* stats) {
+void JemallocHooks::get_allocator_stats(allocator_stats* stats) {
     size_t epoch = 1;
     size_t sz = sizeof(epoch);
     /* jemalloc can cache its statistics - force a refresh */
@@ -268,7 +269,7 @@ void mc_get_allocator_stats(allocator_stats* stats) {
                                 - stats->free_mapped_size;
 }
 
-size_t mc_get_allocation_size(const void* ptr) {
+size_t JemallocHooks::get_allocation_size(const void* ptr) {
     /* je_malloc_usable_size on my linux masks this down to
      * malloc_usable_size causing it to omit a compiler warning.
      * Let's just nuke away the const here, as you may always
@@ -278,7 +279,7 @@ size_t mc_get_allocation_size(const void* ptr) {
     return je_malloc_usable_size((void*) ptr);
 }
 
-void mc_get_detailed_stats(char* buffer, int size) {
+void JemallocHooks::get_detailed_stats(char* buffer, int size) {
     struct write_state st;
     st.buffer = buffer;
     st.cropped = false;
@@ -287,7 +288,7 @@ void mc_get_detailed_stats(char* buffer, int size) {
     je_malloc_stats_print(write_cb, &st, "a"/* omit per-arena stats*/);
 }
 
-void mc_release_free_memory() {
+void JemallocHooks::release_free_memory() {
     /* Note: jemalloc doesn't necessarily free this memory
      * immediately, but it will schedule to be freed as soon as is
      * possible.
@@ -327,7 +328,7 @@ void mc_release_free_memory() {
     }
 }
 
-bool mc_enable_thread_cache(bool enable) {
+bool JemallocHooks::enable_thread_cache(bool enable) {
     bool old;
     size_t size = sizeof(old);
     int err = je_mallctl("thread.tcache.enabled", &old, &size, &enable,
@@ -340,11 +341,11 @@ bool mc_enable_thread_cache(bool enable) {
     return old;
 }
 
-bool mc_get_allocator_property(const char* name, size_t* value) {
+bool JemallocHooks::get_allocator_property(const char* name, size_t* value) {
     return jemalloc_get_stats_prop(name, value);
 }
 
-bool mc_set_allocator_property(const char* name, size_t value) {
+bool JemallocHooks::set_allocator_property(const char* name, size_t value) {
     /* Not yet implemented */
     return 0;
 }

@@ -21,13 +21,16 @@
  * the tcmalloc api, so its a pretty good 1:1 mapping ;-)
  */
 #include "config.h"
-#include "alloc_hooks.h"
+
+#include "alloc_hooks_tcmalloc.h"
+#include <cstring>
 #include <stdbool.h>
+#include "memcached/extension_loggers.h"
 
 #include <gperftools/malloc_extension_c.h>
 #include <gperftools/malloc_hook_c.h>
 
-void init_alloc_hooks() {
+void TCMallocHooks::initialize() {
     // TCMalloc's aggressive decommit setting has a significant performance
     // impact on us; and from gperftools v2.4 it is enabled by default.
     // Turn it off.
@@ -38,27 +41,27 @@ void init_alloc_hooks() {
     }
 }
 
-bool mc_add_new_hook(void (* hook)(const void* ptr, size_t size)) {
+bool TCMallocHooks::add_new_hook(void (* hook)(const void* ptr, size_t size)) {
     return MallocHook_AddNewHook(hook) ? true : false;
 }
 
-bool mc_remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
+bool TCMallocHooks::remove_new_hook(void (* hook)(const void* ptr, size_t size)) {
     return MallocHook_RemoveNewHook(hook) ? true : false;
 }
 
-bool mc_add_delete_hook(void (* hook)(const void* ptr)) {
+bool TCMallocHooks::add_delete_hook(void (* hook)(const void* ptr)) {
     return MallocHook_AddDeleteHook(hook) ? true : false;
 }
 
-bool mc_remove_delete_hook(void (* hook)(const void* ptr)) {
+bool TCMallocHooks::remove_delete_hook(void (* hook)(const void* ptr)) {
     return MallocHook_RemoveDeleteHook(hook) ? true : false;
 }
 
-int mc_get_extra_stats_size() {
+int TCMallocHooks::get_extra_stats_size() {
     return 3;
 }
 
-void mc_get_allocator_stats(allocator_stats* stats) {
+void TCMallocHooks::get_allocator_stats(allocator_stats* stats) {
     MallocExtension_GetNumericProperty("generic.current_allocated_bytes",
                                        &(stats->allocated_size));
     MallocExtension_GetNumericProperty("generic.heap_size",
@@ -90,7 +93,7 @@ void mc_get_allocator_stats(allocator_stats* stats) {
                                        &(stats->ext_stats[2].value));
 }
 
-size_t mc_get_allocation_size(const void* ptr) {
+size_t TCMallocHooks::get_allocation_size(const void* ptr) {
     // Only try to get allocation size if we allocated the object
     if (MallocExtension_GetOwnership(ptr) == MallocExtension_kOwned) {
         return MallocExtension_GetAllocatedSize(ptr);
@@ -99,23 +102,23 @@ size_t mc_get_allocation_size(const void* ptr) {
     return 0;
 }
 
-void mc_get_detailed_stats(char* buffer, int size) {
+void TCMallocHooks::get_detailed_stats(char* buffer, int size) {
     MallocExtension_GetStats(buffer, size);
 }
 
-void mc_release_free_memory() {
+void TCMallocHooks::release_free_memory() {
     MallocExtension_ReleaseFreeMemory();
 }
 
-bool mc_enable_thread_cache(bool enable) {
+bool TCMallocHooks::enable_thread_cache(bool enable) {
     // Not supported with TCMalloc - thread cache is always enabled.
     return true;
 }
 
-bool mc_get_allocator_property(const char* name, size_t* value) {
+bool TCMallocHooks::get_allocator_property(const char* name, size_t* value) {
     return MallocExtension_GetNumericProperty(name, value);
 }
 
-bool mc_set_allocator_property(const char* name, size_t value) {
+bool TCMallocHooks::set_allocator_property(const char* name, size_t value) {
     return MallocExtension_SetNumericProperty(name, value);
 }

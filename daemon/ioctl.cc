@@ -42,8 +42,8 @@ static ENGINE_ERROR_CODE getTCMallocAggrMemoryDecommit(Connection* c,
                                                        const StrToStrMap&,
                                                        std::string& value) {
     size_t int_value;
-    if (mc_get_allocator_property("tcmalloc.aggressive_memory_decommit",
-                                  &int_value)) {
+    if (AllocHooks::get_allocator_property(
+            "tcmalloc.aggressive_memory_decommit", &int_value)) {
         value = std::to_string(int_value);
         return ENGINE_SUCCESS;
     } else {
@@ -83,8 +83,8 @@ static ENGINE_ERROR_CODE setTCMallocAggrMemoryDecommit(Connection* c,
         return ENGINE_EINVAL;
     }
 
-    if (mc_set_allocator_property("tcmalloc.aggressive_memory_decommit",
-                                  intval)) {
+    if (AllocHooks::set_allocator_property(
+            "tcmalloc.aggressive_memory_decommit", intval)) {
         LOG_NOTICE(c,
             "%u: IOCTL_SET: 'tcmalloc.aggressive_memory_decommit' set to %ld",
             c->getId(), intval);

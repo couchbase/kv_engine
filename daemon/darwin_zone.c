@@ -104,7 +104,7 @@ zone_malloc(malloc_zone_t *zone, size_t size)
 static void *
 zone_calloc(malloc_zone_t *zone, size_t num_items, size_t size)
 {
-    void *ptr = default_zone->calloc(zone, num_items, size);
+    void *ptr = default_zone->calloc(default_zone, num_items, size);
     invoke_new_hook(ptr, num_items * size);
     return ptr;
 }
