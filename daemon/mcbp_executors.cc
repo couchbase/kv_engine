@@ -37,6 +37,7 @@
 #include "mcbp_privileges.h"
 
 #include <memcached/audit_interface.h>
+#include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <snappy-c.h>
 #include <utilities/protocol2text.h>
@@ -127,7 +128,7 @@ static void bin_read_chunk(McbpConnection* c, uint32_t chunk) {
             LOG_DEBUG(c, "%u: Need to grow buffer from %lu to %lu",
                       c->getId(), (unsigned long)c->read.size,
                       (unsigned long)nsize);
-            newm = reinterpret_cast<char*>(realloc(c->read.buf, nsize));
+            newm = reinterpret_cast<char*>(cb_realloc(c->read.buf, nsize));
             if (newm == NULL) {
                 LOG_WARNING(c, "%u: Failed to grow buffer.. closing connection",
                             c->getId());
@@ -920,7 +921,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
             c->addIov(info.info.key, info.info.nkey);
             if ((tap_flags & TAP_FLAG_NO_VALUE) == 0) {
                 if (inflate) {
-                    char* buf = reinterpret_cast<char*>(malloc(
+                    char* buf = reinterpret_cast<char*>(cb_malloc(
                         inflated_length));
                     if (buf == NULL) {
                         LOG_WARNING(c,
@@ -937,7 +938,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
                     if (snappy_uncompress(body, input_length,
                                           buf, &inflated_length) == SNAPPY_OK) {
                         if (!c->pushTempAlloc(buf)) {
-                            free(buf);
+                            cb_free(buf);
                             LOG_WARNING(c,
                                         "%u: FATAL: failed to allocate space "
                                             "to keep temporary buffer",
@@ -947,7 +948,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
                         }
                         c->addIov(buf, inflated_length);
                     } else {
-                        free(buf);
+                        cb_free(buf);
                         LOG_WARNING(c,
                                     "%u: FATAL: failed to inflate object. "
                                         "shutting down connection",

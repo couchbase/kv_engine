@@ -19,6 +19,7 @@
  * Unit tests for util.c
  */
 
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 
 #include <memcached/util.h>
@@ -340,43 +341,43 @@ TEST(ConfigParserTest, A) {
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("sval", string_val);
     items[4].found = false;
-    free(string_val);
+    cb_free(string_val);
     /* Leading space */
     ASSERT_EQ(0, parse_config("string= sval", items, error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("sval", string_val);
     items[4].found = false;
-    free(string_val);
+    cb_free(string_val);
     /* Escaped leading space */
     ASSERT_EQ(0, parse_config("string=\\ sval", items, error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ(" sval", string_val);
     items[4].found = false;
-    free(string_val);
+    cb_free(string_val);
     /* trailing space */
     ASSERT_EQ(0, parse_config("string=sval ", items, error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("sval", string_val);
     items[4].found = false;
-    free(string_val);
+    cb_free(string_val);
     /* escaped trailing space */
     ASSERT_EQ(0, parse_config("string=sval\\ ", items, error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("sval ", string_val);
     items[4].found = false;
-    free(string_val);
+    cb_free(string_val);
     /* escaped stop char */
     ASSERT_EQ(0, parse_config("string=sval\\;blah=x", items, error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("sval;blah=x", string_val);
     items[4].found = false;
-    free(string_val);
+    cb_free(string_val);
     /* middle space */
     ASSERT_EQ(0, parse_config("string=s val", items, error));
     EXPECT_TRUE(items[4].found);
     EXPECT_STREQ("s val", string_val);
     items[4].found = false;
-    free(string_val);
+    cb_free(string_val);
 
     /* And all of the variables */
     ASSERT_EQ(0, parse_config("bool=true;size_t=1024;float=12.5;string=somestr",
@@ -385,7 +386,7 @@ TEST(ConfigParserTest, A) {
     EXPECT_EQ(1024u, size_val);
     EXPECT_EQ(12.5f, float_val);
     EXPECT_STREQ("somestr", string_val);
-    free(string_val);
+    cb_free(string_val);
     for (ii = 0; ii < 5; ++ii) {
         items[ii].found = false;
     }

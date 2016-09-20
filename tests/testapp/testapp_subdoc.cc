@@ -23,6 +23,7 @@
 #include <vector>
 
 #include <cJSON.h>
+#include <platform/cb_malloc.h>
 #include <memcached/protocol_binary.h>
 #include <memcached/util.h> // for memcached_protocol_errcode_2_text()
 
@@ -379,7 +380,7 @@ void store_object(const std::string& key,
                                       compress, JSON) == TEST_PASS);
     set_datatype_feature(false);
     if (compress) {
-        free(deflated);
+        cb_free(deflated);
     }
 }
 

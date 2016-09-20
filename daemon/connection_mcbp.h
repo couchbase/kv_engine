@@ -32,6 +32,7 @@
 #include <chrono>
 #include <memcached/openssl.h>
 #include <memory>
+#include <platform/cb_malloc.h>
 #include <string>
 #include <vector>
 
@@ -538,7 +539,7 @@ public:
 
     void releaseTempAlloc() {
         for (auto* ptr : temp_alloc) {
-            free(ptr);
+            cb_free(ptr);
         }
         temp_alloc.resize(0);
     }

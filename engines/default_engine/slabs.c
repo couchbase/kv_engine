@@ -11,6 +11,7 @@
 
 #include <fcntl.h>
 #include <errno.h>
+#include <platform/cb_malloc.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -64,7 +65,7 @@ static void *my_allocate(struct default_engine *e, size_t size) {
     /* Is threre room? */
     if (e->slabs.allocs.next == e->slabs.allocs.size) {
         size_t n = e->slabs.allocs.size + 1024;
-        void *p = realloc(e->slabs.allocs.ptrs, n * sizeof(void*));
+        void *p = cb_realloc(e->slabs.allocs.ptrs, n * sizeof(void*));
         if (p == NULL) {
             return NULL;
         }
@@ -72,7 +73,7 @@ static void *my_allocate(struct default_engine *e, size_t size) {
         e->slabs.allocs.size = n;
     }
 
-    ptr = malloc(size);
+    ptr = cb_malloc(size);
     if (ptr != NULL) {
         e->slabs.allocs.ptrs[e->slabs.allocs.next++] = ptr;
 
@@ -182,7 +183,7 @@ static int grow_slab_list (struct default_engine *engine, const unsigned int id)
     slabclass_t *p = &engine->slabs.slabclass[id];
     if (p->slabs == p->list_size) {
         unsigned int new_size =  (p->list_size != 0) ? p->list_size * 2 : 16;
-        void *new_list = realloc(p->slab_list, new_size * sizeof(void *));
+        void *new_list = cb_realloc(p->slab_list, new_size * sizeof(void *));
         if (new_list == 0) return 0;
         p->list_size = new_size;
         p->slab_list = new_list;
@@ -232,7 +233,7 @@ static void *do_slabs_alloc(struct default_engine *engine, const size_t size, un
         return 0;
     }
     engine->slabs.mem_malloced += size;
-    ret = calloc(1, size);
+    ret = cb_calloc(1, size);
     MEMCACHED_SLABS_ALLOCATE(size, id, 0, ret);
     return ret;
 #endif
@@ -278,13 +279,13 @@ static void do_slabs_free(struct default_engine *engine, void *ptr, const size_t
 
 #ifdef USE_SYSTEM_MALLOC
     engine->slabs.mem_malloced -= size;
-    free(ptr);
+    cb_free(ptr);
     return;
 #endif
 
     if (p->sl_curr == p->sl_total) { /* need more space on the free list */
         int new_size = (p->sl_total != 0) ? p->sl_total * 2 : 16;  /* 16 is arbitrary */
-        void **new_slots = realloc(p->slots, new_size * sizeof(void *));
+        void **new_slots = cb_realloc(p->slots, new_size * sizeof(void *));
         if (new_slots == 0)
             return;
         p->slots = new_slots;
@@ -455,14 +456,14 @@ void slabs_destroy(struct default_engine *e)
     unsigned int jj;
 
     for (ii = 0; ii < e->slabs.allocs.next; ++ii) {
-        free(e->slabs.allocs.ptrs[ii]);
+        cb_free(e->slabs.allocs.ptrs[ii]);
     }
-    free(e->slabs.allocs.ptrs);
+    cb_free(e->slabs.allocs.ptrs);
 
     /* Release the freelists */
     for (jj = POWER_SMALLEST; jj <= e->slabs.power_largest; jj++) {
         slabclass_t *p = &e->slabs.slabclass[jj];
-        free(p->slots);
-        free(p->slab_list);
+        cb_free(p->slots);
+        cb_free(p->slab_list);
     }
 }

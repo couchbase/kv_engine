@@ -72,6 +72,7 @@
 
 #include <memcached/engine.h>
 #include <memcached/extension.h>
+#include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <platform/thread.h>
 #include "utilities/engine_loader.h"
@@ -968,7 +969,7 @@ EWB_Engine::EWB_Engine(GET_SERVER_API gsa_)
 }
 
 EWB_Engine::~EWB_Engine() {
-    free(real_engine_ref);
+    cb_free(real_engine_ref);
     stop_notification_thread = true;
     condvar.notify_all();
     notify_io_thread->waitForState(Couchbase::ThreadState::Zombie);

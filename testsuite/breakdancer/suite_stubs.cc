@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include <memcached/engine.h>
+#include <platform/cb_malloc.h>
 
 #include "suite_stubs.h"
 

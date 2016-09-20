@@ -8,6 +8,7 @@
 #include <time.h>
 #include <inttypes.h>
 
+#include <platform/cb_malloc.h>
 #include <platform/crc32c.h>
 #include "default_engine_internal.h"
 #include "engine_manager.h"
@@ -438,7 +439,7 @@ static void do_item_stats_sizes(struct default_engine *engine,
 
     /* max 1MB object, divided into 32 bytes size buckets */
     const int num_buckets = 32768;
-    unsigned int *histogram = calloc(num_buckets, sizeof(unsigned int));
+    unsigned int *histogram = cb_calloc(num_buckets, sizeof(unsigned int));
 
     if (histogram != NULL) {
         int i;
@@ -472,7 +473,7 @@ static void do_item_stats_sizes(struct default_engine *engine,
                 }
             }
         }
-        free(histogram);
+        cb_free(histogram);
     }
 }
 
@@ -1205,7 +1206,7 @@ bool initialize_item_tap_walker(struct default_engine *engine,
 {
     bool linked = false;
     int ii;
-    struct tap_client *client = calloc(1, sizeof(*client));
+    struct tap_client *client = cb_calloc(1, sizeof(*client));
     if (client == NULL) {
         return false;
     }
@@ -1330,7 +1331,7 @@ static bool hash_key_create(hash_key* hkey,
 
     int hash_key_len = sizeof(bucket_id_t) + nkey;
     if (nkey > sizeof(hkey->key_storage.client_key)) {
-        hkey->header.full_key = malloc(hash_key_len);
+        hkey->header.full_key = cb_malloc(hash_key_len);
         if (hkey->header.full_key == NULL) {
             return false;
         }
@@ -1345,7 +1346,7 @@ static bool hash_key_create(hash_key* hkey,
 
 static void hash_key_destroy(hash_key* hkey) {
     if ((void*)hkey->header.full_key != (void*)&hkey->key_storage) {
-       free(hkey->header.full_key);
+       cb_free(hkey->header.full_key);
     }
 }
 

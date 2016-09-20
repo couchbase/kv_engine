@@ -20,6 +20,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <platform/cb_malloc.h>
 #include <platform/dirutils.h>
 #include <thread>
 

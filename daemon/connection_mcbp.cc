@@ -23,6 +23,7 @@
 
 #include <exception>
 #include <utilities/protocol2text.h>
+#include <platform/cb_malloc.h>
 #include <platform/checked_snprintf.h>
 #include <platform/strerror.h>
 #include <platform/timeutils.h>
@@ -209,7 +210,7 @@ void McbpConnection::shrinkBuffers() {
             memmove(read.buf, read.curr, (size_t)read.bytes);
         }
 
-        void* ptr = realloc(read.buf, DATA_BUFFER_SIZE);
+        void* ptr = cb_realloc(read.buf, DATA_BUFFER_SIZE);
         char* newbuf = reinterpret_cast<char*>(ptr);
         if (newbuf) {
             read.buf = newbuf;
@@ -460,7 +461,7 @@ McbpConnection::TryReadResult McbpConnection::tryReadNetwork() {
                 return gotdata;
             }
             ++num_allocs;
-            char* new_rbuf = reinterpret_cast<char*>(realloc(read.buf,
+            char* new_rbuf = reinterpret_cast<char*>(cb_realloc(read.buf,
                                                              read.size * 2));
             if (!new_rbuf) {
                 LOG_WARNING(this, "Couldn't realloc input buffer");
@@ -979,12 +980,12 @@ McbpConnection::McbpConnection(SOCKET sfd,
 }
 
 McbpConnection::~McbpConnection() {
-    free(read.buf);
-    free(write.buf);
+    cb_free(read.buf);
+    cb_free(write.buf);
 
     releaseReservedItems();
     for (auto* ptr : temp_alloc) {
-        free(ptr);
+        cb_free(ptr);
     }
 }
 

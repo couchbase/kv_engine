@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 #include <openssl/evp.h>
 #include <openssl/hmac.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -154,7 +155,7 @@ TEST_F(SaslServerTest, PlainCorrectPassword) {
                                              "\0mikewied\0mikepw", 16, &output,
                                              &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
-    free((void*)output);
+    cb_free((void*)output);
 }
 
 TEST_F(SaslServerTest, PlainWrongPassword) {
@@ -165,7 +166,7 @@ TEST_F(SaslServerTest, PlainWrongPassword) {
                                              "\0mikewied\0badpPW", 16, &output,
                                              &outputlen);
     ASSERT_EQ(CBSASL_PWERR, err);
-    free((void*)output);
+    cb_free((void*)output);
 }
 
 TEST_F(SaslServerTest, PlainNoPassword) {
@@ -175,7 +176,7 @@ TEST_F(SaslServerTest, PlainNoPassword) {
     cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN", "\0nopass\0", 8,
                                              &output, &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
-    free((void*)output);
+    cb_free((void*)output);
 }
 
 TEST_F(SaslServerTest, PlainWithAuthzid) {
@@ -187,7 +188,7 @@ TEST_F(SaslServerTest, PlainWithAuthzid) {
                                              &output,
                                              &outputlen);
     ASSERT_EQ(CBSASL_OK, err);
-    free((void*)output);
+    cb_free((void*)output);
 }
 
 TEST_F(SaslServerTest, PlainWithNoPwOrUsernameEndingNull) {
@@ -197,7 +198,7 @@ TEST_F(SaslServerTest, PlainWithNoPwOrUsernameEndingNull) {
     cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN", "funzid\0mikewied",
                                              15, &output, &outputlen);
     ASSERT_NE(CBSASL_OK, err);
-    free((void*)output);
+    cb_free((void*)output);
 }
 
 TEST_F(SaslServerTest, PlainNoNullAtAll) {
@@ -207,7 +208,7 @@ TEST_F(SaslServerTest, PlainNoNullAtAll) {
     cbsasl_error_t err = cbsasl_server_start(conn, "PLAIN", "funzidmikewied",
                                              14, &output, &outputlen);
     ASSERT_NE(CBSASL_OK, err);
-    free((void*)output);
+    cb_free((void*)output);
 }
 
 class SaslLimitMechServerTest : public SaslServerTest {

@@ -4,6 +4,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/openssl.h>
 #include <memcached/util.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <memcached/util.h>
 
@@ -66,7 +67,7 @@ static void request_stat(BIO *bio, const char *key)
         const uint16_t keylen = ntohs(response.message.header.response.keylen);
         const uint32_t bodylen = ntohl(response.message.header.response.bodylen);
         if (bodylen > buffsize) {
-            if ((buffer = realloc(buffer, bodylen)) == NULL) {
+            if ((buffer = cb_realloc(buffer, bodylen)) == NULL) {
                 fprintf(stderr, "Failed to allocate memory\n");
                 exit(1);
             }

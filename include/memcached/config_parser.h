@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <memcached/visibility.h>
 
+#include <platform/cb_malloc.h>
+
 typedef long mc_ssize_t;
 
 #ifdef __cplusplus
@@ -31,6 +33,7 @@ union config_value {
    mc_ssize_t *dt_ssize;
    float *dt_float;
    bool *dt_bool;
+   // Allocated via cb_malloc. Should be freed with cb_free().
    char **dt_string;
 };
 

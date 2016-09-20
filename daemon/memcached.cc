@@ -48,6 +48,7 @@
 #include "mcbpdestroybuckettask.h"
 #include "libevent_locking.h"
 
+#include <platform/cb_malloc.h>
 #include <platform/strerror.h>
 #include <phosphor/phosphor.h>
 
@@ -2342,7 +2343,7 @@ bool load_extension(const char *soname, const char *config) {
     if (handle == NULL) {
         LOG_WARNING(NULL, "Failed to open library \"%s\": %s\n",
                     soname, error_msg);
-        free(error_msg);
+        cb_free(error_msg);
         return false;
     }
 
@@ -2352,7 +2353,7 @@ bool load_extension(const char *soname, const char *config) {
                     "Could not find symbol \"memcached_extensions_"
                         "initialize\" in %s: %s\n",
                     soname, error_msg);
-        free(error_msg);
+        cb_free(error_msg);
         return false;
     }
     funky.voidptr = symbol;

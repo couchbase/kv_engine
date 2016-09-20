@@ -29,6 +29,7 @@
 #include <memcached/visibility.h>
 #include <memcached/util.h>
 #include <memcached/config_parser.h>
+#include <platform/cb_malloc.h>
 
 extern "C" {
 MEMCACHED_PUBLIC_API
@@ -114,7 +115,7 @@ static ENGINE_ERROR_CODE initialize(ENGINE_HANDLE* handle,
 static void destroy(ENGINE_HANDLE* handle, const bool force)
 {
     (void)force;
-    free(handle);
+    cb_free(handle);
 }
 
 static ENGINE_ERROR_CODE item_allocate(ENGINE_HANDLE* handle,
@@ -216,7 +217,7 @@ ENGINE_ERROR_CODE create_instance(uint64_t interface,
         return ENGINE_ENOTSUP;
     }
 
-    if ((engine = reinterpret_cast<CrashEngine*>(calloc(1, sizeof(*engine)))) == NULL) {
+    if ((engine = reinterpret_cast<CrashEngine*>(cb_calloc(1, sizeof(*engine)))) == NULL) {
         return ENGINE_ENOMEM;
     }
 

@@ -18,6 +18,7 @@
 #include <io.h>
 #endif
 
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 
 #ifdef WIN32_H
@@ -558,9 +559,9 @@ static void logger_thread_main(void* arg)
     }
 
     cb_mutex_exit(&mutex);
-    free(arg);
-    free(buffers[0].data);
-    free(buffers[1].data);
+    cb_free(arg);
+    cb_free(buffers[0].data);
+    cb_free(buffers[1].data);
 }
 
 static void exit_handler(void) {
@@ -717,21 +718,21 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
                 return EXTENSION_FATAL;
             }
         }
-        free(loglevel);
+        cb_free(loglevel);
     }
 
     if (fname == NULL) {
-        fname = strdup("memcached");
+        fname = cb_strdup("memcached");
     }
 
-    buffers[0].data = reinterpret_cast<char*>(malloc(buffersz));
-    buffers[1].data = reinterpret_cast<char*>(malloc(buffersz));
+    buffers[0].data = reinterpret_cast<char*>(cb_malloc(buffersz));
+    buffers[1].data = reinterpret_cast<char*>(cb_malloc(buffersz));
 
     if (buffers[0].data == NULL || buffers[1].data == NULL || fname == NULL) {
         fprintf(stderr, "Failed to allocate memory for the logger\n");
-        free(fname);
-        free(buffers[0].data);
-        free(buffers[1].data);
+        cb_free(fname);
+        cb_free(buffers[0].data);
+        cb_free(buffers[1].data);
         return EXTENSION_FATAL;
     }
 
@@ -740,9 +741,9 @@ EXTENSION_ERROR_CODE memcached_extensions_initialize(const char *config,
     if (cb_create_named_thread(&tid, logger_thread_main, fname, 0,
                                "mc:file_logger") < 0) {
         fprintf(stderr, "Failed to initialize the logger\n");
-        free(fname);
-        free(buffers[0].data);
-        free(buffers[1].data);
+        cb_free(fname);
+        cb_free(buffers[0].data);
+        cb_free(buffers[1].data);
         return EXTENSION_FATAL;
     }
     atexit(exit_handler);

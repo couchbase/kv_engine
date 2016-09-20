@@ -17,6 +17,8 @@
 #include "config.h"
 #include "dynamic_buffer.h"
 
+#include <platform/cb_malloc.h>
+
 bool DynamicBuffer::grow(size_t needed) {
     size_t nsize = size;
     size_t available = nsize - offset;
@@ -35,7 +37,7 @@ bool DynamicBuffer::grow(size_t needed) {
     }
 
     if (nsize != size) {
-        char* ptr = reinterpret_cast<char*>(realloc(buffer, nsize));
+        char* ptr = reinterpret_cast<char*>(cb_realloc(buffer, nsize));
         if (ptr) {
             buffer = ptr;
             size = nsize;
@@ -48,7 +50,7 @@ bool DynamicBuffer::grow(size_t needed) {
 }
 
 void DynamicBuffer::clear() {
-    free(buffer);
+    cb_free(buffer);
     buffer = nullptr;
     size = 0;
     offset = 0;

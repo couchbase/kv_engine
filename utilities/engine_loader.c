@@ -5,6 +5,7 @@
 #include <string.h>
 #include "utilities/engine_loader.h"
 #include <memcached/types.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 
 static const char * const feature_descriptions[] = {
@@ -39,7 +40,7 @@ void unload_engine(engine_reference* engine)
     if (engine->handle != NULL) {
         (*engine->my_destroy_engine.destroy)();
         cb_dlclose(engine->handle);
-        free(engine);
+        cb_free(engine);
     }
 }
 
@@ -66,7 +67,7 @@ engine_reference* load_engine(const char* soname,
     if (handle == NULL) {
         logger->log(EXTENSION_LOG_WARNING, NULL,
                     "Failed to open library \"%s\": %s\n", soname, errmsg);
-        free(errmsg);
+        cb_free(errmsg);
         return NULL;
     }
 
@@ -92,7 +93,7 @@ engine_reference* load_engine(const char* soname,
         logger->log(EXTENSION_LOG_WARNING, NULL,
                 "Could not find the function to create an engine instance in %s: %s\n",
                 soname, create_errmsg);
-        free(create_errmsg);
+        cb_free(create_errmsg);
         return NULL;
     }
 
@@ -100,12 +101,12 @@ engine_reference* load_engine(const char* soname,
         logger->log(EXTENSION_LOG_WARNING, NULL,
                 "Could not find the function to destroy the engine in %s: %s\n",
                 soname, destroy_errmsg);
-        free(destroy_errmsg);
+        cb_free(destroy_errmsg);
         return NULL;
     }
 
     // dlopen is success and we found all required symbols.
-    engine_reference* engine_ref = calloc(1, sizeof(engine_reference));
+    engine_reference* engine_ref = cb_calloc(1, sizeof(engine_reference));
     engine_ref->handle = handle;
     engine_ref->my_create_instance.voidptr = create_symbol;
     engine_ref->my_destroy_engine.voidptr = destroy_symbol;

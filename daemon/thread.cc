@@ -15,6 +15,7 @@
 #include <stdint.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <platform/strerror.h>
 #include <queue>
@@ -520,12 +521,12 @@ void thread_init(int nthr, struct event_base *main_base,
     cb_mutex_initialize(&init_lock);
     cb_cond_initialize(&init_cond);
 
-    threads = reinterpret_cast<LIBEVENT_THREAD*>(calloc(nthreads,
+    threads = reinterpret_cast<LIBEVENT_THREAD*>(cb_calloc(nthreads,
                                                         sizeof(LIBEVENT_THREAD)));
     if (threads == nullptr) {
         FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
     }
-    thread_ids = reinterpret_cast<cb_thread_t*>(calloc(nthreads, sizeof(cb_thread_t)));
+    thread_ids = reinterpret_cast<cb_thread_t*>(cb_calloc(nthreads, sizeof(cb_thread_t)));
     if (thread_ids == nullptr) {
         FATAL_ERROR(EXIT_FAILURE, "Can't allocate thread descriptors");
     }
@@ -574,15 +575,15 @@ void threads_cleanup(void)
         safe_close(threads[ii].notify[1]);
         event_base_free(threads[ii].base);
 
-        free(threads[ii].read.buf);
-        free(threads[ii].write.buf);
+        cb_free(threads[ii].read.buf);
+        cb_free(threads[ii].write.buf);
         subdoc_op_free(threads[ii].subdoc_op);
         delete threads[ii].validator;
         delete threads[ii].new_conn_queue;
     }
 
-    free(thread_ids);
-    free(threads);
+    cb_free(thread_ids);
+    cb_free(threads);
 }
 
 void threads_notify_bucket_deletion(void)

@@ -27,6 +27,7 @@
 #include <memcached/protocol_binary.h>
 #include <memcached/openssl.h>
 #include <memcached/util.h>
+#include <platform/cb_malloc.h>
 #include <platform/platform.h>
 #include <memcached/util.h>
 
@@ -50,10 +51,10 @@ static int set_ascii(BIO *bio, const char *key, size_t size) {
 
     ensure_send(bio, &line, len);
     if (size > 0) {
-        char* value = malloc(size);
+        char* value = cb_malloc(size);
         if (value) {
             ensure_send(bio, value, (int)size);
-            free(value);
+            cb_free(value);
         } else {
             for (size_t ii = 0; ii < size; ++ii) {
                 ensure_send(bio, key, 1);
@@ -96,10 +97,10 @@ static int set_binary(BIO *bio, const char *key, size_t size) {
     ensure_send(bio, &request, (int)sizeof(request.bytes));
     ensure_send(bio, key, strlen(key));
     if (size > 0) {
-        char* value = malloc(size);
+        char* value = cb_malloc(size);
         if (value) {
             ensure_send(bio, value, (int)size);
-            free(value);
+            cb_free(value);
         } else {
             for (size_t ii = 0; ii < size; ++ii) {
                 ensure_send(bio, key, 1);
@@ -112,7 +113,7 @@ static int set_binary(BIO *bio, const char *key, size_t size) {
     char *buffer = NULL;
     const uint32_t bodylen = ntohl(response.message.header.response.bodylen);
     if (bodylen > 0) {
-        if ((buffer = malloc(bodylen + 1)) == NULL) {
+        if ((buffer = cb_malloc(bodylen + 1)) == NULL) {
             fprintf(stderr, "Failed to allocate memory\n");
             exit(EXIT_FAILURE);
         }

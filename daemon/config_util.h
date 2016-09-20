@@ -15,6 +15,10 @@ extern "C" {
         CONFIG_PARSE_ERROR
     } config_error_t;
 
+    /* Returns a string describing the given config_error_t.
+     *
+     * Caller is responsible for free()ing the result.
+     */
     char *config_strerror(const char *file, config_error_t error);
     config_error_t config_load_file(const char *file, cJSON **json);
 
