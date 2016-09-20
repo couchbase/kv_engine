@@ -4427,7 +4427,6 @@ cb_thread_t TestappTest::memcached_server_thread;
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
-    initialize_openssl();
 
 #ifndef WIN32
     /*

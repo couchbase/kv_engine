@@ -43,6 +43,14 @@ static std::string get_working_current_directory() {
     return result;
 }
 
+McdEnvironment::McdEnvironment() {
+    initialize_openssl();
+}
+
+McdEnvironment::~McdEnvironment() {
+    shutdown_openssl();
+}
+
 void McdEnvironment::SetUp() {
     cwd = get_working_current_directory();
     SetupAuditFile();
@@ -99,8 +107,6 @@ void McdEnvironment::TearDown() {
     if (!audit_log_dir.empty()) {
         EXPECT_TRUE(CouchbaseDirectoryUtilities::rmrf(audit_log_dir));
     }
-
-    shutdown_openssl();
 }
 
 std::string McdEnvironment::generateTempFile(const char* pattern) {

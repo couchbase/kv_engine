@@ -28,19 +28,29 @@
  */
 class McdEnvironment : public ::testing::Environment {
 public:
+    /* We have to use the contructor / destructor to init/shutdown
+     * OpenSSL, as the SetUp/TearDown methods only get called if at least
+     * one Test is run; and we *need* to call shutdown_openssl() to
+     * correctly free all memory allocated by OpenSSL's shared_library
+     * constructor.
+     */
+    McdEnvironment();
+
+    ~McdEnvironment();
+
     /**
      * Create the test environment. This method is called automatically
      * from the Google Test Framework. You should not try to access any
      * of the members before this method is called. As long as you only
      * try to access this class from a test case you're on the safe side
      */
-    virtual void SetUp();
+    void SetUp() override;
 
     /**
      * Tear down the test environment. This call invalidates the object
      * and calling the members may return rubbish.
      */
-    virtual void TearDown();
+    void TearDown() override;
 
     /**
      * Get the name of the RBAC file used.
