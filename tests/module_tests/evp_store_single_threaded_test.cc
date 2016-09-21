@@ -74,14 +74,13 @@ protected:
      * On return the state will be changed and the task completed.
      */
     void setVBucketStateAndRunPersistTask(uint16_t vbid, vbucket_state_t newState) {
-        auto& lpWriterQ = *task_executor->getLpTaskQ()[WRITER_TASK_IDX];
-
-        // Change state - this should add 1 VBStatePersistTask to the WRITER queue.
+        // Change state - this should add 1 set_vbucket_state op to the
+        //VBuckets' persistence queue.
         EXPECT_EQ(ENGINE_SUCCESS,
                   store->setVBucketState(vbid, newState, /*transfer*/false));
 
-        runNextTask(lpWriterQ, "Persisting a vbucket state for vbucket: "
-                               + std::to_string(vbid));
+        // Trigger the flusher to flush state to disk.
+        EXPECT_EQ(0, store->flushVBucket(vbid));
     }
 
     /*
@@ -141,12 +140,12 @@ TEST_F(SingleThreadedEPStoreTest, MB19695_doTapVbTakeoverStats) {
     auto& lpNonioQ = *task_executor->getLpTaskQ()[NONIO_TASK_IDX];
 
     // [[2]] Perform a vbucket reset. This will perform some work synchronously,
-    // but also schedules 3 tasks:
+    // but also created 2 tasks and notifies the flusher:
     //   1. vbucket memory deletion (NONIO)
     //   2. vbucket disk deletion (WRITER)
-    //   3. VBStatePersistTask (WRITER)
+    //   3. FlusherTask notified (WRITER)
     // MB-19695: If we try to get the number of persisted deletes between
-    // tasks (2) and (3) running then an exception is thrown (and client
+    // steps (2) and (3) running then an exception is thrown (and client
     // disconnected).
     EXPECT_TRUE(store->resetVBucket(vbid));
 
@@ -167,8 +166,8 @@ TEST_F(SingleThreadedEPStoreTest, MB19695_doTapVbTakeoverStats) {
     EXPECT_NO_THROW(engine->public_doDcpVbTakeoverStats
                     (nullptr, dummy_cb, key, vbid));
 
-    // Cleanup - run the 3rd task - VBStatePersistTask.
-    runNextTask(lpWriterQ, "Persisting a vbucket state for vbucket: 0");
+    // Cleanup - run flusher.
+    EXPECT_EQ(0, store->flushVBucket(vbid));
 }
 
 /*

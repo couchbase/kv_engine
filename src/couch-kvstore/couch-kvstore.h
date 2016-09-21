@@ -488,7 +488,7 @@ public:
     void destroyScanContext(ScanContext* ctx);
 
 protected:
-    bool setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
+    bool setVBucketState(uint16_t vbucketId, const vbucket_state &vbstate,
                          Callback<kvstats_ctx> *cb, bool reset=false);
 
     template <typename T>
@@ -517,7 +517,7 @@ protected:
     void commitCallback(std::vector<CouchRequest *> &committedReqs,
                         kvstats_ctx &kvctx,
                         couchstore_error_t errCode);
-    couchstore_error_t saveVBState(Db *db, vbucket_state &vbState);
+    couchstore_error_t saveVBState(Db *db, const vbucket_state &vbState);
     void setDocsCommitted(uint16_t docs);
     void closeDatabaseHandle(Db *db);
 

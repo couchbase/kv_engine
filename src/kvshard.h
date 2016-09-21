@@ -74,7 +74,7 @@ public:
     void setBucket(const RCPtr<VBucket> &b);
     void resetBucket(VBucket::id_type id);
 
-    KVShard::id_type getId() { return shardId; }
+    KVShard::id_type getId() const { return shardId; }
     std::vector<VBucket::id_type> getVBucketsSortedByState();
     std::vector<VBucket::id_type> getVBuckets();
     size_t getMaxNumVbuckets() { return maxVbuckets; }

@@ -3411,7 +3411,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
                     epstats.snapshotVbucketHisto.total(), add_stat, cookie);
 
     add_casted_stat("ep_persist_vbstate_total",
-                    epstats.persistVBStateHisto.total(), add_stat, cookie);
+                    epstats.totalPersistVBState, add_stat, cookie);
 
     add_casted_stat("ep_vb_total",
                     activeCountVisitor.getVBucketNumber() +

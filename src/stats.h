@@ -59,6 +59,7 @@ public:
         tooYoung(0),
         tooOld(0),
         totalPersisted(0),
+        totalPersistVBState(0),
         totalEnqueued(0),
         flushFailed(0),
         flushExpired(0),
@@ -229,6 +230,8 @@ public:
     AtomicValue<size_t> tooOld;
     //! Number of items persisted.
     AtomicValue<size_t> totalPersisted;
+    //! Number of times VBucket state persisted.
+    AtomicValue<size_t> totalPersistVBState;
     //! Cumulative number of items added to the queue.
     AtomicValue<size_t> totalEnqueued;
     //! Number of times an item flush failed.
@@ -571,9 +574,11 @@ public:
     void reset() {
         tooYoung.store(0);
         tooOld.store(0);
+        totalPersistVBState.store(0);
         dirtyAge.store(0);
         dirtyAgeHighWat.store(0);
         commit_time.store(0);
+        cursorsDropped.store(0);
         pagerRuns.store(0);
         itemsRemovedFromCheckpoints.store(0);
         numValueEjects.store(0);

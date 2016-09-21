@@ -851,7 +851,8 @@ vbucket_state * CouchKVStore::getVBucketState(uint16_t vbucketId) {
     return cachedVBStates[vbucketId];
 }
 
-bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
+bool CouchKVStore::setVBucketState(uint16_t vbucketId,
+                                   const vbucket_state &vbstate,
                                    Callback<kvstats_ctx> *kvcb, bool reset) {
     Db *db = NULL;
     uint64_t fileRev, newFileRev;
@@ -2030,7 +2031,8 @@ ENGINE_ERROR_CODE CouchKVStore::readVBState(Db *db, uint16_t vbId) {
     return couchErr2EngineErr(errCode);
 }
 
-couchstore_error_t CouchKVStore::saveVBState(Db *db, vbucket_state &vbState) {
+couchstore_error_t CouchKVStore::saveVBState(Db *db,
+                                             const vbucket_state &vbState) {
     std::stringstream jsonState;
 
     jsonState << "{\"state\": \"" << VBucket::toString(vbState.state) << "\""

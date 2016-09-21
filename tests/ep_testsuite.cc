@@ -3853,7 +3853,7 @@ static enum test_result test_disk_gt_ram_incr_race(ENGINE_HANDLE *h,
 
     // Give incr time to finish (it's doing another background fetch)
     wait_for_stat_change(h, h1, "ep_bg_fetched", 1);
-    wait_for_stat_change(h, h1, "ep_total_enqueued", 1);
+    wait_for_stat_to_be(h, h1, "ep_total_enqueued", initial_enqueued + 2);
 
     // The incr mutated the value.
     check_key_value(h, h1, "k1", "14", 2);

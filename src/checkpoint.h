@@ -701,6 +701,12 @@ public:
                     const GenerateBySeqno generateBySeqno,
                     const GenerateCas generateCas);
 
+    /*
+     * Queue writing of the VBucket's state to persistent layer.
+     * @param vb the vbucket that a new item is pushed into.
+     */
+    void queueSetVBState(VBucket& vb);
+
     /**
      * Return the next item to be sent to a given connection
      * @param name the name of a given connection
@@ -852,6 +858,15 @@ public:
     void dump() const;
 
     static const std::string pCursorName;
+
+protected:
+
+    // Helper method for queueing methods - update the global and per-VBucket
+    // stats after queueing a new item to a checkpoint.
+    // Must be called with queueLock held (LockHolder passed in as argument to
+    // 'prove' this).
+    void updateStatsForNewQueuedItem_UNLOCKED(const LockHolder&,
+                                     VBucket& vb, const queued_item& qi);
 
 private:
 

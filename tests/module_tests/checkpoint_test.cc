@@ -977,3 +977,88 @@ TEST_F(CheckpointTest, SeqnoAndHLCOrdering) {
         previousCas = items[ii]->getCas();
     }
 }
+
+// Test cursor is correctly updated when enqueuing a key which already exists
+// in the checkpoint (and needs de-duping), where the cursor points at a
+// meta-item at the head of the checkpoint:
+//
+//  Before:
+//      Checkpoint [ 0:EMPTY(), 1:CKPT_START(), 1:SET(key), 2:SET_VBSTATE() ]
+//                                                               ^
+//                                                            Cursor
+//
+//  After:
+//      Checkpoint [ 0:EMPTY(), 1:CKPT_START(), 2:SET_VBSTATE(), 2:SET(key) ]
+//                                                     ^
+//                                                   Cursor
+//
+TEST_F(CheckpointTest, CursorUpdateForExistingItemWithMetaItemAtHead) {
+    // Setup the checkpoint and cursor.
+    ASSERT_EQ(1, manager->getNumItems());
+    ASSERT_TRUE(queueNewItem("key"));
+    ASSERT_EQ(2, manager->getNumItems());
+    manager->queueSetVBState(*vbucket.get());
+
+    ASSERT_EQ(3, manager->getNumItems());
+
+    // Advance persistence cursor so all items have been consumed.
+    std::vector<queued_item> items;
+    manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
+    ASSERT_EQ(3, items.size());
+    ASSERT_EQ(0, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+
+    // Queue an item with a duplicate key.
+    queueNewItem("key");
+
+    // Test: Should have one item for cursor (the one we just added).
+    EXPECT_EQ(1, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+
+    // Should have another item to read (new version of 'key')
+    items.clear();
+    manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
+    EXPECT_EQ(1, items.size());
+}
+
+// Test cursor is correctly updated when enqueuing a key which already exists
+// in the checkpoint (and needs de-duping), where the cursor points at a
+// meta-item *not* at the head of the checkpoint:
+//
+//  Before:
+//      Checkpoint [ 0:EMPTY(), 1:CKPT_START(), 1:SET_VBSTATE(key), 1:SET() ]
+//                                                     ^
+//                                                    Cursor
+//
+//  After:
+//      Checkpoint [ 0:EMPTY(), 1:CKPT_START(), 1:SET_VBSTATE(key), 2:SET() ]
+//                                                     ^
+//                                                   Cursor
+//
+TEST_F(CheckpointTest, CursorUpdateForExistingItemWithNonMetaItemAtHead) {
+    // Setup the checkpoint and cursor.
+    ASSERT_EQ(1, manager->getNumItems());
+    manager->queueSetVBState(*vbucket.get());
+    ASSERT_EQ(2, manager->getNumItems());
+
+    // Advance persistence cursor so all items have been consumed.
+    std::vector<queued_item> items;
+    manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
+    ASSERT_EQ(2, items.size());
+    ASSERT_EQ(0, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+
+    // Queue a set (cursor will now be one behind).
+    ASSERT_TRUE(queueNewItem("key"));
+    ASSERT_EQ(1, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+
+    // Test: queue an item with a duplicate key.
+    queueNewItem("key");
+
+    // Test: Should have one item for cursor (the one we just added).
+    EXPECT_EQ(1, manager->getNumItemsForCursor(CheckpointManager::pCursorName));
+
+    // Should an item to read (new version of 'key')
+    items.clear();
+    manager->getAllItemsForCursor(CheckpointManager::pCursorName, items);
+    EXPECT_EQ(1, items.size());
+    EXPECT_EQ(1002, items.at(0)->getBySeqno());
+    EXPECT_EQ("key", items.at(0)->getKey());
+}

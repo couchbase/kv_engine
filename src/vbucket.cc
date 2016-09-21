@@ -228,7 +228,7 @@ vbucket_state VBucket::getVBucketState() const {
 
 
 
-void VBucket::doStatsForQueueing(Item& qi, size_t itemBytes)
+void VBucket::doStatsForQueueing(const Item& qi, size_t itemBytes)
 {
     ++dirtyQueueSize;
     dirtyQueueMem.fetch_add(sizeof(Item));

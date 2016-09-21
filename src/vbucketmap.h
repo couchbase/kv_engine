@@ -77,6 +77,9 @@ public:
     void setHLCDriftAheadThreshold(uint64_t threshold);
     void setHLCDriftBehindThreshold(uint64_t threshold);
 
+    // Returns the current state of the given vBucket.
+    vbucket_state getVBucketState(VBucket::id_type id) const;
+
 private:
 
     std::vector<KVShard*> shards;

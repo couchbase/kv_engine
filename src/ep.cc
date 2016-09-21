@@ -445,9 +445,6 @@ bool EventuallyPersistentStore::initialize() {
                                                    checkpointRemoverInterval);
     ExecutorPool::get()->schedule(chkTask, NONIO_TASK_IDX);
 
-    ExTask vbSnapshotTask = new DaemonVBSnapshotTask(&engine);
-    ExecutorPool::get()->schedule(vbSnapshotTask, WRITER_TASK_IDX);
-
     ExTask workloadMonitorTask = new WorkLoadMonitor(&engine, false);
     ExecutorPool::get()->schedule(workloadMonitorTask, NONIO_TASK_IDX);
 
@@ -1198,7 +1195,7 @@ void EventuallyPersistentStore::snapshotVBuckets(VBSnapshotTask::Priority prio,
     }
 
     if (!success) {
-        scheduleVBSnapshot(prio, shard->getId());
+        scheduleVBSnapshot(prio);
     } else {
         stats.snapshotVbucketHisto.add((gethrtime() - start) / 1000);
     }
@@ -1304,7 +1301,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             ExTask notifyTask = new PendingOpsNotification(engine, vb);
             ExecutorPool::get()->schedule(notifyTask, NONIO_TASK_IDX);
         }
-        scheduleVBStatePersist(VBStatePersistTask::Priority::LOW, vbid);
+        scheduleVBStatePersist(vbid);
     } else if (vbid < vbMap.getSize()) {
         FailoverTable* ft = new FailoverTable(engine.getMaxFailoverEntries());
         KVShard* shard = vbMap.getShardByVbId(vbid);
@@ -1333,7 +1330,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
         vbMap.setPersistenceSeqno(vbid, 0);
         vbMap.setBucketCreation(vbid, true);
         lh.unlock();
-        scheduleVBStatePersist(VBStatePersistTask::Priority::HIGH, vbid);
+        scheduleVBStatePersist(vbid);
     } else {
         return ENGINE_ERANGE;
     }
@@ -1365,36 +1362,23 @@ bool EventuallyPersistentStore::scheduleVBSnapshot(VBSnapshotTask::Priority prio
     return true;
 }
 
-void EventuallyPersistentStore::scheduleVBSnapshot(VBSnapshotTask::Priority prio,
-                                                   uint16_t shardId,
-                                                   bool force) {
-    KVShard *shard = vbMap.shards[shardId];
-    if (prio == VBSnapshotTask::Priority::HIGH) {
-        if (force || shard->setHighPriorityVbSnapshotFlag(true)) {
-            ExTask task = new VBSnapshotTaskHigh(&engine, shardId, true);
-            ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-        }
-    } else {
-        if (force || shard->setLowPriorityVbSnapshotFlag(true)) {
-            ExTask task = new VBSnapshotTaskLow(&engine, shardId, true);
-            ExecutorPool::get()->schedule(task, WRITER_TASK_IDX);
-        }
+void EventuallyPersistentStore::scheduleVBStatePersist() {
+    for (auto vbid : vbMap.getBuckets()) {
+        scheduleVBStatePersist(vbid);
     }
 }
 
-void EventuallyPersistentStore::scheduleVBStatePersist(VBStatePersistTask::Priority priority,
-                                                       uint16_t vbid) {
+void EventuallyPersistentStore::scheduleVBStatePersist(VBucket::id_type vbid) {
+    RCPtr<VBucket> vb = getVBucket(vbid);
 
-
-    bool inverse = false;
-    if (schedule_vbstate_persist[vbid].compare_exchange_strong(inverse, true)) {
-
-        if (priority == VBStatePersistTask::Priority::HIGH) {
-            ExecutorPool::get()->schedule(new VBStatePersistTaskHigh(&engine, vbid, true), WRITER_TASK_IDX);
-        } else {
-            ExecutorPool::get()->schedule(new VBStatePersistTaskLow(&engine, vbid, true), WRITER_TASK_IDX);
-        }
+    if (!vb) {
+        LOG(EXTENSION_LOG_WARNING,
+            "EPStore::scheduleVBStatePersist: vb:%" PRIu16
+            " does not not exist. Unable to schedule persistence.", vbid);
+        return;
     }
+
+    vb->checkpointManager.queueSetVBState(*vb);
 }
 
 bool EventuallyPersistentStore::completeVBucketDeletion(uint16_t vbid,
@@ -3264,7 +3248,10 @@ void EventuallyPersistentStore::setFlushAllComplete() {
 void EventuallyPersistentStore::flushOneDeleteAll() {
     for (VBucketMap::id_type i = 0; i < vbMap.getSize(); ++i) {
         RCPtr<VBucket> vb = getVBucket(i);
-        if (vb) {
+        // Reset the vBucket if it's non-null and not already in the middle of
+        // being created / destroyed.
+        if (vb &&
+            !(vbMap.isBucketCreation(i) || vbMap.isBucketDeletion(i))) {
             LockHolder lh(vb_mutexes[vb->getId()]);
             getRWUnderlying(vb->getId())->reset(i);
         }
@@ -3285,12 +3272,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
         }
     }
 
-    if (vbMap.isBucketCreation(vbid)) {
-        return RETRY_FLUSH_VBUCKET;
-    }
-
     int items_flushed = 0;
-    rel_time_t flush_start = ep_current_time();
+    const rel_time_t flush_start = ep_current_time();
 
     RCPtr<VBucket> vb = vbMap.getBucket(vbid);
     if (vb) {
@@ -3325,15 +3308,36 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             rwUnderlying->optimizeWrites(items);
 
             Item *prev = NULL;
+            auto vbstate = vb->getVBucketState();
             uint64_t maxSeqno = 0;
-            uint64_t maxCas = 0;
-            uint64_t maxDeletedRevSeqno = 0;
+            range.start = std::max(range.start, vbstate.lastSnapStart);
+
+            bool mustCheckpointVBState = false;
             std::list<PersistenceCallback*>& pcbs = rwUnderlying->getPersistenceCbList();
 
             for (const auto& item : items) {
 
                 if (!item->shouldPersist()) {
                     continue;
+                }
+
+                if (item->getOperation() == queue_op::set_vbucket_state) {
+                    // No actual item explicitly persisted to (this op exists
+                    // to ensure a commit occurs with the current vbstate);
+                    // flag that we must trigger a snapshot even if there are
+                    // no 'real' items in the checkpoint.
+                    mustCheckpointVBState = true;
+
+                    // Update maxSeqno to ensure the snap {start,end} range
+                    // is correct if no other normal item is included in this
+                    // checkpoint.
+                    maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
+
+                    // Update queuing stats how this item has logically been
+                    // processed.
+                    stats.decrDiskQueueSize(1);
+                    vb->doStatsForFlushing(*item, item->size());
+
                 } else if (!prev || prev->getKey() != item->getKey()) {
                     prev = item.get();
                     ++items_flushed;
@@ -3343,15 +3347,23 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                     }
 
                     maxSeqno = std::max(maxSeqno, (uint64_t)item->getBySeqno());
-                    maxCas = std::max(maxCas, item->getCas());
+                    vbstate.maxCas = std::max(vbstate.maxCas, item->getCas());
                     if (item->isDeleted()) {
-                        maxDeletedRevSeqno = std::max(maxDeletedRevSeqno,
-                                                      item->getRevSeqno());
+                        vbstate.maxDeletedSeqno =
+                                std::max(vbstate.maxDeletedSeqno,
+                                         item->getRevSeqno());
                     }
                     ++stats.flusher_todo;
+
                 } else {
-                    // Item is the same key as the previous one - don't need
+                    // Item is the same key as the previous[1] one - don't need
                     // to flush to disk.
+                    // [1] Previous here really means 'next' - optimizeWrites()
+                    //     above has actually re-ordered items such that items
+                    //     with the same key are ordered from high->low seqno.
+                    //     This means we only write the highest (i.e. newest)
+                    //     item for a given key, and discard any duplicate,
+                    //     older items.
                     stats.decrDiskQueueSize(1);
                     vb->doStatsForFlushing(*item, item->size());
                 }
@@ -3367,23 +3379,39 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                     }
                 }
 
-                // Get current vbstate, then update based on the changes we
-                // have just made.
-                auto vbstate = vb->getVBucketState();
+                // Update VBstate based on the changes we have just made,
+                // then tell the rwUnderlying the 'new' state
+                // (which will persisted as part of the commit() below).
                 vbstate.lastSnapStart = range.start;
                 vbstate.lastSnapEnd = range.end;
-                vbstate.maxCas = maxCas;
-                vbstate.maxDeletedSeqno = maxDeletedRevSeqno;
 
+                // Do we need to trigger a persist of the state?
+                // If there are no "real" items to flush, and we encountered
+                // a set_vbucket_state meta-item.
+                const bool persist = (items_flushed == 0) && mustCheckpointVBState;
+
+                KVStatsCallback kvcb(this);
                 if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate,
-                                                  NULL, false) != true) {
+                                                  &kvcb, persist) != true) {
                     return RETRY_FLUSH_VBUCKET;
+                }
+
+                if (vbMap.setBucketCreation(vbid, false)) {
+                    LOG(EXTENSION_LOG_INFO, "VBucket %" PRIu16 " created", vbid);
                 }
             }
 
-            //commit all mutations to disk if the commit interval is zero
-            if (decrCommitInterval(shard->getId()) == 0) {
+            // Commit all mutations to disk if there is a non-zero number
+            // of items to flush, and the commit interval is zero.
+            if ((items_flushed > 0) &&
+                (decrCommitInterval(shard->getId()) == 0)) {
+
                 commit(shard->getId());
+
+                // Now the commit is complete, vBucket file must exist.
+                if (vbMap.setBucketCreation(vbid, false)) {
+                    LOG(EXTENSION_LOG_INFO, "VBucket %" PRIu16 " created", vbid);
+                }
             }
 
             hrtime_t end = gethrtime();
@@ -3395,6 +3423,8 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
             stats.cumulativeFlushTime.fetch_add(ep_current_time()
                                                 - flush_start);
             stats.flusher_todo.store(0);
+            stats.totalPersistVBState++;
+
             if (vb->rejectQueue.empty()) {
                 vb->setPersistedSnapshot(range.start, range.end);
                 uint64_t highSeqno = rwUnderlying->getLastPersistedSeqno(vbid);
@@ -3472,15 +3502,6 @@ EventuallyPersistentStore::flushOneDelOrSet(const queued_item &qi,
     stats.dirtyAge.store(dirtyAge);
     stats.dirtyAgeHighWat.store(std::max(stats.dirtyAge.load(),
                                          stats.dirtyAgeHighWat.load()));
-
-    // Wait until the vbucket database is created by the vbucket state
-    // snapshot task.
-    if (vbMap.isBucketCreation(qi->getVBucketId()) ||
-        vbMap.isBucketDeletion(qi->getVBucketId())) {
-        vb->rejectQueue.push(qi);
-        ++vb->opsReject;
-        return NULL;
-    }
 
     KVStore *rwUnderlying = getRWUnderlying(qi->getVBucketId());
     if (!deleted) {
@@ -3578,8 +3599,9 @@ std::vector<vbucket_state *> EventuallyPersistentStore::loadVBucketState()
 }
 
 void EventuallyPersistentStore::warmupCompleted() {
-    // Run the vbucket state snapshot job once after the warmup
-    scheduleVBSnapshot(VBSnapshotTask::Priority::HIGH);
+    // Snapshot VBucket state after warmup to ensure Failover table is
+    // persisted.
+    scheduleVBStatePersist();
 
     if (engine.getConfiguration().getAlogPath().length() > 0) {
 
@@ -4131,7 +4153,7 @@ bool EventuallyPersistentStore::runAccessScannerTask() {
 }
 
 void EventuallyPersistentStore::runVbStatePersistTask(int vbid) {
-    scheduleVBStatePersist(VBStatePersistTask::Priority::LOW, vbid);
+    scheduleVBStatePersist(vbid);
 }
 
 void EventuallyPersistentStore::setCursorDroppingLowerUpperThresholds(

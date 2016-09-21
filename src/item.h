@@ -429,7 +429,7 @@ public:
     Item(const Item& other, bool copyKeyOnly = false) :
         metaData(other.metaData),
         key(other.key),
-        bySeqno(other.bySeqno),
+        bySeqno(other.bySeqno.load()),
         queuedTime(other.queuedTime),
         vbucketId(other.vbucketId),
         op(other.op),
@@ -517,11 +517,11 @@ public:
     }
 
     int64_t getBySeqno() const {
-        return bySeqno;
+        return bySeqno.load();
     }
 
     void setBySeqno(int64_t to) {
-        bySeqno = to;
+        bySeqno.store(to);
     }
 
     int getNKey() const {
@@ -752,7 +752,12 @@ private:
     ItemMetaData metaData;
     value_t value;
     std::string key;
-    int64_t bySeqno;
+
+    // bySeqno is atomic because it (rarely) needs to be changed after
+    // the item has been added to a Checkpoint - for meta-items in
+    // checkpoints when updating a the open checkpointID - see
+    // CheckpointManager::setOpenCheckpointId_UNLOCKED
+    std::atomic<int64_t> bySeqno;
     uint32_t queuedTime;
     uint16_t vbucketId;
     queue_op op;

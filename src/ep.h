@@ -692,16 +692,14 @@ public:
     bool scheduleVBSnapshot(VBSnapshotTask::Priority prio);
 
     /**
-     * schedule a vb_state snapshot task for a given shard.
+     * Schedule a vbstate persistence operation for all vbuckets.
      */
-    void scheduleVBSnapshot(VBSnapshotTask::Priority prio, uint16_t shardId,
-                            bool force = false);
+    void scheduleVBStatePersist();
 
     /**
-     * Schedule a vbstate persistence task for a given vbucket.
+     * Schedule a vbstate persistence operation for a given vbucket.
      */
-    void scheduleVBStatePersist(VBStatePersistTask::Priority prio,
-                                uint16_t vbid);
+    void scheduleVBStatePersist(VBucket::id_type vbid);
 
     /**
      * Persist a vbucket's state.

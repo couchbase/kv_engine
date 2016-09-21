@@ -43,12 +43,13 @@ void EventuallyPersistentEngineTest::SetUp() {
     EXPECT_EQ(ENGINE_SUCCESS, engine->initialize(config.c_str()))
         << "Failed to initialize engine.";
 
-    engine->setVBucketState(vbid, vbucket_state_active, false);
-
     // Wait for warmup to complete.
     while (engine->getEpStore()->isWarmingUp()) {
         usleep(10);
     }
+
+    // Once warmup is complete, set VB to active.
+    engine->setVBucketState(vbid, vbucket_state_active, false);
 }
 
 void EventuallyPersistentEngineTest::TearDown() {

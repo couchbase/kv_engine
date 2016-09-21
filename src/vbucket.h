@@ -304,7 +304,7 @@ public:
         return true;
     }
 
-    void doStatsForQueueing(Item& item, size_t itemBytes);
+    void doStatsForQueueing(const Item& item, size_t itemBytes);
     void doStatsForFlushing(Item& item, size_t itemBytes);
     void incrMetaDataDisk(Item& qi);
     void decrMetaDataDisk(Item& qi);

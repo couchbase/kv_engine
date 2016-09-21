@@ -923,8 +923,7 @@ void DcpConsumer::streamAccepted(uint32_t opaque, uint16_t status, uint8_t* body
                 RCPtr<VBucket> vb = engine_.getVBucket(vbucket);
                 vb->failovers->replaceFailoverLog(body, bodylen);
                 EventuallyPersistentStore* st = engine_.getEpStore();
-                st->scheduleVBSnapshot(VBSnapshotTask::Priority::HIGH,
-                                st->getVBuckets().getShardByVbId(vbucket)->getId());
+                st->scheduleVBStatePersist(vbucket);
             }
             LOG(EXTENSION_LOG_INFO, "%s (vb %d) Add stream for opaque %" PRIu32
                 " %s with error code %d", logHeader(), vbucket, opaque,
