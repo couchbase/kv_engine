@@ -59,12 +59,12 @@ int main(int argc, char **argv) {
     mock_init_alloc_hooks();
     init_mock_server(log_to_stderr);
 
+    get_mock_server_api()->log->set_level(EXTENSION_LOG_DEBUG);
     if (memcached_initialize_stderr_logger(get_mock_server_api) != EXTENSION_SUCCESS) {
         std::cerr << argv[0] << ": Failed to initialize log system" << std::endl;
         return 1;
     }
     Logger::setLoggerAPI(get_mock_server_api()->log);
-    Logger::setGlobalLogLevel(EXTENSION_LOG_DEBUG);
 
     // Default number of hashtable locks is too large for TSan to
     // track. Use the value in configuration.json (47 at time of
