@@ -1487,6 +1487,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteVBucket(uint16_t vbid,
         return ENGINE_NOT_MY_VBUCKET;
     }
 
+    vb->setState(vbucket_state_dead);
     engine.getDcpConnMap().vbucketStateChanged(vbid, vbucket_state_dead);
     vbMap.removeBucket(vbid);
     lh.unlock();

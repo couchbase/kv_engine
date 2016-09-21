@@ -24,13 +24,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <condition_variable>
 #include <cstdlib>
 #include <iostream>
 #include <iomanip>
 #include <map>
+#include <mutex>
 #include <set>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -6474,6 +6477,54 @@ static enum test_result test_mb20697(ENGINE_HANDLE *h,
     return SUCCESS;
 }
 
+static enum test_result test_mb20943_complete_pending_ops_on_vbucket_delete(
+        ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
+    const void *cookie = testHarness.create_cookie();
+    bool  ready = false;
+    std::mutex m;
+    std::condition_variable cv;
+    item *i = NULL;
+
+    check(set_vbucket_state(h, h1, 1, vbucket_state_pending),
+              "Failed to set vbucket state.");
+    testHarness.set_ewouldblock_handling(cookie, false);
+
+    checkeq(ENGINE_EWOULDBLOCK, h1->get(h, cookie, &i, "key", strlen("key"),
+                                        1), "Expected EWOULDBLOCK.");
+
+    // Create a thread that will wait for the cookie notify.
+    std::thread notify_waiter{[&cv, &ready, &m, &cookie](){
+        {
+            std::lock_guard<std::mutex> lk(m);
+            testHarness.lock_cookie(cookie);
+            ready = true;
+        }
+        // Once we have locked the cookie we can allow the main thread to
+        // continue.
+        cv.notify_one();
+        testHarness.waitfor_cookie(cookie);
+        testHarness.unlock_cookie(cookie);
+
+    }};
+
+    std::unique_lock<std::mutex> lk(m);
+    // Wait until spawned thread has locked the cookie.
+    cv.wait(lk, [&ready]{return ready;});
+    lk.unlock();
+    vbucketDelete(h, h1, 1);
+    // Wait for the thread to finish, which will occur when the thread has been
+    // notified.
+    notify_waiter.join();
+
+    // vbucket no longer exists and therefore should return not my vbucket.
+    checkeq(ENGINE_NOT_MY_VBUCKET,
+           h1->get(h, cookie, &i, "key", strlen("key"), 1),
+            "Expected NOT MY VBUCKET.");
+    h1->release(h, NULL, i);
+    testHarness.destroy_cookie(cookie);
+    return SUCCESS;
+}
+
 /* This test case checks the purge seqno validity when no items are actually
    purged in a compaction call */
 static enum test_result test_vbucket_compact_no_purge(ENGINE_HANDLE *h,
@@ -6978,5 +7029,8 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("test_MB-20697", test_mb20697, test_setup, teardown, NULL, prepare,
                  cleanup),
+        TestCase("test_MB-test_mb20943_remove_pending_ops_on_vbucket_delete",
+                 test_mb20943_complete_pending_ops_on_vbucket_delete,
+                 test_setup, teardown, NULL, prepare, cleanup),
         TestCase(NULL, NULL, NULL, NULL, NULL, prepare, cleanup)
 };
