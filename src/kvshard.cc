@@ -34,7 +34,7 @@ KVShard::KVShard(uint16_t id, EventuallyPersistentStore &store) :
     Configuration &config = store.getEPEngine().getConfiguration();
     maxVbuckets = config.getMaxVbuckets();
 
-    vbuckets = new RCPtr<VBucket>[maxVbuckets];
+    vbuckets.resize(maxVbuckets);
 
     std::string backend = kvConfig.getBackend();
     uint16_t commitInterval = 1;
@@ -70,8 +70,6 @@ KVShard::~KVShard() {
     if (kvConfig.getBackend().compare("couchdb") == 0) {
         delete roUnderlying;
     }
-
-    delete[] vbuckets;
 }
 
 KVStore *KVShard::getRWUnderlying() {

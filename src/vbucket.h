@@ -204,7 +204,7 @@ public:
 
     ~VBucket();
 
-    int64_t getHighSeqno() {
+    int64_t getHighSeqno() const {
         return checkpointManager.getHighSeqno();
     }
 
@@ -216,7 +216,7 @@ public:
         return checkpointManager.getMemoryUsageOfUnrefCheckpoints();
     }
 
-    uint64_t getPurgeSeqno() {
+    uint64_t getPurgeSeqno() const {
         return purge_seqno;
     }
 
@@ -235,7 +235,7 @@ public:
         return {persisted_snapshot_start, persisted_snapshot_end};
     }
 
-    uint64_t getMaxCas() {
+    uint64_t getMaxCas() const {
         return hlc.getMaxHLC();
     }
 
@@ -285,6 +285,8 @@ public:
     void setInitialState(vbucket_state_t initState) {
         initialState = initState;
     }
+
+    vbucket_state getVBucketState() const;
 
     bool addPendingOp(const void *cookie) {
         LockHolder lh(pendingOpLock);

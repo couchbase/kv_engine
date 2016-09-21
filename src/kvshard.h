@@ -131,7 +131,7 @@ public:
     }
 
 private:
-    RCPtr<VBucket> *vbuckets;
+    std::vector<RCPtr<VBucket>> vbuckets;
 
     KVStore    *rwUnderlying;
     KVStore    *roUnderlying;

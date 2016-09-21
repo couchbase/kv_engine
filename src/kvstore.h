@@ -131,14 +131,22 @@ typedef struct RollbackResult {
 } RollbackResult;
 
 struct vbucket_state {
+    vbucket_state() = default;
+
     vbucket_state(vbucket_state_t _state, uint64_t _chkid,
                   uint64_t _maxDelSeqNum, int64_t _highSeqno,
                   uint64_t _purgeSeqno, uint64_t _lastSnapStart,
-                  uint64_t _lastSnapEnd, uint64_t _maxCas, std::string& _failovers) :
-        state(_state), checkpointId(_chkid), maxDeletedSeqno(_maxDelSeqNum),
-        highSeqno(_highSeqno), purgeSeqno(_purgeSeqno),
-        lastSnapStart(_lastSnapStart), lastSnapEnd(_lastSnapEnd),
-        maxCas(_maxCas), failovers(_failovers) { }
+                  uint64_t _lastSnapEnd, uint64_t _maxCas,
+                  std::string _failovers) :
+        state(_state),
+        checkpointId(_chkid),
+        maxDeletedSeqno(_maxDelSeqNum),
+        highSeqno(_highSeqno),
+        purgeSeqno(_purgeSeqno),
+        lastSnapStart(_lastSnapStart),
+        lastSnapEnd(_lastSnapEnd),
+        maxCas(_maxCas),
+        failovers(std::move(_failovers)) { }
 
     vbucket_state(const vbucket_state& vbstate) {
         state = vbstate.state;
@@ -521,7 +529,8 @@ public:
      * @param cb        stats callback
      * @param persist   whether state needs to be persisted to disk
      */
-    virtual bool snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+    virtual bool snapshotVBucket(uint16_t vbucketId,
+                                 const vbucket_state &vbstate,
                                  Callback<kvstats_ctx> *cb,
                                  bool persist = true) = 0;
 

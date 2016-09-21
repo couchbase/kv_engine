@@ -1145,15 +1145,8 @@ void EventuallyPersistentStore::snapshotVBuckets(VBSnapshotTask::Priority prio,
             : vbuckets(vb_map), shardId(sid) { }
         bool visitBucket(RCPtr<VBucket> &vb) {
             if (vbuckets.getShardByVbId(vb->getId())->getId() == shardId) {
-                const snapshot_range_t range = vb->getPersistedSnapshot();
-                std::string failovers = vb->failovers->toJSON();
-                uint64_t chkId = vbuckets.getPersistenceCheckpointId(vb->getId());
-
-                vbucket_state vb_state(vb->getState(), chkId, 0,
-                                       vb->getHighSeqno(), vb->getPurgeSeqno(),
-                                       range.start, range.end, vb->getMaxCas(),
-                                       failovers);
-                states.insert(std::pair<uint16_t, vbucket_state>(vb->getId(), vb_state));
+                states.insert(std::make_pair(vb->getId(),
+                                             vb->getVBucketState()));
             }
             return false;
         }
@@ -1235,13 +1228,8 @@ bool EventuallyPersistentStore::persistVBState(uint16_t vbid) {
     const hrtime_t start = gethrtime();
 
     KVStatsCallback kvcb(this);
-    uint64_t chkId = vbMap.getPersistenceCheckpointId(vbid);
-    std::string failovers = vb->failovers->toJSON();
 
-    const snapshot_range_t range = vb->getPersistedSnapshot();
-    vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno(),
-                           vb->getPurgeSeqno(), range.start, range.end,
-                           vb->getMaxCas(), failovers);
+    const vbucket_state vb_state(vb->getVBucketState());
 
     KVStore *rwUnderlying = getRWUnderlying(vbid);
     if (rwUnderlying->snapshotVBucket(vbid, vb_state, &kvcb)) {
@@ -3379,14 +3367,15 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                     }
                 }
 
-                std::string failovers = vb->failovers->toJSON();
-                vbucket_state vbState(vb->getState(),
-                                      vbMap.getPersistenceCheckpointId(vbid),
-                                      maxDeletedRevSeqno, vb->getHighSeqno(),
-                                      vb->getPurgeSeqno(), range.start,
-                                      range.end, maxCas, failovers);
+                // Get current vbstate, then update based on the changes we
+                // have just made.
+                auto vbstate = vb->getVBucketState();
+                vbstate.lastSnapStart = range.start;
+                vbstate.lastSnapEnd = range.end;
+                vbstate.maxCas = maxCas;
+                vbstate.maxDeletedSeqno = maxDeletedRevSeqno;
 
-                if (rwUnderlying->snapshotVBucket(vb->getId(), vbState,
+                if (rwUnderlying->snapshotVBucket(vb->getId(), vbstate,
                                                   NULL, false) != true) {
                     return RETRY_FLUSH_VBUCKET;
                 }

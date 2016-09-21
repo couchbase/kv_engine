@@ -773,7 +773,7 @@ public:
         lastBySeqno = seqno;
     }
 
-    int64_t getHighSeqno() {
+    int64_t getHighSeqno() const {
         LockHolder lh(queueLock);
         return lastBySeqno;
     }

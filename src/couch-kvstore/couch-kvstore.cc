@@ -913,7 +913,8 @@ bool CouchKVStore::setVBucketState(uint16_t vbucketId, vbucket_state &vbstate,
     return true;
 }
 
-bool CouchKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+bool CouchKVStore::snapshotVBucket(uint16_t vbucketId,
+                                   const vbucket_state &vbstate,
                                    Callback<kvstats_ctx> *cb, bool persist) {
     if (isReadOnly()) {
         LOG(EXTENSION_LOG_WARNING,

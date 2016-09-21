@@ -1078,7 +1078,8 @@ DBFileInfo ForestKVStore::getDbFileInfo(uint16_t vbId) {
     return dbInfo;
 }
 
-bool ForestKVStore::snapshotVBucket(uint16_t vbucketId, vbucket_state &vbstate,
+bool ForestKVStore::snapshotVBucket(uint16_t vbucketId,
+                                    const vbucket_state &vbstate,
                                     Callback<kvstats_ctx> *cb, bool persist) {
 
     if (updateCachedVBState(vbucketId, vbstate) && persist) {
