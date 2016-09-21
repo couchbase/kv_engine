@@ -25,36 +25,6 @@
 #include <platform/cb_malloc.h>
 #include <valgrind/valgrind.h>
 
-#ifdef HAVE_JEMALLOC
-/* Global replacement of operators new and delete when using jemalloc.
- *
- * This isn't needed for functionality reasons (the code works
- * correctly without these), but to improve interoperability with
- * Valgrind. The issue encountered is that without these replacements,
- * the application will call the standard symbols in libstdc++, which
- * Valgrind intercepts, and replaces with it's own implementation
- * (which doesn't call 'our' je_malloc). As a consequence when the
- * memory tracking code (objectregistery.cc) later calls
- * je_malloc_usable_size() on the returned pointer from Valgrind's
- * operator new, we encounter invalid memory accesses as jemalloc is
- * trying to introspect a non-jemalloc allocation.
- *
- * By replacing operator new/delete in the executable program, we call
- * our own malloc/free (see alloc_hooks.c) which directly call
- * jemalloc.  Note that Valgrind reporting still works, as je_malloc
- * is able to detect which running in Valgrind and makes the
- * appropriate calls to Valgrind to inform it of allocations / frees.
- */
-void* operator new(std::size_t count ) {
-    return cb_malloc(count);
-}
-
-void operator delete(void* ptr ) noexcept
-{
-    cb_free(ptr);
-}
-#endif // HAVE_JEMALLOC
-
 
 static time_t start_time;
 
