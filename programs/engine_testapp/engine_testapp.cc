@@ -17,6 +17,7 @@
 
 #include <daemon/alloc_hooks.h>
 #include <memcached/extension_loggers.h>
+#include <phosphor/phosphor.h>
 #include <platform/cb_malloc.h>
 
 struct mock_engine {
@@ -736,6 +737,7 @@ static bool start_your_engine(const char *engine) {
 }
 
 static void stop_your_engine() {
+    PHOSPHOR_INSTANCE.stop();
     unload_engine(engine_ref);
     engine_ref = NULL;
 }
