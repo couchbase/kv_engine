@@ -329,4 +329,33 @@ private:
     T *value;
 };
 
+
+/**
+ * Debugging wrapper around std::atomic which print all accesses to the atomic
+ * value to stderr.
+ */
+template <typename T>
+class LoggedAtomic {
+public:
+    LoggedAtomic(T initial)
+        : value(initial) {
+        std::cerr << "LoggedAtomic[" << this << "]::LoggedAtomic: " << value.load() << std::endl;
+
+    }
+
+    T load() const {
+        auto result = value.load();
+        std::cerr << "LoggedAtomic[" << this << "]::load: " << result << std::endl;
+        return result;
+    }
+
+    void store(T desired) {
+        value.store(desired);
+        std::cerr << "LoggedAtomic[" << this << "]::store: " << value.load() << std::endl;
+    }
+
+protected:
+    std::atomic<T> value;
+};
+
 #endif  // SRC_ATOMIC_H_
