@@ -319,6 +319,14 @@ public:
      */
     void restartAuthentication();
 
+    bool isDcpXattrSupport() const {
+        return dcp_xattr_support;
+    }
+
+    void setDcpXattrSupport(bool dcp_xattr_support) {
+        Connection::dcp_xattr_support = dcp_xattr_support;
+    }
+
 protected:
     Connection(SOCKET sfd, event_base* b);
 
@@ -400,6 +408,12 @@ protected:
      * subgroups at some point.
      */
     bool trace_enabled;
+
+    /**
+     * Is DCP XATTR supported for this connection or not (or will that be
+     * stripped off before sending on the wire)
+     */
+     bool dcp_xattr_support;
 };
 
 /**

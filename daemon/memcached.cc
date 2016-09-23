@@ -659,6 +659,27 @@ static PrivilegeAccess check_privilege(const void* void_cookie,
     return cookie->connection->checkPrivilege(privilege);
 }
 
+static void set_dcp_xattr_support(const void* void_cookie, bool enable) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+    if (cookie->connection == nullptr) {
+        throw std::logic_error("set_dcp_xattr_support: connection can't be null");
+    }
+
+    return cookie->connection->setDcpXattrSupport(enable);
+
+}
+
+static bool is_dcp_xattr_support(const void* void_cookie) {
+    auto* cookie = reinterpret_cast<const Cookie*>(void_cookie);
+    cookie->validate();
+    if (cookie->connection == nullptr) {
+        throw std::logic_error("is_dcp_xattr_support: connection can't be null");
+    }
+
+    return cookie->connection->isDcpXattrSupport();
+}
+
 static void cbsasl_refresh_main(void *c)
 {
     int rv = cbsasl_server_refresh();
@@ -1845,6 +1866,8 @@ static SERVER_HANDLE_V1 *get_server_api(void)
         server_cookie_api.get_bucket_id = get_bucket_id;
         server_cookie_api.get_connection_id = get_connection_id;
         server_cookie_api.check_privilege = check_privilege;
+        server_cookie_api.set_dcp_xattr_support = set_dcp_xattr_support;
+        server_cookie_api.is_dcp_xattr_support = is_dcp_xattr_support;
 
         server_stat_api.evicting = count_eviction;
 

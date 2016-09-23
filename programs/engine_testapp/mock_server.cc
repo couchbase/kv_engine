@@ -161,6 +161,16 @@ static PrivilegeAccess mock_check_privilege(const void*,
     return PrivilegeAccess::Ok;
 }
 
+static void mock_set_dcp_xattr_support(const void* cookie, bool enable) {
+    auto *c = (struct mock_connstruct *)cookie;
+    c->dcp_xattr_support = enable;
+}
+
+static bool mock_is_dcp_xattr_support(const void* cookie) {
+    auto *c = (struct mock_connstruct *)cookie;
+    return c->dcp_xattr_support;
+}
+
 /* time-sensitive callers can call it by hand with this, outside the
    normal ever-1-second timer */
 static rel_time_t mock_get_current_time(void) {
@@ -377,7 +387,8 @@ SERVER_HANDLE_V1 *get_mock_server_api(void)
       server_cookie_api.release = mock_cookie_release;
       server_cookie_api.set_priority = mock_set_priority;
       server_cookie_api.check_privilege = mock_check_privilege;
-
+      server_cookie_api.set_dcp_xattr_support = mock_set_dcp_xattr_support;
+      server_cookie_api.is_dcp_xattr_support = mock_is_dcp_xattr_support;
       server_stat_api.evicting = mock_count_eviction;
 
       extension_api.register_extension = mock_register_extension;
