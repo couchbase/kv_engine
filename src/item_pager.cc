@@ -321,7 +321,7 @@ ExpiredItemPager::ExpiredItemPager(EventuallyPersistentEngine *e,
          */
         time_t now = ep_abs_time(ep_current_time());
         struct tm timeNow, timeTarget;
-        timeNow = *(gmtime(&now));
+        cb_gmtime_r(&now, &timeNow);
         timeTarget = timeNow;
         if (timeNow.tm_hour >= (int)startTime) {
             timeTarget.tm_mday += 1;

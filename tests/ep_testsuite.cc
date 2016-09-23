@@ -26,6 +26,7 @@
 
 #include <condition_variable>
 #include <cstdlib>
+#include <chrono>
 #include <iostream>
 #include <iomanip>
 #include <map>
@@ -725,6 +726,23 @@ static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1
     return SUCCESS;
 }
 
+/* Returns a string in the format "%Y-%m-%d %H:%M:%S" of the specified
+ * time point.
+ */
+std::string make_time_string(std::chrono::system_clock::time_point time_point) {
+    time_t tt = std::chrono::system_clock::to_time_t(time_point);
+#ifdef _MSC_VER
+    // Windows' gmtime() is already thread-safe.
+    struct tm* split = gmtime(&tt);
+#else
+    struct tm local_storage;
+    struct tm* split = gmtime_r(&tt, &local_storage);
+#endif
+    char timeStr[20];
+    strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", split);
+    return timeStr;
+}
+
 static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
                                                    ENGINE_HANDLE_V1 *h1) {
 
@@ -772,33 +790,16 @@ static enum test_result test_expiry_pager_settings(ENGINE_HANDLE *h,
     checkeq(0, str.substr(11, 5).compare(expected_time), err_msg.c_str());
 
     // Update exp_pager_stime by 30 minutes and ensure that the update is successful
-    int update_by = 30;
-    time_t now = time(NULL);
-    struct tm curr = *(gmtime(&now));
-    curr.tm_min += update_by;
-#ifdef _MSC_VER
-    _mkgmtime(&curr);
-#else
-    timegm(&curr);
-#endif
-    char timeStr[20];
-    strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
-    std::string targetTaskTime1(timeStr);
+    const std::chrono::minutes update_by{30};
+    std::string targetTaskTime1{make_time_string(std::chrono::system_clock::now() +
+                                                 update_by)};
 
     set_param(h, h1, protocol_binary_engine_param_flush, "exp_pager_stime",
-              std::to_string(update_by * 60).c_str());
+              std::to_string(update_by.count() * 60).c_str());
     str = get_str_stat(h, h1, "ep_expiry_pager_task_time");
 
-    now = time(NULL);
-    curr = *(gmtime(&now));
-    curr.tm_min += update_by;
-#ifdef _MSC_VER
-    _mkgmtime(&curr);
-#else
-    timegm(&curr);
-#endif
-    strftime(timeStr, 20, "%Y-%m-%d %H:%M:%S", &curr);
-    std::string targetTaskTime2(timeStr);
+    std::string targetTaskTime2{make_time_string(std::chrono::system_clock::now() +
+                                                 update_by)};
 
     // ep_expiry_pager_task_time should fall within the range of
     // targetTaskTime1 and targetTaskTime2
