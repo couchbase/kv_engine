@@ -360,11 +360,7 @@ static enum test_result test_shutdown_snapshot_range(ENGINE_HANDLE *h,
     }
 
     wait_for_flusher_to_settle(h, h1);
-    verify_curr_items(h, h1, num_items, "Wrong amount of items");
     int end = get_int_stat(h, h1, "vb_0:high_seqno", "vbucket-seqno");
-
-    /* wait for a new open checkpoint with just chk start meta item */
-    wait_for_stat_to_be(h, h1, "vb_0:open_checkpoint_id", 3, "checkpoint");
 
     /* change vb state to replica before restarting (as it happens in graceful
        failover)*/
