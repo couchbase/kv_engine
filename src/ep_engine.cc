@@ -3555,7 +3555,7 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::doEngineStats(const void *cookie,
     add_casted_stat("ep_access_scanner_num_items", epstats.alogNumItems,
                     add_stat, cookie);
 
-    if (epstore->isAccessScannerEnabled()) {
+    if (epstore->isAccessScannerEnabled() && epstats.alogTime.load() != 0) {
         char timestr[20];
         struct tm alogTim;
         hrtime_t alogTime = epstats.alogTime.load();

@@ -2696,10 +2696,15 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
 
     std::string err_msg;
     // Check access scanner is enabled and alog_task_time is at default
-    cb_assert(get_bool_stat(h, h1, "ep_access_scanner_enabled"));
+    checkeq(true, get_bool_stat(h, h1, "ep_access_scanner_enabled"),
+            "Expected access scanner to be enabled");
     cb_assert(get_int_stat(h, h1, "ep_alog_task_time") == 2);
 
-    // Ensure access_scanner_task_time is what its expected to be
+    // Ensure access_scanner_task_time is what its expected to be.
+    // Need to wait until the AccessScanner task has been setup.
+    wait_for_stat_change(h, h1, "ep_access_scanner_task_time",
+                         std::string{"NOT_SCHEDULED"});
+
     std::string str = get_str_stat(h, h1, "ep_access_scanner_task_time");
     std::string expected_time = "02:00";
     err_msg.assign("Initial time incorrect, expect: " +
