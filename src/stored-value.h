@@ -360,7 +360,7 @@ public:
     /**
      * Is this a temporary item created for a non-existent key?
      */
-     bool isTempNonExistentItem() {
+     bool isTempNonExistentItem() const {
          return bySeqno == state_non_existent_key;
 
      }

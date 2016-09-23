@@ -999,7 +999,7 @@ protected:
     EPStats                        &stats;
     StorageProperties              *storageProperties;
     Warmup                         *warmupTask;
-    ConflictResolution             *conflictResolver;
+    std::unique_ptr<ConflictResolution> conflictResolver;
     VBucketMap                      vbMap;
     ExTask                          itmpTask;
     ExTask                          chkTask;

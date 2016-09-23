@@ -309,8 +309,10 @@ EventuallyPersistentStore::EventuallyPersistentStore(
 
     stats.memOverhead = sizeof(EventuallyPersistentStore);
 
-    if (config.getConflictResolutionType().compare("seqno") == 0) {
-        conflictResolver = new ConflictResolution();
+    if (config.getConflictResolutionType().compare("lww") == 0) {
+        conflictResolver.reset(new LastWriteWinsResolution());
+    } else {
+        conflictResolver.reset(new RevisionSeqnoResolution());
     }
 
     stats.setMaxDataSize(config.getMaxSize());
@@ -481,7 +483,6 @@ EventuallyPersistentStore::~EventuallyPersistentStore() {
     delete [] schedule_vbstate_persist;
     delete [] stats.schedulingHisto;
     delete [] stats.taskRuntimeHisto;
-    delete conflictResolver;
     delete warmupTask;
     delete storageProperties;
     defragmenterTask.reset();
@@ -2328,14 +2329,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
                 return ENGINE_EWOULDBLOCK;
             }
 
-            enum conflict_resolution_mode confResMode = revision_seqno;
-            if (emd) {
-                confResMode = static_cast<enum conflict_resolution_mode>(
-                                                       emd->getConflictResMode());
-            }
-
-            if (!conflictResolver->resolve(vb, v, itm.getMetaData(), false,
-                                           confResMode)) {
+            if (!conflictResolver->resolve(*v, itm.getMetaData(), false)) {
                 ++stats.numOpsSetMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }
@@ -2985,13 +2979,7 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
                 return ENGINE_EWOULDBLOCK;
             }
 
-            enum conflict_resolution_mode confResMode = revision_seqno;
-            if (emd) {
-                confResMode = static_cast<enum conflict_resolution_mode>(
-                                                       emd->getConflictResMode());
-            }
-
-            if (!conflictResolver->resolve(vb, v, *itemMeta, true, confResMode)) {
+            if (!conflictResolver->resolve(*v, *itemMeta, true)) {
                 ++stats.numOpsDelMetaResolutionFailed;
                 return ENGINE_KEY_EEXISTS;
             }

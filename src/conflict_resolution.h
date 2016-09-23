@@ -20,7 +20,6 @@
 
 #include "config.h"
 #include "item.h"
-#include <vbucket.h>
 
 class ItemMetaData;
 class StoredValue;
@@ -33,7 +32,7 @@ class ConflictResolution {
 public:
     ConflictResolution() {}
 
-    ~ConflictResolution() {}
+    virtual ~ConflictResolution() {}
 
     /**
      * Resolves a conflict between two documents.
@@ -46,16 +45,24 @@ public:
      * remote document
      * @return true is the remote document is the winner, false otherwise
      */
-    bool resolve(RCPtr<VBucket> &vb, StoredValue *v, const ItemMetaData &meta,
-                 bool isDelete = false,
-                 enum conflict_resolution_mode itmConfResMode = revision_seqno);
+    virtual bool resolve(const StoredValue& v,
+                         const ItemMetaData& meta,
+                         bool isDelete = false) const = 0;
 
-private:
-    bool resolve_rev_seqno(StoredValue *v, const ItemMetaData &meta,
-                           bool isDelete = false);
+};
 
-    bool resolve_lww(StoredValue *v, const ItemMetaData &meta,
-                     bool isDelete = false);
+class RevisionSeqnoResolution : public ConflictResolution {
+public:
+    bool resolve(const StoredValue& v,
+                 const ItemMetaData& meta,
+                 bool isDelete = false) const override;
+};
+
+class LastWriteWinsResolution : public ConflictResolution {
+public:
+    bool resolve(const StoredValue& v,
+                 const ItemMetaData& meta,
+                 bool isDelete = false) const override;
 };
 
 #endif  // SRC_CONFLICT_RESOLUTION_H_
