@@ -551,8 +551,8 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
                                        uint32_t nvalue) {
     lastReceiveTime = ep_current_time();
     const char* param = static_cast<const char*>(key);
-    std::string keyStr(static_cast<const char*>(key), nkey);
-    std::string valueStr(static_cast<const char*>(value), nvalue);
+    const std::string keyStr(static_cast<const char*>(key), nkey);
+    const std::string valueStr(static_cast<const char*>(value), nvalue);
 
     if (strncmp(param, "connection_buffer_size", nkey) == 0) {
         uint32_t size;
@@ -614,6 +614,13 @@ ENGINE_ERROR_CODE DcpProducer::control(uint32_t opaque, const void* key,
             priority.assign("low");
             return ENGINE_SUCCESS;
         }
+    } else if (keyStr == "enable_xattr_support") {
+        const bool enable = valueStr == "true";
+        engine_.getServerApi()->cookie->set_dcp_xattr_support(getCookie(),
+                                                              enable);
+        LOG(EXTENSION_LOG_INFO, "%s %s xattr support", logHeader(),
+            enable ? "enable" : "disable");
+        return ENGINE_SUCCESS;
     }
 
     LOG(EXTENSION_LOG_WARNING, "%s Invalid ctrl parameter '%s' for %s",
