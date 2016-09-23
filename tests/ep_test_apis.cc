@@ -468,7 +468,7 @@ void del_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         blen = 26;
         ext = new char[blen];
         encodeWithMetaExt(ext, itemMeta);
-        emd = new ExtendedMetaData(adjustedTime, 0/*conflict_mode to be deleted*/);
+        emd = new ExtendedMetaData(adjustedTime);
         // nmeta added to ext below
     }
 
@@ -812,7 +812,7 @@ void set_with_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *key,
         blen = 26;
         ext = new char[blen];
         encodeWithMetaExt(ext, itemMeta);
-        emd = new ExtendedMetaData(adjustedTime, 0/*conflict_mode to be deleted*/);
+        emd = new ExtendedMetaData(adjustedTime);
         // nmeta added to ext below
     }
 

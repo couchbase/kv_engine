@@ -39,8 +39,10 @@ enum cmd_meta_extras_version {
  * commands and DCP mutation/expiration messages
  */
 enum cmd_meta_extras_type {
-    CMD_META_ADJUSTED_TIME     = 0x01, /* adjusted time */
-    CMD_META_CONFLICT_RES_MODE = 0x02  /* conflict resolution mode */
+    /* adjusted time */
+    CMD_META_ADJUSTED_TIME     = 0x01,
+    /* conflict resolution mode is no longer sent, but could be received on upgrade.*/
+    CMD_META_CONFLICT_RES_MODE = 0x02
 };
 
 /**
@@ -51,8 +53,7 @@ enum cmd_meta_extras_type {
 class ExtendedMetaData {
 public:
     ExtendedMetaData(const void *meta, uint16_t nmeta);
-    ExtendedMetaData(int64_t adjusted_time, uint8_t conflict_res_mode);
-    ExtendedMetaData(uint8_t conflict_res_mode);
+    ExtendedMetaData(int64_t adjusted_time);
     ~ExtendedMetaData();
 
     ENGINE_ERROR_CODE getStatus() {
@@ -61,10 +62,6 @@ public:
 
     int64_t getAdjustedTime() {
         return adjustedTime;
-    }
-
-    uint8_t getConflictResMode() {
-        return conflictResMode;
     }
 
     std::pair<const char*, uint16_t> getExtMeta() {
@@ -80,8 +77,6 @@ private:
     ENGINE_ERROR_CODE ret;
     uint16_t len;
     bool memoryAllocated;
-    bool adjustedTimeSet;
-    uint8_t conflictResMode;
 };
 
 #endif  // SRC_EXT_META_PARSER_H_

@@ -5481,12 +5481,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::setWithMeta(const void* cookie,
 
     itm->setRevSeqno(seqno);
 
-    if (emd) {
-        itm->setConflictResMode(
-                 static_cast<enum conflict_resolution_mode>(
-                                            emd->getConflictResMode()));
-    }
-
     bool allowExisting = (opcode == PROTOCOL_BINARY_CMD_SET_WITH_META ||
                           opcode == PROTOCOL_BINARY_CMD_SETQ_WITH_META);
 

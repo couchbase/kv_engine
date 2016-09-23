@@ -1897,7 +1897,7 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           "Expected storing one value to not change the read counter");
 
     check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 1 &&
-          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 23,
+          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 22,
           "Expected storing the key to update the write counter");
     evict_key(h, h1, "a", 0, "Ejected.");
 
@@ -1907,7 +1907,7 @@ static enum test_result test_io_stats(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
           get_int_stat(h, h1, "ro_0:io_read_bytes", "kvstore") == 4,
           "Expected reading the value back in to update the read counter");
     check(get_int_stat(h, h1, "rw_0:io_num_write", "kvstore") == 1 &&
-          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 23,
+          get_int_stat(h, h1, "rw_0:io_write_bytes", "kvstore") == 22,
           "Expected reading the value back in to not update the write counter");
 
     return SUCCESS;

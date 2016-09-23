@@ -99,7 +99,6 @@ bool StoredValue::unlocked_restoreValue(Item *itm, HashTable &ht) {
         nru = INITIAL_NRU_VALUE;
     }
     deleted = false;
-    conflictResMode = itm->getConflictResMode();
     value = itm->getValue();
     increaseCacheSize(ht, value->length());
     return true;
@@ -131,7 +130,6 @@ bool StoredValue::unlocked_restoreMeta(Item *itm, ENGINE_ERROR_CODE status,
         if (nru == MAX_NRU_VALUE) {
             nru = INITIAL_NRU_VALUE;
         }
-        conflictResMode = itm->getConflictResMode();
         return true;
     case ENGINE_KEY_ENOENT:
         setNonExistent();
@@ -757,9 +755,6 @@ Item* StoredValue::toItem(bool lck, uint16_t vbucket) const {
     if (deleted) {
         itm->setDeleted();
     }
-
-    itm->setConflictResMode(
-          static_cast<enum conflict_resolution_mode>(conflictResMode));
 
     return itm;
 }

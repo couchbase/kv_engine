@@ -57,7 +57,6 @@ ENGINE_ERROR_CODE vb_map_response(const void *cookie, const void *map,
 const uint8_t dcp_stream_end_resp_base_msg_bytes = 28;
 const uint8_t dcp_snapshot_marker_base_msg_bytes = 44;
 const uint8_t dcp_mutation_base_msg_bytes = 55;
-const uint8_t dcp_meta_size_none = 5;
 
 extern AtomicValue<protocol_binary_response_status> last_status;
 extern std::string last_key;

@@ -136,10 +136,9 @@ public:
 
 class EventuallyPersistentEngine;
 
-// Additional 3 Bytes for flex meta, datatype and conflict resolution mode
+// Additional 2 Bytes for flex meta and datatype
 const size_t COUCHSTORE_METADATA_SIZE(2 * sizeof(uint32_t) + sizeof(uint64_t) +
-                                      FLEX_DATA_OFFSET + EXT_META_LEN +
-                                      CONFLICT_RES_META_LEN);
+                                      FLEX_DATA_OFFSET + EXT_META_LEN);
 
 /**
  * Class representing a document to be persisted in couchstore.

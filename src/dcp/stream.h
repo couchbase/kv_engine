@@ -289,8 +289,7 @@ private:
 
     const char* getEndStreamStatusStr(end_stream_status_t status);
 
-    ExtendedMetaData* prepareExtendedMetaData(uint16_t vBucketId,
-                                              uint8_t conflictResMode);
+    ExtendedMetaData* prepareExtendedMetaData(uint16_t vBucketId);
 
     bool isCurrentSnapshotCompleted() const;
 

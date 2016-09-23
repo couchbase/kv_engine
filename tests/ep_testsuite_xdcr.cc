@@ -28,13 +28,11 @@
 
 // Helper functions ///////////////////////////////////////////////////////////
 
-static void verifyLastMetaData(ItemMetaData imd, uint8_t conflict_res_mode) {
+static void verifyLastMetaData(ItemMetaData imd) {
     checkeq(imd.revSeqno, last_meta.revSeqno, "Seqno didn't match");
     checkeq(imd.cas, last_meta.cas, "Cas didn't match");
     checkeq(imd.exptime, last_meta.exptime, "Expiration time didn't match");
     checkeq(imd.flags, last_meta.flags, "Flags didn't match");
-    checkeq(conflict_res_mode, last_conflict_resolution_mode.load(),
-            "Conflict resolution mode didn't match");
 }
 
 // Testcases //////////////////////////////////////////////////////////////////
@@ -58,7 +56,7 @@ static enum test_result test_get_meta(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1)
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata(it->getCas(), it->getRevSeqno(),
                           it->getFlags(), it->getExptime());
-    verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
+    verifyLastMetaData(metadata);
 
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
@@ -88,7 +86,7 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata1(it1->getCas(), it1->getRevSeqno(),
                            it1->getFlags(), it1->getExptime());
-    verifyLastMetaData(metadata1, static_cast<uint8_t>(last_write_wins));
+    verifyLastMetaData(metadata1);
     // check the stat again
     temp = get_int_stat(h, h1, "ep_num_ops_get_meta");
     check(temp == 1, "Expect one getMeta op");
@@ -103,7 +101,7 @@ static enum test_result test_get_meta_with_extras(ENGINE_HANDLE *h,
 
     check(get_meta(h, h1, key1, true), "Expected to get meta");
     check(last_status == PROTOCOL_BINARY_RESPONSE_SUCCESS, "Expected success");
-    verifyLastMetaData(metadata1, static_cast<uint8_t>(last_write_wins));
+    verifyLastMetaData(metadata1);
 
     return SUCCESS;
 }
@@ -971,7 +969,7 @@ static enum test_result test_set_with_meta_deleted(ENGINE_HANDLE *h, ENGINE_HAND
     check(get_meta(h, h1, key), "Expected to get meta");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata(0xdeadbeef, 10, 0xdeadbeef, 1735689600);
-    verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
+    verifyLastMetaData(metadata);
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
 
@@ -1024,7 +1022,7 @@ static enum test_result test_set_with_meta_nonexistent(ENGINE_HANDLE *h, ENGINE_
     check(get_meta(h, h1, key), "Expected to get meta");
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata(0xdeadbeef, 10, 0xdeadbeef, 1735689600);
-    verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
+    verifyLastMetaData(metadata);
     checkeq(0, get_int_stat(h, h1, "curr_temp_items"), "Expected zero temp_items");
     checkeq(1, get_int_stat(h, h1, "curr_items"), "Expected single curr_items");
 
@@ -1584,7 +1582,7 @@ static enum test_result test_getMeta_with_item_eviction(ENGINE_HANDLE *h,
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(), "Expected success");
     ItemMetaData metadata(it->getCas(), it->getRevSeqno(),
                           it->getFlags(), it->getExptime());
-    verifyLastMetaData(metadata, static_cast<uint8_t>(-1));
+    verifyLastMetaData(metadata);
 
     h1->release(h, NULL, i);
     return SUCCESS;

@@ -921,15 +921,13 @@ protected:
      * @param seqno sequence number of the mutation
      * @param tapBackfill if the item is from backfill replication
      * @param genBySeqno whether or not to generate sequence number
-     * @param setConflictMode set the conflict resolution mode
      */
     void queueDirty(RCPtr<VBucket> &vb,
                     StoredValue* v,
                     LockHolder *plh,
                     uint64_t *seqno,
                     bool tapBackfill = false,
-                    bool genBySeqno = true,
-                    bool setConflictMode = true);
+                    bool genBySeqno = true);
 
     /**
      * Retrieve a StoredValue and invoke a method on it.

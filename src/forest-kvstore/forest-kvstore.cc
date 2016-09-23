@@ -591,7 +591,6 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc,
     uint32_t itemFlags;
     uint8_t ext_meta[EXT_META_LEN];
     uint8_t ext_len;
-    uint8_t conf_res_mode = 0;
 
     //TODO: handle metadata upgrade?
     memcpy(&cas, metadata, 8);
@@ -600,7 +599,6 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc,
     memcpy(&itemFlags, metadata + 16, 4);
     memcpy(&rev_seqno, metadata + 20, 8);
     memcpy(ext_meta, metadata + 29, EXT_META_LEN);
-    memcpy(&conf_res_mode, metadata + 30, CONFLICT_RES_META_LEN);
     ext_len = EXT_META_LEN;
 
     cas = ntohll(cas);
@@ -631,8 +629,6 @@ GetValue ForestKVStore::docToItem(fdb_kvs_handle *kvsHandle, fdb_doc *rdoc,
                       cas, (uint64_t)rdoc->seqnum, vbId);
     }
 
-    it->setConflictResMode(
-                   static_cast<enum conflict_resolution_mode>(conf_res_mode));
     it->setRevSeqno(rev_seqno);
     return GetValue(it);
 }
@@ -810,7 +806,6 @@ static void populateMetaData(const Item &itm, uint8_t *meta, bool deletion) {
     uint32_t flags = itm.getFlags();
     uint32_t exptime = itm.getExptime();
     uint32_t texptime = 0;
-    uint8_t confresmode = static_cast<uint8_t>(itm.getConflictResMode());
 
     if (deletion) {
         texptime = ep_real_time();
@@ -832,8 +827,6 @@ static void populateMetaData(const Item &itm, uint8_t *meta, bool deletion) {
     } else {
         memcpy(meta + 29, itm.getExtMeta(), itm.getExtMetaLen());
     }
-
-    memcpy(meta + 30, &confresmode, CONFLICT_RES_META_LEN);
 }
 
 void ForestKVStore::set(const Item &itm, Callback<mutation_result> &cb) {
@@ -1274,7 +1267,6 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          uint64_t rev_seqno;
          uint8_t ext_meta[EXT_META_LEN] = {0};
          uint8_t ext_len;
-         uint8_t conf_res_mode = 0;
 
          memcpy(&cas, metadata, 8);
          memcpy(&exptime, metadata + 8, 4);
@@ -1282,7 +1274,6 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          memcpy(&itemflags, metadata + 16, 4);
          memcpy(&rev_seqno, metadata + 20, 8);
          memcpy(ext_meta, metadata + 29, EXT_META_LEN);
-         memcpy(&conf_res_mode, metadata + 30, CONFLICT_RES_META_LEN);
          ext_len = EXT_META_LEN;
 
          cas = ntohll(cas);
@@ -1304,9 +1295,6 @@ scan_error_t ForestKVStore::scan(ScanContext *ctx) {
          if (rdoc->deleted) {
              it->setDeleted();
          }
-
-         it->setConflictResMode(
-                      static_cast<enum conflict_resolution_mode>(conf_res_mode));
 
          bool onlyKeys = (ctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
          GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);

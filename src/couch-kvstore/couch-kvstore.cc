@@ -56,10 +56,17 @@ using namespace CouchbaseDirectoryUtilities;
 
 static const int MAX_OPEN_DB_RETRY = 10;
 
+/*
+ * MetaData warning
+ * Sherlock began storing an extra byte of data (taking meta_len to 19 bytes).
+ * Watson (4.6) removes this byte as it is never utilised.
+ *
+ * WARNING: any *new* meta-data we wish to store may cause upgrade trouble if it
+ * takes the length to 19 bytes.
+ */
 static const uint32_t DEFAULT_META_LEN = 16;
 static const uint32_t V1_META_LEN = 18;
-static const uint32_t V2_META_LEN = 19;
-
+#define UNUSED_V2_LEN 19
 
 extern "C" {
     static int recordDbDumpC(Db *db, DocInfo *docinfo, void *ctx)
@@ -182,7 +189,6 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
     uint32_t flags = it.getFlags();
     uint32_t vlen = it.getNBytes();
     uint32_t exptime = it.getExptime();
-    uint8_t confresmode = static_cast<uint8_t>(it.getConflictResMode());
 
     // Datatype used to determine whether document requires compression or not
     uint8_t datatype;
@@ -222,8 +228,6 @@ CouchRequest::CouchRequest(const Item &it, uint64_t rev,
         memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET, it.getExtMeta(),
                it.getExtMetaLen());
     }
-    memcpy(meta + DEFAULT_META_LEN + FLEX_DATA_OFFSET + EXT_META_LEN,
-           &confresmode, CONFLICT_RES_META_LEN);
 
     dbDocInfo.db_seq = it.getBySeqno();
     dbDocInfo.rev_meta.buf = reinterpret_cast<char *>(meta);
@@ -615,9 +619,8 @@ static std::string getDBFileName(const std::string &dbname,
 
 static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
     if ((*info)->rev_meta.size == DEFAULT_META_LEN) {
-        // Metadata doesn't have flex_meta_code, datatype and
-        // conflict_resolution_mode, provision space for
-        // these paramenters.
+        // Metadata doesn't have flex_meta_code and datatype so provision space
+        // for these paramenters.
         const unsigned char* data;
         bool ret;
         if (((*info)->content_meta | COUCH_DOC_IS_COMPRESSED) ==
@@ -664,50 +667,9 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
                &flex_code, FLEX_DATA_OFFSET);
         memcpy(extra + (*info)->rev_meta.size + FLEX_DATA_OFFSET,
                &datatype, sizeof(uint8_t));
-        uint8_t conflict_resolution_mode = revision_seqno;
-        memcpy(extra + (*info)->rev_meta.size + FLEX_DATA_OFFSET + EXT_META_LEN,
-               &conflict_resolution_mode, sizeof(uint8_t));
         docinfo->rev_meta.buf = extra;
         docinfo->rev_meta.size = (*info)->rev_meta.size +
                                  FLEX_DATA_OFFSET + EXT_META_LEN +
-                                 sizeof(uint8_t);
-
-        docinfo->db_seq = (*info)->db_seq;
-        docinfo->rev_seq = (*info)->rev_seq;
-        docinfo->deleted = (*info)->deleted;
-        docinfo->content_meta = (*info)->content_meta;
-        docinfo->bp = (*info)->bp;
-        docinfo->size = (*info)->size;
-
-        couchstore_free_docinfo(*info);
-        *info = docinfo;
-        return 1;
-    } else if ((*info)->rev_meta.size == V1_META_LEN) {
-        // Metadata doesn't have conflict_resolution_mode,
-        // provision space for this flag.
-        DocInfo *docinfo = (DocInfo *) cb_calloc(1,
-                                               sizeof(DocInfo) +
-                                               (*info)->id.size +
-                                               (*info)->rev_meta.size +
-                                               sizeof(uint8_t));
-        if (!docinfo) {
-            LOG(EXTENSION_LOG_WARNING, "Failed to allocate docInfo, "
-                    "while editing docinfo in the compaction's docinfo_hook");
-            return 0;
-        }
-
-        char *extra = (char *)docinfo + sizeof(DocInfo);
-        memcpy(extra, (*info)->id.buf, (*info)->id.size);
-        docinfo->id.buf = extra;
-        docinfo->id.size = (*info)->id.size;
-
-        extra += (*info)->id.size;
-        memcpy(extra, (*info)->rev_meta.buf, (*info)->rev_meta.size);
-        uint8_t conflict_resolution_mode = revision_seqno;
-        memcpy(extra + (*info)->rev_meta.size,
-               &conflict_resolution_mode, sizeof(uint8_t));
-        docinfo->rev_meta.buf = extra;
-        docinfo->rev_meta.size = (*info)->rev_meta.size +
                                  sizeof(uint8_t);
 
         docinfo->db_seq = (*info)->db_seq;
@@ -1467,7 +1429,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
     time_t exptime = 0;
     uint8_t ext_meta[EXT_META_LEN];
     uint8_t ext_len = 0;
-    uint8_t conf_res_mode = 0;
 
     if (metadata.size < DEFAULT_META_LEN) {
         throw std::invalid_argument("CouchKVStore::fetchDoc: "
@@ -1490,10 +1451,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
         ext_len = EXT_META_LEN;
     }
 
-    if (metadata.size == V2_META_LEN) {
-        memcpy(&conf_res_mode, metadata.buf + V1_META_LEN, CONFLICT_RES_META_LEN);
-    }
-
     cas = ntohll(cas);
     exptime = ntohl(exptime);
 
@@ -1505,8 +1462,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
             it->setDeleted();
         }
 
-        it->setConflictResMode(
-                static_cast<enum conflict_resolution_mode>(conf_res_mode));
         it->setRevSeqno(docinfo->rev_seq);
         docValue = GetValue(it);
         // update ep-engine IO stats
@@ -1551,9 +1506,6 @@ couchstore_error_t CouchKVStore::fetchDoc(Db *db, DocInfo *docinfo,
                                     ext_meta, ext_len, cas, docinfo->db_seq, vbId,
                                     docinfo->rev_seq);
 
-                it->setConflictResMode(
-                           static_cast<enum conflict_resolution_mode>(conf_res_mode));
-
                 docValue = GetValue(it);
 
                 // update ep-engine IO stats
@@ -1584,7 +1536,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     uint32_t exptime = 0;
     uint8_t ext_meta[EXT_META_LEN] = {0};
     uint8_t ext_len = 0;
-    uint8_t conf_res_mode = 0;
 
     if (key.size > UINT16_MAX) {
         throw std::invalid_argument("CouchKVStore::recordDbDump: "
@@ -1618,10 +1569,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
         memcpy(ext_meta, (metadata.buf) + DEFAULT_META_LEN + FLEX_DATA_OFFSET,
                EXT_META_LEN);
         ext_len = EXT_META_LEN;
-    }
-
-    if (metadata.size == V2_META_LEN) {
-        memcpy(&conf_res_mode, metadata.buf + V1_META_LEN, CONFLICT_RES_META_LEN);
     }
 
     exptime = ntohl(exptime);
@@ -1697,9 +1644,6 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
     if (docinfo->deleted) {
         it->setDeleted();
     }
-
-    it->setConflictResMode(
-                 static_cast<enum conflict_resolution_mode>(conf_res_mode));
 
     bool onlyKeys = (sctx->valFilter == ValueFilter::KEYS_ONLY) ? true : false;
     GetValue rv(it, ENGINE_SUCCESS, -1, onlyKeys);

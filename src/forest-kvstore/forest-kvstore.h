@@ -24,10 +24,9 @@
 //Maximum length of a key
 const size_t MAX_KEY_LENGTH = 250;
 
-// Additional 3 Bytes for flex meta, datatype and conflict resolution mode
+// Additional 2 Bytes for flex meta and datatype.
 const size_t FORESTDB_METADATA_SIZE  ((3 * sizeof(uint32_t) + 2 * sizeof(uint64_t)) +
-                                      FLEX_DATA_OFFSET + EXT_META_LEN +
-                                      CONFLICT_RES_META_LEN);
+                                      FLEX_DATA_OFFSET + EXT_META_LEN);
 
 enum class handleType {
     READER,

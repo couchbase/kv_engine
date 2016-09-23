@@ -91,15 +91,6 @@ public:
         return !isDirty();
     }
 
-    void setConflictResMode(enum conflict_resolution_mode conflict_res_mode) {
-        conflictResMode = static_cast<uint8_t>(conflict_res_mode);
-    }
-
-
-    enum conflict_resolution_mode getConflictResMode(void) {
-        return static_cast<enum conflict_resolution_mode>(conflictResMode);
-    }
-
     bool eligibleForEviction(item_eviction_policy_t policy) {
         if (policy == VALUE_ONLY) {
             return isResident() && isClean() && !isDeleted();
@@ -213,8 +204,6 @@ public:
             ++revSeqno;
             itm.setRevSeqno(revSeqno);
         }
-
-        conflictResMode = itm.getConflictResMode();
 
         markDirty();
 
@@ -531,7 +520,6 @@ private:
         lock_expiry = 0;
         keylen = itm.getNKey();
         revSeqno = itm.getRevSeqno();
-        conflictResMode = itm.getConflictResMode();
 
         if (setDirty) {
             markDirty();
@@ -563,7 +551,6 @@ private:
     bool               _isDirty  :  1; // 1 bit
     bool               deleted   :  1;
     bool               newCacheItem : 1;
-    uint8_t            conflictResMode : 2;
     uint8_t            nru       :  2; //!< True if referenced since last sweep
     uint8_t            keylen;
     char               keybytes[1];    //!< The key itself.

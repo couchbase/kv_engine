@@ -365,7 +365,7 @@ public:
               flags(0),
               ext1(0),
               ext2(0),
-              conflictResMode(0) {
+              legacyDeleted(0) {
         }
 
         uint64_t cas;
@@ -373,7 +373,7 @@ public:
         uint32_t flags;
         uint8_t ext1;
         uint8_t ext2;
-        uint8_t conflictResMode;
+        uint8_t legacyDeleted; // allow testing via 19byte meta document
 
         static const size_t sizeofV0 = 16;
         static const size_t sizeofV1 = 18;
@@ -476,11 +476,6 @@ protected:
     uint16_t vbid;
 };
 
-
-MATCHER(IsValidConflictMode, "") {
-    return (arg == last_write_wins || arg == revision_seqno);
-}
-
 template<class T>
 class MockedGetCallback : public Callback<T> {
     public:
@@ -498,7 +493,6 @@ class MockedGetCallback : public Callback<T> {
                 expTime(value.getValue()->getExptime());
                 flags(value.getValue()->getFlags());
                 datatype(protocol_binary_datatypes(value.getValue()->getDataType()));
-                conflictResMode(value.getValue()->getConflictResMode());
                 this->value(std::string(value.getValue()->getData(),
                                         value.getValue()->getNBytes()));
                 savedValue = value;
@@ -519,7 +513,6 @@ class MockedGetCallback : public Callback<T> {
         MOCK_METHOD1_T(expTime, void(uint32_t));
         MOCK_METHOD1_T(flags, void(uint32_t));
         MOCK_METHOD1_T(datatype, void(protocol_binary_datatypes));
-        MOCK_METHOD1_T(conflictResMode, void(conflict_resolution_mode));
         MOCK_METHOD1_T(value, void(std::string));
     private:
         GetValue savedValue;
@@ -611,7 +604,6 @@ TEST_F(CouchstoreTest, testV0MetaThings) {
     EXPECT_CALL(gc, expTime(0xaa00bb11));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_RAW_BYTES));
-    EXPECT_CALL(gc, conflictResMode(revision_seqno));
     kvstore->get("key", 0, gc);
 }
 
@@ -638,35 +630,6 @@ TEST_F(CouchstoreTest, testV1MetaThings) {
     EXPECT_CALL(gc, expTime(0xaa00bb11));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_DATATYPE_JSON));
-    EXPECT_CALL(gc, conflictResMode(revision_seqno));
-    kvstore->get("key", 0, gc);
-}
-
-TEST_F(CouchstoreTest, testV2MetaThings) {
-    // Baseline test, just writes meta things and reads them
-    // via standard interfaces
-    // Ensure CAS, exptime and flags are set to something.
-    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
-    Item item("key", 3,
-              0x01020304/*flags*/, 0xaa00bb11,/*expiry*/
-              "value", 5,
-              &datatype, 1, /*ext_meta is v1 extension*/
-              0xf00fcafe11225566ull, 1, vbid, 1, INITIAL_NRU_VALUE,
-              last_write_wins /*non zero conflict mode*/);
-    EXPECT_NE(0, last_write_wins);
-    WriteCallback wc;
-    kvstore->begin();
-    kvstore->set(item, wc);
-    StatsCallback sc;
-    kvstore->commit(&sc);
-
-    MockedGetCallback<GetValue> gc;
-    EXPECT_CALL(gc, status(ENGINE_SUCCESS));
-    EXPECT_CALL(gc, cas(0xf00fcafe11225566ull));
-    EXPECT_CALL(gc, expTime(0xaa00bb11));
-    EXPECT_CALL(gc, flags(0x01020304));
-    EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_DATATYPE_JSON));
-    EXPECT_CALL(gc, conflictResMode(last_write_wins));
     kvstore->get("key", 0, gc);
 }
 
@@ -692,7 +655,6 @@ TEST_F(CouchstoreTest, fuzzV0) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(PROTOCOL_BINARY_RAW_BYTES));
-    EXPECT_CALL(gc, conflictResMode(revision_seqno));
     kvstore->get("key", 0, gc);
 }
 
@@ -719,39 +681,10 @@ TEST_F(CouchstoreTest, fuzzV1) {
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatypes(expectedDataType)));
-    EXPECT_CALL(gc, conflictResMode(revision_seqno));
     kvstore->get("key", 0, gc);
 }
 
-TEST_F(CouchstoreTest, fuzzV2) {
-    Item item("key", 3, 0, 0, "value", 5);
-    WriteCallback wc;
-    kvstore->begin();
-    auto request = kvstore->setAndReturnRequest(item, wc);
-
-    // Now directly mess with the metadata of the value which will be written
-    MockCouchRequest::MetaData meta;
-    meta.cas = 0xf00fcafe11225566ull;
-    meta.expiry = 0xaa00bb11;
-    meta.flags = 0x01020304;
-    meta.ext1 = 2;
-    meta.ext2 = 33;
-    meta.conflictResMode = 99;
-    request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV2);
-    StatsCallback sc;
-    kvstore->commit(&sc);
-
-    MockedGetCallback<GetValue> gc;
-    EXPECT_CALL(gc, status(ENGINE_SUCCESS));
-    EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
-    EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
-    EXPECT_CALL(gc, flags(0x01020304));
-    EXPECT_CALL(gc, datatype(protocol_binary_datatypes(meta.ext2)));
-    EXPECT_CALL(gc, conflictResMode(conflict_resolution_mode(3)));
-    kvstore->get("key", 0, gc);
-}
-
-TEST_F(CouchstoreTest, testV1WriteReadWriteRead) {
+TEST_F(CouchstoreTest, testV0WriteReadWriteRead) {
     // Ensure CAS, exptime and flags are set to something.
     uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
     Item item("key", 3,
@@ -762,36 +695,33 @@ TEST_F(CouchstoreTest, testV1WriteReadWriteRead) {
 
     EXPECT_NE(0, datatype); // make sure we writing non-zero values
 
-    // Write an item with forced (valid) V1 meta
+    // Write an item with forced (valid) V0 meta
     MockCouchRequest::MetaData meta;
     meta.cas = 0xf00fcafe11225566ull;
     meta.expiry = 0xaa00bb11;
     meta.flags = 0x01020304;
-    meta.ext1 = FLEX_META_CODE;
-    meta.ext1 = datatype;
 
     WriteCallback wc;
     kvstore->begin();
     auto request = kvstore->setAndReturnRequest(item, wc);
 
-    // Force the meta to be V1
-    request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV1);
+    // Force the meta to be V0
+    request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV0);
 
     // Commit it
     StatsCallback sc;
     kvstore->commit(&sc);
 
-    // Read back, is conf_res_mode sane?
+    // Read back, are V1 fields sane?
     MockedGetCallback<GetValue> gc;
     EXPECT_CALL(gc, status(ENGINE_SUCCESS));
     EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
     EXPECT_CALL(gc, datatype(protocol_binary_datatypes(meta.ext2)));
-    EXPECT_CALL(gc, conflictResMode(IsValidConflictMode()));
     kvstore->get("key", 0, gc);
 
-    // Write back the item we read (this will write out V2 meta)
+    // Write back the item we read (this will write out V1 meta)
     kvstore->begin();
     kvstore->set(*gc.getValue(), wc);
     kvstore->commit(&sc);
@@ -803,8 +733,50 @@ TEST_F(CouchstoreTest, testV1WriteReadWriteRead) {
     EXPECT_CALL(gc2, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc2, flags(0x01020304));
     EXPECT_CALL(gc2, datatype(protocol_binary_datatypes(meta.ext2)));
-    EXPECT_CALL(gc2, conflictResMode(IsValidConflictMode()));
     kvstore->get("key", 0, gc2);
+}
+
+TEST_F(CouchstoreTest, testV2WriteRead) {
+    // Ensure CAS, exptime and flags are set to something.
+    uint8_t datatype = PROTOCOL_BINARY_DATATYPE_JSON; //lies, but non-zero
+    Item item("key", 3,
+              0x01020304/*flags*/, 0xaa00bb11,/*expiry*/
+              "value", 5,
+              &datatype, 1, /*ext_meta is v1 extension*/
+              0xf00fcafe11225566ull);
+
+    EXPECT_NE(0, datatype); // make sure we writing non-zero values
+
+    // Write an item with forced (valid) V2 meta
+    // In 4.6 we removed the extra conflict resolution byte, so be sure we
+    // operate correctly if a document has V2 meta.
+    MockCouchRequest::MetaData meta;
+    meta.cas = 0xf00fcafe11225566ull;
+    meta.expiry = 0xaa00bb11;
+    meta.flags = 0x01020304;
+    meta.ext1 = FLEX_META_CODE;
+    meta.ext1 = datatype;
+    meta.legacyDeleted = 0x01;
+
+    WriteCallback wc;
+    kvstore->begin();
+    auto request = kvstore->setAndReturnRequest(item, wc);
+
+    // Force the meta to be V2 (19 bytes)
+    request->writeMetaData(meta, MockCouchRequest::MetaData::sizeofV2);
+
+    // Commit it
+    StatsCallback sc;
+    kvstore->commit(&sc);
+
+    // Read back successful, the extra byte will of been dropped.
+    MockedGetCallback<GetValue> gc;
+    EXPECT_CALL(gc, status(ENGINE_SUCCESS));
+    EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
+    EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
+    EXPECT_CALL(gc, flags(0x01020304));
+    EXPECT_CALL(gc, datatype(protocol_binary_datatypes(meta.ext2)));
+    kvstore->get("key", 0, gc);
 }
 
 // Test cases which run on both Couchstore and ForestDB
