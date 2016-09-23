@@ -107,6 +107,50 @@ enum class Histo_stat_info {
     NUM_BINS
 };
 
+/**
+ * Helper class used when waiting on statistics to reach a certain value -
+ * aggregates how long we have been waiting and aborts if the maximum wait time
+ * is exceeded.
+ */
+template <typename T>
+class WaitTimeAccumulator
+{
+public:
+    WaitTimeAccumulator(const char* compare_name,
+                        const char* stat_, const char* stat_key,
+                        const T final_, const time_t wait_time_in_secs)
+        : compareName(compare_name),
+          stat(stat_),
+          statKey(stat_key),
+          final(final_),
+          maxWaitTime(wait_time_in_secs * 1000 * 1000),
+          totalSleepTime(0) {}
+
+    void incrementAndAbortIfLimitReached(T last_value,
+                                         const useconds_t sleep_time)
+    {
+        totalSleepTime += sleep_time;
+        if (totalSleepTime >= maxWaitTime) {
+            std::cerr << "Exceeded maximum wait time of " << maxWaitTime
+                    << "us waiting for stat '" << stat;
+            if (statKey != NULL) {
+                std::cerr << "(" << statKey << ")";
+            }
+            std::cerr << "' " << compareName << " " << final << " (last value:"
+            << last_value << ") - aborting." << std::endl;
+            abort();
+        }
+    }
+
+private:
+    const char* compareName;
+    const char* stat;
+    const char* statKey;
+    const T final;
+    const useconds_t maxWaitTime;
+    useconds_t totalSleepTime;
+};
+
 void decayingSleep(useconds_t *sleepTime);
 
 
@@ -243,15 +287,40 @@ int get_int_stat_or_default(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                             int default_value, const char *statname,
                             const char *statkey = NULL);
 
+/**
+ * Templated function prototype to return a stat of the given type.
+ * Should replace above uses of get_XXX_stat with this.
+ */
+template<typename T>
+T get_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
+           const char *statkey);
+
+// Explicit template instantiations declarations of get_stat<T>
+template<>
+std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+                     const char *statname, const char *statkey);
+template<>
+int get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+             const char *statname, const char *statkey);
+
+template<>
+uint64_t get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+                  const char *statname, const char *statkey);
+
 void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
                        const char *msg);
-void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                          const char *stat, int initial,
-                          const char *statkey = NULL,
+template<typename T>
+void wait_for_stat_change(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+                          const char* stat, T initial,
+                          const char* stat_key = nullptr,
                           const time_t max_wait_time_in_secs = 60);
-void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *stat,
-                         int final, const char* stat_key = NULL,
+
+template<typename T>
+void wait_for_stat_to_be(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+                         const char* stat, T final,
+                         const char* stat_key = nullptr,
                          const time_t max_wait_time_in_secs = 60);
+
 void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, int final,
                              const char* stat_key = NULL,
@@ -263,10 +332,6 @@ void wait_for_stat_to_be_lte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 void wait_for_expired_items_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                                   int final,
                                   const time_t max_wait_time_in_secs = 60);
-void wait_for_str_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char *stat, const char* final,
-                             const char* stat_key,
-                             const time_t max_wait_time_in_secs = 60);
 bool wait_for_warmup_complete(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void wait_for_flusher_to_settle(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
 void wait_for_rollback_to_finish(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1);
@@ -353,4 +418,40 @@ int write_items_upto_mem_perc(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               int mem_thresh_perc, int start_seqno = 0,
                               const char *key_prefix = "key",
                               const char *value = "data");
+
+template<typename T>
+inline void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                                 const char *stat, T initial,
+                                 const char *stat_key,
+                                 const time_t max_wait_time_in_secs) {
+    useconds_t sleepTime = 128;
+    WaitTimeAccumulator<T> accumulator("to change from", stat, stat_key,
+                                         initial, max_wait_time_in_secs);
+    for (;;) {
+        auto current = get_stat<T>(h, h1, stat, stat_key);
+        if (current != initial) {
+            break;
+        }
+        accumulator.incrementAndAbortIfLimitReached(current, sleepTime);
+        decayingSleep(&sleepTime);
+    }
+}
+
+template<typename T>
+void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                         const char *stat, T final, const char* stat_key,
+                         const time_t max_wait_time_in_secs) {
+    useconds_t sleepTime = 128;
+    WaitTimeAccumulator<T> accumulator("to be", stat, stat_key, final,
+                                       max_wait_time_in_secs);
+    for (;;) {
+        auto current = get_stat<T>(h, h1, stat, stat_key);
+        if (current == final) {
+            break;
+        }
+        accumulator.incrementAndAbortIfLimitReached(current, sleepTime);
+        decayingSleep(&sleepTime);
+    }
+}
+
 #endif  // TESTS_EP_TEST_APIS_H_

@@ -1478,7 +1478,7 @@ test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
             ++count;
         }
     }
-    wait_for_str_stat_to_be(h, h1, "ep_workload_pattern", "read_heavy", NULL);
+    wait_for_stat_to_be(h, h1, "ep_workload_pattern", std::string{"read_heavy"});
 
     // Compact multiple vbuckets.
     const int n_threads = 4;
