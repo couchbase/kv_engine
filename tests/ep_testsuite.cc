@@ -704,14 +704,6 @@ static enum test_result test_wrong_vb_replace(ENGINE_HANDLE *h, ENGINE_HANDLE_V1
     return test_wrong_vb_mutation(h, h1, OPERATION_REPLACE);
 }
 
-static enum test_result test_wrong_vb_append(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return test_wrong_vb_mutation(h, h1, OPERATION_APPEND);
-}
-
-static enum test_result test_wrong_vb_prepend(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return test_wrong_vb_mutation(h, h1, OPERATION_PREPEND);
-}
-
 static enum test_result test_wrong_vb_del(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     int numNotMyVBucket = get_int_stat(h, h1, "ep_num_not_my_vbuckets");
     checkeq(ENGINE_NOT_MY_VBUCKET, del(h, h1, "key", 0, 1),
@@ -1665,14 +1657,6 @@ static enum test_result test_vb_cas_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
     return test_pending_vb_mutation(h, h1, OPERATION_CAS);
 }
 
-static enum test_result test_vb_append_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return test_pending_vb_mutation(h, h1, OPERATION_APPEND);
-}
-
-static enum test_result test_vb_prepend_pending(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return test_pending_vb_mutation(h, h1, OPERATION_PREPEND);
-}
-
 static enum test_result test_vb_set_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return test_replica_vb_mutation(h, h1, OPERATION_SET);
 }
@@ -1691,14 +1675,6 @@ static enum test_result test_vb_add_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *
 
 static enum test_result test_vb_cas_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     return test_replica_vb_mutation(h, h1, OPERATION_CAS);
-}
-
-static enum test_result test_vb_append_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return test_replica_vb_mutation(h, h1, OPERATION_APPEND);
-}
-
-static enum test_result test_vb_prepend_replica(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
-    return test_replica_vb_mutation(h, h1, OPERATION_PREPEND);
 }
 
 static enum test_result test_stats_seqno(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
@@ -6973,18 +6949,6 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("vbucket cas (pending)", test_vb_cas_pending,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket cas (replica)", test_vb_cas_replica,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("vbucket append (dead)", test_wrong_vb_append,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("vbucket append (pending)", test_vb_append_pending,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("vbucket append (replica)", test_vb_append_replica,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("vbucket prepend (dead)", test_wrong_vb_prepend,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("vbucket prepend (pending)", test_vb_prepend_pending,
-                 test_setup, teardown, NULL, prepare, cleanup),
-        TestCase("vbucket prepend (replica)", test_vb_prepend_replica,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("vbucket del (dead)", test_wrong_vb_del,
                  test_setup, teardown, NULL, prepare, cleanup),

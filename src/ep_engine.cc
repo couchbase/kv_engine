@@ -2240,7 +2240,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
     BlockTimer timer(&stats.storeCmdHisto);
     ENGINE_ERROR_CODE ret;
     Item *it = static_cast<Item*>(itm);
-    item *i = NULL;
 
     it->setVBucketId(vbucket);
 
@@ -2284,89 +2283,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
         if (ret == ENGINE_SUCCESS) {
             *cas = it->getCas();
         }
-        break;
-
-    case OPERATION_APPEND:
-    case OPERATION_PREPEND: {
-        bool locked = false;
-        do {
-            get_options_t options = static_cast<get_options_t>(QUEUE_BG_FETCH |
-                                                               HONOR_STATES |
-                                                               TRACK_REFERENCE |
-                                                               DELETE_TEMP |
-                                                               HIDE_LOCKED_CAS);
-            if ((ret = get(cookie, &i, it->getKey().c_str(),
-                           it->getNKey(), vbucket,
-                           options)) == ENGINE_SUCCESS) {
-                Item *old = reinterpret_cast<Item *>(i);
-                locked = old->getCas() == uint64_t(-1);
-
-                if (it->getCas() == 0) {
-                    // not allowed on locked items
-                    if (locked) {
-                        itemRelease(cookie, i);
-                        return ENGINE_TMPFAIL;
-                    }
-                } else {
-                    if (locked) {
-                        // The value is locked in the cache, and it is the
-                        // "old" object we're trying to operate on. Just set
-                        // the old objects cas value to the "what the user
-                        // specified" and if it it was the right one it'll
-                        // automatically unlock the object, otherwise it'll
-                        // return KEY_EEXISTS
-                        old->setCas(it->getCas());
-                    } else if (old->getCas() != it->getCas()) {
-                        itemRelease(cookie, i);
-                        return ENGINE_KEY_EEXISTS;
-                    }
-                }
-
-                if (operation == OPERATION_APPEND) {
-                    ret = old->append(*it, maxItemSize);
-                } else {
-                    ret = old->prepend(*it, maxItemSize);
-                }
-
-                if (ret != ENGINE_SUCCESS) {
-                    itemRelease(cookie, i);
-                    if (ret == ENGINE_E2BIG) {
-                        return ret;
-                    } else {
-                        return memoryCondition();
-                    }
-                } else {
-                    if (old->getDataType() == PROTOCOL_BINARY_DATATYPE_JSON) {
-                        // Set the datatype of the new document to BINARY (0),
-                        // as appending/prepending anything to JSON breaks the
-                        // json data structure.
-                        old->setDataType(PROTOCOL_BINARY_RAW_BYTES);
-                    } else if (old->getDataType() ==
-                                    PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
-                        // Set the datatype of the new document to
-                        // COMPRESSED_BINARY, as appending/prepending anything
-                        // to JSON breaks the json data structure.
-                        old->setDataType(PROTOCOL_BINARY_DATATYPE_COMPRESSED);
-                    }
-                }
-
-                ret = store(cookie, old, cas, OPERATION_CAS, vbucket);
-
-                it->setBySeqno(old->getBySeqno());
-                itemRelease(cookie, i);
-            }
-        } while (ret == ENGINE_KEY_EEXISTS && !locked);
-
-        // We tried to append with the wrong cas for a locked item
-        if (locked && ret == ENGINE_KEY_EEXISTS) {
-            ret = ENGINE_TMPFAIL;
-        }
-
-        // Map the error code back to what memcapable expects
-        if (ret == ENGINE_KEY_ENOENT) {
-            ret = ENGINE_NOT_STORED;
-        }
-    }
         break;
 
     default:
