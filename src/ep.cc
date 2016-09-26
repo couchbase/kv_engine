@@ -1119,11 +1119,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::addTAPBackfillItem(
         abort();
     }
 
-    // Update drift counter for vbucket upon a success only
-    if (ret == ENGINE_SUCCESS && emd) {
-        vb->setDriftCounter(emd->getAdjustedTime());
-    }
-
     return ret;
 }
 
@@ -1161,7 +1156,7 @@ void EventuallyPersistentStore::snapshotVBuckets(VBSnapshotTask::Priority prio,
                 vbucket_state vb_state(vb->getState(), chkId, 0,
                                        vb->getHighSeqno(), vb->getPurgeSeqno(),
                                        range.start, range.end, vb->getMaxCas(),
-                                       vb->getDriftCounter() ,failovers);
+                                       failovers);
                 states.insert(std::pair<uint16_t, vbucket_state>(vb->getId(), vb_state));
             }
             return false;
@@ -1251,8 +1246,7 @@ bool EventuallyPersistentStore::persistVBState(uint16_t vbid) {
     vb->getPersistedSnapshot(range);
     vbucket_state vb_state(vb->getState(), chkId, 0, vb->getHighSeqno(),
                            vb->getPurgeSeqno(), range.start, range.end,
-                           vb->getMaxCas(), vb->getDriftCounter(),
-                           failovers);
+                           vb->getMaxCas(), failovers);
 
     KVStore *rwUnderlying = getRWUnderlying(vbid);
     if (rwUnderlying->snapshotVBucket(vbid, vb_state, &kvcb)) {
@@ -1343,8 +1337,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setVBucketState(uint16_t vbid,
             newvb->createFilter(config.getBfilterKeyCount(),
                                 config.getBfilterFpProb());
         }
-        const std::string& timeSyncConfig = config.getTimeSynchronization();
-        newvb->setTimeSyncConfig(VBucket::convertStrToTimeSyncConfig(timeSyncConfig));
 
         // The first checkpoint for active vbucket should start with id 2.
         uint64_t start_chk_id = (to == vbucket_state_active) ? 2 : 0;
@@ -2384,11 +2376,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::setWithMeta(
         }
     }
 
-    // Update drift counter for vbucket upon a success only
-    if (ret == ENGINE_SUCCESS && emd) {
-        vb->setDriftCounter(emd->getAdjustedTime());
-    }
-
     return ret;
 }
 
@@ -3045,11 +3032,6 @@ ENGINE_ERROR_CODE EventuallyPersistentStore::deleteWithMeta(
         ret = ENGINE_EWOULDBLOCK;
     }
 
-    // Update drift counter for vbucket upon a success only
-    if (ret == ENGINE_SUCCESS && emd) {
-        vb->setDriftCounter(emd->getAdjustedTime());
-    }
-
     return ret;
 }
 
@@ -3389,8 +3371,7 @@ int EventuallyPersistentStore::flushVBucket(uint16_t vbid) {
                                       vbMap.getPersistenceCheckpointId(vbid),
                                       maxDeletedRevSeqno, vb->getHighSeqno(),
                                       vb->getPurgeSeqno(), range.start,
-                                      range.end, maxCas, vb->getDriftCounter(),
-                                      failovers);
+                                      range.end, maxCas, failovers);
 
                 if (rwUnderlying->snapshotVBucket(vb->getId(), vbState,
                                                   NULL, false) != true) {

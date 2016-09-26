@@ -138,8 +138,7 @@ static std::unique_ptr<KVStore> setup_kv_store(KVStoreConfig& config) {
 
     StatsCallback sc;
     std::string failoverLog("");
-    vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0,
-                        failoverLog);
+    vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, failoverLog);
     kvstore->snapshotVBucket(0, state, &sc);
 
     return kvstore;
@@ -318,8 +317,7 @@ TEST(CouchKVStoreTest, MB_17517MaxCasOfMinus1) {
     std::string failoverLog("[]");
     vbucket_state state(vbucket_state_active, /*ckid*/0, /*maxDelSeqNum*/0,
                         /*highSeqno*/0, /*purgeSeqno*/0, /*lastSnapStart*/0,
-                        /*lastSnapEnd*/0, /*maxCas*/-1, /*driftCounter*/0,
-                        failoverLog);
+                        /*lastSnapEnd*/0, /*maxCas*/-1, failoverLog);
     EXPECT_TRUE(kvstore->snapshotVBucket(/*vbid*/0, state, nullptr));
     EXPECT_EQ(~0ull, kvstore->listPersistedVbuckets()[0]->maxCas);
 
@@ -461,7 +459,7 @@ public:
         kvstore.reset(new MockCouchKVStore(config));
         StatsCallback sc;
         std::string failoverLog("");
-        vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0, 0,
+        vbucket_state state(vbucket_state_active, 0, 0, 0, 0, 0, 0, 0,
                             failoverLog);
         kvstore->snapshotVBucket(0, state, &sc, true);
     }

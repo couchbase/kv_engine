@@ -533,14 +533,6 @@ public:
                                 protocol_binary_request_get_keys *request,
                                 ADD_RESPONSE response);
 
-    ENGINE_ERROR_CODE getAdjustedTime(const void* cookie,
-                             protocol_binary_request_get_adjusted_time *request,
-                             ADD_RESPONSE response);
-
-    ENGINE_ERROR_CODE setDriftCounterState(const void* cookie,
-                       protocol_binary_request_set_drift_counter_state *request,
-                       ADD_RESPONSE response);
-
     /**
      * Visit the objects and add them to the tap/dcp connecitons queue.
      * @todo this code should honor the backfill time!

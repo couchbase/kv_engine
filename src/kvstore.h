@@ -134,12 +134,11 @@ struct vbucket_state {
     vbucket_state(vbucket_state_t _state, uint64_t _chkid,
                   uint64_t _maxDelSeqNum, int64_t _highSeqno,
                   uint64_t _purgeSeqno, uint64_t _lastSnapStart,
-                  uint64_t _lastSnapEnd, uint64_t _maxCas,
-                  uint64_t _driftCounter, std::string& _failovers) :
+                  uint64_t _lastSnapEnd, uint64_t _maxCas, std::string& _failovers) :
         state(_state), checkpointId(_chkid), maxDeletedSeqno(_maxDelSeqNum),
         highSeqno(_highSeqno), purgeSeqno(_purgeSeqno),
         lastSnapStart(_lastSnapStart), lastSnapEnd(_lastSnapEnd),
-        maxCas(_maxCas), driftCounter(_driftCounter),failovers(_failovers) { }
+        maxCas(_maxCas), failovers(_failovers) { }
 
     vbucket_state(const vbucket_state& vbstate) {
         state = vbstate.state;
@@ -151,7 +150,6 @@ struct vbucket_state {
         lastSnapStart = vbstate.lastSnapStart;
         lastSnapEnd = vbstate.lastSnapEnd;
         maxCas = vbstate.maxCas;
-        driftCounter = vbstate.driftCounter;
     }
 
     std::string toJSON() const;
@@ -177,7 +175,6 @@ struct vbucket_state {
         lastSnapStart = 0;
         lastSnapEnd = 0;
         maxCas = 0;
-        driftCounter = INITIAL_DRIFT;
         failovers.assign("[{\"id\":0, \"seq\":0}]");
     }
 
@@ -189,7 +186,6 @@ struct vbucket_state {
     uint64_t lastSnapStart;
     uint64_t lastSnapEnd;
     uint64_t maxCas;
-    int64_t driftCounter;
     std::string failovers;
 };
 

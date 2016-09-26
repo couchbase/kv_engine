@@ -604,24 +604,13 @@ size_t VBucket::getNumOfKeysInFilter() {
 }
 
 uint64_t VBucket::nextHLCCas() {
-    int64_t adjusted_time = gethrtime();
-    uint64_t final_adjusted_time = 0;
-
-    if (time_sync_config == time_sync_t::ENABLED_WITH_DRIFT) {
-        adjusted_time += drift_counter;
-    }
-
-    if (adjusted_time < 0) {
-        LOG(EXTENSION_LOG_WARNING,
-            "Adjusted time is negative: %" PRId64 "\n", adjusted_time);
-    }
-
-    final_adjusted_time = ((uint64_t)adjusted_time) & ~((1 << 16) - 1);
+    hrtime_t now = gethrtime();
+    uint64_t now48bits = ((uint64_t)now) & ~((1 << 16) - 1);
     uint64_t local_max_cas = max_cas.load();
 
-    if (final_adjusted_time > local_max_cas) {
-        atomic_setIfBigger(max_cas, final_adjusted_time);
-        return final_adjusted_time;
+    if (now48bits > local_max_cas) {
+        atomic_setIfBigger(max_cas, now48bits);
+        return now48bits;
     }
 
     atomic_setIfBigger(max_cas, local_max_cas + 1);
@@ -662,9 +651,6 @@ void VBucket::addStats(bool details, ADD_STAT add_stat, const void *c,
         addStat("bloom_filter_size", getFilterSize(), add_stat, c);
         addStat("bloom_filter_key_count", getNumOfKeysInFilter(), add_stat, c);
         addStat("max_cas", getMaxCas(), add_stat, c);
-        addStat("drift_counter", getDriftCounter(), add_stat, c);
-        addStat("time_sync", isTimeSyncEnabled() ? "enabled" : "disabled",
-                add_stat, c);
         addStat("rollback_item_count", getRollbackItemCount(), add_stat, c);
     }
 }

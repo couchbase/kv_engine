@@ -1354,17 +1354,14 @@ extern "C" {
                    reinterpret_cast<protocol_binary_request_get_keys*>
                                                            (request), response);
             }
+        // MB-21143: Remove adjusted time/drift API, but return NOT_SUPPORTED
         case PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME:
-            {
-                return h->getAdjustedTime(cookie,
-                   reinterpret_cast<protocol_binary_request_get_adjusted_time*>
-                                                           (request), response);
-            }
         case PROTOCOL_BINARY_CMD_SET_DRIFT_COUNTER_STATE:
             {
-                return h->setDriftCounterState(cookie,
-                reinterpret_cast<protocol_binary_request_set_drift_counter_state*>
-                                                           (request), response);
+                return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
+                                    PROTOCOL_BINARY_RAW_BYTES,
+                                    PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0,
+                                    cookie);
             }
         }
 
@@ -6231,73 +6228,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::getRandomKey(const void *cookie,
     }
 
     return ret;
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::getAdjustedTime(
-                             const void *cookie,
-                             protocol_binary_request_get_adjusted_time *request,
-                             ADD_RESPONSE response) {
-
-    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
-    RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb) {
-        return sendNotMyVBucketResponse(response, cookie, 0);
-    }
-    // Will return the vbucket's adjusted time, only if
-    // time synchronization for the vbucket is enabled
-    if (vb->getTimeSyncConfig() == time_sync_t::ENABLED_WITH_DRIFT) {
-        int64_t adjusted_time = gethrtime() + vb->getDriftCounter();
-        adjusted_time = htonll(adjusted_time);
-        return sendResponse(response, NULL, 0, NULL, 0,
-                            (const void *)&adjusted_time, sizeof(int64_t),
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_SUCCESS, 0, cookie);
-    } else {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0,
-                            cookie);
-    }
-}
-
-ENGINE_ERROR_CODE EventuallyPersistentEngine::setDriftCounterState(
-                       const void *cookie,
-                       protocol_binary_request_set_drift_counter_state *request,
-                       ADD_RESPONSE response) {
-
-    uint16_t vbucket = ntohs(request->message.header.request.vbucket);
-    RCPtr<VBucket> vb = getVBucket(vbucket);
-    if (!vb) {
-        return sendNotMyVBucketResponse(response, cookie, 0);
-    }
-
-    if (vb->getTimeSyncConfig() != time_sync_t::ENABLED_WITH_DRIFT) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_NOT_SUPPORTED, 0,
-                            cookie);
-    }
-
-    int64_t driftCount = ntohll(request->message.body.initial_drift);
-    if (driftCount == INITIAL_DRIFT) {
-        return sendResponse(response, NULL, 0, NULL, 0, NULL, 0,
-                            PROTOCOL_BINARY_RAW_BYTES,
-                            PROTOCOL_BINARY_RESPONSE_EINVAL, 0,
-                            cookie);
-    }
-
-    set_drift_state_resp_t resp = vb->setDriftCounterState(driftCount);
-    uint64_t uuid = htonll(resp.last_vb_uuid);
-    int64_t seqno = htonll(resp.last_seqno);
-
-    std::stringstream result;
-    result.write((char*) &uuid, sizeof(uuid));
-    result.write((char*) &seqno, sizeof(seqno));
-
-    return sendResponse(response, NULL, 0, NULL, 0,
-                        result.str().data(), result.str().length(),
-                        PROTOCOL_BINARY_RAW_BYTES,
-                        PROTOCOL_BINARY_RESPONSE_SUCCESS, 0 , cookie);
 }
 
 ENGINE_ERROR_CODE EventuallyPersistentEngine::dcpOpen(const void* cookie,

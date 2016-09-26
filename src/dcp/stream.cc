@@ -348,8 +348,7 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
             bufferedBackfill.bytes.fetch_add(itm->size());
             bufferedBackfill.items++;
 
-            pushToReadyQ(new MutationResponse(itm, opaque_,
-                              prepareExtendedMetaData(itm->getVBucketId())));
+            pushToReadyQ(new MutationResponse(itm, opaque_, nullptr));
 
             lastReadSeqno.store(itm->getBySeqno());
             lh.unlock();
@@ -796,8 +795,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
                 curChkSeqno = qi->getBySeqno();
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
 
-                mutations.push_back(new MutationResponse(qi, opaque_,
-                            prepareExtendedMetaData(qi->getVBucketId()),
+                mutations.push_back(new MutationResponse(qi, opaque_, nullptr,
                             isSendMutationKeyOnlyEnabled() ? KEY_ONLY :
                                                              KEY_VALUE));
             } else if (qi->getOperation() == queue_op_checkpoint_start) {
@@ -1201,19 +1199,6 @@ size_t ActiveStream::getItemsRemaining() {
 
 uint64_t ActiveStream::getLastSentSeqno() {
     return lastSentSeqno.load();
-}
-
-ExtendedMetaData* ActiveStream::prepareExtendedMetaData(uint16_t vBucketId)
-{
-    ExtendedMetaData *emd = NULL;
-    if (producer->isExtMetaDataEnabled()) {
-        RCPtr<VBucket> vb = engine->getVBucket(vBucketId);
-        if (vb && vb->getTimeSyncConfig() == time_sync_t::ENABLED_WITH_DRIFT) {
-            int64_t adjustedTime = gethrtime() + vb->getDriftCounter();
-            emd = new ExtendedMetaData(adjustedTime);
-        }
-    }
-    return emd;
 }
 
 const Logger& ActiveStream::getLogger() const

@@ -2581,7 +2581,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
     itm_meta.exptime = info.exptime;
     itm_meta.flags = info.flags;
     set_with_meta(h, h1, key1, strlen(key1), val1, strlen(val1), 0, &itm_meta,
-                  last_cas, false, info.datatype, false, 0, cookie);
+                  last_cas, false, info.datatype, false, cookie);
 
     checkeq(ENGINE_SUCCESS,
             h1->get(h, cookie, &itm, key1, strlen(key1), 0),
@@ -2613,7 +2613,7 @@ static enum test_result test_datatype_with_unknown_command(ENGINE_HANDLE *h,
 
     //SET_WITH_META
     set_with_meta(h, h1, key, strlen(key), val, strlen(val), 0, &itm_meta,
-                  0, false, datatype, false, 0, cookie);
+                  0, false, datatype, false, cookie);
 
     checkeq(ENGINE_SUCCESS,
             h1->get(h, cookie, &itm, key, strlen(key), 0),
@@ -5543,8 +5543,6 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
 
     memset(&info, 0, sizeof(info));
 
-    //Set a really large drift value
-    set_drift_counter_state(h, h1, 100000);
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_ADD, key, "data1", &i, 0, 0),
             "Failed to store an item");
@@ -5554,10 +5552,6 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
-
-    //set a lesser drift and ensure that the CAS is monotonically
-    //increasing
-    set_drift_counter_state(h, h1, 100);
 
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_SET, key, "data2", &i, 0, 0),
@@ -5569,26 +5563,6 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
 
-    //ensure that the adjusted time will be negative
-    int64_t drift_counter = (-1) * (gethrtime() * 2);
-    set_drift_counter_state(h, h1, drift_counter);
-
-    protocol_binary_request_header *request;
-    int64_t adjusted_time;
-    request = createPacket(PROTOCOL_BINARY_CMD_GET_ADJUSTED_TIME, 0, 0, NULL, 0,
-                           NULL, 0, NULL, 0);
-    h1->unknown_command(h, NULL, request, add_response);
-    cb_free(request);
-    checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
-            "Expected Success");
-    checkeq(sizeof(int64_t), last_body.size(),
-            "Bodylen didn't match expected value");
-    memcpy(&adjusted_time, last_body.data(), last_body.size());
-    adjusted_time = ntohll(adjusted_time);
-    std::string err_msg("Adjusted time " + std::to_string(adjusted_time) +
-                        " is supposed to have been negative!");
-    check(adjusted_time < 0, err_msg.c_str());
-
     checkeq(ENGINE_SUCCESS,
             store(h, h1, NULL, OPERATION_REPLACE, key, "data3", &i, 0, 0),
             "Failed to store an item");
@@ -5598,9 +5572,6 @@ static enum test_result test_hlc_cas(ENGINE_HANDLE *h,
     curr_cas = info.cas;
     check(curr_cas > prev_cas, "CAS is not monotonically increasing");
     prev_cas = curr_cas;
-
-    //Set the drift value to 0
-    set_drift_counter_state(h, h1, 0);
 
     getl(h, h1, key, 0, 10);
     checkeq(PROTOCOL_BINARY_RESPONSE_SUCCESS, last_status.load(),
@@ -5900,7 +5871,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:bloom_filter_size",
                 "vb_0:db_data_size",
                 "vb_0:db_file_size",
-                "vb_0:drift_counter",
                 "vb_0:high_seqno",
                 "vb_0:ht_cache_size",
                 "vb_0:ht_item_memory",
@@ -5922,7 +5892,6 @@ static enum test_result test_mb19687_fixed(ENGINE_HANDLE* h,
                 "vb_0:queue_memory",
                 "vb_0:queue_size",
                 "vb_0:rollback_item_count",
-                "vb_0:time_sync",
                 "vb_0:uuid"
             }
         },
@@ -7046,7 +7015,7 @@ BaseTestCase testsuite_testcases[] = {
         TestCase("test failover log behavior", test_failover_log_behavior,
                  test_setup, teardown, NULL, prepare, cleanup),
         TestCase("test hlc cas", test_hlc_cas, test_setup, teardown,
-                 "time_synchronization=enabled_with_drift", prepare, cleanup),
+                 NULL, prepare, cleanup),
 
         TestCaseV2("multi_bucket set/get ", test_multi_bucket_set_get, NULL,
                    teardown_v2, NULL, prepare, cleanup),
