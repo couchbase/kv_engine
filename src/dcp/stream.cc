@@ -336,31 +336,36 @@ bool ActiveStream::backfillReceived(Item* itm, backfill_source_t backfill_source
     if (nullptr == itm) {
         return false;
     }
-    LockHolder lh(streamMutex);
-    if (state_ == STREAM_BACKFILLING) {
-        if (!producer->recordBackfillManagerBytesRead(itm->size())) {
-            delete itm;
-            return false;
-        }
 
-        bufferedBackfill.bytes.fetch_add(itm->size());
-        bufferedBackfill.items++;
+    if (itm->shouldReplicate()) {
+        LockHolder lh(streamMutex);
+        if (state_ == STREAM_BACKFILLING) {
+            if (!producer->recordBackfillManagerBytesRead(itm->size())) {
+                delete itm;
+                return false;
+            }
 
-        pushToReadyQ(new MutationResponse(itm, opaque_,
-                          prepareExtendedMetaData(itm->getVBucketId(),
-                                                  itm->getConflictResMode())));
+            bufferedBackfill.bytes.fetch_add(itm->size());
+            bufferedBackfill.items++;
 
-        lastReadSeqno.store(itm->getBySeqno());
-        lh.unlock();
-        bool inverse = false;
-        if (itemsReady.compare_exchange_strong(inverse, true)) {
-            producer->notifyStreamReady(vb_, false);
-        }
+            pushToReadyQ(new MutationResponse(itm, opaque_,
+                              prepareExtendedMetaData(itm->getVBucketId(),
+                                                      itm->getConflictResMode())));
 
-        if (backfill_source == BACKFILL_FROM_MEMORY) {
-            backfillItems.memory++;
+            lastReadSeqno.store(itm->getBySeqno());
+            lh.unlock();
+            bool inverse = false;
+            if (itemsReady.compare_exchange_strong(inverse, true)) {
+                producer->notifyStreamReady(vb_, false);
+            }
+
+            if (backfill_source == BACKFILL_FROM_MEMORY) {
+                backfillItems.memory++;
+            } else {
+                backfillItems.disk++;
+            }
         } else {
-            backfillItems.disk++;
+            delete itm;
         }
     } else {
         delete itm;
@@ -788,8 +793,7 @@ void ActiveStream::processItems(std::vector<queued_item>& items) {
         for (; itr != items.end(); ++itr) {
             queued_item& qi = *itr;
 
-            if (qi->getOperation() == queue_op_set ||
-                qi->getOperation() == queue_op_del) {
+            if (qi->shouldReplicate()) {
                 curChkSeqno = qi->getBySeqno();
                 lastReadSeqnoUnSnapshotted = qi->getBySeqno();
 
