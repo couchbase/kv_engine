@@ -452,9 +452,9 @@ public:
 
         iterator& operator++();
 
-        bool operator==(const iterator& rhs);
+        bool operator==(const iterator& rhs) const;
 
-        bool operator!=(const iterator& rhs);
+        bool operator!=(const iterator& rhs) const;
 
         const MutationLogEntry* operator*();
 

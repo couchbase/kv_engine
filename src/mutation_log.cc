@@ -815,7 +815,7 @@ MutationLog::iterator& MutationLog::iterator::operator++() {
     return *this;
 }
 
-bool MutationLog::iterator::operator==(const MutationLog::iterator& rhs) {
+bool MutationLog::iterator::operator==(const MutationLog::iterator& rhs) const {
     return log.fd() == rhs.log.fd()
         && (
             (isEnd == rhs.isEnd)
@@ -823,7 +823,7 @@ bool MutationLog::iterator::operator==(const MutationLog::iterator& rhs) {
                 && items == rhs.items));
 }
 
-bool MutationLog::iterator::operator!=(const MutationLog::iterator& rhs) {
+bool MutationLog::iterator::operator!=(const MutationLog::iterator& rhs) const {
     return ! operator==(rhs);
 }
 

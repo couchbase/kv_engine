@@ -188,6 +188,7 @@ ADD_EXECUTABLE(ep-engine_ep_unit_tests
   tests/module_tests/evp_engine_test.cc
   tests/module_tests/evp_store_test.cc
   tests/module_tests/evp_store_single_threaded_test.cc
+  tests/module_tests/mutation_log_test.cc
   src/access_scanner.cc
   src/atomic.cc
   src/backfill.cc
@@ -351,7 +352,6 @@ ADD_TEST(ep-engine_hash_table_test ep-engine_hash_table_test)
 ADD_TEST(ep-engine_hrtime_test ep-engine_hrtime_test)
 ADD_TEST(ep-engine_misc_test ep-engine_misc_test)
 ADD_TEST(ep-engine_mutex_test ep-engine_mutex_test)
-ADD_TEST(ep-engine_mutation_log_test ep-engine_mutation_log_test)
 ADD_TEST(ep-engine_ringbuffer_test ep-engine_ringbuffer_test)
 ADD_TEST(ep-engine_kvstore_test ep-engine_kvstore_test)
 ADD_TEST(ep-engine_defragmenter_test ep-engine_defragmenter_test)
@@ -387,63 +387,6 @@ ADD_EXECUTABLE(ep-engine_defragmenter_test
 TARGET_LINK_LIBRARIES(ep-engine_defragmenter_test
                       cJSON gtest platform ${MALLOC_LIBRARIES}
                       ${SNAPPY_LIBRARIES})
-
-ADD_EXECUTABLE(ep-engine_mutation_log_test
-               tests/module_tests/mutation_log_test.cc
-               src/access_scanner.cc
-               src/atomic.cc
-               src/backfill.cc
-               src/bgfetcher.cc
-               src/bloomfilter.cc
-               src/checkpoint.cc
-               src/checkpoint_remover.cc
-               src/conflict_resolution.cc
-               src/compress.cc
-               src/connmap.cc
-               src/dcp/backfill.cc
-               src/dcp/backfill-manager.cc
-               src/dcp/consumer.cc
-               src/dcp/flow-control.cc
-               src/dcp/flow-control-manager.cc
-               src/dcp/producer.cc
-               src/dcp/response.cc
-               src/dcp/stream.cc
-               src/defragmenter.cc
-               src/defragmenter_visitor.cc
-               src/ep.cc
-               src/ep_engine.cc
-               src/ep_time.c
-               src/executorpool.cc
-               src/executorthread.cc
-               src/ext_meta_parser.cc
-               src/failover-table.cc
-               src/flusher.cc
-               src/htresizer.cc
-               src/item.cc
-               src/item_pager.cc
-               src/kvshard.cc
-               src/logger.cc
-               src/memory_tracker.cc
-               src/murmurhash3.cc
-               src/mutation_log.cc
-               src/objectregistry.cc
-               src/tapconnection.cc
-               src/replicationthrottle.cc
-               src/stored-value.cc
-               src/string_utils.cc
-               src/tasks.cc
-               src/taskqueue.cc
-               src/vbucket.cc
-               src/vbucketmap.cc
-               src/warmup.cc
-               ${CMAKE_CURRENT_BINARY_DIR}/src/stats-info.c
-               ${OBJECTREGISTRY_SOURCE}
-               ${KVSTORE_SOURCE}
-               ${COUCH_KVSTORE_SOURCE}
-               ${FOREST_KVSTORE_SOURCE}
-               ${CONFIG_SOURCE})
-TARGET_LINK_LIBRARIES(ep-engine_mutation_log_test
-                      couchstore cJSON dirutils forestdb JSON_checker platform ${SNAPPY_LIBRARIES})
 
 ADD_LIBRARY(ep_testsuite SHARED
    tests/ep_testsuite.cc
