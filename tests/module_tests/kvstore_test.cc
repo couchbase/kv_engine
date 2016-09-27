@@ -1210,7 +1210,7 @@ class MockedGetCallback : public Callback<T> {
                 cas(value.getValue()->getCas());
                 expTime(value.getValue()->getExptime());
                 flags(value.getValue()->getFlags());
-                datatype(protocol_binary_datatypes(value.getValue()->getDataType()));
+                datatype(protocol_binary_datatype_t(value.getValue()->getDataType()));
                 conflictResMode(value.getValue()->getConflictResMode());
                 this->value(std::string(value.getValue()->getData(),
                                         value.getValue()->getNBytes()));
@@ -1231,7 +1231,7 @@ class MockedGetCallback : public Callback<T> {
         MOCK_METHOD1_T(cas, void(uint64_t));
         MOCK_METHOD1_T(expTime, void(uint32_t));
         MOCK_METHOD1_T(flags, void(uint32_t));
-        MOCK_METHOD1_T(datatype, void(protocol_binary_datatypes));
+        MOCK_METHOD1_T(datatype, void(protocol_binary_datatype_t));
         MOCK_METHOD1_T(conflictResMode, void(conflict_resolution_mode));
         MOCK_METHOD1_T(value, void(std::string));
     private:
@@ -1406,7 +1406,7 @@ TEST_F(CouchstoreTest, fuzzV1) {
     EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
-    EXPECT_CALL(gc, datatype(protocol_binary_datatypes(expectedDataType)));
+    EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(expectedDataType)));
     EXPECT_CALL(gc, conflictResMode(revision_seqno));
     kvstore->get("key", 0, gc);
 }
@@ -1433,7 +1433,7 @@ TEST_F(CouchstoreTest, fuzzV2) {
     EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
-    EXPECT_CALL(gc, datatype(protocol_binary_datatypes(meta.ext2)));
+    EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
     EXPECT_CALL(gc, conflictResMode(conflict_resolution_mode(3)));
     kvstore->get("key", 0, gc);
 }
@@ -1473,7 +1473,7 @@ TEST_F(CouchstoreTest, testV1WriteReadWriteRead) {
     EXPECT_CALL(gc, cas(htonll(0xf00fcafe11225566ull)));
     EXPECT_CALL(gc, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc, flags(0x01020304));
-    EXPECT_CALL(gc, datatype(protocol_binary_datatypes(meta.ext2)));
+    EXPECT_CALL(gc, datatype(protocol_binary_datatype_t(meta.ext2)));
     EXPECT_CALL(gc, conflictResMode(IsValidConflictMode()));
     kvstore->get("key", 0, gc);
 
@@ -1488,7 +1488,7 @@ TEST_F(CouchstoreTest, testV1WriteReadWriteRead) {
     EXPECT_CALL(gc2, cas(htonll(0xf00fcafe11225566ull)));
     EXPECT_CALL(gc2, expTime(htonl(0xaa00bb11)));
     EXPECT_CALL(gc2, flags(0x01020304));
-    EXPECT_CALL(gc2, datatype(protocol_binary_datatypes(meta.ext2)));
+    EXPECT_CALL(gc2, datatype(protocol_binary_datatype_t(meta.ext2)));
     EXPECT_CALL(gc2, conflictResMode(IsValidConflictMode()));
     kvstore->get("key", 0, gc2);
 }

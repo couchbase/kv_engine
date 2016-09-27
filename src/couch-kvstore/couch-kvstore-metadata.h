@@ -133,12 +133,12 @@ static_assert(sizeof(MetaDataV0) == 16,
             return flexCode;
         }
 
-        void setDataType(protocol_binary_datatypes dataType) {
+        void setDataType(protocol_binary_datatype_t dataType) {
             this->dataType = static_cast<uint8_t>(dataType);
         }
 
-        protocol_binary_datatypes getDataType() const {
-            return static_cast<protocol_binary_datatypes>(dataType);
+        protocol_binary_datatype_t getDataType() const {
+            return static_cast<protocol_binary_datatype_t>(dataType);
         }
 
         void copyToBuf(char* raw) const {
@@ -300,12 +300,12 @@ public:
     /*
      * Note that setting the data type will also set the flex code.
      */
-    void setDataType(protocol_binary_datatypes dataType) {
+    void setDataType(protocol_binary_datatype_t dataType) {
         setFlexCode();
         allMeta.v1.setDataType(dataType);
     }
 
-    protocol_binary_datatypes getDataType() const {
+    protocol_binary_datatype_t getDataType() const {
         return allMeta.v1.getDataType();
     }
 

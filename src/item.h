@@ -135,8 +135,8 @@ public:
     /**
      * Return datatype stored in Value Blob.
      */
-    const protocol_binary_datatypes getDataType() const {
-        return extMetaLen > 0 ? protocol_binary_datatypes(*(data + FLEX_DATA_OFFSET)) :
+    const protocol_binary_datatype_t getDataType() const {
+        return extMetaLen > 0 ? protocol_binary_datatype_t(*(data + FLEX_DATA_OFFSET)) :
             PROTOCOL_BINARY_RAW_BYTES;
     }
 
@@ -421,9 +421,8 @@ public:
 
     /* Snappy compress value and update datatype */
     bool compressValue(float minCompressionRatio = 1.0) {
-        uint8_t datatype = getDataType();
-        if (datatype == PROTOCOL_BINARY_RAW_BYTES ||
-            datatype == PROTOCOL_BINARY_DATATYPE_JSON) {
+        auto datatype = getDataType();
+        if (!mcbp::datatype::is_compressed(datatype)) {
             // Attempt compression only if datatype indicates
             // that the value is not compressed already.
             snap_buf output;
@@ -436,11 +435,10 @@ public:
                     return true;
                 }
                 setData(output.buf.get(), output.len,
-                        (uint8_t *)(getExtMeta()),
-                        getExtMetaLen());
-                setDataType((datatype == PROTOCOL_BINARY_RAW_BYTES)
-                            ? PROTOCOL_BINARY_DATATYPE_COMPRESSED
-                            : PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON);
+                        (uint8_t *)(getExtMeta()), getExtMetaLen());
+
+                datatype |= PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+                setDataType(datatype);
             } else {
                 return false;
             }
@@ -451,8 +449,7 @@ public:
     /* Snappy uncompress value and update datatype */
     bool decompressValue() {
         uint8_t datatype = getDataType();
-        if (datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED ||
-            datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+        if (mcbp::datatype::is_compressed(datatype)) {
             // Attempt decompression only if datatype indicates
             // that the value is compressed.
             snap_buf output;
@@ -460,11 +457,9 @@ public:
                                                 output);
             if (ret == SNAP_SUCCESS) {
                 setData(output.buf.get(), output.len,
-                        (uint8_t *)(getExtMeta()),
-                        getExtMetaLen());
-                setDataType((datatype == PROTOCOL_BINARY_DATATYPE_COMPRESSED)
-                            ? PROTOCOL_BINARY_RAW_BYTES
-                            : PROTOCOL_BINARY_DATATYPE_JSON);
+                        (uint8_t *)(getExtMeta()), getExtMetaLen());
+                datatype &= ~PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+                setDataType(datatype);
             } else {
                 return false;
             }
@@ -520,12 +515,11 @@ public:
         return metaData.cas;
     }
 
-    protocol_binary_datatypes getDataType() const {
-        return value.get() ? value->getDataType() :
-            PROTOCOL_BINARY_RAW_BYTES;
+    protocol_binary_datatype_t getDataType() const {
+        return value.get() ? value->getDataType() : PROTOCOL_BINARY_RAW_BYTES;
     }
 
-    void setDataType(uint8_t datatype) {
+    void setDataType(protocol_binary_datatype_t datatype) {
         value->setDataType(datatype);
     }
 

@@ -159,11 +159,12 @@ extern "C" {
                                              const rel_time_t exptime,
                                              uint8_t datatype)
     {
-        if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+        if (!mcbp::datatype::is_valid(datatype)) {
             LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
-                    " (ItemAllocate)");
+                " (ItemAllocate)");
             return ENGINE_EINVAL;
         }
+
         ENGINE_ERROR_CODE err_code = getHandle(handle)->itemAllocate(cookie,
                                                                      itm, key,
                                                                      nkey,
@@ -261,16 +262,18 @@ extern "C" {
                                            uint64_t *result,
                                            uint16_t vbucket)
     {
-        if (datatype > PROTOCOL_BINARY_DATATYPE_JSON) {
-            if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
-                LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
-                        " (Arithmetic)");
-            } else {
-                LOG(EXTENSION_LOG_WARNING, "Cannnot perform arithmetic "
-                    "operations on compressed data!");
-            }
+        if (!mcbp::datatype::is_valid(datatype)) {
+            LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
+                " (Arithmetic)");
             return ENGINE_EINVAL;
         }
+
+        if (!mcbp::datatype::is_raw(datatype)) {
+            LOG(EXTENSION_LOG_WARNING, "Arithmetic operations can only be"
+                "performed on raw data!");
+            return ENGINE_EINVAL;
+        }
+
         ENGINE_ERROR_CODE ecode = getHandle(handle)->arithmetic(cookie, key,
                                                                 nkey,
                                                                 increment,
@@ -1423,11 +1426,12 @@ extern "C" {
                                           size_t ndata,
                                           uint16_t vbucket)
     {
-        if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+        if (!mcbp::datatype::is_valid(datatype)) {
             LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
                     " (TapNotify)");
             return ENGINE_EINVAL;
         }
+
         ENGINE_ERROR_CODE err_code = getHandle(handle)->tapNotify(cookie,
                                                         engine_specific,
                                                         nengine, ttl,
@@ -1629,7 +1633,7 @@ extern "C" {
                                             uint16_t nmeta,
                                             uint8_t nru)
     {
-        if (datatype > PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON) {
+        if (!mcbp::datatype::is_valid(datatype)) {
             LOG(EXTENSION_LOG_WARNING, "Invalid value for datatype "
                     " (DCPMutation)");
             return ENGINE_EINVAL;
@@ -2284,7 +2288,6 @@ ENGINE_ERROR_CODE EventuallyPersistentEngine::store(const void *cookie,
             *cas = it->getCas();
         }
         break;
-
     default:
         ret = ENGINE_ENOTSUP;
     }

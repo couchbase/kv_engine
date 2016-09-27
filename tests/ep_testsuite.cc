@@ -2565,7 +2565,7 @@ static enum test_result test_datatype(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1) {
 
     item *itm = NULL;
     const std::string key("{\"foo\":\"bar\"}");
-    const protocol_binary_datatypes datatype = PROTOCOL_BINARY_DATATYPE_JSON;
+    const protocol_binary_datatype_t datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     uint64_t cas = 0;
     std::string value("x");
     checkeq(ENGINE_SUCCESS,

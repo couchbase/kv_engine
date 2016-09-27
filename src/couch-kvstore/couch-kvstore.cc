@@ -79,7 +79,7 @@ static std::string getStrError(Db *db) {
     return errorStr;
 }
 
-static protocol_binary_datatypes determine_datatype(sized_buf doc) {
+static protocol_binary_datatype_t determine_datatype(sized_buf doc) {
     if (checkUTF8JSON(reinterpret_cast<uint8_t*>(doc.buf), doc.size)) {
         return PROTOCOL_BINARY_DATATYPE_JSON;
     } else {
@@ -665,7 +665,7 @@ static int edit_docinfo_hook(DocInfo **info, const sized_buf *item) {
             data = (const unsigned char*)item->buf;
             ret = checkUTF8JSON(data, item->size);
         }
-        protocol_binary_datatypes datatype = PROTOCOL_BINARY_RAW_BYTES;
+        protocol_binary_datatype_t datatype = PROTOCOL_BINARY_RAW_BYTES;
         if (ret) {
             datatype = PROTOCOL_BINARY_DATATYPE_JSON;
         }
@@ -1644,11 +1644,8 @@ int CouchKVStore::recordDbDump(Db *db, DocInfo *docinfo, void *ctx) {
                      * If a compressed document was retrieved as is,
                      * update the datatype of the document.
                      */
-                    if (metadata->getDataType() == PROTOCOL_BINARY_DATATYPE_JSON) {
-                        metadata->setDataType(PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON);
-                    } else if (metadata->getDataType() == PROTOCOL_BINARY_RAW_BYTES) {
-                        metadata->setDataType(PROTOCOL_BINARY_DATATYPE_COMPRESSED);
-                    }
+                     auto datatype = metadata->getDataType();
+                     metadata->setDataType(datatype | PROTOCOL_BINARY_DATATYPE_COMPRESSED);
                 } else {
                     metadata->setDataType(determine_datatype(doc->data));
                 }

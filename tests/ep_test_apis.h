@@ -218,7 +218,7 @@ ENGINE_ERROR_CODE store(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
 ENGINE_ERROR_CODE storeCasOut(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                               const void *cookie, const uint16_t vb,
                               const std::string& key, const std::string& value,
-                              const protocol_binary_datatypes datatype,
+                              const protocol_binary_datatype_t datatype,
                               item*& out_item, uint64_t& out_cas);
 
 ENGINE_ERROR_CODE storeCasVb11(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
