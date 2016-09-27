@@ -558,7 +558,7 @@ static void process_bin_get(McbpConnection* c) {
     uint32_t bodylen;
     int ii;
     ENGINE_ERROR_CODE ret;
-    uint8_t datatype;
+    protocol_binary_datatype_t datatype;
     bool need_inflate = false;
 
     if (settings.getVerbose() > 1) {
@@ -581,7 +581,8 @@ static void process_bin_get(McbpConnection* c) {
     info.info.nvalue = IOV_MAX;
 
     switch (ret) {
-    case ENGINE_SUCCESS: STATS_HIT(c, get, key, nkey);
+    case ENGINE_SUCCESS:
+        STATS_HIT(c, get, key, nkey);
 
         if (!bucket_get_item_info(c, it, &info.info)) {
             bucket_release_item(c, it);
@@ -592,8 +593,7 @@ static void process_bin_get(McbpConnection* c) {
 
         datatype = info.info.datatype;
         if (!c->isSupportsDatatype()) {
-            if ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) ==
-                PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+            if (mcbp::datatype::is_compressed(datatype)) {
                 need_inflate = true;
             } else {
                 datatype = PROTOCOL_BINARY_RAW_BYTES;
@@ -651,8 +651,8 @@ static void process_bin_get(McbpConnection* c) {
         }
         update_topkeys(key, nkey, c);
         break;
-    case ENGINE_KEY_ENOENT: STATS_MISS(c, get, key, nkey);
-
+    case ENGINE_KEY_ENOENT:
+        STATS_MISS(c, get, key, nkey);
         MEMCACHED_COMMAND_GET(c->getId(), key, nkey, -1, 0);
 
         if (c->isNoReply()) {
@@ -851,20 +851,7 @@ void ship_mcbp_tap_log(McbpConnection* c) {
             if (c->isSupportsDatatype()) {
                 msg.mutation.message.header.request.datatype = info.info.datatype;
             } else {
-                switch (info.info.datatype) {
-                case 0:
-                    break;
-                case PROTOCOL_BINARY_DATATYPE_JSON:
-                    break;
-                case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
-                case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
-                    inflate = true;
-                    break;
-                default:
-                    LOG_WARNING(c,
-                                "%u: shipping data with an invalid datatype "
-                                    "(stripping info)", c->getId());
-                }
+                inflate = mcbp::datatype::is_compressed(info.info.datatype);
                 msg.mutation.message.header.request.datatype = 0;
             }
 
@@ -2981,8 +2968,8 @@ public:
           newitem(nullptr),
           state(State::GetItem) {
 
-        if (req->message.header.request.datatype &
-            PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+        auto datatype = req->message.header.request.datatype;
+        if (mcbp::datatype::is_compressed(datatype)) {
             state = State::InflateInputData;
         }
     }
@@ -3055,8 +3042,7 @@ private:
                 return ENGINE_KEY_EEXISTS;
             }
 
-            if (oldItemInfo.info.datatype &
-                PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+            if (mcbp::datatype::is_compressed(oldItemInfo.info.datatype)) {
                 try {
                     if (!cb::compression::inflate(cb::compression::Algorithm::Snappy,
                                                   (const char*)oldItemInfo.info.value[0].iov_base,
@@ -4762,21 +4748,29 @@ bool conn_setup_tap_stream(McbpConnection* c) {
     return true;
 }
 
-static int invalid_datatype(McbpConnection* c) {
-    switch (c->binary_header.request.datatype) {
-    case PROTOCOL_BINARY_RAW_BYTES:
-        return 0;
-
-    case PROTOCOL_BINARY_DATATYPE_JSON:
-    case PROTOCOL_BINARY_DATATYPE_COMPRESSED:
-    case PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON:
-        if (c->isSupportsDatatype()) {
-            return 0;
+/**
+ * Check if the current packet use an invalid datatype value. It may be
+ * considered invalid for two reasons:
+ *
+ *    1) it is using an unknown value
+ *    2) The connected client has not enabled the support for datatype
+ *
+ * @param c - the connected client
+ * @return true if the packet is considered invalid in this context,
+ *         false otherwise
+ */
+static bool invalid_datatype(McbpConnection* c) {
+    if (mcbp::datatype::is_raw(c->binary_header.request.datatype) ||
+        c->isSupportsDatatype()) {
+        // Additional bits may have been set
+        if (!mcbp::datatype::is_valid(c->binary_header.request.datatype)) {
+            return true;
         }
-        /* FALLTHROUGH */
-    default:
-        return 1;
+
+        return false;
     }
+
+    return true;
 }
 
 static protocol_binary_response_status validate_bin_header(McbpConnection* c) {

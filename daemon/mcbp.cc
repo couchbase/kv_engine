@@ -302,8 +302,7 @@ bool mcbp_response_handler(const void* key, uint16_t keylen,
     size_t inflated_length;
 
     if (!c->isSupportsDatatype()) {
-        if ((datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) ==
-            PROTOCOL_BINARY_DATATYPE_COMPRESSED) {
+        if (mcbp::datatype::is_compressed(datatype)) {
             need_inflate = true;
         }
         /* We may silently drop the knowledge about a JSON item */

@@ -469,14 +469,47 @@ extern "C"
      * Definition of the data types in the packet
      * See section 3.4 Data Types
      */
-    typedef enum {
-        PROTOCOL_BINARY_RAW_BYTES = 0x00,
-        PROTOCOL_BINARY_DATATYPE_JSON = 0x01,
-        /* Compressed == snappy compression */
-        PROTOCOL_BINARY_DATATYPE_COMPRESSED = 0x02,
-        /* Compressed == snappy compression */
-        PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON = 0x03
-    } protocol_binary_datatypes;
+
+    typedef uint8_t protocol_binary_datatype_t;
+#ifdef __cplusplus
+    #define PROTOCOL_BINARY_RAW_BYTES uint8_t(0)
+    #define PROTOCOL_BINARY_DATATYPE_JSON uint8_t(1)
+    #define PROTOCOL_BINARY_DATATYPE_COMPRESSED uint8_t(2)
+    #define PROTOCOL_BINARY_DATATYPE_XATTR uint8_t(4)
+
+    namespace mcbp {
+        namespace datatype {
+            inline bool is_raw(const protocol_binary_datatype_t datatype) {
+                return datatype == PROTOCOL_BINARY_RAW_BYTES;
+            }
+
+            inline bool is_json(const protocol_binary_datatype_t datatype) {
+                return (datatype & PROTOCOL_BINARY_DATATYPE_JSON) ==
+                       PROTOCOL_BINARY_DATATYPE_JSON;
+            }
+
+            inline bool is_compressed(const protocol_binary_datatype_t datatype) {
+                return (datatype & PROTOCOL_BINARY_DATATYPE_COMPRESSED) ==
+                       PROTOCOL_BINARY_DATATYPE_COMPRESSED;
+            }
+
+            inline bool is_xattr(const protocol_binary_datatype_t datatype) {
+                return (datatype & PROTOCOL_BINARY_DATATYPE_XATTR) ==
+                       PROTOCOL_BINARY_DATATYPE_XATTR;
+            }
+            inline bool is_valid(const protocol_binary_datatype_t datatype) {
+                static uint8_t highest = PROTOCOL_BINARY_DATATYPE_XATTR |
+                                         PROTOCOL_BINARY_DATATYPE_COMPRESSED |
+                                         PROTOCOL_BINARY_DATATYPE_JSON;
+                return datatype <= highest;
+            }
+        }
+    };
+
+#else
+    // The old style versions will go away as we move over to C++ everywhere
+    #define PROTOCOL_BINARY_RAW_BYTES ((uint8_t)0)
+#endif
 
     /**
      * Definitions for extended (flexible) metadata

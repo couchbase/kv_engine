@@ -135,7 +135,8 @@ TEST_F(SubdocMultiLookupTest, InvalidDatatype) {
         (payload.data());
     header->request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
-    header->request.datatype = PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON;
+    header->request.datatype =
+        (PROTOCOL_BINARY_DATATYPE_COMPRESSED | PROTOCOL_BINARY_DATATYPE_JSON);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
     header->request.datatype = PROTOCOL_BINARY_DATATYPE_COMPRESSED;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
@@ -278,7 +279,8 @@ TEST_F(SubdocMultiMutationTest, InvalidDatatype) {
         (payload.data());
     header->request.datatype = PROTOCOL_BINARY_DATATYPE_JSON;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
-    header->request.datatype = PROTOCOL_BINARY_DATATYPE_COMPRESSED_JSON;
+    header->request.datatype =
+        (PROTOCOL_BINARY_DATATYPE_COMPRESSED | PROTOCOL_BINARY_DATATYPE_JSON);
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));
     header->request.datatype = PROTOCOL_BINARY_DATATYPE_COMPRESSED;
     EXPECT_EQ(PROTOCOL_BINARY_RESPONSE_EINVAL, validate(payload));

@@ -350,6 +350,7 @@ Possible values of the one-byte field which is a bit-filed.
 | -----|-------------|
 | 0x01 | JSON |
 | 0x02 | Snappy compressed |
+| 0x04 | Extended attributes (XATTR) |
 
 If no bits is set the datatype is considered to be RAW. In order to utilize
 the datatype bits the client needs to notify the server that it supports
