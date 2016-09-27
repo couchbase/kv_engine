@@ -4001,8 +4001,8 @@ static enum test_result test_dcp_consumer_end_stream(ENGINE_HANDLE *h,
             h1->dcp.stream_end(h, cookie, stream_opaque, vbucket, end_flag),
             "Expected success");
 
-    wait_for_str_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_state", "dead",
-                            "dcp");
+    wait_for_stat_to_be(h, h1, "eq_dcpq:unittest:stream_0_state",
+                        std::string{"dead"}, "dcp");
 
     testHarness.destroy_cookie(cookie);
     return SUCCESS;

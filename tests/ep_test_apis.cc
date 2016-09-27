@@ -1147,28 +1147,20 @@ public:
  * If the given statname doesn't exist under the given statname, throws a
  * std::out_of_range exception.
  */
-int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                 const char *statkey) {
+template<>
+int get_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+             const char *statname, const char *statkey) {
     return std::stoi(get_str_stat(h, h1, statname, statkey));
 }
-
-float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                     const char *statkey) {
-    return std::stof(get_str_stat(h, h1, statname, statkey));
-}
-
-uint32_t get_ul_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                      const char *statkey) {
-    return std::stoul(get_str_stat(h, h1, statname, statkey));
-}
-
-uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
-                      const char *statkey) {
+template<>
+uint64_t get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+                  const char* statname, const char* statkey) {
     return std::stoull(get_str_stat(h, h1, statname, statkey));
 }
 
-std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                         const char *statname, const char *statkey) {
+template<>
+std::string get_stat(ENGINE_HANDLE* h, ENGINE_HANDLE_V1* h1,
+                     const char* statname, const char* statkey) {
     std::lock_guard<std::mutex> lh(vals_mutex);
 
     requested_stat_name = statname;
@@ -1191,6 +1183,32 @@ std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     // around std::string copy-on-write data-race issues seen on some
     // versions of libstdc++ - see MB-18510 / MB-19688.
     return std::string(actual_stat_value.begin(), actual_stat_value.end());
+}
+
+/// Backward-compatible functions (encode type name in function name).
+int get_int_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
+             const char *statkey) {
+    return get_stat<int>(h, h1, statname, statkey);
+}
+
+float get_float_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
+                     const char *statkey) {
+    return std::stof(get_str_stat(h, h1, statname, statkey));
+}
+
+uint32_t get_ul_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
+                      const char *statkey) {
+    return std::stoul(get_str_stat(h, h1, statname, statkey));
+}
+
+uint64_t get_ull_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
+                      const char *statkey) {
+    return get_stat<uint64_t>(h, h1, statname, statkey);
+}
+
+std::string get_str_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
+                         const char *statname, const char *statkey) {
+    return get_stat<std::string>(h, h1, statname, statkey);
 }
 
 bool get_bool_stat(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, const char *statname,
@@ -1290,74 +1308,6 @@ void verify_curr_items(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1, int exp,
     }
 }
 
-/** Helper class used when waiting on statistics to reach a certain value -
- * aggregates how long we have been waiting and aborts if the maximum wait time
- * is exceeded.
- */
-template <typename T>
-class WaitTimeAccumulator
-{
-public:
-    WaitTimeAccumulator(const char* compare_name,
-                        const char* stat_, const char* stat_key,
-                        const T final_, const time_t wait_time_in_secs)
-    : compareName(compare_name),
-      stat(stat_),
-      statKey(stat_key),
-      final(final_),
-      maxWaitTime(wait_time_in_secs * 1000 * 1000),
-      totalSleepTime(0) {}
-
-    void incrementAndAbortIfLimitReached(const useconds_t sleep_time)
-    {
-        totalSleepTime += sleep_time;
-        if (totalSleepTime >= maxWaitTime) {
-            std::cerr << "Exceeded maximum wait time of " << maxWaitTime
-                      << "us waiting for stat '" << stat;
-            if (statKey != NULL) {
-                std::cerr << "(" << statKey << ")";
-            }
-            std::cerr << "' " << compareName << " " << final << " - aborting."
-                      << std::endl;
-            abort();
-        }
-    }
-
-private:
-    const char* compareName;
-    const char* stat;
-    const char* statKey;
-    const T final;
-    const useconds_t maxWaitTime;
-    useconds_t totalSleepTime;
-};
-
-
-void wait_for_stat_change(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                          const char *stat, int initial,
-                          const char *statkey,
-                          const time_t max_wait_time_in_secs) {
-    useconds_t sleepTime = 128;
-    WaitTimeAccumulator<int> accumulator("to change from", stat, statkey,
-                                         initial, max_wait_time_in_secs);
-    while (get_int_stat(h, h1, stat, statkey) == initial) {
-        accumulator.incrementAndAbortIfLimitReached(sleepTime);
-        decayingSleep(&sleepTime);
-    }
-}
-
-void wait_for_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                         const char *stat, int final, const char* stat_key,
-                         const time_t max_wait_time_in_secs) {
-    useconds_t sleepTime = 128;
-    WaitTimeAccumulator<int> accumulator("to be", stat, stat_key, final,
-                                         max_wait_time_in_secs);
-    while (get_int_stat(h, h1, stat, stat_key) != final) {
-        accumulator.incrementAndAbortIfLimitReached(sleepTime);
-        decayingSleep(&sleepTime);
-    }
-}
-
 void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
                              const char *stat, int final,
                              const char* stat_key,
@@ -1366,8 +1316,12 @@ void wait_for_stat_to_be_gte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     WaitTimeAccumulator<int> accumulator("to be greater or equal than", stat,
                                          stat_key, final,
                                          max_wait_time_in_secs);
-    while (get_int_stat(h, h1, stat, stat_key) < final) {
-        accumulator.incrementAndAbortIfLimitReached(sleepTime);
+    for (;;) {
+        auto current = get_int_stat(h, h1, stat, stat_key);
+        if (current >= final) {
+            break;
+        }
+        accumulator.incrementAndAbortIfLimitReached(current, sleepTime);
         decayingSleep(&sleepTime);
     }
 }
@@ -1380,8 +1334,12 @@ void wait_for_stat_to_be_lte(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     WaitTimeAccumulator<int> accumulator("to be less than or equal to", stat,
                                          stat_key, final,
                                          max_wait_time_in_secs);
-    while (get_int_stat(h, h1, stat, stat_key) > final) {
-        accumulator.incrementAndAbortIfLimitReached(sleepTime);
+    for (;;) {
+        auto current = get_int_stat(h, h1, stat, stat_key);
+        if (current <= final) {
+            break;
+        }
+        accumulator.incrementAndAbortIfLimitReached(current, sleepTime);
         decayingSleep(&sleepTime);
     }
 }
@@ -1393,24 +1351,14 @@ void wait_for_expired_items_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     WaitTimeAccumulator<int> accumulator("to be", "expired items",
                                          NULL, final,
                                          max_wait_time_in_secs);
-    while(get_int_stat(h, h1, "ep_expired_access") +
-          get_int_stat(h, h1, "ep_expired_compactor") +
-          get_int_stat(h, h1, "ep_expired_pager") != final) {
-        accumulator.incrementAndAbortIfLimitReached(sleepTime);
-        decayingSleep(&sleepTime);
-    }
-}
-
-void wait_for_str_stat_to_be(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
-                             const char *stat, const char* final,
-                             const char* stat_key,
-                             const time_t max_wait_time_in_secs) {
-    useconds_t sleepTime = 128;
-    WaitTimeAccumulator<const char*> accumulator("to be", stat, stat_key,
-                                                 final,
-                                                 max_wait_time_in_secs);
-    while (get_str_stat(h, h1, stat, stat_key).compare(final) != 0) {
-        accumulator.incrementAndAbortIfLimitReached(sleepTime);
+    for (;;) {
+        auto current = get_int_stat(h, h1, "ep_expired_access") +
+                       get_int_stat(h, h1, "ep_expired_compactor") +
+                       get_int_stat(h, h1, "ep_expired_pager");
+        if (current == final) {
+            break;
+        }
+        accumulator.incrementAndAbortIfLimitReached(current, sleepTime);
         decayingSleep(&sleepTime);
     }
 }
@@ -1422,8 +1370,12 @@ void wait_for_memory_usage_below(ENGINE_HANDLE *h, ENGINE_HANDLE_V1 *h1,
     WaitTimeAccumulator<int> accumulator("to be below", "mem_used", NULL,
                                          mem_threshold,
                                          max_wait_time_in_secs);
-    while (get_int_stat(h, h1, "mem_used") > mem_threshold) {
-        accumulator.incrementAndAbortIfLimitReached(sleepTime);
+    for (;;) {
+        auto current = get_int_stat(h, h1, "mem_used");
+        if (current <= mem_threshold) {
+            break;
+        }
+        accumulator.incrementAndAbortIfLimitReached(current, sleepTime);
         decayingSleep(&sleepTime);
     }
 }

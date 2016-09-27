@@ -47,6 +47,7 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 #include <platform/cb_malloc.h>
+#include <platform/dirutils.h>
 #include <JSON_checker.h>
 
 #ifdef linux
@@ -1485,7 +1486,7 @@ test_multi_vb_compactions_with_workload(ENGINE_HANDLE *h,
             ++count;
         }
     }
-    wait_for_str_stat_to_be(h, h1, "ep_workload_pattern", "read_heavy", NULL);
+    wait_for_stat_to_be(h, h1, "ep_workload_pattern", std::string{"read_heavy"});
 
     // Compact multiple vbuckets.
     const int n_threads = 4;
@@ -2729,10 +2730,15 @@ static enum test_result test_access_scanner_settings(ENGINE_HANDLE *h,
 
     std::string err_msg;
     // Check access scanner is enabled and alog_task_time is at default
-    cb_assert(get_bool_stat(h, h1, "ep_access_scanner_enabled"));
+    checkeq(true, get_bool_stat(h, h1, "ep_access_scanner_enabled"),
+            "Expected access scanner to be enabled");
     cb_assert(get_int_stat(h, h1, "ep_alog_task_time") == 2);
 
-    // Ensure access_scanner_task_time is what its expected to be
+    // Ensure access_scanner_task_time is what its expected to be.
+    // Need to wait until the AccessScanner task has been setup.
+    wait_for_stat_change(h, h1, "ep_access_scanner_task_time",
+                         std::string{"NOT_SCHEDULED"});
+
     std::string str = get_str_stat(h, h1, "ep_access_scanner_task_time");
     std::string expected_time = "02:00";
     err_msg.assign("Initial time incorrect, expect: " +
@@ -6551,6 +6557,10 @@ static enum test_result test_mb20697(ENGINE_HANDLE *h,
 
     /* Ensure that this results in commit failure and the stat gets incremented */
     wait_for_stat_change(h, h1, "ep_item_commit_failed", 0);
+
+    // Restore the database directory so the flusher can complete (otherwise
+    // the writer thread can loop forever and we cannot shutdown cleanly.
+    CouchbaseDirectoryUtilities::mkdirp(dbname);
 
     return SUCCESS;
 }
