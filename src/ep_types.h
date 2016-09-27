@@ -38,3 +38,22 @@ static inline std::string to_string(const GenerateBySeqno generateBySeqno) {
             return "";
     }
 }
+
+enum class GenerateCas {
+    No, Yes
+};
+
+typedef std::underlying_type<GenerateCas>::type GenerateByCasUType;
+
+static inline std::string to_string(GenerateCas generateCas) {
+    switch (generateCas) {
+        case GenerateCas::Yes:
+            return "Yes";
+        case GenerateCas::No:
+            return "No";
+        default:
+            throw std::invalid_argument("to_string(GenerateCas) unknown " +
+                    std::to_string(static_cast<GenerateByCasUType>(generateCas)));
+            return "";
+    }
+}

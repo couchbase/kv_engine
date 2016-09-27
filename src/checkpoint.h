@@ -549,7 +549,8 @@ public:
      */
     bool queueDirty(const RCPtr<VBucket> &vb,
                     queued_item& qi,
-                    const GenerateBySeqno generateBySeqno);
+                    const GenerateBySeqno generateBySeqno,
+                    const GenerateCas generateCas);
 
     /**
      * Return the next item to be sent to a given connection

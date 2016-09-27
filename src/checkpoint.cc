@@ -966,7 +966,8 @@ std::vector<std::string> CheckpointManager::getListOfCursorsToDrop() {
 
 bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
                                    queued_item& qi,
-                                   const GenerateBySeqno generateBySeqno) {
+                                   const GenerateBySeqno generateBySeqno,
+                                   const GenerateCas generateCas) {
     LockHolder lh(queueLock);
     if (!vb) {
         throw std::invalid_argument("CheckpointManager::queueDirty: vb must "
@@ -1011,6 +1012,13 @@ bool CheckpointManager::queueDirty(const RCPtr<VBucket> &vb,
     } else {
         lastBySeqno = qi->getBySeqno();
     }
+
+    // MB-20798: Allow the HLC to be created 'atomically' with the seqno as
+    // we're holding the ::queueLock.
+    if (GenerateCas::Yes == generateCas) {
+        qi->setCas(vb->nextHLCCas());
+    }
+
     uint64_t st = checkpointList.back()->getSnapshotStartSeqno();
     uint64_t en = checkpointList.back()->getSnapshotEndSeqno();
     if (!(st <= static_cast<uint64_t>(lastBySeqno) &&
