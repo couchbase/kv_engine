@@ -21,6 +21,7 @@
 #include <list>
 #include <set>
 #include <string>
+#include <vector>
 
 #include "atomic.h"
 #include "bgfetcher.h"
@@ -218,6 +219,8 @@ VBucket::~VBucket() {
 
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
                          ENGINE_ERROR_CODE code) {
+    LockHolder lh(pendingOpLock);
+
     if (pendingOpsStart > 0) {
         hrtime_t now = gethrtime();
         if (now > pendingOpsStart) {
@@ -233,8 +236,15 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
     stats.pendingOps.fetch_sub(pendingOps.size());
     atomic_setIfBigger(stats.pendingOpsMax, pendingOps.size());
 
-    engine.notifyIOComplete(pendingOps, code);
-    pendingOps.clear();
+    while (!pendingOps.empty()) {
+        const void *pendingOperation = pendingOps.back();
+        pendingOps.pop_back();
+        // We don't want to hold the pendingOpLock when
+        // calling notifyIOComplete.
+        lh.unlock();
+        engine.notifyIOComplete(pendingOperation, code);
+        lh.lock();
+    }
 
     LOG(EXTENSION_LOG_INFO,
         "Fired pendings ops for vbucket %" PRIu16 " in state %s\n",
@@ -242,7 +252,6 @@ void VBucket::fireAllOps(EventuallyPersistentEngine &engine,
 }
 
 void VBucket::fireAllOps(EventuallyPersistentEngine &engine) {
-    LockHolder lh(pendingOpLock);
 
     if (state == vbucket_state_active) {
         fireAllOps(engine, ENGINE_SUCCESS);
