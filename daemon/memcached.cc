@@ -2036,8 +2036,10 @@ void DestroyBucketThread::destroy() {
     int numthread = settings.num_threads + 1;
     all_buckets[idx].stats = new thread_stats[numthread];
 
-    memset(&all_buckets[idx].engine_event_handlers, 0,
-           sizeof(all_buckets[idx].engine_event_handlers));
+    // Clear any registered event handlers
+    for (auto& handler : all_buckets[idx].engine_event_handlers) {
+        handler.clear();
+    }
 
     cb_mutex_enter(&all_buckets[idx].mutex);
     all_buckets[idx].state = BucketState::None;
