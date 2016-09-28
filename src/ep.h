@@ -373,7 +373,6 @@ public:
      * @param force override access to the vbucket even if the state of the
      *              vbucket would deny mutations.
      * @param itemMeta the pointer to the metadata memory.
-     * @param tapBackfill true if an item deletion is from TAP backfill stream
      *
      * (deleteWithMeta)
      * @param genBySeqno whether or not to generate sequence number
@@ -389,8 +388,7 @@ public:
                                  const void *cookie,
                                  bool force,
                                  ItemMetaData *itemMeta,
-                                 mutation_descr_t *mutInfo,
-                                 bool tapBackfill=false);
+                                 mutation_descr_t *mutInfo);
 
     ENGINE_ERROR_CODE deleteWithMeta(const std::string &key,
                                      uint64_t* cas,

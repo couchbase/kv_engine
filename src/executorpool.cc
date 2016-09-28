@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <platform/checked_snprintf.h>
+#include <platform/sysinfo.h>
 #include <queue>
 #include <sstream>
 
@@ -41,19 +42,6 @@ static const size_t EP_MAX_READER_THREADS = 12;
 static const size_t EP_MAX_WRITER_THREADS = 8;
 static const size_t EP_MAX_AUXIO_THREADS  = 8;
 static const size_t EP_MAX_NONIO_THREADS  = 8;
-
-size_t ExecutorPool::getNumCPU(void) {
-    size_t numCPU;
-#ifdef WIN32
-    SYSTEM_INFO sysinfo;
-    GetSystemInfo(&sysinfo);
-    numCPU = (size_t)sysinfo.dwNumberOfProcessors;
-#else
-    numCPU = (size_t)sysconf(_SC_NPROCESSORS_ONLN);
-#endif
-
-    return (numCPU < 256) ? numCPU : 0;
-}
 
 size_t ExecutorPool::getNumNonIO(void) {
     // 1. compute: 30% of total threads
@@ -167,7 +155,7 @@ ExecutorPool::ExecutorPool(size_t maxThreads, size_t nTaskSets,
                   numTaskSets(nTaskSets), totReadyTasks(0),
                   isHiPrioQset(false), isLowPrioQset(false), numBuckets(0),
                   numSleepers(0) {
-    size_t numCPU = getNumCPU();
+    size_t numCPU = Couchbase::get_available_cpu_count();
     size_t numThreads = (size_t)((numCPU * 3)/4);
     numThreads = (numThreads < EP_MIN_NUM_THREADS) ?
                         EP_MIN_NUM_THREADS : numThreads;
