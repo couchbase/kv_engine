@@ -34,10 +34,13 @@
 #include <memcached/engine.h>
 #include <memcached/engine_testapp.h>
 
-#include <random>
 #include <algorithm>
-#include <iterator>
+#include <atomic>
+#include <condition_variable>
 #include <fstream>
+#include <iterator>
+#include <mutex>
+#include <random>
 #include <thread>
 
 #include "ep_testsuite_common.h"
@@ -744,6 +747,52 @@ static void perf_load_client(ENGINE_HANDLE* h,
     wait_for_flusher_to_settle(h, h1);
 }
 
+/* Function which loads documents into a bucket until told to stop*/
+static void perf_background_sets(ENGINE_HANDLE* h,
+                                 ENGINE_HANDLE_V1* h1,
+                                 uint16_t vbid,
+                                 int count,
+                                 Doc_format typeOfData,
+                                 std::vector<hrtime_t> &insertTimes,
+                                 std::condition_variable &cond_var,
+                                 std::atomic<bool> &setup_benchmark,
+                                 std::atomic<bool> &running_benchmark) {
+
+    std::vector<std::string> keys;
+    const void* cookie = testHarness.create_cookie();
+
+    for (int ii = 0; ii < count; ++ii) {
+        keys.push_back("key" + std::to_string(ii));
+    }
+
+    const std::vector<std::string> vals =
+            genVectorOfValues(typeOfData, count, ITERATIONS);
+
+    int ii = 0;
+    // update atomic stating we are ready to run the benchmark
+    setup_benchmark = true;
+    // signal the thread performing the stats calls
+    cond_var.notify_one();
+
+    while (running_benchmark) {
+        if (ii == count) {
+            ii = 0;
+        }
+        item *it = nullptr;
+        const hrtime_t start = gethrtime();
+        checkeq(storeCasVb11(h, h1, cookie, OPERATION_SET, keys[ii].c_str(),
+                             vals[ii].data(), vals[ii].size(), /*flags*/9258,
+                             &it, 0, vbid),
+                ENGINE_SUCCESS, "Failed set.");
+        const hrtime_t end = gethrtime();
+        insertTimes.push_back(end - start);
+        h1->release(h, cookie, it);
+        ++ii;
+    }
+
+    testHarness.destroy_cookie(cookie);
+}
+
 /*
  * Function which implements a DCP client sinking mutations from an ep-engine
  * DCP Producer (i.e. simulating the replica side of a DCP pairing).
@@ -1103,6 +1152,89 @@ static enum test_result perf_latency_tap_impact(ENGINE_HANDLE *h,
     return result;
 }
 
+static void perf_stat_latency_core(ENGINE_HANDLE *h,
+                              ENGINE_HANDLE_V1 *h1,
+                              int key_prefix,
+                              int iterations,
+                              std::vector<hrtime_t> &get_timings) {
+
+    const void* cookie = testHarness.create_cookie();
+
+    for (int ii = 0; ii < iterations; ++ii) {
+        const hrtime_t start = gethrtime();
+        checkeq(ENGINE_SUCCESS,
+                h1->get_stats(h, cookie, nullptr, 0, add_stats),
+                "Failed to get stats");
+        const hrtime_t end = gethrtime();
+        get_timings.push_back(end - start);
+    }
+
+    testHarness.destroy_cookie(cookie);
+}
+
+static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
+                                     ENGINE_HANDLE_V1 *h1,
+                                     const char* title, size_t iterations,
+                                     bool background_sets) {
+    std::condition_variable cond_var;
+    std::mutex m;
+    std::atomic<bool> setup_benchmark {false};
+    std::atomic<bool> running_benchmark {true};
+    std::vector<std::pair<std::string, std::vector<hrtime_t>*> > all_timings;
+    std::vector<hrtime_t> get_stats_timings;
+    std::vector<hrtime_t> insert_timings;
+
+    get_stats_timings.reserve(iterations);
+    insert_timings.reserve(iterations);
+
+    // Only timing front-end performance, not considering persistence.
+    stop_persistence(h, h1);
+
+    if (background_sets) {
+        std::thread load_thread{perf_background_sets, h, h1, /*vbid*/0,
+            iterations, Doc_format::JSON_RANDOM, std::ref(insert_timings),
+            std::ref(cond_var), std::ref(setup_benchmark),
+            std::ref(running_benchmark)};
+
+        std::unique_lock<std::mutex> lock(m);
+        while (!setup_benchmark) {
+            cond_var.wait(lock);
+        }
+
+        // run and measure on this thread.
+        perf_stat_latency_core(h, h1, 0, iterations, get_stats_timings);
+
+        // Need to tell the thread performing sets to stop */
+        running_benchmark = false;
+        load_thread.join();
+
+        all_timings.push_back(std::make_pair("Sets (bg)", &insert_timings));
+
+    } else {
+        // run and measure on this thread.
+        perf_stat_latency_core(h, h1, 0, iterations, get_stats_timings);
+    }
+
+    all_timings.push_back(std::make_pair("AllStats", &get_stats_timings));
+    std::string description(std::string("Latency [") + title + "] - " +
+                                   std::to_string(iterations) + " items (µs)");
+    output_result(title, description, all_timings, "µs");
+    return SUCCESS;
+}
+
+/* Benchmark the baseline stats (without any tasks running) of ep-engine */
+static enum test_result perf_stat_latency_baseline(ENGINE_HANDLE *h,
+                                              ENGINE_HANDLE_V1 *h1) {
+    const int iterations = 10000;
+    return perf_stat_latency(h, h1, "Baseline Stats", iterations, false);
+}
+
+/* Benchmark the stats with sets running on background thread */
+static enum test_result perf_stat_latency(ENGINE_HANDLE *h,
+                                          ENGINE_HANDLE_V1 *h1) {
+    const int iterations = 10000;
+    return perf_stat_latency(h, h1, "With background sets", iterations, true);
+}
 
 /*****************************************************************************
  * List of testcases
@@ -1159,6 +1291,15 @@ BaseTestCase testsuite_testcases[] = {
 
         TestCase("TAP impact on front-end latency", perf_latency_tap_impact,
                  test_setup, teardown,
+                 "backend=couchdb;ht_size=393209",
+                 prepare, cleanup),
+
+        TestCase("Baseline Stat latency", perf_stat_latency_baseline,
+                 test_setup, teardown,
+                 "backend=couchdb;ht_size=393209",
+                 prepare, cleanup),
+        TestCase("Stat latency with set executed in separate thread",
+                 perf_stat_latency, test_setup, teardown,
                  "backend=couchdb;ht_size=393209",
                  prepare, cleanup),
 
