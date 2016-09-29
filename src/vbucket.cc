@@ -604,7 +604,14 @@ size_t VBucket::getNumOfKeysInFilter() {
 }
 
 uint64_t VBucket::nextHLCCas() {
-    hrtime_t now = gethrtime();
+    // Create a monotonic timestamp using part of the HLC algorithm by.
+    // a) Reading system time (now)
+    // b) dropping 16-bits (masking 65355 µs)
+    // c) comparing it with the last known time (max_cas)
+    // d) returning either now or max_cas + 1
+    auto now = std::chrono::duration_cast<std::chrono::microseconds>
+            (std::chrono::system_clock::now().time_since_epoch()).count();
+
     uint64_t now48bits = ((uint64_t)now) & ~((1 << 16) - 1);
     uint64_t local_max_cas = max_cas.load();
 
